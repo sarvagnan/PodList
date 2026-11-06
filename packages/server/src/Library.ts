@@ -69,27 +69,33 @@ export class Library extends Context.Service<
               author = ${feed.author},
               description = ${feed.description},
               artwork_url = ${feed.artworkUrl}
-            WHERE id = ${subscriptionId}`
+            WHERE id = ${subscriptionId} AND (
+              title IS NOT ${feed.title} OR author IS NOT ${feed.author} OR
+              description IS NOT ${feed.description} OR artwork_url IS NOT ${feed.artworkUrl})`
           let added = 0
           let changed = 0
           for (const e of feed.episodes) {
             const id = episodeId(subscriptionId, e.guid)
-            const existing = yield* sql<{ fingerprint: string }>`
-              SELECT title || char(0) || description || char(0) || published || char(0) ||
-                     coalesce(duration, '') || char(0) || audio_url || char(0) || coalesce(artwork_url, '')
-                AS fingerprint
-              FROM episode WHERE id = ${id}`
-            const fingerprint = [
-              e.title,
-              e.description,
-              e.published,
-              e.duration ?? "",
-              e.audioUrl,
-              e.artworkUrl ?? ""
-            ].join("\u0000")
-            if (existing.length === 0) added++
-            else if (existing[0]?.fingerprint !== fingerprint) changed++
-            else continue
+            const [existing] = yield* sql<{
+              title: string
+              description: string
+              published: number
+              duration: number | null
+              audio_url: string
+              artwork_url: string | null
+            }>`SELECT title, description, published, duration, audio_url, artwork_url
+                FROM episode WHERE id = ${id}`
+            const same =
+              existing !== undefined &&
+              existing.title === e.title &&
+              existing.description === e.description &&
+              existing.published === e.published &&
+              existing.duration === e.duration &&
+              existing.audio_url === e.audioUrl &&
+              existing.artwork_url === e.artworkUrl
+            if (same) continue
+            if (existing === undefined) added++
+            else changed++
             yield* sql`INSERT INTO episode ${sql.insert({
               id,
               subscription_id: subscriptionId,

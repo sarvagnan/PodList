@@ -4,6 +4,7 @@ import { dirname } from "node:path"
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node"
 import { Effect, Layer } from "effect"
 import { FetchHttpClient, HttpRouter } from "effect/http"
+import { Catalogue } from "./Catalogue.ts"
 import { ServerConfig } from "./Config.ts"
 import * as Database from "./Database.ts"
 import { ApiRoutes } from "./Http.ts"
@@ -17,7 +18,12 @@ const Main = Layer.unwrap(
     const config = yield* ServerConfig
     mkdirSync(dirname(config.databasePath), { recursive: true })
     yield* Effect.log(`PodList server on :${config.port}, database ${config.databasePath}`)
-    const Services = Layer.mergeAll(SyncStore.layer, Poller.layer, Subscriptions.layer).pipe(
+    const Services = Layer.mergeAll(
+      SyncStore.layer,
+      Poller.layer,
+      Subscriptions.layer,
+      Catalogue.layer
+    ).pipe(
       Layer.provideMerge(Library.layer),
       Layer.provide(FetchHttpClient.layer),
       Layer.provideMerge(Database.layer(config.databasePath))

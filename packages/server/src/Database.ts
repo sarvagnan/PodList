@@ -2,6 +2,7 @@ import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-node"
 import { Sql } from "@podlist/domain"
 import { Layer } from "effect"
 import { Migrator } from "effect/sql"
+import * as Catalogue from "./Catalogue.ts"
 import * as Library from "./Library.ts"
 import * as SyncStore from "./SyncStore.ts"
 
@@ -13,7 +14,11 @@ export const layer = (filename: string) =>
   Layer.mergeAll(
     SqliteMigrator.layer({ loader: Sql.migrationLoader }),
     SqliteMigrator.layer({
-      loader: Migrator.fromRecord({ ...SyncStore.migrations, ...Library.migrations }),
+      loader: Migrator.fromRecord({
+        ...SyncStore.migrations,
+        ...Library.migrations,
+        ...Catalogue.migrations
+      }),
       table: "server_migrations"
     })
   ).pipe(Layer.provideMerge(SqliteClient.layer({ filename })))

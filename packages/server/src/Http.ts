@@ -8,6 +8,7 @@ import {
 import { Protocol } from "@podlist/domain"
 import { Effect, Layer } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
+import { Catalogue } from "./Catalogue.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
@@ -42,7 +43,12 @@ export const LibraryHandlers = HttpApiBuilder.group(
   "library",
   Effect.fn(function* (handlers) {
     const poller = yield* Poller
+    const catalogue = yield* Catalogue
     return handlers.handleAll({
+      changes: ({ query }) =>
+        catalogue
+          .changes(query.since, query.limit === undefined ? undefined : Math.min(query.limit, 2000))
+          .pipe(Effect.map((c) => new LibraryApi.CatalogueChanges(c))),
       refreshAll: () =>
         poller
           .refreshAll({ respectBackoff: false })
