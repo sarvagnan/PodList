@@ -1,9 +1,10 @@
 import { mkdirSync } from "node:fs"
 import { createServer } from "node:http"
-import { dirname } from "node:path"
+import { dirname, join } from "node:path"
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node"
 import { Effect, Layer, Option } from "effect"
 import { FetchHttpClient, HttpRouter } from "effect/http"
+import { ArtworkRoute } from "./Artwork.ts"
 import * as Backup from "./Backup.ts"
 import { Catalogue } from "./Catalogue.ts"
 import { Chapters } from "./Chapters.ts"
@@ -35,11 +36,15 @@ const Main = Layer.unwrap(
       Layer.provide(FetchHttpClient.layer),
       Layer.provideMerge(Database.layer(config.databasePath))
     )
+    const artworkDir = Option.getOrElse(config.artworkDir, () =>
+      join(dirname(config.databasePath), "artwork")
+    )
+    const Routes = Layer.mergeAll(ApiRoutes, AudioRoute, ArtworkRoute(artworkDir))
     return Layer.mergeAll(
       HttpRouter.serve(
         Option.match(config.webRoot, {
-          onNone: () => Layer.mergeAll(ApiRoutes, AudioRoute),
-          onSome: (root) => Layer.mergeAll(ApiRoutes, AudioRoute, WebApp.route(root))
+          onNone: () => Routes,
+          onSome: (root) => Layer.mergeAll(Routes, WebApp.route(root))
         })
       ),
       Poller.background,
