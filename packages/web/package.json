@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "e2e": "playwright test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ui:flows": "vite build && node ui-flows/flows.mjs",
+    "ui:demo": "vite build && node ui-flows/demo.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

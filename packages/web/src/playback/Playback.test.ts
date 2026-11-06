@@ -203,6 +203,7 @@ describe("Playback", () => {
       Effect.gen(function* () {
         const engine = yield* SyncEngine
         const playback = yield* Playback
+        yield* eventually(now, (n) => n?.episodeId === "e2")
         yield* engine.record(
           change({ _tag: "CreatePlaylist", playlistId: "p2", name: "Commute", clearOnPlayed: true })
         )
@@ -213,7 +214,8 @@ describe("Playback", () => {
         const s = yield* state
         expect(s.activePlaylistId).toBe("p2")
         expect(s.playlists.find((p) => p.id === "p2")?.cursor).toBe("e3")
-        expect(fake.loads.at(-1)?.url).toBe("/audio/e3")
+        // Loaded once: a second load would interrupt the play that just started.
+        expect(fake.loads.map((t) => t.url)).toEqual(["/audio/e2", "/audio/e3"])
       })
     )
   )

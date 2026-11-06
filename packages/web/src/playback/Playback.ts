@@ -1,5 +1,5 @@
 import { Operation, PlayedRules, type State, Units } from "@podlist/domain"
-import { Clock, Context, Effect, Layer, Schema, Stream, SubscriptionRef } from "effect"
+import { Clock, Context, Effect, Layer, Schema, Semaphore, Stream, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { Player } from "../platform/Player.ts"
@@ -90,6 +90,10 @@ export class Playback extends Context.Service<
           return playlist && entry ? { playlist, entry } : undefined
         }
 
+        // One load at a time: Play from here and a State change can both ask for a load,
+        // and a second load would interrupt the first one's play.
+        const loading = yield* Semaphore.make(1)
+
         /** Loads the Active Playlist's Cursor Entry unless it is already loaded. */
         const follow = (state: State.State) =>
           Effect.gen(function* () {
@@ -131,7 +135,7 @@ export class Playback extends Context.Service<
             })
             yield* player.setRate(state.playbackSettings.speed)
             yield* SubscriptionRef.set(now, track)
-          })
+          }).pipe(loading.withPermits(1))
 
         const report = (position: number) =>
           Effect.gen(function* () {

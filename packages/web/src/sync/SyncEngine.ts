@@ -189,7 +189,8 @@ export class SyncEngine extends Context.Service<
             Effect.sync(() => window.addEventListener("online", online)),
             () => Effect.sync(() => window.removeEventListener("online", online))
           )
-          yield* Queue.offer(triggers, undefined)
+          // Sync at once on start, so a fresh Device shows its Library without a wait.
+          yield* Effect.ignore(sync)
           for (;;) {
             yield* Queue.take(triggers).pipe(Effect.timeout(Duration.minutes(1)), Effect.ignore)
             yield* Effect.sleep(Duration.seconds(2)) // let a burst of edits settle

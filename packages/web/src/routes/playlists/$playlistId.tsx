@@ -3,7 +3,7 @@ import { Operation } from "@podlist/domain"
 import { createFileRoute } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
-import { AudioLines, Play } from "lucide-react"
+import { Pause, Play } from "lucide-react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { nowPlayingAtom, playbackAtom, recordAtom, stateAtom } from "../../app/runtime.ts"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
@@ -38,14 +38,21 @@ function PlaylistDetail() {
           ) : (
             <button
               type="button"
-              onClick={() =>
-                record(
-                  Schema.decodeUnknownSync(Operation.Change)({
-                    _tag: "SetActivePlaylist",
-                    playlistId: playlist.id
-                  })
-                )
-              }
+              onClick={() => {
+                // Start at the Playlist's Cursor, or its first Entry; an empty one just
+                // becomes the Active Playlist.
+                const start = playlist.cursor ?? playlist.entries[0]?.episodeId
+                if (start !== undefined) {
+                  control({ _tag: "playEntry", playlistId: playlist.id, episodeId: start })
+                } else {
+                  record(
+                    Schema.decodeUnknownSync(Operation.Change)({
+                      _tag: "SetActivePlaylist",
+                      playlistId: playlist.id
+                    })
+                  )
+                }
+              }}
               className="h-11 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
             >
               Play this
@@ -101,26 +108,29 @@ function PlaylistDetail() {
                     </span>
                   </span>
                 </span>
-                {live && playing.playing ? (
-                  <span className="grid size-11 shrink-0 place-items-center text-xs font-semibold text-primary">
-                    <AudioLines aria-label="Playing" className="size-5" />
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    aria-label={`Play ${episode?.title ?? "Entry"} from here`}
-                    onClick={() =>
-                      control({
-                        _tag: "playEntry",
-                        playlistId: playlist.id,
-                        episodeId: entry.episodeId
-                      })
-                    }
-                    className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent"
-                  >
+                {/* One button that stays put (and keeps focus) as it toggles. */}
+                <button
+                  type="button"
+                  aria-label={
+                    live && playing.playing
+                      ? `Pause ${episode?.title ?? "Entry"}`
+                      : `Play ${episode?.title ?? "Entry"} from here`
+                  }
+                  onClick={() =>
+                    control(
+                      live
+                        ? { _tag: "toggle" }
+                        : { _tag: "playEntry", playlistId: playlist.id, episodeId: entry.episodeId }
+                    )
+                  }
+                  className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent"
+                >
+                  {live && playing.playing ? (
+                    <Pause aria-hidden="true" className="size-5 fill-current" />
+                  ) : (
                     <Play aria-hidden="true" className="size-5 fill-current" />
-                  </button>
-                )}
+                  )}
+                </button>
               </li>
             )
           })}

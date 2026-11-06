@@ -168,6 +168,31 @@ describe("SyncEngine", () => {
     })
   )
 
+  it.effect("syncs as soon as it starts, without waiting for edits to settle", () =>
+    Effect.gen(function* () {
+      const server = makeServer()
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        yield* engine.record(add("e1"))
+        yield* engine.sync
+      }).pipe(Effect.provide(device(server, yield* newDatabase)))
+
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        yield* Effect.forkScoped(engine.runInBackground)
+        // The test clock stands still, so only an immediate first sync can bring e1 in.
+        for (
+          let i = 0;
+          i < 50 && order(yield* SubscriptionRef.get(engine.state))?.length === 0;
+          i++
+        ) {
+          yield* Effect.promise(() => new Promise((r) => setTimeout(r, 10)))
+        }
+        expect(order(yield* SubscriptionRef.get(engine.state))).toEqual(["e1"])
+      }).pipe(Effect.provide(device(server, yield* newDatabase)))
+    })
+  )
+
   it.effect("keeps an edit made while a sync is talking to the server", () =>
     Effect.gen(function* () {
       const server = makeServer()
