@@ -27,6 +27,7 @@ export function TabGate({ children }: { readonly children: ReactNode }) {
 
   if (owner === null) return null
   if (owner) return <>{children}</>
+  document.title = "Open in another tab · PodList"
   return (
     <main className="grid min-h-dvh place-items-center p-6">
       <div className="max-w-sm text-center">

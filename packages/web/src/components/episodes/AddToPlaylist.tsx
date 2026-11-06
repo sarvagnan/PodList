@@ -64,7 +64,7 @@ export function AddToPlaylist({
                   onChange={() => setChosen(p.id)}
                   className="size-4 accent-primary"
                 />
-                <span className="flex-1 text-[15px] font-medium">{p.name}</span>
+                <span className="flex-1 text-row font-medium">{p.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {p.id === state?.activePlaylistId ? "Playing · " : ""}
                   {p.entries.length}

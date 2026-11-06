@@ -110,11 +110,14 @@ const withDevice = <A, E>(
   test: (
     fake: Effect.Success<typeof makeFakePlayer>
   ) => Effect.Effect<A, E, Playback | SyncEngine | SqlClient.SqlClient | Reactivity.Reactivity>,
-  options: { readonly catalogue: boolean } = { catalogue: true }
+  options: { readonly catalogue?: boolean; readonly reportEveryMillis?: number } = {}
 ) =>
   Effect.gen(function* () {
     const fake = yield* makeFakePlayer
-    const layer = Playback.layer({ audioUrl: (id) => `/audio/${id}`, reportEveryMillis: 0 }).pipe(
+    const layer = Playback.layer({
+      audioUrl: (id) => `/audio/${id}`,
+      reportEveryMillis: options.reportEveryMillis ?? 0
+    }).pipe(
       Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: "test" })),
       Layer.provideMerge(LocalDb.layerMemory),
       Layer.provideMerge(Reactivity.layer),
@@ -122,7 +125,7 @@ const withDevice = <A, E>(
       Layer.provide(Layer.succeed(Transport, offline))
     )
     return yield* Effect.gen(function* () {
-      if (options.catalogue) {
+      if (options.catalogue ?? true) {
         yield* upsertSubscriptions([subscription])
         yield* upsertEpisodes(episodes)
       }
@@ -167,7 +170,7 @@ describe("Playback", () => {
     withDevice(
       (fake) =>
         Effect.gen(function* () {
-          yield* eventually(now, (n) => n?.title === "Episode unavailable")
+          yield* eventually(now, (n) => n?.title === "")
           yield* upsertSubscriptions([subscription])
           yield* upsertEpisodes(episodes)
           yield* Reactivity.invalidate([catalogueKey])
@@ -217,6 +220,42 @@ describe("Playback", () => {
         // Loaded once: a second load would interrupt the play that just started.
         expect(fake.loads.map((t) => t.url)).toEqual(["/audio/e2", "/audio/e3"])
       })
+    )
+  )
+
+  it.live("Try again after a playback error loads the Entry again and plays", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const playback = yield* Playback
+        yield* eventually(now, (n) => n?.episodeId === "e2")
+        fake.emit(PlayerEvent.Failed({ message: "MEDIA_ELEMENT_ERROR: Format error" }))
+        yield* eventually(now, (n) => n?.error !== null)
+        yield* playback.retry
+        const again = yield* eventually(now, (n) => n?.playing === true)
+        expect(again?.error).toBeNull()
+        expect(fake.loads.map((t) => [t.url, t.startAt])).toEqual([
+          ["/audio/e2", 20],
+          ["/audio/e2", 20]
+        ])
+      })
+    )
+  )
+
+  it.live("reports the Position when the page goes away", () =>
+    withDevice(
+      (fake) =>
+        Effect.gen(function* () {
+          const playback = yield* Playback
+          yield* eventually(now, (n) => n?.episodeId === "e2")
+          yield* playback.play
+          yield* eventually(now, (n) => n?.playing === true)
+          // Not yet time for a periodic report.
+          fake.emit(PlayerEvent.Position({ seconds: 24.5, duration: 600 }))
+          yield* eventually(now, (n) => n?.position === 24.5)
+          window.dispatchEvent(new PageTransitionEvent("pagehide"))
+          yield* eventually(state, (s) => entry(s, "default", "e2")?.position === 24.5)
+        }),
+      { reportEveryMillis: 60_000 }
     )
   )
 

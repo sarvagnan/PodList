@@ -12,6 +12,7 @@ import { describeView } from "../../lib/viewSummary.ts"
 
 export const Route = createFileRoute("/views/$viewId")({ component: ViewDetail })
 
+/** A row's height at the default font size; rows are measured as they render. */
 const rowHeight = 76
 
 function ViewDetail() {
@@ -72,6 +73,8 @@ function ViewDetail() {
             return (
               <li
                 key={episode.id}
+                ref={virtualizer.measureElement}
+                data-index={item.index}
                 aria-posinset={item.index + 1}
                 aria-setsize={episodes.length}
                 className="absolute inset-x-0 top-0"

@@ -16,7 +16,7 @@ export function Toasts() {
             <Toast.Root
               key={toast.id}
               toast={toast}
-              className="flex items-center gap-2 rounded-xl bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
+              className="surface-dark flex items-center gap-2 rounded-xl bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
             >
               <Toast.Description className="min-w-0 flex-1 truncate" />
               <Toast.Action className="h-10 rounded-lg px-3 font-semibold text-[#9db4ff] hover:bg-white/10" />

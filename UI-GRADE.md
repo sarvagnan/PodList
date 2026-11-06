@@ -34,24 +34,26 @@ Graded build: before View detail, Episode row actions and proxied artwork landed
 ## Work list
 
 ### Majors
-- [ ] COPY-02 (Clarity, lowest): playback errors in plain words with Try again; "Playlist no longer exists"; a styled not-found page.
-- [ ] START-01: loading vs empty: no false "No Views yet" / "No Subscriptions yet"; skeleton titles instead of "Episode unavailable" while the catalogue loads.
-- [ ] FLOW-02: focus dropped after "Play this".
-- [ ] WKEY-03: focus the new screen's heading on navigation.
-- [ ] WKEY-04: `scroll-padding-bottom` for the fixed player and tabs.
-- [ ] WCOLOR-02: focus ring at full strength (6.25:1).
-- [ ] APPEAR-03: forced-colors boundaries for buttons, progress, selection.
-- [ ] AX-02: selected tab and Active Playlist shown by more than colour.
-- [ ] TYPE-05: rem sizes so text follows the browser font size.
-- [ ] WTYPE-01: no text under 12 px.
+- [x] COPY-02 (Clarity, lowest): playback errors in plain words with Try again; "Playlist no longer exists"; a styled not-found page.
+- [x] START-01: loading vs empty: no false "No Views yet" / "No Subscriptions yet"; skeleton titles instead of "Episode unavailable" while the catalogue loads.
+- [x] FLOW-02: focus dropped after "Play this".
+- [x] WKEY-03: focus the new screen's heading on navigation.
+- [x] WKEY-04: `scroll-padding-bottom` for the fixed player and tabs.
+- [x] WCOLOR-02: focus ring at full strength (6.25:1).
+- [x] APPEAR-03: forced-colors boundaries for buttons, progress, selection.
+- [x] AX-02: selected tab and Active Playlist shown by more than colour.
+- [x] TYPE-05: rem sizes so text follows the browser font size.
+- [x] WTYPE-01: no text under 12 px.
 
 ### Minors
-- [ ] CTRL-05 pressed states · PTR-04 tooltips · APPEAR-09 skip glyphs with 15/30 · APPEAR-11 "Playing" while paused · TYPE-07 caps tracking · TYPE-08 curly apostrophes · COPY-01 one vocabulary (Library, Now/Paused, Active) · COPY-03 empty states with a next step · BROWSER-03 page titles.
+- [x] CTRL-05 pressed states · PTR-04 tooltips · APPEAR-09 skip glyphs with 15/30 · APPEAR-11 "Playing" while paused · TYPE-07 caps tracking · TYPE-08 curly apostrophes · COPY-01 one vocabulary (Library, Now/Paused, Active) · COPY-03 empty states with a next step · BROWSER-03 page titles.
+
+Fixed on 7 Nov in one batch (beads pod-6jf.4–.11); flow run 2: no stability failures, focus lands on the new screen's heading and stays on the header button. Forced colors and larger font sizes need the round 2 grader to confirm.
 
 ### Outside the checklist
-- [ ] Playlist order drifts between devices (no stored order).
-- [ ] Phone back link announces itself as the current page.
-- [ ] Entry time means elapsed on one row and length on the next.
-- [ ] Phone mini-player lacks back 15.
-- [ ] Skip link past the desktop sidebar; Space to play or pause.
-- [ ] Flush the Position on `pagehide` (up to 15 s can be lost).
+- [x] Playlist order drifts between devices (no stored order).
+- [x] Phone back link announces itself as the current page.
+- [x] Entry time means elapsed on one row and length on the next.
+- [x] Phone mini-player lacks back 15.
+- [x] Skip link past the desktop sidebar; Space to play or pause.
+- [x] Flush the Position on `pagehide` (up to 15 s can be lost).

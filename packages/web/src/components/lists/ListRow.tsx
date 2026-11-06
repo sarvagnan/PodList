@@ -38,18 +38,38 @@ export function ListRow({
         ))}
       </span>
       {trailing !== undefined && (
-        <span className="text-[13px] text-muted-foreground">{trailing}</span>
+        <span className="text-small text-muted-foreground">{trailing}</span>
       )}
       <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
     </Link>
   )
 }
 
-export function PlayingBadge() {
+/** The Active Playlist's state, in words as well as colour: "Playing" or "Paused". */
+export function StatusBadge({ status }: { readonly status: "Playing" | "Paused" }) {
   return (
-    <span className="rounded-md bg-positive-tint px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-positive">
-      PLAYING
+    <span
+      className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${status === "Playing" ? "bg-positive-tint text-positive" : "bg-secondary text-muted-foreground"}`}
+    >
+      {status}
     </span>
+  )
+}
+
+/** Stands in for a list while it loads, so nothing claims to be empty before it knows. */
+export function LoadingRows({ label }: { readonly label: string }) {
+  return (
+    <div role="status" aria-label={label} className="mx-5 space-y-3 py-2 md:mx-8">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="size-10 rounded-lg bg-secondary" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-2/3 rounded bg-secondary" />
+            <div className="h-2.5 w-1/3 rounded bg-secondary" />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

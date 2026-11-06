@@ -3,15 +3,16 @@ import { createFileRoute } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Filter } from "lucide-react"
 import { viewCountsAtom } from "../../app/data.ts"
-import { stateAtom } from "../../app/runtime.ts"
-import { EmptyState, ListRow } from "../../components/lists/ListRow.tsx"
+import { useAppState, useLibraryReady } from "../../app/hooks.ts"
+import { EmptyState, ListRow, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { describeView } from "../../lib/viewSummary.ts"
 
 export const Route = createFileRoute("/views/")({ component: ViewsList })
 
 function ViewsList() {
-  const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
+  const state = useAppState()
+  const ready = useLibraryReady()
   const views = state?.views ?? []
   const counts = AsyncResult.getOrElse(
     useAtomValue(viewCountsAtom),
@@ -20,7 +21,9 @@ function ViewsList() {
   return (
     <>
       <PageHeader title="Views" />
-      {views.length === 0 ? (
+      {state === null || (views.length === 0 && !ready) ? (
+        <LoadingRows label="Loading Views" />
+      ) : views.length === 0 ? (
         <EmptyState title="No Views yet">
           A View is a saved filter over your Library, such as new episodes this week.
         </EmptyState>

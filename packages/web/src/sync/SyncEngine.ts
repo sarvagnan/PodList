@@ -21,6 +21,11 @@ export interface SyncStatus {
   readonly pending: number
   readonly lastSyncedAt: number | null
   readonly error: string | null
+  /**
+   * Whether this Device has finished a sync, State and catalogue, at least once (now or
+   * in an earlier session). Until then an empty list means "not here yet", not "none".
+   */
+  readonly ready: boolean
 }
 
 export class SyncEngine extends Context.Service<
@@ -79,7 +84,8 @@ export class SyncEngine extends Context.Service<
         const status = yield* SubscriptionRef.make<SyncStatus>({
           pending: yield* countPending,
           lastSyncedAt: null,
-          error: null
+          error: null,
+          ready: (yield* getMeta("catalogueCursor").pipe(Effect.orDie)) !== undefined
         })
         const triggers = yield* Queue.sliding<void>(1)
 
@@ -169,14 +175,16 @@ export class SyncEngine extends Context.Service<
             yield* setMeta("confirmedState", Schema.encodeSync(StateJson)(confirmed))
             yield* setMeta("userCursor", String(pulled.cursor))
             yield* SubscriptionRef.set(state, after)
-            yield* SubscriptionRef.set(status, {
+            yield* SubscriptionRef.update(status, (s) => ({
+              ...s,
               pending: stillPending.length,
               lastSyncedAt: Date.now(),
               error: null
-            })
+            }))
           }).pipe(sql.withTransaction, Effect.orDie, lock.withPermits(1))
 
           yield* syncCatalogue
+          yield* SubscriptionRef.update(status, (s) => ({ ...s, ready: true }))
         }).pipe(
           Effect.tapError((e) =>
             SubscriptionRef.update(status, (s) => ({ ...s, error: e.message }))

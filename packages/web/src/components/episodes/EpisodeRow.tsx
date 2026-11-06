@@ -69,11 +69,11 @@ export function EpisodeRow({ episode }: { readonly episode: ViewEpisode }) {
     target && void act({ _tag: "Add", episodeId: episode.id, playlistId: target.id, placement })
 
   return (
-    <div className="flex h-[76px] items-center gap-3 border-b px-2">
+    <div className="flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2">
       <Artwork url={episode.artworkUrl} name={episode.podcast} size={48} />
       <div className="min-w-0 flex-1">
         <p
-          className={`line-clamp-2 text-[15px] leading-snug font-medium ${episode.played ? "text-muted-foreground" : ""}`}
+          className={`line-clamp-2 text-row leading-snug font-medium ${episode.played ? "text-muted-foreground" : ""}`}
         >
           {episode.title}
         </p>
@@ -159,7 +159,7 @@ export function NextLastTarget() {
   if (state === null) return null
   const value = state.playlists.some((p) => p.id === chosen) ? chosen : state.activePlaylistId
   return (
-    <label className="hidden items-center gap-2 text-[13px] text-muted-foreground md:flex">
+    <label className="hidden items-center gap-2 text-small text-muted-foreground md:flex">
       Next / Last go to
       <select
         value={value ?? ""}

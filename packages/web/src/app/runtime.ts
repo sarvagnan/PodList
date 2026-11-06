@@ -39,15 +39,17 @@ export const AppLayer = Playback.layer({
 
 export const runtime = Atom.runtime(AppLayer)
 
-/** The local (optimistic) user State; updates on every edit and sync. */
+/**
+ * The local (optimistic) user State; updates on every edit and sync. It stays Initial
+ * until the local database has loaded, so screens never show a made-up empty State.
+ */
 export const stateAtom = runtime.atom(
   Stream.unwrap(
     Effect.gen(function* () {
       const engine = yield* SyncEngine
       return SubscriptionRef.changes(engine.state)
     })
-  ),
-  { initialValue: State.initial(defaults) }
+  )
 )
 
 export const syncStatusAtom = runtime.atom(
@@ -87,6 +89,7 @@ export const nowPlayingAtom = runtime.atom(
 
 type Command =
   | { readonly _tag: "toggle" }
+  | { readonly _tag: "retry" }
   | { readonly _tag: "skip"; readonly seconds: number }
   | { readonly _tag: "seek"; readonly seconds: number }
   | { readonly _tag: "playEntry"; readonly playlistId: string; readonly episodeId: string }
@@ -98,6 +101,8 @@ export const playbackAtom = runtime.fn((command: Command) =>
     switch (command._tag) {
       case "toggle":
         return yield* playback.toggle
+      case "retry":
+        return yield* playback.retry
       case "skip":
         return yield* playback.skip(command.seconds)
       case "seek":

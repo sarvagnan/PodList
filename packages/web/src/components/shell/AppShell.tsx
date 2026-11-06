@@ -1,8 +1,19 @@
 import { useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react"
-import { Link, Outlet } from "@tanstack/react-router"
+import { Link, Outlet, useRouter } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { Filter, Library, ListMusic, Pause, Play, RotateCcw, RotateCw } from "lucide-react"
-import { backgroundSyncAtom, nowPlayingAtom, playbackAtom, stateAtom } from "../../app/runtime.ts"
+import {
+  AudioLines,
+  Filter,
+  Library,
+  ListMusic,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw
+} from "lucide-react"
+import { useEffect } from "react"
+import { useAppState, useLibraryReady } from "../../app/hooks.ts"
+import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { formatTime } from "../../lib/time.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { Toasts } from "../feedback/Toasts.tsx"
@@ -17,8 +28,38 @@ const tabs = [
   { to: "/library", label: "Library", icon: Library }
 ] as const
 
-function useAppState() {
-  return AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
+/** A skip arrow with its seconds inside, so it can't be read as "reload" (APPEAR-09). */
+function SkipIcon({
+  seconds,
+  direction
+}: {
+  readonly seconds: number
+  readonly direction: "back" | "forward"
+}) {
+  const Arrow = direction === "back" ? RotateCcw : RotateCw
+  return (
+    <span aria-hidden="true" className="relative grid place-items-center">
+      <Arrow className="size-7" strokeWidth={1.75} />
+      <span className="absolute pt-px text-[0.5625rem] leading-none font-bold tabular-nums">
+        {seconds}
+      </span>
+    </span>
+  )
+}
+
+/** The playing Episode's title; a placeholder bar while its details are still syncing. */
+function TrackTitle({ title, className }: { readonly title: string; readonly className: string }) {
+  const ready = useLibraryReady()
+  if (title === "" && !ready) {
+    return (
+      <span
+        role="status"
+        aria-label="Loading Episode"
+        className="block h-3.5 w-40 rounded bg-player-track"
+      />
+    )
+  }
+  return <p className={`truncate font-semibold ${className}`}>{title || "Episode unavailable"}</p>
 }
 
 function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
@@ -30,13 +71,14 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const label = `${current.podcast} · ${playlist?.name ?? ""}`
   const progress = current.duration ? Math.min(100, (current.position / current.duration) * 100) : 0
   const button =
-    "grid size-11 shrink-0 place-items-center rounded-full text-player-foreground hover:bg-player-track"
+    "grid size-11 shrink-0 place-items-center rounded-full text-player-foreground hover:bg-player-track active:bg-player-track/70"
   const toggle = (
     <button
       type="button"
       aria-label={current.playing ? "Pause" : "Play"}
+      title={current.playing ? "Pause" : "Play"}
       onClick={() => control({ _tag: "toggle" })}
-      className="grid size-11 shrink-0 place-items-center rounded-full bg-player-foreground text-player"
+      className="grid size-11 shrink-0 place-items-center rounded-full border border-transparent bg-player-foreground text-player hover:bg-player-foreground/90 active:bg-player-foreground/75"
     >
       {current.playing ? (
         <Pause aria-hidden="true" className="size-5 fill-current" />
@@ -49,30 +91,43 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
     <button
       type="button"
       aria-label={`Back ${backSeconds} seconds`}
+      title={`Back ${backSeconds} seconds`}
       onClick={() => control({ _tag: "skip", seconds: -backSeconds })}
       className={button}
     >
-      <RotateCcw aria-hidden="true" className="size-5" />
+      <SkipIcon seconds={backSeconds} direction="back" />
     </button>
   )
   const forward = (
     <button
       type="button"
       aria-label={`Forward ${forwardSeconds} seconds`}
+      title={`Forward ${forwardSeconds} seconds`}
       onClick={() => control({ _tag: "skip", seconds: forwardSeconds })}
       className={button}
     >
-      <RotateCw aria-hidden="true" className="size-5" />
+      <SkipIcon seconds={forwardSeconds} direction="forward" />
     </button>
   )
   const bar = (
-    <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-player-track">
-      <span className="block h-full bg-progress" style={{ width: `${progress}%` }} />
+    <span
+      aria-hidden="true"
+      className="progress-track absolute inset-x-0 bottom-0 h-0.5 bg-player-track"
+    >
+      <span className="progress-fill block h-full bg-progress" style={{ width: `${progress}%` }} />
     </span>
   )
+  // Plain words and a way forward, not the media element's own text (COPY-02).
   const error = current.error && (
-    <p role="alert" className="truncate text-[11px] text-player-danger">
-      Can't play: {current.error}
+    <p role="alert" className="flex items-center gap-2 text-xs text-player-danger">
+      <span className="truncate">Couldn’t play this Episode.</span>
+      <button
+        type="button"
+        onClick={() => control({ _tag: "retry" })}
+        className="shrink-0 font-semibold text-player-foreground underline underline-offset-2"
+      >
+        Try again
+      </button>
     </p>
   )
 
@@ -80,13 +135,14 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
     return (
       <section
         aria-label="Now playing"
-        className="relative mx-2.5 flex items-center gap-3 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
+        className="surface-dark relative mx-2.5 flex items-center gap-2 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
       >
         <Artwork url={current.artworkUrl} name={current.podcast} size={44} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold">{current.title}</p>
-          {error || <p className="truncate text-[11px] text-player-muted">{label}</p>}
+        <div className="min-w-0 flex-1 pl-1">
+          <TrackTitle title={current.title} className="text-small" />
+          {error || <p className="truncate text-xs text-player-muted">{label}</p>}
         </div>
+        {back}
         {toggle}
         {forward}
         {bar}
@@ -96,11 +152,11 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   return (
     <section
       aria-label="Now playing"
-      className="fixed inset-x-0 bottom-0 z-10 hidden items-center gap-3 bg-player px-5 py-3 text-player-foreground md:flex"
+      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden items-center gap-3 bg-player px-5 py-3 text-player-foreground md:flex"
     >
       <Artwork url={current.artworkUrl} name={current.podcast} size={48} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{current.title}</p>
+        <TrackTitle title={current.title} className="text-sm" />
         {error || <p className="truncate text-xs text-player-muted">{label}</p>}
       </div>
       <div className="flex items-center gap-2">
@@ -119,10 +175,11 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
 
 function Sidebar() {
   const state = useAppState()
+  const ready = useLibraryReady()
   const link =
-    "flex h-9 items-center justify-between rounded-lg px-2.5 text-sm text-foreground hover:bg-secondary [&.active]:bg-accent [&.active]:font-semibold"
+    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-sm text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
   const heading =
-    "px-2.5 pt-5 pb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+    "px-2.5 pt-5 pb-1 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
   return (
     <nav
       aria-label="Library and lists"
@@ -130,8 +187,8 @@ function Sidebar() {
     >
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
       <p className={heading}>Views</p>
-      {state?.views.length === 0 && (
-        <p className="px-2.5 py-1.5 text-[13px] text-muted-foreground">No Views yet</p>
+      {state?.views.length === 0 && ready && (
+        <p className="px-2.5 py-1.5 text-small text-muted-foreground">No Views yet</p>
       )}
       {state?.views.map((v) => (
         <Link key={v.id} to="/views/$viewId" params={{ viewId: v.id }} className={link}>
@@ -139,21 +196,32 @@ function Sidebar() {
         </Link>
       ))}
       <p className={heading}>Playlists</p>
-      {state?.playlists.map((p) => (
-        <Link key={p.id} to="/playlists/$playlistId" params={{ playlistId: p.id }} className={link}>
-          <span className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className={`size-2 rounded-full ${p.id === state.activePlaylistId ? "bg-positive" : "bg-input"}`}
-            />
-            {p.name}
-          </span>
-          <span className="text-xs text-muted-foreground">{p.entries.length}</span>
-        </Link>
-      ))}
+      {state?.playlists.map((p) => {
+        const active = p.id === state.activePlaylistId
+        return (
+          <Link
+            key={p.id}
+            to="/playlists/$playlistId"
+            params={{ playlistId: p.id }}
+            className={link}
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">{p.name}</span>
+              {/* A shape and a name, not only a colour (AX-02). */}
+              {active && (
+                <AudioLines
+                  aria-label="Active Playlist"
+                  className="size-4 shrink-0 text-positive"
+                />
+              )}
+            </span>
+            <span className="text-xs text-muted-foreground">{p.entries.length}</span>
+          </Link>
+        )
+      })}
       <div className="flex-1" />
       <Link to="/library" className={link}>
-        Library &amp; Subscriptions
+        Library
       </Link>
     </nav>
   )
@@ -169,9 +237,12 @@ function BottomTabs() {
         <Link
           key={to}
           to={to}
-          className="flex h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold text-muted-foreground [&.active]:text-primary"
+          className="group flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground [&.active]:font-bold [&.active]:text-primary"
         >
-          <Icon aria-hidden="true" className="size-[22px]" />
+          {/* The selected tab gets a pill behind its icon as well as colour (AX-02). */}
+          <span className="tab-indicator grid h-8 w-16 place-items-center rounded-full group-[.active]:bg-accent">
+            <Icon aria-hidden="true" className="size-[1.375rem]" />
+          </span>
           {label}
         </Link>
       ))}
@@ -179,12 +250,55 @@ function BottomTabs() {
   )
 }
 
+/** After moving to another screen, focus its heading, as a page load would (WKEY-03). */
+function useFocusOnNavigation() {
+  const router = useRouter()
+  useEffect(
+    () =>
+      router.subscribe("onResolved", (event) => {
+        if (event.fromLocation === undefined || !event.pathChanged) return
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true })
+          window.scrollTo(0, 0)
+        })
+      }),
+    [router]
+  )
+}
+
+/** Space plays or pauses when no control has focus, as in other media apps. */
+function usePlayPauseKey() {
+  const control = useAtomSet(playbackAtom)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== " " || event.repeat || event.metaKey || event.ctrlKey || event.altKey)
+        return
+      const target = event.target as HTMLElement
+      if (target.closest("input, textarea, select, button, a, [contenteditable], [role=dialog]")) {
+        return
+      }
+      event.preventDefault()
+      control({ _tag: "toggle" })
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [control])
+}
+
 export function AppShell() {
   useAtomMount(backgroundSyncAtom)
+  useFocusOnNavigation()
+  usePlayPauseKey()
   return (
     <div className="flex min-h-dvh">
+      <a
+        href="#main"
+        className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-card px-4 py-2.5 text-sm font-semibold shadow focus:translate-y-0"
+      >
+        Skip to content
+      </a>
       <Sidebar />
-      <main className="min-w-0 flex-1 pb-40 md:pb-24">
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-40 outline-none md:pb-24">
         <Outlet />
       </main>
       <div className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">

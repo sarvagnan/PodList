@@ -1,28 +1,60 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { Pause, Play } from "lucide-react"
 import { entryEpisodesAtom } from "../../app/data.ts"
-import { nowPlayingAtom, playbackAtom, recordAtom, stateAtom } from "../../app/runtime.ts"
-import { EmptyState } from "../../components/lists/ListRow.tsx"
+import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
+import { playbackAtom, recordAtom } from "../../app/runtime.ts"
+import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
-import { formatTime } from "../../lib/time.ts"
+import { formatLength, formatTime } from "../../lib/time.ts"
 
 export const Route = createFileRoute("/playlists/$playlistId")({ component: PlaylistDetail })
 
 function PlaylistDetail() {
   const { playlistId } = Route.useParams()
-  const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
+  const state = useAppState()
+  const ready = useLibraryReady()
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   const record = useAtomSet(recordAtom)
   const control = useAtomSet(playbackAtom)
-  const playing = AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
+  const playing = useNowPlaying()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
-  if (state === null || playlist === undefined) return null
+  if (state === null) return <LoadingRows label="Loading Playlist" />
+  if (playlist === undefined) {
+    return (
+      <>
+        <PageHeader title="Playlist" back={{ to: "/playlists", label: "Playlists" }} />
+        <EmptyState title="This Playlist no longer exists">
+          It may have been deleted on another Device.{" "}
+          <Link to="/playlists" className="font-medium text-primary underline underline-offset-2">
+            See your Playlists
+          </Link>
+        </EmptyState>
+      </>
+    )
+  }
   const active = playlist.id === state.activePlaylistId
+  const isPlaying = active && playing?.playlistId === playlist.id && playing.playing
+
+  // One button in the header that changes its words, so focus stays put (FLOW-02).
+  const headerAction = () => {
+    if (active && playing?.playlistId === playlist.id) return control({ _tag: "toggle" })
+    const start = playlist.cursor ?? playlist.entries[0]?.episodeId
+    if (start !== undefined) {
+      return control({ _tag: "playEntry", playlistId: playlist.id, episodeId: start })
+    }
+    // An empty Playlist just becomes the Active one.
+    return record(
+      Schema.decodeUnknownSync(Operation.Change)({
+        _tag: "SetActivePlaylist",
+        playlistId: playlist.id
+      })
+    )
+  }
 
   return (
     <>
@@ -31,38 +63,23 @@ function PlaylistDetail() {
         back={{ to: "/playlists", label: "Playlists" }}
         subtitle={`${playlist.entries.length} Entries · ${playlist.clearOnPlayed ? "Clear on Played" : "Keeps Entries"}`}
         actions={
-          active ? (
-            <span className="rounded-full bg-positive-tint px-3 py-1.5 text-[13px] font-semibold text-positive">
-              Playing
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                // Start at the Playlist's Cursor, or its first Entry; an empty one just
-                // becomes the Active Playlist.
-                const start = playlist.cursor ?? playlist.entries[0]?.episodeId
-                if (start !== undefined) {
-                  control({ _tag: "playEntry", playlistId: playlist.id, episodeId: start })
-                } else {
-                  record(
-                    Schema.decodeUnknownSync(Operation.Change)({
-                      _tag: "SetActivePlaylist",
-                      playlistId: playlist.id
-                    })
-                  )
-                }
-              }}
-              className="h-11 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
-            >
-              Play this
-            </button>
-          )
+          <button
+            type="button"
+            onClick={headerAction}
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-transparent bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+          >
+            {isPlaying ? (
+              <Pause aria-hidden="true" className="size-4 fill-current" />
+            ) : (
+              <Play aria-hidden="true" className="size-4 fill-current" />
+            )}
+            {isPlaying ? "Pause" : active ? "Play" : "Play this"}
+          </button>
         }
       />
       {playlist.entries.length === 0 ? (
         <EmptyState title="Nothing here yet">
-          Add episodes from a View with Play Next or Play Last.
+          In a View, use Play Next or Play Last to add Episodes here.
         </EmptyState>
       ) : (
         <ol className="px-3 md:px-6">
@@ -72,9 +89,16 @@ function PlaylistDetail() {
             const live =
               playing?.playlistId === playlist.id && playing.episodeId === entry.episodeId
             const position = live ? playing.position : entry.position
-            const progress = episode?.duration
-              ? Math.min(100, (position / episode.duration) * 100)
-              : 0
+            const duration = live && playing.duration ? playing.duration : episode?.duration
+            const progress = duration ? Math.min(100, (position / duration) * 100) : 0
+            // Started: time left. Not started: its length. Never one figure for both.
+            const time =
+              position > 0 && duration
+                ? `${formatTime(duration - position)} left`
+                : duration
+                  ? formatLength(duration)
+                  : ""
+            const title = episode?.title
             return (
               <li
                 key={entry.episodeId}
@@ -82,9 +106,9 @@ function PlaylistDetail() {
                 className={`flex items-center gap-3 rounded-xl px-2 py-2.5 ${current ? "bg-accent" : ""}`}
               >
                 <span
-                  className={`w-9 text-center text-xs font-semibold ${current ? "text-primary" : "text-muted-foreground"}`}
+                  className={`w-14 shrink-0 text-center text-xs font-semibold tracking-wider ${current ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  {current ? (active ? "NOW" : "HERE") : index + 1}
+                  {current ? (active ? "NOW" : "RESUME") : index + 1}
                 </span>
                 <Artwork
                   url={episode?.artworkUrl ?? null}
@@ -92,20 +116,25 @@ function PlaylistDetail() {
                   size={44}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
-                    {episode?.title ?? "Episode unavailable"}
-                  </span>
+                  {title === undefined && !ready ? (
+                    <span
+                      role="status"
+                      aria-label="Loading Episode"
+                      className="block h-3.5 w-2/3 rounded bg-secondary"
+                    />
+                  ) : (
+                    <span className="line-clamp-2 text-sm font-medium">
+                      {title ?? "Episode unavailable"}
+                    </span>
+                  )}
                   <span className="mt-1.5 flex items-center gap-2">
-                    <span className="h-1 flex-1 overflow-hidden rounded-full bg-border">
-                      <span className="block h-1 bg-primary" style={{ width: `${progress}%` }} />
+                    <span className="progress-track h-1 flex-1 overflow-hidden rounded-full bg-border">
+                      <span
+                        className="progress-fill block h-1 bg-primary"
+                        style={{ width: `${progress}%` }}
+                      />
                     </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {position > 0
-                        ? formatTime(position)
-                        : episode?.duration
-                          ? formatTime(episode.duration)
-                          : ""}
-                    </span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{time}</span>
                   </span>
                 </span>
                 {/* One button that stays put (and keeps focus) as it toggles. */}
@@ -113,9 +142,10 @@ function PlaylistDetail() {
                   type="button"
                   aria-label={
                     live && playing.playing
-                      ? `Pause ${episode?.title ?? "Entry"}`
-                      : `Play ${episode?.title ?? "Entry"} from here`
+                      ? `Pause ${title ?? "Entry"}`
+                      : `Play ${title ?? "Entry"} from here`
                   }
+                  title={live && playing.playing ? "Pause" : "Play from here"}
                   onClick={() =>
                     control(
                       live
@@ -123,7 +153,7 @@ function PlaylistDetail() {
                         : { _tag: "playEntry", playlistId: playlist.id, episodeId: entry.episodeId }
                     )
                   }
-                  className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent"
+                  className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent active:bg-input"
                 >
                   {live && playing.playing ? (
                     <Pause aria-hidden="true" className="size-5 fill-current" />

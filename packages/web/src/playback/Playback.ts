@@ -1,5 +1,15 @@
 import { Operation, PlayedRules, type State, Units } from "@podlist/domain"
-import { Clock, Context, Effect, Layer, Schema, Semaphore, Stream, SubscriptionRef } from "effect"
+import {
+  Clock,
+  Context,
+  Effect,
+  Layer,
+  Queue,
+  Schema,
+  Semaphore,
+  Stream,
+  SubscriptionRef
+} from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { Player } from "../platform/Player.ts"
@@ -37,6 +47,8 @@ export class Playback extends Context.Service<
     readonly play: Effect.Effect<void>
     readonly pause: Effect.Effect<void>
     readonly toggle: Effect.Effect<void>
+    /** After a playback error: loads the Entry again where it was and plays. */
+    readonly retry: Effect.Effect<void>
     readonly seek: (seconds: number) => Effect.Effect<void>
     /** Moves by a number of seconds: negative goes back. */
     readonly skip: (seconds: number) => Effect.Effect<void>
@@ -80,7 +92,7 @@ export class Playback extends Context.Service<
                FROM episode e JOIN subscription s ON s.id = e.subscription_id
                WHERE e.id = ${episodeId}`.pipe(Effect.orDie)
             return {
-              title: row?.title ?? "Episode unavailable",
+              title: row?.title ?? "",
               podcast: row?.podcast ?? "",
               artworkUrl: row?.artwork_url ?? row?.podcast_artwork_url ?? null,
               duration: row?.duration ?? null,
@@ -300,6 +312,34 @@ export class Playback extends Context.Service<
           Effect.forkScoped
         )
 
+        // Leaving the page (reload, closing, switching apps, the OS reclaiming it):
+        // report where listening got to now rather than at the next 15 s tick.
+        const hidden = yield* Queue.unbounded<void>()
+        const onHide = () => {
+          if (document.visibilityState === "hidden") Queue.offerUnsafe(hidden, undefined)
+        }
+        const onPageHide = () => Queue.offerUnsafe(hidden, undefined)
+        yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            document.addEventListener("visibilitychange", onHide)
+            window.addEventListener("pagehide", onPageHide)
+          }),
+          () =>
+            Effect.sync(() => {
+              document.removeEventListener("visibilitychange", onHide)
+              window.removeEventListener("pagehide", onPageHide)
+            })
+        )
+        yield* Stream.fromQueue(hidden).pipe(
+          Stream.runForEach(() =>
+            Effect.gen(function* () {
+              const current = yield* SubscriptionRef.get(now)
+              if (current !== null) yield* report(current.position)
+            })
+          ),
+          Effect.forkScoped
+        )
+
         // Lock screen, notification and headset buttons.
         yield* player.remote.pipe(
           Stream.runForEach((command) => {
@@ -354,7 +394,13 @@ export class Playback extends Context.Service<
           )
           .pipe(Stream.runDrain, Effect.forkScoped)
 
-        return Playback.of({ now, play, pause, toggle, seek, skip, playEntry })
+        const retry = Effect.gen(function* () {
+          yield* SubscriptionRef.set(now, null)
+          yield* follow(yield* SubscriptionRef.get(engine.state))
+          if ((yield* SubscriptionRef.get(now)) !== null) yield* start
+        })
+
+        return Playback.of({ now, play, pause, toggle, retry, seek, skip, playEntry })
       })
     )
 }
