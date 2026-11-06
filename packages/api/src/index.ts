@@ -1,7 +1,9 @@
 import { HttpApi } from "effect/http-api"
+import { LibraryApi } from "./Library.ts"
 import { SyncApi } from "./Sync.ts"
 import { SystemApi } from "./System.ts"
 
+export * as Library from "./Library.ts"
 export * as Sync from "./Sync.ts"
 export * as System from "./System.ts"
 
@@ -9,4 +11,5 @@ export * as System from "./System.ts"
 export class PodListApi extends HttpApi.make("podlist")
   .add(SystemApi)
   .add(SyncApi)
+  .add(LibraryApi)
   .prefix("/api") {}

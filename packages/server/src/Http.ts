@@ -1,7 +1,8 @@
-import { PodListApi, Sync, System } from "@podlist/api"
+import { Library as LibraryApi, PodListApi, Sync, System } from "@podlist/api"
 import { Protocol } from "@podlist/domain"
 import { Effect, Layer } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
+import { Poller } from "./Poller.ts"
 import { SyncStore } from "./SyncStore.ts"
 
 export const SystemHandlers = HttpApiBuilder.group(
@@ -29,6 +30,30 @@ export const SyncHandlers = HttpApiBuilder.group(
   })
 )
 
+export const LibraryHandlers = HttpApiBuilder.group(
+  PodListApi,
+  "library",
+  Effect.fn(function* (handlers) {
+    const poller = yield* Poller
+    return handlers.handleAll({
+      refreshAll: () =>
+        poller
+          .refreshAll({ respectBackoff: false })
+          .pipe(Effect.map((s) => new LibraryApi.RefreshSummary(s))),
+      refreshSubscription: ({ params }) =>
+        poller
+          .refreshOne(params.id)
+          .pipe(
+            Effect.mapError((e) =>
+              e._tag === "SubscriptionNotFound"
+                ? new LibraryApi.SubscriptionNotFound()
+                : new LibraryApi.FeedFailed({ message: e.message })
+            )
+          )
+    })
+  })
+)
+
 export const ApiRoutes = HttpApiBuilder.layer(PodListApi, {
   openapiPath: "/api/openapi.json"
-}).pipe(Layer.provide([SystemHandlers, SyncHandlers]))
+}).pipe(Layer.provide([SystemHandlers, SyncHandlers, LibraryHandlers]))

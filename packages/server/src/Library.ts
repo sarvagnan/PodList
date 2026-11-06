@@ -28,6 +28,10 @@ export class FeedError extends Data.TaggedError("FeedError")<{
   readonly message: string
 }> {}
 
+export class SubscriptionNotFound extends Data.TaggedError("SubscriptionNotFound")<{
+  readonly subscriptionId: string
+}> {}
+
 export type RefreshResult =
   | { readonly _tag: "NotModified" }
   | { readonly _tag: "Updated"; readonly added: number; readonly changed: number }
@@ -42,7 +46,9 @@ export class Library extends Context.Service<
   Library,
   {
     /** Fetches one Subscription's feed (conditionally) and stores what changed. */
-    readonly refresh: (subscriptionId: string) => Effect.Effect<RefreshResult, FeedError>
+    readonly refresh: (
+      subscriptionId: string
+    ) => Effect.Effect<RefreshResult, FeedError | SubscriptionNotFound>
     /** Stores a parsed feed for a Subscription; returns new and changed Episode counts. */
     readonly store: (
       subscriptionId: string,
@@ -111,7 +117,7 @@ export class Library extends Context.Service<
           const fail = (message: string) => new FeedError({ subscriptionId, message })
           const [subscription] = yield* sql<{ feed_url: string }>`
             SELECT feed_url FROM subscription WHERE id = ${subscriptionId}`.pipe(Effect.orDie)
-          if (subscription === undefined) return yield* fail("No such Subscription")
+          if (subscription === undefined) return yield* new SubscriptionNotFound({ subscriptionId })
           const [state] = yield* sql<{ etag: string | null; last_modified: string | null }>`
             SELECT etag, last_modified FROM feed_state WHERE subscription_id = ${subscriptionId}`.pipe(
             Effect.orDie
@@ -162,12 +168,14 @@ export class Library extends Context.Service<
           return { _tag: "Updated", ...counts } as const
         }).pipe(
           Effect.tapError((e) =>
-            sql`INSERT INTO feed_state ${sql.insert({
-              subscription_id: subscriptionId,
-              checked_at: Date.now(),
-              failures: 1,
-              last_error: e.message
-            })} ON CONFLICT (subscription_id) DO UPDATE SET
+            e._tag === "SubscriptionNotFound"
+              ? Effect.void
+              : sql`INSERT INTO feed_state ${sql.insert({
+                  subscription_id: subscriptionId,
+                  checked_at: Date.now(),
+                  failures: 1,
+                  last_error: e.message
+                })} ON CONFLICT (subscription_id) DO UPDATE SET
                 checked_at = excluded.checked_at,
                 failures = feed_state.failures + 1,
                 last_error = excluded.last_error`.pipe(Effect.orDie)
