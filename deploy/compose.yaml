@@ -1,0 +1,33 @@
+# PodList on a tailnet (ADR 0004): reachable only over Tailscale, with HTTPS from
+# Tailscale Serve so the phone gets a secure origin (needed for the service worker
+# and browser storage). Set TS_AUTHKEY in deploy/.env (see deploy/README.md).
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: podlist
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add: [net_admin, sys_module]
+    restart: unless-stopped
+
+  podlist:
+    build: ..
+    network_mode: service:tailscale
+    environment:
+      PODCASTINDEX_KEY: ${PODCASTINDEX_KEY:-}
+      PODCASTINDEX_SECRET: ${PODCASTINDEX_SECRET:-}
+    volumes:
+      - podlist-data:/data
+    depends_on: [tailscale]
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
+  podlist-data:

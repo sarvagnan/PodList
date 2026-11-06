@@ -2,8 +2,9 @@ import { mkdirSync } from "node:fs"
 import { createServer } from "node:http"
 import { dirname } from "node:path"
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Option } from "effect"
 import { FetchHttpClient, HttpRouter } from "effect/http"
+import * as Backup from "./Backup.ts"
 import { Catalogue } from "./Catalogue.ts"
 import { Chapters } from "./Chapters.ts"
 import { ServerConfig } from "./Config.ts"
@@ -15,6 +16,7 @@ import { AudioRoute } from "./Media.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
+import * as WebApp from "./WebApp.ts"
 
 const Main = Layer.unwrap(
   Effect.gen(function* () {
@@ -34,8 +36,14 @@ const Main = Layer.unwrap(
       Layer.provideMerge(Database.layer(config.databasePath))
     )
     return Layer.mergeAll(
-      HttpRouter.serve(Layer.mergeAll(ApiRoutes, AudioRoute)),
-      Poller.background
+      HttpRouter.serve(
+        Option.match(config.webRoot, {
+          onNone: () => Layer.mergeAll(ApiRoutes, AudioRoute),
+          onSome: (root) => Layer.mergeAll(ApiRoutes, AudioRoute, WebApp.route(root))
+        })
+      ),
+      Poller.background,
+      Backup.background
     ).pipe(
       Layer.provide(NodeHttpServer.layer(createServer, { port: config.port })),
       Layer.provide(Services)
