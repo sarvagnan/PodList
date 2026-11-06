@@ -7,6 +7,7 @@ import { HttpRouter } from "effect/http"
 import { ServerConfig } from "./Config.ts"
 import * as Database from "./Database.ts"
 import { ApiRoutes } from "./Http.ts"
+import { SyncStore } from "./SyncStore.ts"
 
 const Main = Layer.unwrap(
   Effect.gen(function* () {
@@ -15,6 +16,7 @@ const Main = Layer.unwrap(
     yield* Effect.log(`PodList server on :${config.port}, database ${config.databasePath}`)
     return HttpRouter.serve(ApiRoutes).pipe(
       Layer.provide(NodeHttpServer.layer(createServer, { port: config.port })),
+      Layer.provide(SyncStore.layer),
       Layer.provide(Database.layer(config.databasePath))
     )
   })
