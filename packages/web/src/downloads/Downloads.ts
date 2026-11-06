@@ -1,6 +1,7 @@
 import { Clock, Context, Data, Effect, Fiber, Layer, SubscriptionRef } from "effect"
 import { SqlClient } from "effect/sql"
 import { DownloadStore } from "../platform/DownloadStore.ts"
+import { keepStorage } from "../platform/persistentStorage.ts"
 
 // Episodes stored on this Device for offline listening (CONTEXT.md › Manual Download,
 // Download Rule). The files live in the DownloadStore seam; which Episodes are stored,
@@ -68,6 +69,8 @@ export class Downloads extends Context.Service<
             const current = (yield* SubscriptionRef.get(status)).get(episodeId)
             if (current?._tag === "Stored" || current?._tag === "Downloading") return
             yield* set(episodeId, DownloadStatus.Downloading({ received: 0, total: null }))
+            // Downloads are worth keeping: ask the browser not to evict them.
+            yield* Effect.promise(() => keepStorage()).pipe(Effect.ignore, Effect.forkIn(scope))
             // Progress at most every 250 ms, so a fast download doesn't flood the screen.
             let lastShown = 0
             const progress = (received: number, total: number | null) => {

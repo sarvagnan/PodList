@@ -24,6 +24,7 @@ import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
 import { Artwork } from "./Artwork.tsx"
+import { SyncIndicator } from "./SyncIndicator.tsx"
 
 // Variant A (docs/design/ui-layout.md): phone has Views / Playlists / Library tabs with a
 // mini-player above them; desktop has a sidebar of Views and Playlists and a player bar.
@@ -136,13 +137,26 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           <Artwork url={current.artworkUrl} name={current.podcast} size={44} />
           <span className="min-w-0 flex-1 pl-1">
             <TrackTitle title={current.title} className="text-small" />
-            {!current.error && (
+            {current.error ? (
+              <span role="alert" className="block truncate text-xs text-player-danger">
+                Couldn’t play this Episode.
+              </span>
+            ) : (
               <span className="block truncate text-xs text-player-muted">{label}</span>
             )}
           </span>
         </button>
-        {error && <div className="min-w-0 flex-1">{error}</div>}
-        {back}
+        {current.error ? (
+          <button
+            type="button"
+            onClick={() => control({ _tag: "retry" })}
+            className="h-9 shrink-0 rounded-full bg-player-track px-3 text-xs font-semibold text-player-foreground active:bg-player-track/70"
+          >
+            Try again
+          </button>
+        ) : (
+          back
+        )}
         {toggle}
         {forward}
         {bar}
@@ -287,6 +301,7 @@ function Sidebar() {
         )
       })}
       <div className="flex-1" />
+      <SyncIndicator variant="desktop" />
       <Link to="/library" className={link}>
         Library
       </Link>
@@ -365,10 +380,11 @@ export function AppShell() {
         Skip to content
       </a>
       <Sidebar />
-      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-40 outline-none md:pb-28">
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-44 outline-none md:pb-28">
         <Outlet />
       </main>
       <div className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">
+        <SyncIndicator variant="phone" />
         <NowPlaying variant="phone" />
         <BottomTabs />
       </div>
