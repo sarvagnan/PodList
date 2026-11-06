@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Variant B · Player first (phone)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B50C8}a:hover{color:#1E3A96}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F6F5F2; color: #17181C; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <div style="display: flex; gap: 10px; overflow-x: auto; padding: 16px 16px 10px; flex: none">
+    <sc-for list="{{deck}}" as="d" hint-placeholder-count="3">
+      <button onClick="{{d.pick}}" style="{{d.style}}">
+        <span style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+          <span style="font-size: 14px; font-weight: 600">{{d.name}}</span>
+          <sc-if value="{{d.isActive}}" hint-placeholder-val="{{false}}"><span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #1D6B45; background: #DDF2E7; padding: 2px 6px; border-radius: 6px">PLAYING</span></sc-if>
+        </span>
+        <span style="font-size: 12px; color: #5C6070; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: left">{{d.cur}}</span>
+        <span style="font-size: 11px; color: #5C6070">{{d.meta}}</span>
+      </button>
+    </sc-for>
+    <button aria-label="New Playlist" style="flex: none; width: 56px; height: 84px; border-radius: 14px; border: 1px dashed #B9B6AE; background: transparent; color: #5C6070; font-size: 22px">+</button>
+  </div>
+
+  <div style="display: flex; flex-direction: column; align-items: center; padding: 6px 24px 0; flex: none">
+    <div style="width: 176px; height: 176px; border-radius: 22px; background: {{np.color}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 48px">{{np.ini}}</div>
+    <div style="font-size: 13px; color: #5C6070; margin-top: 14px">{{np.pod}}</div>
+    <div style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600; text-align: center; line-height: 1.25; margin-top: 4px">{{np.t}}</div>
+    <div style="margin-top: 8px; height: 26px; padding: 0 10px; border-radius: 13px; background: #E8EDFB; color: #2B50C8; font-size: 12px; font-weight: 600; display: flex; align-items: center">{{np.ch}}</div>
+  </div>
+
+  <div style="padding: 14px 24px 0; flex: none">
+    <div style="height: 6px; background: #E4E2DC; border-radius: 3px; position: relative">
+      <div style="position: absolute; left: 0; top: 0; height: 6px; width: {{np.pct}}; background: #2B50C8; border-radius: 3px"></div>
+      <sc-for list="{{ticks}}" as="tk" hint-placeholder-count="4">
+        <div style="position: absolute; top: -3px; width: 2px; height: 12px; background: #8A8D98; left: {{tk}}"></div>
+      </sc-for>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #5C6070; margin-top: 6px"><span>{{np.pos}}</span><span>{{np.len}}</span></div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 4px 0 8px; flex: none">
+    <button aria-label="Previous Chapter" style="width: 44px; height: 44px; border: none; background: transparent; color: #17181C"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14M18 6l-9 6 9 6z"></path></svg></button>
+    <button aria-label="Back 15 seconds" style="width: 52px; height: 52px; border: none; background: transparent; color: #17181C; font-size: 15px; font-weight: 600">−15</button>
+    <button aria-label="{{playLabel}}" onClick="{{togglePlay}}" style="width: 68px; height: 68px; border-radius: 34px; border: none; background: #17181C; color: #FFFFFF; display: flex; align-items: center; justify-content: center">
+      <sc-if value="{{playing}}" hint-placeholder-val="{{true}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M8 5v14M16 5v14"></path></svg></sc-if>
+      <sc-if value="{{paused}}" hint-placeholder-val="{{false}}"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="currentColor"></path></svg></sc-if>
+    </button>
+    <button aria-label="Forward 30 seconds" style="width: 52px; height: 52px; border: none; background: transparent; color: #17181C; font-size: 15px; font-weight: 600">+30</button>
+    <button aria-label="Next Chapter" style="width: 44px; height: 44px; border: none; background: transparent; color: #17181C"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 5v14M6 6l9 6-9 6z"></path></svg></button>
+  </div>
+
+  <div role="tablist" style="display: flex; margin: 0 16px; background: #ECEAE5; border-radius: 12px; padding: 3px; flex: none">
+    <sc-for list="{{segs}}" as="g" hint-placeholder-count="3">
+      <button role="tab" onClick="{{g.pick}}" style="{{g.style}}">{{g.name}}</button>
+    </sc-for>
+  </div>
+
+  <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 6px 16px 80px">
+    <sc-for list="{{panel}}" as="r" hint-placeholder-count="4">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px solid #E4E2DC">
+        <span style="width: 54px; font-size: 12px; color: {{r.leadColor}}; font-weight: 600; flex: none">{{r.lead}}</span>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</div>
+          <div style="font-size: 12px; color: #5C6070; margin-top: 2px">{{r.sub}}</div>
+        </div>
+        <sc-if value="{{r.hasAction}}" hint-placeholder-val="{{false}}">
+          <button style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 12px; font-weight: 600; flex: none">{{r.action}}</button>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <button onClick="{{openFind}}" style="position: absolute; left: 16px; right: 16px; bottom: 18px; height: 52px; border-radius: 26px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #5C6070; font-size: 15px; display: flex; align-items: center; gap: 10px; padding: 0 18px; box-shadow: 0 6px 20px rgba(23,24,28,0.12)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+    Find episodes · 5 Views
+  </button>
+
+  <sc-if value="{{findOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset: 0; background: rgba(23,24,28,0.45); display: flex; flex-direction: column; justify-content: flex-end">
+      <div style="height: 760px; background: #FFFFFF; border-radius: 22px 22px 0 0; display: flex; flex-direction: column">
+        <div style="padding: 10px 16px 0">
+          <div style="width: 40px; height: 4px; border-radius: 2px; background: #D6D3CC; margin: 0 auto 12px"></div>
+          <div style="display: flex; gap: 8px; align-items: center">
+            <label style="flex: 1; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 12px; background: #F1F0EC">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
+              <input placeholder="Search, or pick a View" style="border: none; outline: none; background: transparent; font: inherit; font-size: 15px; flex: 1; min-width: 0">
+            </label>
+            <button onClick="{{closeFind}}" style="height: 44px; padding: 0 8px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 600">Done</button>
+          </div>
+          <div style="display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 8px">
+            <sc-for list="{{views}}" as="v" hint-placeholder-count="5">
+              <button onClick="{{v.pick}}" style="{{v.style}}">{{v.name}}</button>
+            </sc-for>
+          </div>
+          <div style="font-size: 12px; color: #5C6070; padding-bottom: 6px">Adds go to <strong style="color: #17181C">{{activeName}}</strong>, the Active Playlist</div>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: 0 16px 20px">
+          <sc-for list="{{viewEps}}" as="e" hint-placeholder-count="6">
+            <div style="padding: 12px 0; border-bottom: 1px solid #EFEDE8">
+              <div style="display: flex; gap: 12px; align-items: center">
+                <div style="width: 40px; height: 40px; border-radius: 8px; background: {{e.color}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; flex: none">{{e.ini}}</div>
+                <div style="flex: 1; min-width: 0">
+                  <div style="font-size: 14px; font-weight: 500; line-height: 1.3">{{e.t}}</div>
+                  <div style="font-size: 12px; color: #5C6070; margin-top: 2px">{{e.meta}}</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px; margin: 8px 0 0 52px">
+                <button style="height: 32px; padding: 0 12px; border-radius: 16px; border: none; background: #2B50C8; color: #FFFFFF; font-size: 12px; font-weight: 600">Play Now</button>
+                <button style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 12px; font-weight: 600">Next</button>
+                <button style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 12px; font-weight: 600">Last</button>
+                <button aria-label="More: other Playlist, Star, Download" style="height: 32px; width: 32px; border-radius: 16px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 14px">···</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { active: 0, seg: 0, find: false, view: 0, playing: true };
+  renderVals() {
+    const s = this.state;
+    const POD = { sn: ['Signal & Noise', '#2F6F6A', 'SN'], lc: ['The Long Commute', '#A64B22', 'LC'], ns: ['Night Shift Histories', '#4B3F8F', 'NS'], ke: ['Kitchen Table Economics', '#76600F', 'KE'], df: ['Deep Field', '#1F5E8A', 'DF'], sh: ['Small Hours', '#7A2E4F', 'SH'] };
+    const EP = {
+      e1: ['sn', 'Who owns the model weights?', 'Nov 6', '58m'], e2: ['df', 'The quiet sun problem', 'Nov 5', '41m'], e3: ['ke', 'Rent, explained with three bowls of rice', 'Nov 5', '33m'],
+      e4: ['ns', 'The night the bridge lights went out', 'Nov 4', '1:12:04'], e5: ['sh', 'A lighthouse keeper on twenty years alone', 'Nov 3', '49m'], e6: ['lc', 'Commuting as a love language', 'Nov 2', '27m'],
+      e7: ['sn', 'Small models, big phones', 'Nov 1', '46m'], e8: ['df', 'Counting worms from orbit', 'Oct 28', '37m'], e9: ['df', 'What the tide gauges missed', 'Oct 21', '52m'],
+      e10: ['df', 'A brief history of the kilogram', 'Oct 14', '44m'], e11: ['sh', 'A machine-learning researcher on doubt', 'Oct 30', '1h 03m'], e12: ['lc', 'Leaving at 5:40', 'Sep 12', '24m'],
+      e13: ['ns', 'The lamplighters’ strike', 'Aug 3', '1:05:00'], e14: ['ke', 'Why coins cost more than they’re worth', 'Oct 31', '19:02'], e15: ['lc', 'The bus driver’s map', 'Oct 27', '22m']
+    };
+    const VIEWS = [
+      { n: 'New this week', ids: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7'] }, { n: 'Unplayed science', ids: ['e2', 'e8', 'e9', 'e10'] },
+      { n: 'Mentions “AI”', ids: ['e1', 'e7', 'e11'] }, { n: 'Starred', ids: ['e7', 'e12', 'e13'] }, { n: 'Under 30 min', ids: ['e6', 'e14', 'e15'] }
+    ];
+    const PLS = [
+      { n: 'Default', cursor: 0, entries: [['e4', 31, '22:10'], ['e1', 0, ''], ['e3', 0, ''], ['e2', 0, ''], ['e5', 0, '']], ch: ['Cold open', 'The city in 1977', 'Blackout at the switch house', 'Who flipped the breaker', 'Aftermath'], chAt: ['0:00', '6:40', '18:05', '34:50', '55:12'], chCur: 2, tl: [['Tonight 11:42 pm', 'Ch 3 · 22:10'], ['Tonight 11:20 pm', 'Ch 2 · 6:40'], ['Last night 1:15 am', 'Rent, explained… · Played'], ['Last night 12:31 am', 'The quiet sun… · Played']] },
+      { n: 'Replay', cursor: 1, entries: [['e12', 100, ''], ['e13', 19, '12:30'], ['e9', 0, '']], ch: ['Gaslight', 'The guild votes', 'Dark streets', 'Settlement'], chAt: ['0:00', '9:15', '28:40', '51:30'], chCur: 1, tl: [['Sun 9:02 pm', 'Ch 2 · 12:30'], ['Sun 8:40 pm', 'Leaving at 5:40 · Finished']] },
+      { n: 'Morning', cursor: 0, entries: [['e14', 64, '12:10'], ['e6', 0, ''], ['e2', 0, '']], ch: ['Intro', 'The mint', 'Melt value', 'Pennies and nickels'], chAt: ['0:00', '2:10', '6:45', '11:30'], chCur: 3, tl: [['Today 7:48 am', 'Ch 4 · 12:10'], ['Today 7:36 am', 'Ch 1 · 0:00']] }
+    ];
+    const ep = (id) => { const e = EP[id]; const p = POD[e[0]]; return { pod: p[0], color: p[1], ini: p[2], t: e[1], date: e[2], len: e[3] }; };
+    const act = PLS[s.active];
+    const cur = act.entries[act.cursor];
+    const n = ep(cur[0]);
+    const chip = (on) => 'flex: none; height: 40px; padding: 0 14px; border-radius: 20px; font-size: 14px; font-weight: 500; white-space: nowrap; ' + (on ? 'border: 1px solid #17181C; background: #17181C; color: #FFFFFF' : 'border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C');
+    let panel;
+    if (s.seg === 0) {
+      panel = act.entries.slice(act.cursor + 1).map((en, i) => { const e = ep(en[0]); return { lead: 'Next ' + (i + 1), leadColor: '#5C6070', title: e.t, sub: e.pod + ' · ' + e.len, hasAction: false, action: '' }; });
+      if (!panel.length) panel = [{ lead: '', leadColor: '#5C6070', title: 'Nothing after this Entry', sub: 'Playback stops at the end of ' + act.n, hasAction: false, action: '' }];
+    } else if (s.seg === 1) {
+      panel = act.ch.map((c, i) => ({ lead: act.chAt[i], leadColor: i === act.chCur ? '#2B50C8' : '#5C6070', title: c, sub: i === act.chCur ? 'Playing' : (i < act.chCur ? 'Heard' : ''), hasAction: i !== act.chCur, action: 'Jump' }));
+    } else {
+      panel = act.tl.map((t) => ({ lead: '', leadColor: '#5C6070', title: t[0], sub: t[1], hasAction: true, action: 'Rewind here' }));
+    }
+    return {
+      deck: PLS.map((p, i) => { const c = ep(p.entries[p.cursor][0]); return { name: p.n, isActive: i === s.active, cur: c.t, meta: 'Entry ' + (p.cursor + 1) + ' of ' + p.entries.length, pick: () => this.setState({ active: i }), style: 'flex: none; width: 168px; height: 84px; border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; text-align: left; color: #17181C; box-sizing: border-box; ' + (i === s.active ? 'background: #FFFFFF; border: 2px solid #17181C' : 'background: #FFFFFF; border: 1px solid #E4E2DC') }; }),
+      np: { color: n.color, ini: n.ini, pod: n.pod + ' · ' + act.n, t: n.t, ch: 'Ch ' + (act.chCur + 1) + ' · ' + act.ch[act.chCur], pct: cur[1] + '%', pos: cur[2], len: n.len },
+      ticks: ['9%', '25%', '48%', '76%'],
+      segs: ['Up next', 'Chapters', 'Timeline'].map((name, i) => ({ name, pick: () => this.setState({ seg: i }), style: 'flex: 1; height: 38px; border: none; border-radius: 9px; font-size: 13px; font-weight: 600; ' + (i === s.seg ? 'background: #FFFFFF; color: #17181C; box-shadow: 0 1px 3px rgba(23,24,28,0.12)' : 'background: transparent; color: #5C6070') })),
+      panel,
+      playing: s.playing, paused: !s.playing, playLabel: s.playing ? 'Pause' : 'Play',
+      togglePlay: () => this.setState({ playing: !s.playing }),
+      findOpen: s.find,
+      openFind: () => this.setState({ find: true }),
+      closeFind: () => this.setState({ find: false }),
+      activeName: act.n,
+      views: VIEWS.map((v, i) => ({ name: v.n, style: chip(i === s.view), pick: () => this.setState({ view: i }) })),
+      viewEps: VIEWS[s.view].ids.map((id) => { const e = ep(id); return { ...e, meta: e.pod + ' · ' + e.date + ' · ' + e.len }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

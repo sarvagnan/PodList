@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Variant A · Two halves (phone)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B50C8}a:hover{color:#1E3A96}
+button{font-family:inherit;cursor:pointer}
+.np-drawer{animation:npup .3s cubic-bezier(.2,.8,.2,1)}
+.np-fade{animation:npfade .3s ease-out}
+@keyframes npup{from{transform:translateY(100%)}to{transform:none}}
+@keyframes npfade{from{background:rgba(23,24,28,0)}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F6F5F2; color: #17181C; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <sc-if value="{{showViewList}}" hint-placeholder-val="{{true}}">
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+      <div style="padding: 20px 20px 10px; display: flex; align-items: center; justify-content: space-between">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600">Views</h1>
+        <button style="height: 44px; padding: 0 4px 0 14px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 600">New View</button>
+      </div>
+      <button style="margin: 0 20px 8px; height: 44px; border-radius: 12px; border: none; background: #ECEAE5; color: #5C6070; font-size: 15px; display: flex; align-items: center; gap: 8px; padding: 0 12px; text-align: left">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        Search the Library
+      </button>
+      <div style="flex: 1; overflow-y: auto; padding: 0 12px">
+        <sc-for list="{{views}}" as="v" hint-placeholder-count="5">
+          <button onClick="{{v.open}}" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 8px; border: none; border-bottom: 1px solid #E4E2DC; background: transparent; text-align: left; color: #17181C">
+            <span style="width: 40px; height: 40px; border-radius: 10px; background: #E8EDFB; color: #2B50C8; display: flex; align-items: center; justify-content: center; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 8v6l-4-2v-4z"></path></svg></span>
+            <span style="flex: 1; min-width: 0">
+              <span style="display: block; font-size: 16px; font-weight: 500">{{v.name}}</span>
+              <span style="display: block; font-size: 12px; color: #5C6070; margin-top: 3px; line-height: 1.35">{{v.rule}}</span>
+            </span>
+            <span style="font-size: 13px; color: #5C6070">{{v.count}}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8D98" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showViewDetail}}" hint-placeholder-val="{{false}}">
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+      <div style="padding: 8px 8px 0; display: flex; align-items: center; justify-content: space-between">
+        <button onClick="{{backToViews}}" style="height: 44px; padding: 0 10px 0 4px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Views</button>
+        <button style="height: 44px; padding: 0 12px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 500">Edit</button>
+      </div>
+      <div style="padding: 2px 20px 8px">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600">{{viewName}}</h1>
+        <p style="margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: #5C6070">{{viewRule}}</p>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 0 12px 12px">
+        <sc-for list="{{viewEps}}" as="e" hint-placeholder-count="6">
+          <div style="display: flex; gap: 6px; align-items: center; border-bottom: 1px solid #E4E2DC">
+            <button onClick="{{e.open}}" style="flex: 1; min-width: 0; display: flex; gap: 12px; align-items: center; padding: 10px 4px 10px 8px; border: none; background: transparent; text-align: left; color: #17181C">
+              <span style="width: 48px; height: 48px; border-radius: 10px; background: {{e.color}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px; flex: none">{{e.ini}}</span>
+              <span style="flex: 1; min-width: 0">
+                <span style="display: block; font-size: 15px; font-weight: 500; line-height: 1.3">{{e.t}}</span>
+                <span style="font-size: 12px; color: #5C6070; margin-top: 3px; display: flex; gap: 6px; align-items: center">
+                  <sc-if value="{{e.star}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="#B5791A" stroke="none" role="img" aria-label="Starred"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"></path></svg></sc-if>
+                  <span>{{e.meta}}</span>
+                </span>
+              </span>
+            </button>
+            <button aria-label="Add to a Playlist" onClick="{{e.add}}" style="width: 44px; height: 44px; flex: none; border-radius: 22px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+            <button aria-label="Play now" onClick="{{e.play}}" style="width: 44px; height: 44px; flex: none; border-radius: 22px; border: none; background: #2B50C8; color: #FFFFFF; display: flex; align-items: center; justify-content: center; margin-right: 4px"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg></button>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showEpisode}}" hint-placeholder-val="{{false}}">
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+      <div style="padding: 8px 8px 0; display: flex; align-items: center; justify-content: space-between">
+        <button onClick="{{closeEpisode}}" style="height: 44px; padding: 0 10px 0 4px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>{{epBack}}</button>
+        <button aria-label="More" style="width: 44px; height: 44px; border: none; background: transparent; color: #17181C; font-size: 18px">···</button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 4px 20px 20px">
+        <div style="display: flex; gap: 16px; align-items: center">
+          <div style="width: 96px; height: 96px; border-radius: 16px; background: {{ep.artBg}}; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 26px; flex: none">{{ep.ini}}<span style="font-family: Inter, sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.85">{{ep.artKind}}</span></div>
+          <div style="min-width: 0">
+            <div style="font-size: 13px; color: #5C6070">{{ep.pod}}</div>
+            <h1 style="margin: 4px 0 0; font-family: 'Space Grotesk', sans-serif; font-size: 21px; line-height: 1.2; font-weight: 600">{{ep.t}}</h1>
+          </div>
+        </div>
+        <div style="font-size: 13px; color: #5C6070; margin-top: 12px">{{ep.facts}}</div>
+
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-top: 18px; padding: 0 6px">
+          <button onClick="{{ep.togglePlayed}}" aria-pressed="{{ep.playedPressed}}" style="width: 56px; border: none; background: transparent; color: {{ep.playedColor}}; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0">
+            <span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #D6D3CC; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path></svg></span>{{ep.playedLabel}}</button>
+          <button onClick="{{ep.toggleDl}}" aria-pressed="{{ep.dlPressed}}" style="width: 56px; border: none; background: transparent; color: {{ep.dlColor}}; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0">
+            <span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #D6D3CC; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg></span>{{ep.dlLabel}}</button>
+          <button onClick="{{ep.play}}" style="width: 72px; border: none; background: transparent; color: #17181C; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 0">
+            <span style="width: 64px; height: 64px; border-radius: 32px; background: #2B50C8; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg></span>Play</button>
+          <button onClick="{{ep.add}}" style="width: 56px; border: none; background: transparent; color: #17181C; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0">
+            <span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #D6D3CC; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>Add</button>
+          <button onClick="{{ep.toggleStar}}" aria-pressed="{{ep.starPressed}}" style="width: 56px; border: none; background: transparent; color: {{ep.starColor}}; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0">
+            <span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #D6D3CC; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{ep.starFill}}" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"></path></svg></span>{{ep.starLabel}}</button>
+        </div>
+
+        <h2 style="margin: 24px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5C6070">In your Playlists</h2>
+        <sc-if value="{{ep.notInAny}}" hint-placeholder-val="{{false}}">
+          <div style="font-size: 14px; color: #5C6070; padding: 8px 0">Not in any Playlist yet.</div>
+        </sc-if>
+        <sc-for list="{{ep.inPlaylists}}" as="ip" hint-placeholder-count="2">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #E4E2DC">
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 15px; font-weight: 500">{{ip.name}}<span style="font-size: 12px; color: #5C6070; font-weight: 400; margin-left: 8px">{{ip.where}}</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px">
+                <div style="flex: 1; height: 4px; border-radius: 2px; background: #E4E2DC; overflow: hidden"><div style="height: 4px; width: {{ip.pct}}; background: #2B50C8"></div></div>
+                <span style="font-size: 11px; color: #5C6070; white-space: nowrap">{{ip.pos}}</span>
+              </div>
+            </div>
+            <button style="height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 13px; font-weight: 500">Resume</button>
+          </div>
+        </sc-for>
+
+        <sc-if value="{{ep.hasChapters}}" hint-placeholder-val="{{false}}">
+          <h2 style="margin: 24px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5C6070">Chapters</h2>
+          <sc-for list="{{ep.chapters}}" as="c" hint-placeholder-count="5">
+            <div style="display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid #E4E2DC; font-size: 14px">
+              <span style="width: 36px; height: 36px; border-radius: 7px; background: {{c.art}}; flex: none"></span>
+              <span style="width: 44px; color: #5C6070; font-size: 13px">{{c.at}}</span>
+              <span style="flex: 1">{{c.title}}</span>
+            </div>
+          </sc-for>
+        </sc-if>
+
+        <h2 style="margin: 24px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5C6070">Show notes</h2>
+        <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #33353D">{{ep.notes}}</p>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showPlList}}" hint-placeholder-val="{{false}}">
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+      <div style="padding: 20px 20px 10px; display: flex; align-items: center; justify-content: space-between">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600">Playlists</h1>
+        <button style="height: 44px; padding: 0 4px 0 14px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 600">New Playlist</button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 0 12px">
+        <sc-for list="{{playlists}}" as="p" hint-placeholder-count="3">
+          <button onClick="{{p.open}}" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 8px; border: none; border-bottom: 1px solid #E4E2DC; background: transparent; text-align: left; color: #17181C">
+            <span style="width: 40px; height: 40px; border-radius: 10px; background: {{p.iconBg}}; color: {{p.iconFg}}; display: flex; align-items: center; justify-content: center; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"></path><path d="M16 15v6l5-3z" fill="currentColor"></path></svg></span>
+            <span style="flex: 1; min-width: 0">
+              <span style="display: flex; align-items: center; gap: 8px">
+                <span style="font-size: 16px; font-weight: 500">{{p.name}}</span>
+                <sc-if value="{{p.isActive}}" hint-placeholder-val="{{false}}"><span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #1D6B45; background: #DDF2E7; padding: 2px 6px; border-radius: 6px">PLAYING</span></sc-if>
+              </span>
+              <span style="display: block; font-size: 12px; color: #5C6070; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.cur}}</span>
+              <span style="display: block; font-size: 12px; color: #5C6070; margin-top: 1px">{{p.meta}}</span>
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8D98" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showPlDetail}}" hint-placeholder-val="{{false}}">
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+      <div style="padding: 8px 8px 0; display: flex; align-items: center; justify-content: space-between">
+        <button onClick="{{backToPlaylists}}" style="height: 44px; padding: 0 10px 0 4px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Playlists</button>
+        <button style="height: 44px; padding: 0 12px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 500">Settings</button>
+      </div>
+      <div style="padding: 2px 20px 10px">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600">{{plName}}</h1>
+        <p style="margin: 6px 0 0; font-size: 13px; color: #5C6070">{{plMeta}}</p>
+      </div>
+      <div style="margin: 0 20px 8px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E4E2DC; border-radius: 14px; display: flex; align-items: center; gap: 12px">
+        <div style="flex: 1; min-width: 0; font-size: 14px; font-weight: 600">{{plStatus}}</div>
+        <sc-if value="{{plCanActivate}}" hint-placeholder-val="{{false}}">
+          <button onClick="{{activate}}" style="height: 44px; padding: 0 16px; border-radius: 22px; border: none; background: #2B50C8; color: #FFFFFF; font-size: 14px; font-weight: 600">Play this</button>
+        </sc-if>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 0 12px">
+        <sc-for list="{{entries}}" as="en" hint-placeholder-count="5">
+          <div style="{{en.rowStyle}}">
+            <button onClick="{{en.open}}" style="flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; border: none; background: transparent; text-align: left; color: #17181C; padding: 0">
+              <span style="width: 28px; text-align: center; font-size: 12px; font-weight: 600; color: {{en.markColor}}; flex: none">{{en.mark}}</span>
+              <span style="width: 44px; height: 44px; border-radius: 9px; background: {{en.color}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px; flex: none; opacity: {{en.opacity}}">{{en.ini}}</span>
+              <span style="flex: 1; min-width: 0; opacity: {{en.opacity}}">
+                <span style="display: block; font-size: 14px; font-weight: 500; line-height: 1.3">{{en.t}}</span>
+                <span style="display: flex; align-items: center; gap: 8px; margin-top: 6px">
+                  <span style="flex: 1; height: 4px; border-radius: 2px; background: #E4E2DC; overflow: hidden"><span style="display: block; height: 4px; width: {{en.pct}}; background: #2B50C8"></span></span>
+                  <span style="font-size: 11px; color: #5C6070; white-space: nowrap">{{en.posText}}</span>
+                </span>
+              </span>
+            </button>
+            <button aria-label="Reorder" style="width: 44px; height: 44px; border: none; background: transparent; color: #8A8D98; flex: none; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"></path></svg></button>
+          </div>
+        </sc-for>
+        <div style="display: flex; gap: 8px; padding: 14px 8px 18px">
+          <button style="flex: 1; height: 44px; border-radius: 12px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 14px; font-weight: 500">History</button>
+          <button style="flex: 1; height: 44px; border-radius: 12px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 14px; font-weight: 500">Listening Timeline</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{showLibrary}}" hint-placeholder-val="{{false}}">
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+      <div style="padding: 20px 20px 8px; display: flex; align-items: center; justify-content: space-between">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600">Library</h1>
+        <button style="height: 44px; padding: 0 4px 0 14px; border: none; background: transparent; color: #2B50C8; font-size: 15px; font-weight: 600">Subscribe</button>
+      </div>
+      <p style="margin: 0 20px 10px; font-size: 13px; color: #5C6070">Download Rules shown are for this phone.</p>
+      <div style="flex: 1; overflow-y: auto; padding: 0 12px">
+        <sc-for list="{{subs}}" as="s" hint-placeholder-count="6">
+          <div style="display: flex; gap: 12px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #E4E2DC">
+            <div style="width: 48px; height: 48px; border-radius: 10px; background: {{s.color}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px; flex: none">{{s.ini}}</div>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 15px; font-weight: 500">{{s.name}}</div>
+              <div style="font-size: 12px; color: #5C6070; margin-top: 3px">{{s.rule}}</div>
+            </div>
+            <span style="font-size: 12px; color: #5C6070">{{s.unplayed}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="margin: 0 10px; background: #1B2A33; color: #FFFFFF; border-radius: 18px; overflow: hidden; position: relative">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px 12px 10px">
+      <button aria-label="Open Now Playing" onClick="{{openNow}}" style="width: 52px; height: 52px; border-radius: 10px; border: none; background: {{np.artBg}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px; flex: none; padding: 0">{{np.ini}}</button>
+      <button aria-label="Open Now Playing" onClick="{{openNow}}" style="flex: 1; align-self: stretch; border: none; background: transparent; padding: 0; min-width: 0"></button>
+      <button aria-label="Back 15 seconds" onClick="{{back15}}" style="width: 44px; height: 44px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"></path><path d="M4 4v5h5"></path></svg></button>
+      <button aria-label="{{playLabel}}" onClick="{{togglePlay}}" style="width: 56px; height: 56px; border-radius: 28px; border: none; background: #FFFFFF; color: #1B2A33; display: flex; align-items: center; justify-content: center; flex: none">
+        <sc-if value="{{playing}}" hint-placeholder-val="{{true}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M8 5v14M16 5v14"></path></svg></sc-if>
+        <sc-if value="{{paused}}" hint-placeholder-val="{{false}}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="currentColor"></path></svg></sc-if>
+      </button>
+      <button aria-label="Forward 30 seconds" onClick="{{fwd30}}" style="width: 44px; height: 44px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"></path><path d="M20 4v5h-5"></path></svg></button>
+      <button aria-label="Open Now Playing" onClick="{{openNow}}" style="flex: 1; align-self: stretch; border: none; background: transparent; padding: 0; min-width: 0"></button>
+      <button aria-label="{{queueLabel}}" onClick="{{openQueue}}" style="height: 44px; padding: 0 2px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; gap: 4px; flex: none">
+        <span style="min-width: 28px; height: 28px; padding: 0 7px; box-sizing: border-box; border-radius: 14px; background: #FFFFFF; color: #1B2A33; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{queueCount}}</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9CBD3" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+      </button>
+    </div>
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #2C3D47"><div style="height: 4px; width: {{np.pct}}; background: #3AA0E8"></div></div>
+  </div>
+
+  <nav style="display: flex; padding: 6px 8px 14px; gap: 4px">
+    <button onClick="{{goViews}}" style="{{tabViews}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 8v6l-4-2v-4z"></path></svg>Views</button>
+    <button onClick="{{goPlaylists}}" style="{{tabPlaylists}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"></path><path d="M16 15v6l5-3z" fill="currentColor"></path></svg>Playlists</button>
+    <button onClick="{{goLibrary}}" style="{{tabLibrary}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="16" rx="1.5"></rect><rect x="14" y="4" width="6" height="16" rx="1.5"></rect></svg>Library</button>
+  </nav>
+
+  <sc-if value="{{nowOpen}}" hint-placeholder-val="{{false}}">
+    <div class="{{fadeClass}}" style="position: absolute; inset: 0; background: rgba(23,24,28,0.5); display: flex; flex-direction: column">
+    <button aria-label="Close Now Playing" onClick="{{closeNow}}" style="flex: 0 0 40px; border: none; background: transparent"></button>
+    <div class="{{drawerClass}}" role="dialog" aria-label="Now Playing" style="flex: 1; min-height: 0; background: #1B2A33; color: #FFFFFF; border-radius: 22px 22px 0 0; display: flex; flex-direction: column; padding: 8px 20px 20px; box-sizing: border-box; box-shadow: 0 -10px 30px rgba(0,0,0,0.25)">
+      <div style="width: 40px; height: 5px; border-radius: 3px; background: #4A5B66; margin: 0 auto"></div>
+      <sc-if value="{{npMain}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <button aria-label="Close Now Playing" onClick="{{closeNow}}" style="width: 44px; height: 44px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+        <button onClick="{{openQueue}}" style="height: 44px; border: none; background: transparent; color: #C9CBD3; font-size: 12px; text-align: center; line-height: 1.3">Playing from<br><strong style="color: #FFFFFF; font-size: 14px">{{np.from}}</strong></button>
+        <button aria-label="More" style="width: 44px; height: 44px; border: none; background: transparent; color: #FFFFFF; font-size: 18px">···</button>
+      </div>
+      <div style="margin: 8px auto 0; width: 270px; height: 270px; border-radius: 20px; background: {{np.artBg}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 64px; box-shadow: 0 20px 50px rgba(0,0,0,0.35)">{{np.ini}}<span style="font-family: Inter, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85">{{np.artKind}}</span></div>
+      <div style="display: flex; align-items: center; gap: 4px; margin-top: 18px">
+        <button aria-label="Previous Chapter" onClick="{{prevCh}}" style="width: 40px; height: 40px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14M18 6l-9 6 9 6z"></path></svg></button>
+        <div style="flex: 1; min-width: 0; text-align: center; font-size: 13px; color: #9FD3F7; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{np.chapter}}</div>
+        <button aria-label="Next Chapter" onClick="{{nextCh}}" style="width: 40px; height: 40px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 5v14M6 6l9 6-9 6z"></path></svg></button>
+      </div>
+      <div style="text-align: center; margin-top: 4px">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600; line-height: 1.25">{{np.t}}</div>
+        <div style="font-size: 13px; color: #C9CBD3; margin-top: 4px">{{np.pod}}</div>
+      </div>
+      <button aria-label="Seek" onClick="{{seek}}" style="margin-top: 18px; height: 28px; border: none; background: transparent; padding: 0; position: relative; display: block; width: 100%">
+        <span style="position: absolute; left: 0; right: 0; top: 11px; height: 6px; border-radius: 3px; background: #2C3D47; overflow: hidden"><span style="display: block; height: 6px; width: {{np.pct}}; background: #3AA0E8"></span></span>
+        <sc-for list="{{np.ticks}}" as="tk" hint-placeholder-count="4">
+          <span style="position: absolute; top: 8px; width: 2px; height: 12px; background: #8FA3AF; left: {{tk}}"></span>
+        </sc-for>
+      </button>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; color: #C9CBD3"><span>{{np.pos}}</span><span>{{np.remaining}}</span></div>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 28px; margin-top: 14px">
+        <button aria-label="Back 15 seconds" onClick="{{back15}}" style="width: 56px; height: 56px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"></path><path d="M4 4v5h5"></path></svg></button>
+        <button aria-label="{{playLabel}}" onClick="{{togglePlay}}" style="width: 80px; height: 80px; border-radius: 40px; border: none; background: #FFFFFF; color: #1B2A33; display: flex; align-items: center; justify-content: center">
+          <sc-if value="{{playing}}" hint-placeholder-val="{{true}}"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M8 5v14M16 5v14"></path></svg></sc-if>
+          <sc-if value="{{paused}}" hint-placeholder-val="{{false}}"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="currentColor"></path></svg></sc-if>
+        </button>
+        <button aria-label="Forward 30 seconds" onClick="{{fwd30}}" style="width: 56px; height: 56px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"></path><path d="M20 4v5h-5"></path></svg></button>
+      </div>
+      <div style="flex: 1"></div>
+      <div style="display: flex; justify-content: space-between">
+        <button style="width: 64px; height: 52px; border: none; background: transparent; color: #FFFFFF; font-size: 15px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">1.2×<span style="font-size: 10px; color: #C9CBD3; font-weight: 500">Speed</span></button>
+        <button style="width: 64px; height: 52px; border: none; background: transparent; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path></svg><span style="font-size: 10px; color: #C9CBD3">Sleep</span></button>
+        <button onClick="{{npGoChapters}}" style="width: 64px; height: 52px; border: none; background: transparent; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h3M10 6h10M4 12h3M10 12h10M4 18h3M10 18h10"></path></svg><span style="font-size: 10px; color: #C9CBD3">Chapters</span></button>
+        <button onClick="{{openEpisodeFromNow}}" style="width: 64px; height: 52px; border: none; background: transparent; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5M12 8h.01"></path></svg><span style="font-size: 10px; color: #C9CBD3">Episode</span></button>
+        <button onClick="{{openQueue}}" style="width: 64px; height: 52px; border: none; background: transparent; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"></path></svg><span style="font-size: 10px; color: #C9CBD3">Up next</span></button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{npSub}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; align-items: center; margin-top: 2px">
+          <button onClick="{{npBack}}" style="height: 44px; padding: 0 10px 0 0; border: none; background: transparent; color: #9FD3F7; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 2px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>{{npBackLabel}}</button>
+          <div style="flex: 1"></div>
+          <button aria-label="Close Now Playing" onClick="{{closeNow}}" style="width: 44px; height: 44px; border: none; background: transparent; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+        </div>
+        <sc-if value="{{npHasTitle}}" hint-placeholder-val="{{true}}">
+          <h2 style="margin: 2px 0 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600">{{npTitle}}</h2>
+          <div style="font-size: 13px; color: #A9B6BE; margin-top: 2px">{{npSubtitle}}</div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{npQueue}}" hint-placeholder-val="{{false}}">
+        <div style="flex: 1; min-height: 0; overflow-y: auto; margin: 10px -8px 0">
+          <sc-for list="{{npEntries}}" as="en" hint-placeholder-count="5">
+            <div style="{{en.rowStyle}}">
+              <button onClick="{{en.open}}" style="flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; border: none; background: transparent; color: #FFFFFF; text-align: left; padding: 0">
+                <span style="width: 30px; text-align: center; font-size: 11px; font-weight: 700; color: {{en.markColor}}; flex: none">{{en.mark}}</span>
+                <span style="width: 40px; height: 40px; border-radius: 8px; background: {{en.color}}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; flex: none; opacity: {{en.opacity}}">{{en.ini}}</span>
+                <span style="flex: 1; min-width: 0; opacity: {{en.opacity}}">
+                  <span style="display: block; font-size: 14px; font-weight: 500; line-height: 1.3">{{en.t}}</span>
+                  <span style="display: block; font-size: 11px; color: #A9B6BE; margin-top: 3px">{{en.posText}}</span>
+                </span>
+              </button>
+              <button aria-label="Play from here" onClick="{{en.play}}" style="width: 36px; height: 36px; border-radius: 18px; border: none; background: #FFFFFF; color: #1B2A33; flex: none; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg></button>
+              <button aria-label="Reorder" style="width: 40px; height: 44px; border: none; background: transparent; color: #6F808B; flex: none; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"></path></svg></button>
+            </div>
+          </sc-for>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #A9B6BE; margin: 18px 8px 4px">Switch Playlist</div>
+          <sc-for list="{{npOtherPls}}" as="p" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 8px; border-bottom: 1px solid #2C3D47">
+              <div style="flex: 1; min-width: 0">
+                <div style="font-size: 15px; font-weight: 500">{{p.name}}</div>
+                <div style="font-size: 12px; color: #A9B6BE; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.cur}}</div>
+              </div>
+              <button onClick="{{p.play}}" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #3A4A54; background: transparent; color: #FFFFFF; font-size: 13px; font-weight: 600">Play this</button>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{npChapters}}" hint-placeholder-val="{{false}}">
+        <div style="flex: 1; min-height: 0; overflow-y: auto; margin: 10px -8px 0">
+          <sc-if value="{{np.noChapters}}" hint-placeholder-val="{{false}}">
+            <div style="font-size: 14px; color: #A9B6BE; padding: 8px">This episode has no chapters.</div>
+          </sc-if>
+          <sc-for list="{{npChapterRows}}" as="c" hint-placeholder-count="5">
+            <button onClick="{{c.jump}}" style="{{c.style}}">
+              <span style="width: 44px; height: 44px; border-radius: 8px; background: {{c.art}}; flex: none"></span>
+              <span style="flex: 1; min-width: 0">
+                <span style="display: block; font-size: 14px; font-weight: 500">{{c.title}}</span>
+                <span style="display: block; font-size: 12px; color: #A9B6BE; margin-top: 2px">{{c.at}} · {{c.len}}</span>
+              </span>
+              <span style="font-size: 11px; font-weight: 700; color: #9FD3F7">{{c.now}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{npEpisode}}" hint-placeholder-val="{{false}}">
+        <div style="flex: 1; min-height: 0; overflow-y: auto; margin-top: 6px">
+          <div style="display: flex; gap: 14px; align-items: center">
+            <div style="width: 84px; height: 84px; border-radius: 14px; background: {{npE.artBg}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 24px; flex: none">{{npE.ini}}<span style="font-family: Inter, sans-serif; font-size: 8px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.85">{{npE.artKind}}</span></div>
+            <div style="min-width: 0">
+              <div style="font-size: 12px; color: #A9B6BE">{{npE.pod}}</div>
+              <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; line-height: 1.25; font-weight: 600; margin-top: 3px">{{npE.t}}</div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: #A9B6BE; margin-top: 10px">{{npE.facts}}</div>
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-top: 16px; padding: 0 4px">
+            <button onClick="{{npE.togglePlayed}}" aria-pressed="{{npE.playedPressed}}" style="width: 56px; border: none; background: transparent; color: {{npE.playedColorDark}}; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0"><span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #3A4A54; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path></svg></span>{{npE.playedLabel}}</button>
+            <button onClick="{{npE.toggleDl}}" aria-pressed="{{npE.dlPressed}}" style="width: 56px; border: none; background: transparent; color: {{npE.dlColorDark}}; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0"><span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #3A4A54; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg></span>{{npE.dlLabel}}</button>
+            <button onClick="{{npPlayEp}}" style="width: 72px; border: none; background: transparent; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 0"><span style="width: 60px; height: 60px; border-radius: 30px; background: #FFFFFF; color: #1B2A33; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg></span>Play</button>
+            <button onClick="{{npE.add}}" style="width: 56px; border: none; background: transparent; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0"><span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #3A4A54; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>Add</button>
+            <button onClick="{{npE.toggleStar}}" aria-pressed="{{npE.starPressed}}" style="width: 56px; border: none; background: transparent; color: {{npE.starColorDark}}; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding: 0"><span style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #3A4A54; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{npE.starFillDark}}" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"></path></svg></span>{{npE.starLabel}}</button>
+          </div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #A9B6BE; margin: 22px 0 4px">In your Playlists</div>
+          <sc-if value="{{npE.notInAny}}" hint-placeholder-val="{{false}}">
+            <div style="font-size: 14px; color: #A9B6BE; padding: 6px 0">Not in any Playlist yet.</div>
+          </sc-if>
+          <sc-for list="{{npE.inPlaylists}}" as="ip" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid #2C3D47">
+              <div style="flex: 1; min-width: 0">
+                <div style="font-size: 14px; font-weight: 500">{{ip.name}}<span style="font-size: 12px; color: #A9B6BE; font-weight: 400; margin-left: 8px">{{ip.where}}</span></div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px">
+                  <div style="flex: 1; height: 4px; border-radius: 2px; background: #2C3D47; overflow: hidden"><div style="height: 4px; width: {{ip.pct}}; background: #3AA0E8"></div></div>
+                  <span style="font-size: 11px; color: #A9B6BE; white-space: nowrap">{{ip.pos}}</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #A9B6BE; margin: 22px 0 4px">Show notes</div>
+          <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #D5DCE0">{{npE.notes}}</p>
+        </div>
+      </sc-if>
+    </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{sheetOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset: 0; background: rgba(23,24,28,0.45); display: flex; flex-direction: column; justify-content: flex-end">
+      <div style="background: #FFFFFF; border-radius: 22px 22px 0 0; padding: 10px 20px 20px">
+        <div style="width: 40px; height: 4px; border-radius: 2px; background: #D6D3CC; margin: 0 auto 14px"></div>
+        <div style="font-size: 12px; color: #5C6070">Add to a Playlist</div>
+        <div style="font-size: 17px; font-weight: 600; margin-top: 2px; line-height: 1.3">{{sheetEp.t}}</div>
+        <div role="radiogroup" aria-label="Playlist" style="margin-top: 12px">
+          <sc-for list="{{intoList}}" as="p" hint-placeholder-count="3">
+            <button role="radio" aria-checked="{{p.checked}}" onClick="{{p.pick}}" style="width: 100%; height: 48px; display: flex; align-items: center; gap: 10px; border: none; border-bottom: 1px solid #EFEDE8; background: transparent; text-align: left; color: #17181C; font-size: 15px; padding: 0 2px">
+              <span style="flex: 1">{{p.name}}<span style="color: #5C6070; font-size: 12px; margin-left: 8px">{{p.note}}</span></span>
+              <sc-if value="{{p.selected}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2B50C8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></sc-if>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 16px">
+          <button onClick="{{addNext}}" style="flex: 1; height: 56px; border-radius: 14px; border: none; background: #2B50C8; color: #FFFFFF; font-size: 15px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">Play Next<span style="font-weight: 400; opacity: 0.85; font-size: 12px">after the current Entry</span></button>
+          <button onClick="{{addLast}}" style="flex: 1; height: 56px; border-radius: 14px; border: 1px solid #D6D3CC; background: #FFFFFF; color: #17181C; font-size: 15px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">Play Last<span style="font-weight: 400; color: #5C6070; font-size: 12px">end of the Playlist</span></button>
+        </div>
+        <button onClick="{{closeSheet}}" style="width: 100%; height: 44px; margin-top: 8px; border: none; background: transparent; color: #5C6070; font-size: 14px">Cancel</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasToast}}" hint-placeholder-val="{{false}}">
+    <div role="status" style="position: absolute; left: 20px; right: 20px; bottom: 170px; background: #2FA36B; color: #FFFFFF; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 500">{{toast}}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { tab: 'views', view: null, pl: null, ep: null, active: 0, sheet: null, into: 0, toast: '', playing: true, nowId: 'e4', posSec: 1330, nowOpen: false, stars: { e7: true, e12: true, e13: true }, dls: { e4: true }, played: { e12: true } };
+  data() {
+    const POD = { sn: ['Signal & Noise', '#2F6F6A', 'SN'], lc: ['The Long Commute', '#A64B22', 'LC'], ns: ['Night Shift Histories', '#4B3F8F', 'NS'], ke: ['Kitchen Table Economics', '#76600F', 'KE'], df: ['Deep Field', '#1F5E8A', 'DF'], sh: ['Small Hours', '#7A2E4F', 'SH'] };
+    const EP = {
+      e1: ['sn', 'Who owns the model weights?', 'Nov 6', 3480, ''],
+      e2: ['df', 'The quiet sun problem', 'Nov 5', 2460, ''],
+      e3: ['ke', 'Rent, explained with three bowls of rice', 'Nov 5', 1980, ''],
+      e4: ['ns', 'The night the bridge lights went out', 'Nov 4', 4324, '50m left'],
+      e5: ['sh', 'A lighthouse keeper on twenty years alone', 'Nov 3', 2940, ''],
+      e6: ['lc', 'Commuting as a love language', 'Nov 2', 1620, ''],
+      e7: ['sn', 'Small models, big phones', 'Nov 1', 2760, ''],
+      e8: ['df', 'Counting worms from orbit', 'Oct 28', 2220, ''],
+      e9: ['df', 'What the tide gauges missed', 'Oct 21', 3120, ''],
+      e10: ['df', 'A brief history of the kilogram', 'Oct 14', 2640, '12m left'],
+      e11: ['sh', 'A machine-learning researcher on doubt', 'Oct 30', 3780, ''],
+      e12: ['lc', 'Leaving at 5:40', 'Sep 12', 1440, 'Played'],
+      e13: ['ns', 'The lamplighters’ strike', 'Aug 3', 3900, ''],
+      e14: ['ke', 'Why coins cost more than they’re worth', 'Oct 31', 1142, ''],
+      e15: ['lc', 'The bus driver’s map', 'Oct 27', 1320, '']
+    };
+    const EPART = { e1: '#14524C', e7: '#0E3F3A', e4: '#2A2357', e13: '#3A2C6E' };
+    const NOTES = {
+      e4: 'In the summer of 1977 a single breaker at a riverside switch house took out the lights on four bridges at once. We follow the night shift crew who were on duty, the reporter who got there first, and the question nobody answered for thirty years: who flipped it?',
+      e1: 'When a model is trained on everyone’s writing, who owns the result? A lawyer, an engineer and a novelist argue it out, and mostly disagree about what “owning” even means.',
+      e2: 'The sun has been unusually quiet this cycle. What that does to satellites, radio and the auroras, and why forecasters still can’t say when it will wake up.',
+      e13: 'In 1907 the city’s lamplighters walked off the job and the streets went dark for nine nights. A history of the strike, the guild that ran it, and the electric lights that ended it anyway.',
+      e14: 'Minting a penny costs more than a penny. We follow the metal, the machines and the politics that keep small coins in production.'
+    };
+    const CHAPTERS = {
+      e4: [[0, 'Cold open', '#5B3E8C'], [400, 'The city in 1977', '#8C5B2E'], [1085, 'Blackout at the switch house', '#1E3F66'], [2090, 'Who flipped the breaker', '#7A2440'], [3312, 'Aftermath', '#2E6650']],
+      e13: [[0, 'Gaslight', null], [555, 'The guild votes', null], [1720, 'Dark streets', null], [3090, 'Settlement', null]],
+      e14: [[0, 'Intro', null], [130, 'The mint', null], [405, 'Melt value', null], [690, 'Pennies and nickels', null]]
+    };
+    const VIEWS = [
+      { n: 'New this week', rule: 'Published in the last 7 days · all podcasts · newest first', ids: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7'] },
+      { n: 'Unplayed science', rule: 'Deep Field · unplayed · newest first', ids: ['e2', 'e8', 'e9', 'e10'] },
+      { n: 'Mentions “AI”', rule: 'Title or notes contain “AI” · Signal & Noise, Small Hours', ids: ['e1', 'e7', 'e11'] },
+      { n: 'Starred', rule: 'Starred · any podcast · newest first', ids: ['e7', 'e12', 'e13'] },
+      { n: 'Under 30 min', rule: 'Shorter than 30m · unplayed · not in any Playlist', ids: ['e6', 'e14', 'e15'] }
+    ];
+    const PLS = [
+      { n: 'Default', rule: 'Clear on Played', cursor: 0, entries: [['e4', 31, '22:10 / 1:12:04'], ['e1', 0, '58:00'], ['e3', 0, '33:00'], ['e2', 0, '41:00'], ['e5', 0, '49:00']] },
+      { n: 'Replay', rule: 'Keeps Entries', cursor: 1, entries: [['e12', 100, 'Finished'], ['e13', 19, '12:30 / 1:05:00'], ['e9', 0, '52:00']] },
+      { n: 'Morning', rule: 'Clear on Played', cursor: 0, entries: [['e14', 64, '12:10 / 19:02'], ['e6', 0, '27:00'], ['e2', 0, '41:00']] }
+    ];
+    return { POD, EP, EPART, NOTES, CHAPTERS, VIEWS, PLS };
+  }
+  flash(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ toast: '' }), 2600);
+  }
+  renderVals() {
+    const s = this.state;
+    const { POD, EP, EPART, NOTES, CHAPTERS, VIEWS, PLS } = this.data();
+    const fmt = (sec) => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(x).padStart(2, '0'); };
+    const short = (sec) => { const m = Math.round(sec / 60); return m >= 60 ? Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm' : m + 'm'; };
+    const ep = (id) => { const e = EP[id]; const p = POD[e[0]]; return { id, pod: p[0], color: p[1], ini: p[2], t: e[1], date: e[2], dur: e[3], len: short(e[3]), note: e[4], star: !!s.stars[id] }; };
+    const art = (id, chIdx) => {
+      const ch = CHAPTERS[id];
+      if (ch && chIdx !== undefined && chIdx >= 0 && ch[chIdx][2]) return { bg: ch[chIdx][2], kind: 'Chapter art' };
+      if (EPART[id]) return { bg: EPART[id], kind: 'Episode art' };
+      return { bg: ep(id).color, kind: 'Podcast art' };
+    };
+    const tab = (on) => 'flex: 1; height: 56px; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 600; color: ' + (on ? '#2B50C8' : '#5C6070');
+    const view = s.view === null ? VIEWS[0] : VIEWS[s.view];
+    const pl = s.pl === null ? PLS[0] : PLS[s.pl];
+    const act = PLS[s.active];
+    const n = ep(s.nowId);
+    const chs = CHAPTERS[s.nowId] || [];
+    let chIdx = -1;
+    chs.forEach((c, i) => { if (s.posSec >= c[0]) chIdx = i; });
+    const nArt = art(s.nowId, chIdx);
+    const sheetEp = s.sheet ? ep(s.sheet) : { t: '' };
+    const playNow = (id) => () => { this.setState({ nowId: id, posSec: 0, playing: true }); this.flash('Playing now in ' + act.n); };
+    const openAdd = (id) => () => this.setState({ sheet: id, into: s.active });
+    const add = (how) => () => { const e = ep(s.sheet); this.setState({ sheet: null }); this.flash(e.t + ' → ' + PLS[s.into].n + ', ' + how); };
+    const seekTo = (sec) => this.setState({ posSec: Math.min(n.dur, Math.max(0, sec)) });
+    const blank = { pod: '', t: '', artBg: '#ccc', artKind: '', ini: '', facts: '', inPlaylists: [], notInAny: true, chapters: [], hasChapters: false, notes: '' };
+    const detail = (id) => {
+      const e = ep(id);
+      const a = art(id);
+      const inPl = [];
+      PLS.forEach((p, pi) => p.entries.forEach((en, i) => { if (en[0] === id) inPl.push({ name: p.n, where: i === p.cursor ? (pi === s.active ? 'Playing now' : 'Cursor here') : 'Entry ' + (i + 1), pct: en[1] + '%', pos: en[2] }); }));
+      const starred = !!s.stars[id], dl = !!s.dls[id], played = !!s.played[id];
+      return {
+        pod: e.pod, t: e.t, artBg: a.bg, artKind: a.kind, ini: e.ini,
+        facts: ['Published ' + e.date, e.len, played ? 'Played' : 'Unplayed', dl ? 'Downloaded on this phone' : 'Streams'].join(' · '),
+        play: playNow(id), add: openAdd(id),
+        starLabel: starred ? 'Starred' : 'Star', starPressed: String(starred), starColor: starred ? '#B5791A' : '#17181C', starFill: starred ? '#B5791A' : 'none', toggleStar: () => this.setState({ stars: { ...s.stars, [id]: !starred } }),
+        dlLabel: dl ? 'Saved' : 'Download', dlPressed: String(dl), dlColor: dl ? '#2B50C8' : '#17181C', toggleDl: () => this.setState({ dls: { ...s.dls, [id]: !dl } }),
+        playedLabel: played ? 'Played' : 'Unplayed', playedPressed: String(played), playedColor: played ? '#1D6B45' : '#17181C', togglePlayed: () => this.setState({ played: { ...s.played, [id]: !played } }),
+        playedColorDark: played ? '#5BD69A' : '#FFFFFF', dlColorDark: dl ? '#7FC4F5' : '#FFFFFF', starColorDark: starred ? '#F2C14E' : '#FFFFFF', starFillDark: starred ? '#F2C14E' : 'none',
+        inPlaylists: inPl, notInAny: inPl.length === 0,
+        chapters: (CHAPTERS[id] || []).map((c, ci) => ({ at: fmt(c[0]), title: c[1], art: art(id, ci).bg })), hasChapters: !!CHAPTERS[id],
+        notes: NOTES[id] || '[Show notes from the feed]'
+      };
+    };
+    const epVals = s.ep ? detail(s.ep) : blank;
+    const stack = s.npStack || [];
+    const top = stack.length ? stack[stack.length - 1] : { page: 'main' };
+    const push = (frame) => this.setState({ npStack: stack.concat([frame]) });
+    const openDrawer = (frames) => { this.setState({ nowOpen: true, npEnter: true, npStack: frames }); clearTimeout(this._np); this._np = setTimeout(() => this.setState({ npEnter: false }), 350); };
+    const npE = top.page === 'episode' ? detail(top.ep) : blank;
+    const pageLabel = (f) => f.page === 'queue' ? act.n : f.page === 'chapters' ? 'Chapters' : f.page === 'episode' ? 'Episode' : 'Now Playing';
+    const remaining = act.entries.length - act.cursor - 1;
+    return {
+      showEpisode: !!s.ep && s.tab !== 'library',
+      showViewList: !s.ep && s.tab === 'views' && s.view === null,
+      showViewDetail: !s.ep && s.tab === 'views' && s.view !== null,
+      showPlList: !s.ep && s.tab === 'playlists' && s.pl === null,
+      showPlDetail: !s.ep && s.tab === 'playlists' && s.pl !== null,
+      showLibrary: s.tab === 'library',
+      views: VIEWS.map((v, i) => ({ name: v.n, rule: v.rule, count: String(v.ids.length), open: () => this.setState({ view: i }) })),
+      backToViews: () => this.setState({ view: null }),
+      viewName: view.n,
+      viewRule: view.rule,
+      viewEps: view.ids.map((id) => { const e = ep(id); return { ...e, meta: [e.pod, e.date, e.note || e.len].join(' · '), open: () => this.setState({ ep: id }), play: playNow(id), add: openAdd(id) }; }),
+      ep: epVals,
+      epBack: s.tab === 'views' ? view.n : pl.n,
+      closeEpisode: () => this.setState({ ep: null }),
+      playlists: PLS.map((p, i) => ({ name: p.n, isActive: i === s.active, cur: (i === s.active ? 'Now: ' : 'Paused on: ') + ep(p.entries[p.cursor][0]).t, meta: p.entries.length + ' Entries · ' + p.rule, iconBg: i === s.active ? '#DDF2E7' : '#ECEAE5', iconFg: i === s.active ? '#1D6B45' : '#5C6070', open: () => this.setState({ pl: i }) })),
+      backToPlaylists: () => this.setState({ pl: null }),
+      plName: pl.n,
+      plMeta: pl.entries.length + ' Entries · ' + pl.rule,
+      plStatus: s.pl === s.active ? 'Playing · Active Playlist' : 'Paused at Entry ' + (pl.cursor + 1),
+      plCanActivate: s.pl !== null && s.pl !== s.active,
+      activate: () => this.setState({ active: s.pl, nowId: PLS[s.pl].entries[PLS[s.pl].cursor][0], posSec: 0 }),
+      entries: pl.entries.map((en, i) => {
+        const e = ep(en[0]);
+        const isCur = i === pl.cursor;
+        const done = en[1] === 100;
+        return { ...e, open: () => this.setState({ ep: en[0] }), pct: en[1] + '%', posText: en[2], mark: isCur ? (s.pl === s.active ? 'NOW' : 'HERE') : (done ? '✓' : String(i + 1)), markColor: isCur ? '#2B50C8' : '#5C6070', opacity: done ? '0.55' : '1', rowStyle: 'display: flex; gap: 4px; align-items: center; padding: 8px 4px 8px 0; border-radius: 12px; margin-bottom: 2px; ' + (isCur ? 'background: #E8EDFB' : 'background: transparent') };
+      }),
+      subs: Object.keys(POD).map((k, i) => ({ name: POD[k][0], color: POD[k][1], ini: POD[k][2], rule: ['Download when added to a Playlist', 'Never download', 'Download all new · keep 5', 'Never download', 'Download when added to a Playlist', 'Never download'][i], unplayed: ['42', '118', '9', '31', '64', '27'][i] + ' unplayed' })),
+      np: {
+        artBg: nArt.bg, artKind: nArt.kind, ini: n.ini, t: n.t, pod: n.pod, from: act.n,
+        chapter: chIdx >= 0 ? 'Ch ' + (chIdx + 1) + ' · ' + chs[chIdx][1] : 'No chapters',
+        pct: (100 * s.posSec / n.dur).toFixed(1) + '%', pos: fmt(s.posSec), remaining: '−' + fmt(n.dur - s.posSec),
+        ticks: chs.slice(1).map((c) => (100 * c[0] / n.dur).toFixed(1) + '%'),
+        noChapters: chs.length === 0
+      },
+      queueCount: String(remaining),
+      queueLabel: remaining + ' up next in ' + act.n,
+      openQueue: () => s.nowOpen ? push({ page: 'queue' }) : openDrawer([{ page: 'queue' }]),
+      openNow: () => openDrawer([]),
+      drawerClass: s.npEnter ? 'np-drawer' : '',
+      fadeClass: s.npEnter ? 'np-fade' : '',
+      closeNow: () => this.setState({ nowOpen: false, npStack: [] }),
+      nowOpen: s.nowOpen,
+      openEpisodeFromNow: () => push({ page: 'episode', ep: s.nowId }),
+      npGoChapters: () => push({ page: 'chapters' }),
+      npMain: top.page === 'main',
+      npSub: top.page !== 'main',
+      npQueue: top.page === 'queue',
+      npChapters: top.page === 'chapters',
+      npEpisode: top.page === 'episode',
+      npBack: () => this.setState({ npStack: stack.slice(0, -1) }),
+      npBackLabel: stack.length > 1 ? pageLabel(stack[stack.length - 2]) : 'Now Playing',
+      npHasTitle: top.page === 'queue' || top.page === 'chapters',
+      npTitle: top.page === 'queue' ? act.n : 'Chapters',
+      npSubtitle: top.page === 'queue' ? remaining + ' up next · ' + act.rule : n.t,
+      npEntries: act.entries.map((en, i) => { const e = ep(en[0]); const isCur = i === act.cursor; const done = en[1] === 100; return { t: e.t, color: e.color, ini: e.ini, posText: isCur ? 'Now playing' : en[2], mark: isCur ? 'NOW' : (done ? '✓' : String(i + 1)), markColor: isCur ? '#9FD3F7' : '#A9B6BE', opacity: done ? '0.55' : '1', open: () => push({ page: 'episode', ep: en[0] }), play: () => this.setState({ nowId: en[0], posSec: 0, playing: true, npStack: [] }), rowStyle: 'display: flex; gap: 6px; align-items: center; padding: 6px 4px 6px 0; border-radius: 12px; ' + (isCur ? 'background: #26404E' : 'background: transparent') }; }),
+      npOtherPls: PLS.map((p, i) => ({ p, i })).filter((x) => x.i !== s.active).map(({ p, i }) => ({ name: p.n, cur: 'Paused on: ' + ep(p.entries[p.cursor][0]).t, play: () => this.setState({ active: i, nowId: p.entries[p.cursor][0], posSec: 0, npStack: [] }) })),
+      npChapterRows: chs.map((c, i) => { const end = i + 1 < chs.length ? chs[i + 1][0] : n.dur; return { title: c[1], at: fmt(c[0]), len: short(end - c[0]), art: art(s.nowId, i).bg, now: i === chIdx ? 'NOW' : '', jump: () => { seekTo(c[0]); this.setState({ npStack: [] }); }, style: 'width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-bottom: 1px solid #2C3D47; border-radius: 10px; color: #FFFFFF; text-align: left; ' + (i === chIdx ? 'background: #26404E' : 'background: transparent') }; }),
+      npE,
+      npPlayEp: () => this.setState({ nowId: top.ep, posSec: 0, playing: true, npStack: [] }),
+      seek: (ev) => { const r = ev.currentTarget.getBoundingClientRect(); seekTo(n.dur * (ev.clientX - r.left) / r.width); },
+      back15: () => seekTo(s.posSec - 15),
+      fwd30: () => seekTo(s.posSec + 30),
+      prevCh: () => { if (chs.length) { const i = s.posSec - chs[Math.max(chIdx, 0)][0] > 3 ? chIdx : chIdx - 1; seekTo(chs[Math.max(i, 0)][0]); } },
+      nextCh: () => { if (chs.length && chIdx + 1 < chs.length) seekTo(chs[chIdx + 1][0]); },
+      playing: s.playing,
+      paused: !s.playing,
+      playLabel: s.playing ? 'Pause' : 'Play',
+      togglePlay: () => this.setState({ playing: !s.playing }),
+      tabViews: tab(s.tab === 'views'),
+      tabPlaylists: tab(s.tab === 'playlists'),
+      tabLibrary: tab(s.tab === 'library'),
+      goViews: () => this.setState(s.tab === 'views' ? { view: null, ep: null } : { tab: 'views', ep: null }),
+      goPlaylists: () => this.setState(s.tab === 'playlists' ? { pl: null, ep: null } : { tab: 'playlists', ep: null }),
+      goLibrary: () => this.setState({ tab: 'library', ep: null }),
+      sheetOpen: !!s.sheet,
+      sheetEp,
+      intoList: PLS.map((p, i) => ({ name: p.n, note: i === s.active ? 'Playing' : '', selected: i === s.into, checked: String(i === s.into), pick: () => this.setState({ into: i }) })),
+      addNext: add('Play Next'),
+      addLast: add('Play Last'),
+      closeSheet: () => this.setState({ sheet: null }),
+      hasToast: !!s.toast,
+      toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

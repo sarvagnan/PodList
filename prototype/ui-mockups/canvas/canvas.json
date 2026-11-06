@@ -1,0 +1,22 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-06T21:00:00Z"},
+  "title": "Podcast Client UI Variants",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 390, "h": 844, "title": "A · Two halves — phone", "is_interactive": true},
+    "A-Desktop.dc.html": {"x": 470, "y": 0, "w": 1280, "h": 844, "title": "A · Two halves — desktop", "expand": "fill", "is_interactive": true},
+    "B-Phone.dc.html": {"x": 0, "y": 1300, "w": 390, "h": 844, "title": "B · Player first — phone", "is_interactive": true},
+    "B-Desktop.dc.html": {"x": 470, "y": 1300, "w": 1280, "h": 844, "title": "B · Player first — desktop", "expand": "fill", "is_interactive": true},
+    "C-Phone.dc.html": {"x": 0, "y": 2600, "w": 390, "h": 844, "title": "C · Columns — phone", "is_interactive": true},
+    "C-Desktop.dc.html": {"x": 470, "y": 2600, "w": 1280, "h": 844, "title": "C · Columns — desktop", "expand": "fill", "is_interactive": true}
+  },
+  "order": ["Main.dc.html", "A-Desktop.dc.html", "B-Phone.dc.html", "B-Desktop.dc.html", "C-Phone.dc.html", "C-Desktop.dc.html"],
+  "notes": {
+    "titleA": {"x": 0, "y": -300, "text": "A — Two halves: Views and Playlists as equal tabs", "kind": "title1", "maxW": 1750},
+    "titleB": {"x": 0, "y": 1000, "text": "B — Player first: Playlists as a deck, Views summoned", "kind": "title1", "maxW": 1750},
+    "titleC": {"x": 0, "y": 2300, "text": "C — Columns: every View and Playlist side by side", "kind": "title1", "maxW": 1750}
+  },
+  "designSystems": []
+}
