@@ -139,6 +139,18 @@ export class Playback extends Context.Service<
               current.episodeId === next.entry.episodeId &&
               !loaded.finished
             ) {
+              // Another Device listened to this Entry since this one last reported: the
+              // latest listen wins here too, so a paused player moves to it (ADR 0003).
+              const remote = next.entry
+              if (
+                !current.playing &&
+                remote.positionAt > lastReport.at &&
+                Math.abs(remote.position - current.position) >= 1
+              ) {
+                lastReport = { at: remote.positionAt, position: remote.position }
+                yield* player.seek(remote.position)
+                yield* SubscriptionRef.set(now, { ...current, position: remote.position })
+              }
               return
             }
             // Leaving an Entry: keep where it got to.

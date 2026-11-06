@@ -295,6 +295,28 @@ describe("Playback", () => {
     )
   )
 
+  it.live("moves a paused player to a later listen from another Device", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        yield* eventually(now, (n) => n?.episodeId === "e2" && n.position === 20)
+        // As a sync would bring it: another Device listened on to 5:00 just now.
+        yield* engine.record(
+          change({
+            _tag: "ReportPosition",
+            playlistId: "default",
+            episodeId: "e2",
+            position: 300,
+            listenedAt: Date.now() + 1000
+          })
+        )
+        yield* eventually(now, (n) => n?.position === 300)
+        expect(fake.seeks.at(-1)).toBe(300)
+        expect(fake.loads).toHaveLength(1)
+      })
+    )
+  )
+
   it.live("headset back and forward skip within the Episode", () =>
     withDevice((fake) =>
       Effect.gen(function* () {

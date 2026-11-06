@@ -192,10 +192,22 @@ export class SyncEngine extends Context.Service<
         )
 
         const runInBackground = Effect.gen(function* () {
+          // Sync when the connection returns, and when the app is looked at again (the
+          // phone brought back from the background), so it never shows a stale Library.
           const online = () => Queue.offerUnsafe(triggers, undefined)
+          const visible = () => {
+            if (document.visibilityState === "visible") Queue.offerUnsafe(triggers, undefined)
+          }
           yield* Effect.acquireRelease(
-            Effect.sync(() => window.addEventListener("online", online)),
-            () => Effect.sync(() => window.removeEventListener("online", online))
+            Effect.sync(() => {
+              window.addEventListener("online", online)
+              document.addEventListener("visibilitychange", visible)
+            }),
+            () =>
+              Effect.sync(() => {
+                window.removeEventListener("online", online)
+                document.removeEventListener("visibilitychange", visible)
+              })
           )
           // Sync at once on start, so a fresh Device shows its Library without a wait.
           yield* Effect.ignore(sync)
