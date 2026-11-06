@@ -187,9 +187,9 @@ describe("Playback", () => {
         yield* eventually(now, (n) => n?.episodeId === "e2")
         yield* playback.play
         yield* eventually(now, (n) => n?.playing === true)
-        fake.emit(PlayerEvent.Position({ seconds: 31, duration: 60 }))
+        fake.emit(PlayerEvent.Position({ seconds: 31, duration: 600 }))
         yield* eventually(state, (s) => entry(s, "default", "e2")?.position === 31)
-        fake.emit(PlayerEvent.Position({ seconds: 37.5, duration: 60 }))
+        fake.emit(PlayerEvent.Position({ seconds: 37.5, duration: 600 }))
         yield* playback.pause
         const paused = yield* eventually(now, (n) => n?.playing === false)
         expect(paused?.position).toBe(37.5)
@@ -247,6 +247,84 @@ describe("Playback", () => {
         yield* Effect.sleep("50 millis")
         expect((yield* now)?.episodeId).toBe("e1")
         expect(fake.loads.map((t) => t.url)).toEqual(["/audio/e2", "/audio/e1"])
+      })
+    )
+  )
+
+  it.live("finishing an Entry marks it Played from its Playlist and plays the next one", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const playback = yield* Playback
+        yield* engine.record(change({ _tag: "SetCursor", playlistId: "default", episodeId: "e1" }))
+        yield* eventually(now, (n) => n?.episodeId === "e1")
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        // Within 30 s of the end counts as finishing: Played, and Clear on Played removes it.
+        fake.emit(PlayerEvent.Position({ seconds: 45, duration: 60 }))
+        const s = yield* eventually(state, (s) => s.episodeStates.e1?.played != null)
+        expect(s.episodeStates.e1?.played?.source).toEqual({
+          _tag: "Playback",
+          playlistId: "default"
+        })
+        expect(s.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["e2"])
+        expect(s.playlists[0]?.history.map((h) => h.episodeId)).toEqual(["e1"])
+        // The rest of the Episode still plays, then the next Entry starts at its Position.
+        expect((yield* now)?.episodeId).toBe("e1")
+        fake.emit(PlayerEvent.Position({ seconds: 55, duration: 60 }))
+        fake.emit(PlayerEvent.Ended())
+        yield* eventually(now, (n) => n?.episodeId === "e2" && n.playing)
+        expect(fake.loads.at(-1)).toMatchObject({ url: "/audio/e2", startAt: 20 })
+      })
+    )
+  )
+
+  it.live("stops after the last Entry", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const playback = yield* Playback
+        yield* eventually(now, (n) => n?.episodeId === "e2")
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        // No known duration: only the end of the audio finishes it.
+        fake.emit(PlayerEvent.Ended())
+        yield* eventually(now, (n) => n === null)
+        const s = yield* state
+        expect(s.episodeStates.e2?.played?.source._tag).toBe("Playback")
+        expect(s.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["e1"])
+        expect(s.playlists[0]?.cursor).toBeNull()
+      })
+    )
+  )
+
+  it.live("a Playlist that keeps Entries resets the finished one to the start", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const playback = yield* Playback
+        yield* engine.record(
+          change({ _tag: "CreatePlaylist", playlistId: "keep", name: "Keep", clearOnPlayed: false })
+        )
+        yield* engine.record(add("keep", "e1"))
+        yield* engine.record(add("keep", "e3"))
+        yield* playback.playEntry("keep", "e1")
+        yield* eventually(now, (n) => n?.episodeId === "e1" && n.playing)
+        fake.emit(PlayerEvent.Position({ seconds: 50, duration: 60 }))
+        fake.emit(PlayerEvent.Position({ seconds: 58, duration: 60 }))
+        yield* playback.pause
+        yield* eventually(now, (n) => n?.playing === false)
+        // Paused just short of the end: playing again finishes this Episode first.
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        expect((yield* now)?.episodeId).toBe("e1")
+        fake.emit(PlayerEvent.Ended())
+        yield* eventually(now, (n) => n?.episodeId === "e3" && n.playing)
+        const keep = (yield* state).playlists.find((p) => p.id === "keep")
+        expect(keep?.entries.map((e) => [e.episodeId, e.position])).toEqual([
+          ["e1", 0],
+          ["e3", 0]
+        ])
+        expect(keep?.cursor).toBe("e3")
       })
     )
   )

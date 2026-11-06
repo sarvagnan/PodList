@@ -1,4 +1,4 @@
-import { Operation, type State, Units } from "@podlist/domain"
+import { Operation, PlayedRules, type State, Units } from "@podlist/domain"
 import { Clock, Context, Effect, Layer, Schema, Stream, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
@@ -7,7 +7,8 @@ import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 
 // Plays the Active Playlist's Cursor Entry through the Player seam and reports where
 // listening got to, as ReportPosition operations, so every Device resumes at the same
-// place (latest listen wins, ADR 0003). Cursor advance and Played marking come later.
+// place (latest listen wins, ADR 0003). Finishing an Entry marks it Played from its
+// Playlist, and playback carries on with the Playlist's next Entry.
 
 export interface NowPlaying {
   readonly playlistId: string
@@ -56,6 +57,9 @@ export class Playback extends Context.Service<
         const reactivity = yield* Reactivity.Reactivity
         const now = yield* SubscriptionRef.make<NowPlaying | null>(null)
         let lastReport = { at: 0, position: -1 }
+        // The loaded Entry's Played threshold, and whether it has been finished (marked
+        // Played) and has reached the end of its audio.
+        let loaded = { threshold: null as number | null, finished: false, ended: false }
 
         /** The Episode's details from the local catalogue, which may not have synced yet. */
         const lookup = (episodeId: string) =>
@@ -66,15 +70,17 @@ export class Playback extends Context.Service<
               duration: number | null
               artwork_url: string | null
               podcast_artwork_url: string | null
+              played_threshold: number | null
             }>`SELECT e.title, s.title AS podcast, e.duration, e.artwork_url,
-                 s.artwork_url AS podcast_artwork_url
+                 s.artwork_url AS podcast_artwork_url, s.played_threshold
                FROM episode e JOIN subscription s ON s.id = e.subscription_id
                WHERE e.id = ${episodeId}`.pipe(Effect.orDie)
             return {
               title: row?.title ?? "Episode unavailable",
               podcast: row?.podcast ?? "",
               artworkUrl: row?.artwork_url ?? row?.podcast_artwork_url ?? null,
-              duration: row?.duration ?? null
+              duration: row?.duration ?? null,
+              threshold: row?.played_threshold ?? null
             }
           })
 
@@ -98,14 +104,16 @@ export class Playback extends Context.Service<
             }
             if (
               current?.playlistId === next.playlist.id &&
-              current.episodeId === next.entry.episodeId
+              current.episodeId === next.entry.episodeId &&
+              !loaded.finished
             ) {
               return
             }
             // Leaving an Entry: keep where it got to.
             if (current !== null) yield* report(current.position)
-            const info = yield* lookup(next.entry.episodeId)
-            const loaded: NowPlaying = {
+            const { threshold, ...info } = yield* lookup(next.entry.episodeId)
+            loaded = { threshold, finished: false, ended: false }
+            const track: NowPlaying = {
               playlistId: next.playlist.id,
               episodeId: next.entry.episodeId,
               ...info,
@@ -115,20 +123,22 @@ export class Playback extends Context.Service<
             }
             lastReport = { at: yield* Clock.currentTimeMillis, position: next.entry.position }
             yield* player.load({
-              url: options.audioUrl(loaded.episodeId),
-              title: loaded.title,
-              podcast: loaded.podcast,
-              artworkUrl: loaded.artworkUrl,
-              startAt: loaded.position
+              url: options.audioUrl(track.episodeId),
+              title: track.title,
+              podcast: track.podcast,
+              artworkUrl: track.artworkUrl,
+              startAt: track.position
             })
             yield* player.setRate(state.playbackSettings.speed)
-            yield* SubscriptionRef.set(now, loaded)
+            yield* SubscriptionRef.set(now, track)
           })
 
         const report = (position: number) =>
           Effect.gen(function* () {
             const current = yield* SubscriptionRef.get(now)
-            if (current === null || Math.abs(position - lastReport.position) < 1) return
+            // A finished Entry has been reset or removed; later Positions would undo that.
+            if (current === null || loaded.finished) return
+            if (Math.abs(position - lastReport.position) < 1) return
             const at = yield* Clock.currentTimeMillis
             lastReport = { at, position }
             yield* engine.record(
@@ -145,6 +155,30 @@ export class Playback extends Context.Service<
         const update = (f: (n: NowPlaying) => NowPlaying) =>
           SubscriptionRef.update(now, (n) => (n === null ? n : f(n)))
 
+        /** Marks the loaded Episode Played from its Playlist; the domain then moves the
+         * Cursor on, records History and applies Clear on Played. */
+        const finish = Effect.gen(function* () {
+          const current = yield* SubscriptionRef.get(now)
+          if (current === null || loaded.finished) return
+          yield* report(current.position)
+          loaded = { ...loaded, finished: true }
+          yield* engine.record(
+            decodeChange({
+              _tag: "MarkPlayed",
+              episodeId: current.episodeId,
+              source: { _tag: "Playback", playlistId: current.playlistId }
+            })
+          )
+        })
+
+        /** Finished but not at the end yet: stay on it rather than jumping to the next Entry. */
+        const holding = (n: NowPlaying | null) =>
+          n !== null && (n.playing || (loaded.finished && !loaded.ended))
+
+        const start = player.play.pipe(
+          Effect.catch((e) => update((n) => ({ ...n, playing: false, error: e.message })))
+        )
+
         const play = Effect.gen(function* () {
           const state = yield* SubscriptionRef.get(engine.state)
           const playlist = state.playlists.find((p) => p.id === state.activePlaylistId)
@@ -158,11 +192,11 @@ export class Playback extends Context.Service<
               })
             )
           }
-          yield* follow(yield* SubscriptionRef.get(engine.state))
+          if (!holding(yield* SubscriptionRef.get(now))) {
+            yield* follow(yield* SubscriptionRef.get(engine.state))
+          }
           if ((yield* SubscriptionRef.get(now)) === null) return
-          yield* player.play.pipe(
-            Effect.catch((e) => update((n) => ({ ...n, playing: false, error: e.message })))
-          )
+          yield* start
         })
 
         const pause = player.pause
@@ -195,7 +229,8 @@ export class Playback extends Context.Service<
             if (playlist?.cursor !== episodeId) {
               yield* engine.record(decodeChange({ _tag: "SetCursor", playlistId, episodeId }))
             }
-            yield* play
+            yield* follow(yield* SubscriptionRef.get(engine.state))
+            if ((yield* SubscriptionRef.get(now)) !== null) yield* start
           })
 
         // Player events drive the status and periodic Position reports.
@@ -218,6 +253,16 @@ export class Playback extends Context.Service<
                     duration: event.duration ?? n.duration
                   }))
                   const current = yield* SubscriptionRef.get(now)
+                  if (
+                    current !== null &&
+                    PlayedRules.isFinished(
+                      Units.Seconds.make(event.seconds),
+                      current.duration === null ? null : Units.Seconds.make(current.duration),
+                      loaded.threshold === null ? null : Units.Seconds.make(loaded.threshold)
+                    )
+                  ) {
+                    yield* finish
+                  }
                   const at = yield* Clock.currentTimeMillis
                   if (
                     current?.playing &&
@@ -228,9 +273,15 @@ export class Playback extends Context.Service<
                   return
                 }
                 case "Ended": {
+                  // The end of the audio always finishes it, even without a known duration.
+                  yield* finish
+                  loaded = { ...loaded, ended: true }
+                  const ended = yield* SubscriptionRef.get(now)
                   yield* update((n) => ({ ...n, playing: false }))
-                  const current = yield* SubscriptionRef.get(now)
-                  if (current !== null) yield* report(current.duration ?? current.position)
+                  // Move on to the Playlist's next Entry, or stop after the last one.
+                  yield* follow(yield* SubscriptionRef.get(engine.state))
+                  const next = yield* SubscriptionRef.get(now)
+                  if (next !== null && next.episodeId !== ended?.episodeId) yield* start
                   return
                 }
                 case "Failed":
@@ -267,7 +318,7 @@ export class Playback extends Context.Service<
         yield* SubscriptionRef.changes(engine.state).pipe(
           Stream.runForEach((state) =>
             Effect.gen(function* () {
-              if ((yield* SubscriptionRef.get(now))?.playing) return
+              if (holding(yield* SubscriptionRef.get(now))) return
               yield* follow(state)
             })
           ),
@@ -282,7 +333,8 @@ export class Playback extends Context.Service<
             Effect.gen(function* () {
               const current = yield* SubscriptionRef.get(now)
               if (current === null) return
-              const info = yield* lookup(current.episodeId)
+              const { threshold, ...info } = yield* lookup(current.episodeId)
+              loaded = { ...loaded, threshold }
               if (info.title === current.title && info.artworkUrl === current.artworkUrl) return
               yield* update((n) =>
                 n.episodeId === current.episodeId
