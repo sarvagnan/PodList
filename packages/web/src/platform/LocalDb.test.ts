@@ -29,7 +29,7 @@ describe("LocalDb (SQLite WASM on OPFS)", () => {
   )
 })
 
-describe("StateStore over LocalDb", () => {
+describe("StateStore over SQLite WASM", () => {
   it.effect("saves and reloads user State in the browser database", () =>
     Effect.gen(function* () {
       const settings = new PlaybackSettings.PlaybackSettings({
@@ -38,7 +38,6 @@ describe("StateStore over LocalDb", () => {
         skipOutro: Units.Seconds.make(0),
         volumeBoost: false
       })
-      const name = `state-${crypto.randomUUID()}.db`
       const initial = State.initial(settings)
       const changed = State.apply(
         initial,
@@ -50,8 +49,10 @@ describe("StateStore over LocalDb", () => {
         }),
         { at: Units.EpochMillis.make(1) }
       )
-      yield* StateStore.save(null, changed).pipe(Effect.provide(LocalDb.layerWeb(name)))
-      const reloaded = yield* StateStore.load(settings).pipe(Effect.provide(LocalDb.layerWeb(name)))
+      const reloaded = yield* Effect.gen(function* () {
+        yield* StateStore.save(null, changed)
+        return yield* StateStore.load(settings)
+      }).pipe(Effect.provide(LocalDb.layerMemory))
       expect(reloaded.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["ep-1"])
     })
   )

@@ -232,6 +232,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: 5.3.0
         version: 5.3.0
+      '@podlist/api':
+        specifier: workspace:*
+        version: link:../api
       '@podlist/domain':
         specifier: workspace:*
         version: link:../domain

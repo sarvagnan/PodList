@@ -16,6 +16,7 @@
     "@effect/sql-sqlite-wasm": "4.1.2",
     "@effect/wa-sqlite": "0.1.2",
     "@fontsource-variable/geist": "5.3.0",
+    "@podlist/api": "workspace:*",
     "@podlist/domain": "workspace:*",
     "@tanstack/react-router": "1.170.46",
     "class-variance-authority": "0.7.1",

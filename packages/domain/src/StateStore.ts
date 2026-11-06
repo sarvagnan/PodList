@@ -43,6 +43,19 @@ export const load = (defaults: PlaybackSettings) =>
     })
   })
 
+/** Like `load`, but writes the initial State first when nothing is stored yet. */
+export const ensure = (defaults: PlaybackSettings) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const stored = yield* sql<{
+      key: string
+    }>`SELECT key FROM setting WHERE key = 'activePlaylistId'`
+    if (stored.length > 0) return yield* load(defaults)
+    const initial = State.initial(defaults)
+    yield* save(null, initial)
+    return initial
+  })
+
 /**
  * Writes `after`, touching only rows that differ from `before`. Pass `before: null`
  * when nothing is stored yet, or to rewrite every table from scratch.
