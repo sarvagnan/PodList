@@ -56,8 +56,8 @@ describe("Playlist", () => {
     isDefault: true,
     clearOnPlayed: true,
     entries: [
-      { episodeId: "ep-1", position: 1330 },
-      { episodeId: "ep-2", position: 0 }
+      { episodeId: "ep-1", position: 1330, positionAt: 10 },
+      { episodeId: "ep-2", position: 0, positionAt: 0 }
     ],
     cursor: "ep-1"
   }
