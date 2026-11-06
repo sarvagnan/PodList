@@ -18,3 +18,7 @@ export type ViewId = typeof ViewId.Type
 
 export const DeviceId = Schema.NonEmptyString.pipe(Schema.brand("DeviceId"))
 export type DeviceId = typeof DeviceId.Type
+
+/** Unique per recorded change, so replaying an operation twice is harmless. */
+export const OperationId = Schema.NonEmptyString.pipe(Schema.brand("OperationId"))
+export type OperationId = typeof OperationId.Type

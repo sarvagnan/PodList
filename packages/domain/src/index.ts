@@ -3,6 +3,7 @@
 export * as Device from "./Device.ts"
 export * as Ids from "./Ids.ts"
 export * as Library from "./Library.ts"
+export * as Operation from "./Operation.ts"
 export * as PlaybackSettings from "./PlaybackSettings.ts"
 export * as Playlist from "./Playlist.ts"
 export * as Units from "./Units.ts"
