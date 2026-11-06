@@ -21,12 +21,12 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Lint, typecheck and unit tests
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @podlist/web exec playwright install --with-deps chromium
+      - name: Lint, typecheck and tests (web tests run in Chromium)
         run: pnpm check
       - name: Build the web app
         run: pnpm --filter @podlist/web build
-      - name: Install Chromium for browser tests
-        run: pnpm --filter @podlist/web exec playwright install --with-deps chromium
       - name: Browser tests
         run: pnpm --filter @podlist/web e2e
       - name: Keep traces of failed browser tests

@@ -8,10 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
+    "@effect/sql-sqlite-wasm": "4.1.2",
+    "@effect/wa-sqlite": "0.1.2",
     "@fontsource-variable/geist": "5.3.0",
     "@podlist/domain": "workspace:*",
     "@tanstack/react-router": "1.170.46",
@@ -32,9 +35,12 @@
     "@types/react-dom": "19.3.0",
     "@vite-pwa/assets-generator": "2.0.0",
     "@vitejs/plugin-react": "6.2.1",
+    "@vitest/browser-playwright": "5.1.0",
+    "playwright": "1.65.0",
     "tailwindcss": "4.3.5",
     "vite": "8.3.6",
     "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.1.0",
     "workbox-build": "7.4.1",
     "workbox-window": "7.4.1"
   }
