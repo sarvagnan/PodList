@@ -1,4 +1,4 @@
-# Podcast Client
+# PodList
 
 A personal podcast client that splits listening into two halves: finding episodes (Views over the Library) and consuming them (Playlists with their own playback state).
 
