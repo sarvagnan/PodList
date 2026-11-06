@@ -214,6 +214,44 @@ const flows = {
     })
   },
 
+  /** Now Playing: open the drawer, go to Up next, play from it, read the Episode, close. */
+  "now playing": async (rec) => {
+    await rec.step("open Default", (p) => p.goto("/playlists/default"))
+    await rec.step(
+      "play an Entry",
+      (p) =>
+        p
+          .getByRole("button", { name: /from here$/ })
+          .first()
+          .click(),
+      {
+        wait: (p) => playerButton(p, "Pause").waitFor()
+      }
+    )
+    await rec.step("open the drawer", (p) =>
+      p
+        .getByRole("button", { name: /^Open Now Playing/ })
+        .filter({ visible: true })
+        .click()
+    )
+    await rec.step("Up next", async (p) => {
+      const dialog = p.getByRole("dialog")
+      const page = dialog.getByRole("button", { name: /^Up next/ })
+      if (await page.isVisible()) await page.click()
+    })
+    await rec.step("play from Up next", (p) =>
+      p
+        .getByRole("dialog")
+        .getByRole("button", { name: /from here$/ })
+        .last()
+        .click()
+    )
+    await rec.step("Episode page", (p) =>
+      p.getByRole("dialog").getByRole("button", { name: "Episode" }).click()
+    )
+    await rec.step("close", (p) => p.getByRole("button", { name: "Close Now Playing" }).click())
+  },
+
   /** A fresh Device whose catalogue arrives 2 s after its State. */
   "fresh device": async (rec) => {
     await holdCatalogue(rec.page)

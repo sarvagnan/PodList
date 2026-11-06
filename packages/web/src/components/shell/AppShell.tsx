@@ -14,12 +14,15 @@ import {
   SkipForward
 } from "lucide-react"
 import { useEffect } from "react"
+import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { Toasts } from "../feedback/Toasts.tsx"
+import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
+import { SkipIcon } from "../player/SkipIcon.tsx"
 import { Artwork } from "./Artwork.tsx"
 
 // Variant A (docs/design/ui-layout.md): phone has Views / Playlists / Library tabs with a
@@ -30,25 +33,6 @@ const tabs = [
   { to: "/playlists", label: "Playlists", icon: ListMusic },
   { to: "/library", label: "Library", icon: Library }
 ] as const
-
-/** A skip arrow with its seconds inside, so it can't be read as "reload" (APPEAR-09). */
-function SkipIcon({
-  seconds,
-  direction
-}: {
-  readonly seconds: number
-  readonly direction: "back" | "forward"
-}) {
-  const Arrow = direction === "back" ? RotateCcw : RotateCw
-  return (
-    <span aria-hidden="true" className="relative grid place-items-center">
-      <Arrow className="size-7" strokeWidth={1.75} />
-      <span className="absolute pt-px text-[0.5625rem] leading-none font-bold tabular-nums">
-        {seconds}
-      </span>
-    </span>
-  )
-}
 
 /** The playing Episode's title; a placeholder bar while its details are still syncing. */
 function TrackTitle({ title, className }: { readonly title: string; readonly className: string }) {
@@ -69,6 +53,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const state = useAppState()
   const current = AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
   const control = useAtomSet(playbackAtom)
+  const setDrawer = useAtomSet(drawerAtom)
+  const openDrawer = (stack: ReadonlyArray<DrawerPage>) => setDrawer({ open: true, stack })
   if (current === null) return null
   const playlist = state?.playlists.find((p) => p.id === current.playlistId)
   const label = `${current.podcast} · ${playlist?.name ?? ""}`
@@ -140,11 +126,22 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
         aria-label="Now playing"
         className="surface-dark relative mx-2.5 flex items-center gap-2 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
       >
-        <Artwork url={current.artworkUrl} name={current.podcast} size={44} />
-        <div className="min-w-0 flex-1 pl-1">
-          <TrackTitle title={current.title} className="text-small" />
-          {error || <p className="truncate text-xs text-player-muted">{label}</p>}
-        </div>
+        {/* Tapping the bar outside its buttons opens Now Playing. */}
+        <button
+          type="button"
+          aria-label={`Open Now Playing: ${current.title}`}
+          onClick={() => openDrawer([])}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left"
+        >
+          <Artwork url={current.artworkUrl} name={current.podcast} size={44} />
+          <span className="min-w-0 flex-1 pl-1">
+            <TrackTitle title={current.title} className="text-small" />
+            {!current.error && (
+              <span className="block truncate text-xs text-player-muted">{label}</span>
+            )}
+          </span>
+        </button>
+        {error && <div className="min-w-0 flex-1">{error}</div>}
         {back}
         {toggle}
         {forward}
@@ -175,17 +172,29 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
       aria-label="Now playing"
       className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(0,1fr)_minmax(0,38rem)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
     >
-      <div className="flex min-w-0 items-center gap-3">
-        {/* Chapter artwork, then the Episode's, then the podcast's. */}
-        <Artwork url={chapter?.artworkUrl ?? current.artworkUrl} name={current.podcast} size={48} />
-        <div className="min-w-0">
-          <TrackTitle title={current.title} className="text-sm" />
-          {error || (
-            <p className="truncate text-xs text-player-muted">
-              {chapter ? `${chapter.title} · ${label}` : label}
-            </p>
-          )}
-        </div>
+      <div className="flex min-w-0 flex-col">
+        <button
+          type="button"
+          aria-label={`Open Now Playing: ${current.title}`}
+          onClick={() => openDrawer([])}
+          className="flex min-w-0 items-center gap-3 rounded-xl text-left"
+        >
+          {/* Chapter artwork, then the Episode's, then the podcast's. */}
+          <Artwork
+            url={chapter?.artworkUrl ?? current.artworkUrl}
+            name={current.podcast}
+            size={48}
+          />
+          <span className="min-w-0">
+            <TrackTitle title={current.title} className="text-sm" />
+            {!current.error && (
+              <span className="block truncate text-xs text-player-muted">
+                {chapter ? `${chapter.title} · ${label}` : label}
+              </span>
+            )}
+          </span>
+        </button>
+        {error}
       </div>
       <div className="flex flex-col items-stretch">
         <div className="flex items-center justify-center gap-1.5">
@@ -214,9 +223,9 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
       </div>
       <div className="flex justify-end">
         {playlist && (
-          <Link
-            to="/playlists/$playlistId"
-            params={{ playlistId: playlist.id }}
+          <button
+            type="button"
+            onClick={() => openDrawer(["queue"])}
             title={`Up next in ${playlist.name}`}
             className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm text-player-foreground hover:bg-player-track active:bg-player-track/70"
           >
@@ -224,7 +233,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             <span>
               {queued} <span className="text-player-muted">up next</span>
             </span>
-          </Link>
+          </button>
         )}
       </div>
     </section>
@@ -364,6 +373,7 @@ export function AppShell() {
         <BottomTabs />
       </div>
       <NowPlaying variant="desktop" />
+      <NowPlayingDrawer />
       <Toasts />
     </div>
   )

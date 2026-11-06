@@ -147,3 +147,28 @@ export const viewCountsAtom = runtime
     })
   )
   .pipe(Atom.withReactivity([catalogueKey]))
+
+export interface EpisodeDetail {
+  readonly id: string
+  readonly title: string
+  readonly podcast: string
+  readonly published: number
+  readonly duration: number | null
+  readonly description: string
+}
+
+/** One Episode's details from the local catalogue, for the Episode page. */
+export const episodeDetailAtom = Atom.family((episodeId: string) =>
+  runtime
+    .atom(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const [row] = yield* sql<EpisodeDetail>`
+          SELECT e.id, e.title, s.title AS podcast, e.published, e.duration, e.description
+          FROM episode e JOIN subscription s ON s.id = e.subscription_id
+          WHERE e.id = ${episodeId}`
+        return row ?? null
+      })
+    )
+    .pipe(Atom.withReactivity([catalogueKey]))
+)

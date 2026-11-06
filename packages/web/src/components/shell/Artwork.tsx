@@ -15,14 +15,19 @@ const initials = (name: string) =>
 export function Artwork({
   url,
   name,
-  size
+  size,
+  className
 }: {
   readonly url: string | null
   readonly name: string
+  /** The size it is drawn at, in CSS px; picks the image size. */
   readonly size: number
+  /** Replaces the fixed size, for artwork that fills its container. */
+  readonly className?: string
 }) {
   const [failed, setFailed] = useState<string | null>(null)
-  const style = { width: size, height: size }
+  const box = className ?? "shrink-0 rounded-lg"
+  const style = className ? {} : { width: size, height: size }
   if (url !== null && failed !== url) {
     return (
       <img
@@ -30,15 +35,15 @@ export function Artwork({
         alt=""
         style={style}
         onError={() => setFailed(url)}
-        className="shrink-0 rounded-lg bg-accent object-cover"
+        className={`${box} bg-accent object-cover`}
       />
     )
   }
   return (
     <span
       aria-hidden="true"
-      style={style}
-      className="grid shrink-0 place-items-center rounded-lg bg-accent font-heading font-semibold text-accent-foreground"
+      style={{ ...style, fontSize: `${(size * 0.34) / 16}rem` }}
+      className={`${box} grid place-items-center bg-accent font-heading font-semibold text-accent-foreground`}
     >
       {initials(name)}
     </span>
