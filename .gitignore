@@ -5,3 +5,14 @@
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Build and tooling output
+node_modules/
+.svelte-kit/
+build/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.DS_Store
