@@ -12,8 +12,10 @@ import {
 } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
+import type { PlayerChapter } from "../lib/chapters.ts"
 import { Player } from "../platform/Player.ts"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
+import { Transport } from "../sync/Transport.ts"
 
 // Plays the Active Playlist's Cursor Entry through the Player seam and reports where
 // listening got to, as ReportPosition operations, so every Device resumes at the same
@@ -30,6 +32,8 @@ export interface NowPlaying {
   readonly position: number
   readonly duration: number | null
   readonly error: string | null
+  /** The Episode's Chapters, in order; empty when it has none (or they aren't known yet). */
+  readonly chapters: ReadonlyArray<PlayerChapter>
 }
 
 /** How often a Position is reported while playing. */
@@ -38,6 +42,23 @@ export const backSeconds = 15
 export const forwardSeconds = 30
 
 const decodeChange = Schema.decodeUnknownSync(Operation.Change)
+
+const toPlayerChapter = (c: {
+  readonly start: number
+  readonly title: string
+  readonly artwork: { readonly url: string } | null
+}): PlayerChapter => ({ start: c.start, title: c.title, artworkUrl: c.artwork?.url ?? null })
+
+/** Chapters as the local catalogue stores them (JSON). */
+const fromStored = (json: string): ReadonlyArray<PlayerChapter> => {
+  try {
+    return (JSON.parse(json) as ReadonlyArray<Parameters<typeof toPlayerChapter>[0]>).map(
+      toPlayerChapter
+    )
+  } catch {
+    return []
+  }
+}
 
 export class Playback extends Context.Service<
   Playback,
@@ -69,7 +90,9 @@ export class Playback extends Context.Service<
         const engine = yield* SyncEngine
         const sql = yield* SqlClient.SqlClient
         const reactivity = yield* Reactivity.Reactivity
+        const transport = yield* Transport
         const now = yield* SubscriptionRef.make<NowPlaying | null>(null)
+        const scope = yield* Effect.scope
         const lockScreenArt = (url: string | null) =>
           url === null ? null : (options.artworkUrl?.(url) ?? url)
         let lastReport = { at: 0, position: -1 }
@@ -87,8 +110,9 @@ export class Playback extends Context.Service<
               artwork_url: string | null
               podcast_artwork_url: string | null
               played_threshold: number | null
+              chapters: string
             }>`SELECT e.title, s.title AS podcast, e.duration, e.artwork_url,
-                 s.artwork_url AS podcast_artwork_url, s.played_threshold
+                 s.artwork_url AS podcast_artwork_url, s.played_threshold, e.chapters
                FROM episode e JOIN subscription s ON s.id = e.subscription_id
                WHERE e.id = ${episodeId}`.pipe(Effect.orDie)
             return {
@@ -96,7 +120,8 @@ export class Playback extends Context.Service<
               podcast: row?.podcast ?? "",
               artworkUrl: row?.artwork_url ?? row?.podcast_artwork_url ?? null,
               duration: row?.duration ?? null,
-              threshold: row?.played_threshold ?? null
+              threshold: row?.played_threshold ?? null,
+              chapters: row ? fromStored(row.chapters) : []
             }
           })
 
@@ -151,6 +176,20 @@ export class Playback extends Context.Service<
             })
             yield* player.setRate(state.playbackSettings.speed)
             yield* SubscriptionRef.set(now, track)
+            // Ask the server too: it finds Chapters the first time anyone asks.
+            yield* transport.chapters(track.episodeId).pipe(
+              Effect.flatMap((chapters) =>
+                chapters.length === 0
+                  ? Effect.void
+                  : update((n) =>
+                      n.episodeId === track.episodeId
+                        ? { ...n, chapters: chapters.map(toPlayerChapter) }
+                        : n
+                    )
+              ),
+              Effect.ignore,
+              Effect.forkIn(scope)
+            )
           }).pipe(loading.withPermits(1))
 
         const report = (position: number) =>
@@ -383,10 +422,21 @@ export class Playback extends Context.Service<
               if (current === null) return
               const { threshold, ...info } = yield* lookup(current.episodeId)
               loaded = { ...loaded, threshold }
-              if (info.title === current.title && info.artworkUrl === current.artworkUrl) return
+              if (
+                info.title === current.title &&
+                info.artworkUrl === current.artworkUrl &&
+                info.chapters.length <= current.chapters.length
+              ) {
+                return
+              }
               yield* update((n) =>
                 n.episodeId === current.episodeId
-                  ? { ...n, ...info, duration: n.duration ?? info.duration }
+                  ? {
+                      ...n,
+                      ...info,
+                      duration: n.duration ?? info.duration,
+                      chapters: info.chapters.length > 0 ? info.chapters : n.chapters
+                    }
                   : n
               )
               yield* player.describe({ ...info, artworkUrl: lockScreenArt(info.artworkUrl) })

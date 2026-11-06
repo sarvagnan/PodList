@@ -9,14 +9,17 @@ import {
   Pause,
   Play,
   RotateCcw,
-  RotateCw
+  RotateCw,
+  SkipBack,
+  SkipForward
 } from "lucide-react"
 import { useEffect } from "react"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
-import { formatTime } from "../../lib/time.ts"
+import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { Toasts } from "../feedback/Toasts.tsx"
+import { Scrubber } from "../player/Scrubber.tsx"
 import { Artwork } from "./Artwork.tsx"
 
 // Variant A (docs/design/ui-layout.md): phone has Views / Playlists / Library tabs with a
@@ -149,26 +152,81 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
       </section>
     )
   }
+  const chapter = current.chapters[chapterAt(current.chapters, current.position)]
+  const queued = playlist
+    ? playlist.entries.length -
+      1 -
+      playlist.entries.findIndex((e) => e.episodeId === current.episodeId)
+    : 0
+  const chapterButton = (label: string, target: number | null, Icon: typeof SkipBack) => (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={target === null}
+      onClick={() => target !== null && control({ _tag: "seek", seconds: target })}
+      className={`${button} disabled:opacity-40 disabled:hover:bg-transparent`}
+    >
+      <Icon aria-hidden="true" className="size-5 fill-current" />
+    </button>
+  )
   return (
     <section
       aria-label="Now playing"
-      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden items-center gap-3 bg-player px-5 py-3 text-player-foreground md:flex"
+      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(0,1fr)_minmax(0,38rem)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
     >
-      <Artwork url={current.artworkUrl} name={current.podcast} size={48} />
-      <div className="min-w-0 flex-1">
-        <TrackTitle title={current.title} className="text-sm" />
-        {error || <p className="truncate text-xs text-player-muted">{label}</p>}
+      <div className="flex min-w-0 items-center gap-3">
+        {/* Chapter artwork, then the Episode's, then the podcast's. */}
+        <Artwork url={chapter?.artworkUrl ?? current.artworkUrl} name={current.podcast} size={48} />
+        <div className="min-w-0">
+          <TrackTitle title={current.title} className="text-sm" />
+          {error || (
+            <p className="truncate text-xs text-player-muted">
+              {chapter ? `${chapter.title} · ${label}` : label}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        {back}
-        {toggle}
-        {forward}
+      <div className="flex flex-col items-stretch">
+        <div className="flex items-center justify-center gap-1.5">
+          {current.chapters.length > 0 &&
+            chapterButton(
+              "Previous Chapter",
+              previousChapterStart(current.chapters, current.position),
+              SkipBack
+            )}
+          {back}
+          {toggle}
+          {forward}
+          {current.chapters.length > 0 &&
+            chapterButton(
+              "Next Chapter",
+              nextChapterStart(current.chapters, current.position),
+              SkipForward
+            )}
+        </div>
+        <Scrubber
+          position={current.position}
+          duration={current.duration}
+          chapters={current.chapters}
+          onSeek={(seconds) => control({ _tag: "seek", seconds })}
+        />
       </div>
-      <p className="w-40 text-right text-xs text-player-muted tabular-nums">
-        {formatTime(current.position)}
-        {current.duration ? ` / ${formatTime(current.duration)}` : ""}
-      </p>
-      {bar}
+      <div className="flex justify-end">
+        {playlist && (
+          <Link
+            to="/playlists/$playlistId"
+            params={{ playlistId: playlist.id }}
+            title={`Up next in ${playlist.name}`}
+            className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm text-player-foreground hover:bg-player-track active:bg-player-track/70"
+          >
+            <ListMusic aria-hidden="true" className="size-5" />
+            <span>
+              {queued} <span className="text-player-muted">up next</span>
+            </span>
+          </Link>
+        )}
+      </div>
     </section>
   )
 }
@@ -298,7 +356,7 @@ export function AppShell() {
         Skip to content
       </a>
       <Sidebar />
-      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-40 outline-none md:pb-24">
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-40 outline-none md:pb-28">
         <Outlet />
       </main>
       <div className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">

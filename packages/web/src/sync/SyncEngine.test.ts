@@ -72,6 +72,7 @@ const makeServer = () => {
               operations: log.slice(since)
             })
       ),
+    chapters: () => Effect.succeed([]),
     // Catalogue in pages of two rows: the Subscription first, then Episodes.
     catalogue: (since) =>
       guard(() => {

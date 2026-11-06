@@ -18,6 +18,7 @@ const podcasts = [
     title: "Deep Field",
     author: "Ines Okafor",
     color: "#2b50c8",
+    chapters: ["Cold open", "The question", "Field notes", "What we still don't know"],
     episodes: [
       ["The quiet edge of the solar system", 2712],
       ["Counting galaxies by hand", 3125],
@@ -89,10 +90,10 @@ const feed = (origin, podcast) => {
   const items = podcast.episodes
     .map(([title, duration], i) => {
       const published = new Date(demoNow - (i * 3 + (podcast.slug.length % 3)) * day).toUTCString()
-      return `<item><title>${title}</title><guid>${podcast.slug}-${i}</guid><pubDate>${published}</pubDate><description>${title}. An episode of ${podcast.title}.</description><enclosure url="${origin}/audio/${podcast.slug}/${i}.mp3" type="audio/mpeg" length="${audioFor(duration).length}"/><itunes:duration>${duration}</itunes:duration></item>`
+      return `<item><title>${title}</title><guid>${podcast.slug}-${i}</guid><pubDate>${published}</pubDate><description>${title}. An episode of ${podcast.title}.</description><enclosure url="${origin}/audio/${podcast.slug}/${i}.mp3" type="audio/mpeg" length="${audioFor(duration).length}"/><itunes:duration>${duration}</itunes:duration>${podcast.chapters ? `<podcast:chapters url="${origin}/chapters/${podcast.slug}/${i}.json" type="application/json+chapters"/>` : ""}</item>`
     })
     .join("")
-  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>${podcast.title}</title><itunes:author>${podcast.author}</itunes:author><description>${podcast.title} by ${podcast.author}.</description><itunes:image href="${origin}/art/${podcast.slug}.svg"/>${items}</channel></rss>`
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>${podcast.title}</title><itunes:author>${podcast.author}</itunes:author><description>${podcast.title} by ${podcast.author}.</description><itunes:image href="${origin}/art/${podcast.slug}.svg"/>${items}</channel></rss>`
 }
 
 const listen = (server) =>
@@ -110,6 +111,23 @@ const startFixtures = async () => {
     if (art) {
       res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "max-age=3600" })
       return res.end(artwork(art.title, art.color))
+    }
+    const chapterFile = path.match(/^\/chapters\/([a-z-]+)\/(\d+)\.json$/)
+    const chaptered = chapterFile && podcasts.find((p) => p.slug === chapterFile[1])
+    const chapteredEpisode = chaptered?.episodes[Number(chapterFile?.[2])]
+    if (chaptered?.chapters && chapteredEpisode) {
+      // Chapters spread evenly over the Episode (Podcasting 2.0 JSON chapters).
+      const step = chapteredEpisode[1] / chaptered.chapters.length
+      res.writeHead(200, { "content-type": "application/json+chapters" })
+      return res.end(
+        JSON.stringify({
+          version: "1.2.0",
+          chapters: chaptered.chapters.map((title, i) => ({
+            startTime: Math.round(i * step),
+            title
+          }))
+        })
+      )
     }
     const audio = path.match(/^\/audio\/([a-z-]+)\/(\d+)\.mp3$/)
     const episode = audio && podcasts.find((p) => p.slug === audio[1])?.episodes[Number(audio[2])]

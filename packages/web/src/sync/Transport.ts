@@ -1,5 +1,5 @@
 import { type Library as LibraryApi, PodListApi, Sync } from "@podlist/api"
-import type { Device, Operation } from "@podlist/domain"
+import type { Device, Library, Operation } from "@podlist/domain"
 import { Context, Effect, Layer } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
@@ -20,6 +20,8 @@ export class Transport extends Context.Service<
     ) => Effect.Effect<Sync.PushResponse, Offline>
     readonly pull: (since: number) => Effect.Effect<Sync.PullResponse, Offline>
     readonly catalogue: (since: number) => Effect.Effect<LibraryApi.CatalogueChanges, Offline>
+    /** An Episode's Chapters; the server resolves and caches them on first request. */
+    readonly chapters: (episodeId: string) => Effect.Effect<ReadonlyArray<Library.Chapter>, Offline>
   }
 >()("@podlist/web/Transport") {
   static readonly layerHttp = (baseUrl: string) =>
@@ -41,7 +43,9 @@ export class Transport extends Context.Service<
               .pipe(Effect.mapError(offline)),
           pull: (since) => client.sync.pull({ query: { since } }).pipe(Effect.mapError(offline)),
           catalogue: (since) =>
-            client.library.changes({ query: { since } }).pipe(Effect.mapError(offline))
+            client.library.changes({ query: { since } }).pipe(Effect.mapError(offline)),
+          chapters: (id) =>
+            client.library.chapters({ params: { id } }).pipe(Effect.mapError(offline))
         })
       })
     ).pipe(Layer.provide(FetchHttpClient.layer))

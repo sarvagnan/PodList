@@ -27,7 +27,8 @@ const offline = Transport.of({
   registerDevice: () => Effect.fail(new Offline("offline")),
   push: () => Effect.fail(new Offline("offline")),
   pull: () => Effect.fail(new Offline("offline")),
-  catalogue: () => Effect.fail(new Offline("offline"))
+  catalogue: () => Effect.fail(new Offline("offline")),
+  chapters: () => Effect.fail(new Offline("offline"))
 })
 
 /** A Player that records what it is asked to do; the test plays the audio element's part. */
@@ -110,7 +111,11 @@ const withDevice = <A, E>(
   test: (
     fake: Effect.Success<typeof makeFakePlayer>
   ) => Effect.Effect<A, E, Playback | SyncEngine | SqlClient.SqlClient | Reactivity.Reactivity>,
-  options: { readonly catalogue?: boolean; readonly reportEveryMillis?: number } = {}
+  options: {
+    readonly catalogue?: boolean
+    readonly reportEveryMillis?: number
+    readonly transport?: typeof offline
+  } = {}
 ) =>
   Effect.gen(function* () {
     const fake = yield* makeFakePlayer
@@ -122,7 +127,7 @@ const withDevice = <A, E>(
       Layer.provideMerge(LocalDb.layerMemory),
       Layer.provideMerge(Reactivity.layer),
       Layer.provide(Layer.succeed(Player, fake.player)),
-      Layer.provide(Layer.succeed(Transport, offline))
+      Layer.provide(Layer.succeed(Transport, options.transport ?? offline))
     )
     return yield* Effect.gen(function* () {
       if (options.catalogue ?? true) {
@@ -256,6 +261,37 @@ describe("Playback", () => {
           yield* eventually(state, (s) => entry(s, "default", "e2")?.position === 24.5)
         }),
       { reportEveryMillis: 60_000 }
+    )
+  )
+
+  it.live("fetches the loaded Episode's Chapters from the server", () =>
+    withDevice(
+      () =>
+        Effect.gen(function* () {
+          const loaded = yield* eventually(now, (n) => (n?.chapters.length ?? 0) > 0)
+          expect(loaded?.chapters.map((c) => [c.start, c.title])).toEqual([
+            [0, "Cold open"],
+            [95, "The interview"]
+          ])
+        }),
+      {
+        transport: Transport.of({
+          ...offline,
+          chapters: (id) =>
+            Effect.succeed(
+              id === "e2"
+                ? [0, 95].map((start, i) =>
+                    Schema.decodeUnknownSync(Library.Chapter)({
+                      start,
+                      title: ["Cold open", "The interview"][i],
+                      artwork: null,
+                      url: null
+                    })
+                  )
+                : []
+            )
+        })
+      }
     )
   )
 
