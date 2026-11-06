@@ -60,7 +60,8 @@ describe("Playlist", () => {
       { episodeId: "ep-2", position: 0, positionAt: 0 }
     ],
     cursor: "ep-1",
-    history: [{ episodeId: "ep-0", finishedAt: 5 }]
+    history: [{ episodeId: "ep-0", finishedAt: 5 }],
+    timeline: [{ at: 4, episodeId: "ep-1", position: 1300 }]
   }
 
   it("keeps Position on the Entry (ADR 0001)", () => {

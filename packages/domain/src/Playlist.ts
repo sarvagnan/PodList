@@ -20,6 +20,13 @@ export class HistoryItem extends Schema.Class<HistoryItem>("@podlist/domain/Hist
   finishedAt: EpochMillis
 }) {}
 
+/** One sample of what a Playlist was playing, and where, at a moment (ADR 0006). */
+export class TimelinePoint extends Schema.Class<TimelinePoint>("@podlist/domain/TimelinePoint")({
+  at: EpochMillis,
+  episodeId: EpisodeId,
+  position: Seconds
+}) {}
+
 /** An ordered collection of Entries with its own playback state. */
 export class Playlist extends Schema.Class<Playlist>("@podlist/domain/Playlist")({
   id: PlaylistId,
@@ -32,7 +39,9 @@ export class Playlist extends Schema.Class<Playlist>("@podlist/domain/Playlist")
   /** The current Entry, or null when the Playlist has run past its end. */
   cursor: Schema.NullOr(EpisodeId),
   /** Most recent first, capped at `historyLimit` items. */
-  history: Schema.Array(HistoryItem)
+  history: Schema.Array(HistoryItem),
+  /** Oldest first, sampled at most once a minute and kept for 30 days. */
+  timeline: Schema.Array(TimelinePoint)
 }) {}
 
 export const historyLimit = 500

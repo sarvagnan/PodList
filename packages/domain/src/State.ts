@@ -7,7 +7,8 @@ import { PlaybackSettings } from "./PlaybackSettings.ts"
 import * as PlayedRules from "./PlayedRules.ts"
 import { DefaultPlaylistId, Entry, Playlist } from "./Playlist.ts"
 import * as PlaylistRules from "./PlaylistRules.ts"
-import type { EpochMillis } from "./Units.ts"
+import * as TimelineRules from "./TimelineRules.ts"
+import { type EpochMillis, Seconds } from "./Units.ts"
 import { View } from "./View.ts"
 
 /** Everything a user owns that operations change. The Library catalogue is separate. */
@@ -31,7 +32,8 @@ export const initial = (playbackSettings: PlaybackSettings): State =>
         clearOnPlayed: true,
         entries: [],
         cursor: null,
-        history: []
+        history: [],
+        timeline: []
       })
     ],
     activePlaylistId: DefaultPlaylistId,
@@ -111,7 +113,8 @@ export const apply = (state: State, change: Change, context: Context): State => 
             clearOnPlayed: change.clearOnPlayed,
             entries: [],
             cursor: null,
-            history: []
+            history: [],
+            timeline: []
           })
         ]
       })
@@ -177,28 +180,97 @@ export const apply = (state: State, change: Change, context: Context): State => 
     }
     case "SetPlaybackSettings":
       return replace(state, { playbackSettings: change.settings })
-    // Rewind
-    // (pod-301.6) land with their own rules. Subscription overrides and marking a
-    // whole Subscription Played need the Library catalogue and are applied server-side.
     case "ReportPosition":
       return withPlaylist(state, change.playlistId, (p) => {
         const entry = p.entries.find((e) => e.episodeId === change.episodeId)
         // The latest listen wins: a report older than what we have is stale (ADR 0003).
-        if (entry === undefined || change.listenedAt < entry.positionAt) return p
+        if (entry === undefined) return p
+        const recorded = TimelineRules.record(
+          p,
+          change.episodeId,
+          change.position,
+          change.listenedAt
+        )
+        if (change.listenedAt < entry.positionAt) return recorded
         return new Playlist({
-          ...p,
-          entries: p.entries.map((e) =>
+          ...recorded,
+          entries: recorded.entries.map((e) =>
             e === entry
               ? new Entry({ ...e, position: change.position, positionAt: change.listenedAt })
               : e
           )
         })
       })
-    case "MarkSubscriptionPlayed":
     case "Rewind":
+      return rewind(state, change.playlistId, change.to, context.at)
+    // Both need the Library catalogue (which Episodes a Subscription has, and the
+    // Subscription record itself), so the server applies them to its own tables.
+    case "MarkSubscriptionPlayed":
     case "SetSubscriptionOverrides":
       return state
   }
+}
+
+/**
+ * Rewind a Playlist to a moment on its Listening Timeline (ADR 0006). Undoes only what
+ * this Playlist's playback did since then: Episodes it finished become unplayed again
+ * and, if Clear on Played removed them, return in the order they finished, just before
+ * the current Entry. The Cursor and Position go back to the moment. Deliberate edits
+ * (adds, reorders, Episodes marked Played by hand) are kept.
+ */
+const rewind = (state: State, playlistId: PlaylistId, to: EpochMillis, at: EpochMillis): State => {
+  const playlist = findPlaylist(state, playlistId)
+  const point = playlist === undefined ? undefined : TimelineRules.pointAt(playlist, to)
+  if (playlist === undefined || point === undefined) return state
+
+  const finished = playlist.history.filter((h) => h.finishedAt > to).reverse()
+  let episodeStates = state.episodeStates
+  for (const { episodeId } of finished) {
+    const played = episodeStates[episodeId]?.played
+    const byThisPlayback =
+      played?.source._tag === "Playback" && played.source.playlistId === playlistId
+    if (played && byThisPlayback && played.at > to) {
+      episodeStates = setEpisodeState(new State({ ...state, episodeStates }), episodeId, {
+        played: null
+      })
+    }
+  }
+
+  const present = new Set(playlist.entries.map((e) => e.episodeId))
+  const restored = [...new Set([...finished.map((h) => h.episodeId), point.episodeId])].filter(
+    (id) => !present.has(id)
+  )
+  const cursorIndex =
+    playlist.cursor === null
+      ? -1
+      : playlist.entries.findIndex((e) => e.episodeId === playlist.cursor)
+  const insertAt = cursorIndex === -1 ? playlist.entries.length : cursorIndex
+  const restoredEntries = restored.map(
+    (episodeId) => new Entry({ episodeId, position: Seconds.make(0), positionAt: at })
+  )
+  const entries = [
+    ...playlist.entries.slice(0, insertAt),
+    ...restoredEntries,
+    ...playlist.entries.slice(insertAt)
+  ].map((e) =>
+    e.episodeId === point.episodeId
+      ? new Entry({ ...e, position: point.position, positionAt: at })
+      : e
+  )
+
+  return replace(state, {
+    episodeStates,
+    playlists: state.playlists.map((p) =>
+      p.id === playlistId
+        ? new Playlist({
+            ...playlist,
+            entries,
+            cursor: point.episodeId,
+            history: playlist.history.filter((h) => h.finishedAt <= to)
+          })
+        : p
+    )
+  })
 }
 
 /** The result of replaying operations: the new state and every operation id applied so far. */
