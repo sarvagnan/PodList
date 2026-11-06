@@ -19,3 +19,6 @@ playwright-report/
 
 # Server data (DATABASE_PATH default)
 packages/server/data/
+
+# Vitest browser-mode attachments
+.vitest/

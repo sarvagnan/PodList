@@ -2,7 +2,6 @@ import * as SqliteClient from "@effect/sql-sqlite-wasm/SqliteClient"
 import * as SqliteMigrator from "@effect/sql-sqlite-wasm/SqliteMigrator"
 import { Sql } from "@podlist/domain"
 import { Context, Effect, Layer, Schedule } from "effect"
-import * as Reactivity from "effect/reactivity/Reactivity"
 import { Migrator, SqlClient } from "effect/sql"
 
 // The LocalDb seam (ADR 0007): the app talks to `effect/sql`'s SqlClient, migrated to
@@ -51,7 +50,7 @@ const clientWithRetry = (databaseName: string) =>
         )
       )
     )
-  ).pipe(Layer.provide(Reactivity.layer))
+  )
 
 export const layerWeb = (databaseName = "podlist.db") =>
   Layer.mergeAll(

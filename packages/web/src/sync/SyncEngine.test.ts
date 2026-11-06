@@ -2,9 +2,10 @@ import { describe, expect, it } from "@effect/vitest"
 import { Library as LibraryApi, Sync } from "@podlist/api"
 import { Library, Operation, PlaybackSettings, State, Units } from "@podlist/domain"
 import { type Context, Effect, Layer, Schema, SubscriptionRef } from "effect"
+import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import * as LocalDb from "../platform/LocalDb.ts"
-import { SyncEngine } from "./SyncEngine.ts"
+import { catalogueKey, SyncEngine } from "./SyncEngine.ts"
 import { Offline, Transport } from "./Transport.ts"
 
 const defaults = new PlaybackSettings.PlaybackSettings({
@@ -98,8 +99,11 @@ const makeServer = () => {
 
 // Each Device gets an in-memory database built once per test, so "restarting" a Device
 // rebuilds only the engine, over the same database.
-const newDatabase = Layer.build(LocalDb.layerMemory)
-const device = (server: ReturnType<typeof makeServer>, db: Context.Context<SqlClient.SqlClient>) =>
+const newDatabase = Layer.build(LocalDb.layerMemory.pipe(Layer.provideMerge(Reactivity.layer)))
+const device = (
+  server: ReturnType<typeof makeServer>,
+  db: Context.Context<SqlClient.SqlClient | Reactivity.Reactivity>
+) =>
   SyncEngine.layer({ defaults, deviceName: "test" }).pipe(
     Layer.provideMerge(Layer.succeedContext(db)),
     Layer.provide(Layer.succeed(Transport, server.transport))
@@ -188,7 +192,12 @@ describe("SyncEngine", () => {
       yield* Effect.gen(function* () {
         const engine = yield* SyncEngine
         const sql = yield* SqlClient.SqlClient
+        const reactivity = yield* Reactivity.Reactivity
+        let invalidated = 0
+        reactivity.registerUnsafe([catalogueKey], () => invalidated++)
         yield* engine.sync
+        // Screens reading the catalogue re-run when new podcasts or Episodes arrive.
+        expect(invalidated).toBeGreaterThan(0)
         const rows = yield* sql<{ id: string }>`SELECT id FROM episode ORDER BY id`
         expect(rows.map((r) => r.id)).toEqual(["e1", "e2", "e3"])
         const [sub] = yield* sql<{ title: string }>`SELECT title FROM subscription`

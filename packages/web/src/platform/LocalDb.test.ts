@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Operation, PlaybackSettings, State, StateStore, Units } from "@podlist/domain"
-import { Effect, Schema } from "effect"
+import { Effect, Layer, Schema } from "effect"
+import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import * as LocalDb from "./LocalDb.ts"
 
@@ -11,7 +12,7 @@ describe("LocalDb (SQLite WASM on OPFS)", () => {
       yield* Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql`INSERT INTO setting (key, value) VALUES ('probe', '"kept"')`
-      }).pipe(Effect.provide(LocalDb.layerWeb(name)))
+      }).pipe(Effect.provide(LocalDb.layerWeb(name).pipe(Layer.provide(Reactivity.layer))))
 
       const value = yield* Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
@@ -23,7 +24,7 @@ describe("LocalDb (SQLite WASM on OPFS)", () => {
         )
         const [row] = yield* sql<{ value: string }>`SELECT value FROM setting WHERE key = 'probe'`
         return row?.value
-      }).pipe(Effect.provide(LocalDb.layerWeb(name)))
+      }).pipe(Effect.provide(LocalDb.layerWeb(name).pipe(Layer.provide(Reactivity.layer))))
       expect(value).toBe('"kept"')
     })
   )
@@ -52,7 +53,7 @@ describe("StateStore over SQLite WASM", () => {
       const reloaded = yield* Effect.gen(function* () {
         yield* StateStore.save(null, changed)
         return yield* StateStore.load(settings)
-      }).pipe(Effect.provide(LocalDb.layerMemory))
+      }).pipe(Effect.provide(LocalDb.layerMemory.pipe(Layer.provide(Reactivity.layer))))
       expect(reloaded.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["ep-1"])
     })
   )

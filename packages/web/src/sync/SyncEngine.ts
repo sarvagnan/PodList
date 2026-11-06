@@ -1,8 +1,12 @@
 import { Device, Operation, type PlaybackSettings, State, StateStore } from "@podlist/domain"
 import { Context, Duration, Effect, Layer, Queue, Schema, Semaphore, SubscriptionRef } from "effect"
+import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
 import { type Offline, Transport } from "./Transport.ts"
+
+/** Reactivity key invalidated whenever synced podcasts or Episodes land in the local database. */
+export const catalogueKey = "catalogue"
 
 // Offline-first sync (ADR 0003). Every edit becomes an Operation in a local outbox and is
 // applied at once to the local State, so the UI never waits for the network. A sync
@@ -42,6 +46,7 @@ export class SyncEngine extends Context.Service<
       SyncEngine,
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
+        const reactivity = yield* Reactivity.Reactivity
         const transport = yield* Transport
         const lock = yield* Semaphore.make(1)
         const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
@@ -126,6 +131,9 @@ export class SyncEngine extends Context.Service<
               yield* withSql(upsertEpisodes(page.episodes))
               yield* setMeta("catalogueCursor", String(page.cursor))
             }).pipe(sql.withTransaction, Effect.orDie)
+            if (page.subscriptions.length > 0 || page.episodes.length > 0) {
+              yield* reactivity.invalidate([catalogueKey])
+            }
             since = page.cursor
             if (!page.more) return
           }

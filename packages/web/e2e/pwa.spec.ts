@@ -29,6 +29,6 @@ test("opens offline from the service worker", async ({ page, context }) => {
 
   await context.setOffline(true)
   await page.reload()
-  await expect(page.getByRole("heading", { name: "PodList" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Views" })).toBeVisible()
   await context.setOffline(false)
 })

@@ -1,7 +1,9 @@
 import { registerSW } from "virtual:pwa-register"
+import { RegistryProvider } from "@effect/atom-react"
 import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
+import { TabGate } from "./app/TabGate.tsx"
 import { routeTree } from "./routeTree.gen.ts"
 import "./index.css"
 
@@ -21,6 +23,10 @@ if (!root) throw new Error("Missing #root element")
 
 createRoot(root).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <TabGate>
+      <RegistryProvider>
+        <RouterProvider router={router} />
+      </RegistryProvider>
+    </TabGate>
   </StrictMode>
 )
