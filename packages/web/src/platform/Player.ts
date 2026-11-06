@@ -4,11 +4,15 @@ import { Context, Data, Effect, Layer, Queue, Stream } from "effect"
 // Media Session API (lock screen, notification and headset controls); a native shell
 // swaps in Media3 / AVPlayer behind the same interface.
 
-export interface Track {
-  readonly url: string
+/** What the lock screen and notification show for the current track. */
+export interface TrackInfo {
   readonly title: string
   readonly podcast: string
   readonly artworkUrl: string | null
+}
+
+export interface Track extends TrackInfo {
+  readonly url: string
   /** Where to start, in seconds (the Entry's Position). */
   readonly startAt: number
 }
@@ -32,6 +36,8 @@ export class Player extends Context.Service<
   Player,
   {
     readonly load: (track: Track) => Effect.Effect<void>
+    /** Updates the lock screen details without reloading the audio. */
+    readonly describe: (info: TrackInfo) => Effect.Effect<void>
     readonly play: Effect.Effect<void, PlayError>
     readonly pause: Effect.Effect<void>
     readonly seek: (seconds: number) => Effect.Effect<void>
@@ -109,22 +115,27 @@ export class Player extends Context.Service<
           })
       )
 
-      const load = (track: Track) =>
+      const showInfo = (info: TrackInfo) =>
         Effect.sync(() => {
-          audio.src = track.url
-          audio.currentTime = track.startAt
           if (session && typeof MediaMetadata !== "undefined") {
             session.metadata = new MediaMetadata({
-              title: track.title,
-              artist: track.podcast,
-              artwork:
-                track.artworkUrl === null ? [] : [{ src: track.artworkUrl, sizes: "512x512" }]
+              title: info.title,
+              artist: info.podcast,
+              artwork: info.artworkUrl === null ? [] : [{ src: info.artworkUrl, sizes: "512x512" }]
             })
           }
         })
 
+      const load = (track: Track) =>
+        Effect.gen(function* () {
+          audio.src = track.url
+          audio.currentTime = track.startAt
+          yield* showInfo(track)
+        })
+
       return Player.of({
         load,
+        describe: showInfo,
         play: Effect.tryPromise({
           try: () => audio.play(),
           catch: (e) => new PlayError({ message: e instanceof Error ? e.message : String(e) })

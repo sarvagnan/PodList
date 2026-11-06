@@ -3,6 +3,8 @@ import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
 import * as LocalDb from "../platform/LocalDb.ts"
+import { Player } from "../platform/Player.ts"
+import { Playback } from "../playback/Playback.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
 
@@ -24,8 +26,10 @@ const deviceName = () => {
   return "Browser"
 }
 
-export const AppLayer = SyncEngine.layer({ defaults, deviceName: deviceName() }).pipe(
+export const AppLayer = Playback.layer({ audioUrl: (id) => `/api/episodes/${id}/audio` }).pipe(
+  Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: deviceName() })),
   Layer.provideMerge(LocalDb.layerWeb()),
+  Layer.provide(Player.layerWeb),
   Layer.provide(Transport.layerHttp(location.origin))
 )
 
@@ -64,6 +68,39 @@ export const recordAtom = runtime.fn((change: Operation.Change) =>
   Effect.gen(function* () {
     const engine = yield* SyncEngine
     yield* engine.record(change)
+  })
+)
+
+/** The loaded Entry and whether it is playing; null when nothing is queued. */
+export const nowPlayingAtom = runtime.atom(
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const playback = yield* Playback
+      return SubscriptionRef.changes(playback.now)
+    })
+  )
+)
+
+type Command =
+  | { readonly _tag: "toggle" }
+  | { readonly _tag: "skip"; readonly seconds: number }
+  | { readonly _tag: "seek"; readonly seconds: number }
+  | { readonly _tag: "playEntry"; readonly playlistId: string; readonly episodeId: string }
+
+/** Player controls: play/pause, skip, seek and Play from here. */
+export const playbackAtom = runtime.fn((command: Command) =>
+  Effect.gen(function* () {
+    const playback = yield* Playback
+    switch (command._tag) {
+      case "toggle":
+        return yield* playback.toggle
+      case "skip":
+        return yield* playback.skip(command.seconds)
+      case "seek":
+        return yield* playback.seek(command.seconds)
+      case "playEntry":
+        return yield* playback.playEntry(command.playlistId, command.episodeId)
+    }
   })
 )
 

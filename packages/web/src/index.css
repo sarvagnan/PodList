@@ -35,6 +35,7 @@
   --color-player-foreground: var(--player-foreground);
   --color-player-muted: var(--player-muted);
   --color-player-track: var(--player-track);
+  --color-player-danger: var(--player-danger);
   --color-progress: var(--progress);
   --color-positive: var(--positive);
   --color-positive-tint: var(--positive-tint);
@@ -73,6 +74,8 @@
   --player-foreground: #ffffff;
   --player-muted: #a9b6be;
   --player-track: #2c3d47;
+  /* Errors on the dark player: 8.9:1 on --player. */
+  --player-danger: #ffb4a8;
   --progress: #3aa0e8;
   --positive: #1d6b45;
   --positive-tint: #ddf2e7;

@@ -3,27 +3,23 @@ import { Operation } from "@podlist/domain"
 import { createFileRoute } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
+import { AudioLines, Play } from "lucide-react"
 import { entryEpisodesAtom } from "../../app/data.ts"
-import { recordAtom, stateAtom } from "../../app/runtime.ts"
+import { nowPlayingAtom, playbackAtom, recordAtom, stateAtom } from "../../app/runtime.ts"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { formatTime } from "../../lib/time.ts"
 
 export const Route = createFileRoute("/playlists/$playlistId")({ component: PlaylistDetail })
-
-const formatTime = (seconds: number) => {
-  const s = Math.round(seconds)
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return h > 0 ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`
-}
 
 function PlaylistDetail() {
   const { playlistId } = Route.useParams()
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   const record = useAtomSet(recordAtom)
+  const control = useAtomSet(playbackAtom)
+  const playing = AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   if (state === null || playlist === undefined) return null
   const active = playlist.id === state.activePlaylistId
@@ -66,8 +62,11 @@ function PlaylistDetail() {
           {playlist.entries.map((entry, index) => {
             const episode = episodes.get(entry.episodeId)
             const current = entry.episodeId === playlist.cursor
+            const live =
+              playing?.playlistId === playlist.id && playing.episodeId === entry.episodeId
+            const position = live ? playing.position : entry.position
             const progress = episode?.duration
-              ? Math.min(100, (entry.position / episode.duration) * 100)
+              ? Math.min(100, (position / episode.duration) * 100)
               : 0
             return (
               <li
@@ -94,14 +93,34 @@ function PlaylistDetail() {
                       <span className="block h-1 bg-primary" style={{ width: `${progress}%` }} />
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      {entry.position > 0
-                        ? formatTime(entry.position)
+                      {position > 0
+                        ? formatTime(position)
                         : episode?.duration
                           ? formatTime(episode.duration)
                           : ""}
                     </span>
                   </span>
                 </span>
+                {live && playing.playing ? (
+                  <span className="grid size-11 shrink-0 place-items-center text-xs font-semibold text-primary">
+                    <AudioLines aria-label="Playing" className="size-5" />
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Play ${episode?.title ?? "Entry"} from here`}
+                    onClick={() =>
+                      control({
+                        _tag: "playEntry",
+                        playlistId: playlist.id,
+                        episodeId: entry.episodeId
+                      })
+                    }
+                    className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent"
+                  >
+                    <Play aria-hidden="true" className="size-5 fill-current" />
+                  </button>
+                )}
               </li>
             )
           })}

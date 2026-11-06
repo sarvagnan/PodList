@@ -1,9 +1,10 @@
-import { useAtomMount, useAtomValue } from "@effect/atom-react"
+import { useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link, Outlet } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { Filter, Library, ListMusic } from "lucide-react"
-import { activePlaylist, entryEpisodesAtom } from "../../app/data.ts"
-import { backgroundSyncAtom, stateAtom } from "../../app/runtime.ts"
+import { Filter, Library, ListMusic, Pause, Play, RotateCcw, RotateCw } from "lucide-react"
+import { backgroundSyncAtom, nowPlayingAtom, playbackAtom, stateAtom } from "../../app/runtime.ts"
+import { formatTime } from "../../lib/time.ts"
+import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { Artwork } from "./Artwork.tsx"
 
 // Variant A (docs/design/ui-layout.md): phone has Views / Playlists / Library tabs with a
@@ -21,30 +22,97 @@ function useAppState() {
 
 function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const state = useAppState()
-  const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
-  const playlist = state === null ? undefined : activePlaylist(state)
-  const current = playlist?.cursor ? episodes.get(playlist.cursor) : undefined
-  if (playlist === undefined || current === undefined) return null
-  const label = `${current.podcast} · ${playlist.name}`
+  const current = AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
+  const control = useAtomSet(playbackAtom)
+  if (current === null) return null
+  const playlist = state?.playlists.find((p) => p.id === current.playlistId)
+  const label = `${current.podcast} · ${playlist?.name ?? ""}`
+  const progress = current.duration ? Math.min(100, (current.position / current.duration) * 100) : 0
+  const button =
+    "grid size-11 shrink-0 place-items-center rounded-full text-player-foreground hover:bg-player-track"
+  const toggle = (
+    <button
+      type="button"
+      aria-label={current.playing ? "Pause" : "Play"}
+      onClick={() => control({ _tag: "toggle" })}
+      className="grid size-11 shrink-0 place-items-center rounded-full bg-player-foreground text-player"
+    >
+      {current.playing ? (
+        <Pause aria-hidden="true" className="size-5 fill-current" />
+      ) : (
+        <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
+      )}
+    </button>
+  )
+  const back = (
+    <button
+      type="button"
+      aria-label={`Back ${backSeconds} seconds`}
+      onClick={() => control({ _tag: "skip", seconds: -backSeconds })}
+      className={button}
+    >
+      <RotateCcw aria-hidden="true" className="size-5" />
+    </button>
+  )
+  const forward = (
+    <button
+      type="button"
+      aria-label={`Forward ${forwardSeconds} seconds`}
+      onClick={() => control({ _tag: "skip", seconds: forwardSeconds })}
+      className={button}
+    >
+      <RotateCw aria-hidden="true" className="size-5" />
+    </button>
+  )
+  const bar = (
+    <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-player-track">
+      <span className="block h-full bg-progress" style={{ width: `${progress}%` }} />
+    </span>
+  )
+  const error = current.error && (
+    <p role="alert" className="truncate text-[11px] text-player-danger">
+      Can't play: {current.error}
+    </p>
+  )
+
   if (variant === "phone") {
     return (
-      <div className="mx-2.5 flex items-center gap-3 rounded-2xl bg-player p-2.5 text-player-foreground">
+      <section
+        aria-label="Now playing"
+        className="relative mx-2.5 flex items-center gap-3 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
+      >
         <Artwork url={current.artworkUrl} name={current.podcast} size={44} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold">{current.title}</p>
-          <p className="truncate text-[11px] text-player-muted">{label}</p>
+          {error || <p className="truncate text-[11px] text-player-muted">{label}</p>}
         </div>
-      </div>
+        {toggle}
+        {forward}
+        {bar}
+      </section>
     )
   }
   return (
-    <footer className="fixed inset-x-0 bottom-0 z-10 hidden items-center gap-3 bg-player px-5 py-3 text-player-foreground md:flex">
+    <section
+      aria-label="Now playing"
+      className="fixed inset-x-0 bottom-0 z-10 hidden items-center gap-3 bg-player px-5 py-3 text-player-foreground md:flex"
+    >
       <Artwork url={current.artworkUrl} name={current.podcast} size={48} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{current.title}</p>
-        <p className="truncate text-xs text-player-muted">{label}</p>
+        {error || <p className="truncate text-xs text-player-muted">{label}</p>}
       </div>
-    </footer>
+      <div className="flex items-center gap-2">
+        {back}
+        {toggle}
+        {forward}
+      </div>
+      <p className="w-40 text-right text-xs text-player-muted tabular-nums">
+        {formatTime(current.position)}
+        {current.duration ? ` / ${formatTime(current.duration)}` : ""}
+      </p>
+      {bar}
+    </section>
   )
 }
 
