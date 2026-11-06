@@ -28,6 +28,8 @@ export class Subscription extends Schema.Class<Subscription>("@podlist/domain/Su
   description: Schema.NullOr(Schema.String),
   artwork: Schema.NullOr(Artwork),
   subscribedAt: EpochMillis,
+  /** Set when the user unsubscribes; its Entries and Starred Episodes stay, Orphaned (Q31). */
+  unsubscribedAt: Schema.NullOr(EpochMillis),
   /** Seconds before the end that count as finishing; null uses the global default (30 s). */
   playedThreshold: Schema.NullOr(Seconds),
   playbackSettings: PlaybackSettingsOverride
