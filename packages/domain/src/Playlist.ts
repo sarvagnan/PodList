@@ -14,6 +14,12 @@ export class Entry extends Schema.Class<Entry>("@podlist/domain/Entry")({
   positionAt: EpochMillis
 }) {}
 
+/** An Entry finished by this Playlist's own playback. */
+export class HistoryItem extends Schema.Class<HistoryItem>("@podlist/domain/HistoryItem")({
+  episodeId: EpisodeId,
+  finishedAt: EpochMillis
+}) {}
+
 /** An ordered collection of Entries with its own playback state. */
 export class Playlist extends Schema.Class<Playlist>("@podlist/domain/Playlist")({
   id: PlaylistId,
@@ -24,8 +30,12 @@ export class Playlist extends Schema.Class<Playlist>("@podlist/domain/Playlist")
   clearOnPlayed: Schema.Boolean,
   entries: Schema.Array(Entry),
   /** The current Entry, or null when the Playlist has run past its end. */
-  cursor: Schema.NullOr(EpisodeId)
+  cursor: Schema.NullOr(EpisodeId),
+  /** Most recent first, capped at `historyLimit` items. */
+  history: Schema.Array(HistoryItem)
 }) {}
+
+export const historyLimit = 500
 
 /** The Default Playlist's fixed id; it exists for every user from the start. */
 export const DefaultPlaylistId = PlaylistId.make("default")

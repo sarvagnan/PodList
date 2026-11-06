@@ -1,9 +1,10 @@
 import { Schema } from "effect"
 import { DownloadRule } from "./Device.ts"
-import type { PlaylistId } from "./Ids.ts"
-import { EpisodeState } from "./Library.ts"
+import type { EpisodeId, PlaylistId } from "./Ids.ts"
+import { EpisodeState, Played } from "./Library.ts"
 import type { Change } from "./Operation.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
+import * as PlayedRules from "./PlayedRules.ts"
 import { DefaultPlaylistId, Playlist } from "./Playlist.ts"
 import * as PlaylistRules from "./PlaylistRules.ts"
 import type { EpochMillis } from "./Units.ts"
@@ -29,7 +30,8 @@ export const initial = (playbackSettings: PlaybackSettings): State =>
         isDefault: true,
         clearOnPlayed: true,
         entries: [],
-        cursor: null
+        cursor: null,
+        history: []
       })
     ],
     activePlaylistId: DefaultPlaylistId,
@@ -56,6 +58,20 @@ const withPlaylist = (state: State, id: PlaylistId, f: (p: Playlist) => Playlist
     ...state,
     playlists: state.playlists.map((p) => (p.id === id ? next : p))
   })
+}
+
+/** Sets an Episode's state, dropping the record when it is back to the default. */
+const setEpisodeState = (
+  state: State,
+  episodeId: EpisodeId,
+  patch: { readonly played?: Played | null; readonly starred?: boolean }
+): Record<string, EpisodeState> => {
+  const current = state.episodeStates[episodeId]
+  const played = patch.played === undefined ? (current?.played ?? null) : patch.played
+  const starred = patch.starred ?? current?.starred ?? false
+  const { [episodeId]: _, ...rest } = state.episodeStates
+  if (played === null && !starred) return rest
+  return { ...rest, [episodeId]: new EpisodeState({ episodeId, played, starred }) }
 }
 
 const replace = (state: State, patch: Partial<ConstructorParameters<typeof State>[0]>) =>
@@ -94,7 +110,8 @@ export const apply = (state: State, change: Change, context: Context): State => 
             isDefault: false,
             clearOnPlayed: change.clearOnPlayed,
             entries: [],
-            cursor: null
+            cursor: null,
+            history: []
           })
         ]
       })
@@ -120,15 +137,29 @@ export const apply = (state: State, change: Change, context: Context): State => 
     case "SetActivePlaylist":
       if (findPlaylist(state, change.playlistId) === undefined) return state
       return replace(state, { activePlaylistId: change.playlistId })
-    case "SetStar": {
-      const current = state.episodeStates[change.episodeId]
-      const next = new EpisodeState({
-        episodeId: change.episodeId,
-        played: current?.played ?? null,
-        starred: change.starred
+    case "SetStar":
+      return replace(state, {
+        episodeStates: setEpisodeState(state, change.episodeId, { starred: change.starred })
       })
-      return replace(state, { episodeStates: { ...state.episodeStates, [change.episodeId]: next } })
+    case "MarkPlayed": {
+      const played = new Played({ at: context.at, source: change.source })
+      const source = change.source
+      return replace(state, {
+        episodeStates: setEpisodeState(state, change.episodeId, { played }),
+        playlists: state.playlists.map((p) =>
+          PlayedRules.onPlayed(
+            p,
+            change.episodeId,
+            source._tag === "Playback" && source.playlistId === p.id,
+            context.at
+          )
+        )
+      })
     }
+    case "MarkUnplayed":
+      return replace(state, {
+        episodeStates: setEpisodeState(state, change.episodeId, { played: null })
+      })
     case "SaveView":
       return replace(state, {
         views: state.views.some((v) => v.id === change.view.id)
@@ -146,12 +177,10 @@ export const apply = (state: State, change: Change, context: Context): State => 
     }
     case "SetPlaybackSettings":
       return replace(state, { playbackSettings: change.settings })
-    // Played and Clear on Played (pod-301.4), Position merging (pod-301.5) and Rewind
+    // Position merging (pod-301.5) and Rewind
     // (pod-301.6) land with their own rules. Subscription overrides and marking a
     // whole Subscription Played need the Library catalogue and are applied server-side.
     case "ReportPosition":
-    case "MarkPlayed":
-    case "MarkUnplayed":
     case "MarkSubscriptionPlayed":
     case "Rewind":
     case "SetSubscriptionOverrides":
