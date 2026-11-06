@@ -87,6 +87,19 @@ export const migrations: ReadonlyArray<Migration> = [
       "ALTER TABLE episode ADD COLUMN chapters_url TEXT",
       "ALTER TABLE episode ADD COLUMN chapters_fetched_at INTEGER"
     ]
+  },
+  {
+    id: 3,
+    name: "list_order",
+    statements: [
+      // Playlists and Views keep the order the user sees, on every Device. Existing rows
+      // take their current order, with the Default Playlist first.
+      "ALTER TABLE playlist ADD COLUMN ordinal INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE view ADD COLUMN ordinal INTEGER NOT NULL DEFAULT 0",
+      `UPDATE playlist SET ordinal = CASE WHEN id = 'default' THEN 0
+         ELSE 1 + (SELECT count(*) FROM playlist p WHERE p.id <> 'default' AND p.rowid < playlist.rowid) END`,
+      "UPDATE view SET ordinal = (SELECT count(*) FROM view v WHERE v.rowid < view.rowid)"
+    ]
   }
 ]
 
@@ -106,8 +119,16 @@ export const migrationLoader = Migrator.fromRecord(
 // ---------- State <-> rows ----------
 
 export interface StateRows {
-  readonly playlist: ReadonlyArray<{ readonly id: string; readonly doc: string }>
-  readonly view: ReadonlyArray<{ readonly id: string; readonly doc: string }>
+  readonly playlist: ReadonlyArray<{
+    readonly id: string
+    readonly ordinal: number
+    readonly doc: string
+  }>
+  readonly view: ReadonlyArray<{
+    readonly id: string
+    readonly ordinal: number
+    readonly doc: string
+  }>
   readonly episode_state: ReadonlyArray<{
     readonly episode_id: string
     readonly played_at: number | null
@@ -136,8 +157,16 @@ const PlayedJson = Schema.fromJsonString(EpisodeState.fields.played)
 
 /** Rows for every table that mirrors user State. Writers replace these tables wholesale or per key. */
 export const stateToRows = (state: State): StateRows => ({
-  playlist: state.playlists.map((p) => ({ id: p.id, doc: Schema.encodeSync(PlaylistJson)(p) })),
-  view: state.views.map((v) => ({ id: v.id, doc: Schema.encodeSync(ViewJson)(v) })),
+  playlist: state.playlists.map((p, ordinal) => ({
+    id: p.id,
+    ordinal,
+    doc: Schema.encodeSync(PlaylistJson)(p)
+  })),
+  view: state.views.map((v, ordinal) => ({
+    id: v.id,
+    ordinal,
+    doc: Schema.encodeSync(ViewJson)(v)
+  })),
   episode_state: Object.values(state.episodeStates).map((s) => ({
     episode_id: s.episodeId,
     played_at: s.played?.at ?? null,
@@ -164,6 +193,9 @@ export const stateToRows = (state: State): StateRows => ({
   ]
 })
 
+const byOrdinal = <A extends { readonly ordinal: number }>(rows: ReadonlyArray<A>) =>
+  [...rows].sort((a, b) => a.ordinal - b.ordinal)
+
 /** Rebuilds State from the document tables; the index tables are derived, not read. */
 export const rowsToState = (
   rows: Pick<StateRows, "playlist" | "view" | "episode_state" | "download_rule" | "setting">
@@ -174,8 +206,8 @@ export const rowsToState = (
     return row.value
   }
   return new State({
-    playlists: rows.playlist.map((r) => Schema.decodeSync(PlaylistJson)(r.doc)),
-    views: rows.view.map((r) => Schema.decodeSync(ViewJson)(r.doc)),
+    playlists: byOrdinal(rows.playlist).map((r) => Schema.decodeSync(PlaylistJson)(r.doc)),
+    views: byOrdinal(rows.view).map((r) => Schema.decodeSync(ViewJson)(r.doc)),
     episodeStates: Object.fromEntries(
       rows.episode_state.map((r) => [
         r.episode_id,

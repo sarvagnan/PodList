@@ -34,8 +34,8 @@ export const load = (defaults: PlaybackSettings) =>
     if (!setting.some((s) => s.key === "activePlaylistId")) return State.initial(defaults)
     return Sql.rowsToState({
       setting,
-      playlist: yield* sql<Rows["playlist"][number]>`SELECT id, doc FROM playlist`,
-      view: yield* sql<Rows["view"][number]>`SELECT id, doc FROM view`,
+      playlist: yield* sql<Rows["playlist"][number]>`SELECT id, ordinal, doc FROM playlist`,
+      view: yield* sql<Rows["view"][number]>`SELECT id, ordinal, doc FROM view`,
       episode_state: yield* sql<Rows["episode_state"][number]>`
         SELECT episode_id, played_at, played_source, starred FROM episode_state`,
       download_rule: yield* sql<Rows["download_rule"][number]>`

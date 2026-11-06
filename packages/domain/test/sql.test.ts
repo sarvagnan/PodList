@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite"
 import { describe, expect, it } from "@effect/vitest"
 import { Schema } from "effect"
 import { Operation, PlaybackSettings, Sql, State, Units } from "../src/index.ts"
@@ -86,6 +87,42 @@ describe("SQLite schema", () => {
       setting: read("setting")
     })
     expect(Schema.encodeSync(State.State)(back)).toEqual(Schema.encodeSync(State.State)(state))
+  })
+
+  it("gives existing Playlists an order when upgrading, Default first", () => {
+    const db = new DatabaseSync(":memory:")
+    const [upgrade, ...earlier] = [...Sql.migrations].reverse()
+    for (const m of earlier.reverse()) for (const statement of m.statements) db.exec(statement)
+    for (const id of ["workshop", "default", "commute"]) {
+      db.prepare("INSERT INTO playlist (id, doc) VALUES (?, '{}')").run(id)
+    }
+    for (const statement of upgrade?.statements ?? []) db.exec(statement)
+    const rows = db.prepare("SELECT id FROM playlist ORDER BY ordinal").all()
+    expect(rows.map((r) => r.id)).toEqual(["default", "workshop", "commute"])
+  })
+
+  it("keeps Playlists in their order when a row is rewritten", () => {
+    // Rewriting a row (INSERT OR REPLACE) moves it to the end of the table; the order
+    // must come from the State, not from the table.
+    const state = State.applyOperations(sample(), [
+      op({ _tag: "CreatePlaylist", playlistId: "walks", name: "Walks", clearOnPlayed: true })
+    ]).state
+    const db = migratedDatabase()
+    for (const [table, tableRows] of Object.entries(Sql.stateToRows(state))) {
+      insertRows(db, table, tableRows)
+    }
+    const defaultRow = Sql.stateToRows(state).playlist[0]
+    db.prepare("DELETE FROM playlist WHERE id = 'default'").run()
+    insertRows(db, "playlist", [defaultRow ?? {}])
+    const read = (table: string) => db.prepare(`SELECT * FROM ${table}`).all() as never
+    const back = Sql.rowsToState({
+      playlist: read("playlist"),
+      view: read("view"),
+      episode_state: read("episode_state"),
+      download_rule: read("download_rule"),
+      setting: read("setting")
+    })
+    expect(back.playlists.map((p) => p.id)).toEqual(["default", "replay", "walks"])
   })
 
   it("indexes Entries and Episode states for View queries", () => {
