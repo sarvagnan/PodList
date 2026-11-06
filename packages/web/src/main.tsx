@@ -1,3 +1,4 @@
+import { registerSW } from "virtual:pwa-register"
 import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
@@ -11,6 +12,9 @@ declare module "@tanstack/react-router" {
     router: typeof router
   }
 }
+
+// Keep the installed app current: a new service worker activates on the next load.
+registerSW({ immediate: true })
 
 const root = document.getElementById("root")
 if (!root) throw new Error("Missing #root element")
