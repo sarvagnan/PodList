@@ -1,0 +1,190 @@
+{
+  "name": "clear-on-played-everywhere",
+  "description": "Played in Replay clears it from Default; Replay keeps it at 0:00 and moves on.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "clear-on-played-everywhere-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "clear-on-played-everywhere-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "clear-on-played-everywhere-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "clear-on-played-everywhere-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "CreatePlaylist",
+        "playlistId": "replay",
+        "name": "Replay",
+        "clearOnPlayed": false
+      }
+    },
+    {
+      "id": "clear-on-played-everywhere-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "replay",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "clear-on-played-everywhere-5",
+      "deviceId": "phone",
+      "sequence": 5,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "replay",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "clear-on-played-everywhere-6",
+      "deviceId": "phone",
+      "sequence": 6,
+      "recordedAt": 1793752200000,
+      "change": {
+        "_tag": "MarkPlayed",
+        "episodeId": "B",
+        "source": {
+          "_tag": "Playback",
+          "playlistId": "replay"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "A",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "C",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": []
+      },
+      {
+        "id": "replay",
+        "name": "Replay",
+        "isDefault": false,
+        "clearOnPlayed": false,
+        "entries": [
+          {
+            "episodeId": "B",
+            "position": 0,
+            "positionAt": 1793752200000
+          },
+          {
+            "episodeId": "C",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "C",
+        "history": [
+          {
+            "episodeId": "B",
+            "finishedAt": 1793752200000
+          }
+        ],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {
+      "B": {
+        "episodeId": "B",
+        "played": {
+          "at": 1793752200000,
+          "source": {
+            "_tag": "Playback",
+            "playlistId": "replay"
+          }
+        },
+        "starred": false
+      }
+    },
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

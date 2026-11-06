@@ -1,0 +1,272 @@
+{
+  "name": "rewind-after-sleep",
+  "description": "Rewind undoes playback since the moment and keeps deliberate edits.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "rewind-after-sleep-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "rewind-after-sleep-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "rewind-after-sleep-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "rewind-after-sleep-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "D",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "rewind-after-sleep-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 100,
+        "listenedAt": 1793750400000
+      }
+    },
+    {
+      "id": "rewind-after-sleep-5",
+      "deviceId": "phone",
+      "sequence": 5,
+      "recordedAt": 1793750700000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 400,
+        "listenedAt": 1793750700000
+      }
+    },
+    {
+      "id": "rewind-after-sleep-6",
+      "deviceId": "phone",
+      "sequence": 6,
+      "recordedAt": 1793752200000,
+      "change": {
+        "_tag": "MarkPlayed",
+        "episodeId": "A",
+        "source": {
+          "_tag": "Playback",
+          "playlistId": "default"
+        }
+      }
+    },
+    {
+      "id": "rewind-after-sleep-7",
+      "deviceId": "phone",
+      "sequence": 7,
+      "recordedAt": 1793752260000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "B",
+        "position": 30,
+        "listenedAt": 1793752260000
+      }
+    },
+    {
+      "id": "rewind-after-sleep-8",
+      "deviceId": "phone",
+      "sequence": 8,
+      "recordedAt": 1793753400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "X",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "rewind-after-sleep-9",
+      "deviceId": "phone",
+      "sequence": 9,
+      "recordedAt": 1793753700000,
+      "change": {
+        "_tag": "MarkPlayed",
+        "episodeId": "D",
+        "source": {
+          "_tag": "User"
+        }
+      }
+    },
+    {
+      "id": "rewind-after-sleep-10",
+      "deviceId": "phone",
+      "sequence": 10,
+      "recordedAt": 1793754000000,
+      "change": {
+        "_tag": "MarkPlayed",
+        "episodeId": "B",
+        "source": {
+          "_tag": "Playback",
+          "playlistId": "default"
+        }
+      }
+    },
+    {
+      "id": "rewind-after-sleep-11",
+      "deviceId": "phone",
+      "sequence": 11,
+      "recordedAt": 1793754060000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "C",
+        "position": 20,
+        "listenedAt": 1793754060000
+      }
+    },
+    {
+      "id": "rewind-after-sleep-12",
+      "deviceId": "phone",
+      "sequence": 12,
+      "recordedAt": 1793754600000,
+      "change": {
+        "_tag": "Rewind",
+        "playlistId": "default",
+        "to": 1793750760000
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "A",
+            "position": 400,
+            "positionAt": 1793754600000
+          },
+          {
+            "episodeId": "B",
+            "position": 0,
+            "positionAt": 1793754600000
+          },
+          {
+            "episodeId": "C",
+            "position": 20,
+            "positionAt": 1793754060000
+          },
+          {
+            "episodeId": "X",
+            "position": 0,
+            "positionAt": 1793753400000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": [
+          {
+            "at": 1793750400000,
+            "episodeId": "A",
+            "position": 100
+          },
+          {
+            "at": 1793750700000,
+            "episodeId": "A",
+            "position": 400
+          },
+          {
+            "at": 1793752260000,
+            "episodeId": "B",
+            "position": 30
+          },
+          {
+            "at": 1793754060000,
+            "episodeId": "C",
+            "position": 20
+          }
+        ]
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {
+      "D": {
+        "episodeId": "D",
+        "played": {
+          "at": 1793753700000,
+          "source": {
+            "_tag": "User"
+          }
+        },
+        "starred": false
+      }
+    },
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "name": "two-devices-offline",
+  "description": "Offline reorder on one Device merges with adds and removes from another.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "two-devices-offline-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "two-devices-offline-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "two-devices-offline-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "two-devices-offline-3",
+      "deviceId": "mac",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "D",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "two-devices-offline-4",
+      "deviceId": "mac",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "RemoveEntry",
+        "playlistId": "default",
+        "episodeId": "B"
+      }
+    },
+    {
+      "id": "two-devices-offline-5",
+      "deviceId": "phone",
+      "sequence": 5,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "MoveEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "after": null
+      }
+    },
+    {
+      "id": "two-devices-offline-6",
+      "deviceId": "phone",
+      "sequence": 6,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "MoveEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "after": "C"
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "C",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "A",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "D",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

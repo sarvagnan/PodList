@@ -1,0 +1,126 @@
+{
+  "name": "user-played-adds-no-history",
+  "description": "Marking Played by hand clears Entries but records no History.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "user-played-adds-no-history-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "user-played-adds-no-history-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "user-played-adds-no-history-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "user-played-adds-no-history-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "MarkPlayed",
+        "episodeId": "A",
+        "source": {
+          "_tag": "User"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "B",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "C",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "B",
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {
+      "A": {
+        "episodeId": "A",
+        "played": {
+          "at": 1793750400000,
+          "source": {
+            "_tag": "User"
+          }
+        },
+        "starred": false
+      }
+    },
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

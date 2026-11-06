@@ -1,0 +1,108 @@
+{
+  "name": "default-playlist-protected",
+  "description": "Default cannot be renamed or deleted; deleting the Active Playlist makes Default Active.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "default-playlist-protected-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "RenamePlaylist",
+        "playlistId": "default",
+        "name": "Inbox"
+      }
+    },
+    {
+      "id": "default-playlist-protected-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "DeletePlaylist",
+        "playlistId": "default"
+      }
+    },
+    {
+      "id": "default-playlist-protected-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "CreatePlaylist",
+        "playlistId": "r",
+        "name": "Replay",
+        "clearOnPlayed": false
+      }
+    },
+    {
+      "id": "default-playlist-protected-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "SetActivePlaylist",
+        "playlistId": "r"
+      }
+    },
+    {
+      "id": "default-playlist-protected-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "DeletePlaylist",
+        "playlistId": "r"
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "name": "add-moves-existing-entry",
+  "description": "Adding an Episode that is already an Entry moves it and keeps its Position.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "add-moves-existing-entry-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "add-moves-existing-entry-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "add-moves-existing-entry-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "add-moves-existing-entry-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750700000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "C",
+        "position": 120,
+        "listenedAt": 1793750700000
+      }
+    },
+    {
+      "id": "add-moves-existing-entry-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "next"
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "A",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "C",
+            "position": 120,
+            "positionAt": 1793750700000
+          },
+          {
+            "episodeId": "B",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": [
+          {
+            "at": 1793750700000,
+            "episodeId": "C",
+            "position": 120
+          }
+        ]
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

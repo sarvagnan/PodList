@@ -1,0 +1,158 @@
+{
+  "name": "play-now-next-last",
+  "description": "Play Now goes before the current Entry and starts; Next after it; Last at the end.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "play-now-next-last-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "play-now-next-last-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "play-now-next-last-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "play-now-next-last-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "X",
+        "placement": "now"
+      }
+    },
+    {
+      "id": "play-now-next-last-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "Y",
+        "placement": "next"
+      }
+    },
+    {
+      "id": "play-now-next-last-5",
+      "deviceId": "phone",
+      "sequence": 5,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "Z",
+        "placement": "last"
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "X",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "Y",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "A",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "B",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "C",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "Z",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "X",
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "name": "latest-listen-wins",
+  "description": "Position reports resolve to the most recent listen regardless of arrival order.",
+  "protocolVersion": 1,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "latest-listen-wins-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "latest-listen-wins-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "B",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "latest-listen-wins-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "C",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "latest-listen-wins-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793751600000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 600,
+        "listenedAt": 1793751600000
+      }
+    },
+    {
+      "id": "latest-listen-wins-4",
+      "deviceId": "mac",
+      "sequence": 4,
+      "recordedAt": 1793751000000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 300,
+        "listenedAt": 1793751000000
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "A",
+            "position": 600,
+            "positionAt": 1793751600000
+          },
+          {
+            "episodeId": "B",
+            "position": 0,
+            "positionAt": 1793750400000
+          },
+          {
+            "episodeId": "C",
+            "position": 0,
+            "positionAt": 1793750400000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": [
+          {
+            "at": 1793751000000,
+            "episodeId": "A",
+            "position": 300
+          },
+          {
+            "at": 1793751600000,
+            "episodeId": "A",
+            "position": 600
+          }
+        ]
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  }
+}
