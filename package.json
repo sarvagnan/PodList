@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:web": "pnpm --filter @podlist/web dev",
-    "dev:server": "pnpm --filter @podlist/server dev"
+    "dev:server": "pnpm --filter @podlist/server dev",
+    "desktop:install": "git pull --ff-only && pnpm install --frozen-lockfile && pnpm --filter @podlist/desktop install:app"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

@@ -19,3 +19,7 @@ reachable only on your tailnet, at `https://podlist.<tailnet>.ts.net` (ADR 0004)
 Data lives in the `podlist-data` volume: the database at `/data/podlist.db` and daily
 backups in `/data/backups` (newest 14 kept; set `BACKUP_KEEP` to change). Restore by
 stopping the stack and copying a backup over `/data/podlist.db`.
+
+## Mac app
+
+`pnpm desktop:install` (from the repo root, on the Mac) pulls `main`, installs dependencies, builds `PodList.app` unsigned for this Mac and copies it into `/Applications`. Quit PodList first if it's open. On first launch it asks for the server address (the Tailscale Serve URL above) and checks that it answers; PodList › Change Server… switches later. `pnpm --filter @podlist/desktop build:app` builds into `packages/desktop/out/` without installing.

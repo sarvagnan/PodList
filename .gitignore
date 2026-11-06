@@ -22,3 +22,6 @@ packages/server/data/
 
 # Vitest browser-mode attachments
 .vitest/
+
+# Packaged Mac app
+packages/desktop/out/

@@ -1,5 +1,6 @@
 {
   "name": "@podlist/desktop",
+  "productName": "PodList",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,11 +8,15 @@
   "scripts": {
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json",
-    "test:app": "playwright test"
+    "test:app": "playwright test",
+    "build:app": "node scripts/build-app.ts",
+    "install:app": "node scripts/build-app.ts --install"
   },
   "devDependencies": {
+    "@electron/packager": "20.3.0",
     "@playwright/test": "1.65.0",
     "electron": "44.9.3",
-    "playwright": "1.65.0"
+    "playwright": "1.65.0",
+    "sharp": "0.35.5"
   }
 }
