@@ -1,3 +1,9 @@
 // The domain package must stay platform-free: pure functions and Effect Schemas only,
 // no DOM, browser storage, fetch or Node APIs (ADR 0007). Vocabulary: CONTEXT.md.
+export * as Device from "./Device.ts"
 export * as Ids from "./Ids.ts"
+export * as Library from "./Library.ts"
+export * as PlaybackSettings from "./PlaybackSettings.ts"
+export * as Playlist from "./Playlist.ts"
+export * as Units from "./Units.ts"
+export * as View from "./View.ts"
