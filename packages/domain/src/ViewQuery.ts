@@ -26,6 +26,8 @@ export const columns = [
   "e.published",
   "e.duration",
   "e.artwork_url",
+  "s.title AS podcast",
+  "s.artwork_url AS podcast_artwork_url",
   "st.played_at",
   "COALESCE(st.starred, 0) AS starred"
 ] as const

@@ -14,9 +14,9 @@ export function ListRow({
   readonly link: LinkProps
   readonly icon: ReactNode
   readonly title: string
-  readonly badge?: ReactNode
+  readonly badge?: ReactNode | undefined
   readonly lines: ReadonlyArray<string>
-  readonly trailing?: string
+  readonly trailing?: string | undefined
 }) {
   return (
     <Link
