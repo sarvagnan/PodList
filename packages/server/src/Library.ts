@@ -42,6 +42,21 @@ export const episodeId = (subscriptionId: string, guid: string) =>
 
 export const feedTimeout = Duration.seconds(20)
 
+/** Seconds of length difference that count as the audio having been replaced (Q34). */
+export const audioChangeThreshold = 30
+
+interface StoredEpisode {
+  readonly id: string
+  readonly guid: string
+  readonly title: string
+  readonly description: string
+  readonly published: number
+  readonly duration: number | null
+  readonly audio_url: string
+  readonly artwork_url: string | null
+  readonly audio_updated_at: number | null
+}
+
 export class Library extends Context.Service<
   Library,
   {
@@ -74,19 +89,40 @@ export class Library extends Context.Service<
               description IS NOT ${feed.description} OR artwork_url IS NOT ${feed.artworkUrl})`
           let added = 0
           let changed = 0
+          const guidsInFeed = new Set(feed.episodes.map((e) => e.guid))
           for (const e of feed.episodes) {
-            const id = episodeId(subscriptionId, e.guid)
-            const [existing] = yield* sql<{
-              title: string
-              description: string
-              published: number
-              duration: number | null
-              audio_url: string
-              artwork_url: string | null
-            }>`SELECT title, description, published, duration, audio_url, artwork_url
-                FROM episode WHERE id = ${id}`
+            const [byGuid] = yield* sql<StoredEpisode>`
+              SELECT * FROM episode WHERE subscription_id = ${subscriptionId} AND guid = ${e.guid}`
+            // A feed that changed an item's guid: merge into the one existing Episode
+            // with the same audio URL, or the same title and date, that the feed no
+            // longer lists under its old guid. Ambiguous matches stay separate (Q34).
+            const existing =
+              byGuid ??
+              (yield* sql<StoredEpisode>`
+                SELECT * FROM episode WHERE subscription_id = ${subscriptionId}
+                  AND (audio_url = ${e.audioUrl} OR (title = ${e.title} AND published = ${e.published}))`.pipe(
+                Effect.map((candidates) => {
+                  const orphaned = candidates.filter((c) => !guidsInFeed.has(c.guid))
+                  return orphaned.length === 1 ? orphaned[0] : undefined
+                })
+              ))
+            if (existing === undefined) {
+              added++
+              yield* sql`INSERT INTO episode ${sql.insert({
+                id: episodeId(subscriptionId, e.guid),
+                subscription_id: subscriptionId,
+                guid: e.guid,
+                title: e.title,
+                description: e.description,
+                published: e.published,
+                duration: e.duration,
+                audio_url: e.audioUrl,
+                artwork_url: e.artworkUrl
+              })}`
+              continue
+            }
             const same =
-              existing !== undefined &&
+              existing.guid === e.guid &&
               existing.title === e.title &&
               existing.description === e.description &&
               existing.published === e.published &&
@@ -94,26 +130,22 @@ export class Library extends Context.Service<
               existing.audio_url === e.audioUrl &&
               existing.artwork_url === e.artworkUrl
             if (same) continue
-            if (existing === undefined) added++
-            else changed++
-            yield* sql`INSERT INTO episode ${sql.insert({
-              id,
-              subscription_id: subscriptionId,
-              guid: e.guid,
-              title: e.title,
-              description: e.description,
-              published: e.published,
-              duration: e.duration,
-              audio_url: e.audioUrl,
-              artwork_url: e.artworkUrl
-            })}
-              ON CONFLICT (id) DO UPDATE SET
-                title = excluded.title,
-                description = excluded.description,
-                published = excluded.published,
-                duration = excluded.duration,
-                audio_url = excluded.audio_url,
-                artwork_url = excluded.artwork_url`
+            changed++
+            // A different-length file means the audio itself was replaced (Q34).
+            const audioReplaced =
+              existing.duration !== null &&
+              e.duration !== null &&
+              Math.abs(existing.duration - e.duration) > audioChangeThreshold
+            yield* sql`UPDATE episode SET
+                guid = ${e.guid},
+                title = ${e.title},
+                description = ${e.description},
+                published = ${e.published},
+                duration = ${e.duration},
+                audio_url = ${e.audioUrl},
+                artwork_url = ${e.artworkUrl},
+                audio_updated_at = ${audioReplaced ? Date.now() : existing.audio_updated_at}
+              WHERE id = ${existing.id}`
           }
           return { added, changed }
         }).pipe(sql.withTransaction, Effect.orDie)
