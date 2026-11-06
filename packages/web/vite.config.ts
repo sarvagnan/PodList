@@ -1,14 +1,12 @@
-import adapter from "@sveltejs/adapter-static"
-import { sveltekit } from "@sveltejs/kit/vite"
-import { vitePreprocess } from "@sveltejs/vite-plugin-svelte"
+import { fileURLToPath } from "node:url"
+import tailwindcss from "@tailwindcss/vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
+import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  plugins: [
-    sveltekit({
-      preprocess: vitePreprocess(),
-      // Single-page app: the client runs from local data, so there is no server rendering (ADR 0005).
-      adapter: adapter({ fallback: "index.html" })
-    })
-  ]
+  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) }
+  }
 })
