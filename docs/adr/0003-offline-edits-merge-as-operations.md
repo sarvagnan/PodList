@@ -1,0 +1,3 @@
+# Offline edits are recorded as operations and merged on the server
+
+Every Device may change Playlists, Stars and Positions while offline. Each change is recorded locally as an intention-revealing operation (add Entry at, move Entry, remove Entry, move Cursor, Star, report Position) and replayed on the server in order when the Device reconnects; operations whose target no longer exists are dropped, and conflicting Positions on the same Entry resolve to the most recent listen. We chose this over "edits require a connection" because offline phone listening is the main reason Downloads exist, and over shipping whole-Playlist snapshots because snapshots silently discard concurrent edits from another Device.
