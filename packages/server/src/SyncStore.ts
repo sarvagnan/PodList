@@ -1,6 +1,6 @@
 import { type Device, Operation, PlaybackSettings, Sql, State, Units } from "@podlist/domain"
 import { Context, Effect, Layer, Schema, Semaphore } from "effect"
-import { Migrator, SqlClient } from "effect/sql"
+import { SqlClient } from "effect/sql"
 
 // The server's copy of the user's State and the log of every operation applied to it
 // (ADR 0003). Pushes are serialised; each runs in one transaction.
@@ -10,7 +10,7 @@ const encodeOperation = Schema.encodeSync(OperationJson)
 const decodeOperation = Schema.decodeSync(OperationJson)
 
 /** Server-only tables, migrated separately from the shared schema. */
-export const migrationLoader = Migrator.fromRecord({
+export const migrations = {
   "0001_sync_log": Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE device (
@@ -27,7 +27,7 @@ export const migrationLoader = Migrator.fromRecord({
       operation TEXT NOT NULL
     )`
   })
-})
+} satisfies Record<string, Effect.Effect<void, unknown, SqlClient.SqlClient>>
 
 export const defaultPlaybackSettings = new PlaybackSettings.PlaybackSettings({
   speed: 1,

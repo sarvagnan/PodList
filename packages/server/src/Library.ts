@@ -1,0 +1,180 @@
+import { createHash } from "node:crypto"
+import { Context, Data, Duration, Effect, Layer } from "effect"
+import { HttpClient, HttpClientRequest } from "effect/http"
+import { SqlClient } from "effect/sql"
+import { type ParsedFeed, parseFeed } from "./FeedParser.ts"
+
+// Fetching and storing podcast feeds into the Library catalogue (the shared
+// subscription and episode tables). Episodes are never deleted because a feed stopped
+// listing them (Q31).
+
+/** Server-only feed bookkeeping, tracked with the other server migrations. */
+export const migrations = {
+  "0002_feed_state": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE feed_state (
+      subscription_id TEXT PRIMARY KEY,
+      etag TEXT,
+      last_modified TEXT,
+      checked_at INTEGER,
+      failures INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT
+    )`
+  })
+} satisfies Record<string, Effect.Effect<void, unknown, SqlClient.SqlClient>>
+
+export class FeedError extends Data.TaggedError("FeedError")<{
+  readonly subscriptionId: string
+  readonly message: string
+}> {}
+
+export type RefreshResult =
+  | { readonly _tag: "NotModified" }
+  | { readonly _tag: "Updated"; readonly added: number; readonly changed: number }
+
+/** A stable Episode id: the same feed item always maps to the same id. */
+export const episodeId = (subscriptionId: string, guid: string) =>
+  `ep_${createHash("sha256").update(`${subscriptionId}\n${guid}`).digest("hex").slice(0, 24)}`
+
+export const feedTimeout = Duration.seconds(20)
+
+export class Library extends Context.Service<
+  Library,
+  {
+    /** Fetches one Subscription's feed (conditionally) and stores what changed. */
+    readonly refresh: (subscriptionId: string) => Effect.Effect<RefreshResult, FeedError>
+    /** Stores a parsed feed for a Subscription; returns new and changed Episode counts. */
+    readonly store: (
+      subscriptionId: string,
+      feed: ParsedFeed
+    ) => Effect.Effect<{ readonly added: number; readonly changed: number }>
+  }
+>()("@podlist/server/Library") {
+  static readonly layer = Layer.effect(
+    Library,
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const http = yield* HttpClient.HttpClient
+
+      const store = (subscriptionId: string, feed: ParsedFeed) =>
+        Effect.gen(function* () {
+          yield* sql`UPDATE subscription SET
+              title = ${feed.title},
+              author = ${feed.author},
+              description = ${feed.description},
+              artwork_url = ${feed.artworkUrl}
+            WHERE id = ${subscriptionId}`
+          let added = 0
+          let changed = 0
+          for (const e of feed.episodes) {
+            const id = episodeId(subscriptionId, e.guid)
+            const existing = yield* sql<{ fingerprint: string }>`
+              SELECT title || char(0) || description || char(0) || published || char(0) ||
+                     coalesce(duration, '') || char(0) || audio_url || char(0) || coalesce(artwork_url, '')
+                AS fingerprint
+              FROM episode WHERE id = ${id}`
+            const fingerprint = [
+              e.title,
+              e.description,
+              e.published,
+              e.duration ?? "",
+              e.audioUrl,
+              e.artworkUrl ?? ""
+            ].join("\u0000")
+            if (existing.length === 0) added++
+            else if (existing[0]?.fingerprint !== fingerprint) changed++
+            else continue
+            yield* sql`INSERT INTO episode ${sql.insert({
+              id,
+              subscription_id: subscriptionId,
+              guid: e.guid,
+              title: e.title,
+              description: e.description,
+              published: e.published,
+              duration: e.duration,
+              audio_url: e.audioUrl,
+              artwork_url: e.artworkUrl
+            })}
+              ON CONFLICT (id) DO UPDATE SET
+                title = excluded.title,
+                description = excluded.description,
+                published = excluded.published,
+                duration = excluded.duration,
+                audio_url = excluded.audio_url,
+                artwork_url = excluded.artwork_url`
+          }
+          return { added, changed }
+        }).pipe(sql.withTransaction, Effect.orDie)
+
+      const refresh = (subscriptionId: string) =>
+        Effect.gen(function* () {
+          const fail = (message: string) => new FeedError({ subscriptionId, message })
+          const [subscription] = yield* sql<{ feed_url: string }>`
+            SELECT feed_url FROM subscription WHERE id = ${subscriptionId}`.pipe(Effect.orDie)
+          if (subscription === undefined) return yield* fail("No such Subscription")
+          const [state] = yield* sql<{ etag: string | null; last_modified: string | null }>`
+            SELECT etag, last_modified FROM feed_state WHERE subscription_id = ${subscriptionId}`.pipe(
+            Effect.orDie
+          )
+
+          let request = HttpClientRequest.get(subscription.feed_url).pipe(
+            HttpClientRequest.setHeader("accept", "application/rss+xml, application/xml, text/xml")
+          )
+          if (state?.etag)
+            request = HttpClientRequest.setHeader(request, "if-none-match", state.etag)
+          if (state?.last_modified) {
+            request = HttpClientRequest.setHeader(request, "if-modified-since", state.last_modified)
+          }
+
+          const response = yield* http.execute(request).pipe(
+            Effect.timeout(feedTimeout),
+            Effect.mapError((e) => fail(`Fetch failed: ${e.message}`))
+          )
+          const now = Date.now()
+          const remember = (etag: string | null, lastModified: string | null) =>
+            sql`INSERT INTO feed_state ${sql.insert({
+              subscription_id: subscriptionId,
+              etag,
+              last_modified: lastModified,
+              checked_at: now,
+              failures: 0,
+              last_error: null
+            })} ON CONFLICT (subscription_id) DO UPDATE SET
+                etag = excluded.etag, last_modified = excluded.last_modified,
+                checked_at = excluded.checked_at, failures = 0, last_error = NULL`.pipe(
+              Effect.orDie
+            )
+
+          if (response.status === 304) {
+            yield* remember(state?.etag ?? null, state?.last_modified ?? null)
+            return { _tag: "NotModified" } as const
+          }
+          if (response.status < 200 || response.status >= 300) {
+            return yield* fail(`Feed answered HTTP ${response.status}`)
+          }
+          const body = yield* response.text.pipe(Effect.mapError((e) => fail(e.message)))
+          const feed = yield* Effect.try({
+            try: () => parseFeed(body),
+            catch: (e) => fail(e instanceof Error ? e.message : String(e))
+          })
+          const counts = yield* store(subscriptionId, feed)
+          yield* remember(response.headers.etag ?? null, response.headers["last-modified"] ?? null)
+          return { _tag: "Updated", ...counts } as const
+        }).pipe(
+          Effect.tapError((e) =>
+            sql`INSERT INTO feed_state ${sql.insert({
+              subscription_id: subscriptionId,
+              checked_at: Date.now(),
+              failures: 1,
+              last_error: e.message
+            })} ON CONFLICT (subscription_id) DO UPDATE SET
+                checked_at = excluded.checked_at,
+                failures = feed_state.failures + 1,
+                last_error = excluded.last_error`.pipe(Effect.orDie)
+          )
+        )
+
+      return Library.of({ refresh, store })
+    })
+  )
+}
