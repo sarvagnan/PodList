@@ -5,6 +5,7 @@ import { Filter, Library, ListMusic, Pause, Play, RotateCcw, RotateCw } from "lu
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom, stateAtom } from "../../app/runtime.ts"
 import { formatTime } from "../../lib/time.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
+import { Toasts } from "../feedback/Toasts.tsx"
 import { Artwork } from "./Artwork.tsx"
 
 // Variant A (docs/design/ui-layout.md): phone has Views / Playlists / Library tabs with a
@@ -191,6 +192,7 @@ export function AppShell() {
         <BottomTabs />
       </div>
       <NowPlaying variant="desktop" />
+      <Toasts />
     </div>
   )
 }

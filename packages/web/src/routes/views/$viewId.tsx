@@ -5,7 +5,7 @@ import { AsyncResult } from "effect/reactivity"
 import { useLayoutEffect, useRef, useState } from "react"
 import { viewEpisodesAtom } from "../../app/data.ts"
 import { stateAtom } from "../../app/runtime.ts"
-import { EpisodeRow } from "../../components/episodes/EpisodeRow.tsx"
+import { EpisodeRow, NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { describeView } from "../../lib/viewSummary.ts"
@@ -53,6 +53,7 @@ function ViewDetail() {
         title={view.name}
         back={{ to: "/views", label: "Views" }}
         subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
+        actions={<NextLastTarget />}
       />
       {!loading && episodes.length === 0 ? (
         <EmptyState title="No Episodes match this View">

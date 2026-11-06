@@ -1,4 +1,5 @@
 import { registerSW } from "virtual:pwa-register"
+import { Toast } from "@base-ui/react/toast"
 import { RegistryProvider } from "@effect/atom-react"
 import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
@@ -25,7 +26,9 @@ createRoot(root).render(
   <StrictMode>
     <TabGate>
       <RegistryProvider>
-        <RouterProvider router={router} />
+        <Toast.Provider limit={1}>
+          <RouterProvider router={router} />
+        </Toast.Provider>
       </RegistryProvider>
     </TabGate>
   </StrictMode>
