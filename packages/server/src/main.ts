@@ -7,6 +7,7 @@ import { FetchHttpClient, HttpRouter } from "effect/http"
 import { Catalogue } from "./Catalogue.ts"
 import { ServerConfig } from "./Config.ts"
 import * as Database from "./Database.ts"
+import { Directory } from "./Directory.ts"
 import { ApiRoutes } from "./Http.ts"
 import { Library } from "./Library.ts"
 import { AudioRoute } from "./Media.ts"
@@ -23,7 +24,8 @@ const Main = Layer.unwrap(
       SyncStore.layer,
       Poller.layer,
       Subscriptions.layer,
-      Catalogue.layer
+      Catalogue.layer,
+      Directory.layer
     ).pipe(
       Layer.provideMerge(Library.layer),
       Layer.provide(FetchHttpClient.layer),

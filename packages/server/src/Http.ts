@@ -1,4 +1,5 @@
 import {
+  Directory as DirectoryApi,
   Library as LibraryApi,
   PodListApi,
   Subscriptions as SubscriptionsApi,
@@ -9,6 +10,7 @@ import { Protocol } from "@podlist/domain"
 import { Effect, Layer } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
+import { Directory } from "./Directory.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
@@ -91,6 +93,28 @@ export const SubscriptionsHandlers = HttpApiBuilder.group(
   })
 )
 
+export const DirectoryHandlers = HttpApiBuilder.group(
+  PodListApi,
+  "directory",
+  Effect.fn(function* (handlers) {
+    const directory = yield* Directory
+    return handlers.handleAll({
+      search: ({ query }) =>
+        directory
+          .search(query.q)
+          .pipe(Effect.map((results) => results.map((r) => new DirectoryApi.DirectoryResult(r))))
+    })
+  })
+)
+
 export const ApiRoutes = HttpApiBuilder.layer(PodListApi, {
   openapiPath: "/api/openapi.json"
-}).pipe(Layer.provide([SystemHandlers, SyncHandlers, LibraryHandlers, SubscriptionsHandlers]))
+}).pipe(
+  Layer.provide([
+    SystemHandlers,
+    SyncHandlers,
+    LibraryHandlers,
+    SubscriptionsHandlers,
+    DirectoryHandlers
+  ])
+)
