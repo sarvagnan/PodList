@@ -1,6 +1,7 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { Check, Play, Plus, Star } from "lucide-react"
+import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import { episodeDetailAtom } from "../../app/data.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
@@ -10,6 +11,7 @@ import { showNotesText } from "../../lib/showNotes.ts"
 import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
+import { DownloadButton } from "./DownloadButton.tsx"
 import { useEpisodeActions } from "./useEpisodeActions.ts"
 
 // An Episode in full (docs/design/ui-layout.md): artwork, podcast, title and facts; one
@@ -42,19 +44,22 @@ function Action({
   pressed,
   onClick,
   className,
-  children
+  children,
+  buttonProps
 }: {
   readonly label: string
   readonly pressed?: boolean
-  readonly onClick: () => void
+  readonly onClick?: () => void
   readonly className: string
   readonly children: ReactNode
+  readonly buttonProps?: React.ComponentProps<"button">
 }) {
   return (
     <button
       type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
+      {...buttonProps}
+      aria-pressed={buttonProps ? undefined : pressed}
+      onClick={onClick ?? buttonProps?.onClick}
       className={`flex w-20 flex-col items-center gap-1.5 text-xs font-medium ${className}`}
     >
       {children}
@@ -117,9 +122,9 @@ export function EpisodeDetail({
         </div>
       </div>
 
-      <div className="mt-6 flex items-start justify-center gap-3">
+      <div className="mt-6 flex items-start justify-center gap-1">
         <Action
-          label={played ? "Played" : "Mark Played"}
+          label="Played"
           pressed={played}
           onClick={() => void act({ _tag: "Played", episodeId, played: !played })}
           className={played ? "text-positive" : ""}
@@ -128,6 +133,28 @@ export function EpisodeDetail({
             <Check aria-hidden="true" className="size-5" />
           </span>
         </Action>
+        <DownloadButton
+          episodeId={episodeId}
+          renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
+            <Action
+              label={
+                label.startsWith("Stop")
+                  ? "Stop"
+                  : label.startsWith("Download failed")
+                    ? "Retry"
+                    : label
+              }
+              pressed={pressed}
+              {...(onClick ? { onClick } : {})}
+              {...(buttonProps ? { buttonProps } : {})}
+              className={pressed ? "text-positive" : ""}
+            >
+              <span aria-hidden="true" className={iconCircle}>
+                {icon}
+              </span>
+            </Action>
+          )}
+        />
         <Action
           label={loaded && now.playing ? "Playing" : "Play"}
           onClick={() => {

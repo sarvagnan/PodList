@@ -1,7 +1,17 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { Check, ListEnd, ListPlus, ListStart, Play, Plus, Star } from "lucide-react"
+import {
+  ArrowDownToLine,
+  Check,
+  ListEnd,
+  ListPlus,
+  ListStart,
+  Play,
+  Plus,
+  Star
+} from "lucide-react"
+import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
@@ -9,6 +19,7 @@ import { stateAtom } from "../../app/runtime.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
+import { DownloadButton, useDownloadStatus } from "./DownloadButton.tsx"
 import { useEpisodeActions } from "./useEpisodeActions.ts"
 
 function IconButton({
@@ -16,21 +27,24 @@ function IconButton({
   onClick,
   pressed,
   children,
-  className = ""
+  className = "",
+  buttonProps
 }: {
   readonly label: string
-  readonly onClick: () => void
+  readonly onClick?: () => void
   readonly pressed?: boolean
   readonly children: ReactNode
   readonly className?: string
+  readonly buttonProps?: React.ComponentProps<"button">
 }) {
   return (
     <button
       type="button"
+      {...buttonProps}
       aria-label={label}
       title={label}
-      aria-pressed={pressed}
-      onClick={onClick}
+      aria-pressed={buttonProps ? undefined : pressed}
+      onClick={onClick ?? buttonProps?.onClick}
       className={`grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input ${className}`}
     >
       {children}
@@ -53,6 +67,7 @@ export function EpisodeRow({
   readonly selected?: boolean
 }) {
   const act = useEpisodeActions()
+  const downloaded = useDownloadStatus(episode.id)?._tag === "Stored"
   const [adding, setAdding] = useState(false)
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const chosen = useAtomValue(nextLastTargetAtom)
@@ -112,6 +127,9 @@ export function EpisodeRow({
               className="size-3.5 shrink-0 fill-star text-star md:hidden"
             />
           )}
+          {downloaded && (
+            <ArrowDownToLine aria-label="Downloaded" className="size-3.5 shrink-0 text-positive" />
+          )}
           <span className="truncate">{meta}</span>
         </p>
       </div>
@@ -162,6 +180,20 @@ export function EpisodeRow({
         >
           <Check aria-hidden="true" className="size-[18px]" />
         </IconButton>
+        <DownloadButton
+          episodeId={episode.id}
+          renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
+            <IconButton
+              label={label}
+              pressed={pressed}
+              {...(onClick ? { onClick } : {})}
+              {...(buttonProps ? { buttonProps } : {})}
+              className={pressed ? "text-positive hover:text-positive" : ""}
+            >
+              {icon}
+            </IconButton>
+          )}
+        />
         <span className="ml-2">{play}</span>
       </div>
 

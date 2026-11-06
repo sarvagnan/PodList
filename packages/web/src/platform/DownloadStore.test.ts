@@ -17,9 +17,10 @@ describe("DownloadStore (OPFS)", () => {
       expect(yield* store.list).toContainEqual({ episodeId: "ep/1", bytes: 200_000 })
 
       const url = yield* store.playableUrl("ep/1")
-      const roundTrip = new Uint8Array(
-        yield* Effect.promise(() => fetch(url ?? "").then((r) => r.arrayBuffer()))
-      )
+      const response = yield* Effect.promise(() => fetch(url ?? ""))
+      // Typed, or Chrome's media player stalls on a file from OPFS.
+      expect(response.headers.get("content-type")).toBe("audio/mpeg")
+      const roundTrip = new Uint8Array(yield* Effect.promise(() => response.arrayBuffer()))
       expect(roundTrip).toEqual(bytes)
 
       yield* store.remove("ep/1")

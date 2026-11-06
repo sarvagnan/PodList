@@ -17,7 +17,10 @@ export interface StoredDownload {
 export class DownloadStore extends Context.Service<
   DownloadStore,
   {
-    /** Downloads `url` for the Episode; `onProgress` gets (received, total or null). */
+    /**
+     * Downloads `url` for the Episode; `onProgress` gets (received, total or null).
+     * Interrupting it stops the transfer and leaves nothing behind.
+     */
     readonly save: (
       episodeId: string,
       url: string,
@@ -37,6 +40,16 @@ export class DownloadStore extends Context.Service<
         (await navigator.storage.getDirectory()).getDirectoryHandle("downloads", { create: true })
       )
       const fileName = (episodeId: string) => `${encodeURIComponent(episodeId)}.audio`
+      const typeName = (episodeId: string) => `${encodeURIComponent(episodeId)}.type`
+      const typeOf = (episodeId: string) =>
+        Effect.promise(async () => {
+          try {
+            const file = await (await directory.getFileHandle(typeName(episodeId))).getFile()
+            return (await file.text()) || "audio/mpeg"
+          } catch {
+            return "audio/mpeg"
+          }
+        })
       const objectUrls = new Map<string, string>()
 
       const fileFor = (episodeId: string) =>
@@ -51,24 +64,36 @@ export class DownloadStore extends Context.Service<
         onProgress?: (received: number, total: number | null) => void
       ) =>
         Effect.tryPromise({
-          try: async () => {
-            const response = await fetch(url)
+          try: async (signal) => {
+            const response = await fetch(url, { signal })
             if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status}`)
             const total = Number(response.headers.get("content-length")) || null
+            const type = response.headers.get("content-type")?.split(";")[0]?.trim() || "audio/mpeg"
             const partial = `${fileName(episodeId)}.part`
             const handle = await directory.getFileHandle(partial, { create: true })
             const writable = await handle.createWritable()
             let received = 0
             const reader = response.body.getReader()
-            for (;;) {
-              const { done, value } = await reader.read()
-              if (done) break
-              await writable.write(value)
-              received += value.byteLength
-              onProgress?.(received, total)
+            try {
+              for (;;) {
+                const { done, value } = await reader.read()
+                if (done) break
+                await writable.write(value)
+                received += value.byteLength
+                onProgress?.(received, total)
+              }
+              await writable.close()
+            } catch (error) {
+              await writable.abort().catch(() => undefined)
+              await directory.removeEntry(partial).catch(() => undefined)
+              throw error
             }
-            await writable.close()
             // Only a complete file gets the real name, so a dropped download never looks stored.
+            // Chrome won't play an untyped file from OPFS, so remember its type alongside.
+            const typeFile = await directory.getFileHandle(typeName(episodeId), { create: true })
+            const typeWriter = await typeFile.createWritable()
+            await typeWriter.write(type)
+            await typeWriter.close()
             await (handle as FileSystemFileHandle & { move(name: string): Promise<void> }).move(
               fileName(episodeId)
             )
@@ -84,6 +109,7 @@ export class DownloadStore extends Context.Service<
           if (objectUrl !== undefined) URL.revokeObjectURL(objectUrl)
           objectUrls.delete(episodeId)
           await directory.removeEntry(fileName(episodeId)).catch(() => undefined)
+          await directory.removeEntry(typeName(episodeId)).catch(() => undefined)
         })
 
       const list = Effect.promise(async () => {
@@ -107,16 +133,17 @@ export class DownloadStore extends Context.Service<
         remove,
         list,
         playableUrl: (episodeId) =>
-          fileFor(episodeId).pipe(
-            Effect.map((file) => {
-              if (file._tag === "None") return null
-              const existing = objectUrls.get(episodeId)
-              if (existing !== undefined) return existing
-              const created = URL.createObjectURL(file.value)
-              objectUrls.set(episodeId, created)
-              return created
-            })
-          )
+          Effect.gen(function* () {
+            const file = yield* fileFor(episodeId)
+            if (file._tag === "None") return null
+            const existing = objectUrls.get(episodeId)
+            if (existing !== undefined) return existing
+            // A typed view of the stored file (no copy): untyped OPFS files don't play.
+            const typed = new Blob([file.value], { type: yield* typeOf(episodeId) })
+            const created = URL.createObjectURL(typed)
+            objectUrls.set(episodeId, created)
+            return created
+          })
       })
     })
   )

@@ -66,6 +66,8 @@ export class Playback extends Context.Service<
 >()("@podlist/web/Playback") {
   static readonly layer = (options: {
     readonly audioUrl: (episodeId: string) => string
+    /** The Episode's audio stored on this Device, if any: played instead of streaming. */
+    readonly localAudio?: (episodeId: string) => Effect.Effect<string | null>
     /** Where the lock screen fetches a feed image from; the image itself by default. */
     readonly artworkUrl?: (url: string) => string
     readonly reportEveryMillis?: number
@@ -167,7 +169,9 @@ export class Playback extends Context.Service<
             }
             lastReport = { at: yield* Clock.currentTimeMillis, position: next.entry.position }
             yield* player.load({
-              url: options.audioUrl(track.episodeId),
+              url:
+                (options.localAudio ? yield* options.localAudio(track.episodeId) : null) ??
+                options.audioUrl(track.episodeId),
               title: track.title,
               podcast: track.podcast,
               artworkUrl: lockScreenArt(track.artworkUrl),

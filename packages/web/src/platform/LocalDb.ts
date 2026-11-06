@@ -18,6 +18,16 @@ export const clientMigrations = Migrator.fromRecord({
       operation TEXT NOT NULL
     )`
     yield* sql`CREATE TABLE sync_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+  }),
+  // Episodes stored on this Device; Manual Downloads are kept whatever the Download Rule.
+  "0002_download": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE download (
+      episode_id TEXT PRIMARY KEY,
+      manual INTEGER NOT NULL,
+      bytes INTEGER NOT NULL,
+      saved_at INTEGER NOT NULL
+    )`
   })
 })
 

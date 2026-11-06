@@ -82,11 +82,22 @@ class Recorder {
     await wait(page)
     const elements = {}
     for (const [name, locate] of Object.entries(core)) elements[name] = await box(locate(page))
-    const focus = await page.evaluate(() => {
+    // Focus is compared by element, not by its label: a button that changes its words
+    // (Play to Pause) still holds focus.
+    const { focus, focusId } = await page.evaluate(() => {
       const e = document.activeElement
-      if (!e || e === document.body) return null
+      if (!e || e === document.body) return { focus: null, focusId: null }
+      window.__focusIds = window.__focusIds ?? new WeakMap()
+      const ids = window.__focusIds
+      if (!ids.has(e)) {
+        window.__nextFocusId = (window.__nextFocusId ?? 0) + 1
+        ids.set(e, window.__nextFocusId)
+      }
       const name = e.getAttribute("aria-label") ?? e.textContent?.trim().slice(0, 40) ?? ""
-      return `${e.tagName.toLowerCase()}${e.getAttribute("role") ? `[role=${e.getAttribute("role")}]` : ""} "${name}"`
+      return {
+        focus: `${e.tagName.toLowerCase()}${e.getAttribute("role") ? `[role=${e.getAttribute("role")}]` : ""} "${name}"`,
+        focusId: ids.get(e)
+      }
     })
     const scroll = await page.evaluate(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))
     const n = ++this.n
@@ -113,6 +124,7 @@ class Recorder {
       elements,
       moves,
       focus,
+      focusId,
       scroll,
       screenshot: file
     }
@@ -125,7 +137,7 @@ class Recorder {
           )
         }
       }
-      if (focus !== this.previous.focus) {
+      if (focusId !== this.previous.focusId) {
         failures.push(
           `FLOW-02 ${this.flow}/${this.width.name} step ${n} "${label}": focus ${this.previous.focus} → ${focus} unprompted`
         )

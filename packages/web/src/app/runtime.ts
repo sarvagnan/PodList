@@ -2,7 +2,9 @@ import { type Operation, PlaybackSettings, State, Units } from "@podlist/domain"
 import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
+import { Downloads } from "../downloads/Downloads.ts"
 import { artworkSrc } from "../lib/artwork.ts"
+import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { Player } from "../platform/Player.ts"
 import { Playback } from "../playback/Playback.ts"
@@ -27,12 +29,25 @@ const deviceName = () => {
   return "Browser"
 }
 
-export const AppLayer = Playback.layer({
-  audioUrl: (id) => `/api/episodes/${id}/audio`,
-  artworkUrl: (url) => new URL(artworkSrc(url, 256), location.origin).href
-}).pipe(
+const audioUrl = (id: string) => `/api/episodes/${id}/audio`
+
+/** Playback plays a stored download when this Device has one. */
+const PlaybackLive = Layer.unwrap(
+  Effect.gen(function* () {
+    const downloads = yield* Downloads
+    return Playback.layer({
+      audioUrl,
+      localAudio: downloads.playableUrl,
+      artworkUrl: (url) => new URL(artworkSrc(url, 256), location.origin).href
+    })
+  })
+)
+
+export const AppLayer = PlaybackLive.pipe(
+  Layer.provideMerge(Downloads.layer({ audioUrl })),
   Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: deviceName() })),
   Layer.provideMerge(LocalDb.layerWeb()),
+  Layer.provide(DownloadStore.layerWeb),
   Layer.provide(Player.layerWeb),
   Layer.provideMerge(Transport.layerHttp(location.origin))
 )
@@ -121,3 +136,22 @@ export const queryAtom = <A>(run: (sql: SqlClient.SqlClient) => Effect.Effect<A,
       return yield* run(sql)
     })
   )
+
+/** Downloads on this Device, by Episode. */
+export const downloadsAtom = runtime.atom(
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const downloads = yield* Downloads
+      return SubscriptionRef.changes(downloads.status)
+    })
+  )
+)
+
+/** Download, stop, or delete an Episode's download on this Device. */
+export const downloadAtom = runtime.fn(
+  (command: { readonly _tag: "download" | "cancel" | "remove"; readonly episodeId: string }) =>
+    Effect.gen(function* () {
+      const downloads = yield* Downloads
+      return yield* downloads[command._tag](command.episodeId)
+    })
+)
