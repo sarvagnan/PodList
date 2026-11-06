@@ -38,7 +38,20 @@ export class CatalogueChanges extends Schema.Class<CatalogueChanges>(
 
 const IntFromString = Schema.NumberFromString.pipe(Schema.check(Schema.isInt()))
 
+export class EpisodeNotFound extends Schema.TaggedError<EpisodeNotFound>()(
+  "EpisodeNotFound",
+  {},
+  { httpApiStatus: 404 }
+) {}
+
 export class LibraryApi extends HttpApiGroup.make("library")
+  .add(
+    HttpApiEndpoint.get("chapters", "/episodes/:id/chapters", {
+      params: { id: Schema.String },
+      success: Schema.Array(Domain.Chapter),
+      error: EpisodeNotFound
+    })
+  )
   .add(
     HttpApiEndpoint.get("changes", "/library/changes", {
       query: { since: IntFromString, limit: Schema.optionalKey(IntFromString) },

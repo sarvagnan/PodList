@@ -78,6 +78,15 @@ export const migrations: ReadonlyArray<Migration> = [
       )`,
       "CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
     ]
+  },
+  {
+    id: 2,
+    name: "episode_chapters_source",
+    statements: [
+      // Where the feed says Chapters live, and when they were resolved (pod-rxi.4).
+      "ALTER TABLE episode ADD COLUMN chapters_url TEXT",
+      "ALTER TABLE episode ADD COLUMN chapters_fetched_at INTEGER"
+    ]
   }
 ]
 

@@ -5,6 +5,7 @@ import { NodeHttpServer, NodeRuntime } from "@effect/platform-node"
 import { Effect, Layer } from "effect"
 import { FetchHttpClient, HttpRouter } from "effect/http"
 import { Catalogue } from "./Catalogue.ts"
+import { Chapters } from "./Chapters.ts"
 import { ServerConfig } from "./Config.ts"
 import * as Database from "./Database.ts"
 import { Directory } from "./Directory.ts"
@@ -25,7 +26,8 @@ const Main = Layer.unwrap(
       Poller.layer,
       Subscriptions.layer,
       Catalogue.layer,
-      Directory.layer
+      Directory.layer,
+      Chapters.layer
     ).pipe(
       Layer.provideMerge(Library.layer),
       Layer.provide(FetchHttpClient.layer),

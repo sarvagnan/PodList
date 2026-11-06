@@ -10,6 +10,7 @@ import { Protocol } from "@podlist/domain"
 import { Effect, Layer } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
+import { Chapters } from "./Chapters.ts"
 import { Directory } from "./Directory.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
@@ -46,7 +47,12 @@ export const LibraryHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const poller = yield* Poller
     const catalogue = yield* Catalogue
+    const chapters = yield* Chapters
     return handlers.handleAll({
+      chapters: ({ params }) =>
+        chapters
+          .forEpisode(params.id)
+          .pipe(Effect.mapError(() => new LibraryApi.EpisodeNotFound())),
       changes: ({ query }) =>
         catalogue
           .changes(query.since, query.limit === undefined ? undefined : Math.min(query.limit, 2000))

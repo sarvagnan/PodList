@@ -55,6 +55,8 @@ interface StoredEpisode {
   readonly audio_url: string
   readonly artwork_url: string | null
   readonly audio_updated_at: number | null
+  readonly chapters_url: string | null
+  readonly chapters_fetched_at: number | null
 }
 
 export class Library extends Context.Service<
@@ -117,7 +119,8 @@ export class Library extends Context.Service<
                 published: e.published,
                 duration: e.duration,
                 audio_url: e.audioUrl,
-                artwork_url: e.artworkUrl
+                artwork_url: e.artworkUrl,
+                chapters_url: e.chaptersUrl
               })}`
               continue
             }
@@ -128,7 +131,8 @@ export class Library extends Context.Service<
               existing.published === e.published &&
               existing.duration === e.duration &&
               existing.audio_url === e.audioUrl &&
-              existing.artwork_url === e.artworkUrl
+              existing.artwork_url === e.artworkUrl &&
+              existing.chapters_url === e.chaptersUrl
             if (same) continue
             changed++
             // A different-length file means the audio itself was replaced (Q34).
@@ -144,7 +148,13 @@ export class Library extends Context.Service<
                 duration = ${e.duration},
                 audio_url = ${e.audioUrl},
                 artwork_url = ${e.artworkUrl},
-                audio_updated_at = ${audioReplaced ? Date.now() : existing.audio_updated_at}
+                audio_updated_at = ${audioReplaced ? Date.now() : existing.audio_updated_at},
+                chapters_url = ${e.chaptersUrl},
+                chapters_fetched_at = ${
+                  audioReplaced || existing.chapters_url !== e.chaptersUrl
+                    ? null
+                    : existing.chapters_fetched_at
+                }
               WHERE id = ${existing.id}`
           }
           return { added, changed }
