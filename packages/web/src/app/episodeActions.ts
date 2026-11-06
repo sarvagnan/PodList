@@ -35,6 +35,26 @@ export const episodeActionAtom = runtime.fn((action: EpisodeAction) =>
   })
 )
 
+/**
+ * Runs the same kind of action on several Episodes as one step, with one confirmation
+ * and one Undo: each action's undo is worked out from the State just before it, and
+ * they are taken back last first.
+ */
+export const bulkActionAtom = runtime.fn(
+  (input: { readonly actions: ReadonlyArray<EpisodeAction>; readonly message: string }) =>
+    Effect.gen(function* () {
+      const engine = yield* SyncEngine
+      const undos: Array<ReadonlyArray<Operation.Change>> = []
+      for (const action of input.actions) {
+        const before = yield* SubscriptionRef.get(engine.state)
+        for (const c of changesFor(action, before)) yield* engine.record(c)
+        const after = yield* SubscriptionRef.get(engine.state)
+        undos.push(undoFor(action, before, after, Date.now()))
+      }
+      return { message: input.message, undo: undos.reverse().flat() } satisfies Outcome
+    })
+)
+
 /** Records the operations that take an action back. */
 export const undoAtom = runtime.fn((changes: ReadonlyArray<Operation.Change>) =>
   Effect.gen(function* () {

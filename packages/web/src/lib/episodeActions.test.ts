@@ -84,6 +84,23 @@ describe("Episode actions and their undo", () => {
     expect(undone.episodeStates.e2?.played ?? null).toBeNull()
   })
 
+  it("takes back a batch: each undo from just before its action, last first", () => {
+    const actions: ReadonlyArray<EpisodeAction> = [
+      { _tag: "Add", episodeId: "e9", playlistId: "default", placement: "next" },
+      { _tag: "Add", episodeId: "e1", playlistId: "default", placement: "next" },
+      { _tag: "Played", episodeId: "e2", played: true }
+    ]
+    let current = start
+    const undos: Array<ReadonlyArray<Operation.Change>> = []
+    for (const action of actions) {
+      const after = apply(current, changesFor(action, current))
+      undos.push(undoFor(action, current, after, ++clock))
+      current = after
+    }
+    const undone = apply(current, undos.reverse().flat())
+    expect(shape(undone)).toEqual(shape(start))
+  })
+
   it("takes back a Star", () => {
     const { after, undone } = roundTrip({ _tag: "Star", episodeId: "e1", starred: true })
     expect(after.episodeStates.e1?.starred).toBe(true)

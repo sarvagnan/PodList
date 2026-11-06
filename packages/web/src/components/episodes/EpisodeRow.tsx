@@ -59,12 +59,17 @@ function IconButton({
 export function EpisodeRow({
   episode,
   onOpen,
-  selected = false
+  selected = false,
+  checked = false,
+  onCheck
 }: {
   readonly episode: ViewEpisode
   /** Wide screens: show the Episode beside the list instead of navigating. */
   readonly onOpen?: (episodeId: string) => void
   readonly selected?: boolean
+  /** Desktop: ticked for bulk actions. */
+  readonly checked?: boolean
+  readonly onCheck?: (checked: boolean) => void
 }) {
   const act = useEpisodeActions()
   const downloaded = useDownloadStatus(episode.id)?._tag === "Stored"
@@ -94,7 +99,18 @@ export function EpisodeRow({
     target && void act({ _tag: "Add", episodeId: episode.id, playlistId: target.id, placement })
 
   return (
-    <div className="flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2">
+    <div
+      className={`flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2 ${checked ? "bg-accent/60" : ""}`}
+    >
+      {onCheck && (
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onCheck(event.target.checked)}
+          aria-label={`Select ${episode.title}`}
+          className="hidden size-4 shrink-0 accent-primary md:block"
+        />
+      )}
       <Artwork url={episode.artworkUrl} name={episode.podcast} size={48} />
       <div className="min-w-0 flex-1">
         {/* The title opens the Episode: a screen on the phone, a panel beside the View on wide screens. */}

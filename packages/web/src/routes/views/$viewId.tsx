@@ -3,9 +3,10 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useWindowVirtualizer } from "@tanstack/react-virtual"
 import { AsyncResult } from "effect/reactivity"
 import { X } from "lucide-react"
-import { useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { viewEpisodesAtom } from "../../app/data.ts"
 import { stateAtom } from "../../app/runtime.ts"
+import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeRow, NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
@@ -26,6 +27,23 @@ function ViewDetail() {
   const { viewId } = Route.useParams()
   const { episode: selected } = Route.useSearch()
   const navigate = Route.useNavigate()
+  // Desktop bulk selection, kept per View: another View starts with none. Escape clears it.
+  const [selection, setSelection] = useState<{
+    readonly viewId: string
+    readonly ids: ReadonlySet<string>
+  }>({ viewId, ids: new Set() })
+  const checked: ReadonlySet<string> = selection.viewId === viewId ? selection.ids : new Set()
+  const setChecked = (
+    next: ReadonlySet<string> | ((current: ReadonlySet<string>) => ReadonlySet<string>)
+  ) => setSelection({ viewId, ids: typeof next === "function" ? next(checked) : next })
+  useEffect(() => {
+    if (checked.size === 0) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelection({ viewId, ids: new Set() })
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [checked.size, viewId])
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const result = useAtomValue(viewEpisodesAtom(viewId))
   const episodes = AsyncResult.getOrElse(result, () => [])
@@ -63,7 +81,13 @@ function ViewDetail() {
         title={view.name}
         back={{ to: "/views", label: "Views" }}
         subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
-        actions={<NextLastTarget />}
+        actions={
+          checked.size > 0 ? (
+            <BulkBar selected={[...checked]} onClear={() => setChecked(new Set())} />
+          ) : (
+            <NextLastTarget />
+          )
+        }
       />
       <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_26rem]" : ""}>
         {!loading && episodes.length === 0 ? (
@@ -94,6 +118,15 @@ function ViewDetail() {
                 >
                   <EpisodeRow
                     episode={episode}
+                    checked={checked.has(episode.id)}
+                    onCheck={(on) =>
+                      setChecked((current) => {
+                        const next = new Set(current)
+                        if (on) next.add(episode.id)
+                        else next.delete(episode.id)
+                        return next
+                      })
+                    }
                     selected={episode.id === selected}
                     onOpen={(episodeId) => navigate({ search: { episode: episodeId } })}
                   />
