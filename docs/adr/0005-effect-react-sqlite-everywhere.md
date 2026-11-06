@@ -10,6 +10,8 @@ The system is a TypeScript monorepo built on Effect: a `domain` package (Schemas
 
 **Desktop updates:** there is no Apple Developer account, so builds cannot be notarized and Electron's macOS auto-updater (which requires a signed app) is unavailable. v1 instead ships a single local command that pulls, builds and installs the app into `/Applications`; a locally built app carries no quarantine flag, so Gatekeeper does not interfere. An "update available" notice backed by unsigned GitHub Releases may come later; real auto-update returns only if an account is bought.
 
+**The Mac app loads the web app from the server** (amended November 2026). The Electron shell opens a window on the PodList server's own origin rather than bundling a copy of the web build. The local database, the service worker's offline copy and every UI change then arrive exactly as on the phone, with no CORS and no custom protocol, and only the shell itself ever needs the local build-and-install command. First launch asks for the server address and checks that it answers; after one visit the app opens offline from the service worker. Bundling the build was the alternative: it would open without ever reaching the server, but every UI change would need a reinstall, which, without auto-update, is the cost this ADR is trying to avoid.
+
 ## Considered Options
 
 - **SvelteKit (SPA mode)** — chosen first, then replaced before any UI was built. It had no first-party Effect bindings, weaker libraries for touch drag-reorder and virtualised lists, and `svelte-check` still needed TypeScript 6 (it depends on TypeScript's JavaScript API, which TypeScript 7 does not ship), splitting the repo across two compilers.

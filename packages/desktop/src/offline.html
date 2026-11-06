@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <title>PodList</title>
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Can't reach your PodList server</h1>
+      <p id="detail">PodList needs to reach the server once to set up this Mac. Check that Tailscale is connected.</p>
+      <button type="button" id="retry">Try Again</button>
+      <p class="hint">To use a different server, choose PodList › Change Server…</p>
+    </main>
+    <script src="offline.js"></script>
+  </body>
+</html>

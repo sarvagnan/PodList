@@ -1,0 +1,85 @@
+/* PodList's tokens (packages/web/src/index.css) for the app's two local pages. */
+:root {
+  color-scheme: light;
+  --background: #f6f5f2;
+  --foreground: #17181c;
+  --muted-foreground: #5c6070;
+  --primary: #2b50c8;
+  --input: #d6d3cc;
+  --destructive: #b42318;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--background);
+  color: var(--foreground);
+  font:
+    15px / 1.5 system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  width: 100%;
+  max-width: 380px;
+}
+h1 {
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+p {
+  margin: 0 0 20px;
+  color: var(--muted-foreground);
+}
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--input);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  color: inherit;
+}
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+button {
+  height: 44px;
+  padding: 0 20px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+button:disabled {
+  opacity: 0.6;
+}
+.error {
+  color: var(--destructive);
+  font-size: 13px;
+  margin: 8px 0 0;
+  min-height: 20px;
+}
+.hint {
+  font-size: 13px;
+  margin-top: 20px;
+}

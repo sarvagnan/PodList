@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <title>PodList</title>
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Connect to your PodList server</h1>
+      <p>Your Library, Playlists and listening sync through it. You can change it later from the PodList menu.</p>
+      <form id="form">
+        <label for="address">Server address</label>
+        <input id="address" name="address" type="text" inputmode="url" autocomplete="url"
+          spellcheck="false" placeholder="podlist.your-tailnet.ts.net" required
+          aria-describedby="error" />
+        <p class="error" id="error" role="alert"></p>
+        <button type="submit">Connect</button>
+      </form>
+    </main>
+    <script src="setup.js"></script>
+  </body>
+</html>
