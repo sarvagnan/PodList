@@ -1,8 +1,10 @@
-import { Operation, PlayedRules, type State, Units } from "@podlist/domain"
+import { Operation, PlaybackSettings, PlayedRules, type State, Units } from "@podlist/domain"
 import {
   Clock,
   Context,
+  Duration,
   Effect,
+  Fiber,
   Layer,
   Queue,
   Schema,
@@ -14,9 +16,11 @@ import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import {
   fromStoredChapters as fromStored,
+  nextChapterStart,
   type PlayerChapter,
   toPlayerChapter
 } from "../lib/chapters.ts"
+import { effectiveSettings, storedOverride } from "../lib/playbackSettings.ts"
 import { Player } from "../platform/Player.ts"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
@@ -38,7 +42,21 @@ export interface NowPlaying {
   readonly error: string | null
   /** The Episode's Chapters, in order; empty when it has none (or they aren't known yet). */
   readonly chapters: ReadonlyArray<PlayerChapter>
+  /** The speed it plays at: the podcast's own, or the global default. */
+  readonly speed: number
+  readonly sleep: SleepTimer | null
 }
+
+/** When playback will pause by itself. */
+export type SleepTimer =
+  | { readonly _tag: "At"; readonly until: number }
+  | { readonly _tag: "EndOfEpisode" }
+  | { readonly _tag: "EndOfChapter"; readonly at: number }
+
+export type SleepRequest =
+  | { readonly _tag: "Minutes"; readonly minutes: number }
+  | { readonly _tag: "EndOfEpisode" }
+  | { readonly _tag: "EndOfChapter" }
 
 /** How often a Position is reported while playing. */
 export const reportEveryMillis = 15_000
@@ -62,6 +80,10 @@ export class Playback extends Context.Service<
     readonly skip: (seconds: number) => Effect.Effect<void>
     /** Makes the Playlist active, puts its Cursor on the Entry and plays it. */
     readonly playEntry: (playlistId: string, episodeId: string) => Effect.Effect<void>
+    /** Changes the speed: the podcast's own if it has one, otherwise the global default. */
+    readonly setSpeed: (speed: number) => Effect.Effect<void>
+    /** Sets or clears (null) the sleep timer. */
+    readonly setSleep: (request: SleepRequest | null) => Effect.Effect<void>
   }
 >()("@podlist/web/Playback") {
   static readonly layer = (options: {
@@ -87,7 +109,14 @@ export class Playback extends Context.Service<
         let lastReport = { at: 0, position: -1 }
         // The loaded Entry's Played threshold, and whether it has been finished (marked
         // Played) and has reached the end of its audio.
-        let loaded = { threshold: null as number | null, finished: false, ended: false }
+        let loaded = {
+          threshold: null as number | null,
+          finished: false,
+          ended: false,
+          subscriptionId: null as string | null,
+          override: {} as PlaybackSettings.PlaybackSettingsOverride,
+          skipOutro: 0
+        }
 
         /** The Episode's details from the local catalogue, which may not have synced yet. */
         const lookup = (episodeId: string) =>
@@ -100,8 +129,11 @@ export class Playback extends Context.Service<
               podcast_artwork_url: string | null
               played_threshold: number | null
               chapters: string
+              subscription_id: string
+              playback_settings: string | null
             }>`SELECT e.title, s.title AS podcast, e.duration, e.artwork_url,
-                 s.artwork_url AS podcast_artwork_url, s.played_threshold, e.chapters
+                 s.artwork_url AS podcast_artwork_url, s.played_threshold, e.chapters,
+                 s.id AS subscription_id, s.playback_settings
                FROM episode e JOIN subscription s ON s.id = e.subscription_id
                WHERE e.id = ${episodeId}`.pipe(Effect.orDie)
             return {
@@ -110,6 +142,8 @@ export class Playback extends Context.Service<
               artworkUrl: row?.artwork_url ?? row?.podcast_artwork_url ?? null,
               duration: row?.duration ?? null,
               threshold: row?.played_threshold ?? null,
+              subscriptionId: row?.subscription_id ?? null,
+              override: storedOverride(row?.playback_settings ?? null),
               chapters: row ? fromStored(row.chapters) : []
             }
           })
@@ -157,15 +191,36 @@ export class Playback extends Context.Service<
             }
             // Leaving an Entry: keep where it got to.
             if (current !== null) yield* report(current.position)
-            const { threshold, ...info } = yield* lookup(next.entry.episodeId)
-            loaded = { threshold, finished: false, ended: false }
+            const { threshold, subscriptionId, override, ...info } = yield* lookup(
+              next.entry.episodeId
+            )
+            const settings = effectiveSettings(state.playbackSettings, override)
+            loaded = {
+              threshold,
+              finished: false,
+              ended: false,
+              subscriptionId,
+              override,
+              skipOutro: settings.skipOutro
+            }
+            // Skip intro: an Episode started from (near) the beginning starts after it.
+            const startAt =
+              settings.skipIntro > 0 &&
+              next.entry.position < settings.skipIntro &&
+              (info.duration === null || info.duration > settings.skipIntro)
+                ? settings.skipIntro
+                : next.entry.position
+            const previousSleep = current?.sleep ?? null
             const track: NowPlaying = {
               playlistId: next.playlist.id,
               episodeId: next.entry.episodeId,
               ...info,
               playing: false,
-              position: next.entry.position,
-              error: null
+              position: startAt,
+              error: null,
+              speed: settings.speed,
+              // A timer in minutes carries on to the next Episode; the others were for this one.
+              sleep: previousSleep?._tag === "At" ? previousSleep : null
             }
             lastReport = { at: yield* Clock.currentTimeMillis, position: next.entry.position }
             yield* player.load({
@@ -177,7 +232,8 @@ export class Playback extends Context.Service<
               artworkUrl: lockScreenArt(track.artworkUrl),
               startAt: track.position
             })
-            yield* player.setRate(state.playbackSettings.speed)
+            yield* player.setRate(settings.speed)
+            yield* player.setVolumeBoost(settings.volumeBoost)
             yield* SubscriptionRef.set(now, track)
             // Ask the server too: it finds Chapters the first time anyone asks.
             yield* transport.chapters(track.episodeId).pipe(
@@ -295,6 +351,19 @@ export class Playback extends Context.Service<
             if ((yield* SubscriptionRef.get(now)) !== null) yield* start
           })
 
+        /** The Episode is over (its audio ended, or skip outro reached): finish it, then go on
+         * to the Playlist's next Entry, unless the sleep timer said to stop here. */
+        const endOfEpisode: Effect.Effect<void> = Effect.gen(function* () {
+          yield* finish
+          loaded = { ...loaded, ended: true }
+          const ended = yield* SubscriptionRef.get(now)
+          yield* update((n) => ({ ...n, playing: false }))
+          yield* follow(yield* SubscriptionRef.get(engine.state))
+          const next = yield* SubscriptionRef.get(now)
+          if (ended?.sleep?._tag === "EndOfEpisode") return yield* clearSleep
+          if (next !== null && next.episodeId !== ended?.episodeId) yield* start
+        })
+
         // Player events drive the status and periodic Position reports.
         yield* player.events.pipe(
           Stream.runForEach((event) =>
@@ -325,6 +394,24 @@ export class Playback extends Context.Service<
                   ) {
                     yield* finish
                   }
+                  // Skip outro: the last seconds count as the end of the Episode.
+                  if (
+                    current?.playing &&
+                    loaded.skipOutro > 0 &&
+                    current.duration !== null &&
+                    !loaded.ended &&
+                    event.seconds >= current.duration - loaded.skipOutro
+                  ) {
+                    yield* player.pause
+                    return yield* endOfEpisode
+                  }
+                  if (
+                    current?.sleep?._tag === "EndOfChapter" &&
+                    event.seconds >= current.sleep.at
+                  ) {
+                    yield* clearSleep
+                    yield* player.pause
+                  }
                   const at = yield* Clock.currentTimeMillis
                   if (
                     current?.playing &&
@@ -334,18 +421,9 @@ export class Playback extends Context.Service<
                   }
                   return
                 }
-                case "Ended": {
-                  // The end of the audio always finishes it, even without a known duration.
-                  yield* finish
-                  loaded = { ...loaded, ended: true }
-                  const ended = yield* SubscriptionRef.get(now)
-                  yield* update((n) => ({ ...n, playing: false }))
-                  // Move on to the Playlist's next Entry, or stop after the last one.
-                  yield* follow(yield* SubscriptionRef.get(engine.state))
-                  const next = yield* SubscriptionRef.get(now)
-                  if (next !== null && next.episodeId !== ended?.episodeId) yield* start
-                  return
-                }
+                case "Ended":
+                  if (loaded.ended) return
+                  return yield* endOfEpisode
                 case "Failed":
                   return yield* update((n) => ({ ...n, playing: false, error: event.message }))
               }
@@ -453,7 +531,83 @@ export class Playback extends Context.Service<
           if ((yield* SubscriptionRef.get(now)) !== null) yield* start
         })
 
-        return Playback.of({ now, play, pause, toggle, retry, seek, skip, playEntry })
+        const setSpeed = (speed: number) =>
+          Effect.gen(function* () {
+            const current = yield* SubscriptionRef.get(now)
+            if (current === null) return
+            yield* player.setRate(speed)
+            yield* update((n) => ({ ...n, speed }))
+            if (loaded.override.speed !== undefined && loaded.subscriptionId !== null) {
+              // This podcast has its own speed: change that one.
+              loaded = { ...loaded, override: { ...loaded.override, speed } }
+              yield* engine.record(
+                decodeChange({
+                  _tag: "SetSubscriptionOverrides",
+                  subscriptionId: loaded.subscriptionId,
+                  playbackSettings: loaded.override,
+                  playedThreshold: loaded.threshold
+                })
+              )
+            } else {
+              const state = yield* SubscriptionRef.get(engine.state)
+              yield* engine.record(
+                decodeChange({
+                  _tag: "SetPlaybackSettings",
+                  settings: {
+                    ...Schema.encodeSync(PlaybackSettings.PlaybackSettings)(state.playbackSettings),
+                    speed
+                  }
+                })
+              )
+            }
+          })
+
+        let sleepFiber: Fiber.Fiber<void> | undefined
+        const clearSleep = Effect.gen(function* () {
+          if (sleepFiber !== undefined) yield* Fiber.interrupt(sleepFiber)
+          sleepFiber = undefined
+          yield* update((n) => ({ ...n, sleep: null }))
+        })
+        const setSleep = (request: SleepRequest | null) =>
+          Effect.gen(function* () {
+            yield* clearSleep
+            const current = yield* SubscriptionRef.get(now)
+            if (request === null || current === null) return
+            switch (request._tag) {
+              case "Minutes": {
+                const until = (yield* Clock.currentTimeMillis) + request.minutes * 60_000
+                yield* update((n) => ({ ...n, sleep: { _tag: "At", until } }))
+                sleepFiber = yield* Effect.sleep(Duration.minutes(request.minutes)).pipe(
+                  Effect.andThen(player.pause),
+                  Effect.andThen(update((n) => ({ ...n, sleep: null }))),
+                  Effect.forkIn(scope)
+                )
+                return
+              }
+              case "EndOfChapter": {
+                const at = nextChapterStart(current.chapters, current.position)
+                return yield* update((n) => ({
+                  ...n,
+                  sleep: at === null ? { _tag: "EndOfEpisode" } : { _tag: "EndOfChapter", at }
+                }))
+              }
+              case "EndOfEpisode":
+                return yield* update((n) => ({ ...n, sleep: { _tag: "EndOfEpisode" } }))
+            }
+          })
+
+        return Playback.of({
+          now,
+          play,
+          pause,
+          toggle,
+          retry,
+          seek,
+          skip,
+          playEntry,
+          setSpeed,
+          setSleep
+        })
       })
     )
 }

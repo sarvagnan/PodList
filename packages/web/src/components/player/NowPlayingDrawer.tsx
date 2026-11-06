@@ -23,6 +23,7 @@ import type { NowPlaying } from "../../playback/Playback.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { EpisodeDetail } from "../episodes/EpisodeDetail.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
+import { PlayerMenus } from "./PlayerMenus.tsx"
 import { Scrubber } from "./Scrubber.tsx"
 import { SkipIcon } from "./SkipIcon.tsx"
 
@@ -180,6 +181,7 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
           <SkipIcon seconds={forwardSeconds} direction="forward" large />
         </button>
       </div>
+      <PlayerMenus current={current} />
       <div className="flex flex-wrap justify-center gap-2">
         {current.chapters.length > 0 && (
           <span className="md:hidden">

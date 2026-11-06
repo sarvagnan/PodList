@@ -7,7 +7,7 @@ import { artworkSrc } from "../lib/artwork.ts"
 import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { Player } from "../platform/Player.ts"
-import { Playback } from "../playback/Playback.ts"
+import { Playback, type SleepRequest } from "../playback/Playback.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
 
@@ -108,6 +108,8 @@ type Command =
   | { readonly _tag: "skip"; readonly seconds: number }
   | { readonly _tag: "seek"; readonly seconds: number }
   | { readonly _tag: "playEntry"; readonly playlistId: string; readonly episodeId: string }
+  | { readonly _tag: "setSpeed"; readonly speed: number }
+  | { readonly _tag: "setSleep"; readonly sleep: SleepRequest | null }
 
 /** Player controls: play/pause, skip, seek and Play from here. */
 export const playbackAtom = runtime.fn((command: Command) =>
@@ -124,6 +126,10 @@ export const playbackAtom = runtime.fn((command: Command) =>
         return yield* playback.seek(command.seconds)
       case "playEntry":
         return yield* playback.playEntry(command.playlistId, command.episodeId)
+      case "setSpeed":
+        return yield* playback.setSpeed(command.speed)
+      case "setSleep":
+        return yield* playback.setSleep(command.sleep)
     }
   })
 )

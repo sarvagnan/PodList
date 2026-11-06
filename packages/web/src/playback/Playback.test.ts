@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Library, Operation, PlaybackSettings, type State, Units } from "@podlist/domain"
 import { Effect, Layer, Queue, Schema, Stream, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
-import type { SqlClient } from "effect/sql"
+import { SqlClient } from "effect/sql"
 import * as LocalDb from "../platform/LocalDb.ts"
 import {
   Player,
@@ -39,6 +39,7 @@ const makeFakePlayer = Effect.gen(function* () {
   const seeks: Array<number> = []
   const rates: Array<number> = []
   const described: Array<TrackInfo> = []
+  const boosts: Array<boolean> = []
   const emit = (event: PlayerEvent) => Queue.offerUnsafe(events, event)
   const player = Player.of({
     load: (track) => Effect.sync(() => void loads.push(track)),
@@ -47,6 +48,7 @@ const makeFakePlayer = Effect.gen(function* () {
     pause: Effect.sync(() => void emit(PlayerEvent.Paused())),
     seek: (seconds) => Effect.sync(() => void seeks.push(seconds)),
     setRate: (rate) => Effect.sync(() => void rates.push(rate)),
+    setVolumeBoost: (on) => Effect.sync(() => void boosts.push(on)),
     events: Stream.fromQueue(events),
     remote: Stream.fromQueue(remote)
   })
@@ -56,6 +58,7 @@ const makeFakePlayer = Effect.gen(function* () {
     seeks,
     rates,
     described,
+    boosts,
     emit,
     press: (c: RemoteCommand) => Queue.offerUnsafe(remote, c)
   }
@@ -424,6 +427,101 @@ describe("Playback", () => {
           ["e3", 0]
         ])
         expect(keep?.cursor).toBe("e3")
+      })
+    )
+  )
+
+  it.live("skips the intro, plays at the podcast's own speed, and changes the right speed", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const playback = yield* Playback
+        const sql = yield* SqlClient.SqlClient
+        yield* eventually(now, (n) => n?.episodeId === "e2")
+        yield* engine.record(
+          change({
+            _tag: "SetPlaybackSettings",
+            settings: { speed: 1.5, skipIntro: 30, skipOutro: 0, volumeBoost: false }
+          })
+        )
+        yield* sql`UPDATE subscription SET playback_settings = '{"speed":2}' WHERE id = 's'`
+        yield* engine.record(change({ _tag: "SetCursor", playlistId: "default", episodeId: "e1" }))
+        const loaded = yield* eventually(now, (n) => n?.episodeId === "e1")
+        expect(fake.loads.at(-1)?.startAt).toBe(30)
+        expect(loaded?.speed).toBe(2)
+        expect(fake.rates.at(-1)).toBe(2)
+        // The podcast has its own speed, so that is what changes; the default stays.
+        yield* playback.setSpeed(1.25)
+        expect(fake.rates.at(-1)).toBe(1.25)
+        expect((yield* state).playbackSettings.speed).toBe(1.5)
+      })
+    )
+  )
+
+  it.live("changes the default speed for a podcast without its own", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const playback = yield* Playback
+        yield* eventually(now, (n) => n?.episodeId === "e2")
+        yield* playback.setSpeed(1.75)
+        expect(fake.rates.at(-1)).toBe(1.75)
+        yield* eventually(state, (s) => s.playbackSettings.speed === 1.75)
+      })
+    )
+  )
+
+  it.live("skips the outro: the last seconds end the Episode and the next one plays", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const playback = yield* Playback
+        yield* engine.record(
+          change({
+            _tag: "SetPlaybackSettings",
+            settings: { speed: 1, skipIntro: 0, skipOutro: 20, volumeBoost: false }
+          })
+        )
+        yield* engine.record(change({ _tag: "SetCursor", playlistId: "default", episodeId: "e1" }))
+        yield* eventually(now, (n) => n?.episodeId === "e1")
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        fake.emit(PlayerEvent.Position({ seconds: 41, duration: 60 }))
+        yield* eventually(now, (n) => n?.episodeId === "e2" && n.playing)
+        expect((yield* state).episodeStates.e1?.played).not.toBeNull()
+      })
+    )
+  )
+
+  it.live("a sleep timer for the end of the Episode stops before the next one", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const playback = yield* Playback
+        yield* engine.record(change({ _tag: "SetCursor", playlistId: "default", episodeId: "e1" }))
+        yield* eventually(now, (n) => n?.episodeId === "e1")
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        yield* playback.setSleep({ _tag: "EndOfEpisode" })
+        fake.emit(PlayerEvent.Ended())
+        const next = yield* eventually(now, (n) => n?.episodeId === "e2")
+        yield* Effect.sleep("50 millis")
+        expect((yield* now)?.playing).toBe(false)
+        expect(next?.sleep).toBeNull()
+      })
+    )
+  )
+
+  it.live("a sleep timer in minutes pauses when it runs out", () =>
+    withDevice(() =>
+      Effect.gen(function* () {
+        const playback = yield* Playback
+        yield* eventually(now, (n) => n?.episodeId === "e2")
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        yield* playback.setSleep({ _tag: "Minutes", minutes: 0.002 })
+        expect((yield* now)?.sleep?._tag).toBe("At")
+        const paused = yield* eventually(now, (n) => n?.playing === false)
+        expect(paused?.sleep).toBeNull()
       })
     )
   )

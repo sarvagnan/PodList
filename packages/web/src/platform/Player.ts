@@ -42,6 +42,8 @@ export class Player extends Context.Service<
     readonly pause: Effect.Effect<void>
     readonly seek: (seconds: number) => Effect.Effect<void>
     readonly setRate: (rate: number) => Effect.Effect<void>
+    /** Louder, evened-out speech (compressor and gain), for quiet or uneven podcasts. */
+    readonly setVolumeBoost: (on: boolean) => Effect.Effect<void>
     readonly events: Stream.Stream<PlayerEvent>
     readonly remote: Stream.Stream<RemoteCommand>
   }
@@ -133,7 +135,36 @@ export class Player extends Context.Service<
           yield* showInfo(track)
         })
 
+      // Volume boost routes the element through Web Audio. The graph is only built the
+      // first time boost is switched on, so playback that never uses it stays a plain
+      // media element (which is what background playback on phones relies on).
+      let boost: {
+        compressor: DynamicsCompressorNode
+        gain: GainNode
+        context: AudioContext
+      } | null = null
+      const setVolumeBoost = (on: boolean) =>
+        Effect.sync(() => {
+          if (!on && boost === null) return
+          if (boost === null) {
+            const context = new AudioContext()
+            const source = context.createMediaElementSource(audio)
+            const compressor = context.createDynamicsCompressor()
+            compressor.threshold.value = -30
+            compressor.knee.value = 20
+            compressor.ratio.value = 4
+            const gain = context.createGain()
+            source.connect(compressor).connect(gain).connect(context.destination)
+            boost = { compressor, gain, context }
+          }
+          if (boost.context.state === "suspended") void boost.context.resume()
+          // Off: unity gain with no compression (the graph stays, as it must).
+          boost.compressor.ratio.value = on ? 4 : 1
+          boost.gain.gain.value = on ? 1.8 : 1
+        })
+
       return Player.of({
+        setVolumeBoost,
         load,
         describe: showInfo,
         play: Effect.tryPromise({
