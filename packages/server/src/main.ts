@@ -9,6 +9,7 @@ import { ServerConfig } from "./Config.ts"
 import * as Database from "./Database.ts"
 import { ApiRoutes } from "./Http.ts"
 import { Library } from "./Library.ts"
+import { AudioRoute } from "./Media.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
@@ -28,7 +29,10 @@ const Main = Layer.unwrap(
       Layer.provide(FetchHttpClient.layer),
       Layer.provideMerge(Database.layer(config.databasePath))
     )
-    return Layer.mergeAll(HttpRouter.serve(ApiRoutes), Poller.background).pipe(
+    return Layer.mergeAll(
+      HttpRouter.serve(Layer.mergeAll(ApiRoutes, AudioRoute)),
+      Poller.background
+    ).pipe(
       Layer.provide(NodeHttpServer.layer(createServer, { port: config.port })),
       Layer.provide(Services)
     )
