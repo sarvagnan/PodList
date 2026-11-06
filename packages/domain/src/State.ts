@@ -2,10 +2,10 @@ import { Schema } from "effect"
 import { DownloadRule } from "./Device.ts"
 import type { EpisodeId, PlaylistId } from "./Ids.ts"
 import { EpisodeState, Played } from "./Library.ts"
-import type { Change } from "./Operation.ts"
+import type { Change, Operation } from "./Operation.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
 import * as PlayedRules from "./PlayedRules.ts"
-import { DefaultPlaylistId, Playlist } from "./Playlist.ts"
+import { DefaultPlaylistId, Entry, Playlist } from "./Playlist.ts"
 import * as PlaylistRules from "./PlaylistRules.ts"
 import type { EpochMillis } from "./Units.ts"
 import { View } from "./View.ts"
@@ -177,13 +177,52 @@ export const apply = (state: State, change: Change, context: Context): State => 
     }
     case "SetPlaybackSettings":
       return replace(state, { playbackSettings: change.settings })
-    // Position merging (pod-301.5) and Rewind
+    // Rewind
     // (pod-301.6) land with their own rules. Subscription overrides and marking a
     // whole Subscription Played need the Library catalogue and are applied server-side.
     case "ReportPosition":
+      return withPlaylist(state, change.playlistId, (p) => {
+        const entry = p.entries.find((e) => e.episodeId === change.episodeId)
+        // The latest listen wins: a report older than what we have is stale (ADR 0003).
+        if (entry === undefined || change.listenedAt < entry.positionAt) return p
+        return new Playlist({
+          ...p,
+          entries: p.entries.map((e) =>
+            e === entry
+              ? new Entry({ ...e, position: change.position, positionAt: change.listenedAt })
+              : e
+          )
+        })
+      })
     case "MarkSubscriptionPlayed":
     case "Rewind":
     case "SetSubscriptionOverrides":
       return state
   }
+}
+
+/** The result of replaying operations: the new state and every operation id applied so far. */
+export interface Replayed {
+  readonly state: State
+  readonly applied: ReadonlySet<string>
+}
+
+/**
+ * Replays operations in order, skipping any whose id was already applied, so the same
+ * operation delivered twice (a retry after a dropped connection) takes effect once.
+ * Each change uses its own recording time.
+ */
+export const applyOperations = (
+  state: State,
+  operations: Iterable<Operation>,
+  applied: ReadonlySet<string> = new Set()
+): Replayed => {
+  const seen = new Set(applied)
+  let current = state
+  for (const operation of operations) {
+    if (seen.has(operation.id)) continue
+    current = apply(current, operation.change, { at: operation.recordedAt })
+    seen.add(operation.id)
+  }
+  return { state: current, applied: seen }
 }
