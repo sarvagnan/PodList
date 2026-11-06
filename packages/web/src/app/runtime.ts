@@ -2,6 +2,7 @@ import { type Operation, PlaybackSettings, State, Units } from "@podlist/domain"
 import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
+import { artworkSrc } from "../lib/artwork.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { Player } from "../platform/Player.ts"
 import { Playback } from "../playback/Playback.ts"
@@ -26,7 +27,10 @@ const deviceName = () => {
   return "Browser"
 }
 
-export const AppLayer = Playback.layer({ audioUrl: (id) => `/api/episodes/${id}/audio` }).pipe(
+export const AppLayer = Playback.layer({
+  audioUrl: (id) => `/api/episodes/${id}/audio`,
+  artworkUrl: (url) => new URL(artworkSrc(url, 256), location.origin).href
+}).pipe(
   Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: deviceName() })),
   Layer.provideMerge(LocalDb.layerWeb()),
   Layer.provide(Player.layerWeb),

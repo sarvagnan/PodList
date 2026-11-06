@@ -46,6 +46,8 @@ export class Playback extends Context.Service<
 >()("@podlist/web/Playback") {
   static readonly layer = (options: {
     readonly audioUrl: (episodeId: string) => string
+    /** Where the lock screen fetches a feed image from; the image itself by default. */
+    readonly artworkUrl?: (url: string) => string
     readonly reportEveryMillis?: number
   }) =>
     Layer.effect(
@@ -56,6 +58,8 @@ export class Playback extends Context.Service<
         const sql = yield* SqlClient.SqlClient
         const reactivity = yield* Reactivity.Reactivity
         const now = yield* SubscriptionRef.make<NowPlaying | null>(null)
+        const lockScreenArt = (url: string | null) =>
+          url === null ? null : (options.artworkUrl?.(url) ?? url)
         let lastReport = { at: 0, position: -1 }
         // The loaded Entry's Played threshold, and whether it has been finished (marked
         // Played) and has reached the end of its audio.
@@ -130,7 +134,7 @@ export class Playback extends Context.Service<
               url: options.audioUrl(track.episodeId),
               title: track.title,
               podcast: track.podcast,
-              artworkUrl: track.artworkUrl,
+              artworkUrl: lockScreenArt(track.artworkUrl),
               startAt: track.position
             })
             yield* player.setRate(state.playbackSettings.speed)
@@ -345,7 +349,7 @@ export class Playback extends Context.Service<
                   ? { ...n, ...info, duration: n.duration ?? info.duration }
                   : n
               )
-              yield* player.describe(info)
+              yield* player.describe({ ...info, artworkUrl: lockScreenArt(info.artworkUrl) })
             })
           )
           .pipe(Stream.runDrain, Effect.forkScoped)

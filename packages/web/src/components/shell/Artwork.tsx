@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { artworkSrc } from "../../lib/artwork.ts"
 
 // A podcast or Episode image, or the podcast's initials on a tinted tile when it has none
 // or it fails to load. The tile shows behind the image while it loads.
@@ -25,7 +26,7 @@ export function Artwork({
   if (url !== null && failed !== url) {
     return (
       <img
-        src={url}
+        src={artworkSrc(url, size)}
         alt=""
         style={style}
         onError={() => setFailed(url)}

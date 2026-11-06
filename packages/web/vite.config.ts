@@ -29,7 +29,19 @@ export default defineConfig({
       workbox: {
         // Precache the app shell (including the SQLite WASM binary) so the app opens offline.
         globPatterns: ["**/*.{js,css,html,svg,png,ico,wasm,woff2}"],
-        navigateFallback: "index.html"
+        navigateFallback: "index.html",
+        // Artwork, once seen, shows offline too.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname === "/api/artwork",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "artwork",
+              expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [200] }
+            }
+          }
+        ]
       }
     })
   ],
