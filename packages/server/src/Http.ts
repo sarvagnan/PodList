@@ -1,8 +1,15 @@
-import { Library as LibraryApi, PodListApi, Sync, System } from "@podlist/api"
+import {
+  Library as LibraryApi,
+  PodListApi,
+  Subscriptions as SubscriptionsApi,
+  Sync,
+  System
+} from "@podlist/api"
 import { Protocol } from "@podlist/domain"
 import { Effect, Layer } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { Poller } from "./Poller.ts"
+import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
 
 export const SystemHandlers = HttpApiBuilder.group(
@@ -54,6 +61,30 @@ export const LibraryHandlers = HttpApiBuilder.group(
   })
 )
 
+export const SubscriptionsHandlers = HttpApiBuilder.group(
+  PodListApi,
+  "subscriptions",
+  Effect.fn(function* (handlers) {
+    const subscriptions = yield* Subscriptions
+    return handlers.handleAll({
+      list: () => subscriptions.list,
+      subscribe: ({ payload }) =>
+        subscriptions
+          .subscribe(payload.feedUrl)
+          .pipe(Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))),
+      unsubscribe: ({ params }) =>
+        subscriptions
+          .unsubscribe(params.id)
+          .pipe(Effect.mapError(() => new LibraryApi.SubscriptionNotFound())),
+      importOpml: ({ payload }) =>
+        subscriptions
+          .importOpml(payload.opml)
+          .pipe(Effect.map((s) => new SubscriptionsApi.ImportSummary(s))),
+      exportOpml: () => subscriptions.exportOpml
+    })
+  })
+)
+
 export const ApiRoutes = HttpApiBuilder.layer(PodListApi, {
   openapiPath: "/api/openapi.json"
-}).pipe(Layer.provide([SystemHandlers, SyncHandlers, LibraryHandlers]))
+}).pipe(Layer.provide([SystemHandlers, SyncHandlers, LibraryHandlers, SubscriptionsHandlers]))

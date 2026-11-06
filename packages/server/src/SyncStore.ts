@@ -131,6 +131,41 @@ export class SyncStore extends Context.Service<
           Effect.orDie
         )
 
+      /**
+       * Changes that need the Library catalogue are resolved here, so every Device
+       * replays the same concrete operations: marking a whole Subscription Played
+       * becomes one Played per Episode, and Subscription overrides update the
+       * catalogue record.
+       */
+      const expandServerSide = (o: Operation.Operation) =>
+        Effect.gen(function* () {
+          const change = o.change
+          if (change._tag === "SetSubscriptionOverrides") {
+            yield* sql`UPDATE subscription SET
+                playback_settings = ${JSON.stringify(change.playbackSettings)},
+                played_threshold = ${change.playedThreshold}
+              WHERE id = ${change.subscriptionId}`
+            return [o]
+          }
+          if (change._tag !== "MarkSubscriptionPlayed") return [o]
+          const episodes = yield* sql<{ id: string }>`
+            SELECT e.id FROM episode e LEFT JOIN episode_state st ON st.episode_id = e.id
+            WHERE e.subscription_id = ${change.subscriptionId} AND st.played_at IS NULL
+            ORDER BY e.published`
+          return [
+            o,
+            ...episodes.map((e) =>
+              Schema.decodeUnknownSync(Operation.Operation)({
+                id: `${o.id}:${e.id}`,
+                deviceId: o.deviceId,
+                sequence: o.sequence,
+                recordedAt: o.recordedAt,
+                change: { _tag: "MarkPlayed", episodeId: e.id, source: { _tag: "User" } }
+              })
+            )
+          ]
+        })
+
       const push = (operations: ReadonlyArray<Operation.Operation>) =>
         Effect.gen(function* () {
           const ids = operations.map((o) => o.id)
@@ -141,12 +176,15 @@ export class SyncStore extends Context.Service<
           const fresh = operations.filter((o) => !seen.some((s) => s.id === o.id))
           const unique = fresh.filter((o, i) => fresh.findIndex((x) => x.id === o.id) === i)
           if (unique.length > 0) {
+            const expanded = yield* Effect.forEach(unique, expandServerSide).pipe(
+              Effect.map((all) => all.flat())
+            )
             const hasState = (yield* sql`SELECT 1 FROM setting LIMIT 1`).length > 0
             const before = yield* loadState
-            const after = State.applyOperations(before, unique).state
+            const after = State.applyOperations(before, expanded).state
             yield* saveState(hasState ? before : null, after)
             const now = Date.now()
-            for (const o of unique) {
+            for (const o of expanded) {
               yield* sql`INSERT INTO operation_log ${sql.insert({
                 id: o.id,
                 device_id: o.deviceId,

@@ -9,6 +9,7 @@ import * as Database from "./Database.ts"
 import { ApiRoutes } from "./Http.ts"
 import { Library } from "./Library.ts"
 import { Poller } from "./Poller.ts"
+import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
 
 const Main = Layer.unwrap(
@@ -16,7 +17,7 @@ const Main = Layer.unwrap(
     const config = yield* ServerConfig
     mkdirSync(dirname(config.databasePath), { recursive: true })
     yield* Effect.log(`PodList server on :${config.port}, database ${config.databasePath}`)
-    const Services = Layer.mergeAll(SyncStore.layer, Poller.layer).pipe(
+    const Services = Layer.mergeAll(SyncStore.layer, Poller.layer, Subscriptions.layer).pipe(
       Layer.provideMerge(Library.layer),
       Layer.provide(FetchHttpClient.layer),
       Layer.provideMerge(Database.layer(config.databasePath))
