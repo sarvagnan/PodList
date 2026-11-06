@@ -13,15 +13,15 @@ import {
   SkipForward
 } from "lucide-react"
 import type { ReactNode } from "react"
-import { entryEpisodesAtom, episodeDetailAtom } from "../../app/data.ts"
+import { entryEpisodesAtom } from "../../app/data.ts"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
-import { showNotesText } from "../../lib/showNotes.ts"
-import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
+import { formatLength, formatTime } from "../../lib/time.ts"
 import type { NowPlaying } from "../../playback/Playback.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
+import { EpisodeDetail } from "../episodes/EpisodeDetail.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { Scrubber } from "./Scrubber.tsx"
 import { SkipIcon } from "./SkipIcon.tsx"
@@ -355,28 +355,9 @@ function SwitchPlaylist() {
   )
 }
 
-function EpisodePage({ episodeId }: { readonly episodeId: string }) {
-  const detail = AsyncResult.getOrElse(useAtomValue(episodeDetailAtom(episodeId)), () => null)
-  if (detail === null) return null
-  const notes = showNotesText(detail.description)
-  return (
-    <article className="mx-auto max-w-prose px-6 pb-8">
-      <p className="text-small text-player-muted">{detail.podcast}</p>
-      <h3 className="mt-1 font-heading text-xl font-semibold">{detail.title}</h3>
-      <p className="mt-2 text-small text-player-muted">
-        {formatPublished(detail.published)}
-        {detail.duration ? ` · ${formatLength(detail.duration)}` : ""}
-      </p>
-      <div className="mt-5 space-y-3 text-sm leading-relaxed whitespace-pre-line">
-        {notes.length > 0 ? notes.map((p) => <p key={p}>{p}</p>) : <p>No show notes.</p>}
-      </div>
-    </article>
-  )
-}
-
 export function NowPlayingDrawer() {
   const current = useNowPlaying()
-  const { drawer, back, close } = useDrawer()
+  const { drawer, back, close, home } = useDrawer()
   const setDrawer = useAtomSet(drawerAtom)
   const page = drawer.stack.at(-1)
   if (current === null) return null
@@ -443,7 +424,9 @@ export function NowPlayingDrawer() {
             {page === "queue" && <UpNext current={current} />}
             {page === "chapters" && <ChaptersList current={current} />}
             {page === "playlists" && <SwitchPlaylist />}
-            {page === "episode" && <EpisodePage episodeId={current.episodeId} />}
+            {page === "episode" && (
+              <EpisodeDetail episodeId={current.episodeId} tone="dark" onPlay={home} />
+            )}
           </div>
         </Drawer.Popup>
       </Drawer.Portal>

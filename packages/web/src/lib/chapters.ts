@@ -26,3 +26,20 @@ export const previousChapterStart = (chapters: ReadonlyArray<PlayerChapter>, pos
 /** The next Chapter's start, or null in the last one. */
 export const nextChapterStart = (chapters: ReadonlyArray<PlayerChapter>, position: number) =>
   chapters[chapterAt(chapters, position) + 1]?.start ?? null
+
+export const toPlayerChapter = (c: {
+  readonly start: number
+  readonly title: string
+  readonly artwork: { readonly url: string } | null
+}): PlayerChapter => ({ start: c.start, title: c.title, artworkUrl: c.artwork?.url ?? null })
+
+/** Chapters as the local catalogue stores them (JSON). */
+export const fromStoredChapters = (json: string): ReadonlyArray<PlayerChapter> => {
+  try {
+    return (JSON.parse(json) as ReadonlyArray<Parameters<typeof toPlayerChapter>[0]>).map(
+      toPlayerChapter
+    )
+  } catch {
+    return []
+  }
+}

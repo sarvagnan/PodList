@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as EpisodesEpisodeIdRouteImport } from './routes/episodes/$episodeId'
 import { Route as PlaylistsIndexRouteImport } from './routes/playlists/index'
 import { Route as PlaylistsPlaylistIdRouteImport } from './routes/playlists/$playlistId'
 import { Route as ViewsIndexRouteImport } from './routes/views/index'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EpisodesEpisodeIdRoute = EpisodesEpisodeIdRouteImport.update({
+  id: '/episodes/$episodeId',
+  path: '/episodes/$episodeId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlaylistsIndexRoute = PlaylistsIndexRouteImport.update({
@@ -50,6 +56,7 @@ const ViewsViewIdRoute = ViewsViewIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
+  '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/playlists/': typeof PlaylistsIndexRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
+  '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/playlists': typeof PlaylistsIndexRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
+  '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/playlists/': typeof PlaylistsIndexRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/library'
+    | '/episodes/$episodeId'
     | '/playlists/$playlistId'
     | '/views/$viewId'
     | '/playlists/'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/library'
+    | '/episodes/$episodeId'
     | '/playlists/$playlistId'
     | '/views/$viewId'
     | '/playlists'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/library'
+    | '/episodes/$episodeId'
     | '/playlists/$playlistId'
     | '/views/$viewId'
     | '/playlists/'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRoute
+  EpisodesEpisodeIdRoute: typeof EpisodesEpisodeIdRoute
   PlaylistsPlaylistIdRoute: typeof PlaylistsPlaylistIdRoute
   ViewsViewIdRoute: typeof ViewsViewIdRoute
   PlaylistsIndexRoute: typeof PlaylistsIndexRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/episodes/$episodeId': {
+      id: '/episodes/$episodeId'
+      path: '/episodes/$episodeId'
+      fullPath: '/episodes/$episodeId'
+      preLoaderRoute: typeof EpisodesEpisodeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/playlists/': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRoute,
+  EpisodesEpisodeIdRoute: EpisodesEpisodeIdRoute,
   PlaylistsPlaylistIdRoute: PlaylistsPlaylistIdRoute,
   ViewsViewIdRoute: ViewsViewIdRoute,
   PlaylistsIndexRoute: PlaylistsIndexRoute,

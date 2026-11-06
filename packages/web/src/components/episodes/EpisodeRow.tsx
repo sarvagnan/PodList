@@ -1,4 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Check, ListEnd, ListPlus, ListStart, Play, Plus, Star } from "lucide-react"
 import { type ReactNode, useState } from "react"
@@ -41,7 +42,16 @@ function IconButton({
  * One Episode in a View. Phone: Add (a sheet to choose the Playlist) then Play. Desktop:
  * Play Next, Play Last, Add to…, Star, Played, and Play last of all (docs/design/ui-layout.md).
  */
-export function EpisodeRow({ episode }: { readonly episode: ViewEpisode }) {
+export function EpisodeRow({
+  episode,
+  onOpen,
+  selected = false
+}: {
+  readonly episode: ViewEpisode
+  /** Wide screens: show the Episode beside the list instead of navigating. */
+  readonly onOpen?: (episodeId: string) => void
+  readonly selected?: boolean
+}) {
   const act = useEpisodeActions()
   const [adding, setAdding] = useState(false)
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
@@ -72,11 +82,20 @@ export function EpisodeRow({ episode }: { readonly episode: ViewEpisode }) {
     <div className="flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2">
       <Artwork url={episode.artworkUrl} name={episode.podcast} size={48} />
       <div className="min-w-0 flex-1">
-        <p
-          className={`line-clamp-2 text-row leading-snug font-medium ${episode.played ? "text-muted-foreground" : ""}`}
+        {/* The title opens the Episode: a screen on the phone, a panel beside the View on wide screens. */}
+        <Link
+          to="/episodes/$episodeId"
+          params={{ episodeId: episode.id }}
+          onClick={(event) => {
+            if (onOpen && window.matchMedia("(min-width: 64rem)").matches) {
+              event.preventDefault()
+              onOpen(episode.id)
+            }
+          }}
+          className={`line-clamp-2 text-row leading-snug font-medium hover:underline ${episode.played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
         >
           {episode.title}
-        </p>
+        </Link>
         <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
           {episode.played && (
             <span className="inline-flex items-center gap-0.5 font-medium text-positive">
@@ -169,7 +188,7 @@ export function NextLastTarget() {
         {state.playlists.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
-            {p.id === state.activePlaylistId ? " (playing)" : ""}
+            {p.id === state.activePlaylistId ? " (active)" : ""}
           </option>
         ))}
       </select>

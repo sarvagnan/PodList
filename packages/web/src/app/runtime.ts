@@ -34,7 +34,7 @@ export const AppLayer = Playback.layer({
   Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: deviceName() })),
   Layer.provideMerge(LocalDb.layerWeb()),
   Layer.provide(Player.layerWeb),
-  Layer.provide(Transport.layerHttp(location.origin))
+  Layer.provideMerge(Transport.layerHttp(location.origin))
 )
 
 export const runtime = Atom.runtime(AppLayer)

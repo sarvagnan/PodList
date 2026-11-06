@@ -12,7 +12,11 @@ import {
 } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
-import type { PlayerChapter } from "../lib/chapters.ts"
+import {
+  fromStoredChapters as fromStored,
+  type PlayerChapter,
+  toPlayerChapter
+} from "../lib/chapters.ts"
 import { Player } from "../platform/Player.ts"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
@@ -42,23 +46,6 @@ export const backSeconds = 15
 export const forwardSeconds = 30
 
 const decodeChange = Schema.decodeUnknownSync(Operation.Change)
-
-const toPlayerChapter = (c: {
-  readonly start: number
-  readonly title: string
-  readonly artwork: { readonly url: string } | null
-}): PlayerChapter => ({ start: c.start, title: c.title, artworkUrl: c.artwork?.url ?? null })
-
-/** Chapters as the local catalogue stores them (JSON). */
-const fromStored = (json: string): ReadonlyArray<PlayerChapter> => {
-  try {
-    return (JSON.parse(json) as ReadonlyArray<Parameters<typeof toPlayerChapter>[0]>).map(
-      toPlayerChapter
-    )
-  } catch {
-    return []
-  }
-}
 
 export class Playback extends Context.Service<
   Playback,

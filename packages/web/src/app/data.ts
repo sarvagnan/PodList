@@ -2,7 +2,9 @@ import { type State, Units, ViewQuery } from "@podlist/domain"
 import { Effect } from "effect"
 import { AsyncResult, Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
+import { fromStoredChapters, type PlayerChapter, toPlayerChapter } from "../lib/chapters.ts"
 import { catalogueKey } from "../sync/SyncEngine.ts"
+import { Transport } from "../sync/Transport.ts"
 import { runtime, stateAtom } from "./runtime.ts"
 
 // Local reads for the shell. Each re-runs when the user State changes or synced
@@ -155,6 +157,8 @@ export interface EpisodeDetail {
   readonly published: number
   readonly duration: number | null
   readonly description: string
+  readonly artworkUrl: string | null
+  readonly chapters: ReadonlyArray<PlayerChapter>
 }
 
 /** One Episode's details from the local catalogue, for the Episode page. */
@@ -163,11 +167,30 @@ export const episodeDetailAtom = Atom.family((episodeId: string) =>
     .atom(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        const [row] = yield* sql<EpisodeDetail>`
-          SELECT e.id, e.title, s.title AS podcast, e.published, e.duration, e.description
+        const [row] = yield* sql<
+          Omit<EpisodeDetail, "chapters" | "artworkUrl"> & {
+            chapters: string
+            artwork_url: string | null
+            podcast_artwork_url: string | null
+          }
+        >`
+          SELECT e.id, e.title, s.title AS podcast, e.published, e.duration, e.description,
+            e.chapters, e.artwork_url, s.artwork_url AS podcast_artwork_url
           FROM episode e JOIN subscription s ON s.id = e.subscription_id
           WHERE e.id = ${episodeId}`
-        return row ?? null
+        if (row === undefined) return null
+        // The server finds Chapters the first time anyone asks; offline, the local copy.
+        const transport = yield* Transport
+        const chapters = yield* transport.chapters(episodeId).pipe(
+          Effect.map((cs) => cs.map(toPlayerChapter)),
+          Effect.filterOrElse(
+            (cs) => cs.length > 0,
+            () => Effect.succeed(fromStoredChapters(row.chapters))
+          ),
+          Effect.orElseSucceed(() => fromStoredChapters(row.chapters))
+        )
+        const { chapters: _stored, artwork_url, podcast_artwork_url, ...rest } = row
+        return { ...rest, artworkUrl: artwork_url ?? podcast_artwork_url, chapters }
       })
     )
     .pipe(Atom.withReactivity([catalogueKey]))
