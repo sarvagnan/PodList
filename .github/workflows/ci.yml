@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint, typecheck and unit tests
+        run: pnpm check
+      - name: Build the web app
+        run: pnpm --filter @podlist/web build
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @podlist/web exec playwright install --with-deps chromium
+      - name: Browser tests
+        run: pnpm --filter @podlist/web e2e
+      - name: Keep traces of failed browser tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: /tmp/podlist-playwright/results
+          retention-days: 7
