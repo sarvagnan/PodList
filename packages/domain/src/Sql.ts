@@ -1,4 +1,5 @@
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
+import { Migrator, SqlClient } from "effect/sql"
 import { DownloadRule } from "./Device.ts"
 import { EpisodeState } from "./Library.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
@@ -79,6 +80,19 @@ export const migrations: ReadonlyArray<Migration> = [
     ]
   }
 ]
+
+/** Runs the shared migrations with any `effect/sql` SQLite driver (server or browser). */
+export const migrationLoader = Migrator.fromRecord(
+  Object.fromEntries(
+    migrations.map((m) => [
+      `${String(m.id).padStart(4, "0")}_${m.name}`,
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        for (const statement of m.statements) yield* sql.unsafe(statement)
+      })
+    ])
+  )
+)
 
 // ---------- State <-> rows ----------
 

@@ -16,3 +16,6 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 .DS_Store
+
+# Server data (DATABASE_PATH default)
+packages/server/data/

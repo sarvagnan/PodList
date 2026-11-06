@@ -1,7 +1,23 @@
-import { NodeRuntime } from "@effect/platform-node"
-import { Effect } from "effect"
+import { mkdirSync } from "node:fs"
+import { createServer } from "node:http"
+import { dirname } from "node:path"
+import { NodeHttpServer, NodeRuntime } from "@effect/platform-node"
+import { Effect, Layer } from "effect"
+import { HttpRouter } from "effect/http"
+import { ServerConfig } from "./Config.ts"
+import * as Database from "./Database.ts"
+import { ApiRoutes } from "./Http.ts"
 
-// Placeholder entry point. The HTTP/RPC skeleton, config and SQLite land with pod-rxi.1.
-const program = Effect.log("PodList server: scaffold only")
+const Main = Layer.unwrap(
+  Effect.gen(function* () {
+    const config = yield* ServerConfig
+    mkdirSync(dirname(config.databasePath), { recursive: true })
+    yield* Effect.log(`PodList server on :${config.port}, database ${config.databasePath}`)
+    return HttpRouter.serve(ApiRoutes).pipe(
+      Layer.provide(NodeHttpServer.layer(createServer, { port: config.port })),
+      Layer.provide(Database.layer(config.databasePath))
+    )
+  })
+)
 
-NodeRuntime.runMain(program)
+Layer.launch(Main).pipe(NodeRuntime.runMain)
