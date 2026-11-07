@@ -98,12 +98,8 @@ _Avoid_: Log, played list
 A Playlist's continuous record of what it was playing and when (clock time, Entry, Position), kept for 30 days. Unlike History, it covers partial listening, not just finished Entries.
 _Avoid_: Log, playback history, undo stack
 
-**Listening Session**:
-One stretch of listening in a Playlist on its Listening Timeline. The Listening Timeline is shown, and Rewind is chosen from, a Listening Session at a time.
-_Avoid_: Sitting, visit
-
 **Rewind**:
-Returning a Playlist to a moment on its Listening Timeline: the Cursor and Position go back to that moment, and every Episode that became Played through that Playlist's playback since then becomes unplayed again, with its Entry restored. Episodes started since then lose the Position they gained. Deliberate edits made since — adds, reorders, Episodes marked Played by hand — are kept. A Rewind can itself be undone.
+Returning a Playlist to a moment on its Listening Timeline: the Cursor and Position go back to that moment, and every Episode that became Played through that Playlist's playback since then becomes unplayed again, with its Entry restored where it was then (between its old neighbours, as near as later edits allow). Episodes started since then lose the Position they gained. Deliberate edits made since — adds, reorders, Episodes marked Played by hand — are kept. A Rewind can itself be undone.
 _Avoid_: Undo, time travel, restore
 
 **Clear on Played**:
@@ -111,7 +107,7 @@ A Playlist setting under which an Entry leaves the Playlist as soon as its Episo
 _Avoid_: Auto-delete, remove when finished
 
 **Trash**:
-Where a deleted Playlist goes, together with its History and Listening Timeline, which belong to it.
+Where a deleted Playlist goes, together with its History and Listening Timeline, which belong to it. It can be restored for 30 days (a setting), then it is gone. The Default Playlist can't be deleted; deleting the Active Playlist makes the Default Playlist Active.
 _Avoid_: Bin, recycle, archive
 
 **Playback Settings**:

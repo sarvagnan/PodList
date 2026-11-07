@@ -41,7 +41,8 @@ Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist
 ## Playlist settings and Rewind (design round 2, variant C)
 
 - **Settings** are their own page: name, Clear on Played, Delete (to Trash, with its History and Listening Timeline).
-- **Listening Timeline** is an event list grouped by Listening Session: started, finished, and your own edits, each with **Rewind to here**. A confirmation lists exactly what will become unplayed again and what is kept. A Rewind can be undone.
+- **Listening Timeline** is an event list under date and time headings: started, finished, and your own edits, each with **Rewind to here**. A confirmation lists exactly what will become unplayed again and what is kept; restored Entries go back where they were. A Rewind can be undone.
+- **Trash** holds deleted Playlists (with their History and Listening Timeline) for 30 days, changeable in Settings, with Restore.
 
 ## Library and Subscriptions (design round 2, variant C)
 
