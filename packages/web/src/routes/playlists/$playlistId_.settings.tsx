@@ -7,6 +7,7 @@ import { useEffect, useId, useState } from "react"
 import { useAppState } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { usePlaylistActions } from "../../components/playlists/usePlaylistActions.ts"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDebounced } from "../../lib/useDebounced.ts"
@@ -70,10 +71,14 @@ function PlaylistSettings() {
       />
       <div className="max-w-[704px] space-y-5 px-5 pb-10 md:px-8">
         <div className="rounded-xl border bg-card">
-          <div className="border-b px-4 py-3">
-            <label htmlFor={`${id}-name`} className="block text-row font-medium">
-              Name
-            </label>
+          {/* The same row as every other setting: label and hint beside the field. */}
+          <SettingsRow
+            label="Name"
+            htmlFor={`${id}-name`}
+            help={
+              playlist.isDefault ? "The Default Playlist keeps its name." : "Saved as you type."
+            }
+          >
             <input
               id={`${id}-name`}
               type="text"
@@ -81,26 +86,21 @@ function PlaylistSettings() {
               disabled={playlist.isDefault}
               required
               aria-invalid={error}
-              aria-describedby={`${id}-name-help`}
+              aria-describedby={error ? `${id}-name-error` : undefined}
               onChange={(event) => {
                 const value = event.target.value
                 setName(value)
                 renameLater.schedule(value)
               }}
               onBlur={(event) => renameLater.now(event.target.value)}
-              className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row disabled:bg-secondary disabled:text-muted-foreground"
+              className={`${fieldControl} aria-invalid:border-destructive disabled:bg-secondary disabled:text-muted-foreground`}
             />
-            <p
-              id={`${id}-name-help`}
-              className={`mt-1 text-small ${error ? "text-destructive" : "text-muted-foreground"}`}
-            >
-              {playlist.isDefault
-                ? "The Default Playlist keeps its name."
-                : error
-                  ? "A Playlist needs a name."
-                  : "Saved as you type."}
-            </p>
-          </div>
+            {error && (
+              <p id={`${id}-name-error`} className="mt-1 text-small text-destructive">
+                A Playlist needs a name.
+              </p>
+            )}
+          </SettingsRow>
           <label className="flex items-start gap-3 px-4 py-3">
             <input
               type="checkbox"

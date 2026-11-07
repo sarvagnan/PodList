@@ -20,12 +20,18 @@ export function SettingsRow({
   readonly children: ReactNode
 }) {
   return (
-    <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2.5 last:border-b-0">
-      <label htmlFor={htmlFor} className="min-w-40 flex-1 text-row font-medium">
-        {label}
-        {help && <span className="block text-small font-normal text-muted-foreground">{help}</span>}
-      </label>
-      <div className="w-full sm:w-56">{children}</div>
+    // Beside its label where the card has room, else full width under it: decided by the
+    // card's own width (a narrow side column too), not the window's.
+    <div className="@container border-b last:border-b-0">
+      <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+        <label htmlFor={htmlFor} className="min-w-40 flex-1 text-row font-medium">
+          {label}
+          {help && (
+            <span className="block text-small font-normal text-muted-foreground">{help}</span>
+          )}
+        </label>
+        <div className="w-full @min-[28rem]:w-56">{children}</div>
+      </div>
     </div>
   )
 }

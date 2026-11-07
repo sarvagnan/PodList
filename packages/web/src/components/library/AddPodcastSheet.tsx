@@ -229,6 +229,9 @@ function FeedPreview({ url }: { readonly url: string }) {
 function AddressTab() {
   const id = useId()
   const [text, setText] = useState("")
+  // Choosing this tab puts you in its field, as opening the sheet does in Search's.
+  const field = useRef<HTMLInputElement>(null)
+  useEffect(() => field.current?.focus(), [])
   // Judged once you've finished typing (leaving the field, or Enter), never mid-address:
   // "http" is the start of a good one (CTRL-04). Once shown, it clears as soon as it's right.
   const [checked, setChecked] = useState(false)
@@ -239,6 +242,7 @@ function AddressTab() {
         Feed address
       </label>
       <input
+        ref={field}
         id={`${id}-url`}
         type="url"
         inputMode="url"

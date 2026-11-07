@@ -401,11 +401,8 @@ export function NextLastTarget() {
   const value = state.playlists.some((p) => p.id === chosen) ? chosen : state.activePlaylistId
   return (
     <label className="hidden items-center gap-2 text-small text-muted-foreground md:flex">
-      {/* The full words where there's room, a short label where there isn't. */}
-      <span className="max-xl:sr-only">Play Next and Play Last go to</span>
-      <span aria-hidden="true" className="whitespace-nowrap xl:hidden">
-        Next/Last to
-      </span>
+      {/* One name for it everywhere, as the panel beside a View has it. */}
+      <span className="whitespace-nowrap">Next and Last go to</span>
       <select
         value={value ?? ""}
         onChange={(event) => {

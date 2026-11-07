@@ -221,7 +221,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             {queued > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute top-1 right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-player-foreground px-1 text-[0.625rem] leading-none font-bold text-player tabular-nums"
+                className="absolute top-0.5 right-0 grid h-[1.125rem] min-w-[1.125rem] place-items-center rounded-full bg-player-foreground px-1 text-xs leading-none font-bold text-player tabular-nums"
               >
                 {queued}
               </span>
@@ -340,6 +340,7 @@ function SidebarSkeleton() {
 }
 
 function Sidebar() {
+  const now = useNowPlaying()
   const state = useAppState()
   const { create: createView } = useViewActions()
   const [newPlaylist, setNewPlaylist] = useState(false)
@@ -357,7 +358,7 @@ function Sidebar() {
   }, [createView, router])
   const ready = useLibraryReady()
   const link =
-    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
+    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold [&.active]:shadow-[inset_3px_0_0_var(--color-primary)]"
   const heading =
     "px-2.5 pt-5 pb-1 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
   return (
@@ -424,9 +425,21 @@ function Sidebar() {
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate">{p.name}</span>
               {/* A shape and a name, not only a colour (AX-02). */}
-              {active && (
-                <AudioLines aria-label="Active Playlist" className="size-4 shrink-0 text-primary" />
-              )}
+              {/* The Active Playlist: a waveform while it plays, a dot while it waits, so the
+                  mark doesn't say "playing" when nothing is (a shape too, not only colour). */}
+              {active &&
+                (now?.playlistId === p.id && now.playing ? (
+                  <AudioLines
+                    aria-label="Active Playlist, playing"
+                    className="size-4 shrink-0 text-primary"
+                  />
+                ) : (
+                  <span
+                    role="img"
+                    aria-label="Active Playlist"
+                    className="size-2 shrink-0 rounded-full bg-primary"
+                  />
+                ))}
             </span>
             <span className="text-small text-muted-foreground">{p.entries.length}</span>
           </Link>
@@ -503,12 +516,13 @@ function useFocusOnNavigation() {
       location.state.__TSR_key ?? "initial"
     const leaving = router.subscribe("onBeforeNavigate", (event) => {
       if (event.fromLocation === undefined || !event.pathChanged) return
+      // Before the next screen renders, so its back link can name where it came from.
+      cameFrom.set(event.fromLocation.pathname)
       const selector = selectorFor(document.activeElement)
       if (selector) leftFrom.set(keyOf(event.fromLocation), selector)
     })
     const arrived = router.subscribe("onResolved", (event) => {
       if (event.fromLocation === undefined || !event.pathChanged) return
-      cameFrom.set(event.fromLocation.pathname)
       const back = leftFrom.get(keyOf(event.toLocation))
       // The heading or the row may arrive a moment later, with the screen's data: try for
       // a second.

@@ -130,3 +130,14 @@ test("single-key shortcuts can be turned off", async ({ page }) => {
   await page.keyboard.press("/")
   await expect(page).toHaveURL(/\/search/)
 })
+
+test("the Episode screen's back link names the View it came from", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/views/short`)
+  await page.locator('[data-row="0"] [data-cell="title"]').click()
+  await expect(page).toHaveURL(/\/episodes\//)
+  const back = page.getByRole("link", { name: "Under 30 minutes" }).first()
+  await expect(back).toHaveAttribute("href", "/views/short")
+  await back.click()
+  await expect(page).toHaveURL(/\/views\/short$/)
+})

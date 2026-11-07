@@ -134,7 +134,7 @@ function ViewDetail() {
             </button>
           }
         />
-        <div className="mx-auto max-w-xl px-4 pb-8">{form}</div>
+        <div className="max-w-[704px] px-5 pb-8 md:px-8">{form}</div>
       </>
     )
   }

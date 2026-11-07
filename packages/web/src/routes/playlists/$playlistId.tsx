@@ -491,7 +491,8 @@ function PlaylistDetail() {
                                         }
                                   )
                                 }
-                                className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent active:bg-input"
+                                // The same tinted round Play as a View's rows.
+                                className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-primary hover:bg-primary hover:text-primary-foreground active:bg-primary/80"
                               >
                                 {live && playing.playing ? (
                                   <Pause aria-hidden="true" className="size-5 fill-current" />

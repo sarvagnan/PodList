@@ -373,7 +373,7 @@ function SubscriptionScreen() {
               New Episodes appear when the podcast publishes.
             </EmptyState>
           ) : (
-            <div className="-mx-4 md:-mx-8">
+            <div className="-mx-5 md:-mx-8">
               <EpisodeList
                 episodes={episodes}
                 label={`${subscription.title} Episodes`}
