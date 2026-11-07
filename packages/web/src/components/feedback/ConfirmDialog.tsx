@@ -3,7 +3,7 @@ import { type ReactNode, useState } from "react"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 
-/** Asks before a step that has no Undo (Unsubscribe, Mark all Played). */
+/** Asks before a step that has no Undo (Unsubscribe). */
 export function ConfirmDialog({
   open,
   onOpenChange,

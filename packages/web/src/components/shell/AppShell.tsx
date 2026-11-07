@@ -20,6 +20,7 @@ import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { cameFrom } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
+import { singleKeyShortcuts } from "../../lib/remembered.ts"
 import { inMacApp } from "../../lib/share.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
@@ -323,7 +324,7 @@ function Sidebar() {
   return (
     <nav
       aria-label="Library and lists"
-      className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-24 md:flex"
+      className="sticky top-0 hidden h-dvh w-56 shrink-0 scroll-pb-28 flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-24 md:flex"
     >
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
       <Link
@@ -575,6 +576,7 @@ function useSearchKey() {
         event.key.toLowerCase() === "k" && event.metaKey && !event.ctrlKey && !event.altKey
       const slash =
         event.key === "/" &&
+        singleKeyShortcuts.get() &&
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
@@ -599,6 +601,7 @@ function usePlayPauseKey() {
     const onKey = (event: KeyboardEvent) => {
       if (
         event.key !== " " ||
+        !singleKeyShortcuts.get() ||
         event.repeat ||
         event.shiftKey ||
         event.metaKey ||

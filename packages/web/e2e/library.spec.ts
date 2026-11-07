@@ -52,19 +52,24 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   await expect(page.getByRole("link", { name: "Slow Build", exact: true })).toBeVisible()
 })
 
-test("Mark all Played asks first", async ({ page }) => {
+test("Mark all Played is one step, with Undo", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await page.getByRole("link", { name: "Deep Field", exact: true }).click()
+  const unplayed = (n: number) =>
+    expect
+      .poll(
+        async () => ((await page.locator("main").textContent()) ?? "").includes(`${n} unplayed`),
+        {
+          timeout: 15_000
+        }
+      )
+      .toBe(true)
+  await unplayed(4)
   await page.getByRole("button", { name: "Mark all Played" }).click()
-  const dialog = page.getByRole("alertdialog", { name: "Mark all Played?" })
-  await expect(dialog).toBeVisible()
-  await dialog.getByRole("button", { name: "Mark all Played" }).click()
-  await expect
-    .poll(async () => ((await page.locator("main").textContent()) ?? "").includes("0 unplayed"), {
-      timeout: 15_000
-    })
-    .toBe(true)
+  await unplayed(0)
+  await page.getByRole("button", { name: "Undo" }).click()
+  await unplayed(4)
 })
 
 test("Settings keep the default speed and how long the Trash keeps Playlists", async ({ page }) => {

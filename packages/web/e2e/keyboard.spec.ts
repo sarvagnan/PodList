@@ -119,7 +119,10 @@ test("Back returns a list to where it was scrolled", async ({ page }) => {
   await page.locator('[data-row="3"] [data-cell="title"]').click()
   await expect(page).toHaveURL(/\/episodes\//)
   await page.goBack()
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(150)
+  // Within a few pixels: the list may settle by a row's measured height difference.
+  await expect
+    .poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - 150))
+    .toBeLessThanOrEqual(8)
 })
 
 test("right-click on an Episode's title leaves the browser's link menu", async ({ page }) => {

@@ -19,7 +19,7 @@ export function Toasts() {
               toast={toast}
               className="surface-dark flex items-center gap-2 rounded-xl bg-player py-1.5 pr-1.5 pl-4 text-row text-player-foreground shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
             >
-              <Toast.Description className="min-w-0 flex-1 truncate" />
+              <Toast.Description className="line-clamp-3 min-w-0 flex-1" />
               <Toast.Action className="h-10 rounded-lg px-3 font-semibold text-[#9db4ff] hover:bg-white/10" />
               <Toast.Close
                 aria-label="Dismiss"

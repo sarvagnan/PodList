@@ -58,3 +58,19 @@ test("Settings shows getting started again after Skip", async ({ page }) => {
   await welcome.getByRole("button", { name: "Done" }).click()
   await expect(welcome).toHaveCount(0)
 })
+
+test("with no podcasts, a View points to Add podcasts", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views`)
+  await page
+    .getByRole("region", { name: "Welcome to PodList" })
+    .getByRole("button", { name: "Skip for now" })
+    .click()
+  await page
+    .getByRole("navigation", { name: "Library and lists" })
+    .getByRole("link", { name: "Starred" })
+    .click()
+  await expect(page.getByText("Add podcasts to fill your Views")).toBeVisible()
+  await page.getByRole("main").getByRole("link", { name: "Add podcasts" }).click()
+  await expect(page.getByRole("dialog", { name: "Add podcasts" })).toBeVisible()
+})

@@ -84,3 +84,34 @@ test("Cmd/Ctrl-/ shows the keyboard shortcuts", async ({ page }) => {
   await page.getByRole("button", { name: /Keyboard shortcuts/ }).click()
   await expect(dialog).toBeVisible()
 })
+
+test("closing the drawer opened on Up next stays on the screen", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views/short`)
+  await page.goto(`${demo.base}/playlists/commute`)
+  await expect(page.getByRole("heading", { name: "Commute", level: 1 })).toBeVisible()
+  await page
+    .getByRole("region", { name: "Now playing" })
+    .getByRole("button", { name: /up next/ })
+    .click()
+  await expect(page.getByRole("dialog")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toBeHidden()
+  await expect(page).toHaveURL(/\/playlists\/commute$/)
+  // And Back from here leaves the Playlist, as nothing of the drawer is left behind.
+  await page.goBack()
+  await expect(page).toHaveURL(/\/views\/short$/)
+})
+
+test("single-key shortcuts can be turned off", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/settings`)
+  await page.getByRole("checkbox", { name: /Single-key shortcuts/ }).uncheck()
+  await page.getByRole("heading", { name: "Settings", level: 1 }).click()
+  await page.keyboard.press("/")
+  await expect(page).toHaveURL(/\/settings$/)
+  await page.getByRole("checkbox", { name: /Single-key shortcuts/ }).check()
+  await page.getByRole("heading", { name: "Settings", level: 1 }).click()
+  await page.keyboard.press("/")
+  await expect(page).toHaveURL(/\/search/)
+})

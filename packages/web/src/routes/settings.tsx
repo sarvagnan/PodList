@@ -2,13 +2,14 @@ import { useAtomSet } from "@effect/atom-react"
 import { Operation, PlaybackSettings, State } from "@podlist/domain"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Schema } from "effect"
-import { useId } from "react"
+import { useId, useState } from "react"
 import { useAppState } from "../app/hooks.ts"
 import { recordAtom } from "../app/runtime.ts"
 import { LoadingRows } from "../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../components/lists/SettingsRow.tsx"
 import { showGettingStarted } from "../components/shell/FirstRun.tsx"
 import { PageHeader } from "../components/shell/PageHeader.tsx"
+import { singleKeyShortcuts } from "../lib/remembered.ts"
 
 // Settings (CONTEXT.md › Playback Settings, Trash): the global Playback Settings, which a
 // podcast's own settings can override, and how long the Trash keeps deleted Playlists.
@@ -26,6 +27,7 @@ function SettingsScreen() {
   const record = useAtomSet(recordAtom)
   const id = useId()
   const navigate = useNavigate()
+  const [singleKeys, setSingleKeys] = useState(singleKeyShortcuts.get)
   if (state === null) return <LoadingRows label="Loading settings" />
   const settings = state.playbackSettings
   const set = (patch: Partial<PlaybackSettings.PlaybackSettings>) =>
@@ -140,6 +142,30 @@ function SettingsScreen() {
                 ))}
               </select>
             </SettingsRow>
+          </div>
+        </section>
+        <section aria-labelledby={`${id}-keyboard`}>
+          <h2 id={`${id}-keyboard`} className={heading}>
+            Keyboard
+          </h2>
+          <div className="rounded-xl border bg-card">
+            <label className="flex min-h-14 items-start gap-3 px-4 py-2.5">
+              <input
+                type="checkbox"
+                checked={singleKeys}
+                onChange={(event) => {
+                  singleKeyShortcuts.set(event.target.checked)
+                  setSingleKeys(event.target.checked)
+                }}
+                className="mt-1 size-4 accent-primary"
+              />
+              <span>
+                <span className="block text-row font-medium">Single-key shortcuts</span>
+                <span className="block text-small text-muted-foreground">
+                  / opens Search and Space plays or pauses, outside text fields. On this Device.
+                </span>
+              </span>
+            </label>
           </div>
         </section>
         <section aria-labelledby={`${id}-help`}>

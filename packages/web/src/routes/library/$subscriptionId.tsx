@@ -7,12 +7,14 @@ import { AsyncResult } from "effect/reactivity"
 import { ChevronRight } from "lucide-react"
 import { useId, useState } from "react"
 import { filterEpisodesAtom, subscriptionAtom } from "../../app/data.ts"
+import { bulkActionAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { unsubscribeAtom } from "../../app/library.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { ConfirmDialog } from "../../components/feedback/ConfirmDialog.tsx"
+import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
@@ -46,12 +48,25 @@ function SubscriptionScreen() {
     )
   )
   const episodes = AsyncResult.getOrElse(episodesResult, () => [])
+  // One step with Undo, like other reversible edits: Undo also returns the Entries that
+  // Playlists with Clear on Played let go (the bulk action works that out).
+  const runBulk = useAtomSet(bulkActionAtom, { mode: "promise" })
+  const confirm = useConfirm()
+  const markAllPlayed = async () => {
+    if (subscription === null) return
+    const actions = episodes
+      .filter((e) => !e.played)
+      .map((e) => ({ _tag: "Played" as const, episodeId: e.id, played: true }))
+    if (actions.length === 0) return
+    const again = () => runBulk({ actions, message: `Marked ${subscription.title} Played` })
+    confirm(await again(), again)
+  }
   const record = useAtomSet(recordAtom)
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promiseExit" })
   const toasts = Toast.useToastManager()
-  const [asking, setAsking] = useState<"unsubscribe" | "played" | null>(null)
+  const [asking, setAsking] = useState<"unsubscribe" | null>(null)
   const wide = useMinWidth("64rem")
   const [showSettings, setShowSettings] = useState(false)
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
@@ -329,7 +344,7 @@ function SubscriptionScreen() {
             <button
               type="button"
               disabled={subscription.unplayed === 0}
-              onClick={() => setAsking("played")}
+              onClick={() => void markAllPlayed()}
               className="h-10 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input disabled:opacity-50"
             >
               Mark all Played
@@ -366,19 +381,6 @@ function SubscriptionScreen() {
           )}
         </section>
       </div>
-      <ConfirmDialog
-        open={asking === "played"}
-        onOpenChange={(open) => setAsking(open ? "played" : null)}
-        title="Mark all Played?"
-        confirm="Mark all Played"
-        onConfirm={() => {
-          record(decodeChange({ _tag: "MarkSubscriptionPlayed", subscriptionId }))
-          toasts.add({ description: `Marked ${subscription.title} Played`, timeout: 4000 })
-        }}
-      >
-        All {subscription.unplayed} unplayed Episodes of {subscription.title} become Played, and
-        Playlists with Clear on Played let them go.
-      </ConfirmDialog>
       <ConfirmDialog
         open={asking === "unsubscribe"}
         onOpenChange={(open) => setAsking(open ? "unsubscribe" : null)}

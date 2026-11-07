@@ -48,3 +48,9 @@ export const starterViewsMade = {
   get: () => read("starter-views") === "1",
   set: () => write("starter-views", "1")
 }
+
+/** "/" for Search and Space to play or pause: on unless turned off in Settings (WKEY-02). */
+export const singleKeyShortcuts = {
+  get: () => read("single-key-shortcuts") !== "off",
+  set: (on: boolean) => write("single-key-shortcuts", on ? null : "off")
+}

@@ -13,8 +13,17 @@ export function useScrollMemory(ready: boolean) {
   const { history } = router
   const entry = history.location.state.__TSR_key ?? "initial"
 
+  // Until this entry's position is back, scrolls are the router's and the list's own
+  // (to the top, as the page fills in), not the reader's: they mustn't overwrite it.
+  const settled = useRef(false)
+  // Before the restore below (layout effects run in order), for each entry.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new entry is what resets it.
+  useLayoutEffect(() => {
+    settled.current = false
+  }, [entry])
   useEffect(() => {
     const save = () => {
+      if (!settled.current) return
       // Leaving this screen resets the scroll; that isn't this entry's position.
       if ((history.location.state.__TSR_key ?? "initial") !== entry) return
       try {
@@ -35,31 +44,39 @@ export function useScrollMemory(ready: boolean) {
   useLayoutEffect(() => {
     if (!ready || restored.current === entry) return
     restored.current = entry
-    return restore(entry)
+    return restore(entry, () => {
+      settled.current = true
+    })
   }, [ready, entry])
   useEffect(
     () =>
       router.subscribe("onRendered", (event) => {
         const key = event.toLocation.state.__TSR_key ?? "initial"
-        if (key === entry && readyNow.current) restore(entry)
+        if (key === entry && readyNow.current) restore(entry, () => {})
       }),
     [router, entry]
   )
 }
 
 /** Scrolls back to the entry's saved position, trying for half a second while the list
- * grows to its full height, and stopping if the reader scrolls first. */
-const restore = (entry: string) => {
+ * grows to its full height, and stopping if the reader scrolls first; `settled` is told
+ * when it's done (or there was nothing to restore). */
+const restore = (entry: string, settled: () => void) => {
   let saved = 0
   try {
     saved = Number(sessionStorage.getItem(storageKey(entry)) ?? 0)
   } catch {
+    settled()
     return
   }
-  if (!(saved > 0)) return
+  if (!(saved > 0)) {
+    settled()
+    return
+  }
   let frames = 30
   let frame = 0
   const stop = () => {
+    settled()
     cancelAnimationFrame(frame)
     window.removeEventListener("wheel", stop)
     window.removeEventListener("touchstart", stop)

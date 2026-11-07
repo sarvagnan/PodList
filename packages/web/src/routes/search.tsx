@@ -52,6 +52,7 @@ function SearchPage() {
   return (
     <>
       <PageHeader
+        narrow={!selected}
         title="Search"
         back={{ to: "/views", label: "Views" }}
         actions={

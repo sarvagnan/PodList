@@ -44,17 +44,23 @@ const clientWithRetry = (databaseName: string) =>
       // hold it while every retry finds it locked.
       const attempt = Effect.gen(function* () {
         const scope = yield* Scope.make()
-        const client = yield* SqliteClient.make({
-          worker: Effect.acquireRelease(
-            Effect.sync(
-              () =>
-                new Worker(new URL("./localDbWorker.ts", import.meta.url), {
-                  type: "module",
-                  name: databaseName
-                })
-            ),
-            (worker) => Effect.sync(() => worker.terminate())
-          )
+        const client = yield* Effect.gen(function* () {
+          const opened = yield* SqliteClient.make({
+            worker: Effect.acquireRelease(
+              Effect.sync(
+                () =>
+                  new Worker(new URL("./localDbWorker.ts", import.meta.url), {
+                    type: "module",
+                    name: databaseName
+                  })
+              ),
+              (worker) => Effect.sync(() => worker.terminate())
+            )
+          })
+          // Opened is not usable: a worker still waiting for the database answers nothing.
+          // The first query is part of the attempt, so a stuck one is timed out and retried.
+          yield* opened`SELECT 1`
+          return opened
         }).pipe(
           Scope.provide(scope),
           // A locked database can leave the worker waiting rather than failing.

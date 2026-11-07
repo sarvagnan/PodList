@@ -222,27 +222,35 @@ export function EpisodeRow({
         >
           {episode.title}
         </Link>
-        <p className="mt-0.5 flex items-start gap-1.5 text-small text-muted-foreground">
+        {/* One run of text, so a wrapped line starts at the edge, not under a badge; it
+            wraps rather than cut off at large text sizes (WTYPE-02). */}
+        <p className="mt-0.5 line-clamp-2 text-small text-muted-foreground">
           {episode.played && (
-            <span className="inline-flex items-center gap-0.5 font-medium text-positive">
-              <Check aria-hidden="true" className="size-3.5" />
-              Played
-              <span aria-hidden="true" className="text-muted-foreground">
-                ·
+            <>
+              <span className="font-medium whitespace-nowrap text-positive">
+                <Check aria-hidden="true" className="mr-0.5 inline size-3.5 align-[-2px]" />
+                Played
               </span>
-            </span>
+              {" · "}
+            </>
           )}
           {episode.starred && (
-            <Star aria-label="Starred" className="size-3.5 shrink-0 fill-star text-star" />
+            <>
+              <Star
+                aria-label="Starred"
+                className="inline size-3.5 align-[-2px] fill-star text-star"
+              />{" "}
+            </>
           )}
           {downloaded && (
-            <ArrowDownToLine
-              aria-label="Downloaded"
-              className="size-3.5 shrink-0 text-foreground"
-            />
+            <>
+              <ArrowDownToLine
+                aria-label="Downloaded"
+                className="inline size-3.5 align-[-2px] text-foreground"
+              />{" "}
+            </>
           )}
-          {/* Wraps rather than cut off at large text sizes (WTYPE-02). */}
-          <span className="line-clamp-2">{meta}</span>
+          {meta}
         </p>
       </GridCell>
 

@@ -58,7 +58,7 @@ function ByDay<T>({
     <div className="max-w-[960px] px-3 pb-8 md:px-6">
       {days.map(({ day, items }) => (
         <section key={day} aria-label={day} className="mt-4 first:mt-0">
-          <h2 className="pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+          <h2 className="px-2 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
             {day}
           </h2>
           <ol>{items.map(children)}</ol>

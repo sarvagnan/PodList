@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -46,6 +46,17 @@ Round 7: coverage 92.7%; 6 failures (4 major, 2 minor, no blockers). Report: [do
 Round 8: coverage 87.9%; 4 failures (1 major, 3 minor, no blockers). Report: [docs/ui-grade/round-8.md](docs/ui-grade/round-8.md). Graded build 383fff5. Interaction is capped at 6.9 by one major (focus after a failed Subscribe); uncapped it is about 8.6, and Overall near 8.6.
 
 Round 9: coverage 93%; 7 failures (5 major, 2 minor, no blockers). Report: [docs/ui-grade/round-9.md](docs/ui-grade/round-9.md). Graded build f89dff8. Three categories capped at 6.9 by narrow majors, two of them in the new Library sort; uncapped they are 8.6–8.8, and the grader puts Overall near 8.6 with them fixed.
+
+Round 10: coverage 92.9%; 5 failures (3 major, 2 minor, no blockers). Report: [docs/ui-grade/round-10.md](docs/ui-grade/round-10.md). Graded build c4cadf6. Platform fit and Interaction capped at 6.9; uncapped 8.3 and 8.4, Overall about 8.4. Since round 7 every category without a cap scores 7.9–8.8: each fresh grader finds a few new narrow majors, and each one caps a category.
+
+## Work list (round 10)
+
+Fixed on 7 Nov:
+- [x] BROWSER-01 each overlay layer is its own history entry (the router batched two pushes into one), so closing the drawer opened on Up next stays on the screen · WKEY-04 the sidebar keeps focused links clear of the player · WKEY-02 Settings › Keyboard › Single-key shortcuts turns off "/" and Space.
+- [x] Minors: FLOW-07 every list screen but a View (which has its panel) ends at 960 px, header actions included · COPY-03 with no podcasts, a View's empty state leads to Add podcasts.
+- [x] Craft: Mark all Played is one step with Undo (Entries that Clear on Played let go come back too); toasts wrap; the Played tick reads "✓ Played · …" in one run of text; the Timeline's day headings align; the Add-to-Playlist sheet opens on the chosen Playlist; Playlist settings' tab names the Playlist.
+- [x] Found while testing: Back could save the router's scroll-to-top over the list's position before restoring it; a database worker that opened but stayed stuck behind the old page was never retried (the first query is now part of each attempt).
+- [ ] Not done: one row action set across Views, Subscriptions and Search; Search's target picker; the phone queue count; the desktop drawer's empty band.
 
 ## Work list (round 9)
 

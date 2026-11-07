@@ -64,6 +64,7 @@ function PlaylistSettings() {
       <PageHeader
         backOnDesktop
         title="Playlist settings"
+        tabTitle={`${playlist.name} settings`}
         subtitle={playlist.name}
         back={{ to: `/playlists/${playlistId}`, label: playlist.name }}
       />

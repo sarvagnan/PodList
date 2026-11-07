@@ -9,7 +9,8 @@ export function PageHeader({
   subtitle,
   actions,
   narrow = false,
-  backOnDesktop = false
+  backOnDesktop = false,
+  tabTitle
 }: {
   readonly title: string
   readonly back?: { readonly to: string; readonly label: string }
@@ -20,11 +21,13 @@ export function PageHeader({
   /** A screen opened from another (settings, a Subscription, Trash) keeps its way back on
    * desktop too; top-level lists rely on the sidebar. */
   readonly backOnDesktop?: boolean
+  /** The browser tab's name, when the heading alone doesn't say which (BROWSER-03). */
+  readonly tabTitle?: string
 }) {
   // The tab names the screen (BROWSER-03).
   useEffect(() => {
-    document.title = `${title} · PodList`
-  }, [title])
+    document.title = `${tabTitle ?? title} · PodList`
+  }, [title, tabTitle])
   return (
     <header
       className={`px-5 pt-4 pb-3 md:px-8 md:pt-8 short:md:pt-4 short:pb-2 ${narrow ? "max-w-[960px]" : ""}`}

@@ -1,9 +1,9 @@
 import { useAtomValue } from "@effect/atom-react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { SlidersHorizontal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { viewEpisodesAtom } from "../../app/data.ts"
+import { subscriptionsAtom, viewEpisodesAtom } from "../../app/data.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
@@ -45,6 +45,8 @@ function ViewDetail() {
   const result = useAtomValue(viewEpisodesAtom(viewId))
   const episodes = AsyncResult.getOrElse(result, () => [])
   const view = state?.views.find((v) => v.id === viewId)
+  const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => null)
+  const noPodcasts = subscriptions !== null && subscriptions.length === 0
 
   const open = (episodeId: string) => navigate({ search: { episode: episodeId } })
   // Closing the panel puts focus back on the row it showed (WKEY-03).
@@ -152,7 +154,19 @@ function ViewDetail() {
         }
       />
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        {!loading && episodes.length === 0 ? (
+        {!loading && episodes.length === 0 && noPodcasts ? (
+          // Nothing to match yet: the next step is podcasts, not the View (COPY-03).
+          <EmptyState title="Add podcasts to fill your Views">
+            Views find Episodes in your Library, which is empty.{" "}
+            <Link
+              to="/library"
+              search={{ add: true }}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Add podcasts
+            </Link>
+          </EmptyState>
+        ) : !loading && episodes.length === 0 ? (
           <EmptyState title="No Episodes match this View">
             {editing
               ? "Set a row back to “Any” to widen it."
