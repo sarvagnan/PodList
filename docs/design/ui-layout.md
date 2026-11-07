@@ -15,7 +15,7 @@ Prototype (throwaway, not production code): https://generatedpages.burmese-mount
 
 - **Sidebar**: lists of Views and Playlists (+ to create), Library, Settings.
 - **Selecting a View** → main area is its episode table. Row: checkbox · title (click → Episode detail) · Play Next · Play Last · Add to another Playlist… · Star · Download · Played · **Play** (always last). Toolbar picker "Next / Last go to" chooses the target Playlist; ticking rows swaps it for a bulk bar (Play Next, Play Last, Mark Played, Star, Download).
-- **Right panel** (only while a View is shown, or an episode is selected): the target Playlist's upcoming Entries, or the Episode detail. Detail action row: *Played · Download · Next · **Play** · Last · Add to · Star*.
+- **Right panel** (only while a View is shown, or an episode is selected): the target Playlist's upcoming Entries, or the Episode detail. Detail action row: the five of Episode detail, in one row (*Played · Download · **Play** · Add · Star*); the list's rows have Next and Last. The Episode's own page on a wide screen adds them: *Played · Download · Next · **Play** · Last · Add · Star*.
 - **Selecting a Playlist** → it fills the main area: Entries / History / Listening Timeline tabs; Entry row ends with Play from here.
 
 ## Player bar (both)

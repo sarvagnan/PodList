@@ -79,12 +79,13 @@ function Action({
 }
 
 // The action row's two shapes; the break points are the width of every action in one row:
-// 5 × 4.25rem + 4 × 0.25rem gaps = 22.25rem, and 7 × 4.25rem + 6 gaps = 31.25rem. Under
-// them, Play's own row, then 4 (17.75rem) or 2 across, or 3 (13.25rem) or 2. The seven in one
-// row (the desktop Episode page) start at the header's edge, under the artwork.
+// 5 × 4.25rem = 21.25rem (the columns are their own gaps, so the five fit a phone and the
+// panel beside a View), and 7 × 4.25rem + 6 × 0.25rem gaps = 31.25rem. Under them, Play's
+// own row, then 4 (17rem) or 2 across, or 3 (13.25rem) or 2. The seven in one row (the
+// desktop Episode page) start at the header's edge, under the artwork.
 const rowOfFive =
-  "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[17.75rem]:grid-cols-4 @min-[22.25rem]:flex @min-[22.25rem]:items-start @min-[22.25rem]:justify-center"
-const playOfFive = "col-span-full order-first @min-[22.25rem]:order-none"
+  "grid grid-cols-2 justify-items-center gap-y-4 @min-[17rem]:grid-cols-4 @min-[21.25rem]:flex @min-[21.25rem]:items-start @min-[21.25rem]:justify-center"
+const playOfFive = "col-span-full order-first @min-[21.25rem]:order-none"
 const rowOfSeven =
   "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[13.25rem]:grid-cols-3 @min-[31.25rem]:flex @min-[31.25rem]:items-start @min-[31.25rem]:justify-start"
 const playOfSeven = "col-span-full order-first @min-[31.25rem]:order-none"
@@ -111,9 +112,10 @@ export function EpisodeDetail({
   const control = useAtomSet(playbackAtom)
   const [adding, setAdding] = useState(false)
   const target = useNextLastTarget()
-  const desktopExtras = tone === "light"
-  // Next and Last join the row on wide screens (beside a View, or the Episode's page).
-  const seven = useMinWidth("64rem") && desktopExtras
+  // Next and Last join the row on the Episode's own page on a wide screen. Beside a View the
+  // panel keeps the five in one row, as the phone and the player do; the list's rows have
+  // Next and Last.
+  const seven = useMinWidth("64rem") && tone === "light" && Heading === "h1"
   const copyLink = useCopyEpisodeLink()
 
   if (AsyncResult.isInitial(result)) {
@@ -225,8 +227,8 @@ export function EpisodeDetail({
               </Action>
             )}
           />
-          {desktopExtras && (
-            <span className="hidden lg:contents">
+          {seven && (
+            <span className="contents">
               <Action
                 label="Next"
                 onClick={() =>
@@ -259,8 +261,8 @@ export function EpisodeDetail({
               )}
             </span>
           </Action>
-          {desktopExtras && (
-            <span className="hidden lg:contents">
+          {seven && (
+            <span className="contents">
               <Action
                 label="Last"
                 onClick={() =>

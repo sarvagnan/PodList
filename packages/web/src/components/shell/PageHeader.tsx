@@ -10,7 +10,8 @@ export function PageHeader({
   actions,
   narrow = false,
   backOnDesktop = false,
-  tabTitle
+  tabTitle,
+  notice = true
 }: {
   readonly title: string
   readonly back?: { readonly to: string; readonly label: string }
@@ -23,6 +24,8 @@ export function PageHeader({
   readonly backOnDesktop?: boolean
   /** The browser tab's name, when the heading alone doesn't say which (BROWSER-03). */
   readonly tabTitle?: string
+  /** False when the screen places the notice slot itself (a View: in its list column). */
+  readonly notice?: boolean
 }) {
   // The tab names the screen (BROWSER-03).
   useEffect(() => {
@@ -37,7 +40,9 @@ export function PageHeader({
           <Link
             to={back.to}
             activeOptions={{ exact: true }}
-            className={`-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary ${backOnDesktop ? "" : "md:hidden"}`}
+            // On desktop it sits in the header's top margin, so every screen's heading is at the
+            // same height, with or without a way back (a 24 px target).
+            className={`-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary ${backOnDesktop ? "md:-mt-7 md:mb-1 md:flex md:h-6 md:w-fit short:md:mt-0" : "md:hidden"}`}
           >
             <ChevronLeft aria-hidden="true" className="size-5" />
             {back.label}
@@ -56,7 +61,7 @@ export function PageHeader({
         {subtitle && <p className="mt-1.5 text-small text-muted-foreground">{subtitle}</p>}
       </header>
       {/* Notices that belong under the screen's title, not above it (the welcome card). */}
-      <div data-page-notice="" />
+      {notice && <div data-page-notice="" />}
     </>
   )
 }

@@ -15,6 +15,15 @@ export function useViewActions() {
     const view = blankView(crypto.randomUUID())
     await record(saveViewChange(view))
     await navigate({ to: "/views/$viewId", params: { viewId: view.id }, search: { edit: true } })
+    // Its name is the first thing to give it, as with New Playlist (KEY-06): after the
+    // screen's own focus on arrival.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const field = document.querySelector<HTMLInputElement>("main [data-view-name]")
+        field?.focus()
+        field?.select()
+      })
+    )
   }, [record, navigate])
   const remove = useCallback(
     async (view: View.View) => {

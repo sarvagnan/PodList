@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
-import { cameFrom } from "../../lib/cameFrom.ts"
+import { cameFrom, sectionOf } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { singleKeyShortcuts } from "../../lib/remembered.ts"
 import { leftFrom, selectorFor } from "../../lib/returnFocus.ts"
@@ -358,6 +358,12 @@ function Sidebar() {
     return () => document.removeEventListener("podlist:command", onCommand)
   }, [createView, router])
   const ready = useLibraryReady()
+  // An Episode keeps the highlight of the list it was opened from (LIST-06).
+  const path = useRouterState({ select: (r) => r.location.pathname })
+  const entry = useRouterState({ select: (r) => r.location.state.__TSR_key ?? "initial" })
+  const from = path.startsWith("/episodes") ? cameFrom.of(entry) : null
+  const held = (to: string) =>
+    from !== null && (from === to || from.startsWith(`${to}/`)) ? " active" : ""
   const link =
     "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold [&.active]:shadow-[inset_3px_0_0_var(--color-primary)]"
   const heading =
@@ -370,7 +376,7 @@ function Sidebar() {
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
       <Link
         to="/search"
-        className="mb-1 flex h-10 items-center gap-2 rounded-lg bg-secondary px-2.5 text-row text-muted-foreground hover:bg-input active:bg-input/70 [&.active]:bg-accent [&.active]:text-foreground"
+        className={`mb-1 flex h-10 items-center gap-2 rounded-lg bg-secondary px-2.5 text-row text-muted-foreground hover:bg-input active:bg-input/70 [&.active]:bg-accent [&.active]:text-foreground${held("/search")}`}
       >
         <Search aria-hidden="true" className="size-4" />
         <span className="flex-1">Search</span>
@@ -396,7 +402,12 @@ function Sidebar() {
         <p className="px-2.5 py-1.5 text-small text-muted-foreground">No Views yet</p>
       )}
       {state?.views.map((v) => (
-        <Link key={v.id} to="/views/$viewId" params={{ viewId: v.id }} className={link}>
+        <Link
+          key={v.id}
+          to="/views/$viewId"
+          params={{ viewId: v.id }}
+          className={`${link}${held(`/views/${v.id}`)}`}
+        >
           {v.name}
         </Link>
       ))}
@@ -421,7 +432,7 @@ function Sidebar() {
             key={p.id}
             to="/playlists/$playlistId"
             params={{ playlistId: p.id }}
-            className={link}
+            className={`${link}${held(`/playlists/${p.id}`)}`}
           >
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate">{p.name}</span>
@@ -464,7 +475,7 @@ function Sidebar() {
       {newPlaylist && <NewPlaylistDialog open={newPlaylist} onOpenChange={setNewPlaylist} />}
       <div className="flex-1" />
       <SyncIndicator variant="desktop" />
-      <Link to="/library" className={link}>
+      <Link to="/library" className={`${link}${held("/library")}`}>
         Library
       </Link>
       <Link to="/settings" className={link}>
@@ -484,8 +495,12 @@ function BottomTabs() {
   // Screens reached from a tab keep that tab selected: Episodes and Search from Views,
   // Settings from Library (LIST-06).
   const path = useRouterState({ select: (r) => r.location.pathname })
+  const entry = useRouterState({ select: (r) => r.location.state.__TSR_key ?? "initial" })
+  // An Episode belongs to the section it was opened from (a Playlist, a podcast, a View).
+  const episodeSection = path.startsWith("/episodes") ? sectionOf(cameFrom.of(entry)) : null
   const section = (to: string) =>
-    (to === "/views" && (path.startsWith("/episodes") || path.startsWith("/search"))) ||
+    episodeSection === to ||
+    (to === "/views" && path.startsWith("/search")) ||
     (to === "/library" && path.startsWith("/settings"))
   return (
     <nav
@@ -522,7 +537,7 @@ function useFocusOnNavigation() {
     const leaving = router.subscribe("onBeforeNavigate", (event) => {
       if (event.fromLocation === undefined || !event.pathChanged) return
       // Before the next screen renders, so its back link can name where it came from.
-      cameFrom.set(event.fromLocation.pathname)
+      cameFrom.set(event.fromLocation.pathname, keyOf(event.toLocation))
       const selector = selectorFor(document.activeElement)
       if (selector) leftFrom.set(keyOf(event.fromLocation), selector)
     })

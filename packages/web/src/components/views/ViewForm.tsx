@@ -179,6 +179,7 @@ export function ViewFormFields({
           <Row label="Name" htmlFor={`${id}-name`}>
             <input
               id={`${id}-name`}
+              data-view-name=""
               type="text"
               value={name}
               required

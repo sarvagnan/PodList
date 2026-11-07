@@ -106,31 +106,44 @@ function SearchTab() {
     }, 400)
     return () => clearTimeout(timer)
   }, [text, search])
+  // A pasted feed address that isn't one, said where every error in this sheet goes: under
+  // the field, in place of its hint.
+  const [feedProblem, setFeedProblem] = useState<string | null>(null)
+  const error = looksLikeFeed(text)
+    ? // Already in Search: the way out is a name, typed here.
+      (feedProblem?.replace("find the podcast by name with Search", "type the podcast’s name") ??
+      null)
+    : problem
   return (
     <div>
       <label htmlFor={`${id}-q`} className="text-row font-medium">
-        Podcast name, or a feed address
+        Podcast name
       </label>
       <input
         id={`${id}-q`}
         data-add-field=""
         type="search"
         value={text}
+        aria-invalid={error !== null}
+        aria-describedby={`${id}-help`}
         onChange={(event) => setText(event.target.value)}
-        className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row"
+        className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row aria-invalid:border-destructive"
       />
+      <p
+        id={`${id}-help`}
+        className={`mt-1.5 text-small ${error ? "text-destructive" : "text-muted-foreground"}`}
+      >
+        {error ? (
+          <span role="alert">{error}</span>
+        ) : (
+          "Finds it in the podcast directory. A feed address works here too."
+        )}
+      </p>
       <div aria-live="polite" className="mt-3 max-h-[50dvh] min-h-24 overflow-y-auto">
         {looksLikeFeed(text) ? (
-          <FeedPreview url={text.trim()} />
-        ) : problem ? (
-          <p className="text-row text-destructive">{problem}</p>
-        ) : results?.length === 0 ? (
+          <FeedPreview url={text.trim()} onProblem={setFeedProblem} />
+        ) : problem ? null : results?.length === 0 ? (
           <p className="text-row text-muted-foreground">No podcasts found. Try other words.</p>
-        ) : results === null && text.trim() === "" ? (
-          // What to type, as the Feed address tab says too.
-          <p className="text-small text-muted-foreground">
-            Type a podcast’s name to find it in the podcast directory, or paste its feed address.
-          </p>
         ) : (
           results?.map((r) => (
             <Result
@@ -186,14 +199,12 @@ function Result({
  */
 function FeedPreview({
   url,
-  errorId,
   onProblem
 }: {
   readonly url: string
-  /** The error's id, for the field's aria-describedby. */
-  readonly errorId?: string
-  /** Told whether the address is a podcast feed, so the field can say so (aria-invalid). */
-  readonly onProblem?: (problem: boolean) => void
+  /** Told why the address can't be subscribed to (or null), so the field says it under
+   * itself, in the one place its errors go. */
+  readonly onProblem: (problem: string | null) => void
 }) {
   const search = useAtomSet(directorySearchAtom, { mode: "promiseExit" })
   const [found, setFound] = useState<{
@@ -211,22 +222,18 @@ function FeedPreview({
     return () => clearTimeout(timer)
   }, [url, search])
   const current = found?.url === url ? found.result : undefined
-  const problem = current === null || current === "offline"
-  useEffect(() => onProblem?.(problem), [problem, onProblem])
+  const problem =
+    current === "offline"
+      ? "Couldn’t check the address. Check that you’re online."
+      : current === null
+        ? "This address didn’t give a podcast feed. Check it, or find the podcast by name with Search."
+        : null
+  useEffect(() => onProblem(problem), [problem, onProblem])
   return (
     <div data-feed-preview="">
       {current === undefined ? (
         <p className="py-2 text-row text-muted-foreground">Checking the address…</p>
-      ) : current === "offline" ? (
-        <p id={errorId} role="alert" className="py-2 text-row text-destructive">
-          Couldn’t check the address. Check that you’re online.
-        </p>
-      ) : current === null ? (
-        <p id={errorId} role="alert" className="py-2 text-row text-destructive">
-          This address didn’t give a podcast feed. Check it, or find the podcast by name with
-          Search.
-        </p>
-      ) : (
+      ) : current === null || current === "offline" ? null : (
         <Result
           title={current.title}
           detail={current.author ?? "Feed address"}
@@ -247,10 +254,16 @@ function AddressTab() {
   // Judged once you've finished typing (leaving the field, or Enter), never mid-address:
   // "http" is the start of a good one (CTRL-04). Once shown, it clears as soon as it's right.
   const [checked, setChecked] = useState(false)
-  const [notAFeed, setNotAFeed] = useState(false)
-  // Not an address yet (once you've finished typing), or an address that isn't a feed.
-  const invalid =
-    (checked && text.trim().length > 0 && !looksLikeFeed(text)) || (looksLikeFeed(text) && notAFeed)
+  const [notAFeed, setNotAFeed] = useState<string | null>(null)
+  // Not an address yet (once you've finished typing), or an address that isn't a feed: said
+  // in one place, under the field in place of its hint.
+  const error =
+    checked && text.trim().length > 0 && !looksLikeFeed(text)
+      ? "Enter the whole address, starting with https://"
+      : looksLikeFeed(text)
+        ? notAFeed
+        : null
+  const invalid = error !== null
   return (
     <div>
       <label htmlFor={`${id}-url`} className="text-row font-medium">
@@ -264,9 +277,7 @@ function AddressTab() {
         value={text}
         placeholder="https://example.com/feed.xml"
         aria-invalid={invalid}
-        aria-describedby={
-          looksLikeFeed(text) && notAFeed ? `${id}-help ${id}-preview-error` : `${id}-help`
-        }
+        aria-describedby={`${id}-help`}
         onChange={(event) => setText(event.target.value)}
         // Enter subscribes, once the address has been found to be a podcast.
         onBlur={() => setChecked(true)}
@@ -281,16 +292,17 @@ function AddressTab() {
       {/* Says at once what's wrong with an address, as it's typed (WDATA-03). */}
       <p
         id={`${id}-help`}
-        className={`mt-1.5 text-small ${invalid && !looksLikeFeed(text) ? "text-destructive" : "text-muted-foreground"}`}
+        className={`mt-1.5 text-small ${error ? "text-destructive" : "text-muted-foreground"}`}
       >
-        {/* A whole address that isn't a feed is explained under it, by the preview. */}
-        {invalid && !looksLikeFeed(text)
-          ? "Enter the whole address, starting with https://"
-          : "Any podcast’s RSS address; no directory needed."}
+        {error ? (
+          <span role="alert">{error}</span>
+        ) : (
+          "Any podcast’s RSS address; no directory needed."
+        )}
       </p>
       {looksLikeFeed(text) && (
         <div className="mt-3">
-          <FeedPreview url={text.trim()} errorId={`${id}-preview-error`} onProblem={setNotAFeed} />
+          <FeedPreview url={text.trim()} onProblem={setNotAFeed} />
         </div>
       )}
     </div>

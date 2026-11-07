@@ -146,6 +146,7 @@ function ViewDetail() {
         title={view.name}
         back={{ to: "/views", label: "Views" }}
         subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
+        notice={false}
         actions={
           checked.size > 0 ? (
             <BulkBar selected={[...checked]} onClear={() => setChecked(() => new Set())} />
@@ -170,38 +171,43 @@ function ViewDetail() {
         }
       />
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        {!loading && episodes.length === 0 && noPodcasts && !firstRunDone.get() ? (
-          // The welcome card above already offers Add podcasts: no second one here.
-          <div />
-        ) : !loading && episodes.length === 0 && noPodcasts ? (
-          // Nothing to match yet: the next step is podcasts, not the View (COPY-03).
-          <EmptyState title="Add podcasts to fill your Views">
-            Views find Episodes in your Library, which is empty.{" "}
-            <Link
-              to="/library"
-              search={{ add: true }}
-              className="font-medium text-primary underline underline-offset-2"
-            >
-              Add podcasts
-            </Link>
-          </EmptyState>
-        ) : !loading && episodes.length === 0 ? (
-          <EmptyState title="No Episodes match this View">
-            {editing
-              ? "Set a row back to “Any” to widen it."
-              : "New Episodes appear here as your podcasts publish them."}
-          </EmptyState>
-        ) : (
-          <EpisodeList
-            episodes={episodes}
-            label={`${view.name} Episodes`}
-            ready={!loading}
-            selected={selected}
-            onOpen={open}
-            checked={checked}
-            setChecked={setChecked}
-          />
-        )}
+        {/* The list column: the welcome card sits at its top, level with the panel beside
+            it (FLOW-05). */}
+        <div className="min-w-0">
+          <div data-page-notice="" />
+          {!loading && episodes.length === 0 && noPodcasts && !firstRunDone.get() ? (
+            // The welcome card above already offers Add podcasts: no second one here.
+            <div />
+          ) : !loading && episodes.length === 0 && noPodcasts ? (
+            // Nothing to match yet: the next step is podcasts, not the View (COPY-03).
+            <EmptyState title="Add podcasts to fill your Views">
+              Views find Episodes in your Library, which is empty.{" "}
+              <Link
+                to="/library"
+                search={{ add: true }}
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                Add podcasts
+              </Link>
+            </EmptyState>
+          ) : !loading && episodes.length === 0 ? (
+            <EmptyState title="No Episodes match this View">
+              {editing
+                ? "Set a row back to “Any” to widen it."
+                : "New Episodes appear here as your podcasts publish them."}
+            </EmptyState>
+          ) : (
+            <EpisodeList
+              episodes={episodes}
+              label={`${view.name} Episodes`}
+              ready={!loading}
+              selected={selected}
+              onOpen={open}
+              checked={checked}
+              setChecked={setChecked}
+            />
+          )}
+        </div>
         {/* Beside the list: the editor, the open Episode, or where Next and Last go. */}
         <aside
           aria-label={editing ? "Edit View" : selected ? "Episode" : "Next and Last go to"}

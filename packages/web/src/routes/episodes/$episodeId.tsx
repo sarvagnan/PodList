@@ -16,13 +16,19 @@ function EpisodeScreen() {
   const router = useRouter()
   const state = useAppState()
   // The screen it was opened from names the back link; fixed when this screen opens.
-  const [from] = useState(cameFrom.get)
+  // Where it was opened from: this navigation's origin, or (after a reload) the one kept
+  // for this history entry.
+  const [from] = useState(
+    () => cameFrom.get() ?? cameFrom.of(router.history.location.state.__TSR_key ?? "initial")
+  )
+  const detail = AsyncResult.getOrElse(useAtomValue(episodeDetailAtom(episodeId)), () => null)
   const backLabel = (() => {
     const [, section, id] = from?.split("/") ?? []
     if (section === "views" && id) return state?.views.find((v) => v.id === id)?.name ?? "View"
     if (section === "playlists" && id)
       return state?.playlists.find((p) => p.id === id)?.name ?? "Playlist"
-    if (section === "library" && id) return "Podcast"
+    // A Subscription's screen: named by its podcast, as that screen's heading is.
+    if (section === "library" && id) return detail?.podcast ?? "Podcast"
     if (section === "views") return "Views"
     if (section === "playlists") return "Playlists"
     if (section === "library") return "Library"
@@ -30,13 +36,14 @@ function EpisodeScreen() {
     // Opened directly: Back has nowhere earlier to go, so it leads to Views.
     return "Views"
   })()
-  const detail = AsyncResult.getOrElse(useAtomValue(episodeDetailAtom(episodeId)), () => null)
   useEffect(() => {
     if (detail) document.title = `${detail.title} · PodList`
   }, [detail])
   return (
     <>
-      <header className="px-5 pt-4 pb-2 md:px-8 md:pt-8">
+      {/* A compact back link on desktop, so the Episode's heading sits about where every
+          screen's does. */}
+      <header className="px-5 pt-4 pb-2 md:px-8 md:pt-4">
         {/* A link, like every other back control: its address is where it leads; a plain
             click goes Back through history, so the list keeps its place. */}
         <a
@@ -47,10 +54,10 @@ function EpisodeScreen() {
             if (router.history.canGoBack()) router.history.back()
             else void router.navigate({ to: "/views" })
           }}
-          className="-ml-2 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary"
+          className="-ml-2 inline-flex h-11 max-w-full items-center gap-0.5 pr-3 text-row font-medium text-primary md:h-8"
         >
-          <ChevronLeft aria-hidden="true" className="size-5" />
-          {backLabel}
+          <ChevronLeft aria-hidden="true" className="size-5 shrink-0" />
+          <span className="truncate">{backLabel}</span>
         </a>
       </header>
       <div>

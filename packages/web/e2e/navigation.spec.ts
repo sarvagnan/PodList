@@ -163,3 +163,37 @@ test("Up next in the drawer reorders with the keyboard, with Undo", async ({ pag
   await drawer.getByRole("button", { name: "Undo" }).click()
   await expect.poll(order).toEqual(before)
 })
+
+test("an Episode opened from a podcast keeps Library selected (LIST-06)", async ({ page }) => {
+  // Phone: the Library tab stays selected, and the back link names the podcast.
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("main").getByRole("link").filter({ hasText: /\w/ }).first().click()
+  await expect(page).toHaveURL(/\/library\/[^/]+$/)
+  const podcast = (await page.getByRole("heading", { level: 1 }).textContent())?.trim() ?? ""
+  await page.locator('[data-row="0"] [data-cell="title"]').click()
+  await expect(page).toHaveURL(/\/episodes\//)
+  const tabs = page.getByRole("navigation", { name: "Sections" })
+  await expect(tabs.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page")
+  await expect(tabs.getByRole("link", { name: "Views" })).not.toHaveAttribute("aria-current")
+  await expect(page.getByRole("link", { name: podcast }).first()).toBeVisible()
+  // Reloaded, it still knows where it was opened from.
+  await page.reload()
+  await expect(tabs.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page")
+  // Desktop: the sidebar keeps Library highlighted.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(
+    page.getByRole("navigation", { name: "Library and lists" }).getByRole("link", {
+      name: "Library",
+      exact: true
+    })
+  ).toHaveClass(/(^|\s)active(\s|$)/)
+})
+
+test("New View starts in its Name field", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views`)
+  await page.getByRole("button", { name: "New View" }).first().click()
+  await expect(page).toHaveURL(/edit=true/)
+  await expect(page.getByRole("textbox", { name: "Name" })).toBeFocused()
+})

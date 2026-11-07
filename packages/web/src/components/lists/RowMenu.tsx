@@ -97,7 +97,9 @@ const keepBrowserMenus = (row: HTMLElement | null) => {
     const target = event.target as Element
     const selected = window.getSelection()
     if (
-      target.closest("a[href], input, textarea, select") ||
+      // Links and text fields have the browser's own commands (open, paste); a select or a
+      // checkbox has none worth keeping, so the row's menu opens there.
+      target.closest('a[href], textarea, input:not([type="checkbox"], [type="radio"])') ||
       (selected !== null && !selected.isCollapsed && row.contains(selected.anchorNode))
     ) {
       event.stopPropagation()

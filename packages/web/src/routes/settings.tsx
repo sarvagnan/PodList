@@ -144,7 +144,11 @@ function SettingsScreen() {
             </SettingsRow>
           </div>
         </section>
-        <section aria-labelledby={`${id}-keyboard`}>
+        {/* Not on a touch phone, where there are no keys to press (CLARITY). */}
+        <section
+          aria-labelledby={`${id}-keyboard`}
+          className="[@media(max-width:47.99rem)_and_(hover:none)]:hidden"
+        >
           <h2 id={`${id}-keyboard`} className={heading}>
             Keyboard
           </h2>
