@@ -76,6 +76,13 @@ describe("Episode actions and their undo", () => {
     expect(shape(undone)).toEqual(shape(start))
   })
 
+  it("puts a removed Entry back in its place, with its Position and the Cursor", () => {
+    const { after, undone } = roundTrip({ _tag: "Remove", episodeId: "e2", playlistId: "default" })
+    expect(after.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["e1", "e3"])
+    expect(after.playlists[1]?.entries.map((e) => e.episodeId)).toEqual(["e2"])
+    expect(shape(undone)).toEqual(shape(start))
+  })
+
   it("Marking Played and taking it back restores Entries that Clear on Played removed", () => {
     const { after, undone } = roundTrip({ _tag: "Played", episodeId: "e2", played: true })
     expect(after.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["e1", "e3"])

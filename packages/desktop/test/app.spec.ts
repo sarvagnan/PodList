@@ -44,11 +44,12 @@ test("runs its own copy of the web app, with a local database, and opens offline
       .not.toBe(start)
     await app.close()
 
-    // With the server gone, the app still opens on its Library.
+    // With the server gone, the app still opens, on the screen it was left on.
     demo.stop()
     const offline = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
     const again = await offline.firstWindow()
-    await expect(again.getByRole("heading", { name: "Views", level: 1 })).toBeVisible()
+    // It reopens where it was left.
+    await expect(again.getByRole("heading", { name: "Default", level: 1 })).toBeVisible()
     await expect(
       again
         .getByRole("navigation", { name: "Library and lists" })

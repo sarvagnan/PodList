@@ -98,7 +98,7 @@ function ViewDetail() {
       <>
         <PageHeader title="View" back={{ to: "/views", label: "Views" }} />
         <EmptyState title="This View no longer exists">
-          It was deleted on another device.
+          It was deleted on another Device.
         </EmptyState>
       </>
     )
@@ -119,7 +119,7 @@ function ViewDetail() {
           )
         }
       />
-      <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_26rem]" : ""}>
+      <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_416px]" : ""}>
         {!loading && episodes.length === 0 ? (
           <EmptyState title="No Episodes match this View">
             New Episodes appear here as your podcasts publish them.

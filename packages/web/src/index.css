@@ -13,6 +13,9 @@
 @theme inline {
   --font-sans: "Inter Variable", system-ui, sans-serif;
   --font-heading: "Space Grotesk Variable", "Inter Variable", system-ui, sans-serif;
+  /* Spacing and control sizes in px, so larger text gets the room instead of the chrome
+     (WTYPE-02); identical at the default 16 px. */
+  --spacing: 4px;
   /* Type steps in rem, so text follows the browser's font size (TYPE-05). */
   --text-small: 0.8125rem;
   --text-small--line-height: 1.25rem;

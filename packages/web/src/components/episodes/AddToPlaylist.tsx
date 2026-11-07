@@ -3,6 +3,7 @@ import { useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { useState } from "react"
 import { stateAtom } from "../../app/runtime.ts"
+import { useBackLayers } from "../../lib/backLayers.ts"
 import { useEpisodeActions } from "./useEpisodeActions.ts"
 
 /**
@@ -21,6 +22,10 @@ export function AddToPlaylist({
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const act = useEpisodeActions()
   const [chosen, setChosen] = useState<string | null>(null)
+  useBackLayers(open ? 1 : 0, () => {
+    setChosen(null)
+    onOpenChange(false)
+  })
   const playlists = state
     ? [...state.playlists].sort(
         (a, b) => Number(b.id === state.activePlaylistId) - Number(a.id === state.activePlaylistId)
@@ -44,7 +49,7 @@ export function AddToPlaylist({
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
           data-sheet="dialog"
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[24rem] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
+          className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(24rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <Dialog.Title className="font-heading text-xl font-semibold">
             Add to a Playlist

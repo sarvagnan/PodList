@@ -17,7 +17,9 @@ import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
+import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
 import { Toasts } from "../feedback/Toasts.tsx"
+import { UndoShortcut } from "../feedback/UndoShortcut.tsx"
 import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
@@ -112,7 +114,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
       <button
         type="button"
         onClick={() => control({ _tag: "retry" })}
-        className="shrink-0 font-semibold text-player-foreground underline underline-offset-2"
+        className="shrink-0 rounded-full bg-player-track px-3 py-1 font-semibold text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
       >
         Try again
       </button>
@@ -182,7 +184,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   return (
     <section
       aria-label="Now playing"
-      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(0,1fr)_minmax(0,38rem)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
+      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(0,1fr)_minmax(0,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
     >
       <div className="flex min-w-0 flex-col">
         <button
@@ -239,7 +241,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             type="button"
             onClick={() => openDrawer(["queue"])}
             title={`Up next in ${playlist.name}`}
-            className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm text-player-foreground hover:bg-player-track active:bg-player-track/70"
+            className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
           >
             <ListMusic aria-hidden="true" className="size-5" />
             <span>
@@ -249,6 +251,19 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
         )}
       </div>
     </section>
+  )
+}
+
+/** Placeholder rows while the Library loads, so headings never sit over nothing (FLOW-06). */
+function SidebarSkeleton() {
+  return (
+    <span role="status" aria-label="Loading" className="flex flex-col gap-0.5">
+      {[0.7, 0.55, 0.62].map((width) => (
+        <span key={width} className="flex min-h-9 items-center px-2.5">
+          <span className="h-3 rounded bg-secondary" style={{ width: `${width * 100}%` }} />
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -266,6 +281,7 @@ function Sidebar() {
     >
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
       <p className={heading}>Views</p>
+      {state === null && <SidebarSkeleton />}
       {state?.views.length === 0 && ready && (
         <p className="px-2.5 py-1.5 text-small text-muted-foreground">No Views yet</p>
       )}
@@ -275,6 +291,7 @@ function Sidebar() {
         </Link>
       ))}
       <p className={heading}>Playlists</p>
+      {state === null && <SidebarSkeleton />}
       {state?.playlists.map((p) => {
         const active = p.id === state.activePlaylistId
         return (
@@ -303,6 +320,10 @@ function Sidebar() {
       <Link to="/library" className={link}>
         Library
       </Link>
+      <button type="button" onClick={openShortcuts} className={`${link} text-muted-foreground`}>
+        Keyboard shortcuts
+        <kbd className="rounded border border-input px-1.5 font-sans text-xs">?</kbd>
+      </button>
     </nav>
   )
 }
@@ -389,6 +410,8 @@ export function AppShell() {
       <NowPlaying variant="desktop" />
       <NowPlayingDrawer />
       <Toasts />
+      <UndoShortcut />
+      <Shortcuts />
     </div>
   )
 }

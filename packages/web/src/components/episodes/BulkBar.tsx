@@ -3,10 +3,11 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { ArrowDownToLine, Check, ListEnd, ListStart, Star, X } from "lucide-react"
 import type { ReactNode } from "react"
-import { bulkActionAtom, nextLastTargetAtom, undoAtom } from "../../app/episodeActions.ts"
+import { bulkActionAtom, nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
 import type { EpisodeAction } from "../../lib/episodeActions.ts"
+import { useConfirm } from "../feedback/useConfirm.ts"
 
 const episodes = (n: number) => `${n} ${n === 1 ? "Episode" : "Episodes"}`
 
@@ -45,7 +46,7 @@ export function BulkBar({
   const state = useAppState()
   const chosen = useAtomValue(nextLastTargetAtom)
   const run = useAtomSet(bulkActionAtom, { mode: "promise" })
-  const undo = useAtomSet(undoAtom)
+  const confirm = useConfirm()
   const download = useAtomSet(downloadAtom)
   const downloads = AsyncResult.getOrElse(useAtomValue(downloadsAtom), () => new Map())
   const toasts = Toast.useToastManager()
@@ -57,14 +58,7 @@ export function BulkBar({
   const allPlayed = selected.every((id) => state?.episodeStates[id]?.played != null)
 
   const act = async (actions: ReadonlyArray<EpisodeAction>, message: string) => {
-    const outcome = await run({ actions, message })
-    toasts.add({
-      description: outcome.message,
-      timeout: 6000,
-      ...(outcome.undo.length > 0
-        ? { actionProps: { children: "Undo", onClick: () => undo(outcome.undo) } }
-        : {})
-    })
+    confirm(await run({ actions, message }))
   }
   const add = (placement: "next" | "last") => {
     if (!target) return

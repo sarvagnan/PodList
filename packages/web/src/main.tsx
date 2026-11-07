@@ -5,10 +5,14 @@ import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { TabGate } from "./app/TabGate.tsx"
+import { lastScreen } from "./lib/remembered.ts"
 import { routeTree } from "./routeTree.gen.ts"
 import "./index.css"
 
 const router = createRouter({ routeTree })
+router.subscribe("onResolved", ({ toLocation }) =>
+  lastScreen.set(toLocation.pathname + (toLocation.searchStr ?? ""))
+)
 
 declare module "@tanstack/react-router" {
   interface Register {

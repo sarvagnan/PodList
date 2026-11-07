@@ -7,6 +7,7 @@ import { type ReactNode, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { stateAtom } from "../../app/runtime.ts"
+import { nextLastTarget } from "../../lib/remembered.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { GridCell } from "../lists/Grid.tsx"
@@ -142,7 +143,7 @@ export function EpisodeRow({
 
   return (
     <div
-      className={`group flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2 ${
+      className={`group flex min-h-[76px] items-center gap-3 border-b px-2 py-2 ${
         selected
           ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
           : checked
@@ -181,7 +182,7 @@ export function EpisodeRow({
         >
           {episode.title}
         </Link>
-        <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+        <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground">
           {episode.played && (
             <span className="inline-flex items-center gap-0.5 font-medium text-positive">
               <Check aria-hidden="true" className="size-3.5" />
@@ -197,7 +198,8 @@ export function EpisodeRow({
           {downloaded && (
             <ArrowDownToLine aria-label="Downloaded" className="size-3.5 shrink-0 text-positive" />
           )}
-          <span className="truncate">{meta}</span>
+          {/* Wraps rather than cut off at large text sizes (WTYPE-02). */}
+          <span className="line-clamp-2">{meta}</span>
         </p>
       </GridCell>
 
@@ -289,7 +291,10 @@ export function NextLastTarget() {
       Next / Last go to
       <select
         value={value ?? ""}
-        onChange={(event) => set(event.target.value)}
+        onChange={(event) => {
+          set(event.target.value)
+          nextLastTarget.set(event.target.value)
+        }}
         className="h-9 rounded-lg border border-input bg-card px-2 text-sm font-medium text-foreground"
       >
         {state.playlists.map((p) => (

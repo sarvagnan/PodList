@@ -1,0 +1,134 @@
+import { Dialog } from "@base-ui/react/dialog"
+import { X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useBackLayers } from "../../lib/backLayers.ts"
+
+// The keyboard shortcuts reference (KEY-08): opens on "?", from the sidebar, and from
+// Help in the Mac app, all through one event.
+
+export const openShortcuts = () => document.dispatchEvent(new CustomEvent("podlist:shortcuts"))
+
+const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
+const cmd = mac ? "⌘" : "Ctrl+"
+
+const groups: ReadonlyArray<{
+  readonly title: string
+  readonly keys: ReadonlyArray<readonly [string, string]>
+}> = [
+  {
+    title: "Anywhere",
+    keys: [
+      ["Space", "Play or pause"],
+      [`${cmd}Z`, "Undo the last change"],
+      ["Esc", "Close a sheet or panel; clear ticked Episodes"],
+      ["?", "Show these shortcuts"]
+    ]
+  },
+  {
+    title: "In a View's Episode list",
+    keys: [
+      ["↑ ↓", "Previous or next Episode"],
+      ["← →", "Move between an Episode's actions"],
+      ["Home End", `First or last action; with ${cmd} the first or last Episode`],
+      ["Page Up Page Down", "Ten Episodes up or down"],
+      ["Enter", "Open the Episode"],
+      ["Space", "Tick the Episode for bulk actions"],
+      ["Shift ↑ ↓", "Tick a run of Episodes"],
+      [`${cmd}A`, "Tick every Episode"],
+      ["Letters", "Jump to a title"]
+    ]
+  },
+  ...(mac
+    ? [
+        {
+          title: "Mac app",
+          keys: [
+            ["⌘[ ⌘]", "Back or forward"],
+            ["⌘/", "Show these shortcuts"]
+          ] as const
+        }
+      ]
+    : [])
+]
+
+const typing = (el: Element | null) =>
+  el instanceof HTMLElement &&
+  (el.isContentEditable ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el instanceof HTMLInputElement && !["checkbox", "radio", "range", "button"].includes(el.type)))
+
+export function Shortcuts() {
+  const [open, setOpen] = useState(false)
+  useBackLayers(open ? 1 : 0, () => setOpen(false))
+  useEffect(() => {
+    const show = () => setOpen(true)
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key === "?" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !typing(document.activeElement)
+      ) {
+        event.preventDefault()
+        setOpen(true)
+      }
+    }
+    document.addEventListener("podlist:shortcuts", show)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("podlist:shortcuts", show)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [])
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+        <Dialog.Popup
+          data-sheet="dialog"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <Dialog.Title className="font-heading text-xl font-semibold">
+              Keyboard shortcuts
+            </Dialog.Title>
+            <Dialog.Close
+              aria-label="Close"
+              className="-mt-1 -mr-2 grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+            >
+              <X aria-hidden="true" className="size-5" />
+            </Dialog.Close>
+          </div>
+          {groups.map((group) => (
+            <section key={group.title} className="mt-4">
+              <h3 className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                {group.title}
+              </h3>
+              <dl className="mt-1">
+                {group.keys.map(([keys, what]) => (
+                  <div
+                    key={keys}
+                    className="flex items-baseline gap-4 border-b py-2 last:border-b-0"
+                  >
+                    <dt className="w-36 shrink-0">
+                      {keys.split(" ").map((k) => (
+                        <kbd
+                          key={k}
+                          className="mr-1 inline-block rounded border border-input bg-background px-1.5 py-0.5 font-sans text-xs font-semibold"
+                        >
+                          {k}
+                        </kbd>
+                      ))}
+                    </dt>
+                    <dd className="text-sm">{what}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}

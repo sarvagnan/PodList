@@ -33,7 +33,7 @@ export function TabGate({ children }: { readonly children: ReactNode }) {
       <div className="max-w-sm text-center">
         <h1 className="font-heading text-2xl font-semibold">PodList is open in another tab</h1>
         <p className="mt-3 text-muted-foreground">
-          Only one tab at a time can use your Library on this device.
+          Only one tab at a time can use your Library on this Device.
         </p>
         <button
           type="button"

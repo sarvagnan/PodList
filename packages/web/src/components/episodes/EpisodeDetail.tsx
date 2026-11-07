@@ -141,7 +141,7 @@ export function EpisodeDetail({
                 label.startsWith("Stop")
                   ? "Stop"
                   : label.startsWith("Download failed")
-                    ? "Retry"
+                    ? "Try again"
                     : label
               }
               pressed={pressed}

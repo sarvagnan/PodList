@@ -5,6 +5,7 @@ import { extname, join, normalize, sep } from "node:path"
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
@@ -133,6 +134,78 @@ const profileFor = (server: string) => {
 
 const setupPage = join(import.meta.dirname, "setup.html")
 
+const goBack = (win: BrowserWindow) => {
+  if (win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack()
+}
+const goForward = (win: BrowserWindow) => {
+  if (win.webContents.navigationHistory.canGoForward())
+    win.webContents.navigationHistory.goForward()
+}
+
+/**
+ * Edit › Undo: text fields keep their own undo; elsewhere the web app takes back its last
+ * step (its Cmd-Z handler), which the menu's built-in Undo would otherwise swallow.
+ */
+const undo = async (win: BrowserWindow) => {
+  const editing = (await win.webContents.executeJavaScript(`(() => {
+    const el = document.activeElement
+    const editing = !!el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
+      (el.tagName === "INPUT" && !["checkbox", "radio", "range", "button"].includes(el.type)))
+    if (!editing) document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", metaKey: true, bubbles: true, cancelable: true }))
+    return editing
+  })()`)) as boolean
+  if (editing) win.webContents.undo()
+}
+
+/** Right-click: what a Mac app offers for links, selected text and text fields (BROWSER-06). */
+const contextMenu = (
+  win: BrowserWindow,
+  params: Electron.ContextMenuParams
+): MenuItemConstructorOptions[] => {
+  const items: MenuItemConstructorOptions[] = []
+  const link = params.linkURL
+  if (link) {
+    if (/^https?:/.test(link))
+      items.push({ label: "Open Link in Browser", click: () => shell.openExternal(link) })
+    // An in-app link is copied as the same page on the server, which opens anywhere.
+    const server = serverUrl()
+    const shared =
+      link.startsWith(`${appOrigin}/`) && server !== undefined
+        ? new URL(link.slice(appOrigin.length), server).href
+        : link
+    items.push({ label: "Copy Link", click: () => clipboard.writeText(shared) })
+  }
+  if (params.isEditable) {
+    items.push(
+      ...(items.length > 0 ? [{ type: "separator" } as const] : []),
+      { role: "cut", enabled: params.editFlags.canCut },
+      { role: "copy", enabled: params.editFlags.canCopy },
+      { role: "paste", enabled: params.editFlags.canPaste },
+      { role: "selectAll" }
+    )
+  } else if (params.selectionText.trim()) {
+    const text = params.selectionText.trim()
+    items.push(
+      ...(items.length > 0 ? [{ type: "separator" } as const] : []),
+      { role: "copy" },
+      {
+        label: `Look Up “${text.length > 24 ? `${text.slice(0, 24)}…` : text}”`,
+        click: () => win.webContents.showDefinitionForSelection()
+      }
+    )
+  }
+  if (items.length === 0) {
+    const history = win.webContents.navigationHistory
+    items.push(
+      { label: "Back", enabled: history.canGoBack(), click: () => goBack(win) },
+      { label: "Forward", enabled: history.canGoForward(), click: () => goForward(win) },
+      { type: "separator" },
+      { label: "Reload", click: () => win.webContents.reload() }
+    )
+  }
+  return items
+}
+
 let window: BrowserWindow | undefined
 
 const createWindow = () => {
@@ -170,6 +243,18 @@ const createWindow = () => {
     if (inApp(url)) return
     event.preventDefault()
     if (/^https?:/.test(url)) void shell.openExternal(url)
+  })
+  win.webContents.on("context-menu", (_event, params) => {
+    Menu.buildFromTemplate(contextMenu(win, params)).popup({ window: win })
+  })
+  // Three-finger swipes and mouse back/forward buttons walk history (BROWSER-09).
+  win.on("swipe", (_event, direction) => {
+    if (direction === "right") goBack(win)
+    if (direction === "left") goForward(win)
+  })
+  win.on("app-command", (_event, command) => {
+    if (command === "browser-backward") goBack(win)
+    if (command === "browser-forward") goForward(win)
   })
 
   void (server === undefined ? win.loadFile(setupPage) : win.loadURL(`${appOrigin}/`))
@@ -235,7 +320,24 @@ const menu = (): MenuItemConstructorOptions[] => [
       { role: "quit" }
     ]
   },
-  { role: "editMenu" },
+  {
+    label: "Edit",
+    submenu: [
+      {
+        label: "Undo",
+        accelerator: "CmdOrCtrl+Z",
+        click: () => {
+          if (window) void undo(window)
+        }
+      },
+      { role: "redo" },
+      { type: "separator" },
+      { role: "cut" },
+      { role: "copy" },
+      { role: "paste" },
+      { role: "selectAll" }
+    ]
+  },
   {
     label: "View",
     submenu: [
@@ -249,7 +351,39 @@ const menu = (): MenuItemConstructorOptions[] => [
       ...(app.isPackaged ? [] : [{ role: "toggleDevTools" } as const])
     ]
   },
-  { role: "windowMenu" }
+  {
+    label: "Go",
+    submenu: [
+      {
+        label: "Back",
+        accelerator: "CmdOrCtrl+[",
+        click: () => {
+          if (window) goBack(window)
+        }
+      },
+      {
+        label: "Forward",
+        accelerator: "CmdOrCtrl+]",
+        click: () => {
+          if (window) goForward(window)
+        }
+      }
+    ]
+  },
+  { role: "windowMenu" },
+  {
+    role: "help",
+    submenu: [
+      {
+        label: "Keyboard Shortcuts",
+        accelerator: "CmdOrCtrl+/",
+        click: () =>
+          void window?.webContents.executeJavaScript(
+            `document.dispatchEvent(new CustomEvent("podlist:shortcuts"))`
+          )
+      }
+    ]
+  }
 ]
 
 // One window, one owner of the local database: a second launch focuses the first.

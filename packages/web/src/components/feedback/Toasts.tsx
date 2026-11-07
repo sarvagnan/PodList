@@ -9,7 +9,7 @@ export function Toasts() {
   const { toasts } = Toast.useToastManager()
   return (
     <Toast.Portal>
-      <Toast.Viewport className="fixed inset-x-3 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md md:right-auto md:bottom-28 md:left-[calc(14rem+2rem)] md:mx-0 md:w-[26rem]">
+      <Toast.Viewport className="fixed inset-x-3 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md md:right-auto md:bottom-28 md:left-[256px] md:mx-0 md:w-[min(26rem,calc(100vw-288px))]">
         {toasts
           .filter((toast) => !toast.limited)
           .map((toast) => (

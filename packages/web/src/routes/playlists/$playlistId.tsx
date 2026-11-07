@@ -3,10 +3,12 @@ import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
-import { Pause, Play } from "lucide-react"
+import { Pause, Play, X } from "lucide-react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
+import { useEpisodeActions } from "../../components/episodes/useEpisodeActions.ts"
+import { Tip } from "../../components/feedback/Tip.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
@@ -22,6 +24,7 @@ function PlaylistDetail() {
   const record = useAtomSet(recordAtom)
   const control = useAtomSet(playbackAtom)
   const playing = useNowPlaying()
+  const act = useEpisodeActions()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   if (state === null) return <LoadingRows label="Loading Playlist" />
   if (playlist === undefined) {
@@ -106,7 +109,7 @@ function PlaylistDetail() {
                 className={`flex items-center gap-3 rounded-xl px-2 py-2.5 ${current ? "bg-accent" : ""}`}
               >
                 <span
-                  className={`w-14 shrink-0 text-center text-xs font-semibold tracking-wider ${current ? "text-primary" : "text-muted-foreground"}`}
+                  className={`min-w-14 shrink-0 text-center text-xs font-semibold tracking-wider ${current ? "text-primary" : "text-muted-foreground"}`}
                 >
                   {current ? (active ? "NOW" : "RESUME") : index + 1}
                 </span>
@@ -122,10 +125,16 @@ function PlaylistDetail() {
                       aria-label="Loading Episode"
                       className="block h-3.5 w-2/3 rounded bg-secondary"
                     />
+                  ) : title === undefined ? (
+                    <span className="line-clamp-2 text-sm font-medium">Episode unavailable</span>
                   ) : (
-                    <span className="line-clamp-2 text-sm font-medium">
-                      {title ?? "Episode unavailable"}
-                    </span>
+                    <Link
+                      to="/episodes/$episodeId"
+                      params={{ episodeId: entry.episodeId }}
+                      className="line-clamp-2 text-sm font-medium hover:underline"
+                    >
+                      {title}
+                    </Link>
                   )}
                   <span className="mt-1.5 flex items-center gap-2">
                     <span className="progress-track h-1 flex-1 overflow-hidden rounded-full bg-border">
@@ -138,29 +147,50 @@ function PlaylistDetail() {
                   </span>
                 </span>
                 {/* One button that stays put (and keeps focus) as it toggles. */}
-                <button
-                  type="button"
-                  aria-label={
-                    live && playing.playing
-                      ? `Pause ${title ?? "Entry"}`
-                      : `Play ${title ?? "Entry"} from here`
-                  }
-                  title={live && playing.playing ? "Pause" : "Play from here"}
-                  onClick={() =>
-                    control(
-                      live
-                        ? { _tag: "toggle" }
-                        : { _tag: "playEntry", playlistId: playlist.id, episodeId: entry.episodeId }
-                    )
-                  }
-                  className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent active:bg-input"
-                >
-                  {live && playing.playing ? (
-                    <Pause aria-hidden="true" className="size-5 fill-current" />
-                  ) : (
-                    <Play aria-hidden="true" className="size-5 fill-current" />
-                  )}
-                </button>
+                <Tip label={live && playing.playing ? "Pause" : "Play from here"}>
+                  <button
+                    type="button"
+                    aria-label={
+                      live && playing.playing
+                        ? `Pause ${title ?? "Entry"}`
+                        : `Play ${title ?? "Entry"} from here`
+                    }
+                    onClick={() =>
+                      control(
+                        live
+                          ? { _tag: "toggle" }
+                          : {
+                              _tag: "playEntry",
+                              playlistId: playlist.id,
+                              episodeId: entry.episodeId
+                            }
+                      )
+                    }
+                    className="grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent active:bg-input"
+                  >
+                    {live && playing.playing ? (
+                      <Pause aria-hidden="true" className="size-5 fill-current" />
+                    ) : (
+                      <Play aria-hidden="true" className="size-5 fill-current" />
+                    )}
+                  </button>
+                </Tip>
+                <Tip label={`Remove from ${playlist.name}`}>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${title ?? "Entry"} from ${playlist.name}`}
+                    onClick={() =>
+                      void act({
+                        _tag: "Remove",
+                        episodeId: entry.episodeId,
+                        playlistId: playlist.id
+                      })
+                    }
+                    className="grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
+                  >
+                    <X aria-hidden="true" className="size-5" />
+                  </button>
+                </Tip>
               </li>
             )
           })}

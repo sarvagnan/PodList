@@ -15,6 +15,7 @@ export type EpisodeAction =
   | { readonly _tag: "PlayNow"; readonly episodeId: string }
   | { readonly _tag: "Star"; readonly episodeId: string; readonly starred: boolean }
   | { readonly _tag: "Played"; readonly episodeId: string; readonly played: boolean }
+  | { readonly _tag: "Remove"; readonly episodeId: string; readonly playlistId: string }
 
 export interface Outcome {
   readonly message: string
@@ -98,6 +99,9 @@ export const undoFor = (
               source: before.episodeStates[action.episodeId]?.played?.source ?? { _tag: "User" }
             })
           ]
+    case "Remove":
+      // Back in its place, with its Position and Cursor.
+      return restoreEntries(before, after, action.episodeId, at)
     case "PlayNow":
       return []
   }
@@ -114,6 +118,8 @@ export const confirmation = (action: EpisodeAction, state: State.State) => {
       return action.starred ? "Starred" : "Unstarred"
     case "Played":
       return action.played ? "Marked Played" : "Marked Unplayed"
+    case "Remove":
+      return `Removed from ${name(action.playlistId)}`
   }
 }
 
@@ -144,6 +150,10 @@ export const changesFor = (action: EpisodeAction, state: State.State) => {
         action.played
           ? change({ _tag: "MarkPlayed", episodeId: action.episodeId, source: { _tag: "User" } })
           : change({ _tag: "MarkUnplayed", episodeId: action.episodeId })
+      ]
+    case "Remove":
+      return [
+        change({ _tag: "RemoveEntry", playlistId: action.playlistId, episodeId: action.episodeId })
       ]
   }
 }
