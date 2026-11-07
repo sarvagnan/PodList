@@ -132,7 +132,7 @@ function SubscriptionScreen() {
           {wide ? (
             <h2
               id={`${id}-settings`}
-              className="mt-5 px-1 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+              className="mt-5 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
             >
               Settings for this podcast
             </h2>

@@ -94,7 +94,9 @@ function SearchPage() {
           Every word must appear in the title, the show notes or the podcast’s name.
         </p>
       </div>
-      <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : ""}>
+      {/* Results stop where the Playlist and Library lists do, so Play stays near its
+          title (LIST-04); an open Episode sits beside them. */}
+      <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : "max-w-[960px]"}>
         {words && !AsyncResult.isInitial(result) && episodes.length === 0 ? (
           <EmptyState title="Nothing matches">Try fewer or different words.</EmptyState>
         ) : (

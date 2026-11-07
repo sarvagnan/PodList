@@ -6,7 +6,7 @@ declare global {
     readonly podlistApp?: {
       readonly server: () => Promise<string | null>
       /** Names the steps Edit › Undo and Redo will act on, in the Mac app's menu. */
-      readonly setUndoRedo?: (undo: string | null, redo: string | null) => void
+      readonly setUndoRedo?: (undo: string | null, redo: string | null, editing: boolean) => void
     }
   }
 }

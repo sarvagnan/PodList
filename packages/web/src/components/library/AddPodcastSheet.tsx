@@ -62,9 +62,12 @@ function SubscribeButton({
   return (
     <button
       type="button"
-      disabled={busy}
+      // Busy without `disabled`, which would push focus out of the sheet (WKEY-03).
+      data-subscribe=""
+      aria-disabled={busy}
       aria-label={`Subscribe to ${title}`}
       onClick={async () => {
+        if (busy) return
         setBusy(true)
         onProblem(null)
         const exit = await subscribe(feedUrl)
@@ -77,7 +80,7 @@ function SubscribeButton({
           toasts.add({ description: `Subscribed to ${name}`, timeout: 4000 })
         } else onProblem(problem)
       }}
-      className="h-9 shrink-0 rounded-full bg-primary px-4 text-small font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+      className="h-9 shrink-0 rounded-full bg-primary px-4 text-small font-semibold text-primary-foreground hover:bg-primary/90 aria-disabled:opacity-60"
     >
       {busy ? "Subscribing…" : "Subscribe"}
     </button>
@@ -118,12 +121,7 @@ function SearchTab() {
       />
       <div aria-live="polite" className="mt-3 max-h-[50dvh] min-h-24 overflow-y-auto">
         {looksLikeFeed(text) ? (
-          <Result
-            title={text.trim()}
-            detail="Feed address"
-            feedUrl={text.trim()}
-            artworkUrl={null}
-          />
+          <FeedPreview url={text.trim()} />
         ) : problem ? (
           <p className="text-row text-destructive">{problem}</p>
         ) : results?.length === 0 ? (
@@ -177,6 +175,52 @@ function Result({
   )
 }
 
+/**
+ * A feed address, read before it's offered: the podcast it names (its own title and
+ * artwork), or why it can't be subscribed to, under the field before any click.
+ */
+function FeedPreview({ url }: { readonly url: string }) {
+  const search = useAtomSet(directorySearchAtom, { mode: "promiseExit" })
+  const [found, setFound] = useState<{
+    readonly url: string
+    readonly result: Directory.DirectoryResult | null | "offline"
+  } | null>(null)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      const exit = await search(url)
+      setFound({
+        url,
+        result: Exit.isFailure(exit) ? "offline" : (exit.value[0] ?? null)
+      })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [url, search])
+  const current = found?.url === url ? found.result : undefined
+  return (
+    <div data-feed-preview="">
+      {current === undefined ? (
+        <p className="py-2 text-row text-muted-foreground">Checking the address…</p>
+      ) : current === "offline" ? (
+        <p role="alert" className="py-2 text-row text-destructive">
+          Couldn’t check the address. Check that you’re online.
+        </p>
+      ) : current === null ? (
+        <p role="alert" className="py-2 text-row text-destructive">
+          This address didn’t give a podcast feed. Check it, or find the podcast by name with
+          Search.
+        </p>
+      ) : (
+        <Result
+          title={current.title}
+          detail={current.author ?? "Feed address"}
+          feedUrl={current.feedUrl}
+          artworkUrl={current.artworkUrl}
+        />
+      )}
+    </div>
+  )
+}
+
 function AddressTab() {
   const id = useId()
   const [text, setText] = useState("")
@@ -195,6 +239,12 @@ function AddressTab() {
         aria-invalid={invalid}
         aria-describedby={`${id}-help`}
         onChange={(event) => setText(event.target.value)}
+        // Enter subscribes, once the address has been found to be a podcast.
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return
+          event.preventDefault()
+          document.querySelector<HTMLButtonElement>("[data-feed-preview] [data-subscribe]")?.click()
+        }}
         className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row aria-invalid:border-destructive"
       />
       {/* Says at once what's wrong with an address, as it's typed (WDATA-03). */}
@@ -208,12 +258,7 @@ function AddressTab() {
       </p>
       {looksLikeFeed(text) && (
         <div className="mt-3">
-          <Result
-            title={text.trim()}
-            detail="Feed address"
-            feedUrl={text.trim()}
-            artworkUrl={null}
-          />
+          <FeedPreview url={text.trim()} />
         </div>
       )}
     </div>
@@ -237,7 +282,10 @@ function OpmlTab() {
         id={`${id}-file`}
         type="file"
         accept=".opml,.xml,text/xml,text/x-opml,application/xml"
-        disabled={busy}
+        aria-disabled={busy}
+        onClick={(event) => {
+          if (busy) event.preventDefault()
+        }}
         onChange={async (event) => {
           const file = event.target.files?.[0]
           if (file === undefined) return

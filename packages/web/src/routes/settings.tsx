@@ -37,11 +37,11 @@ function SettingsScreen() {
         )
       })
     )
-  const heading =
-    "px-1 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+  const heading = "pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
   return (
     <>
-      <PageHeader title="Settings" />
+      {/* On the phone Settings opens from the Library's header, so it leads back there. */}
+      <PageHeader title="Settings" back={{ to: "/library", label: "Library" }} />
       <div className="max-w-xl space-y-6 px-4 pb-10 md:px-8">
         <section aria-labelledby={`${id}-playback`}>
           <h2 id={`${id}-playback`} className={heading}>

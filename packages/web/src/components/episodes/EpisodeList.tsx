@@ -42,7 +42,10 @@ export function EpisodeList({
     count: episodes.length,
     estimateSize: () => rowHeight,
     overscan: 8,
-    scrollMargin
+    scrollMargin,
+    // Start where the page is, not at the top: a list that mounts after Back has restored
+    // the scroll must not send it back to 0.
+    initialOffset: () => (typeof window === "undefined" ? 0 : window.scrollY)
   })
   useScrollMemory(ready)
   const copyLink = useCopyEpisodeLink()

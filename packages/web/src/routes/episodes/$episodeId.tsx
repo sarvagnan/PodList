@@ -2,9 +2,11 @@ import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronLeft } from "lucide-react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { episodeDetailAtom } from "../../app/data.ts"
+import { useAppState } from "../../app/hooks.ts"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
+import { cameFrom } from "../../lib/cameFrom.ts"
 
 export const Route = createFileRoute("/episodes/$episodeId")({ component: EpisodeScreen })
 
@@ -12,6 +14,21 @@ export const Route = createFileRoute("/episodes/$episodeId")({ component: Episod
 function EpisodeScreen() {
   const { episodeId } = Route.useParams()
   const router = useRouter()
+  const state = useAppState()
+  // The screen it was opened from names the back link; fixed when this screen opens.
+  const [from] = useState(cameFrom.get)
+  const backLabel = (() => {
+    const [, section, id] = from?.split("/") ?? []
+    if (section === "views" && id) return state?.views.find((v) => v.id === id)?.name ?? "View"
+    if (section === "playlists" && id)
+      return state?.playlists.find((p) => p.id === id)?.name ?? "Playlist"
+    if (section === "library" && id) return "Podcast"
+    if (section === "views") return "Views"
+    if (section === "playlists") return "Playlists"
+    if (section === "library") return "Library"
+    if (section === "search") return "Search"
+    return "Back"
+  })()
   const detail = AsyncResult.getOrElse(useAtomValue(episodeDetailAtom(episodeId)), () => null)
   useEffect(() => {
     if (detail) document.title = `${detail.title} · PodList`
@@ -27,15 +44,12 @@ function EpisodeScreen() {
           className="-ml-2 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary"
         >
           <ChevronLeft aria-hidden="true" className="size-5" />
-          Back
+          {backLabel}
         </button>
-        {/* The screen's heading, for focus on arrival; the Episode title follows. */}
-        <h1 tabIndex={-1} className="sr-only">
-          Episode
-        </h1>
       </header>
       <div className="md:px-3">
-        <EpisodeDetail episodeId={episodeId} />
+        {/* Its title is the screen's heading (h1). */}
+        <EpisodeDetail episodeId={episodeId} heading="h1" />
       </div>
     </>
   )

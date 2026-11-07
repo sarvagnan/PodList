@@ -163,7 +163,13 @@ const goForward = (win: BrowserWindow) => {
 }
 
 /** The steps Edit › Undo and Redo will act on, as the web app reports them. */
-const undoLabels: { undo: string | null; redo: string | null } = { undo: null, redo: null }
+/** The page's next Undo and Redo steps, and whether a text field (with its own undo) has
+ * focus: with neither, Edit › Undo and Redo are dimmed. */
+const undoLabels: { undo: string | null; redo: string | null; editing: boolean } = {
+  undo: null,
+  redo: null,
+  editing: false
+}
 
 /**
  * Edit › Undo and Redo: text fields keep their own; elsewhere the web app takes back (or
@@ -421,6 +427,7 @@ const menu = (): MenuItemConstructorOptions[] => [
     submenu: [
       {
         label: undoLabels.undo ? `Undo “${undoLabels.undo}”` : "Undo",
+        enabled: undoLabels.editing || undoLabels.undo !== null,
         accelerator: "CmdOrCtrl+Z",
         click: () => {
           if (window) void undo(window, false)
@@ -428,6 +435,7 @@ const menu = (): MenuItemConstructorOptions[] => [
       },
       {
         label: undoLabels.redo ? `Redo “${undoLabels.redo}”` : "Redo",
+        enabled: undoLabels.editing || undoLabels.redo !== null,
         accelerator: "Shift+CmdOrCtrl+Z",
         click: () => {
           if (window) void undo(window, true)
@@ -542,9 +550,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("podlist:connect", (_event, address: string) => connect(address))
     ipcMain.handle("podlist:server", () => serverUrl() ?? null)
     ipcMain.handle("podlist:cancel", () => window?.loadURL(`${appOrigin}/`))
-    ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown) => {
+    ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown, editing) => {
       undoLabels.undo = typeof undoStep === "string" ? undoStep : null
       undoLabels.redo = typeof redoStep === "string" ? redoStep : null
+      undoLabels.editing = editing === true
       Menu.setApplicationMenu(Menu.buildFromTemplate(menu()))
     })
     createWindow()

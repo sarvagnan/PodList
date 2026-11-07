@@ -172,7 +172,7 @@ function ViewDetail() {
         {/* Beside the list: the editor, the open Episode, or where Next and Last go. */}
         <aside
           aria-label={editing ? "Edit View" : selected ? "Episode" : "Next and Last go to"}
-          className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pb-28 lg:block"
+          className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
         >
           {editing ? (
             <div className="px-4 pt-2">

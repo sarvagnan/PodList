@@ -12,6 +12,6 @@ if (location.protocol === "file:") {
 } else if (location.protocol === "app:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
-    setUndoRedo: (undo, redo) => ipcRenderer.send("podlist:undo-redo", undo, redo)
+    setUndoRedo: (undo, redo, editing) => ipcRenderer.send("podlist:undo-redo", undo, redo, editing)
   })
 }

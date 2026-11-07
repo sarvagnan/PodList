@@ -175,7 +175,7 @@ export function ViewForm({
       <section aria-labelledby={`${id}-where`}>
         <h3
           id={`${id}-where`}
-          className="px-1 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+          className="pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
         >
           Show Episodes where
         </h3>
@@ -233,7 +233,7 @@ export function ViewForm({
               <fieldset className="mt-2">
                 <legend className="sr-only">Podcasts</legend>
                 {podcastIds.length === 0 && (
-                  <p className="pb-1 text-small text-muted-foreground">Tick the podcasts.</p>
+                  <p className="pb-1 text-small text-muted-foreground">Choose the podcasts.</p>
                 )}
                 {subscriptions.map((s) => (
                   <label key={s.id} className="flex min-h-10 items-center gap-2.5 text-row">
@@ -392,7 +392,7 @@ export function ViewForm({
       <section aria-labelledby={`${id}-order`}>
         <h3
           id={`${id}-order`}
-          className="px-1 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+          className="pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
         >
           Order
         </h3>

@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
+import { cameFrom } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
@@ -227,7 +228,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             <TrackTitle title={current.title} className="text-row" />
             {!current.error && (
               <span className="block truncate text-small text-player-muted">
-                {chapter ? `${chapter.title} · ${label}` : label}
+                {/* Nothing until the title arrives: no half-filled line (APPEAR-11). */}
+                {chapter && current.title ? `${chapter.title} · ${label}` : label}
               </span>
             )}
           </span>
@@ -444,27 +446,65 @@ function BottomTabs() {
   )
 }
 
-/** After moving to another screen, focus its heading, as a page load would (WKEY-03). */
+/** What had focus on each history entry when it was left, to return to on Back. */
+const leftFrom = new Map<string, string>()
+
+/** A selector that finds the same control again once its screen is back. */
+const selectorFor = (element: Element | null): string | null => {
+  if (!(element instanceof HTMLElement) || !document.querySelector("main")?.contains(element))
+    return null
+  const episode = element.closest<HTMLElement>("[data-episode-title]")?.dataset.episodeTitle
+  if (episode) return `[data-episode-title="${CSS.escape(episode)}"]`
+  const link = element.closest("a[href]")?.getAttribute("href")
+  return link ? `main a[href="${CSS.escape(link)}"]` : null
+}
+
+/**
+ * After moving to another screen, focus its heading, as a page load would; coming back
+ * (Back or Forward), focus the control that took you away, so the place is kept (WKEY-03).
+ */
 function useFocusOnNavigation() {
   const router = useRouter()
-  useEffect(
-    () =>
-      router.subscribe("onResolved", (event) => {
-        if (event.fromLocation === undefined || !event.pathChanged) return
-        // The heading may arrive a moment later, with the screen's data: try for a second.
-        let tries = 60
-        const focusHeading = () => {
-          // A screen that put focus somewhere itself (Search's field) keeps it.
-          const main = document.querySelector("main")
-          if (main?.contains(document.activeElement) && document.activeElement !== main) return
-          const heading = document.querySelector<HTMLElement>("main h1")
-          if (heading !== null) heading.focus({ preventScroll: true })
-          else if (--tries > 0) requestAnimationFrame(focusHeading)
-        }
-        requestAnimationFrame(focusHeading)
-      }),
-    [router]
-  )
+  useEffect(() => {
+    const keyOf = (location: { readonly state: { readonly __TSR_key?: string } }) =>
+      location.state.__TSR_key ?? "initial"
+    const leaving = router.subscribe("onBeforeNavigate", (event) => {
+      if (event.fromLocation === undefined || !event.pathChanged) return
+      const selector = selectorFor(document.activeElement)
+      if (selector) leftFrom.set(keyOf(event.fromLocation), selector)
+    })
+    const arrived = router.subscribe("onResolved", (event) => {
+      if (event.fromLocation === undefined || !event.pathChanged) return
+      cameFrom.set(event.fromLocation.pathname)
+      const back = leftFrom.get(keyOf(event.toLocation))
+      // The heading or the row may arrive a moment later, with the screen's data: try for
+      // a second.
+      let tries = 60
+      const focusHere = () => {
+        // A screen that put focus somewhere itself (Search's field) keeps it; a heading
+        // focused for want of anything better gives way to the row it was left from.
+        const main = document.querySelector("main")
+        const active = document.activeElement
+        if (
+          main?.contains(active) &&
+          active !== main &&
+          !(back && active instanceof HTMLElement && active.matches("main h1"))
+        )
+          return
+        // The row it left from, once its list is back; the heading if it doesn't return.
+        const target =
+          (back ? document.querySelector<HTMLElement>(back) : null) ??
+          (back && tries > 1 ? null : document.querySelector<HTMLElement>("main h1"))
+        if (target !== null) target.focus({ preventScroll: true })
+        else if (--tries > 0) requestAnimationFrame(focusHere)
+      }
+      requestAnimationFrame(focusHere)
+    })
+    return () => {
+      leaving()
+      arrived()
+    }
+  }, [router])
 }
 
 /** The Mac app's Controls menu: play/pause, skips and Chapters, sent as an event. */

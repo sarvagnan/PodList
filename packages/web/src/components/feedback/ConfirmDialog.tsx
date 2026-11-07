@@ -57,8 +57,9 @@ export function ConfirmDialog({
             </AlertDialog.Close>
             <button
               type="button"
-              disabled={busy}
+              aria-disabled={busy}
               onClick={async () => {
+                if (busy) return
                 setProblem(null)
                 const answer = onConfirm()
                 if (!(answer instanceof Promise)) return close(false)
@@ -68,7 +69,7 @@ export function ConfirmDialog({
                 if (typeof failed === "string") setProblem(failed)
                 else close(false)
               }}
-              className={`h-11 rounded-full px-5 font-semibold text-primary-foreground disabled:opacity-60 ${destructive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}`}
+              className={`h-11 rounded-full px-5 font-semibold text-primary-foreground aria-disabled:opacity-60 ${destructive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}`}
             >
               {busy ? "Working…" : problem ? "Try again" : confirm}
             </button>

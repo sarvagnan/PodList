@@ -1,16 +1,19 @@
 import { createHash } from "node:crypto"
 import { Config, Context, Duration, Effect, Layer, Option, Redacted, Schema } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
+import { parseFeed } from "./FeedParser.ts"
 
 // Finding podcasts to subscribe to (Q38): Podcast Index when the server has an API key,
-// iTunes Search otherwise or when Podcast Index fails. Results share one shape.
+// iTunes Search otherwise or when Podcast Index fails. Results share one shape. A feed
+// address is read directly, with no directory: its result is the podcast it names, or
+// none when it isn't a podcast feed.
 
 export interface DirectoryResult {
   readonly title: string
   readonly author: string | null
   readonly feedUrl: string
   readonly artworkUrl: string | null
-  readonly source: "podcastindex" | "itunes"
+  readonly source: "podcastindex" | "itunes" | "feed"
 }
 
 export const DirectoryConfig = Config.all({
@@ -131,7 +134,38 @@ export class Directory extends Context.Service<
           )
         )
 
+      const feed = (url: string) =>
+        http
+          .execute(
+            HttpClientRequest.get(url).pipe(
+              HttpClientRequest.setHeader("user-agent", userAgent),
+              HttpClientRequest.setHeader(
+                "accept",
+                "application/rss+xml, application/xml, text/xml"
+              )
+            )
+          )
+          .pipe(
+            Effect.flatMap(HttpClientResponse.filterStatusOk),
+            Effect.flatMap((response) => response.text),
+            Effect.timeout(timeout),
+            Effect.flatMap((body) => Effect.try(() => parseFeed(body))),
+            Effect.map(
+              (parsed): ReadonlyArray<DirectoryResult> => [
+                {
+                  title: parsed.title,
+                  author: parsed.author,
+                  feedUrl: url,
+                  artworkUrl: parsed.artworkUrl,
+                  source: "feed"
+                }
+              ]
+            ),
+            Effect.orElseSucceed((): ReadonlyArray<DirectoryResult> => [])
+          )
+
       const search = (query: string) => {
+        if (/^https?:\/\/\S+$/.test(query.trim())) return feed(query.trim())
         const fallback = itunes(query).pipe(Effect.orElseSucceed(() => []))
         if (Option.isSome(config.podcastIndexKey) && Option.isSome(config.podcastIndexSecret)) {
           return podcastIndex(

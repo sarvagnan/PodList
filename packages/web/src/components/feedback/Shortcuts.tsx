@@ -26,7 +26,7 @@ const groups: ReadonlyArray<{
       ...(mac ? [["⌘K", "Search the Library"] as const] : []),
       [`${cmd}Z`, "Undo the last change"],
       [mac ? "⌘⇧Z" : "Ctrl+Shift+Z", "Redo it"],
-      ["Esc", "Close a sheet or panel; clear ticked Episodes"],
+      ["Esc", "Close a sheet or panel; clear the selection"],
       [`${cmd}/`, "Show these shortcuts"]
     ]
   },
@@ -38,9 +38,9 @@ const groups: ReadonlyArray<{
       ["Home End", `First or last action; with ${cmd} the first or last Episode`],
       ["Page Up Page Down", "Ten Episodes up or down"],
       ["Enter", "Open the Episode"],
-      ["Space", "Tick the Episode for bulk actions"],
-      ["Shift ↑ ↓", "Tick a run of Episodes"],
-      [`${cmd}A`, "Tick every Episode"],
+      ["Space", "Select the Episode for bulk actions"],
+      ["Shift ↑ ↓", "Select a run of Episodes"],
+      [`${cmd}A`, "Select every Episode"],
       ["Letters", "Jump to a title"]
     ]
   },

@@ -1,7 +1,7 @@
 import * as SqliteClient from "@effect/sql-sqlite-wasm/SqliteClient"
 import * as SqliteMigrator from "@effect/sql-sqlite-wasm/SqliteMigrator"
 import { Sql } from "@podlist/domain"
-import { Context, Effect, Layer, Schedule } from "effect"
+import { Context, Effect, Exit, Layer, Schedule, Scope } from "effect"
 import { Migrator, SqlClient } from "effect/sql"
 
 // The LocalDb seam (ADR 0007): the app talks to `effect/sql`'s SqlClient, migrated to
@@ -38,28 +38,40 @@ export const clientMigrations = Migrator.fromRecord({
  */
 const clientWithRetry = (databaseName: string) =>
   Layer.effectContext(
-    SqliteClient.make({
-      worker: Effect.acquireRelease(
-        Effect.sync(
-          () =>
-            new Worker(new URL("./localDbWorker.ts", import.meta.url), {
-              type: "module",
-              name: databaseName
-            })
-        ),
-        (worker) => Effect.sync(() => worker.terminate())
-      )
-    }).pipe(
-      // A locked database can leave the worker waiting rather than failing, so each
-      // attempt has a deadline before it is retried with a fresh worker.
-      Effect.timeout("3 seconds"),
-      Effect.retry({ schedule: Schedule.spaced("250 millis"), times: 12 }),
-      Effect.map((client) =>
-        Context.make(SqliteClient.SqliteClient, client).pipe(
-          Context.add(SqlClient.SqlClient, client)
+    Effect.gen(function* () {
+      // Each attempt has its own scope: one that fails (or runs out of time) has its
+      // worker terminated at once, so a slow attempt can't take the database late and
+      // hold it while every retry finds it locked.
+      const attempt = Effect.gen(function* () {
+        const scope = yield* Scope.make()
+        const client = yield* SqliteClient.make({
+          worker: Effect.acquireRelease(
+            Effect.sync(
+              () =>
+                new Worker(new URL("./localDbWorker.ts", import.meta.url), {
+                  type: "module",
+                  name: databaseName
+                })
+            ),
+            (worker) => Effect.sync(() => worker.terminate())
+          )
+        }).pipe(
+          Scope.provide(scope),
+          // A locked database can leave the worker waiting rather than failing.
+          Effect.timeout("3 seconds"),
+          Effect.onExit((exit) => (Exit.isFailure(exit) ? Scope.close(scope, exit) : Effect.void))
         )
+        return { client, scope }
+      })
+      const { client, scope } = yield* attempt.pipe(
+        Effect.retry({ schedule: Schedule.spaced("250 millis"), times: 12 })
       )
-    )
+      // The one that worked lives as long as the app's runtime.
+      yield* Effect.addFinalizer((exit) => Scope.close(scope, exit))
+      return Context.make(SqliteClient.SqliteClient, client).pipe(
+        Context.add(SqlClient.SqlClient, client)
+      )
+    })
   )
 
 export const layerWeb = (databaseName = "podlist.db") =>

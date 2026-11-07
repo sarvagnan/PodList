@@ -272,73 +272,81 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
           Switch Playlist
         </button>
       </div>
-      <ol aria-label={`${playlist.name} Entries`}>
-        {playlist.entries.map((entry) => {
-          const episode = episodes.get(entry.episodeId)
-          const isCurrent = entry.episodeId === current.episodeId
-          return (
-            <li key={entry.episodeId} className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-current={isCurrent ? "true" : undefined}
-                aria-label={
-                  isCurrent
-                    ? `${episode?.title ?? "Entry"}, playing now`
-                    : `Play ${episode?.title ?? "Entry"} from here`
-                }
-                onClick={() => {
-                  if (!isCurrent) {
-                    control({
-                      _tag: "playEntry",
-                      playlistId: playlist.id,
-                      episodeId: entry.episodeId
-                    })
+      {/* What plays now and after it: Entries before it aren't "up next". */}
+      <ol aria-label={`Up next in ${playlist.name}`}>
+        {playlist.entries
+          .slice(
+            Math.max(
+              0,
+              playlist.entries.findIndex((e) => e.episodeId === current.episodeId)
+            )
+          )
+          .map((entry) => {
+            const episode = episodes.get(entry.episodeId)
+            const isCurrent = entry.episodeId === current.episodeId
+            return (
+              <li key={entry.episodeId} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-current={isCurrent ? "true" : undefined}
+                  aria-label={
+                    isCurrent
+                      ? `${episode?.title ?? "Entry"}, playing now`
+                      : `Play ${episode?.title ?? "Entry"} from here`
                   }
-                  home()
-                }}
-                className={`flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-player-track ${isCurrent ? "bg-player-track" : ""}`}
-              >
-                <Artwork
-                  url={episode?.artworkUrl ?? null}
-                  name={episode?.podcast ?? "?"}
-                  size={40}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className={`line-clamp-2 text-row ${isCurrent ? "font-semibold" : ""}`}>
-                    {episode?.title ?? "Episode unavailable"}
-                  </span>
-                  <span className="text-small text-player-muted">
-                    {isCurrent
-                      ? "Now"
-                      : entry.position > 0 && episode?.duration
-                        ? `${formatTime(episode.duration - entry.position)} left`
-                        : episode?.duration
-                          ? formatLength(episode.duration)
-                          : ""}
-                  </span>
-                </span>
-              </button>
-              {!isCurrent && (
-                <Tip label={`Remove from ${playlist.name}`}>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${episode?.title ?? "Entry"} from ${playlist.name}`}
-                    onClick={() =>
-                      void act({
-                        _tag: "Remove",
-                        episodeId: entry.episodeId,
-                        playlistId: playlist.id
+                  onClick={() => {
+                    if (!isCurrent) {
+                      control({
+                        _tag: "playEntry",
+                        playlistId: playlist.id,
+                        episodeId: entry.episodeId
                       })
                     }
-                    className="grid size-11 shrink-0 place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground"
-                  >
-                    <X aria-hidden="true" className="size-5" />
-                  </button>
-                </Tip>
-              )}
-            </li>
-          )
-        })}
+                    home()
+                  }}
+                  className={`flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-player-track ${isCurrent ? "bg-player-track" : ""}`}
+                >
+                  <Artwork
+                    url={episode?.artworkUrl ?? null}
+                    name={episode?.podcast ?? "?"}
+                    size={40}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className={`line-clamp-2 text-row ${isCurrent ? "font-semibold" : ""}`}>
+                      {episode?.title ?? "Episode unavailable"}
+                    </span>
+                    <span className="text-small text-player-muted">
+                      {isCurrent
+                        ? "Now"
+                        : entry.position > 0 && episode?.duration
+                          ? `${formatTime(episode.duration - entry.position)} left`
+                          : episode?.duration
+                            ? formatLength(episode.duration)
+                            : ""}
+                    </span>
+                  </span>
+                </button>
+                {!isCurrent && (
+                  <Tip label={`Remove from ${playlist.name}`}>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${episode?.title ?? "Entry"} from ${playlist.name}`}
+                      onClick={() =>
+                        void act({
+                          _tag: "Remove",
+                          episodeId: entry.episodeId,
+                          playlistId: playlist.id
+                        })
+                      }
+                      className="grid size-11 shrink-0 place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground"
+                    >
+                      <X aria-hidden="true" className="size-5" />
+                    </button>
+                  </Tip>
+                )}
+              </li>
+            )
+          })}
       </ol>
     </div>
   )

@@ -140,3 +140,14 @@ test("right-click on an Episode's title leaves the browser's link menu", async (
   expect(await prevented).toBe(false)
   await expect(page.getByRole("menu")).toHaveCount(0)
 })
+
+test("Back returns focus to the row that was opened", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/views/short`)
+  const title = page.locator('[data-row="2"] [data-cell="title"]')
+  await title.focus()
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/episodes\//)
+  await page.goBack()
+  await expect(title).toBeFocused()
+})

@@ -343,8 +343,8 @@ function PlaylistDetail() {
                               void navigate({ search: { episode: entry.episodeId } })
                             }}
                             // Narrow for its text (a small phone, large text): the number column
-                            // gives way, then the buttons move under the title (WTYPE-02, WTYPE-05).
-                            className={`@container relative flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer ${current ? "bg-accent" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
+                            // gives way, then the buttons stack beside the title (WTYPE-02).
+                            className={`@container relative flex items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer ${current ? "bg-accent" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
                           />
                         }
                       >
@@ -367,11 +367,16 @@ function PlaylistDetail() {
                         >
                           {current ? (active ? "NOW" : "RESUME") : index + 1}
                         </span>
-                        <Artwork
-                          url={episode?.artworkUrl ?? null}
-                          name={episode?.podcast ?? "?"}
-                          size={44}
-                        />
+                        {episode === undefined ? (
+                          // A neutral tile while the details arrive: it shows on the NOW row's
+                          // tint too (APPEAR-11).
+                          <span
+                            aria-hidden="true"
+                            className="size-11 shrink-0 rounded-lg bg-secondary"
+                          />
+                        ) : (
+                          <Artwork url={episode.artworkUrl} name={episode.podcast} size={44} />
+                        )}
                         <GridCell block className="min-w-0 flex-1">
                           {current && (
                             <span className="block text-xs font-semibold tracking-wider text-primary @min-[30rem]:hidden">
@@ -426,7 +431,13 @@ function PlaylistDetail() {
                             </span>
                           </span>
                         </GridCell>
-                        <div className="relative z-10 ml-auto flex shrink-0 @max-[15rem]:basis-full @max-[15rem]:justify-end">
+                        {/* Inert until the Entry's details arrive: nothing to act on yet. */}
+                        <div
+                          inert={title === undefined && !ready}
+                          // Narrow for its text (200% on a phone): Play and Remove stack beside the
+                          // title rather than on a line of their own between rows.
+                          className={`relative z-10 ml-auto flex shrink-0 @max-[15rem]:flex-col ${title === undefined && !ready ? "opacity-40" : ""}`}
+                        >
                           {/* One button that stays put (and keeps focus) as it toggles. */}
                           <GridCell>
                             <Tip label={live && playing.playing ? "Pause" : "Play from here"}>
@@ -489,7 +500,7 @@ function PlaylistDetail() {
           {selected && (
             <aside
               aria-label="Episode"
-              className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pb-28 lg:block"
+              className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
             >
               <div className="flex justify-end px-3">
                 <button

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { SlidersHorizontal } from "lucide-react"
+import { ArrowDown, ArrowUp, SlidersHorizontal, X } from "lucide-react"
 import { useId, useState } from "react"
 import type { SubscriptionSummary } from "../../app/data.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -11,6 +11,7 @@ import { Artwork } from "../shell/Artwork.tsx"
 // each podcast's Download Rule on this Device in its row, and ticked rows changed at once.
 
 export type Mode = "never" | "onEntry" | "allNew"
+type SortKey = "title" | "unplayed" | "rule"
 
 /** The Download Rules as a select offers them. */
 export const ruleOptions: ReadonlyArray<readonly [Mode, string]> = [
@@ -22,7 +23,7 @@ export const ruleOptions: ReadonlyArray<readonly [Mode, string]> = [
 const select =
   "h-9 w-full min-w-0 rounded-lg border border-field bg-card px-2 text-row text-foreground"
 
-/** Ticked podcasts' Download Rule, changed at once: in the header, where Views keep theirs. */
+/** Selected podcasts' Download Rule, changed at once: in the header, where Views keep theirs. */
 export function LibraryBulkBar({
   chosen,
   setRules,
@@ -33,9 +34,13 @@ export function LibraryBulkBar({
   readonly onClear: () => void
 }) {
   const [bulkMode, setBulkMode] = useState<Mode>("onEntry")
+  // The same pill as a View's bulk bar (components/episodes/BulkBar.tsx).
   return (
-    <section aria-label="Change ticked podcasts" className="flex flex-wrap items-center gap-2">
-      <span className="text-row font-semibold">{chosen.length} ticked</span>
+    <section
+      aria-label={`${chosen.length} ${chosen.length === 1 ? "podcast" : "podcasts"} selected`}
+      className="flex flex-wrap items-center gap-2 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
+    >
+      <span className="text-row font-semibold">{chosen.length} selected</span>
       <label className="flex items-center gap-2 text-small text-muted-foreground">
         Downloads
         <select
@@ -56,17 +61,20 @@ export function LibraryBulkBar({
           setRules(chosen, bulkMode)
           onClear()
         }}
-        className="h-10 rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+        className="h-9 rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
       >
         Apply to {chosen.length}
       </button>
-      <button
-        type="button"
-        onClick={onClear}
-        className="h-10 rounded-full px-3 text-row font-medium hover:bg-secondary active:bg-input"
-      >
-        Clear
-      </button>
+      <Tip label="Clear selection">
+        <button
+          type="button"
+          aria-label="Clear selection"
+          onClick={onClear}
+          className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+        >
+          <X aria-hidden="true" className="size-4" />
+        </button>
+      </Tip>
     </section>
   )
 }
@@ -95,6 +103,51 @@ export function LibraryTable({
   const id = useId()
   // Keep at most and Speed where there's room for them beside the podcast's name.
   const roomy = useMinWidth("80rem")
+  // Sorted by a column's header, A–Z by name until one is chosen.
+  const [sort, setSort] = useState<{ readonly key: SortKey; readonly ascending: boolean }>({
+    key: "title",
+    ascending: true
+  })
+  const rank: Record<Mode, number> = { allNew: 0, onEntry: 1, never: 2 }
+  const sorted = [...subscriptions].sort((a, b) => {
+    const order =
+      sort.key === "unplayed"
+        ? a.unplayed - b.unplayed
+        : sort.key === "rule"
+          ? rank[ruleOf(a.id).mode] - rank[ruleOf(b.id).mode]
+          : 0
+    return (
+      (sort.ascending ? order : -order) ||
+      a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
+    )
+  })
+  const header = (key: SortKey, label: string, className: string, end = false) => {
+    const active = sort.key === key
+    return (
+      <th
+        scope="col"
+        aria-sort={active ? (sort.ascending ? "ascending" : "descending") : undefined}
+        className={className}
+      >
+        <button
+          type="button"
+          onClick={() => setSort({ key, ascending: active ? !sort.ascending : key !== "unplayed" })}
+          className={`-mx-1 inline-flex items-center gap-1 rounded px-1 uppercase hover:text-foreground ${end ? "flex-row-reverse" : ""} ${active ? "text-foreground" : ""}`}
+        >
+          {label}
+          {active ? (
+            sort.ascending ? (
+              <ArrowUp aria-hidden="true" className="size-3.5" />
+            ) : (
+              <ArrowDown aria-hidden="true" className="size-3.5" />
+            )
+          ) : (
+            <span aria-hidden="true" className="size-3.5" />
+          )}
+        </button>
+      </th>
+    )
+  }
   const all = subscriptions.length > 0 && subscriptions.every((s) => ticked.has(s.id))
   const tick = (subscriptionId: string, on: boolean) => {
     const next = new Set(ticked)
@@ -119,7 +172,7 @@ export function LibraryTable({
             <th scope="col" className="py-2 pl-2">
               <input
                 type="checkbox"
-                aria-label="Tick every podcast"
+                aria-label="Select every podcast"
                 checked={all}
                 onChange={(event) =>
                   setTicked(new Set(event.target.checked ? subscriptions.map((s) => s.id) : []))
@@ -127,15 +180,9 @@ export function LibraryTable({
                 className="size-4 accent-primary"
               />
             </th>
-            <th scope="col" className="py-2">
-              Podcast
-            </th>
-            <th scope="col" className="py-2 text-right">
-              Unplayed
-            </th>
-            <th scope="col" className="py-2 pl-6">
-              Downloads
-            </th>
+            {header("title", "Podcast", "py-2")}
+            {header("unplayed", "Unplayed", "py-2 text-right", true)}
+            {header("rule", "Downloads", "py-2 pl-6")}
             {roomy && (
               <>
                 <th scope="col" className="py-2 pl-4">
@@ -152,7 +199,7 @@ export function LibraryTable({
           </tr>
         </thead>
         <tbody>
-          {subscriptions.map((s) => {
+          {sorted.map((s) => {
             const rule = ruleOf(s.id)
             const on = ticked.has(s.id)
             return (
@@ -167,7 +214,7 @@ export function LibraryTable({
                 <td className="py-2 pl-2">
                   <input
                     type="checkbox"
-                    aria-label={`Tick ${s.title}`}
+                    aria-label={`Select ${s.title}`}
                     checked={on}
                     onChange={(event) => tick(s.id, event.target.checked)}
                     className="size-4 accent-primary"

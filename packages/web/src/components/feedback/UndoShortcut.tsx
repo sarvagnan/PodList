@@ -25,11 +25,28 @@ export function UndoShortcut() {
   const latest = useRef({ undo: undoStack, redo: redoStack })
   latest.current = { undo: undoStack, redo: redoStack }
 
+  // The Mac app's Edit menu: the next steps, and whether a text field has focus (it has
+  // its own undo), so Undo and Redo are dimmed only when there's nothing to take back.
   useEffect(() => {
-    window.podlistApp?.setUndoRedo?.(
-      undoStack.at(-1)?.message ?? null,
-      redoStack.at(-1)?.message ?? null
-    )
+    const setUndoRedo = window.podlistApp?.setUndoRedo
+    if (setUndoRedo === undefined) return
+    const report = () => {
+      const el = document.activeElement
+      const editing =
+        el instanceof HTMLElement &&
+        (el.isContentEditable ||
+          el instanceof HTMLTextAreaElement ||
+          (el instanceof HTMLInputElement &&
+            !["checkbox", "radio", "range", "button", "file"].includes(el.type)))
+      setUndoRedo(undoStack.at(-1)?.message ?? null, redoStack.at(-1)?.message ?? null, editing)
+    }
+    report()
+    document.addEventListener("focusin", report)
+    document.addEventListener("focusout", report)
+    return () => {
+      document.removeEventListener("focusin", report)
+      document.removeEventListener("focusout", report)
+    }
   }, [undoStack, redoStack])
 
   useEffect(() => {

@@ -79,10 +79,13 @@ function Action({
 export function EpisodeDetail({
   episodeId,
   tone = "light",
+  heading: Heading = "h2",
   onPlay
 }: {
   readonly episodeId: string
   readonly tone?: Tone
+  /** h1 on the Episode's own screen; h2 in a panel beside a list. */
+  readonly heading?: "h1" | "h2"
   /** Called after playback starts from here (the drawer returns to its main page). */
   readonly onPlay?: () => void
 }) {
@@ -129,7 +132,12 @@ export function EpisodeDetail({
         <Artwork url={detail.artworkUrl} name={detail.podcast} size={96} />
         <div className="min-w-0">
           <p className={`text-small ${t.muted}`}>{detail.podcast}</p>
-          <h2 className="mt-1 font-heading text-xl leading-snug font-semibold">{detail.title}</h2>
+          <Heading
+            tabIndex={-1}
+            className="mt-1 font-heading text-xl leading-snug font-semibold outline-none"
+          >
+            {detail.title}
+          </Heading>
           <p className={`mt-1.5 text-small ${t.muted}`}>{facts}</p>
           {/* The Episode's link: the system share sheet where there is one, else copied. */}
           <button

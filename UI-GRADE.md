@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -42,6 +42,16 @@ Round 5: coverage 96.3%; 10 failures (6 major, 4 minor; one counted once across 
 Round 6: coverage 94.7%; 14 failures (1 blocker, 9 major, 4 minor). Report: [docs/ui-grade/round-6.md](docs/ui-grade/round-6.md). Graded build 9aa0f2b, the first with every designed screen. The blocker (a rename typed just before leaving the screen was lost) caps Interaction at 4.9; uncapped, most categories are 8.0–8.6.
 
 Round 7: coverage 92.7%; 6 failures (4 major, 2 minor, no blockers). Report: [docs/ui-grade/round-7.md](docs/ui-grade/round-7.md). Graded build c44b5e5 (before the row menus). Platform fit and Interaction are capped at 6.9 by majors; uncapped they are 8.5 and about 8.6, and the grader puts all four majors fixed near 8.3 overall.
+
+Round 8: coverage 87.9%; 4 failures (1 major, 3 minor, no blockers). Report: [docs/ui-grade/round-8.md](docs/ui-grade/round-8.md). Graded build 383fff5. Interaction is capped at 6.9 by one major (focus after a failed Subscribe); uncapped it is about 8.6, and Overall near 8.6.
+
+## Work list (round 8)
+
+Fixed on 7 Nov:
+- [x] WKEY-03 busy buttons (Subscribe, the confirm dialogs, OPML) stay focusable, so a failure leaves focus in the sheet.
+- [x] Minors: COPY-01 one bulk bar ("N selected", ×, the same pill) and "Select" throughout · LIST-04 Search results end at 960 px · APPEAR-11 no Chapter line before the title; loading Entries are inert, with a neutral tile.
+- [x] Craft: selects drawn to match fields (system arrow in forced colours); a feed address shows its podcast (title, artwork) before Subscribe, or says inline that it isn't a feed, and Enter subscribes; Back returns focus to the row you opened; Up next lists only now and next; the Episode screen's back link names where it came from and its title is the h1; Settings has a back link on the phone; side panels end at the header's edge; section labels align with their cards; at 200% text Entry actions stack beside the title; the Mac app dims Undo and Redo with nothing to take back (outside text fields); the Library table sorts by Podcast, Unplayed and Downloads.
+- [x] Found while testing: a slow database open could leave its worker holding the database while every retry failed (each attempt now has its own scope); the window list no longer scrolls to the top when it mounts after Back.
 
 ## Work list (round 7)
 
