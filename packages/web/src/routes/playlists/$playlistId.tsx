@@ -203,7 +203,7 @@ function PlaylistDetail() {
               search={value ? { tab: value } : {}}
               aria-current={tab === value ? "page" : undefined}
               activeOptions={{ exact: true, includeSearch: true }}
-              className="flex h-9 items-center justify-center rounded-full px-3 text-small font-medium whitespace-nowrap text-muted-foreground aria-[current=page]:bg-card aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
+              className="flex h-9 items-center justify-center rounded-full px-3 text-small font-medium whitespace-nowrap text-muted-foreground aria-[current=page]:bg-card aria-[current=page]:font-semibold aria-[current=page]:text-foreground aria-[current=page]:shadow-sm aria-[current=page]:ring-1 aria-[current=page]:ring-field/40"
             >
               {value === "timeline" ? (
                 // A narrow screen (or large text) keeps the three on one line.

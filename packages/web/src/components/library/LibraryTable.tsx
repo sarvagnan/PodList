@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router"
 import { ArrowDown, ArrowUp, SlidersHorizontal, X } from "lucide-react"
 import { useId, useState } from "react"
 import type { SubscriptionSummary } from "../../app/data.ts"
-import { useMinWidth } from "../../lib/useWide.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { type RowCommand, RowMenu } from "../lists/RowMenu.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
@@ -105,7 +104,8 @@ export function LibraryTable({
   ticked,
   setTicked,
   sort,
-  setSort
+  setSort,
+  showExtras
 }: {
   readonly subscriptions: ReadonlyArray<SubscriptionSummary>
   readonly ruleOf: (subscriptionId: string) => {
@@ -121,10 +121,12 @@ export function LibraryTable({
   /** Kept in the URL, so a reload or Back keeps the order (DATA-06). */
   readonly sort: LibrarySort
   readonly setSort: (sort: LibrarySort) => void
+  /** Keep at most and Speed, when there's room for them beside the podcast's name. */
+  readonly showExtras: boolean
 }) {
   const id = useId()
   // Keep at most and Speed where there's room for them beside the podcast's name.
-  const roomy = useMinWidth("80rem")
+  const roomy = showExtras
   // Sorted by a column's header, A–Z by name until one is chosen.
   const rank: Record<Mode, number> = { allNew: 0, onEntry: 1, never: 2 }
   const sorted = [...subscriptions].sort((a, b) => {

@@ -41,6 +41,8 @@ test.describe("phone", () => {
     const drawer = page.getByRole("dialog")
     await drawer.getByRole("button", { name: "Episode" }).click()
     await expect(drawer.getByRole("heading", { name: "Episode", level: 2 })).toBeVisible()
+    // Every page names the dialog (AX-01).
+    await expect(page.getByRole("dialog", { name: "Episode" })).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(drawer.getByRole("button", { name: "Episode" })).toBeVisible()
     await page.keyboard.press("Escape")

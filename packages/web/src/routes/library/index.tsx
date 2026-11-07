@@ -5,7 +5,7 @@ import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
 import type * as React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { type SubscriptionSummary, subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
@@ -23,7 +23,7 @@ import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
-import { useMinWidth } from "../../lib/useWide.ts"
+import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
 
 // The Library (docs/design/ui-layout.md › Library and Subscriptions): every Subscription,
 // each opening its settings and Episodes; Add finds podcasts, takes a feed address or an
@@ -111,7 +111,11 @@ function LibraryScreen() {
     })
   }
   const copy = useCopyText()
-  const wide = useMinWidth("64rem")
+  // The table where its columns and a readable name fit at the text's size (in rem: the
+  // fixed columns are 26.5rem, a name wants 14rem, the extras 13rem more); else the list.
+  const contentRef = useRef<HTMLDivElement>(null)
+  const contentRem = useWidthInRem(contentRef)
+  const wide = useMinWidth("64rem") && contentRem >= 44
   // Ticked rows of the desktop table; only podcasts still in the Library count.
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
   const chosen = wide ? subscriptions.filter((s) => ticked.has(s.id)).map((s) => s.id) : []
@@ -163,7 +167,8 @@ function LibraryScreen() {
     </button>
   )
   return (
-    <>
+    // Measured for the table-or-list choice; the screen's content stops at 960 px anyway.
+    <div ref={contentRef} className="max-w-[960px]">
       <PageHeader
         narrow
         title="Library"
@@ -210,6 +215,7 @@ function LibraryScreen() {
           commandsFor={commandsFor}
           ticked={ticked}
           setTicked={setTicked}
+          showExtras={contentRem >= 57}
           sort={sort}
           setSort={(next) =>
             void navigate({
@@ -286,6 +292,6 @@ function LibraryScreen() {
         </div>
       )}
       {adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />}
-    </>
+    </div>
   )
 }

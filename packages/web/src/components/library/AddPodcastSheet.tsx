@@ -380,7 +380,7 @@ export function AddPodcastSheet({
                 type="button"
                 aria-pressed={tab === value}
                 onClick={() => setTab(value)}
-                className="h-9 rounded-full text-small font-medium text-muted-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-sm"
+                className="h-9 rounded-full text-small font-medium text-muted-foreground aria-pressed:bg-card aria-pressed:font-semibold aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:ring-1 aria-pressed:ring-field/40"
               >
                 {label}
               </button>

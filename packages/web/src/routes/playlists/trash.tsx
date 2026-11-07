@@ -63,6 +63,7 @@ function Trash() {
                   )
                 }}
                 data-restore=""
+                aria-label={`Restore ${t.playlist.name}`}
                 className="h-10 shrink-0 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
               >
                 Restore

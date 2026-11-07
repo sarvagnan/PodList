@@ -451,8 +451,12 @@ export function NowPlayingDrawer() {
                 className="mx-auto mt-1 h-1 w-10 rounded-full bg-player-track md:hidden"
               />
             )}
+            {/* The top page's heading names the dialog (AX-01), as the Episode's title does
+                on the main page. */}
             {page && (
-              <h2 className="flex-1 text-center text-row font-semibold">{pageTitles[page]}</h2>
+              <Drawer.Title className="flex-1 text-center text-row font-semibold">
+                {pageTitles[page]}
+              </Drawer.Title>
             )}
             <Tip label={"Close"}>
               <button

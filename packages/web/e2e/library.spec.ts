@@ -287,3 +287,12 @@ test("a feed address isn't called wrong while it's still being typed", async ({ 
   await field.fill("https://example.com/feed.xml")
   await expect(field).toHaveAttribute("aria-invalid", "false")
 })
+
+test("with larger text, the Library gives way to its list", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  await expect(page.getByRole("table")).toBeVisible()
+  await page.addStyleTag({ content: "html { font-size: 24px !important }" })
+  await expect(page.getByRole("table")).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Deep Field", exact: true })).toBeVisible()
+})

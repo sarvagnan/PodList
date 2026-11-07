@@ -49,6 +49,8 @@ export function Toasts() {
             <Toast.Root
               key={toast.id}
               toast={toast}
+              // A toast is announced as a dialog, so it is named by what it says (AX-01).
+              aria-label={typeof toast.description === "string" ? toast.description : "Notice"}
               className={`surface-dark flex items-center gap-2 rounded-xl py-1.5 pr-1.5 pl-4 text-row text-player-foreground shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 ${inDrawer ? "border border-white/25 bg-player-track" : "bg-player"}`}
             >
               <Toast.Description className="line-clamp-3 min-w-0 flex-1" />
