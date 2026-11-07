@@ -85,7 +85,7 @@ function SearchPage() {
             placeholder="Titles, show notes, podcasts"
             aria-describedby={`${id}-count`}
             onChange={(event) => setText(event.target.value)}
-            className="h-12 w-full rounded-xl border border-field bg-card pr-3 pl-10 text-row"
+            className="min-h-12 w-full rounded-xl border border-field bg-card py-2 pr-3 pl-10 text-row"
           />
         </div>
         {/* What is searched stays in view; the count joins it once there are words. */}

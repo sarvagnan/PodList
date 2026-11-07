@@ -477,21 +477,31 @@ const menu = (): MenuItemConstructorOptions[] => [
         click: () => sendControl("toggle")
       },
       { type: "separator" },
-      { label: "Back 15 Seconds", accelerator: "CmdOrCtrl+Left", click: () => sendControl("back") },
+      // ⌘← ⌘→ (and with ⌥) move the caret in text fields, so the page takes them only
+      // outside fields (BROWSER-07); the menu shows them without claiming the keys.
+      {
+        label: "Back 15 Seconds",
+        accelerator: "CmdOrCtrl+Left",
+        registerAccelerator: false,
+        click: () => sendControl("back")
+      },
       {
         label: "Forward 30 Seconds",
         accelerator: "CmdOrCtrl+Right",
+        registerAccelerator: false,
         click: () => sendControl("forward")
       },
       { type: "separator" },
       {
         label: "Previous Chapter",
         accelerator: "Alt+CmdOrCtrl+Left",
+        registerAccelerator: false,
         click: () => sendControl("previousChapter")
       },
       {
         label: "Next Chapter",
         accelerator: "Alt+CmdOrCtrl+Right",
+        registerAccelerator: false,
         click: () => sendControl("nextChapter")
       }
     ]

@@ -381,7 +381,7 @@ function SwitchPlaylist() {
                   {active
                     ? "Playing from here"
                     : start
-                      ? `Resume at: ${episodes.get(start)?.title ?? ""}`
+                      ? `${(p.entries.find((e) => e.episodeId === start)?.position ?? 0) > 0 ? "Resume at" : "Next"}: ${episodes.get(start)?.title ?? ""}`
                       : "No Entries"}
                 </span>
               </span>

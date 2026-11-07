@@ -380,7 +380,7 @@ export function NextLastTarget() {
           set(event.target.value)
           nextLastTarget.set(event.target.value)
         }}
-        className="h-9 rounded-lg border border-field bg-card px-2 text-row font-medium text-foreground"
+        className="min-h-9 rounded-lg border border-field bg-card px-2 py-1 text-row font-medium text-foreground"
       >
         {state.playlists.map((p) => (
           <option key={p.id} value={p.id}>

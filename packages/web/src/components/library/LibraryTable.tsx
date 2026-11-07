@@ -11,7 +11,24 @@ import { Artwork } from "../shell/Artwork.tsx"
 // each podcast's Download Rule on this Device in its row, and ticked rows changed at once.
 
 export type Mode = "never" | "onEntry" | "allNew"
-type SortKey = "title" | "unplayed" | "rule"
+export type SortKey = "title" | "unplayed" | "rule"
+export interface LibrarySort {
+  readonly key: SortKey
+  readonly ascending: boolean
+}
+/** The URL's form of a sort ("unplayed-desc"); A–Z by name is the default, left out. */
+export const sortParam = {
+  parse: (value: unknown): LibrarySort | undefined => {
+    const [key, direction] = typeof value === "string" ? value.split("-") : []
+    return (key === "title" || key === "unplayed" || key === "rule") &&
+      (direction === "asc" || direction === "desc")
+      ? { key, ascending: direction === "asc" }
+      : undefined
+  },
+  format: (sort: LibrarySort) => `${sort.key}-${sort.ascending ? "asc" : "desc"}`
+}
+const byName = (a: SubscriptionSummary, b: SubscriptionSummary) =>
+  a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
 
 /** The Download Rules as a select offers them. */
 export const ruleOptions: ReadonlyArray<readonly [Mode, string]> = [
@@ -21,7 +38,7 @@ export const ruleOptions: ReadonlyArray<readonly [Mode, string]> = [
 ]
 
 const select =
-  "h-9 w-full min-w-0 rounded-lg border border-field bg-card px-2 text-row text-foreground"
+  "min-h-9 w-full min-w-0 rounded-lg border border-field bg-card px-2 py-1 text-row text-foreground"
 
 /** Selected podcasts' Download Rule, changed at once: in the header, where Views keep theirs. */
 export function LibraryBulkBar({
@@ -86,7 +103,9 @@ export function LibraryTable({
   setRules,
   commandsFor,
   ticked,
-  setTicked
+  setTicked,
+  sort,
+  setSort
 }: {
   readonly subscriptions: ReadonlyArray<SubscriptionSummary>
   readonly ruleOf: (subscriptionId: string) => {
@@ -99,15 +118,14 @@ export function LibraryTable({
   readonly commandsFor: (subscription: SubscriptionSummary) => ReadonlyArray<RowCommand>
   readonly ticked: ReadonlySet<string>
   readonly setTicked: (ticked: ReadonlySet<string>) => void
+  /** Kept in the URL, so a reload or Back keeps the order (DATA-06). */
+  readonly sort: LibrarySort
+  readonly setSort: (sort: LibrarySort) => void
 }) {
   const id = useId()
   // Keep at most and Speed where there's room for them beside the podcast's name.
   const roomy = useMinWidth("80rem")
   // Sorted by a column's header, A–Z by name until one is chosen.
-  const [sort, setSort] = useState<{ readonly key: SortKey; readonly ascending: boolean }>({
-    key: "title",
-    ascending: true
-  })
   const rank: Record<Mode, number> = { allNew: 0, onEntry: 1, never: 2 }
   const sorted = [...subscriptions].sort((a, b) => {
     const order =
@@ -115,11 +133,9 @@ export function LibraryTable({
         ? a.unplayed - b.unplayed
         : sort.key === "rule"
           ? rank[ruleOf(a.id).mode] - rank[ruleOf(b.id).mode]
-          : 0
-    return (
-      (sort.ascending ? order : -order) ||
-      a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
-    )
+          : byName(a, b)
+    // Equal by the chosen column: A–Z by name.
+    return (sort.ascending ? order : -order) || byName(a, b)
   })
   const header = (key: SortKey, label: string, className: string, end = false) => {
     const active = sort.key === key

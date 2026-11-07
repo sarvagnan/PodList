@@ -32,7 +32,7 @@ test("creates, renames, deletes to the Trash and restores a Playlist", async ({ 
   await name.blur()
   const sidebar = page.getByRole("navigation", { name: "Library and lists" })
   await expect(sidebar.getByRole("link", { name: /^Road trips/ })).toBeVisible()
-  const clear = page.getByRole("switch", { name: /Clear on Played/ })
+  const clear = page.getByRole("checkbox", { name: /Clear on Played/ })
   await clear.click()
   await expect(clear).toBeChecked()
 

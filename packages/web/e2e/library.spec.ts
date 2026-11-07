@@ -231,4 +231,12 @@ test("the Library table sorts by its columns", async ({ page }) => {
     "aria-sort",
     "descending"
   )
+  // The order is in the URL, so a reload keeps it (DATA-06).
+  await page.reload()
+  await expect.poll(async () => (await names())[0]).toBe("Market Hours")
+  // Name, then name again: Z–A (LIST-03).
+  await page.getByRole("button", { name: "Podcast", exact: true }).click()
+  await expect.poll(names).toEqual(["Deep Field", "Market Hours", "Slow Build"])
+  await page.getByRole("button", { name: "Podcast", exact: true }).click()
+  await expect.poll(names).toEqual(["Slow Build", "Market Hours", "Deep Field"])
 })

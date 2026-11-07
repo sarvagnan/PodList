@@ -79,7 +79,7 @@ export function SaveSearchDialog({
             onKeyDown={(event) => {
               if (event.key === "Enter") void save()
             }}
-            className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row"
+            className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row"
           />
           {error && (
             <p id={`${id}-error`} className="mt-1 text-small text-destructive">

@@ -151,3 +151,33 @@ test("Back returns focus to the row that was opened", async ({ page }) => {
   await page.goBack()
   await expect(title).toBeFocused()
 })
+
+test("closing a row's right-click menu puts focus back in the row", async ({ page }) => {
+  await desktop(page, "/views/short")
+  const title = page.locator('[data-row="1"] [data-cell="title"]')
+  await title.focus()
+  // Right-click the row's facts, away from the link.
+  const box = await page.locator('[data-row="1"]').boundingBox()
+  await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.55, (box?.y ?? 0) + 8, {
+    button: "right"
+  })
+  await expect(page.getByRole("menu")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(title).toBeFocused()
+})
+
+test("the View editor holds together at 200% text", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/views/short?edit=true`)
+  await page.addStyleTag({ content: "html { font-size: 32px !important }" })
+  const form = page.locator("main form, main [data-view-form], main").first()
+  await page.getByRole("textbox", { name: "Name" }).waitFor()
+  // No label runs under its field, and nothing scrolls sideways.
+  const overflowing = await form.evaluate((root) =>
+    [...root.querySelectorAll("label, select")]
+      .filter((el) => el.scrollWidth > el.clientWidth + 1)
+      .map((el) => el.textContent?.slice(0, 20))
+  )
+  expect(overflowing).toEqual([])
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(412)
+})

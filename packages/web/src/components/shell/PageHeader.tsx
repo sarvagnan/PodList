@@ -8,7 +8,8 @@ export function PageHeader({
   back,
   subtitle,
   actions,
-  narrow = false
+  narrow = false,
+  backOnDesktop = false
 }: {
   readonly title: string
   readonly back?: { readonly to: string; readonly label: string }
@@ -16,6 +17,9 @@ export function PageHeader({
   readonly actions?: ReactNode
   /** The screen's content stops at 960 px: so do the header's actions, above its edge. */
   readonly narrow?: boolean
+  /** A screen opened from another (settings, a Subscription, Trash) keeps its way back on
+   * desktop too; top-level lists rely on the sidebar. */
+  readonly backOnDesktop?: boolean
 }) {
   // The tab names the screen (BROWSER-03).
   useEffect(() => {
@@ -29,7 +33,7 @@ export function PageHeader({
         <Link
           to={back.to}
           activeOptions={{ exact: true }}
-          className="-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary md:hidden"
+          className={`-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary ${backOnDesktop ? "" : "md:hidden"}`}
         >
           <ChevronLeft aria-hidden="true" className="size-5" />
           {back.label}

@@ -20,6 +20,7 @@ import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { cameFrom } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
+import { inMacApp } from "../../lib/share.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
 import { Tip } from "../feedback/Tip.tsx"
@@ -532,7 +533,29 @@ function useMenuControls() {
       }
     }
     document.addEventListener("podlist:control", onControl)
-    return () => document.removeEventListener("podlist:control", onControl)
+    // The Mac app's ⌘← ⌘→ (skips) and ⌥⌘← ⌥⌘→ (Chapters), which its menu shows but
+    // leaves to the page, so text fields keep them for the caret (BROWSER-07).
+    const onKey = (event: KeyboardEvent) => {
+      if (!inMacApp || !event.metaKey || event.ctrlKey || event.shiftKey) return
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      const target = event.target as HTMLElement
+      if (target.closest("input, textarea, select, [contenteditable]")) return
+      event.preventDefault()
+      const left = event.key === "ArrowLeft"
+      const command = event.altKey
+        ? left
+          ? "previousChapter"
+          : "nextChapter"
+        : left
+          ? "back"
+          : "forward"
+      document.dispatchEvent(new CustomEvent("podlist:control", { detail: command }))
+    }
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("podlist:control", onControl)
+      document.removeEventListener("keydown", onKey)
+    }
   }, [control])
 }
 
@@ -546,8 +569,19 @@ function useSearchKey() {
   }, [router])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      // ⌘K on a Mac; elsewhere Ctrl+K is the browser's own (BROWSER-05).
-      if (event.key.toLowerCase() !== "k" || !event.metaKey || event.ctrlKey || event.altKey) return
+      // ⌘K on a Mac; elsewhere Ctrl+K is the browser's own (BROWSER-05). "/" everywhere,
+      // as on the web's search boxes, when not typing.
+      const commandK =
+        event.key.toLowerCase() === "k" && event.metaKey && !event.ctrlKey && !event.altKey
+      const slash =
+        event.key === "/" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !(event.target as HTMLElement).closest(
+          "input, textarea, select, [contenteditable], [role=dialog]"
+        )
+      if (!commandK && !slash) return
       event.preventDefault()
       const field = document.querySelector<HTMLInputElement>('main input[type="search"]')
       if (router.state.location.pathname === "/search" && field) field.focus()

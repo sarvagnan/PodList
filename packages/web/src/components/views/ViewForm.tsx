@@ -44,15 +44,17 @@ function Row({
   readonly children: ReactNode
 }) {
   return (
-    <div className="flex min-h-14 items-start gap-3 border-b px-3 py-2 last:border-b-0">
+    // The label column is in rem, so it grows with the text; with no room left, the field
+    // goes under its label (WTYPE-02).
+    <div className="flex min-h-14 flex-wrap items-start gap-x-3 gap-y-1 border-b px-3 py-2 last:border-b-0">
       {htmlFor ? (
-        <label htmlFor={htmlFor} className="w-24 shrink-0 pt-2.5 text-row font-medium">
+        <label htmlFor={htmlFor} className="w-[6rem] shrink-0 pt-2.5 text-row font-medium">
           {label}
         </label>
       ) : (
-        <span className="w-24 shrink-0 pt-2.5 text-row font-medium">{label}</span>
+        <span className="w-[6rem] shrink-0 pt-2.5 text-row font-medium">{label}</span>
       )}
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-[min(12rem,100%)] flex-1">{children}</div>
     </div>
   )
 }

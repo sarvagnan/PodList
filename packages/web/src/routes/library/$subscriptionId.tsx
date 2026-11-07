@@ -60,7 +60,11 @@ function SubscriptionScreen() {
   if (subscription === null) {
     return (
       <>
-        <PageHeader title="Subscription" back={{ to: "/library", label: "Library" }} />
+        <PageHeader
+          backOnDesktop
+          title="Subscription"
+          back={{ to: "/library", label: "Library" }}
+        />
         <EmptyState title="This podcast isn’t in your Library">
           <Link to="/library" className="font-medium text-primary underline underline-offset-2">
             See your Library
@@ -105,6 +109,7 @@ function SubscriptionScreen() {
   return (
     <>
       <PageHeader
+        backOnDesktop
         title={subscription.title}
         back={{ to: "/library", label: "Library" }}
         subtitle={[

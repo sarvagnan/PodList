@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -44,6 +44,16 @@ Round 6: coverage 94.7%; 14 failures (1 blocker, 9 major, 4 minor). Report: [doc
 Round 7: coverage 92.7%; 6 failures (4 major, 2 minor, no blockers). Report: [docs/ui-grade/round-7.md](docs/ui-grade/round-7.md). Graded build c44b5e5 (before the row menus). Platform fit and Interaction are capped at 6.9 by majors; uncapped they are 8.5 and about 8.6, and the grader puts all four majors fixed near 8.3 overall.
 
 Round 8: coverage 87.9%; 4 failures (1 major, 3 minor, no blockers). Report: [docs/ui-grade/round-8.md](docs/ui-grade/round-8.md). Graded build 383fff5. Interaction is capped at 6.9 by one major (focus after a failed Subscribe); uncapped it is about 8.6, and Overall near 8.6.
+
+Round 9: coverage 93%; 7 failures (5 major, 2 minor, no blockers). Report: [docs/ui-grade/round-9.md](docs/ui-grade/round-9.md). Graded build f89dff8. Three categories capped at 6.9 by narrow majors, two of them in the new Library sort; uncapped they are 8.6–8.8, and the grader puts Overall near 8.6 with them fixed.
+
+## Work list (round 9)
+
+Fixed on 7 Nov:
+- [x] WKEY-03 closing a row's right-click menu returns focus to the row · DATA-06 the Library sort is in the URL · LIST-03 sorting by name reverses · WTYPE-02 the View editor's labels size in rem and fields drop under them; fields and selects have minimum, not fixed, heights · BROWSER-07 the Mac app's ⌘← ⌘→ (and with ⌥) are the page's, outside text fields.
+- [x] Minors: CTRL-02 Clear on Played is a plain checkbox · COPY-01 a paused Cursor without a Position reads HERE / "Next:", RESUME only with one.
+- [x] Craft: "/" opens Search on every OS; Playlist settings, a Subscription and Trash keep their back link on desktop; the Episode actions fit one row at 320 px.
+- [ ] Not done: content widths across screens; the desktop drawer's empty centre; the phone drawer's lone pill; one error place in Add podcasts; Search's View form; OPML drop target; Next/Last icons.
 
 ## Work list (round 8)
 

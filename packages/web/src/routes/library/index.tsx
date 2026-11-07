@@ -16,7 +16,8 @@ import {
   LibraryBulkBar,
   LibraryTable,
   type Mode,
-  ruleOptions
+  ruleOptions,
+  sortParam
 } from "../../components/library/LibraryTable.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
@@ -42,8 +43,13 @@ const plainClick = (event: React.MouseEvent) =>
 export const Route = createFileRoute("/library/")({
   component: LibraryScreen,
   // ?add=true opens Add podcasts (the Mac app's File › Add Podcasts).
-  validateSearch: (search: Record<string, unknown>): { add?: boolean } =>
-    search.add === true || search.add === "true" ? { add: true } : {}
+  validateSearch: (search: Record<string, unknown>): { add?: boolean; sort?: string } => {
+    const sort = sortParam.parse(search.sort)
+    return {
+      ...(search.add === true || search.add === "true" ? { add: true } : {}),
+      ...(sort ? { sort: sortParam.format(sort) } : {})
+    }
+  }
 })
 
 function LibraryScreen() {
@@ -53,12 +59,16 @@ function LibraryScreen() {
   const [adding, setAdding] = useState(false)
   // ?add=true (File › Add Podcasts in the Mac app) opens the sheet once, then leaves the
   // URL so a reload doesn't open it again.
-  const { add: addFromUrl } = Route.useSearch()
+  const { add: addFromUrl, sort: sortFromUrl } = Route.useSearch()
+  const sort = sortParam.parse(sortFromUrl) ?? { key: "title" as const, ascending: true }
   const navigate = Route.useNavigate()
   useEffect(() => {
     if (!addFromUrl) return
     // Clean the URL first: the sheet's Back step must not lead back to ?add=true.
-    void navigate({ search: {}, replace: true }).then(() => setAdding(true))
+    void navigate({
+      search: ({ add: _, ...rest }) => rest,
+      replace: true
+    }).then(() => setAdding(true))
   }, [addFromUrl, navigate])
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
@@ -200,6 +210,16 @@ function LibraryScreen() {
           commandsFor={commandsFor}
           ticked={ticked}
           setTicked={setTicked}
+          sort={sort}
+          setSort={(next) =>
+            void navigate({
+              search: ({ sort: _, ...rest }) =>
+                next.key === "title" && next.ascending
+                  ? rest
+                  : { ...rest, sort: sortParam.format(next) },
+              replace: true
+            })
+          }
         />
       ) : (
         // Grouped by what this Device stores for each podcast (design C).

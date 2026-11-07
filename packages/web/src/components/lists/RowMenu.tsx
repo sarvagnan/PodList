@@ -93,9 +93,13 @@ export function RowMenuItems({
  * Links, fields and selected text in a row keep the browser's own menu (BROWSER-06): the
  * right-click stops at the row, before the row's menu (which listens further up) sees it.
  */
+/** Where focus was when each row's menu was opened, to return it there on close. */
+const openedFrom = new WeakMap<HTMLElement, Element | null>()
+
 const keepBrowserMenus = (row: HTMLElement | null) => {
   if (row === null) return
   const onContextMenu = (event: MouseEvent) => {
+    openedFrom.set(row, document.activeElement)
     const target = event.target as Element
     const selected = window.getSelection()
     if (
@@ -112,6 +116,21 @@ const keepBrowserMenus = (row: HTMLElement | null) => {
 export function RowMenu({ commands, link, render, children }: RowMenuProps) {
   const wide = useMinWidth("64rem")
   const id = useId()
+  // Closing the menu returns focus to the row (WKEY-03): to what had focus in it, or its
+  // title. A row that has gone (Mark Played in an Unplayed View) leaves focus to the list.
+  const row = useRef<HTMLElement | null>(null)
+  const backToRow = () => {
+    const element = row.current
+    if (element === null || !element.isConnected) return false
+    const before = openedFrom.get(element)
+    if (before instanceof HTMLElement && before.isConnected && element.contains(before))
+      return before
+    return (
+      element.querySelector<HTMLElement>("[data-cell=title], a[href]") ??
+      element.querySelector<HTMLElement>("button, [tabindex]") ??
+      false
+    )
+  }
   // The Mac app's menu answers with a label; run that command as it is now.
   const current = useRef(commands)
   current.current = commands
@@ -143,12 +162,21 @@ export function RowMenu({ commands, link, render, children }: RowMenuProps) {
   if (!wide) return cloneElement(render, {}, children)
   return (
     <ContextMenu.Root>
-      <ContextMenu.Trigger ref={keepBrowserMenus} render={render}>
+      <ContextMenu.Trigger
+        ref={(element: HTMLElement | null) => {
+          row.current = element
+          return keepBrowserMenus(element)
+        }}
+        render={render}
+      >
         {children}
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50">
-          <ContextMenu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">
+          <ContextMenu.Popup
+            finalFocus={backToRow}
+            className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg"
+          >
             <RowMenuItems commands={commands} {...(link === undefined ? {} : { link })} />
           </ContextMenu.Popup>
         </ContextMenu.Positioner>

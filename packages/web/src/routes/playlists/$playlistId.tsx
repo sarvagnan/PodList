@@ -365,7 +365,13 @@ function PlaylistDetail() {
                         <span
                           className={`hidden w-15 shrink-0 text-center text-xs font-semibold tracking-wider @min-[30rem]:block ${current ? "text-primary" : "text-muted-foreground"}`}
                         >
-                          {current ? (active ? "NOW" : "RESUME") : index + 1}
+                          {current
+                            ? active
+                              ? "NOW"
+                              : position > 0
+                                ? "RESUME"
+                                : "HERE"
+                            : index + 1}
                         </span>
                         {episode === undefined ? (
                           // A neutral tile while the details arrive: it shows on the NOW row's
@@ -380,7 +386,7 @@ function PlaylistDetail() {
                         <GridCell block className="min-w-0 flex-1">
                           {current && (
                             <span className="block text-xs font-semibold tracking-wider text-primary @min-[30rem]:hidden">
-                              {active ? "NOW" : "RESUME"}
+                              {active ? "NOW" : position > 0 ? "RESUME" : "HERE"}
                             </span>
                           )}
                           {title === undefined && !ready ? (

@@ -46,7 +46,11 @@ function PlaylistSettings() {
   if (playlist === undefined) {
     return (
       <>
-        <PageHeader title="Playlist settings" back={{ to: "/playlists", label: "Playlists" }} />
+        <PageHeader
+          backOnDesktop
+          title="Playlist settings"
+          back={{ to: "/playlists", label: "Playlists" }}
+        />
         <EmptyState title="This Playlist no longer exists">
           <Link to="/playlists" className="font-medium text-primary underline underline-offset-2">
             See your Playlists
@@ -58,6 +62,7 @@ function PlaylistSettings() {
   return (
     <>
       <PageHeader
+        backOnDesktop
         title="Playlist settings"
         subtitle={playlist.name}
         back={{ to: `/playlists/${playlistId}`, label: playlist.name }}
@@ -82,7 +87,7 @@ function PlaylistSettings() {
                 renameLater.schedule(value)
               }}
               onBlur={(event) => renameLater.now(event.target.value)}
-              className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row disabled:bg-secondary disabled:text-muted-foreground"
+              className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row disabled:bg-secondary disabled:text-muted-foreground"
             />
             <p
               id={`${id}-name-help`}
@@ -98,8 +103,6 @@ function PlaylistSettings() {
           <label className="flex items-start gap-3 px-4 py-3">
             <input
               type="checkbox"
-              role="switch"
-              aria-checked={playlist.clearOnPlayed}
               checked={playlist.clearOnPlayed}
               onChange={(event) =>
                 record(

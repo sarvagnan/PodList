@@ -43,8 +43,12 @@ function PlaylistsList() {
           {state.playlists.map((p) => {
             const active = p.id === state.activePlaylistId
             const current = p.cursor === null ? undefined : episodes.get(p.cursor)
+            // "Resume" only where there's a Position to resume from (COPY-01).
+            const started = (p.entries.find((e) => e.episodeId === p.cursor)?.position ?? 0) > 0
             const lines = [
-              ...(current ? [`${active ? "Now" : "Resume at"}: ${current.title}`] : []),
+              ...(current
+                ? [`${active ? "Now" : started ? "Resume at" : "Next"}: ${current.title}`]
+                : []),
               `${entries(p.entries.length)} · ${p.clearOnPlayed ? "Clear on Played" : "Keeps Entries"}`
             ]
             const status = active

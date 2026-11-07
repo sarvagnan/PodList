@@ -23,7 +23,7 @@ const groups: ReadonlyArray<{
     keys: [
       ["Space", "Play or pause"],
       // ⌘K on a Mac only: elsewhere Ctrl+K belongs to the browser (BROWSER-05).
-      ...(mac ? [["⌘K", "Search the Library"] as const] : []),
+      [mac ? "/ or ⌘K" : "/", "Search the Library"],
       [`${cmd}Z`, "Undo the last change"],
       [mac ? "⌘⇧Z" : "Ctrl+Shift+Z", "Redo it"],
       ["Esc", "Close a sheet or panel; clear the selection"],

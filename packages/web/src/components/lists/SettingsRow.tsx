@@ -5,7 +5,8 @@ import type { ReactNode } from "react"
 
 /** A select or text field in a settings row or form. */
 export const fieldControl =
-  "h-10 w-full min-w-0 rounded-lg border border-field bg-card px-2.5 text-row text-foreground"
+  // A minimum height, not a fixed one, so large text never overflows it (WTYPE-02).
+  "min-h-10 w-full min-w-0 rounded-lg border border-field bg-card px-2.5 py-1.5 text-row text-foreground"
 
 export function SettingsRow({
   label,

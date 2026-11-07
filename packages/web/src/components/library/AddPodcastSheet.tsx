@@ -117,7 +117,7 @@ function SearchTab() {
         type="search"
         value={text}
         onChange={(event) => setText(event.target.value)}
-        className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row"
+        className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row"
       />
       <div aria-live="polite" className="mt-3 max-h-[50dvh] min-h-24 overflow-y-auto">
         {looksLikeFeed(text) ? (
@@ -245,7 +245,7 @@ function AddressTab() {
           event.preventDefault()
           document.querySelector<HTMLButtonElement>("[data-feed-preview] [data-subscribe]")?.click()
         }}
-        className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row aria-invalid:border-destructive"
+        className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row aria-invalid:border-destructive"
       />
       {/* Says at once what's wrong with an address, as it's typed (WDATA-03). */}
       <p

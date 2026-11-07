@@ -159,7 +159,8 @@ export function EpisodeDetail({
       {/* Desktop beside a View: Played · Download · Next · Play · Last · Add · Star, aligned
           with the header (docs/design/ui-layout.md). */}
       <div
-        className={`mt-6 flex flex-wrap items-start justify-center gap-1 ${desktopExtras ? "lg:justify-start" : ""}`}
+        // No gap on the narrowest phones, so the five still fit on one row (not four and one).
+        className={`mt-6 flex flex-wrap items-start justify-center gap-0 min-[22.5rem]:gap-1 ${desktopExtras ? "lg:justify-start" : ""}`}
       >
         <Action
           label="Played"
