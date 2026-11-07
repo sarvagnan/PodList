@@ -57,3 +57,17 @@ test("Mark all Played asks first", async ({ page }) => {
     })
     .toBe(true)
 })
+
+test("Settings keep the default speed and how long the Trash keeps Playlists", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views/short`)
+  await page
+    .getByRole("navigation", { name: "Library and lists" })
+    .getByRole("link", { name: "Settings" })
+    .click()
+  await page.getByRole("combobox", { name: /^Speed/ }).selectOption("1.5")
+  await page.getByRole("combobox", { name: "Keep deleted Playlists" }).selectOption("14")
+  await page.reload()
+  await expect(page.getByRole("combobox", { name: /^Speed/ })).toHaveValue("1.5")
+  await expect(page.getByRole("combobox", { name: "Keep deleted Playlists" })).toHaveValue("14")
+})

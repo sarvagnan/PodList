@@ -32,6 +32,7 @@ import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
+import { VersionNotice } from "./VersionNotice.tsx"
 
 // Variant A (docs/design/ui-layout.md): phone has Views / Playlists / Library tabs with a
 // mini-player above them; desktop has a sidebar of Views and Playlists and a player bar.
@@ -384,6 +385,9 @@ function Sidebar() {
       <Link to="/library" className={link}>
         Library
       </Link>
+      <Link to="/settings" className={link}>
+        Settings
+      </Link>
       <button type="button" onClick={openShortcuts} className={`${link} text-muted-foreground`}>
         Keyboard shortcuts
         <kbd className="rounded border border-input px-1.5 font-sans text-xs whitespace-nowrap">
@@ -523,6 +527,7 @@ export function AppShell() {
       </a>
       <Sidebar />
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-44 outline-none md:pb-28">
+        <VersionNotice />
         <Outlet />
       </main>
       <div className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">

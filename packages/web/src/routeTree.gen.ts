@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as EpisodesEpisodeIdRouteImport } from './routes/episodes/$episodeId'
 import { Route as LibraryIndexRouteImport } from './routes/library/index'
 import { Route as LibrarySubscriptionIdRouteImport } from './routes/library/$subscriptionId'
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EpisodesEpisodeIdRoute = EpisodesEpisodeIdRouteImport.update({
@@ -81,6 +87,7 @@ const PlaylistsPlaylistIdSettingsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
   '/library/$subscriptionId': typeof LibrarySubscriptionIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
   '/library/$subscriptionId': typeof LibrarySubscriptionIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
   '/library/$subscriptionId': typeof LibrarySubscriptionIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/search'
+    | '/settings'
     | '/episodes/$episodeId'
     | '/library/$subscriptionId'
     | '/playlists/$playlistId'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/search'
+    | '/settings'
     | '/episodes/$episodeId'
     | '/library/$subscriptionId'
     | '/playlists/$playlistId'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/search'
+    | '/settings'
     | '/episodes/$episodeId'
     | '/library/$subscriptionId'
     | '/playlists/$playlistId'
@@ -163,6 +175,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SearchRoute: typeof SearchRoute
+  SettingsRoute: typeof SettingsRoute
   EpisodesEpisodeIdRoute: typeof EpisodesEpisodeIdRoute
   LibrarySubscriptionIdRoute: typeof LibrarySubscriptionIdRoute
   PlaylistsPlaylistIdRoute: typeof PlaylistsPlaylistIdRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/episodes/$episodeId': {
@@ -259,6 +279,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SearchRoute: SearchRoute,
+  SettingsRoute: SettingsRoute,
   EpisodesEpisodeIdRoute: EpisodesEpisodeIdRoute,
   LibrarySubscriptionIdRoute: LibrarySubscriptionIdRoute,
   PlaylistsPlaylistIdRoute: PlaylistsPlaylistIdRoute,

@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { ChevronRight, Plus } from "lucide-react"
+import { ChevronRight, Plus, Settings } from "lucide-react"
 import { useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useLibraryReady } from "../../app/hooks.ts"
@@ -40,7 +40,19 @@ function LibraryScreen() {
               subtitle: `${subscriptions.length} ${subscriptions.length === 1 ? "Subscription" : "Subscriptions"}`
             }
           : {})}
-        actions={add}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* The phone has no sidebar: Settings lives here. */}
+            <Link
+              to="/settings"
+              aria-label="Settings"
+              className="grid size-11 place-items-center rounded-full bg-secondary hover:bg-input active:bg-input/70 md:hidden"
+            >
+              <Settings aria-hidden="true" className="size-5" />
+            </Link>
+            {add}
+          </div>
+        }
       />
       {AsyncResult.isInitial(result) || (subscriptions.length === 0 && !ready) ? (
         <LoadingRows label="Loading your Library" />
