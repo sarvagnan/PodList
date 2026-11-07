@@ -126,6 +126,11 @@ function SearchTab() {
           <p className="text-row text-destructive">{problem}</p>
         ) : results?.length === 0 ? (
           <p className="text-row text-muted-foreground">No podcasts found. Try other words.</p>
+        ) : results === null && text.trim() === "" ? (
+          // What to type, as the Feed address tab says too.
+          <p className="text-small text-muted-foreground">
+            Type a podcast’s name to find it in the podcast directory, or paste its feed address.
+          </p>
         ) : (
           results?.map((r) => (
             <Result

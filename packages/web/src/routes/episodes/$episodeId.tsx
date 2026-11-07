@@ -53,7 +53,7 @@ function EpisodeScreen() {
           {backLabel}
         </a>
       </header>
-      <div className="md:px-3">
+      <div>
         {/* Its title is the screen's heading (h1). */}
         <EpisodeDetail episodeId={episodeId} heading="h1" />
       </div>

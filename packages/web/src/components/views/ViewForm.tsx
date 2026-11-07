@@ -59,6 +59,7 @@ function Row({
   )
 }
 
+/** A saved View's form: each change is recorded at once, as one step Undo takes back. */
 export function ViewForm({
   view,
   onDelete
@@ -68,17 +69,6 @@ export function ViewForm({
 }) {
   const record = useAtomSet(recordAtom, { mode: "promise" })
   const undoable = useUndoable()
-  const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => [])
-  const current = viewData(view)
-  const id = useId()
-  const [name, setName] = useState(current.name)
-  const [text, setText] = useState(current.filter.text ?? "")
-  const [nameError, setNameError] = useState(false)
-  // "Only these" or "All except" chosen before any podcast is ticked.
-  const [podcastMode, setPodcastMode] = useState<"all" | "include" | "exclude">(
-    current.filter.podcasts?.mode ?? "all"
-  )
-
   const save = (next: ViewData) => {
     const before = viewData(view)
     if (JSON.stringify(before) === JSON.stringify(next)) return
@@ -93,15 +83,49 @@ export function ViewForm({
       }
     })
   }
-  const setFilter = (filter: Filter) => save({ ...viewData(view), filter })
+  return <ViewFormFields data={viewData(view)} onChange={save} onDelete={onDelete} />
+}
+
+/**
+ * The View form (docs/design/ui-layout.md, variant R): every condition always a row. For a
+ * saved View (above), or an unsaved one: Search, which has its words in its own field and
+ * no name until it is saved.
+ */
+export function ViewFormFields({
+  data,
+  onChange,
+  onDelete,
+  unsaved = false
+}: {
+  readonly data: ViewData
+  readonly onChange: (next: ViewData) => void
+  readonly onDelete?: () => void
+  /** Search: no Name row, no Mentions row (its field is above), no Delete. */
+  readonly unsaved?: boolean
+}) {
+  const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => [])
+  const current = data
+  const id = useId()
+  const [name, setName] = useState(current.name)
+  const [text, setText] = useState(current.filter.text ?? "")
+  const [nameError, setNameError] = useState(false)
+  // "Only these" or "All except" chosen before any podcast is ticked.
+  const [podcastMode, setPodcastMode] = useState<"all" | "include" | "exclude">(
+    current.filter.podcasts?.mode ?? "all"
+  )
+
+  const save = (next: ViewData) => {
+    if (JSON.stringify(data) !== JSON.stringify(next)) onChange(next)
+  }
+  const setFilter = (filter: Filter) => save({ ...data, filter })
 
   const nameCommit = useDebounced((value) => {
     const trimmed = value.trim()
     setNameError(trimmed === "")
-    if (trimmed !== "") save({ ...viewData(view), name: trimmed })
+    if (trimmed !== "") save({ ...data, name: trimmed })
   })
   const textCommit = useDebounced((value) =>
-    setFilter(withCondition(viewData(view).filter, "text", value.trim() || undefined))
+    setFilter(withCondition(data.filter, "text", value.trim() || undefined))
   )
 
   const f = current.filter
@@ -150,29 +174,31 @@ export function ViewForm({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border bg-card">
-        <Row label="Name" htmlFor={`${id}-name`}>
-          <input
-            id={`${id}-name`}
-            type="text"
-            value={name}
-            required
-            aria-invalid={nameError}
-            aria-describedby={nameError ? `${id}-name-error` : undefined}
-            onChange={(event) => {
-              setName(event.target.value)
-              nameCommit.schedule(event.target.value)
-            }}
-            onBlur={(event) => nameCommit.now(event.target.value)}
-            className={control}
-          />
-          {nameError && (
-            <p id={`${id}-name-error`} className="mt-1 text-small text-destructive">
-              A View needs a name.
-            </p>
-          )}
-        </Row>
-      </div>
+      {!unsaved && (
+        <div className="rounded-xl border bg-card">
+          <Row label="Name" htmlFor={`${id}-name`}>
+            <input
+              id={`${id}-name`}
+              type="text"
+              value={name}
+              required
+              aria-invalid={nameError}
+              aria-describedby={nameError ? `${id}-name-error` : undefined}
+              onChange={(event) => {
+                setName(event.target.value)
+                nameCommit.schedule(event.target.value)
+              }}
+              onBlur={(event) => nameCommit.now(event.target.value)}
+              className={control}
+            />
+            {nameError && (
+              <p id={`${id}-name-error`} className="mt-1 text-small text-destructive">
+                A View needs a name.
+              </p>
+            )}
+          </Row>
+        </div>
+      )}
 
       <section aria-labelledby={`${id}-where`}>
         <h3
@@ -251,24 +277,26 @@ export function ViewForm({
               </fieldset>
             )}
           </Row>
-          <Row label="Mentions" htmlFor={`${id}-text`}>
-            <input
-              id={`${id}-text`}
-              type="search"
-              value={text}
-              placeholder="Any words"
-              aria-describedby={`${id}-text-help`}
-              onChange={(event) => {
-                setText(event.target.value)
-                textCommit.schedule(event.target.value)
-              }}
-              onBlur={(event) => textCommit.now(event.target.value)}
-              className={control}
-            />
-            <p id={`${id}-text-help`} className="mt-1 text-small text-muted-foreground">
-              Titles, show notes and podcast names.
-            </p>
-          </Row>
+          {!unsaved && (
+            <Row label="Mentions" htmlFor={`${id}-text`}>
+              <input
+                id={`${id}-text`}
+                type="search"
+                value={text}
+                placeholder="Any words"
+                aria-describedby={`${id}-text-help`}
+                onChange={(event) => {
+                  setText(event.target.value)
+                  textCommit.schedule(event.target.value)
+                }}
+                onBlur={(event) => textCommit.now(event.target.value)}
+                className={control}
+              />
+              <p id={`${id}-text-help`} className="mt-1 text-small text-muted-foreground">
+                Titles, show notes and podcast names.
+              </p>
+            </Row>
+          )}
           <Row label="Played" htmlFor={`${id}-played`}>
             <select
               id={`${id}-played`}
@@ -403,9 +431,7 @@ export function ViewForm({
             <select
               id={`${id}-sort`}
               value={current.sort}
-              onChange={(event) =>
-                save({ ...viewData(view), sort: event.target.value as View.ViewSort })
-              }
+              onChange={(event) => save({ ...data, sort: event.target.value as View.ViewSort })}
               className={control}
             >
               {sorts.map(([value, label]) => (
@@ -421,7 +447,7 @@ export function ViewForm({
               value={current.limit === null ? "" : String(current.limit)}
               onChange={(event) =>
                 save({
-                  ...viewData(view),
+                  ...data,
                   limit: event.target.value === "" ? null : Number(event.target.value)
                 })
               }
@@ -438,14 +464,16 @@ export function ViewForm({
         </div>
       </section>
 
-      <button
-        type="button"
-        onClick={onDelete}
-        className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-row font-medium text-destructive hover:bg-secondary active:bg-input"
-      >
-        <Trash2 aria-hidden="true" className="size-4" />
-        Delete View
-      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-row font-medium text-destructive hover:bg-secondary active:bg-input"
+        >
+          <Trash2 aria-hidden="true" className="size-4" />
+          Delete View
+        </button>
+      )}
     </div>
   )
 }

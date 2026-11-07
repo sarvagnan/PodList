@@ -116,3 +116,31 @@ test("a fresh Search starts in its field", async ({ page }) => {
   await page.goto(`${demo.base}/search`)
   await expect(page.getByRole("searchbox", { name: "Search the Library" })).toBeFocused()
 })
+
+test("Search narrows with the View form, and saves its conditions", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/search?q=market`)
+  const refine = page.getByRole("complementary", { name: "Refine" })
+  await refine.getByRole("combobox", { name: "Played" }).selectOption("unplayed")
+  await expect(page).toHaveURL(/f=/)
+  // Kept in the address: a reload keeps the condition.
+  await page.reload()
+  await expect(
+    page.getByRole("complementary", { name: "Refine" }).getByRole("combobox", { name: "Played" })
+  ).toHaveValue("unplayed")
+  await page.getByRole("button", { name: "Save as View" }).click()
+  const dialog = page.getByRole("dialog", { name: "Save as a View" })
+  await dialog.getByRole("textbox", { name: "Name" }).fill("Unplayed markets")
+  await dialog.getByRole("button", { name: "Save View" }).click()
+  await expect(page.getByRole("heading", { name: "Unplayed markets", level: 1 })).toBeVisible()
+  await expect(page.getByText(/Unplayed/).first()).toBeVisible()
+})
+
+test("on the phone, Refine opens the View form under the field", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/search?q=market`)
+  const refine = page.getByRole("button", { name: "Refine" })
+  await refine.click()
+  await expect(refine).toHaveAttribute("aria-expanded", "true")
+  await expect(page.getByRole("combobox", { name: "Played" })).toBeVisible()
+})

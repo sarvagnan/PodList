@@ -261,7 +261,7 @@ function LibraryScreen() {
                               params: { subscriptionId: s.id }
                             })
                           }}
-                          className="relative flex min-h-16 items-center gap-3 border-b px-2 py-2.5 last:border-b-0 hover:bg-secondary/60 lg:cursor-pointer"
+                          className="relative flex min-h-16 items-center gap-3 border-b px-2 py-2.5 last:border-b-0 hover:bg-secondary/60 data-[popup-open]:bg-secondary lg:cursor-pointer"
                         />
                       }
                     >

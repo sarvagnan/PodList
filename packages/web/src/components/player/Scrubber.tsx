@@ -63,7 +63,8 @@ export function Scrubber({
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute size-3 -translate-x-1/2 rounded-full bg-player-foreground peer-hover:size-3.5 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-player-foreground"
+          // Forced colours drop backgrounds; the thumb keeps its system colour.
+          className="pointer-events-none absolute size-3 -translate-x-1/2 rounded-full bg-player-foreground peer-hover:size-3.5 forced-colors:bg-[CanvasText] forced-colors:forced-color-adjust-none peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-player-foreground"
           style={{ left: `${percent(value)}%` }}
         />
       </div>

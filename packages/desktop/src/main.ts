@@ -302,6 +302,12 @@ const createWindow = () => {
   })
   window = win
   win.once("ready-to-show", () => win.show())
+  // A Mac window is titled by what it shows, without the app's name (the page's tab title
+  // ends "· PodList", which a browser tab needs and a window doesn't).
+  win.on("page-title-updated", (event, title) => {
+    event.preventDefault()
+    win.setTitle(title.replace(/ · PodList$/, "") || "PodList")
+  })
   win.on("close", () => {
     if (window === win) writeConfig({ ...readConfig(), bounds: win.getBounds() })
   })

@@ -96,12 +96,13 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
     : 0
   const seek = (seconds: number | null) => seconds !== null && control({ _tag: "seek", seconds })
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-5 px-6 pb-8">
+    // A short window (a zoomed laptop) keeps Play in view: smaller artwork, tighter gaps.
+    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-5 px-6 pb-8 short:gap-2 short:pb-3">
       <Artwork
         url={chapter?.artworkUrl ?? current.artworkUrl}
         name={current.podcast}
         size={320}
-        className="aspect-square h-auto w-full max-w-[min(20rem,38dvh)] rounded-2xl shadow-lg"
+        className="aspect-square h-auto w-full max-w-[min(20rem,38dvh)] rounded-2xl shadow-lg short:max-w-[min(20rem,18dvh)]"
       />
       {current.chapters.length > 0 && (
         <div className="flex w-full items-center gap-2">
@@ -352,6 +353,13 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
             )
           })}
       </ol>
+      {playlist.entries.findIndex((e) => e.episodeId === current.episodeId) >=
+        playlist.entries.length - 1 && (
+        // The same dashed card as every other empty state.
+        <p className="mx-3 mt-2 rounded-2xl border border-dashed border-player-track px-4 py-5 text-center text-small text-player-muted">
+          Nothing after this. In a View, use Play Next or Play Last to add Episodes.
+        </p>
+      )}
     </div>
   )
 }
@@ -437,7 +445,7 @@ export function NowPlayingDrawer() {
           data-sheet="drawer"
           onKeyDown={wrapTab}
           // While a toast shows, its foot is kept free for it (components/feedback/Toasts).
-          className="forced-colors:border forced-colors:border-[CanvasText] surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] pb-[var(--toast-space,0px)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl"
+          className="forced-colors:border forced-colors:border-[CanvasText] surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] pb-[var(--toast-space,0px)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl short:md:h-[calc(100dvh-1rem)] focus-visible:outline-none"
         >
           <div className="flex h-14 shrink-0 items-center gap-2 px-3">
             {page ? (

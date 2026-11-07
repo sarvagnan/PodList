@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { ArrowDown, ArrowUp, SlidersHorizontal, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Settings, X } from "lucide-react"
 import { useId, useState } from "react"
 import type { SubscriptionSummary } from "../../app/data.ts"
 import { Tip } from "../feedback/Tip.tsx"
@@ -233,7 +233,9 @@ export function LibraryTable({
                   commands={commandsFor(s)}
                   link={`/library/${s.id}`}
                   render={
-                    <tr className={`border-b ${on ? "bg-accent/60" : "hover:bg-secondary/60"}`} />
+                    <tr
+                      className={`border-b data-[popup-open]:bg-secondary ${on ? "bg-accent/60" : "hover:bg-secondary/60"}`}
+                    />
                   }
                 >
                   <td className="py-2 pl-2">
@@ -304,7 +306,7 @@ export function LibraryTable({
                         aria-label={`Settings for ${s.title}`}
                         className="inline-grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                       >
-                        <SlidersHorizontal aria-hidden="true" className="size-[18px]" />
+                        <Settings aria-hidden="true" className="size-[18px]" />
                       </Link>
                     </Tip>
                   </td>

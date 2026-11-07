@@ -80,12 +80,13 @@ function Action({
 
 // The action row's two shapes; the break points are the width of every action in one row:
 // 5 × 4.25rem + 4 × 0.25rem gaps = 22.25rem, and 7 × 4.25rem + 6 gaps = 31.25rem. Under
-// them, Play's own row, then 4 (17.75rem) or 2 across, or 3 (13.25rem) or 2.
+// them, Play's own row, then 4 (17.75rem) or 2 across, or 3 (13.25rem) or 2. The seven in one
+// row (the desktop Episode page) start at the header's edge, under the artwork.
 const rowOfFive =
   "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[17.75rem]:grid-cols-4 @min-[22.25rem]:flex @min-[22.25rem]:items-start @min-[22.25rem]:justify-center"
 const playOfFive = "col-span-full order-first @min-[22.25rem]:order-none"
 const rowOfSeven =
-  "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[13.25rem]:grid-cols-3 @min-[31.25rem]:flex @min-[31.25rem]:items-start @min-[31.25rem]:justify-center"
+  "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[13.25rem]:grid-cols-3 @min-[31.25rem]:flex @min-[31.25rem]:items-start @min-[31.25rem]:justify-start"
 const playOfSeven = "col-span-full order-first @min-[31.25rem]:order-none"
 
 export function EpisodeDetail({
@@ -151,14 +152,16 @@ export function EpisodeDetail({
 
   return (
     // As wide as its header and actions, so Resume sits by its Playlist on a wide screen.
-    <article className="max-w-[44rem] px-5 pb-10">
+    // The forms' column: 640 px of content (with the page's 32 px gutters) on desktop.
+    <article className={`max-w-[704px] px-5 pb-10 ${Heading === "h1" ? "md:px-8" : ""}`}>
       <div className="flex items-start gap-4">
         <Artwork url={detail.artworkUrl} name={detail.podcast} size={96} />
         <div className="min-w-0">
           <p className={`text-small ${t.muted}`}>{detail.podcast}</p>
           <Heading
             tabIndex={-1}
-            className="mt-1 font-heading text-xl leading-snug font-semibold outline-none"
+            // As large as other screens' titles on the Episode's own screen; smaller in a panel.
+            className={`mt-1 font-heading font-semibold outline-none ${Heading === "h1" ? "text-title leading-tight md:text-3xl" : "text-xl leading-snug"}`}
           >
             {detail.title}
           </Heading>

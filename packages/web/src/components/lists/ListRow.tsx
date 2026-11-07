@@ -81,7 +81,7 @@ export function EmptyState({
 }) {
   return (
     // Ends where the screen's 960 px content does, not at the window's edge.
-    <div className="mx-5 rounded-2xl border border-dashed px-5 py-8 text-center md:mx-8 md:max-w-[calc(960px-4rem)]">
+    <div className="mx-5 h-fit self-start rounded-2xl border border-dashed px-5 py-8 text-center md:mx-8 md:max-w-[calc(960px-4rem)]">
       <p className="font-medium">{title}</p>
       <p className="mt-1.5 text-row text-muted-foreground">{children}</p>
     </div>

@@ -60,12 +60,21 @@ function TrackTitle({ title, className }: { readonly title: string; readonly cla
     return () => clearTimeout(timer)
   }, [])
   if (title === "" && (!ready || patient)) {
+    // As many lines as the title will take (two where the bar is narrow), so the bar keeps
+    // its height when the title arrives (FLOW-01).
     return (
-      <span
-        role="status"
-        aria-label="Loading Episode"
-        className="block h-3.5 w-40 rounded bg-player-track"
-      />
+      <div className="@container min-w-0">
+        <span role="status" aria-label="Loading Episode" className="block">
+          <span className={`flex h-[1lh] items-center font-semibold ${className}`}>
+            <span className="block h-3.5 w-40 max-w-full rounded bg-player-track" />
+          </span>
+          <span
+            className={`hidden h-[1lh] items-center font-semibold @max-[9rem]:flex ${className}`}
+          >
+            <span className="block h-3.5 w-20 max-w-full rounded bg-player-track" />
+          </span>
+        </span>
+      </div>
     )
   }
   // One line, so the bar keeps its height as titles arrive; a second line only when the
@@ -91,6 +100,11 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   // Nothing half-filled while the catalogue arrives on a new Device (APPEAR-11).
   const label = current.title ? `${current.podcast} · ${playlist?.name ?? ""}` : "\u00a0"
   const progress = current.duration ? Math.min(100, (current.position / current.duration) * 100) : 0
+  const queued = playlist
+    ? playlist.entries.length -
+      1 -
+      playlist.entries.findIndex((e) => e.episodeId === current.episodeId)
+    : 0
   const button =
     "grid size-11 shrink-0 place-items-center rounded-full text-player-foreground hover:bg-player-track active:bg-player-track/70"
   const toggle = (
@@ -159,7 +173,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
     return (
       <section
         aria-label="Now playing"
-        className="@container surface-dark relative mx-2.5 flex items-center gap-2 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
+        className="@container surface-dark relative mx-2.5 flex items-center gap-2 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground forced-colors:border forced-colors:border-[CanvasText]"
       >
         {/* Tapping the bar outside its buttons opens Now Playing. */}
         <button
@@ -194,16 +208,31 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
         )}
         {toggle}
         {forward}
+        {/* The queue badge (docs/design/ui-layout.md): Entries after this one; it opens
+            Now Playing on Up next. */}
+        {playlist && (
+          <button
+            type="button"
+            aria-label={`Up next: ${queued} in ${playlist.name}`}
+            onClick={() => openDrawer(["queue"])}
+            className={`${button} relative @max-[17rem]:hidden`}
+          >
+            <ListMusic aria-hidden="true" className="size-5" />
+            {queued > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute top-1 right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-player-foreground px-1 text-[0.625rem] leading-none font-bold text-player tabular-nums"
+              >
+                {queued}
+              </span>
+            )}
+          </button>
+        )}
         {bar}
       </section>
     )
   }
   const chapter = current.chapters[chapterAt(current.chapters, current.position)]
-  const queued = playlist
-    ? playlist.entries.length -
-      1 -
-      playlist.entries.findIndex((e) => e.episodeId === current.episodeId)
-    : 0
   const chapterButton = (label: string, target: number | null, Icon: typeof SkipBack) => (
     <Tip label={label}>
       <button
@@ -220,7 +249,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   return (
     <section
       aria-label="Now playing"
-      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground short:py-1.5 md:grid"
+      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground short:py-1.5 md:grid forced-colors:border-t forced-colors:border-[CanvasText]"
     >
       <div className="flex min-w-0 flex-col">
         <button

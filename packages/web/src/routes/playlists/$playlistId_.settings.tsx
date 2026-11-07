@@ -68,7 +68,7 @@ function PlaylistSettings() {
         subtitle={playlist.name}
         back={{ to: `/playlists/${playlistId}`, label: playlist.name }}
       />
-      <div className="max-w-xl space-y-5 px-5 pb-10 md:px-8">
+      <div className="max-w-[704px] space-y-5 px-5 pb-10 md:px-8">
         <div className="rounded-xl border bg-card">
           <div className="border-b px-4 py-3">
             <label htmlFor={`${id}-name`} className="block text-row font-medium">

@@ -202,7 +202,7 @@ export function EpisodeRow({
       : checked
         ? "bg-accent/60"
         : "hover:bg-secondary/60"
-  }`
+  } data-[popup-open]:bg-secondary`
   const body = (
     <>
       {onCheck && (

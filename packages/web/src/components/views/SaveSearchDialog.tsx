@@ -6,15 +6,16 @@ import { useId, useRef, useState } from "react"
 import { recordAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
-import { blankView, saveViewChange } from "../../lib/viewEdit.ts"
+import { saveViewChange, type ViewData } from "../../lib/viewEdit.ts"
 
-/** Saves a Search as a View, which needs a name (CONTEXT.md › Search). */
+/** Saves a Search, its words and any conditions, as a View, which needs a name
+ * (CONTEXT.md › Search). */
 export function SaveSearchDialog({
-  text,
+  view: draft,
   open,
   onOpenChange
 }: {
-  readonly text: string
+  readonly view: ViewData
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
@@ -31,7 +32,7 @@ export function SaveSearchDialog({
       setError(true)
       return
     }
-    const view = { ...blankView(crypto.randomUUID(), trimmed), filter: { text } }
+    const view: ViewData = { ...draft, id: crypto.randomUUID(), name: trimmed }
     await record(saveViewChange(view))
     onOpenChange(false)
     await navigate({ to: "/views/$viewId", params: { viewId: view.id } })
@@ -58,8 +59,8 @@ export function SaveSearchDialog({
             </Dialog.Close>
           </div>
           <Dialog.Description className="mt-1 text-row text-muted-foreground">
-            Keeps this search and shows its latest matches whenever you open it. You can add more
-            conditions afterwards.
+            Keeps this search, with its conditions, and shows its latest matches whenever you open
+            it. You can change it later with Edit View.
           </Dialog.Description>
           <label htmlFor={`${id}-name`} className="mt-4 block text-row font-medium">
             Name
