@@ -38,25 +38,27 @@ Round 3: coverage 97.6%; 11 failures (8 major, 3 minor, no blockers); four categ
 ## Work list (round 3)
 
 ### Majors
-- [ ] WKEY-03: Tab stays inside the Add and Keyboard shortcuts dialogs.
-- [ ] BROWSER-01 / DATA-06: Back and reload keep a View's scroll position.
-- [ ] WTYPE-02 / WTYPE-05: Playlist rows, the mini-player title and the drawer's times survive 200% text and 320 px.
-- [ ] WKEY-02: no single-character shortcut that can't be turned off (`?`).
-- [ ] WDATA-04: the phone's Undo doesn't vanish after 8 s.
-- [ ] DLG-07: the Add dialog has a way to cancel.
+- [x] WKEY-03: Tab stays inside the Add and Keyboard shortcuts dialogs.
+- [x] BROWSER-01 / DATA-06: Back and reload keep a View's scroll position.
+- [x] WTYPE-02 / WTYPE-05: Playlist rows, the mini-player title and the drawer's times survive 200% text and 320 px.
+- [x] WKEY-02: no single-character shortcut that can't be turned off (`?`).
+- [x] WDATA-04: the phone's Undo doesn't vanish after 8 s.
+- [x] DLG-07: the Add dialog has a way to cancel.
 
 ### Minors
-- [ ] WCOPY-01 Esc closes the panel · PTR-04 player tooltips on focus · TYPE-08 Mac setup apostrophes.
+- [x] WCOPY-01 Esc closes the panel · PTR-04 player tooltips on focus · TYPE-08 Mac setup apostrophes.
 
 ### Craft gaps
-- [ ] Desktop View: the designed right panel (target Playlist's Up next) and a row hover fill.
-- [ ] Whole row opens the Episode (phone target).
-- [ ] Mac shell: File menu (⌘W), Controls menu, View menu order, Episode commands on right-click.
-- [ ] One meaning per colour; one progress blue.
-- [ ] Details: no focus ring on launch, "1 Entry", no breaks inside "26 min", px radii, "Up next · 0", live Position in "In your Playlists".
-- [ ] Playlists: Episode in a side panel on wide screens; the same list keys as Views.
+- [x] Desktop View: the designed right panel (target Playlist's Up next) and a row hover fill.
+- [x] Whole row opens the Episode (phone target).
+- [x] Mac shell: File menu (⌘W), Controls menu, View menu order, Episode commands on right-click.
+- [x] One meaning per colour; one progress blue.
+- [x] Details: no focus ring on launch, "1 Entry", no breaks inside "26 min", px radii, "Up next · 0", live Position in "In your Playlists".
+- [x] Playlists: Episode in a side panel on wide screens; the same list keys as Views.
 
+Fixed on 7 Nov (beads pod-6jf.20, .21). Notes: Base UI's dialogs let Tab fall out past their last control, as the drawer did, so all three use `wrapTab`. The router's scroll restoration runs before lists fill in from the local database, so lists restore their own position per history entry (`lib/scrollMemory.ts`). The shortcuts reference moved from `?` to ⌘/ or Ctrl+/. Undo toasts stay until dismissed or replaced. Flow run 4: no stability failures.
 
+## Work list (round 2)
 
 ### Majors
 - [x] DATA-04 / WDATA-04 (Interaction, lowest): Remove on Playlist Entries and Up next; an undo stack that ⌘/Ctrl-Z walks; the toast stops being the only way back.
