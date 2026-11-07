@@ -6,6 +6,8 @@ export default defineConfig({
   testDir: "e2e",
   outputDir: "/tmp/podlist-playwright/results",
   reporter: [["list"]],
+  // Each test starts its own demo server; more at once than this starves them of time.
+  workers: process.env.CI ? 2 : 4,
   use: { baseURL: "http://127.0.0.1:4173", trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

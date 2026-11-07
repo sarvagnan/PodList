@@ -73,6 +73,8 @@ test("Settings keep the default speed and how long the Trash keeps Playlists", a
 })
 
 test("a Download Rule stores Entries on this Device and Stream lets them go", async ({ page }) => {
+  // Two downloads to wait for, one each way.
+  test.setTimeout(60_000)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await page.evaluate(() => navigator.serviceWorker.ready)
