@@ -48,7 +48,8 @@ const timings = []
 const box = async (locator) => {
   const visible = locator.filter({ visible: true }).first()
   if ((await visible.count()) === 0) return null
-  const b = await visible.boundingBox()
+  // It can go between the count and the measure (a tab taking over): then it's absent.
+  const b = await visible.boundingBox({ timeout: 1000 }).catch(() => null)
   return (
     b && {
       x: Math.round(b.x),
