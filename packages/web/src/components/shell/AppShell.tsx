@@ -1,4 +1,5 @@
 import { useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react"
+import { State } from "@podlist/domain"
 import { Link, Outlet, useRouter } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import {
@@ -13,7 +14,7 @@ import {
   SkipBack,
   SkipForward
 } from "lucide-react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
@@ -27,6 +28,7 @@ import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { PlayerMenus } from "../player/PlayerMenus.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
+import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
@@ -292,6 +294,7 @@ function SidebarSkeleton() {
 function Sidebar() {
   const state = useAppState()
   const { create: createView } = useViewActions()
+  const [newPlaylist, setNewPlaylist] = useState(false)
   const ready = useLibraryReady()
   const link =
     "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
@@ -335,7 +338,19 @@ function Sidebar() {
           {v.name}
         </Link>
       ))}
-      <p className={heading}>Playlists</p>
+      <div className="flex items-center justify-between">
+        <p className={heading}>Playlists</p>
+        <Tip label="New Playlist">
+          <button
+            type="button"
+            aria-label="New Playlist"
+            onClick={() => setNewPlaylist(true)}
+            className="mt-4 grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+          </button>
+        </Tip>
+      </div>
       {state === null && <SidebarSkeleton />}
       {state?.playlists.map((p) => {
         const active = p.id === state.activePlaylistId
@@ -357,6 +372,13 @@ function Sidebar() {
           </Link>
         )
       })}
+      {state !== null && State.trashOf(state).length > 0 && (
+        <Link to="/playlists/trash" className={`${link} text-muted-foreground`}>
+          Trash
+          <span className="text-xs">{State.trashOf(state).length}</span>
+        </Link>
+      )}
+      {newPlaylist && <NewPlaylistDialog open={newPlaylist} onOpenChange={setNewPlaylist} />}
       <div className="flex-1" />
       <SyncIndicator variant="desktop" />
       <Link to="/library" className={link}>

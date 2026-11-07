@@ -3,7 +3,7 @@ import { DownloadRule } from "./Device.ts"
 import { DeviceId, EpisodeId, OperationId, PlaylistId, SubscriptionId, ViewId } from "./Ids.ts"
 import { PlayedSource } from "./Library.ts"
 import { PlaybackSettings, PlaybackSettingsOverride } from "./PlaybackSettings.ts"
-import { EpochMillis, Seconds } from "./Units.ts"
+import { EpochMillis, PositiveInt, Seconds } from "./Units.ts"
 import { View } from "./View.ts"
 
 // Each operation states an intention ("put this Episode next"), not a resulting
@@ -75,7 +75,14 @@ export const SetClearOnPlayed = Schema.TaggedStruct("SetClearOnPlayed", {
   clearOnPlayed: Schema.Boolean
 })
 
+/** Moves the Playlist, with its History and Listening Timeline, to the Trash. */
 export const DeletePlaylist = Schema.TaggedStruct("DeletePlaylist", { playlistId: PlaylistId })
+
+/** Brings a Playlist back from the Trash while it is still kept there. */
+export const RestorePlaylist = Schema.TaggedStruct("RestorePlaylist", { playlistId: PlaylistId })
+
+/** How many days the Trash keeps a deleted Playlist (30 unless set). */
+export const SetTrashDays = Schema.TaggedStruct("SetTrashDays", { days: PositiveInt })
 
 export const SetActivePlaylist = Schema.TaggedStruct("SetActivePlaylist", {
   playlistId: PlaylistId
@@ -118,6 +125,8 @@ export const Change = Schema.Union([
   RenamePlaylist,
   SetClearOnPlayed,
   DeletePlaylist,
+  RestorePlaylist,
+  SetTrashDays,
   SetActivePlaylist,
   Rewind,
   SaveView,

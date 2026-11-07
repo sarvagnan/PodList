@@ -1,0 +1,147 @@
+import { useAtomSet } from "@effect/atom-react"
+import { Operation, State } from "@podlist/domain"
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { Schema } from "effect"
+import { Trash2 } from "lucide-react"
+import { useEffect, useId, useRef, useState } from "react"
+import { useAppState } from "../../app/hooks.ts"
+import { recordAtom } from "../../app/runtime.ts"
+import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { usePlaylistActions } from "../../components/playlists/usePlaylistActions.ts"
+import { PageHeader } from "../../components/shell/PageHeader.tsx"
+
+// A Playlist's settings (docs/design/ui-layout.md › Playlist settings): its name, Clear
+// on Played, and Delete, which sends it with its History and Listening Timeline to the
+// Trash. The Default Playlist keeps its name and can't be deleted.
+
+export const Route = createFileRoute("/playlists/$playlistId_/settings")({
+  component: PlaylistSettings
+})
+
+const change = Schema.decodeUnknownSync(Operation.Change)
+
+function PlaylistSettings() {
+  const { playlistId } = Route.useParams()
+  const state = useAppState()
+  const record = useAtomSet(recordAtom)
+  const { remove } = usePlaylistActions()
+  const id = useId()
+  const playlist = state?.playlists.find((p) => p.id === playlistId)
+  const [name, setName] = useState(playlist?.name ?? "")
+  const [error, setError] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => {
+    if (playlist !== undefined && name === "" && !error) setName(playlist.name)
+  }, [playlist, name, error])
+
+  if (state === null) return <LoadingRows label="Loading Playlist" />
+  if (playlist === undefined) {
+    return (
+      <>
+        <PageHeader title="Playlist settings" back={{ to: "/playlists", label: "Playlists" }} />
+        <EmptyState title="This Playlist no longer exists">
+          <Link to="/playlists" className="font-medium text-primary underline underline-offset-2">
+            See your Playlists
+          </Link>
+        </EmptyState>
+      </>
+    )
+  }
+  const rename = (value: string) => {
+    const trimmed = value.trim()
+    setError(trimmed === "")
+    if (trimmed !== "" && trimmed !== playlist.name) {
+      record(change({ _tag: "RenamePlaylist", playlistId, name: trimmed }))
+    }
+  }
+  return (
+    <>
+      <PageHeader
+        title="Playlist settings"
+        subtitle={playlist.name}
+        back={{ to: `/playlists/${playlistId}`, label: playlist.name }}
+      />
+      <div className="max-w-xl space-y-5 px-4 pb-10 md:px-8">
+        <div className="rounded-xl border bg-card">
+          <div className="border-b px-4 py-3">
+            <label htmlFor={`${id}-name`} className="block text-row font-medium">
+              Name
+            </label>
+            <input
+              id={`${id}-name`}
+              type="text"
+              value={name}
+              disabled={playlist.isDefault}
+              required
+              aria-invalid={error}
+              aria-describedby={`${id}-name-help`}
+              onChange={(event) => {
+                const value = event.target.value
+                setName(value)
+                clearTimeout(timer.current)
+                timer.current = setTimeout(() => rename(value), 500)
+              }}
+              onBlur={(event) => {
+                clearTimeout(timer.current)
+                rename(event.target.value)
+              }}
+              className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row disabled:bg-secondary disabled:text-muted-foreground"
+            />
+            <p
+              id={`${id}-name-help`}
+              className={`mt-1 text-small ${error ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {playlist.isDefault
+                ? "The Default Playlist keeps its name."
+                : error
+                  ? "A Playlist needs a name."
+                  : "Saved as you type."}
+            </p>
+          </div>
+          <label className="flex items-start gap-3 px-4 py-3">
+            <input
+              type="checkbox"
+              role="switch"
+              aria-checked={playlist.clearOnPlayed}
+              checked={playlist.clearOnPlayed}
+              onChange={(event) =>
+                record(
+                  change({
+                    _tag: "SetClearOnPlayed",
+                    playlistId,
+                    clearOnPlayed: event.target.checked
+                  })
+                )
+              }
+              className="mt-1 size-4 accent-primary"
+            />
+            <span>
+              <span className="block text-row font-medium">Clear on Played</span>
+              <span className="block text-small text-muted-foreground">
+                An Entry leaves once its Episode is Played, wherever you heard it. Turning it on
+                keeps Entries that are already Played.
+              </span>
+            </span>
+          </label>
+        </div>
+        {!playlist.isDefault && (
+          <div>
+            <button
+              type="button"
+              onClick={() => void remove(playlistId, playlist.name)}
+              className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-row font-medium text-destructive hover:bg-secondary active:bg-input"
+            >
+              <Trash2 aria-hidden="true" className="size-4" />
+              Delete Playlist
+            </button>
+            <p className="mt-1 px-3 text-small text-muted-foreground">
+              It goes to the Trash with its History and Listening Timeline, and can be restored for{" "}
+              {State.trashDaysOf(state)} days.
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}

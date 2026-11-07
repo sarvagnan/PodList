@@ -4,7 +4,7 @@ import { DownloadRule } from "./Device.ts"
 import { EpisodeState } from "./Library.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
 import { Playlist } from "./Playlist.ts"
-import { State } from "./State.ts"
+import { State, TrashedPlaylist } from "./State.ts"
 import { View } from "./View.ts"
 
 // The SQLite schema shared by the server and every client (ADR 0005, ADR 0008).
@@ -153,6 +153,7 @@ export interface StateRows {
 const PlaylistJson = Schema.fromJsonString(Playlist)
 const ViewJson = Schema.fromJsonString(View)
 const SettingsJson = Schema.fromJsonString(PlaybackSettings)
+const TrashJson = Schema.fromJsonString(Schema.Array(TrashedPlaylist))
 const PlayedJson = Schema.fromJsonString(EpisodeState.fields.played)
 
 /** Rows for every table that mirrors user State. Writers replace these tables wholesale or per key. */
@@ -189,7 +190,13 @@ export const stateToRows = (state: State): StateRows => ({
   })),
   setting: [
     { key: "activePlaylistId", value: JSON.stringify(state.activePlaylistId) },
-    { key: "playbackSettings", value: Schema.encodeSync(SettingsJson)(state.playbackSettings) }
+    { key: "playbackSettings", value: Schema.encodeSync(SettingsJson)(state.playbackSettings) },
+    ...(state.trash === undefined
+      ? []
+      : [{ key: "trash", value: Schema.encodeSync(TrashJson)(state.trash) }]),
+    ...(state.trashDays === undefined
+      ? []
+      : [{ key: "trashDays", value: JSON.stringify(state.trashDays) }])
   ]
 })
 
@@ -205,6 +212,7 @@ export const rowsToState = (
     if (row === undefined) throw new Error(`missing setting ${key}`)
     return row.value
   }
+  const optional = (key: string) => rows.setting.find((s) => s.key === key)?.value
   return new State({
     playlists: byOrdinal(rows.playlist).map((r) => Schema.decodeSync(PlaylistJson)(r.doc)),
     views: byOrdinal(rows.view).map((r) => Schema.decodeSync(ViewJson)(r.doc)),
@@ -227,6 +235,12 @@ export const rowsToState = (
       })
     ),
     activePlaylistId: JSON.parse(setting("activePlaylistId")),
-    playbackSettings: Schema.decodeSync(SettingsJson)(setting("playbackSettings"))
+    playbackSettings: Schema.decodeSync(SettingsJson)(setting("playbackSettings")),
+    ...(optional("trash") === undefined
+      ? {}
+      : { trash: Schema.decodeSync(TrashJson)(optional("trash") ?? "[]") }),
+    ...(optional("trashDays") === undefined
+      ? {}
+      : { trashDays: JSON.parse(optional("trashDays") ?? "30") })
   })
 }

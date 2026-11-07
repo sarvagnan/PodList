@@ -1,0 +1,77 @@
+import { expect, type Page, test } from "@playwright/test"
+// @ts-expect-error: a plain .mjs helper shared with the UI flow runs
+import { startDemo } from "../ui-flows/demo.mjs"
+
+// Playlists: create, settings, Trash and reordering (docs/design/ui-layout.md).
+
+let demo: { base: string; stop: () => void }
+test.beforeEach(async () => {
+  demo = await startDemo()
+})
+test.afterEach(() => demo.stop())
+
+const titles = (page: Page) =>
+  page
+    .locator("main [role=row]")
+    .evaluateAll((rows) => rows.map((r) => r.querySelector("[data-cell=title]")?.textContent ?? ""))
+
+test("creates, renames, deletes to the Trash and restores a Playlist", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists`)
+  await page.getByRole("button", { name: "New Playlist" }).first().click()
+  const dialog = page.getByRole("dialog", { name: "New Playlist" })
+  await dialog.getByRole("button", { name: "Create" }).click()
+  await expect(dialog.getByText("A Playlist needs a name.")).toBeVisible()
+  await dialog.getByRole("textbox", { name: "Name" }).fill("Long drives")
+  await dialog.getByRole("button", { name: "Create" }).click()
+  await expect(page.getByRole("heading", { name: "Long drives", level: 1 })).toBeVisible()
+
+  await page.getByRole("link", { name: "Playlist settings" }).click()
+  const name = page.getByRole("textbox", { name: "Name" })
+  await name.fill("Road trips")
+  await name.blur()
+  const sidebar = page.getByRole("navigation", { name: "Library and lists" })
+  await expect(sidebar.getByRole("link", { name: /^Road trips/ })).toBeVisible()
+  const clear = page.getByRole("switch", { name: /Clear on Played/ })
+  await clear.click()
+  await expect(clear).toBeChecked()
+
+  await page.getByRole("button", { name: "Delete Playlist" }).click()
+  await expect(page).toHaveURL(/\/playlists$/)
+  await expect(page.getByText("Moved “Road trips” to the Trash")).toBeVisible()
+  await expect(sidebar.getByRole("link", { name: /^Road trips/ })).toHaveCount(0)
+  await sidebar.getByRole("link", { name: /^Trash/ }).click()
+  await page.getByRole("button", { name: "Restore" }).click()
+  await expect(sidebar.getByRole("link", { name: /^Road trips/ })).toBeVisible()
+})
+
+test("the Default Playlist keeps its name and can't be deleted", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/default/settings`)
+  await expect(page.getByRole("textbox", { name: "Name" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Delete Playlist" })).toHaveCount(0)
+})
+
+test("reorders Entries with the keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.locator("main [role=row]").first().waitFor()
+  const before = await titles(page)
+  const handle = page
+    .locator("main [role=row]")
+    .first()
+    .locator('[aria-roledescription="sortable"]')
+  await expect(handle).toHaveAccessibleName(`Move ${before[0]}`)
+  await handle.focus()
+  await page.keyboard.press("Space")
+  await expect(handle).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("ArrowDown")
+  // The move animates; dropping before it lands keeps the old place.
+  await page.waitForTimeout(400)
+  await page.keyboard.press("Space")
+  await expect.poll(() => titles(page)).toEqual([before[1], before[0], ...before.slice(2)])
+  // It stays that way after a reload: the move was recorded.
+  await page.reload()
+  await page.locator("main [role=row]").first().waitFor()
+  await expect.poll(() => titles(page)).toEqual([before[1], before[0], ...before.slice(2)])
+})

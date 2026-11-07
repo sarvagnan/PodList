@@ -1,7 +1,7 @@
 {
   "name": "latest-listen-wins",
   "description": "Position reports resolve to the most recent listen regardless of arrival order.",
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "initial": {
     "playlists": [
       {

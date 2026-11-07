@@ -112,5 +112,19 @@ export const scenarios: ReadonlyArray<Scenario> = [
       { change: { _tag: "SetActivePlaylist", playlistId: "r" } },
       { change: { _tag: "DeletePlaylist", playlistId: "r" } }
     ]
+  },
+  {
+    name: "trash-restore-and-expiry",
+    description:
+      "A deleted Playlist goes to the Trash with its Entries and can be restored; once older than the Trash keeps (here 7 days), it is gone and can't be.",
+    changes: [
+      { change: { _tag: "CreatePlaylist", playlistId: "r", name: "Replay", clearOnPlayed: false } },
+      { change: { _tag: "AddEntry", playlistId: "r", episodeId: "A", placement: "last" } },
+      { change: { _tag: "DeletePlaylist", playlistId: "r" }, minute: 1 },
+      { change: { _tag: "RestorePlaylist", playlistId: "r" }, minute: 2 },
+      { change: { _tag: "SetTrashDays", days: 7 }, minute: 3 },
+      { change: { _tag: "DeletePlaylist", playlistId: "r" }, minute: 4 },
+      { change: { _tag: "RestorePlaylist", playlistId: "r" }, minute: 4 + 8 * 24 * 60 }
+    ]
   }
 ]

@@ -1,7 +1,7 @@
 {
   "name": "default-playlist-protected",
   "description": "Default cannot be renamed or deleted; deleting the Active Playlist makes Default Active.",
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "initial": {
     "playlists": [
       {
@@ -103,6 +103,21 @@
       "skipIntro": 0,
       "skipOutro": 0,
       "volumeBoost": false
-    }
+    },
+    "trash": [
+      {
+        "playlist": {
+          "id": "r",
+          "name": "Replay",
+          "isDefault": false,
+          "clearOnPlayed": false,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        },
+        "deletedAt": 1793750400000
+      }
+    ]
   }
 }

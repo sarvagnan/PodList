@@ -109,6 +109,9 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     const target = event.target as HTMLElement
     // Menus and dialogs opened from a row render elsewhere; their keys are their own.
     if (!container.current?.contains(target)) return
+    // A row being moved with the keyboard (components/lists/SortableRow.tsx) takes the arrows.
+    if (container.current.querySelector('[aria-roledescription="sortable"][aria-pressed="true"]'))
+      return
     const cell = target.closest<HTMLElement>("[data-cell]")
     const row = target.closest<HTMLElement>("[data-row]")
     if (!cell || !row) return

@@ -8,10 +8,18 @@ import * as PlayedRules from "./PlayedRules.ts"
 import { DefaultPlaylistId, Entry, Playlist } from "./Playlist.ts"
 import * as PlaylistRules from "./PlaylistRules.ts"
 import * as TimelineRules from "./TimelineRules.ts"
-import { type EpochMillis, Seconds } from "./Units.ts"
+import { EpochMillis, PositiveInt, Seconds } from "./Units.ts"
 import { View } from "./View.ts"
 
 /** Everything a user owns that operations change. The Library catalogue is separate. */
+/** A deleted Playlist, kept with its History and Listening Timeline (CONTEXT.md › Trash). */
+export class TrashedPlaylist extends Schema.Class<TrashedPlaylist>(
+  "@podlist/domain/TrashedPlaylist"
+)({
+  playlist: Playlist,
+  deletedAt: EpochMillis
+}) {}
+
 export class State extends Schema.Class<State>("@podlist/domain/State")({
   playlists: Schema.Array(Playlist),
   activePlaylistId: Schema.String,
@@ -19,8 +27,26 @@ export class State extends Schema.Class<State>("@podlist/domain/State")({
   episodeStates: Schema.Record(Schema.String, EpisodeState),
   views: Schema.Array(View),
   downloadRules: Schema.Array(DownloadRule),
-  playbackSettings: PlaybackSettings
+  playbackSettings: PlaybackSettings,
+  /** Deleted Playlists, oldest first; absent when empty (states from before the Trash). */
+  trash: Schema.optionalKey(Schema.Array(TrashedPlaylist)),
+  /** How many days the Trash keeps a Playlist; absent means 30. */
+  trashDays: Schema.optionalKey(PositiveInt)
 }) {}
+
+export const defaultTrashDays = 30
+const day = 86_400_000
+
+export const trashOf = (state: State): ReadonlyArray<TrashedPlaylist> => state.trash ?? []
+export const trashDaysOf = (state: State): number => state.trashDays ?? defaultTrashDays
+
+/** Lets go of Playlists kept longer than the Trash keeps them. */
+const purgeTrash = (state: State, at: EpochMillis): State => {
+  const trash = trashOf(state)
+  const cutoff = at - trashDaysOf(state) * day
+  const kept = trash.filter((t) => t.deletedAt >= cutoff)
+  return kept.length === trash.length ? state : new State({ ...state, trash: kept })
+}
 
 export const initial = (playbackSettings: PlaybackSettings): State =>
   new State({
@@ -83,7 +109,10 @@ const replace = (state: State, patch: Partial<ConstructorParameters<typeof State
  * Applies one change. A change whose target no longer exists, or that would break
  * an invariant (renaming or deleting the Default Playlist), leaves the state as it is.
  */
-export const apply = (state: State, change: Change, context: Context): State => {
+export const apply = (state: State, change: Change, context: Context): State =>
+  purgeTrash(applyChange(state, change, context), context.at)
+
+const applyChange = (state: State, change: Change, context: Context): State => {
   switch (change._tag) {
     case "AddEntry":
       return withPlaylist(state, change.playlistId, (p) =>
@@ -134,9 +163,25 @@ export const apply = (state: State, change: Change, context: Context): State => 
       return replace(state, {
         playlists: state.playlists.filter((p) => p.id !== change.playlistId),
         activePlaylistId:
-          state.activePlaylistId === change.playlistId ? DefaultPlaylistId : state.activePlaylistId
+          state.activePlaylistId === change.playlistId ? DefaultPlaylistId : state.activePlaylistId,
+        trash: [
+          ...trashOf(state).filter((t) => t.playlist.id !== change.playlistId),
+          new TrashedPlaylist({ playlist, deletedAt: context.at })
+        ]
       })
     }
+    case "RestorePlaylist": {
+      const trashed = trashOf(state).find((t) => t.playlist.id === change.playlistId)
+      const expired =
+        trashed === undefined || trashed.deletedAt < context.at - trashDaysOf(state) * day
+      if (expired || findPlaylist(state, change.playlistId) !== undefined) return state
+      return replace(state, {
+        playlists: [...state.playlists, trashed.playlist],
+        trash: trashOf(state).filter((t) => t !== trashed)
+      })
+    }
+    case "SetTrashDays":
+      return replace(state, { trashDays: change.days })
     case "SetActivePlaylist":
       if (findPlaylist(state, change.playlistId) === undefined) return state
       return replace(state, { activePlaylistId: change.playlistId })

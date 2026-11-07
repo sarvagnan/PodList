@@ -1,9 +1,13 @@
 import { useAtomValue } from "@effect/atom-react"
-import { createFileRoute } from "@tanstack/react-router"
+import { State } from "@podlist/domain"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
+import { Plus } from "lucide-react"
+import { useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
 import { ListRow, LoadingRows, StatusBadge } from "../../components/lists/ListRow.tsx"
+import { NewPlaylistDialog } from "../../components/playlists/NewPlaylistDialog.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 
@@ -15,9 +19,23 @@ function PlaylistsList() {
   const state = useAppState()
   const now = useNowPlaying()
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
+  const [adding, setAdding] = useState(false)
+  const trashed = state === null ? 0 : State.trashOf(state).length
   return (
     <>
-      <PageHeader title="Playlists" />
+      <PageHeader
+        title="Playlists"
+        actions={
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="inline-flex h-10 items-center gap-1.5 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            New Playlist
+          </button>
+        }
+      />
       {state === null ? (
         <LoadingRows label="Loading Playlists" />
       ) : (
@@ -52,8 +70,20 @@ function PlaylistsList() {
               />
             )
           })}
+          {trashed > 0 && (
+            <Link
+              to="/playlists/trash"
+              className="mt-2 flex min-h-12 items-center justify-between rounded-lg px-2 text-row text-muted-foreground hover:bg-secondary/60"
+            >
+              Trash
+              <span className="text-small">
+                {trashed} deleted {trashed === 1 ? "Playlist" : "Playlists"}
+              </span>
+            </Link>
+          )}
         </div>
       )}
+      {adding && <NewPlaylistDialog open={adding} onOpenChange={setAdding} />}
     </>
   )
 }

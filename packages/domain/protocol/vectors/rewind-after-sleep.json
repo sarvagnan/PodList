@@ -1,7 +1,7 @@
 {
   "name": "rewind-after-sleep",
   "description": "Rewind undoes playback since the moment and keeps deliberate edits.",
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "initial": {
     "playlists": [
       {

@@ -1,7 +1,7 @@
 {
   "name": "user-played-adds-no-history",
   "description": "Marking Played by hand clears Entries but records no History.",
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "initial": {
     "playlists": [
       {

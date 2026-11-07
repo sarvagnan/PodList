@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://podlist.local/protocol/v1/operation.schema.json",
-  "$comment": "PodList sync protocol v1. Generated from packages/domain/src/Operation.ts; do not edit.",
+  "$id": "https://podlist.local/protocol/v2/operation.schema.json",
+  "$comment": "PodList sync protocol v2. Generated from packages/domain/src/Operation.ts; do not edit.",
   "$ref": "#/$defs/@podlist~1domain~1OperationEncoded",
   "$defs": {
     "@podlist/domain/ViewEncoded": {
@@ -512,6 +512,37 @@
                 }
               },
               "required": ["_tag", "playlistId"],
+              "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "properties": {
+                "_tag": {
+                  "type": "string",
+                  "enum": ["RestorePlaylist"]
+                },
+                "playlistId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["_tag", "playlistId"],
+              "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "properties": {
+                "_tag": {
+                  "type": "string",
+                  "enum": ["SetTrashDays"]
+                },
+                "days": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["_tag", "days"],
               "additionalProperties": true
             },
             {

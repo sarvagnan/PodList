@@ -1,0 +1,131 @@
+{
+  "name": "trash-restore-and-expiry",
+  "description": "A deleted Playlist goes to the Trash with its Entries and can be restored; once older than the Trash keeps (here 7 days), it is gone and can't be.",
+  "protocolVersion": 2,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "trash-restore-and-expiry-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "CreatePlaylist",
+        "playlistId": "r",
+        "name": "Replay",
+        "clearOnPlayed": false
+      }
+    },
+    {
+      "id": "trash-restore-and-expiry-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "r",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "trash-restore-and-expiry-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750460000,
+      "change": {
+        "_tag": "DeletePlaylist",
+        "playlistId": "r"
+      }
+    },
+    {
+      "id": "trash-restore-and-expiry-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750520000,
+      "change": {
+        "_tag": "RestorePlaylist",
+        "playlistId": "r"
+      }
+    },
+    {
+      "id": "trash-restore-and-expiry-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750580000,
+      "change": {
+        "_tag": "SetTrashDays",
+        "days": 7
+      }
+    },
+    {
+      "id": "trash-restore-and-expiry-5",
+      "deviceId": "phone",
+      "sequence": 5,
+      "recordedAt": 1793750640000,
+      "change": {
+        "_tag": "DeletePlaylist",
+        "playlistId": "r"
+      }
+    },
+    {
+      "id": "trash-restore-and-expiry-6",
+      "deviceId": "phone",
+      "sequence": 6,
+      "recordedAt": 1794441840000,
+      "change": {
+        "_tag": "RestorePlaylist",
+        "playlistId": "r"
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    },
+    "trash": [],
+    "trashDays": 7
+  }
+}

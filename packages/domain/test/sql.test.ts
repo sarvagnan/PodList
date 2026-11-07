@@ -27,6 +27,9 @@ const sample = () =>
     op({ _tag: "AddEntry", playlistId: "default", episodeId: "A", placement: "last" }),
     op({ _tag: "AddEntry", playlistId: "default", episodeId: "B", placement: "last" }),
     op({ _tag: "CreatePlaylist", playlistId: "replay", name: "Replay", clearOnPlayed: false }),
+    op({ _tag: "CreatePlaylist", playlistId: "old", name: "Old", clearOnPlayed: false }),
+    op({ _tag: "DeletePlaylist", playlistId: "old" }),
+    op({ _tag: "SetTrashDays", days: 14 }),
     op({ _tag: "AddEntry", playlistId: "replay", episodeId: "B", placement: "last" }),
     op({
       _tag: "ReportPosition",
