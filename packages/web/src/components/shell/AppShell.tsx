@@ -8,8 +8,6 @@ import {
   ListMusic,
   Pause,
   Play,
-  RotateCcw,
-  RotateCw,
   SkipBack,
   SkipForward
 } from "lucide-react"

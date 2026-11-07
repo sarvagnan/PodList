@@ -1,4 +1,4 @@
-import { type Operation, PlaybackSettings, State, Units } from "@podlist/domain"
+import { type Operation, PlaybackSettings, Units } from "@podlist/domain"
 import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"

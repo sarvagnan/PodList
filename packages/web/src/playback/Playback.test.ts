@@ -431,7 +431,7 @@ describe("Playback", () => {
     )
   )
 
-  it.live("skips the intro, plays at the podcast's own speed, and changes the right speed", () =>
+  it.live("skips the intro and plays at the podcast's own speed", () =>
     withDevice((fake) =>
       Effect.gen(function* () {
         const engine = yield* SyncEngine
@@ -450,22 +450,32 @@ describe("Playback", () => {
         expect(fake.loads.at(-1)?.startAt).toBe(30)
         expect(loaded?.speed).toBe(2)
         expect(fake.rates.at(-1)).toBe(2)
-        // The podcast has its own speed, so that is what changes; the default stays.
+        // Changing speed while it plays leaves the podcast's own speed as it was.
         yield* playback.setSpeed(1.25)
         expect(fake.rates.at(-1)).toBe(1.25)
+        const [row] = yield* sql<{ playback_settings: string }>`
+          SELECT playback_settings FROM subscription WHERE id = 's'`
+        expect(JSON.parse(row?.playback_settings ?? "{}")).toEqual({ speed: 2 })
         expect((yield* state).playbackSettings.speed).toBe(1.5)
       })
     )
   )
 
-  it.live("changes the default speed for a podcast without its own", () =>
+  it.live("a speed change lasts for this Episode only; the defaults stay", () =>
     withDevice((fake) =>
       Effect.gen(function* () {
+        const engine = yield* SyncEngine
         const playback = yield* Playback
         yield* eventually(now, (n) => n?.episodeId === "e2")
         yield* playback.setSpeed(1.75)
         expect(fake.rates.at(-1)).toBe(1.75)
-        yield* eventually(state, (s) => s.playbackSettings.speed === 1.75)
+        expect((yield* now)?.speed).toBe(1.75)
+        expect((yield* state).playbackSettings.speed).toBe(1.5)
+        // The next Episode plays at the default again.
+        yield* engine.record(change({ _tag: "SetCursor", playlistId: "default", episodeId: "e1" }))
+        const next = yield* eventually(now, (n) => n?.episodeId === "e1")
+        expect(next?.speed).toBe(1.5)
+        expect(fake.rates.at(-1)).toBe(1.5)
       })
     )
   )

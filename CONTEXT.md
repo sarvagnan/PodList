@@ -103,7 +103,7 @@ A Playlist setting under which an Entry leaves the Playlist as soon as its Episo
 _Avoid_: Auto-delete, remove when finished
 
 **Playback Settings**:
-Speed, intro/outro skipping, volume boost and similar. Global defaults, optionally overridden per Subscription; never per Playlist.
+Speed, intro/outro skipping, volume boost and similar. Global defaults, optionally overridden per Subscription; never per Playlist. Changing speed in the player affects only the Episode playing now; the saved Playback Settings are changed only in settings.
 _Avoid_: Player preferences, audio settings
 
 ### Devices

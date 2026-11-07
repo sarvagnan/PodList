@@ -1,4 +1,4 @@
-import { Operation, PlaybackSettings, PlayedRules, type State, Units } from "@podlist/domain"
+import { Operation, type PlaybackSettings, PlayedRules, type State, Units } from "@podlist/domain"
 import {
   Clock,
   Context,
@@ -80,7 +80,7 @@ export class Playback extends Context.Service<
     readonly skip: (seconds: number) => Effect.Effect<void>
     /** Makes the Playlist active, puts its Cursor on the Entry and plays it. */
     readonly playEntry: (playlistId: string, episodeId: string) => Effect.Effect<void>
-    /** Changes the speed: the podcast's own if it has one, otherwise the global default. */
+    /** Changes the speed of the Episode playing now; the saved speeds stay as they are. */
     readonly setSpeed: (speed: number) => Effect.Effect<void>
     /** Sets or clears (null) the sleep timer. */
     readonly setSleep: (request: SleepRequest | null) => Effect.Effect<void>
@@ -531,35 +531,12 @@ export class Playback extends Context.Service<
           if ((yield* SubscriptionRef.get(now)) !== null) yield* start
         })
 
+        // For this Episode only: the next one plays at its own or the default speed again.
         const setSpeed = (speed: number) =>
           Effect.gen(function* () {
-            const current = yield* SubscriptionRef.get(now)
-            if (current === null) return
+            if ((yield* SubscriptionRef.get(now)) === null) return
             yield* player.setRate(speed)
             yield* update((n) => ({ ...n, speed }))
-            if (loaded.override.speed !== undefined && loaded.subscriptionId !== null) {
-              // This podcast has its own speed: change that one.
-              loaded = { ...loaded, override: { ...loaded.override, speed } }
-              yield* engine.record(
-                decodeChange({
-                  _tag: "SetSubscriptionOverrides",
-                  subscriptionId: loaded.subscriptionId,
-                  playbackSettings: loaded.override,
-                  playedThreshold: loaded.threshold
-                })
-              )
-            } else {
-              const state = yield* SubscriptionRef.get(engine.state)
-              yield* engine.record(
-                decodeChange({
-                  _tag: "SetPlaybackSettings",
-                  settings: {
-                    ...Schema.encodeSync(PlaybackSettings.PlaybackSettings)(state.playbackSettings),
-                    speed
-                  }
-                })
-              )
-            }
           })
 
         let sleepFiber: Fiber.Fiber<void> | undefined
