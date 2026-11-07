@@ -100,3 +100,18 @@ test("the Listening Timeline rewinds to a moment, with Undo", async ({ page }) =
   await expect(page.getByText(/^Rewound Default to/)).toBeVisible()
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible()
 })
+
+test("right-click on an Entry moves it to the bottom, with Undo", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
+  const before = await titles(page)
+  await page.locator('main [data-row="0"]').click({ button: "right" })
+  const menu = page.getByRole("menu")
+  await expect(menu.getByRole("menuitem", { name: "Move to Top" })).toHaveCount(0)
+  await expect(menu.getByRole("menuitem", { name: "Copy Link" })).toBeVisible()
+  await menu.getByRole("menuitem", { name: "Move to Bottom" }).click()
+  await expect.poll(() => titles(page)).toEqual([...before.slice(1), before[0]])
+  await page.getByRole("button", { name: "Undo" }).click()
+  await expect.poll(() => titles(page)).toEqual(before)
+})

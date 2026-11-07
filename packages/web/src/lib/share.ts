@@ -1,4 +1,4 @@
-// Links to share: the Episode's page on the PodList server. In the Mac app the page's own
+// Links to share: the page on the PodList server. In the Mac app the page's own
 // address is app://podlist, which opens nowhere else, so it asks the shell for the server.
 
 declare global {
@@ -16,15 +16,19 @@ export const inMacApp = typeof navigator !== "undefined" && navigator.userAgent.
 
 const origin = async () => (await window.podlistApp?.server()) ?? window.location.origin
 
-export const episodeLink = async (episodeId: string) =>
-  new URL(`/episodes/${episodeId}`, await origin()).href
+/** A page of the app as a link that opens anywhere: on the PodList server. */
+export const shareLink = async (path: string) => new URL(path, await origin()).href
 
-/** Copies an Episode's link; answers whether it worked. */
-export const copyEpisodeLink = async (episodeId: string) => {
+export const episodeLink = (episodeId: string) => shareLink(`/episodes/${episodeId}`)
+
+/** Copies a page's link; answers whether it worked. */
+export const copyLink = async (path: string) => {
   try {
-    await navigator.clipboard.writeText(await episodeLink(episodeId))
+    await navigator.clipboard.writeText(await shareLink(path))
     return true
   } catch {
     return false
   }
 }
+
+export const copyEpisodeLink = (episodeId: string) => copyLink(`/episodes/${episodeId}`)

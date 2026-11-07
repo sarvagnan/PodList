@@ -280,7 +280,9 @@ export function AddPodcastSheet({
           onKeyDown={wrapTab}
           // Opens on the search field, not the close button (KEY-04).
           initialFocus={() => document.querySelector<HTMLElement>("[data-add-field]")}
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[90dvh] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
+          // Its height doesn't follow the results, so the field stays put as you type: a tall
+          // sheet on the phone, hung from the top on wider screens.
+          className="fixed inset-x-0 bottom-0 z-50 h-[min(44rem,85dvh)] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-[max(2rem,12dvh)] md:h-auto md:left-1/2 md:max-h-[calc(100dvh-max(2rem,12dvh)-2rem)] md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-2 md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-2 md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">
             <Dialog.Title className="font-heading text-xl font-semibold">Add podcasts</Dialog.Title>

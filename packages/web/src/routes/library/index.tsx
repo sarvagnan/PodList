@@ -1,19 +1,32 @@
-import { useAtomValue } from "@effect/atom-react"
+import { Toast } from "@base-ui/react/toast"
+import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
 import { useEffect, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
-import { deviceIdAtom } from "../../app/runtime.ts"
+import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { AddPodcastSheet } from "../../components/library/AddPodcastSheet.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 
 // The Library (docs/design/ui-layout.md › Library and Subscriptions): every Subscription,
 // each opening its settings and Episodes; Add finds podcasts, takes a feed address or an
 // OPML file. Grouping by Download Rule arrives with Download Rules (pod-g1v.5).
+
+type Mode = "never" | "onEntry" | "allNew"
+/** The Download Rules, as a row's menu offers them. */
+const rules: ReadonlyArray<readonly [Mode, string]> = [
+  ["allNew", "Download Every New Episode"],
+  ["onEntry", "Download Entries"],
+  ["never", "Stream"]
+]
+const decodeChange = Schema.decodeUnknownSync(Operation.Change)
 
 export const Route = createFileRoute("/library/")({
   component: LibraryScreen,
@@ -41,6 +54,38 @@ function LibraryScreen() {
   const modeOf = (subscriptionId: string) =>
     state?.downloadRules.find((r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId)
       ?.mode ?? "never"
+  const record = useAtomSet(recordAtom)
+  const setRule = (subscriptionId: string, mode: Mode) =>
+    record(
+      decodeChange({
+        _tag: "SetDownloadRule",
+        rule: {
+          subscriptionId,
+          deviceId,
+          mode,
+          // Every new Episode keeps what the Subscription's screen last set.
+          keepAtMost:
+            mode === "allNew"
+              ? (state?.downloadRules.find(
+                  (r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId
+                )?.keepAtMost ?? null)
+              : null
+        }
+      })
+    )
+  const toasts = Toast.useToastManager()
+  const copyText = async (text: string) => {
+    let copied = true
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      copied = false
+    }
+    toasts.add({
+      description: copied ? "Feed address copied" : "Couldn’t copy the feed address",
+      timeout: 3000
+    })
+  }
   const groups = (
     [
       ["allNew", "Downloads every new Episode"],
@@ -65,6 +110,7 @@ function LibraryScreen() {
   return (
     <>
       <PageHeader
+        narrow
         title="Library"
         {...(subscriptions.length > 0
           ? {
@@ -106,7 +152,29 @@ function LibraryScreen() {
                 </h2>
                 <ul>
                   {items.map((s) => (
-                    <li key={s.id} className="border-b last:border-b-0">
+                    <RowMenu
+                      key={s.id}
+                      commands={[
+                        {
+                          label: "Open",
+                          run: () =>
+                            void navigate({
+                              to: "/library/$subscriptionId",
+                              params: { subscriptionId: s.id }
+                            })
+                        },
+                        { separator: true },
+                        ...rules.map(([ruleMode, label]) => ({
+                          label,
+                          checked: mode === ruleMode,
+                          run: () => setRule(s.id, ruleMode)
+                        })),
+                        { separator: true },
+                        { label: "Copy Feed Address", run: () => void copyText(s.feedUrl) }
+                      ]}
+                      link={`/library/${s.id}`}
+                      render={<li className="border-b last:border-b-0" />}
+                    >
                       <Link
                         to="/library/$subscriptionId"
                         params={{ subscriptionId: s.id }}
@@ -126,7 +194,7 @@ function LibraryScreen() {
                         </span>
                         <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
                       </Link>
-                    </li>
+                    </RowMenu>
                   ))}
                 </ul>
               </section>

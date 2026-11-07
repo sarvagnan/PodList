@@ -1,21 +1,19 @@
-import { ContextMenu } from "@base-ui/react/context-menu"
 import { Menu } from "@base-ui/react/menu"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { ArrowDownToLine, Check, Ellipsis, Play, Plus, Star } from "lucide-react"
 import type * as React from "react"
-import { Fragment, type ReactNode, useEffect, useRef, useState } from "react"
+import { Fragment, type ReactNode, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { nextLastTarget } from "../../lib/remembered.ts"
-import { episodeLink, inMacApp } from "../../lib/share.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { Tip } from "../feedback/Tip.tsx"
-import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { GridCell } from "../lists/Grid.tsx"
+import { type RowCommand, RowMenu, RowMenuItems } from "../lists/RowMenu.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
 import { DownloadButton, useDownloadStatus } from "./DownloadButton.tsx"
@@ -79,24 +77,6 @@ function TextAction({
         </button>
       </Tip>
     </GridCell>
-  )
-}
-
-/** A command in the row's right-click (or long-press) menu. */
-function MenuItem({
-  onClick,
-  children
-}: {
-  readonly onClick: () => void
-  readonly children: ReactNode
-}) {
-  return (
-    <ContextMenu.Item
-      onClick={onClick}
-      className="flex min-h-10 cursor-default items-center rounded-lg px-3 outline-none data-[highlighted]:bg-secondary"
-    >
-      {children}
-    </ContextMenu.Item>
   )
 }
 
@@ -173,65 +153,29 @@ export function EpisodeRow({
   )
   const addTo = (placement: "next" | "last") =>
     target && void act({ _tag: "Add", episodeId: episode.id, playlistId: target.id, placement })
-  const copy = useCopyEpisodeLink()
-  const copyLink = () => copy(episode.id)
   const open = () =>
     onOpen && window.matchMedia("(min-width: 64rem)").matches
       ? onOpen(episode.id)
       : void navigate({ to: "/episodes/$episodeId", params: { episodeId: episode.id } })
-  // Commands from the Mac app's native right-click menu.
-  const commands = useRef<Record<string, () => void>>({})
-  commands.current = {
-    play: () => void act({ _tag: "PlayNow", episodeId: episode.id }),
-    next: () => addTo("next"),
-    last: () => addTo("last"),
-    add: () => setAdding(true),
-    star: () => void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred }),
-    played: () => void act({ _tag: "Played", episodeId: episode.id, played: !episode.played }),
-    open
-  }
-  useEffect(() => {
-    if (!inMacApp) return
-    const onCommand = (event: Event) => {
-      const { id, command } = (event as CustomEvent<{ id: string; command: string }>).detail
-      if (id === episode.id) commands.current[command]?.()
-    }
-    document.addEventListener("podlist:episode", onCommand)
-    return () => document.removeEventListener("podlist:episode", onCommand)
-  }, [episode.id])
-
   // One list of commands for the right-click menu and the narrow row's More menu.
-  const menuItems = (
-    <>
-      <MenuItem onClick={() => void act({ _tag: "PlayNow", episodeId: episode.id })}>
-        Play Now
-      </MenuItem>
-      <MenuItem onClick={() => addTo("next")}>Play Next in {target?.name ?? "Playlist"}</MenuItem>
-      <MenuItem onClick={() => addTo("last")}>Play Last in {target?.name ?? "Playlist"}</MenuItem>
-      <MenuItem onClick={() => setAdding(true)}>Add to a Playlist…</MenuItem>
-      <ContextMenu.Separator className="my-1 h-px bg-border" />
-      <MenuItem
-        onClick={() => void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })}
-      >
-        {episode.starred ? "Unstar" : "Star"}
-      </MenuItem>
-      <MenuItem
-        onClick={() => void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })}
-      >
-        {episode.played ? "Mark Unplayed" : "Mark Played"}
-      </MenuItem>
-      <ContextMenu.Separator className="my-1 h-px bg-border" />
-      <MenuItem onClick={open}>Open Episode</MenuItem>
-      <MenuItem
-        onClick={() =>
-          void episodeLink(episode.id).then((url) => window.open(url, "_blank", "noopener"))
-        }
-      >
-        Open in New Tab
-      </MenuItem>
-      <MenuItem onClick={() => void copyLink()}>Copy Link</MenuItem>
-    </>
-  )
+  const commands: ReadonlyArray<RowCommand> = [
+    { label: "Play Now", run: () => void act({ _tag: "PlayNow", episodeId: episode.id }) },
+    { label: `Play Next in ${target?.name ?? "Playlist"}`, run: () => addTo("next") },
+    { label: `Play Last in ${target?.name ?? "Playlist"}`, run: () => addTo("last") },
+    { label: "Add to a Playlist…", run: () => setAdding(true) },
+    { separator: true },
+    {
+      label: episode.starred ? "Unstar" : "Star",
+      run: () => void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
+    },
+    {
+      label: episode.played ? "Mark Unplayed" : "Mark Played",
+      run: () => void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
+    },
+    { separator: true },
+    { label: "Open Episode", run: open }
+  ]
+  const link = `/episodes/${episode.id}`
   const rowClass = `group @container relative flex min-h-[76px] items-center gap-3 border-b px-2 py-2 lg:cursor-pointer ${
     selected
       ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
@@ -239,14 +183,6 @@ export function EpisodeRow({
         ? "bg-accent/60"
         : "hover:bg-secondary/60"
   }`
-  // For the Mac app's native right-click menu (packages/desktop/src/main.ts).
-  const menuData = JSON.stringify({
-    id: episode.id,
-    path: `/episodes/${episode.id}`,
-    starred: episode.starred,
-    played: episode.played,
-    target: target?.name ?? "Playlist"
-  })
   const body = (
     <>
       {onCheck && (
@@ -333,7 +269,7 @@ export function EpisodeRow({
             <Menu.Portal>
               <Menu.Positioner sideOffset={6} align="end" className="z-50">
                 <Menu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">
-                  {menuItems}
+                  <RowMenuItems commands={commands} link={link} />
                 </Menu.Popup>
               </Menu.Positioner>
             </Menu.Portal>
@@ -412,28 +348,15 @@ export function EpisodeRow({
     if (window.getSelection()?.isCollapsed === false) return
     open()
   }
-  // The phone keeps the browser's long-press menu; the Mac app shows a native one.
-  if (inMacApp || !wide) {
-    return (
-      // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.
-      <div className={rowClass} data-episode-menu={menuData} onClick={onRowClick}>
-        {body}
-      </div>
-    )
-  }
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger className={rowClass} data-episode-menu={menuData} onClick={onRowClick}>
-        {body}
-      </ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Positioner className="z-50">
-          <ContextMenu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">
-            {menuItems}
-          </ContextMenu.Popup>
-        </ContextMenu.Positioner>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+    <RowMenu
+      commands={commands}
+      link={link}
+      // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.
+      render={<div className={rowClass} onClick={onRowClick} />}
+    >
+      {body}
+    </RowMenu>
   )
 }
 

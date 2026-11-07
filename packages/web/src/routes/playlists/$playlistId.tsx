@@ -16,6 +16,7 @@ import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { GridCell } from "../../components/lists/Grid.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { SortableList, SortableRow } from "../../components/lists/SortableRow.tsx"
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
@@ -118,9 +119,32 @@ function PlaylistDetail() {
     )
   }
 
+  // One step that Undo takes back: the Entry returns after its old neighbour.
+  const moveEntry = (episodeId: string, after: string | null) => {
+    const index = entries.findIndex((e) => e.episodeId === episodeId)
+    const before = index > 0 ? (entries[index - 1]?.episodeId ?? null) : null
+    const move = (to: string | null) =>
+      Schema.decodeUnknownSync(Operation.Change)({
+        _tag: "MoveEntry",
+        playlistId: playlist.id,
+        episodeId,
+        after: to
+      })
+    const step = {
+      message: `Moved “${episodes.get(episodeId)?.title ?? "Entry"}”`,
+      undo: [move(before)]
+    }
+    record(move(after))
+    confirm(step, async () => {
+      record(move(after))
+      return step
+    })
+  }
+
   return (
     <>
       <PageHeader
+        narrow={!selected}
         title={playlist.name}
         back={{ to: "/playlists", label: "Playlists" }}
         subtitle={`${playlist.entries.length} ${playlist.entries.length === 1 ? "Entry" : "Entries"} · ${playlist.clearOnPlayed ? "Clear on Played" : "Keeps Entries"}`}
@@ -154,7 +178,10 @@ function PlaylistDetail() {
         }
       />
       {/* Entries, History and Listening Timeline (docs/design/ui-layout.md › Desktop). */}
-      <nav aria-label="Entries, History and Listening Timeline" className="mb-3 px-4 md:px-8">
+      <nav
+        aria-label="Entries, History and Listening Timeline"
+        className="@container mb-3 px-4 md:px-8"
+      >
         <div className="inline-flex flex-wrap gap-1 rounded-3xl bg-secondary p-1">
           {(
             [
@@ -170,7 +197,14 @@ function PlaylistDetail() {
               onClick={() => void navigate({ search: value ? { tab: value } : {} })}
               className="flex h-9 items-center justify-center rounded-full px-3 text-small font-medium whitespace-nowrap text-muted-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-sm"
             >
-              {label}
+              {value === "timeline" ? (
+                // A narrow screen (or large text) keeps the three on one line.
+                <span>
+                  <span className="@max-[22rem]:sr-only">Listening </span>Timeline
+                </span>
+              ) : (
+                label
+              )}
             </button>
           ))}
         </div>
@@ -199,27 +233,7 @@ function PlaylistDetail() {
             <SortableList
               ids={entries.map((e) => e.episodeId)}
               label={(id) => episodes.get(id)?.title ?? "Entry"}
-              onMove={(episodeId, after) => {
-                // One step that Undo takes back: the Entry returns after its old neighbour.
-                const index = entries.findIndex((e) => e.episodeId === episodeId)
-                const before = index > 0 ? (entries[index - 1]?.episodeId ?? null) : null
-                const move = (to: string | null) =>
-                  Schema.decodeUnknownSync(Operation.Change)({
-                    _tag: "MoveEntry",
-                    playlistId: playlist.id,
-                    episodeId,
-                    after: to
-                  })
-                const step = {
-                  message: `Moved “${episodes.get(episodeId)?.title ?? "Entry"}”`,
-                  undo: [move(before)]
-                }
-                record(move(after))
-                confirm(step, async () => {
-                  record(move(after))
-                  return step
-                })
-              }}
+              onMove={moveEntry}
             >
               {playlist.entries.map((entry, index) => {
                 const episode = episodes.get(entry.episodeId)
@@ -237,20 +251,84 @@ function PlaylistDetail() {
                       ? formatLength(duration)
                       : ""
                 const title = episode?.title
+                const episodeState = state.episodeStates[entry.episodeId]
+                const starred = episodeState?.starred ?? false
+                const played = (episodeState?.played ?? null) !== null
+                const last = entries[entries.length - 1]?.episodeId ?? null
+                const commands: ReadonlyArray<RowCommand> = [
+                  live && playing.playing
+                    ? { label: "Pause", run: () => control({ _tag: "toggle" }) }
+                    : {
+                        label: "Play from Here",
+                        run: () =>
+                          control(
+                            live
+                              ? { _tag: "toggle" }
+                              : {
+                                  _tag: "playEntry",
+                                  playlistId: playlist.id,
+                                  episodeId: entry.episodeId
+                                }
+                          )
+                      },
+                  ...(index > 0
+                    ? [{ label: "Move to Top", run: () => moveEntry(entry.episodeId, null) }]
+                    : []),
+                  ...(index < entries.length - 1
+                    ? [{ label: "Move to Bottom", run: () => moveEntry(entry.episodeId, last) }]
+                    : []),
+                  { separator: true },
+                  {
+                    label: starred ? "Unstar" : "Star",
+                    run: () =>
+                      void act({ _tag: "Star", episodeId: entry.episodeId, starred: !starred })
+                  },
+                  {
+                    label: played ? "Mark Unplayed" : "Mark Played",
+                    run: () =>
+                      void act({ _tag: "Played", episodeId: entry.episodeId, played: !played })
+                  },
+                  { separator: true },
+                  {
+                    label: "Open Episode",
+                    run: () =>
+                      window.matchMedia("(min-width: 64rem)").matches
+                        ? void navigate({ search: { episode: entry.episodeId } })
+                        : void navigate({
+                            to: "/episodes/$episodeId",
+                            params: { episodeId: entry.episodeId }
+                          })
+                  },
+                  {
+                    label: `Remove from ${playlist.name}`,
+                    run: () =>
+                      void act({
+                        _tag: "Remove",
+                        episodeId: entry.episodeId,
+                        playlistId: playlist.id
+                      })
+                  }
+                ]
                 return (
                   <SortableRow key={entry.episodeId} id={entry.episodeId}>
                     {(sortable) => (
-                      // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
-                      <div
-                        ref={sortable.ref}
-                        style={sortable.style}
-                        role="row"
-                        data-row={index}
-                        aria-rowindex={index + 1}
-                        aria-current={current ? "true" : undefined}
-                        // Narrow for its text (a small phone, large text): the number column gives
-                        // way, then the buttons move under the title (WTYPE-02, WTYPE-05).
-                        className={`@container relative flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 ${current ? "bg-accent" : ""} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
+                      <RowMenu
+                        commands={commands}
+                        link={`/episodes/${entry.episodeId}`}
+                        render={
+                          // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
+                          <div
+                            ref={sortable.ref}
+                            style={sortable.style}
+                            role="row"
+                            data-row={index}
+                            aria-rowindex={index + 1}
+                            aria-current={current ? "true" : undefined}
+                            // Narrow for its text (a small phone, large text): the number column
+                            // gives way, then the buttons move under the title (WTYPE-02, WTYPE-05).
+                            className={`@container relative flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 ${current ? "bg-accent" : ""} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
+                          />
+                        }
                       >
                         <GridCell className="relative z-10 shrink-0">
                           <Tip label="Drag to reorder">
@@ -267,7 +345,7 @@ function PlaylistDetail() {
                           </Tip>
                         </GridCell>
                         <span
-                          className={`hidden min-w-10 shrink-0 text-center text-xs font-semibold tracking-wider @min-[30rem]:block ${current ? "text-primary" : "text-muted-foreground"}`}
+                          className={`hidden w-15 shrink-0 text-center text-xs font-semibold tracking-wider @min-[30rem]:block ${current ? "text-primary" : "text-muted-foreground"}`}
                         >
                           {current ? (active ? "NOW" : "RESUME") : index + 1}
                         </span>
@@ -312,10 +390,11 @@ function PlaylistDetail() {
                               {title}
                             </Link>
                           )}
-                          <span className="mt-1.5 flex items-center gap-2">
-                            {/* Only a started Entry has progress to show. */}
+                          <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {/* Only a started Entry has progress to show. Too narrow for both on
+                                one line, the time goes under the bar rather than squeeze it. */}
                             {position > 0 && (
-                              <span className="progress-track h-1 flex-1 overflow-hidden rounded-full bg-border">
+                              <span className="progress-track h-1 min-w-12 flex-1 basis-12 overflow-hidden rounded-full bg-border">
                                 <span
                                   className="progress-fill block h-1 bg-primary"
                                   style={{ width: `${progress}%` }}
@@ -380,7 +459,7 @@ function PlaylistDetail() {
                             </Tip>
                           </GridCell>
                         </div>
-                      </div>
+                      </RowMenu>
                     )}
                   </SortableRow>
                 )

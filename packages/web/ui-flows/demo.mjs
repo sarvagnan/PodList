@@ -107,6 +107,20 @@ const startFixtures = async () => {
       res.writeHead(200, { "content-type": "application/rss+xml" })
       return res.end(feed(origin, podcast))
     }
+    // Search stands in for the iTunes Search API, so Add podcasts finds the fixture feeds.
+    if (path === "/search") {
+      const term = (new URL(req.url, "http://x").searchParams.get("term") ?? "").toLowerCase()
+      const results = podcasts
+        .filter((p) => `${p.title} ${p.author}`.toLowerCase().includes(term))
+        .map((p) => ({
+          collectionName: p.title,
+          artistName: p.author,
+          feedUrl: `${origin}/feeds/${p.slug}.xml`,
+          artworkUrl600: `${origin}/art/${p.slug}.svg`
+        }))
+      res.writeHead(200, { "content-type": "application/json" })
+      return res.end(JSON.stringify({ resultCount: results.length, results }))
+    }
     const art = podcasts.find((p) => path === `/art/${p.slug}.svg`)
     if (art) {
       res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "max-age=3600" })
@@ -177,11 +191,16 @@ export const startDemo = async ({ empty = false } = {}) => {
   const base = `http://127.0.0.1:${port}`
   const server = spawn(process.execPath, [join(repo, "packages/server/src/main.ts")], {
     env: {
-      ...process.env,
+      // No Podcast Index keys: search goes to the fixture host below.
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(([name]) => !name.startsWith("PODCASTINDEX_"))
+      ),
       PORT: String(port),
       DATABASE_PATH: join(dir, "podlist.db"),
       BACKUP_DIR: join(dir, "backups"),
-      WEB_ROOT: join(repo, "packages/web/dist")
+      WEB_ROOT: join(repo, "packages/web/dist"),
+      // Search finds the fixture feeds, never the real directories.
+      ITUNES_SEARCH_URL: `${fixtures.origin}/search`
     },
     stdio: ["ignore", "ignore", "inherit"]
   })

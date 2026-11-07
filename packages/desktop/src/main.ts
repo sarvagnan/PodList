@@ -183,38 +183,44 @@ const undo = async (win: BrowserWindow, redo: boolean) => {
   }
 }
 
-/** What an Episode row tells the shell for its right-click menu (data-episode-menu). */
-interface EpisodeMenu {
+/** What a row tells the shell for its right-click menu (data-row-menu; the web app's
+ * components/lists/RowMenu.tsx). */
+interface RowMenu {
   readonly id: string
-  readonly path: string
-  readonly starred: boolean
-  readonly played: boolean
-  readonly target: string
+  readonly items: ReadonlyArray<{ readonly label: string; readonly checked?: boolean } | null>
+  /** The row's page in the app, offered as a link to the server. */
+  readonly link?: string
 }
 
-const episodeMenu = (win: BrowserWindow, e: EpisodeMenu): MenuItemConstructorOptions[] => {
-  const send = (command: string) => () =>
+const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[] => {
+  const send = (label: string) => () =>
     void win.webContents.executeJavaScript(
-      `document.dispatchEvent(new CustomEvent("podlist:episode", { detail: ${JSON.stringify({ id: e.id, command })} }))`
+      `document.dispatchEvent(new CustomEvent("podlist:row-menu", { detail: ${JSON.stringify({ id: row.id, label })} }))`
     )
   const server = serverUrl()
-  const shared = server === undefined ? undefined : new URL(e.path, server).href
+  const shared =
+    row.link === undefined || server === undefined ? undefined : new URL(row.link, server).href
   return [
-    { label: "Play Now", click: send("play") },
-    { label: `Play Next in ${e.target}`, click: send("next") },
-    { label: `Play Last in ${e.target}`, click: send("last") },
-    { label: "Add to a Playlist…", click: send("add") },
-    { type: "separator" },
-    { label: e.starred ? "Unstar" : "Star", click: send("star") },
-    { label: e.played ? "Mark Unplayed" : "Mark Played", click: send("played") },
-    { type: "separator" },
-    { label: "Open Episode", click: send("open") },
+    ...row.items.map(
+      (item): MenuItemConstructorOptions =>
+        item === null
+          ? { type: "separator" }
+          : item.checked === undefined
+            ? { label: item.label, click: send(item.label) }
+            : {
+                label: item.label,
+                type: "checkbox",
+                checked: item.checked,
+                click: send(item.label)
+              }
+    ),
     ...(shared === undefined
       ? []
-      : [
+      : ([
+          { type: "separator" },
           { label: "Open in Browser", click: () => void shell.openExternal(shared) },
           { label: "Copy Link", click: () => clipboard.writeText(shared) }
-        ])
+        ] satisfies MenuItemConstructorOptions[]))
   ]
 }
 
@@ -307,13 +313,13 @@ const createWindow = () => {
   })
   win.webContents.on("context-menu", (_event, params) => {
     void (async () => {
-      // On an Episode row, the Episode's commands, as a native menu (BROWSER-06).
-      const episode = (await win.webContents
+      // On a row (an Episode, an Entry, a Subscription), its commands as a native menu.
+      const row = (await win.webContents
         .executeJavaScript(
-          `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-episode-menu]"); return el ? JSON.parse(el.dataset.episodeMenu) : null })()`
+          `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
         )
-        .catch(() => null)) as EpisodeMenu | null
-      const items = episode ? episodeMenu(win, episode) : contextMenu(win, params)
+        .catch(() => null)) as RowMenu | null
+      const items = row ? rowMenu(win, row) : contextMenu(win, params)
       Menu.buildFromTemplate(items).popup({ window: win })
     })()
   })

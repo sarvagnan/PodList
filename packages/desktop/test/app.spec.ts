@@ -168,3 +168,45 @@ test("the File menu makes a Playlist or a View and adds podcasts", async () => {
     demo.stop()
   }
 })
+
+test("right-click on a row shows its commands as a native menu", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
+  try {
+    const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+    const page = await app.firstWindow()
+    // Keep the menu instead of showing it, so the test can read and choose from it.
+    await app.evaluate(({ Menu }) => {
+      Menu.prototype.popup = function (this: Electron.Menu) {
+        ;(globalThis as { shown?: Electron.Menu }).shown = this
+      }
+    })
+    const shown = () =>
+      app.evaluate(() =>
+        (globalThis as { shown?: Electron.Menu }).shown?.items.map((item) => item.label)
+      )
+    await page
+      .getByRole("navigation", { name: "Library and lists" })
+      .getByRole("link", { name: /^Default/ })
+      .click()
+    const titles = () =>
+      page
+        .locator("main [role=row] [data-cell=title]")
+        .evaluateAll((cells) => cells.map((cell) => cell.textContent ?? ""))
+    await page.locator("main [role=row] [data-cell=title]").first().waitFor()
+    const before = await titles()
+
+    await page.locator('main [data-row="0"]').click({ button: "right" })
+    await expect.poll(shown).toContain("Move to Bottom")
+    expect(await shown()).toEqual(expect.arrayContaining(["Open in Browser", "Copy Link"]))
+    await app.evaluate(() =>
+      (globalThis as { shown?: Electron.Menu }).shown?.items
+        .find((item) => item.label === "Move to Bottom")
+        ?.click()
+    )
+    await expect.poll(titles).toEqual([...before.slice(1), before[0]])
+    await app.close()
+  } finally {
+    demo.stop()
+  }
+})

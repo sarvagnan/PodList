@@ -22,6 +22,7 @@ function Trash() {
   return (
     <>
       <PageHeader
+        narrow
         title="Trash"
         subtitle={`Deleted Playlists are kept for ${days} days.`}
         back={{ to: "/playlists", label: "Playlists" }}

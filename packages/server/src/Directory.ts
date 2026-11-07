@@ -15,7 +15,11 @@ export interface DirectoryResult {
 
 export const DirectoryConfig = Config.all({
   podcastIndexKey: Config.option(Config.String("PODCASTINDEX_KEY")),
-  podcastIndexSecret: Config.option(Config.Redacted("PODCASTINDEX_SECRET"))
+  podcastIndexSecret: Config.option(Config.Redacted("PODCASTINDEX_SECRET")),
+  /** The iTunes Search API, or a stand-in with its shape (the demo's fixture host). */
+  itunesSearchUrl: Config.String("ITUNES_SEARCH_URL").pipe(
+    Config.withDefault("https://itunes.apple.com/search")
+  )
 })
 
 const userAgent = "PodList/0.1 (self-hosted podcast client)"
@@ -104,7 +108,7 @@ export class Directory extends Context.Service<
 
       const itunes = (query: string) =>
         getJson(
-          HttpClientRequest.get("https://itunes.apple.com/search", {
+          HttpClientRequest.get(config.itunesSearchUrl, {
             urlParams: { media: "podcast", entity: "podcast", limit: "30", term: query }
           }),
           ITunesResponse

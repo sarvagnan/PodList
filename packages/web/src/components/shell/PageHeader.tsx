@@ -7,19 +7,22 @@ export function PageHeader({
   title,
   back,
   subtitle,
-  actions
+  actions,
+  narrow = false
 }: {
   readonly title: string
   readonly back?: { readonly to: string; readonly label: string }
   readonly subtitle?: string
   readonly actions?: ReactNode
+  /** The screen's content stops at 960 px: so do the header's actions, above its edge. */
+  readonly narrow?: boolean
 }) {
   // The tab names the screen (BROWSER-03).
   useEffect(() => {
     document.title = `${title} · PodList`
   }, [title])
   return (
-    <header className="px-5 pt-4 pb-3 md:px-8 md:pt-8">
+    <header className={`px-5 pt-4 pb-3 md:px-8 md:pt-8 ${narrow ? "max-w-[960px]" : ""}`}>
       {back && (
         <Link
           to={back.to}

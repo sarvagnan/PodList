@@ -117,3 +117,20 @@ test("?add=true opens Add podcasts once, and Esc closes it", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible()
   await expect(sheet).toBeHidden()
 })
+
+test("right-click on a Subscription changes its Download Rule", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  const streams = page.getByRole("region", { name: /^Streams/ })
+  const row = streams.getByRole("listitem").first()
+  const name = (await row.locator(".font-medium").first().textContent()) ?? ""
+  await row.click({ button: "right" })
+  const menu = page.getByRole("menu")
+  await expect(menu.getByRole("menuitemcheckbox", { name: "Stream" })).toBeChecked()
+  await menu.getByRole("menuitemcheckbox", { name: "Download Entries" }).click()
+  await expect(
+    page
+      .getByRole("region", { name: /^Downloads Entries/ })
+      .getByRole("link", { name: new RegExp(`^${name}`) })
+  ).toBeVisible()
+})

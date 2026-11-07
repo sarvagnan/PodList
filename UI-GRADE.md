@@ -49,7 +49,7 @@ Fixed on 7 Nov:
 - [x] Minors: APPEAR-11 toast closes after Undo · CTRL-05 dialog button states · TYPE-06 line length · TYPE-08 apostrophes.
 - [x] Craft: header label at 720 px; desktop Episode detail with Play Next and Play Last; Undo for every reversible edit; the Mac File menu (New Playlist ⌘N, New View ⇧⌘N, Add Podcasts ⇧⌘A); one Settings glyph.
 - [x] Found while testing: Back could return a list to the top on a slow machine (the router's scroll reset, and a late focus move); a reload could show "open in another tab" while the old page let go of the database.
-- [ ] Not done: menus on Entry and Library rows; 320 px segments.
+- [x] After round 6 (graded in round 7 only if they land before it): one right-click menu for every row (Episodes, Entries with Move to Top and Bottom, Subscriptions with their Download Rule), native in the Mac app; 320 px segments and progress bars; headers and empty states end with the 960 px content; the Add podcasts sheet holds still as results arrive; toasts sit above the Offline strip; the demo searches its fixture feeds instead of iTunes.
 
 ## Work list (round 5)
 

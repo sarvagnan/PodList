@@ -547,6 +547,18 @@ export function AppShell() {
   usePlayPauseKey()
   useSearchKey()
   useMenuControls()
+  // Toasts sit just above the phone's bottom stack, however tall it is (the Offline strip
+  // comes and goes): its height is --bottom-stack.
+  const bottomStack = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const stack = bottomStack.current
+    if (stack === null) return
+    const observer = new ResizeObserver(() =>
+      document.documentElement.style.setProperty("--bottom-stack", `${stack.offsetHeight}px`)
+    )
+    observer.observe(stack)
+    return () => observer.disconnect()
+  }, [])
   return (
     <div className="flex min-h-dvh">
       <a
@@ -561,7 +573,7 @@ export function AppShell() {
         <FirstRun />
         <Outlet />
       </main>
-      <div className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">
+      <div ref={bottomStack} className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">
         <SyncIndicator variant="phone" />
         <NowPlaying variant="phone" />
         <BottomTabs />
