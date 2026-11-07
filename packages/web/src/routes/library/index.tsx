@@ -1,14 +1,15 @@
-import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
+import type * as React from "react"
 import { useEffect, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
+import { useCopyText } from "../../components/feedback/useCopyLink.ts"
 import { AddPodcastSheet } from "../../components/library/AddPodcastSheet.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { RowMenu } from "../../components/lists/RowMenu.tsx"
@@ -27,6 +28,9 @@ const rules: ReadonlyArray<readonly [Mode, string]> = [
   ["never", "Stream"]
 ]
 const decodeChange = Schema.decodeUnknownSync(Operation.Change)
+/** A plain left click; modified clicks keep their browser meaning. */
+const plainClick = (event: React.MouseEvent) =>
+  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
 
 export const Route = createFileRoute("/library/")({
   component: LibraryScreen,
@@ -73,19 +77,7 @@ function LibraryScreen() {
         }
       })
     )
-  const toasts = Toast.useToastManager()
-  const copyText = async (text: string) => {
-    let copied = true
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      copied = false
-    }
-    toasts.add({
-      description: copied ? "Feed address copied" : "Couldn’t copy the feed address",
-      timeout: 3000
-    })
-  }
+  const copy = useCopyText()
   const groups = (
     [
       ["allNew", "Downloads every new Episode"],
@@ -170,30 +162,53 @@ function LibraryScreen() {
                           run: () => setRule(s.id, ruleMode)
                         })),
                         { separator: true },
-                        { label: "Copy Feed Address", run: () => void copyText(s.feedUrl) }
+                        {
+                          label: "Copy Feed Address",
+                          run: () => void copy(() => s.feedUrl, "Feed address")
+                        }
                       ]}
                       link={`/library/${s.id}`}
-                      render={<li className="border-b last:border-b-0" />}
+                      render={
+                        // biome-ignore lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.
+                        <li
+                          onClick={(event: React.MouseEvent) => {
+                            if (
+                              !plainClick(event) ||
+                              !window.matchMedia("(min-width: 64rem)").matches
+                            )
+                              return
+                            if ((event.target as Element).closest("a, button")) return
+                            if (window.getSelection()?.isCollapsed === false) return
+                            void navigate({
+                              to: "/library/$subscriptionId",
+                              params: { subscriptionId: s.id }
+                            })
+                          }}
+                          className="relative flex min-h-16 items-center gap-3 rounded-lg border-b px-2 py-2.5 last:border-b-0 hover:bg-secondary/60 lg:cursor-pointer"
+                        />
+                      }
                     >
-                      <Link
-                        to="/library/$subscriptionId"
-                        params={{ subscriptionId: s.id }}
-                        className="flex min-h-16 items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-secondary/60"
-                      >
-                        <Artwork url={s.artworkUrl} name={s.title} size={48} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-row font-medium">{s.title}</span>
-                          {s.author && (
-                            <span className="mt-0.5 block truncate text-small text-muted-foreground">
-                              {s.author}
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-small whitespace-nowrap text-muted-foreground">
-                          {s.unplayed} unplayed
-                        </span>
-                        <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
-                      </Link>
+                      <Artwork url={s.artworkUrl} name={s.title} size={48} />
+                      <span className="min-w-0 flex-1">
+                        {/* The whole row on the phone; on desktop only the title is the link,
+                            so the rest keeps the row's own menu (BROWSER-06). */}
+                        <Link
+                          to="/library/$subscriptionId"
+                          params={{ subscriptionId: s.id }}
+                          className="block truncate text-row font-medium hover:underline max-lg:after:absolute max-lg:after:inset-0 max-lg:after:rounded-lg max-lg:after:content-['']"
+                        >
+                          {s.title}
+                        </Link>
+                        {s.author && (
+                          <span className="mt-0.5 block truncate text-small text-muted-foreground">
+                            {s.author}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-small whitespace-nowrap text-muted-foreground">
+                        {s.unplayed} unplayed
+                      </span>
+                      <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
                     </RowMenu>
                   ))}
                 </ul>

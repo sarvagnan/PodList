@@ -21,10 +21,16 @@ export function useViewActions() {
       const before = viewData(view)
       const step = { message: `Deleted “${view.name}”`, undo: [saveViewChange(before)] }
       await record(deleteViewChange(view.id))
-      confirm(step, async () => {
-        await record(deleteViewChange(view.id))
-        return step
-      })
+      confirm(
+        step,
+        async () => {
+          await record(deleteViewChange(view.id))
+          return step
+        },
+        () =>
+          document.querySelector<HTMLElement>(`main a[href="/views/${view.id}"]`) ??
+          document.querySelector<HTMLElement>(`a[href="/views/${view.id}"]`)
+      )
       await navigate({ to: "/views" })
     },
     [record, navigate, confirm]

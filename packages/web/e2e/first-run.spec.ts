@@ -43,3 +43,18 @@ test("Skip hides the checklist on this Device", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Views", level: 1 })).toBeVisible()
   await expect(welcome).toBeHidden()
 })
+
+test("Settings shows getting started again after Skip", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views`)
+  const welcome = page.getByRole("region", { name: "Welcome to PodList" })
+  await welcome.getByRole("button", { name: "Skip for now" }).click()
+  await expect(welcome).toHaveCount(0)
+  await page.goto(`${demo.base}/settings`)
+  await page.getByRole("button", { name: "Show getting started" }).click()
+  await expect(page).toHaveURL(/\/views/)
+  await expect(welcome).toBeVisible()
+  await expect(welcome.getByText("Views find Episodes for you (done)")).toBeAttached()
+  await welcome.getByRole("button", { name: "Done" }).click()
+  await expect(welcome).toHaveCount(0)
+})

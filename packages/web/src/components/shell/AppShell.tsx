@@ -31,7 +31,7 @@ import { SkipIcon } from "../player/SkipIcon.tsx"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
-import { FirstRun } from "./FirstRun.tsx"
+import { FirstRun, showGettingStarted } from "./FirstRun.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
 import { VersionNotice } from "./VersionNotice.tsx"
 
@@ -207,7 +207,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   return (
     <section
       aria-label="Now playing"
-      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
+      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground short:py-1.5 md:grid"
     >
       <div className="flex min-w-0 flex-col">
         <button
@@ -222,7 +222,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             name={current.podcast}
             size={48}
           />
-          <span className="min-w-0">
+          {/* Fills the column, so the title has its width (not the subtitle's). */}
+          <span className="min-w-0 flex-1">
             <TrackTitle title={current.title} className="text-row" />
             {!current.error && (
               <span className="block truncate text-small text-player-muted">
@@ -299,16 +300,18 @@ function Sidebar() {
   const state = useAppState()
   const { create: createView } = useViewActions()
   const [newPlaylist, setNewPlaylist] = useState(false)
-  // The Mac app's File menu.
+  const router = useRouter()
+  // The Mac app's File and Help menus.
   useEffect(() => {
     const onCommand = (event: Event) => {
       const command = (event as CustomEvent<string>).detail
       if (command === "newPlaylist") setNewPlaylist(true)
       if (command === "newView") void createView()
+      if (command === "gettingStarted") showGettingStarted((to) => router.navigate({ to }))
     }
     document.addEventListener("podlist:command", onCommand)
     return () => document.removeEventListener("podlist:command", onCommand)
-  }, [createView])
+  }, [createView, router])
   const ready = useLibraryReady()
   const link =
     "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"

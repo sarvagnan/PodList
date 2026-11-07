@@ -267,7 +267,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
         <button
           type="button"
           onClick={() => push("playlists")}
-          className="h-10 rounded-full px-3 text-row font-medium text-player-foreground hover:bg-player-track active:bg-player-track/70"
+          className="h-10 rounded-full bg-player-track px-4 text-row font-medium text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
         >
           Switch Playlist
         </button>

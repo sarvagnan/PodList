@@ -135,10 +135,14 @@ function PlaylistDetail() {
       undo: [move(before)]
     }
     record(move(after))
-    confirm(step, async () => {
-      record(move(after))
-      return step
-    })
+    confirm(
+      step,
+      async () => {
+        record(move(after))
+        return step
+      },
+      () => document.querySelector<HTMLElement>(`[data-episode-title="${episodeId}"]`)
+    )
   }
 
   return (
@@ -316,7 +320,7 @@ function PlaylistDetail() {
                         commands={commands}
                         link={`/episodes/${entry.episodeId}`}
                         render={
-                          // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
+                          // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive lint/a11y/useKeyWithClickEvents: a row of the grid above; its click only widens the title's mouse target.
                           <div
                             ref={sortable.ref}
                             style={sortable.style}
@@ -324,9 +328,23 @@ function PlaylistDetail() {
                             data-row={index}
                             aria-rowindex={index + 1}
                             aria-current={current ? "true" : undefined}
+                            // Desktop: a click in the row's empty space opens the Episode too.
+                            onClick={(event: React.MouseEvent) => {
+                              if (
+                                !plainClick(event) ||
+                                !window.matchMedia("(min-width: 64rem)").matches
+                              )
+                                return
+                              if (
+                                (event.target as Element).closest("a, button, input, label, select")
+                              )
+                                return
+                              if (window.getSelection()?.isCollapsed === false) return
+                              void navigate({ search: { episode: entry.episodeId } })
+                            }}
                             // Narrow for its text (a small phone, large text): the number column
                             // gives way, then the buttons move under the title (WTYPE-02, WTYPE-05).
-                            className={`@container relative flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 ${current ? "bg-accent" : ""} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
+                            className={`@container relative flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer ${current ? "bg-accent" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
                           />
                         }
                       >
@@ -385,7 +403,9 @@ function PlaylistDetail() {
                                   void navigate({ search: { episode: entry.episodeId } })
                                 }
                               }}
-                              className="line-clamp-3 text-row font-medium after:absolute after:inset-0 after:rounded-xl after:content-[''] hover:underline"
+                              // The whole row on the phone; on desktop only the title is the link, so the
+                              // rest of the row keeps the row's own menu (BROWSER-06).
+                              className="line-clamp-3 text-row font-medium hover:underline max-lg:after:absolute max-lg:after:inset-0 max-lg:after:rounded-xl max-lg:after:content-['']"
                             >
                               {title}
                             </Link>

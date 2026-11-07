@@ -1,8 +1,12 @@
 @import "tailwindcss";
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/space-grotesk";
+
+/* A short window (a zoomed or small laptop screen): chrome gives the list its room. */
+@custom-variant short (@media (max-height: 30rem));
 
 /*
  * PodList design tokens, from the chosen mockup (docs/design/ui-layout.md, variant A).
@@ -28,6 +32,7 @@
   --text-title--line-height: 2.125rem;
   --color-ring: var(--ring);
   --color-input: var(--input);
+  --color-field: var(--field);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
@@ -80,6 +85,8 @@
   --destructive: #b42318;
   --border: #e4e2dc;
   --input: #d6d3cc;
+  /* The edge of a field or select: 3.6:1 on white, 3.3:1 on the page (APPEAR-10). */
+  --field: #8c877e;
   --ring: #2b50c8;
   --radius: 12px;
   /* The dark player bar and Now Playing drawer. */

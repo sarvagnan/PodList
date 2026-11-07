@@ -8,6 +8,21 @@ let nextId = 0
 /** How many steps Cmd/Ctrl-Z can take back. */
 const depth = 30
 
+/** After Undo, where focus goes: the given element once it is back (a restored row
+ * arrives a moment later), else what had focus when the step was taken, else the screen's
+ * heading. The toast's Undo button is going away, and focus must not fall to the page. */
+const refocus = (find: (() => HTMLElement | null) | undefined, origin: Element | null) => {
+  let frames = 60
+  const attempt = () => {
+    const target = find?.()
+    if (target) return target.focus()
+    if (--frames > 0 && find) return requestAnimationFrame(attempt)
+    if (origin instanceof HTMLElement && origin.isConnected) return origin.focus()
+    document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true })
+  }
+  requestAnimationFrame(attempt)
+}
+
 /**
  * Confirms a step with a toast. A step that can be taken back goes on the undo stack,
  * and its toast offers Undo; Cmd/Ctrl-Z (UndoShortcut) reaches it after the toast is gone.
@@ -18,7 +33,13 @@ export function useConfirm() {
   const setStack = useAtomSet(undoStackAtom)
   const setRedo = useAtomSet(redoStackAtom)
   return useCallback(
-    (outcome: Outcome, again: () => Promise<Outcome>) => {
+    (
+      outcome: Outcome,
+      again: () => Promise<Outcome>,
+      /** Finds what Undo brings back, to put focus on it (WKEY-03). */
+      focus?: () => HTMLElement | null
+    ) => {
+      const origin = document.activeElement
       if (outcome.undo.length === 0) {
         toasts.add({ description: outcome.message, timeout: 4000 })
         return
@@ -38,6 +59,7 @@ export function useConfirm() {
             undo(outcome.undo)
             // Used: it goes (APPEAR-11).
             toasts.close(toast)
+            refocus(focus, origin)
           }
         }
       })

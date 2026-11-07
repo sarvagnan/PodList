@@ -28,7 +28,9 @@ function Trash() {
         back={{ to: "/playlists", label: "Playlists" }}
       />
       {trash.length === 0 ? (
-        <EmptyState title="The Trash is empty">Deleted Playlists wait here for a while.</EmptyState>
+        <EmptyState title="The Trash is empty">
+          A deleted Playlist waits here, with its History, until you restore it or its time is up.
+        </EmptyState>
       ) : (
         <ul className="max-w-[960px] px-3 md:px-6">
           {trash.map((t) => (

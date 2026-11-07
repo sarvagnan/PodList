@@ -54,13 +54,14 @@ function ByDay<T>({
     else days.push({ day, items: [item] })
   }
   return (
-    <div className="max-w-[960px] px-4 pb-8 md:px-8">
+    // Plain rows under day headings, like the Library's groups.
+    <div className="max-w-[960px] px-3 pb-8 md:px-6">
       {days.map(({ day, items }) => (
         <section key={day} aria-label={day} className="mt-4 first:mt-0">
           <h2 className="pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
             {day}
           </h2>
-          <ol className="rounded-xl border bg-card">{items.map(children)}</ol>
+          <ol>{items.map(children)}</ol>
         </section>
       ))}
     </div>
@@ -81,7 +82,7 @@ export function PlaylistHistory({ playlist }: { readonly playlist: Playlist.Play
       {(h) => (
         <li
           key={`${h.episodeId}-${h.finishedAt}`}
-          className="flex min-h-14 items-center gap-3 border-b px-4 py-2 last:border-b-0"
+          className="flex min-h-14 items-center gap-3 border-b px-2 py-2 last:border-b-0"
         >
           <span className="w-12 shrink-0 text-small text-muted-foreground tabular-nums">
             {clock(h.finishedAt)}
@@ -141,7 +142,7 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
         {(event) => (
           <li
             key={`${event._tag}-${event.episodeId}-${momentOf(event)}`}
-            className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 last:border-b-0"
+            className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-2 py-2 last:border-b-0"
           >
             <span className="w-12 shrink-0 text-small text-muted-foreground tabular-nums">
               {clock(momentOf(event))}

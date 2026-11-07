@@ -67,7 +67,8 @@ function Action({
       {...buttonProps}
       aria-pressed={buttonProps ? undefined : pressed}
       onClick={onClick ?? buttonProps?.onClick}
-      className={`flex w-20 flex-col items-center gap-1.5 text-small font-medium ${className}`}
+      // The phone's five share one row (Play in the middle); wider panels keep 80 px each.
+      className={`flex min-w-14 max-w-20 flex-1 basis-0 flex-col items-center gap-1.5 text-small font-medium lg:w-20 lg:flex-none ${className}`}
     >
       {children}
       {label}
@@ -122,7 +123,8 @@ export function EpisodeDetail({
   const iconCircle = `grid size-12 place-items-center rounded-full ${t.action}`
 
   return (
-    <article className="px-5 pb-10">
+    // As wide as its header and actions, so Resume sits by its Playlist on a wide screen.
+    <article className="max-w-[44rem] px-5 pb-10">
       <div className="flex items-start gap-4">
         <Artwork url={detail.artworkUrl} name={detail.podcast} size={96} />
         <div className="min-w-0">

@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -40,6 +40,16 @@ Round 4: coverage 98.8%; 10 failures (8 major, 2 minor); five categories held at
 Round 5: coverage 96.3%; 10 failures (6 major, 4 minor; one counted once across two IDs). Report: [docs/ui-grade/round-5.md](docs/ui-grade/round-5.md). Graded build 651e1d4, before the View editor, Search and Library screens. Every round's grader is fresh and probes new side paths, so each round finds a new set of majors, and any major caps its categories at 6.9: rounds 2–5 sit at 6.9–7.2. The owner chose (7 Nov): build the designed screens first, then keep grading with fresh graders exactly as before.
 
 Round 6: coverage 94.7%; 14 failures (1 blocker, 9 major, 4 minor). Report: [docs/ui-grade/round-6.md](docs/ui-grade/round-6.md). Graded build 9aa0f2b, the first with every designed screen. The blocker (a rename typed just before leaving the screen was lost) caps Interaction at 4.9; uncapped, most categories are 8.0–8.6.
+
+Round 7: coverage 92.7%; 6 failures (4 major, 2 minor, no blockers). Report: [docs/ui-grade/round-7.md](docs/ui-grade/round-7.md). Graded build c44b5e5 (before the row menus). Platform fit and Interaction are capped at 6.9 by majors; uncapped they are 8.5 and about 8.6, and the grader puts all four majors fixed near 8.3 overall.
+
+## Work list (round 7)
+
+Fixed on 7 Nov:
+- [x] BROWSER-06 links, fields and selected text in a row keep the browser's menu; on desktop only an Entry's or Subscription's title is a link, and the rest of the row opens it and has the row's menu · WKEY-03 after a toast's Undo focus goes to what it brought back; after Subscribe to "Subscribed"; the Add sheet returns focus to its opener · WDATA-04 Unsubscribe errors stay in their dialog with Try again; a failed copy stays with Try again · START-02 Settings › Help › Show getting started, and the Mac app's Help › Getting Started.
+- [x] Minors: FLOW-06 Search keeps its scope line, with the count beside it · APPEAR-10 fields and selects have a 3.6:1 edge.
+- [x] Craft: the desktop player title uses its column; Subscription settings fold away below 1024 px; the phone's five Episode actions share one row; one settings row for Settings and Subscriptions; "Subscribed to" names the podcast; a "Next/Last to" label at every width; Switch Playlist is a filled button; the Trash's empty text; History and Timeline as plain rows; Episode detail capped at 44 rem; short windows tighten the header and player.
+- [ ] Not done: the Library as a desktop table with bulk Download Rule changes (Library C).
 
 ## Work list (round 6)
 

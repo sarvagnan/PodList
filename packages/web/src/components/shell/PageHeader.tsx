@@ -22,7 +22,9 @@ export function PageHeader({
     document.title = `${title} · PodList`
   }, [title])
   return (
-    <header className={`px-5 pt-4 pb-3 md:px-8 md:pt-8 ${narrow ? "max-w-[960px]" : ""}`}>
+    <header
+      className={`px-5 pt-4 pb-3 md:px-8 md:pt-8 short:md:pt-4 short:pb-2 ${narrow ? "max-w-[960px]" : ""}`}
+    >
       {back && (
         <Link
           to={back.to}

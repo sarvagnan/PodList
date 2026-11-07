@@ -20,15 +20,3 @@ const origin = async () => (await window.podlistApp?.server()) ?? window.locatio
 export const shareLink = async (path: string) => new URL(path, await origin()).href
 
 export const episodeLink = (episodeId: string) => shareLink(`/episodes/${episodeId}`)
-
-/** Copies a page's link; answers whether it worked. */
-export const copyLink = async (path: string) => {
-  try {
-    await navigator.clipboard.writeText(await shareLink(path))
-    return true
-  } catch {
-    return false
-  }
-}
-
-export const copyEpisodeLink = (episodeId: string) => copyLink(`/episodes/${episodeId}`)

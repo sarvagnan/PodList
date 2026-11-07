@@ -85,13 +85,13 @@ function SearchPage() {
             placeholder="Titles, show notes, podcasts"
             aria-describedby={`${id}-count`}
             onChange={(event) => setText(event.target.value)}
-            className="h-12 w-full rounded-xl border border-input bg-card pr-3 pl-10 text-row"
+            className="h-12 w-full rounded-xl border border-field bg-card pr-3 pl-10 text-row"
           />
         </div>
-        <p id={`${id}-count`} aria-live="polite" className="mt-2 text-small text-muted-foreground">
-          {words
-            ? count
-            : "Every word must appear in the title, the show notes or the podcast’s name."}
+        {/* What is searched stays in view; the count joins it once there are words. */}
+        <p id={`${id}-count`} className="mt-2 text-small text-muted-foreground">
+          <span aria-live="polite">{words ? `${count} · ` : ""}</span>
+          Every word must appear in the title, the show notes or the podcast’s name.
         </p>
       </div>
       <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : ""}>

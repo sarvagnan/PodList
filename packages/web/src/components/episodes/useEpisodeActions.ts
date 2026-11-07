@@ -11,7 +11,13 @@ export function useEpisodeActions() {
   return useCallback(
     async (action: EpisodeAction) => {
       const outcome = await run(action)
-      if (action._tag !== "PlayNow") confirm(outcome, () => run(action))
+      // Undo brings the Episode's row back (or keeps it): focus goes to its title.
+      if (action._tag !== "PlayNow")
+        confirm(
+          outcome,
+          () => run(action),
+          () => document.querySelector<HTMLElement>(`[data-episode-title="${action.episodeId}"]`)
+        )
     },
     [run, confirm]
   )

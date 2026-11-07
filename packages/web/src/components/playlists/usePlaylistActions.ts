@@ -29,10 +29,16 @@ export function usePlaylistActions() {
         undo: [change({ _tag: "RestorePlaylist", playlistId })]
       }
       await record(change({ _tag: "DeletePlaylist", playlistId }))
-      confirm(step, async () => {
-        await record(change({ _tag: "DeletePlaylist", playlistId }))
-        return step
-      })
+      confirm(
+        step,
+        async () => {
+          await record(change({ _tag: "DeletePlaylist", playlistId }))
+          return step
+        },
+        () =>
+          document.querySelector<HTMLElement>(`main a[href="/playlists/${playlistId}"]`) ??
+          document.querySelector<HTMLElement>(`a[href="/playlists/${playlistId}"]`)
+      )
       await navigate({ to: "/playlists" })
     },
     [record, navigate, confirm]

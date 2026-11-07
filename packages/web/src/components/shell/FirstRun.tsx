@@ -26,13 +26,34 @@ const starterViews = [
   { ...blankView("starter-starred", "Starred"), filter: { starred: true } }
 ]
 
+/** Opens the welcome checklist again (Settings, the Mac app's Help menu): at the top of
+ * Views, with the steps already done ticked (START-02). */
+export const showGettingStarted = (navigate: (to: string) => Promise<unknown>) => {
+  firstRunDone.clear()
+  void navigate("/views").then(() => {
+    document.dispatchEvent(new Event("podlist:getting-started"))
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>("#first-run-title")?.focus({ preventScroll: true })
+    )
+  })
+}
+
 export function FirstRun() {
   const state = useAppState()
   const ready = useLibraryReady()
   const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => null)
   const record = useAtomSet(recordAtom)
   const [hidden, setHidden] = useState(firstRunDone.get)
+  const [reopened, setReopened] = useState(false)
   const [adding, setAdding] = useState(false)
+  useEffect(() => {
+    const reopen = () => {
+      setHidden(false)
+      setReopened(true)
+    }
+    document.addEventListener("podlist:getting-started", reopen)
+    return () => document.removeEventListener("podlist:getting-started", reopen)
+  }, [])
   const fresh = ready && subscriptions !== null && subscriptions.length === 0
 
   // A new Library starts with Views to find Episodes in (decided 7 Nov 2026).
@@ -49,7 +70,7 @@ export function FirstRun() {
   const sheet = adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />
   // Adding the first podcast ends first run, but the sheet stays open for more: it sits
   // outside the card, in one place, so it keeps what was typed.
-  if (!fresh || hidden)
+  if (!(fresh || reopened) || hidden)
     return (
       <>
         {null}
@@ -59,12 +80,15 @@ export function FirstRun() {
   const hide = () => {
     firstRunDone.set()
     setHidden(true)
+    setReopened(false)
   }
+  const hasPodcasts = (subscriptions?.length ?? 0) > 0
+  const hasEntries = state?.playlists.some((p) => p.entries.length > 0) ?? false
   const step = (done: boolean, title: string, body: string) => (
     <li className="flex gap-3">
       <span
         aria-hidden="true"
-        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ${done ? "bg-primary text-primary-foreground" : "border border-input"}`}
+        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ${done ? "bg-primary text-primary-foreground" : "border border-field"}`}
       >
         {done && <Check className="size-4" />}
       </span>
@@ -84,7 +108,11 @@ export function FirstRun() {
         className="mx-4 mt-4 mb-2 rounded-2xl border bg-card p-5 md:mx-8"
       >
         <div className="flex items-start justify-between gap-4">
-          <h2 id="first-run-title" className="font-heading text-xl font-semibold">
+          <h2
+            id="first-run-title"
+            tabIndex={-1}
+            className="font-heading text-xl font-semibold outline-none"
+          >
             Welcome to PodList
           </h2>
           <button
@@ -98,7 +126,7 @@ export function FirstRun() {
         </div>
         <ol className="mt-3 space-y-3">
           {step(
-            false,
+            hasPodcasts,
             "Add your podcasts",
             "Search by name, paste a feed address, or import an OPML file from another app."
           )}
@@ -108,7 +136,7 @@ export function FirstRun() {
             "Three to start with: New this week, Under 30 minutes and Starred. Edit them or make your own."
           )}
           {step(
-            false,
+            hasEntries,
             "Playlists hold what you’ll listen to",
             "Use Next or Last on an Episode; the Default Playlist is ready."
           )}
@@ -126,7 +154,7 @@ export function FirstRun() {
             onClick={hide}
             className="h-10 rounded-full px-4 text-row font-medium hover:bg-secondary"
           >
-            Skip for now
+            {reopened ? "Done" : "Skip for now"}
           </button>
         </div>
       </section>

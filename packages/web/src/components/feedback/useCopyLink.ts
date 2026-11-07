@@ -1,18 +1,41 @@
 import { Toast } from "@base-ui/react/toast"
 import { useCallback } from "react"
-import { copyLink } from "../../lib/share.ts"
+import { shareLink } from "../../lib/share.ts"
 
-/** Copies a page's link and says so (EDIT-05). */
-export function useCopyLink() {
+/**
+ * Copies text and says so. A failure stays until dismissed, with Try again, rather than
+ * passing on a timer (WDATA-04).
+ */
+export function useCopyText() {
   const toasts = Toast.useToastManager()
-  return useCallback(
-    async (path: string) =>
-      toasts.add({
-        description: (await copyLink(path)) ? "Link copied" : "Couldn’t copy the link",
-        timeout: 3000
-      }),
+  const copy = useCallback(
+    async (text: () => Promise<string> | string, what: string): Promise<void> => {
+      try {
+        await navigator.clipboard.writeText(await text())
+        toasts.add({ description: `${what} copied`, timeout: 3000 })
+      } catch {
+        const toast = toasts.add({
+          description: `Couldn’t copy the ${what.toLowerCase()}`,
+          timeout: 0,
+          actionProps: {
+            children: "Try again",
+            onClick: () => {
+              toasts.close(toast)
+              void copy(text, what)
+            }
+          }
+        })
+      }
+    },
     [toasts]
   )
+  return copy
+}
+
+/** Copies a page's link (on the PodList server) and says so (EDIT-05). */
+export function useCopyLink() {
+  const copy = useCopyText()
+  return useCallback((path: string) => copy(() => shareLink(path), "Link"), [copy])
 }
 
 /** Copies an Episode's link and says so. */

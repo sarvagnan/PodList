@@ -516,6 +516,7 @@ const menu = (): MenuItemConstructorOptions[] => [
   {
     role: "help",
     submenu: [
+      { label: "Getting Started", click: () => sendCommand("gettingStarted") },
       {
         label: "Keyboard Shortcuts",
         accelerator: "CmdOrCtrl+/",

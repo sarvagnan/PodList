@@ -92,3 +92,13 @@ test("Cmd/Ctrl-C on a row copies the Episode's link", async ({ page, context }) 
   const copied = await page.evaluate(() => navigator.clipboard.readText())
   expect(copied).toMatch(new RegExp(`^${demo.base}/episodes/`))
 })
+
+test("after a toast's Undo, focus is on the Entry it brought back", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/commute`)
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
+  const [first] = await titles(page)
+  await page.getByRole("button", { name: `Remove ${first} from Commute` }).click()
+  await page.getByRole("button", { name: "Undo" }).click()
+  await expect(page.getByRole("link", { name: first ?? "", exact: true })).toBeFocused()
+})

@@ -82,7 +82,7 @@ function PlaylistSettings() {
                 renameLater.schedule(value)
               }}
               onBlur={(event) => renameLater.now(event.target.value)}
-              className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row disabled:bg-secondary disabled:text-muted-foreground"
+              className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row disabled:bg-secondary disabled:text-muted-foreground"
             />
             <p
               id={`${id}-name-help`}

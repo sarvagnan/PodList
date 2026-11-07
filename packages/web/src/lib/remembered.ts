@@ -39,7 +39,8 @@ export const nextLastTarget = {
 /** This Device has shown (or been told to skip) the first-run checklist. */
 export const firstRunDone = {
   get: () => read("first-run-done") === "1",
-  set: () => write("first-run-done", "1")
+  set: () => write("first-run-done", "1"),
+  clear: () => write("first-run-done", null)
 }
 
 /** Starter Views were made for this Library from this Device; never again. */

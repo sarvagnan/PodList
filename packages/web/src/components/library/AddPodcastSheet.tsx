@@ -5,7 +5,7 @@ import type { Directory } from "@podlist/api"
 import { Cause, Exit } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { Check, X } from "lucide-react"
-import { type ReactNode, useEffect, useId, useState } from "react"
+import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { directorySearchAtom, importOpmlAtom, subscribeAtom } from "../../app/library.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
@@ -40,9 +40,20 @@ function SubscribeButton({
   const subscribe = useAtomSet(subscribeAtom, { mode: "promiseExit" })
   const toasts = Toast.useToastManager()
   const [busy, setBusy] = useState(false)
+  // The button gives way to "Subscribed"; focus goes with it rather than to the page.
+  const focusNext = useRef(false)
   if (subscribed) {
     return (
-      <span className="inline-flex h-9 shrink-0 items-center gap-1 px-2 text-small font-medium text-muted-foreground">
+      <span
+        tabIndex={-1}
+        ref={(el) => {
+          if (el && focusNext.current) {
+            focusNext.current = false
+            el.focus()
+          }
+        }}
+        className="inline-flex h-9 shrink-0 items-center gap-1 px-2 text-small font-medium text-muted-foreground outline-offset-2"
+      >
         <Check aria-hidden="true" className="size-4" />
         Subscribed
       </span>
@@ -56,10 +67,15 @@ function SubscribeButton({
       onClick={async () => {
         setBusy(true)
         onProblem(null)
-        const problem = messageOf(await subscribe(feedUrl))
+        const exit = await subscribe(feedUrl)
+        const problem = messageOf(exit)
         setBusy(false)
-        if (problem === null) toasts.add({ description: `Subscribed to ${title}`, timeout: 4000 })
-        else onProblem(problem)
+        if (problem === null) {
+          focusNext.current = true
+          // Named as the feed calls itself, not by the address typed (a URL).
+          const name = Exit.isSuccess(exit) ? exit.value.title : title
+          toasts.add({ description: `Subscribed to ${name}`, timeout: 4000 })
+        } else onProblem(problem)
       }}
       className="h-9 shrink-0 rounded-full bg-primary px-4 text-small font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
     >
@@ -98,7 +114,7 @@ function SearchTab() {
         type="search"
         value={text}
         onChange={(event) => setText(event.target.value)}
-        className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row"
+        className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row"
       />
       <div aria-live="polite" className="mt-3 max-h-[50dvh] min-h-24 overflow-y-auto">
         {looksLikeFeed(text) ? (
@@ -179,7 +195,7 @@ function AddressTab() {
         aria-invalid={invalid}
         aria-describedby={`${id}-help`}
         onChange={(event) => setText(event.target.value)}
-        className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row aria-invalid:border-destructive"
+        className="mt-1.5 h-11 w-full rounded-lg border border-field bg-card px-3 text-row aria-invalid:border-destructive"
       />
       {/* Says at once what's wrong with an address, as it's typed (WDATA-03). */}
       <p
@@ -266,6 +282,10 @@ export function AddPodcastSheet({
 }) {
   const [tab, setTab] = useState<Tab>("search")
   useBackLayers(open ? 1 : 0, () => onOpenChange(false))
+  // Closing returns focus to what opened the sheet, or to the heading if that is gone
+  // (the first-run card goes once there is a Subscription).
+  const opener = useRef<Element | null>(null)
+  if (open && opener.current === null) opener.current = document.activeElement
   const tabs: ReadonlyArray<readonly [Tab, string]> = [
     ["search", "Search"],
     ["address", "Feed address"],
@@ -280,6 +300,12 @@ export function AddPodcastSheet({
           onKeyDown={wrapTab}
           // Opens on the search field, not the close button (KEY-04).
           initialFocus={() => document.querySelector<HTMLElement>("[data-add-field]")}
+          finalFocus={() => {
+            const back = opener.current
+            return back instanceof HTMLElement && back.isConnected && back !== document.body
+              ? back
+              : document.querySelector<HTMLElement>("main h1")
+          }}
           // Its height doesn't follow the results, so the field stays put as you type: a tall
           // sheet on the phone, hung from the top on wider screens.
           className="fixed inset-x-0 bottom-0 z-50 h-[min(44rem,85dvh)] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-[max(2rem,12dvh)] md:h-auto md:left-1/2 md:max-h-[calc(100dvh-max(2rem,12dvh)-2rem)] md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-2 md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-2 md:data-[starting-style]:opacity-0"

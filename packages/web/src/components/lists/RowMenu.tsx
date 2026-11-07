@@ -87,6 +87,26 @@ export function RowMenuItems({
   )
 }
 
+/**
+ * Links, fields and selected text in a row keep the browser's own menu (BROWSER-06): the
+ * right-click stops at the row, before the row's menu (which listens further up) sees it.
+ */
+const keepBrowserMenus = (row: HTMLElement | null) => {
+  if (row === null) return
+  const onContextMenu = (event: MouseEvent) => {
+    const target = event.target as Element
+    const selected = window.getSelection()
+    if (
+      target.closest("a[href], input, textarea, select") ||
+      (selected !== null && !selected.isCollapsed && row.contains(selected.anchorNode))
+    ) {
+      event.stopPropagation()
+    }
+  }
+  row.addEventListener("contextmenu", onContextMenu, { capture: true })
+  return () => row.removeEventListener("contextmenu", onContextMenu, { capture: true })
+}
+
 export function RowMenu({ commands, link, render, children }: RowMenuProps) {
   const wide = useMinWidth("64rem")
   const id = useId()
@@ -121,7 +141,9 @@ export function RowMenu({ commands, link, render, children }: RowMenuProps) {
   if (!wide) return cloneElement(render, {}, children)
   return (
     <ContextMenu.Root>
-      <ContextMenu.Trigger render={render}>{children}</ContextMenu.Trigger>
+      <ContextMenu.Trigger ref={keepBrowserMenus} render={render}>
+        {children}
+      </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50">
           <ContextMenu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">

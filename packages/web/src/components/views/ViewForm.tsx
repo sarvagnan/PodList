@@ -17,6 +17,7 @@ import {
   withPublished
 } from "../../lib/viewEdit.ts"
 import { useUndoable } from "../feedback/useConfirm.ts"
+import { fieldControl } from "../lists/SettingsRow.tsx"
 
 // The View editor's form (docs/design/ui-layout.md › View editor): every condition is a
 // row, "Any" until changed, so the "all must match" rule is plain to see. Edits save as
@@ -31,8 +32,7 @@ const sorts: ReadonlyArray<readonly [View.ViewSort, string]> = [
   ["durationDesc", "Longest first"]
 ]
 
-const control =
-  "h-10 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 text-row text-foreground"
+const control = fieldControl
 
 function Row({
   label,

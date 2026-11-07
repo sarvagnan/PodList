@@ -4,7 +4,8 @@ import { Operation, type PlaybackSettings } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Exit, Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
-import { type ReactNode, useId, useState } from "react"
+import { ChevronRight } from "lucide-react"
+import { useId, useState } from "react"
 import { filterEpisodesAtom, subscriptionAtom } from "../../app/data.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { unsubscribeAtom } from "../../app/library.ts"
@@ -13,8 +14,10 @@ import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { ConfirmDialog } from "../../components/feedback/ConfirmDialog.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useMinWidth } from "../../lib/useWide.ts"
 
 // One Subscription (docs/design/ui-layout.md › Library and Subscriptions): its settings —
 // the Played threshold in seconds and Playback Settings overrides, each "Default" until
@@ -26,30 +29,6 @@ const decodeChange = Schema.decodeUnknownSync(Operation.Change)
 const speeds = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
 const skips = [0, 15, 30, 45, 60, 90, 120]
 const thresholds = [0, 10, 30, 60, 120, 300]
-const control =
-  "h-10 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 text-row text-foreground"
-
-function Row({
-  label,
-  htmlFor,
-  help,
-  children
-}: {
-  readonly label: string
-  readonly htmlFor: string
-  readonly help?: string
-  readonly children: ReactNode
-}) {
-  return (
-    <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2 last:border-b-0">
-      <label htmlFor={htmlFor} className="min-w-36 flex-1 text-row font-medium">
-        {label}
-        {help && <span className="block text-small font-normal text-muted-foreground">{help}</span>}
-      </label>
-      <div className="w-full sm:w-56">{children}</div>
-    </div>
-  )
-}
 
 function SubscriptionScreen() {
   const { subscriptionId } = Route.useParams()
@@ -73,6 +52,8 @@ function SubscriptionScreen() {
   const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promiseExit" })
   const toasts = Toast.useToastManager()
   const [asking, setAsking] = useState<"unsubscribe" | "played" | null>(null)
+  const wide = useMinWidth("64rem")
+  const [showSettings, setShowSettings] = useState(false)
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
 
   if (AsyncResult.isInitial(result)) return <LoadingRows label="Loading Subscription" />
@@ -148,14 +129,44 @@ function SubscriptionScreen() {
               </p>
             )}
           </div>
-          <h2
-            id={`${id}-settings`}
-            className="mt-5 px-1 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+          {wide ? (
+            <h2
+              id={`${id}-settings`}
+              className="mt-5 px-1 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+            >
+              Settings for this podcast
+            </h2>
+          ) : (
+            // Narrow: the Episodes lead; the settings fold away, their rule still in sight.
+            <h2 id={`${id}-settings`} className="mt-4">
+              <button
+                type="button"
+                aria-expanded={showSettings}
+                aria-controls={`${id}-settings-card`}
+                onClick={() => setShowSettings(!showSettings)}
+                className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left hover:bg-secondary/60"
+              >
+                <ChevronRight
+                  aria-hidden="true"
+                  className={`size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none ${showSettings ? "rotate-90" : ""}`}
+                />
+                <span className="text-row font-medium">Settings for this podcast</span>
+                <span className="ml-auto text-small text-muted-foreground">
+                  {rule.mode === "never"
+                    ? "Streams"
+                    : rule.mode === "onEntry"
+                      ? "Downloads Entries"
+                      : "Downloads every new Episode"}
+                </span>
+              </button>
+            </h2>
+          )}
+          <div
+            id={`${id}-settings-card`}
+            hidden={!wide && !showSettings}
+            className="rounded-xl border bg-card"
           >
-            Settings for this podcast
-          </h2>
-          <div className="rounded-xl border bg-card">
-            <Row
+            <SettingsRow
               label="Downloads on this Device"
               htmlFor={`${id}-rule`}
               help={
@@ -173,7 +184,7 @@ function SubscriptionScreen() {
                 onChange={(event) =>
                   setRule(event.target.value as "never" | "onEntry" | "allNew", rule.keepAtMost)
                 }
-                className={control}
+                className={fieldControl}
               >
                 <option value="never">Stream</option>
                 <option value="onEntry">Entries</option>
@@ -186,7 +197,7 @@ function SubscriptionScreen() {
                   onChange={(event) =>
                     setRule("allNew", event.target.value === "" ? null : Number(event.target.value))
                   }
-                  className={`${control} mt-2`}
+                  className={`${fieldControl} mt-2`}
                 >
                   {[3, 5, 10, 20].map((n) => (
                     <option key={n} value={n}>
@@ -196,8 +207,8 @@ function SubscriptionScreen() {
                   <option value="">Keep all new ones</option>
                 </select>
               )}
-            </Row>
-            <Row
+            </SettingsRow>
+            <SettingsRow
               label="Played"
               htmlFor={`${id}-threshold`}
               help="How close to the end counts as finished"
@@ -213,7 +224,7 @@ function SubscriptionScreen() {
                     event.target.value === "" ? null : Number(event.target.value)
                   )
                 }
-                className={control}
+                className={fieldControl}
               >
                 <option value="">Default (30 seconds)</option>
                 {thresholds.map((s) => (
@@ -222,8 +233,8 @@ function SubscriptionScreen() {
                   </option>
                 ))}
               </select>
-            </Row>
-            <Row label="Speed" htmlFor={`${id}-speed`}>
+            </SettingsRow>
+            <SettingsRow label="Speed" htmlFor={`${id}-speed`}>
               <select
                 id={`${id}-speed`}
                 value={overrides.speed === undefined ? "" : String(overrides.speed)}
@@ -233,7 +244,7 @@ function SubscriptionScreen() {
                     event.target.value === "" ? undefined : Number(event.target.value)
                   )
                 }
-                className={control}
+                className={fieldControl}
               >
                 <option value="">Default</option>
                 {speeds.map((s) => (
@@ -242,8 +253,8 @@ function SubscriptionScreen() {
                   </option>
                 ))}
               </select>
-            </Row>
-            <Row label="Skip intro" htmlFor={`${id}-intro`}>
+            </SettingsRow>
+            <SettingsRow label="Skip intro" htmlFor={`${id}-intro`}>
               <select
                 id={`${id}-intro`}
                 value={overrides.skipIntro === undefined ? "" : String(overrides.skipIntro)}
@@ -257,7 +268,7 @@ function SubscriptionScreen() {
                         ) as PlaybackSettings.PlaybackSettingsOverride["skipIntro"])
                   )
                 }
-                className={control}
+                className={fieldControl}
               >
                 <option value="">Default</option>
                 {skips.map((s) => (
@@ -266,8 +277,8 @@ function SubscriptionScreen() {
                   </option>
                 ))}
               </select>
-            </Row>
-            <Row label="Skip outro" htmlFor={`${id}-outro`}>
+            </SettingsRow>
+            <SettingsRow label="Skip outro" htmlFor={`${id}-outro`}>
               <select
                 id={`${id}-outro`}
                 value={overrides.skipOutro === undefined ? "" : String(overrides.skipOutro)}
@@ -281,7 +292,7 @@ function SubscriptionScreen() {
                         ) as PlaybackSettings.PlaybackSettingsOverride["skipOutro"])
                   )
                 }
-                className={control}
+                className={fieldControl}
               >
                 <option value="">Default</option>
                 {skips.map((s) => (
@@ -290,8 +301,8 @@ function SubscriptionScreen() {
                   </option>
                 ))}
               </select>
-            </Row>
-            <Row label="Volume boost" htmlFor={`${id}-boost`}>
+            </SettingsRow>
+            <SettingsRow label="Volume boost" htmlFor={`${id}-boost`}>
               <select
                 id={`${id}-boost`}
                 value={overrides.volumeBoost === undefined ? "" : String(overrides.volumeBoost)}
@@ -301,13 +312,13 @@ function SubscriptionScreen() {
                     event.target.value === "" ? undefined : event.target.value === "true"
                   )
                 }
-                className={control}
+                className={fieldControl}
               >
                 <option value="">Default</option>
                 <option value="true">On</option>
                 <option value="false">Off</option>
               </select>
-            </Row>
+            </SettingsRow>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -371,15 +382,10 @@ function SubscriptionScreen() {
         destructive
         onConfirm={async () => {
           const exit = await unsubscribe(subscriptionId)
-          if (Exit.isFailure(exit)) {
-            toasts.add({
-              description: "Couldn’t unsubscribe. Check that you’re online.",
-              timeout: 5000
-            })
-            return
-          }
+          if (Exit.isFailure(exit)) return "Couldn’t unsubscribe. Check that you’re online."
           toasts.add({ description: `Unsubscribed from ${subscription.title}`, timeout: 4000 })
           await navigate({ to: "/library" })
+          return null
         }}
       >
         Its Episodes leave your Library, except ones in a Playlist or Starred, which stay until you

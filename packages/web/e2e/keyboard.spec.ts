@@ -121,3 +121,22 @@ test("Back returns a list to where it was scrolled", async ({ page }) => {
   await page.goBack()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(150)
 })
+
+test("right-click on an Episode's title leaves the browser's link menu", async ({ page }) => {
+  await desktop(page, "/views/short")
+  const title = page.locator('[data-row="0"] [data-cell="title"]')
+  // Seen first (window, capture) and read after every handler has run.
+  const prevented = page.evaluate(
+    () =>
+      new Promise<boolean>((resolve) =>
+        window.addEventListener(
+          "contextmenu",
+          (event) => setTimeout(() => resolve(event.defaultPrevented)),
+          { capture: true, once: true }
+        )
+      )
+  )
+  await title.click({ button: "right" })
+  expect(await prevented).toBe(false)
+  await expect(page.getByRole("menu")).toHaveCount(0)
+})

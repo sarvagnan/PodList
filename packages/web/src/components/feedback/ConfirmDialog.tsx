@@ -1,5 +1,5 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog"
-import type { ReactNode } from "react"
+import { type ReactNode, useState } from "react"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 
@@ -20,11 +20,19 @@ export function ConfirmDialog({
   /** The confirming button's words: the action itself, never "OK". */
   readonly confirm: string
   readonly destructive?: boolean
-  readonly onConfirm: () => void
+  /** May answer, after a wait, with what went wrong: the dialog then stays open and says
+   * so beside its button, where Try again is (WDATA-04). */
+  readonly onConfirm: () => Promise<string | null | undefined> | undefined
 }) {
   useBackLayers(open ? 1 : 0, () => onOpenChange(false))
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const close = (next: boolean) => {
+    if (!next) setProblem(null)
+    onOpenChange(next)
+  }
   return (
-    <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+    <AlertDialog.Root open={open} onOpenChange={close}>
       <AlertDialog.Portal>
         <AlertDialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <AlertDialog.Popup
@@ -38,19 +46,31 @@ export function ConfirmDialog({
           <AlertDialog.Description className="mt-2 text-row text-muted-foreground">
             {children}
           </AlertDialog.Description>
+          {problem && (
+            <p role="alert" className="mt-3 text-row font-medium text-destructive">
+              {problem}
+            </p>
+          )}
           <div className="mt-5 flex justify-end gap-3">
             <AlertDialog.Close className="h-11 rounded-full bg-secondary px-5 font-semibold text-secondary-foreground hover:bg-input">
               Cancel
             </AlertDialog.Close>
             <button
               type="button"
-              onClick={() => {
-                onOpenChange(false)
-                onConfirm()
+              disabled={busy}
+              onClick={async () => {
+                setProblem(null)
+                const answer = onConfirm()
+                if (!(answer instanceof Promise)) return close(false)
+                setBusy(true)
+                const failed = await answer
+                setBusy(false)
+                if (typeof failed === "string") setProblem(failed)
+                else close(false)
               }}
-              className={`h-11 rounded-full px-5 font-semibold text-primary-foreground ${destructive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}`}
+              className={`h-11 rounded-full px-5 font-semibold text-primary-foreground disabled:opacity-60 ${destructive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}`}
             >
-              {confirm}
+              {busy ? "Working…" : problem ? "Try again" : confirm}
             </button>
           </div>
         </AlertDialog.Popup>
