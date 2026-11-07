@@ -27,20 +27,22 @@ const device = async (browser: Browser) => {
   await page.evaluate(() => navigator.serviceWorker.ready)
   await page.reload()
   await expect(page.getByRole("heading", { name: "Commute", level: 1 })).toBeVisible()
-  await expect(page.getByRole("listitem").first()).not.toContainText("Episode unavailable")
+  await expect(page.getByRole("row").first()).not.toContainText("Episode unavailable")
   return { context, page }
 }
 
 /** Opening the app again syncs at once. */
 const reopen = async (page: Page, path: string) => {
   await page.goto(path)
-  await page.locator("main ol > li").first().waitFor()
+  await page.locator("main [role=row]").first().waitFor()
 }
 
 const entryTitles = (page: Page) =>
   page
-    .locator("main ol > li")
-    .evaluateAll((items) => items.map((li) => li.querySelector(".line-clamp-2")?.textContent ?? ""))
+    .locator("main [role=row]")
+    .evaluateAll((items) =>
+      items.map((li) => li.querySelector("[data-cell=title]")?.textContent ?? "")
+    )
 
 const addLast = async (page: Page, title: string) => {
   // In-app navigation, which works offline too.
@@ -89,7 +91,7 @@ test("for one Entry's Position, the latest listen wins", async ({ browser }) => 
   const phone = await device(browser)
   const mac = await device(browser)
   const entry = (page: Page) =>
-    page.locator("main ol > li").filter({ hasText: "When a currency disappears" })
+    page.locator("main [role=row]").filter({ hasText: "When a currency disappears" })
   const forward = (page: Page, times: number) =>
     test.step(`forward ${times * 30} s`, async () => {
       const bar = page.getByRole("region", { name: "Now playing" })

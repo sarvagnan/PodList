@@ -9,9 +9,11 @@ import { stateAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeRow, NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
+import { TargetPanel } from "../../components/episodes/TargetPanel.tsx"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useRowGrid } from "../../lib/rowGrid.ts"
+import { useScrollMemory } from "../../lib/scrollMemory.ts"
 import { describeView } from "../../lib/viewSummary.ts"
 
 export const Route = createFileRoute("/views/$viewId")({
@@ -37,14 +39,6 @@ function ViewDetail() {
   const setChecked = (
     next: ReadonlySet<string> | ((current: ReadonlySet<string>) => ReadonlySet<string>)
   ) => setSelection({ viewId, ids: typeof next === "function" ? next(checked) : next })
-  useEffect(() => {
-    if (checked.size === 0) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelection({ viewId, ids: new Set() })
-    }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
-  }, [checked.size, viewId])
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const result = useAtomValue(viewEpisodesAtom(viewId))
   const episodes = AsyncResult.getOrElse(result, () => [])
@@ -62,6 +56,7 @@ function ViewDetail() {
     overscan: 8,
     scrollMargin
   })
+  useScrollMemory(!AsyncResult.isInitial(result) && view !== undefined)
   const grid = useRowGrid(listRef, {
     count: episodes.length,
     scrollToIndex: (index) => virtualizer.scrollToIndex(index, { align: "auto" }),
@@ -91,6 +86,22 @@ function ViewDetail() {
       document.querySelector<HTMLElement>(`[data-episode-title="${shown}"]`)?.focus()
     )
   }
+  // Esc, wherever focus is in the View: first clears the ticks, then closes the panel.
+  const onEscape = useRef(() => {})
+  onEscape.current = () => {
+    if (checked.size > 0) setSelection({ viewId, ids: new Set() })
+    else if (selected) closePanel()
+  }
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      // A dialog or menu takes its own Esc.
+      if (document.querySelector('[role="dialog"], [role="menu"]')) return
+      onEscape.current()
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [])
 
   if (state === null) return null
   if (view === undefined) {
@@ -119,7 +130,7 @@ function ViewDetail() {
           )
         }
       />
-      <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_416px]" : ""}>
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
         {!loading && episodes.length === 0 ? (
           <EmptyState title="No Episodes match this View">
             New Episodes appear here as your podcasts publish them.
@@ -168,27 +179,29 @@ function ViewDetail() {
             })}
           </div>
         )}
-        {selected && (
-          <aside
-            aria-label="Episode"
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && !event.defaultPrevented) closePanel()
-            }}
-            className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pb-28 lg:block"
-          >
-            <div className="flex justify-end px-3">
-              <button
-                type="button"
-                aria-label="Close Episode"
-                onClick={closePanel}
-                className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-              >
-                <X aria-hidden="true" className="size-5" />
-              </button>
-            </div>
-            <EpisodeDetail episodeId={selected} />
-          </aside>
-        )}
+        {/* Beside the list: the open Episode, or where Next and Last go. */}
+        <aside
+          aria-label={selected ? "Episode" : "Next and Last go to"}
+          className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pb-28 lg:block"
+        >
+          {selected ? (
+            <>
+              <div className="flex justify-end px-3">
+                <button
+                  type="button"
+                  aria-label="Close Episode"
+                  onClick={closePanel}
+                  className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+                >
+                  <X aria-hidden="true" className="size-5" />
+                </button>
+              </div>
+              <EpisodeDetail episodeId={selected} />
+            </>
+          ) : (
+            <TargetPanel onOpen={(episodeId) => navigate({ search: { episode: episodeId } })} />
+          )}
+        </aside>
       </div>
     </>
   )

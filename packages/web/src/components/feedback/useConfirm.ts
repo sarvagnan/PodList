@@ -24,9 +24,11 @@ export function useConfirm() {
       }
       const id = ++nextId
       setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome }])
+      // Stays until dismissed or replaced by the next step: on a phone this Undo is the
+      // way back, so it doesn't time out (WDATA-04).
       toasts.add({
         description: outcome.message,
-        timeout: 8000,
+        timeout: 0,
         actionProps: {
           children: "Undo",
           onClick: () => {

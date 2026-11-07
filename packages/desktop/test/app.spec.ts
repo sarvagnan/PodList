@@ -100,7 +100,7 @@ test("asks for the server address on first launch and checks it answers", async 
     await expect(address).toBeFocused()
     await address.fill("127.0.0.1:1")
     await page.getByRole("button", { name: "Connect" }).click()
-    await expect(page.getByRole("alert")).toContainText("Couldn't reach 127.0.0.1:1")
+    await expect(page.getByRole("alert")).toContainText("Couldn’t reach 127.0.0.1:1")
     await expect(page.getByRole("button", { name: "Cancel" })).toBeHidden()
     await address.fill(demo.base)
     // The server's own profile opens in a new window.

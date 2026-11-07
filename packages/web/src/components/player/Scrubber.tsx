@@ -28,7 +28,7 @@ export function Scrubber({
   }
   return (
     <div className="flex items-center gap-2 text-xs text-player-muted tabular-nums">
-      <span className="w-14 text-right">{formatTime(value)}</span>
+      <span className="min-w-14 shrink-0 text-right whitespace-nowrap">{formatTime(value)}</span>
       <div className="relative grid h-6 flex-1 items-center">
         <div className="progress-track absolute inset-x-0 h-1 rounded-full bg-player-track" />
         <div
@@ -67,7 +67,9 @@ export function Scrubber({
           style={{ left: `${percent(value)}%` }}
         />
       </div>
-      <span className="w-14">{duration ? `−${formatTime(duration - value)}` : ""}</span>
+      <span className="min-w-14 shrink-0 whitespace-nowrap">
+        {duration ? `−${formatTime(duration - value)}` : ""}
+      </span>
     </div>
   )
 }

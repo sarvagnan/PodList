@@ -78,7 +78,7 @@
   --border: #e4e2dc;
   --input: #d6d3cc;
   --ring: #2b50c8;
-  --radius: 0.75rem;
+  --radius: 12px;
   /* The dark player bar and Now Playing drawer. */
   --player: #1b2a33;
   --player-foreground: #ffffff;
@@ -86,7 +86,8 @@
   --player-track: #2c3d47;
   /* Errors on the dark player: 8.9:1 on --player. */
   --player-danger: #ffb4a8;
-  --progress: #3aa0e8;
+  /* The primary blue, lightened for the dark player: one blue for progress (5.8:1). */
+  --progress: #7f9cf5;
   --positive: #1d6b45;
   --positive-tint: #ddf2e7;
   --star: #b5791a;
@@ -103,6 +104,11 @@
   }
   .surface-dark {
     --focus: #ffffff;
+  }
+  /* Headings take focus after navigation for screen readers and the Tab order; they
+     aren't controls, so they show no ring. */
+  h1[tabindex="-1"]:focus {
+    outline: none;
   }
   html {
     @apply font-sans;

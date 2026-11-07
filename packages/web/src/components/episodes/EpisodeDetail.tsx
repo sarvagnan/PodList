@@ -147,7 +147,7 @@ export function EpisodeDetail({
               pressed={pressed}
               {...(onClick ? { onClick } : {})}
               {...(buttonProps ? { buttonProps } : {})}
-              className={pressed ? "text-positive" : ""}
+              className={pressed ? "text-foreground" : ""}
             >
               <span aria-hidden="true" className={iconCircle}>
                 {icon}
@@ -191,31 +191,41 @@ export function EpisodeDetail({
             In your Playlists
           </h3>
           <ul className="mt-2">
-            {playlists.map(({ playlist, entry }) => (
-              <li
-                key={playlist.id}
-                className={`flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0 ${t.rule}`}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{playlist.name}</span>
-                  <span className={`block text-xs ${t.muted}`}>
-                    {entry.position > 0
-                      ? `At ${formatTime(entry.position)}${detail.duration ? ` of ${formatTime(detail.duration)}` : ""}`
-                      : "Not started"}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    control({ _tag: "playEntry", playlistId: playlist.id, episodeId })
-                    onPlay?.()
-                  }}
-                  className={`h-10 rounded-full px-4 text-sm font-semibold ${t.action}`}
+            {playlists.map(({ playlist, entry }) => {
+              // The Entry that is loaded now: its live Position, and a Play / Pause toggle.
+              const live = loaded && now.playlistId === playlist.id
+              const position = live ? now.position : entry.position
+              return (
+                <li
+                  key={playlist.id}
+                  className={`flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0 ${t.rule}`}
                 >
-                  {entry.position > 0 ? "Resume" : "Play"}
-                </button>
-              </li>
-            ))}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{playlist.name}</span>
+                    <span className={`block text-xs ${t.muted}`}>
+                      {live && now.playing
+                        ? `Playing · ${formatTime(position)}${detail.duration ? ` of ${formatTime(detail.duration)}` : ""}`
+                        : position > 0
+                          ? `At ${formatTime(position)}${detail.duration ? ` of ${formatTime(detail.duration)}` : ""}`
+                          : "Not started"}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (live) control({ _tag: "toggle" })
+                      else {
+                        control({ _tag: "playEntry", playlistId: playlist.id, episodeId })
+                        onPlay?.()
+                      }
+                    }}
+                    className={`h-10 rounded-full px-4 text-sm font-semibold ${t.action}`}
+                  >
+                    {live && now.playing ? "Pause" : position > 0 ? "Resume" : "Play"}
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}
@@ -235,14 +245,18 @@ export function EpisodeDetail({
                     onClick={() => control({ _tag: "seek", seconds: c.start })}
                     className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left ${t.row} ${i === playingChapter ? t.current : ""}`}
                   >
-                    <span className={`w-14 text-xs tabular-nums ${t.muted}`}>
+                    <span
+                      className={`min-w-14 shrink-0 text-xs whitespace-nowrap tabular-nums ${t.muted}`}
+                    >
                       {formatTime(c.start)}
                     </span>
                     <span className="text-sm">{c.title}</span>
                   </button>
                 ) : (
                   <div className="flex min-h-11 items-center gap-3 px-2">
-                    <span className={`w-14 text-xs tabular-nums ${t.muted}`}>
+                    <span
+                      className={`min-w-14 shrink-0 text-xs whitespace-nowrap tabular-nums ${t.muted}`}
+                    >
                       {formatTime(c.start)}
                     </span>
                     <span className="text-sm">{c.title}</span>

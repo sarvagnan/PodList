@@ -74,3 +74,49 @@ test("the Now Playing drawer keeps focus inside it", async ({ page }) => {
     expect(inside, `Tab ${i + 1} stays in the drawer`).toBe(true)
   }
 })
+
+test("Tab stays inside the Add dialog, and it can be cancelled", async ({ page }) => {
+  await desktop(page, "/views/short")
+  await page.locator('[data-row="0"]').hover()
+  await page.locator('[data-row="0"]').getByRole("button", { name: "Add to a Playlist…" }).click()
+  const dialog = page.getByRole("dialog", { name: "Add to a Playlist" })
+  await expect(dialog).toBeVisible()
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press("Tab")
+    expect(
+      await page.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null),
+      `Tab ${i + 1} stays in the dialog`
+    ).toBe(true)
+  }
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+  await expect(dialog).toBeHidden()
+})
+
+test("Esc closes the Episode panel from the list; right-click offers Episode commands", async ({
+  page
+}) => {
+  await desktop(page, "/views/short")
+  await page.locator('[data-row="1"] [data-cell="title"]').click()
+  await expect(page).toHaveURL(/\?episode=/)
+  await page.locator('[data-row="2"] [data-cell="title"]').focus()
+  await page.keyboard.press("Escape")
+  await expect(page).not.toHaveURL(/\?episode=/)
+
+  await page.locator('[data-row="0"]').click({ button: "right" })
+  const menu = page.getByRole("menu")
+  await expect(menu.getByRole("menuitem", { name: /^Play Next in/ })).toBeVisible()
+  await menu.getByRole("menuitem", { name: "Star" }).click()
+  await expect(page.getByText("Starred", { exact: true }).first()).toBeVisible()
+})
+
+test("Back returns a list to where it was scrolled", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 500 })
+  await page.goto(`${demo.base}/views/new-this-week`)
+  await page.locator('[data-row="5"]').waitFor()
+  await page.evaluate(() => window.scrollTo(0, 200))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(200)
+  await page.locator('[data-row="4"] [data-cell="title"]').click()
+  await expect(page).toHaveURL(/\/episodes\//)
+  await page.goBack()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(200)
+})

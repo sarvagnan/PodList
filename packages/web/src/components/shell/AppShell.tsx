@@ -11,13 +11,14 @@ import {
   SkipBack,
   SkipForward
 } from "lucide-react"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
-import { useAppState, useLibraryReady } from "../../app/hooks.ts"
+import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
+import { Tip } from "../feedback/Tip.tsx"
 import { Toasts } from "../feedback/Toasts.tsx"
 import { UndoShortcut } from "../feedback/UndoShortcut.tsx"
 import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
@@ -47,7 +48,15 @@ function TrackTitle({ title, className }: { readonly title: string; readonly cla
       />
     )
   }
-  return <p className={`truncate font-semibold ${className}`}>{title || "Episode unavailable"}</p>
+  // One line, so the bar keeps its height as titles arrive; a second line only when the
+  // text is large for the space (WTYPE-02), measured in rem.
+  return (
+    <div className="@container min-w-0">
+      <p className={`line-clamp-1 font-semibold break-words @max-[9rem]:line-clamp-2 ${className}`}>
+        {title || "Episode unavailable"}
+      </p>
+    </div>
+  )
 }
 
 function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
@@ -63,41 +72,44 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const button =
     "grid size-11 shrink-0 place-items-center rounded-full text-player-foreground hover:bg-player-track active:bg-player-track/70"
   const toggle = (
-    <button
-      type="button"
-      aria-label={current.playing ? "Pause" : "Play"}
-      title={current.playing ? "Pause" : "Play"}
-      onClick={() => control({ _tag: "toggle" })}
-      className="grid size-11 shrink-0 place-items-center rounded-full border border-transparent bg-player-foreground text-player hover:bg-player-foreground/90 active:bg-player-foreground/75"
-    >
-      {current.playing ? (
-        <Pause aria-hidden="true" className="size-5 fill-current" />
-      ) : (
-        <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
-      )}
-    </button>
+    <Tip label={current.playing ? "Pause" : "Play"}>
+      <button
+        type="button"
+        aria-label={current.playing ? "Pause" : "Play"}
+        onClick={() => control({ _tag: "toggle" })}
+        className="grid size-11 shrink-0 place-items-center rounded-full border border-transparent bg-player-foreground text-player hover:bg-player-foreground/90 active:bg-player-foreground/75"
+      >
+        {current.playing ? (
+          <Pause aria-hidden="true" className="size-5 fill-current" />
+        ) : (
+          <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
+        )}
+      </button>
+    </Tip>
   )
   const back = (
-    <button
-      type="button"
-      aria-label={`Back ${backSeconds} seconds`}
-      title={`Back ${backSeconds} seconds`}
-      onClick={() => control({ _tag: "skip", seconds: -backSeconds })}
-      className={button}
-    >
-      <SkipIcon seconds={backSeconds} direction="back" />
-    </button>
+    <Tip label={`Back ${backSeconds} seconds`}>
+      <button
+        type="button"
+        aria-label={`Back ${backSeconds} seconds`}
+        onClick={() => control({ _tag: "skip", seconds: -backSeconds })}
+        className={button}
+      >
+        <SkipIcon seconds={backSeconds} direction="back" />
+      </button>
+    </Tip>
   )
   const forward = (
-    <button
-      type="button"
-      aria-label={`Forward ${forwardSeconds} seconds`}
-      title={`Forward ${forwardSeconds} seconds`}
-      onClick={() => control({ _tag: "skip", seconds: forwardSeconds })}
-      className={button}
-    >
-      <SkipIcon seconds={forwardSeconds} direction="forward" />
-    </button>
+    <Tip label={`Forward ${forwardSeconds} seconds`}>
+      <button
+        type="button"
+        aria-label={`Forward ${forwardSeconds} seconds`}
+        onClick={() => control({ _tag: "skip", seconds: forwardSeconds })}
+        className={button}
+      >
+        <SkipIcon seconds={forwardSeconds} direction="forward" />
+      </button>
+    </Tip>
   )
   const bar = (
     <span
@@ -170,16 +182,17 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
       playlist.entries.findIndex((e) => e.episodeId === current.episodeId)
     : 0
   const chapterButton = (label: string, target: number | null, Icon: typeof SkipBack) => (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={target === null}
-      onClick={() => target !== null && control({ _tag: "seek", seconds: target })}
-      className={`${button} disabled:opacity-40 disabled:hover:bg-transparent`}
-    >
-      <Icon aria-hidden="true" className="size-5 fill-current" />
-    </button>
+    <Tip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        disabled={target === null}
+        onClick={() => target !== null && control({ _tag: "seek", seconds: target })}
+        className={`${button} disabled:opacity-40 disabled:hover:bg-transparent`}
+      >
+        <Icon aria-hidden="true" className="size-5 fill-current" />
+      </button>
+    </Tip>
   )
   return (
     <section
@@ -237,17 +250,18 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
       </div>
       <div className="flex justify-end">
         {playlist && (
-          <button
-            type="button"
-            onClick={() => openDrawer(["queue"])}
-            title={`Up next in ${playlist.name}`}
-            className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
-          >
-            <ListMusic aria-hidden="true" className="size-5" />
-            <span>
-              {queued} <span className="text-player-muted">up next</span>
-            </span>
-          </button>
+          <Tip label={`Up next in ${playlist.name}`}>
+            <button
+              type="button"
+              onClick={() => openDrawer(["queue"])}
+              className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
+            >
+              <ListMusic aria-hidden="true" className="size-5" />
+              <span>
+                {queued} <span className="text-player-muted">up next</span>
+              </span>
+            </button>
+          </Tip>
         )}
       </div>
     </section>
@@ -305,10 +319,7 @@ function Sidebar() {
               <span className="truncate">{p.name}</span>
               {/* A shape and a name, not only a colour (AX-02). */}
               {active && (
-                <AudioLines
-                  aria-label="Active Playlist"
-                  className="size-4 shrink-0 text-positive"
-                />
+                <AudioLines aria-label="Active Playlist" className="size-4 shrink-0 text-primary" />
               )}
             </span>
             <span className="text-xs text-muted-foreground">{p.entries.length}</span>
@@ -322,7 +333,9 @@ function Sidebar() {
       </Link>
       <button type="button" onClick={openShortcuts} className={`${link} text-muted-foreground`}>
         Keyboard shortcuts
-        <kbd className="rounded border border-input px-1.5 font-sans text-xs">?</kbd>
+        <kbd className="rounded border border-input px-1.5 font-sans text-xs whitespace-nowrap">
+          {/Mac/.test(navigator.platform) ? "⌘/" : "Ctrl+/"}
+        </kbd>
       </button>
     </nav>
   )
@@ -360,11 +373,39 @@ function useFocusOnNavigation() {
         if (event.fromLocation === undefined || !event.pathChanged) return
         requestAnimationFrame(() => {
           document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true })
-          window.scrollTo(0, 0)
         })
       }),
     [router]
   )
+}
+
+/** The Mac app's Controls menu: play/pause, skips and Chapters, sent as an event. */
+function useMenuControls() {
+  const control = useAtomSet(playbackAtom)
+  const current = useRef<ReturnType<typeof useNowPlaying>>(null)
+  current.current = useNowPlaying()
+  useEffect(() => {
+    const onControl = (event: Event) => {
+      const playing = current.current
+      if (playing === null) return
+      const seek = (seconds: number | null) =>
+        seconds !== null && control({ _tag: "seek", seconds })
+      switch ((event as CustomEvent<string>).detail) {
+        case "toggle":
+          return control({ _tag: "toggle" })
+        case "back":
+          return control({ _tag: "skip", seconds: -backSeconds })
+        case "forward":
+          return control({ _tag: "skip", seconds: forwardSeconds })
+        case "previousChapter":
+          return seek(previousChapterStart(playing.chapters, playing.position))
+        case "nextChapter":
+          return seek(nextChapterStart(playing.chapters, playing.position))
+      }
+    }
+    document.addEventListener("podlist:control", onControl)
+    return () => document.removeEventListener("podlist:control", onControl)
+  }, [control])
 }
 
 /** Space plays or pauses when no control has focus, as in other media apps. */
@@ -390,6 +431,7 @@ export function AppShell() {
   useAtomMount(backgroundSyncAtom)
   useFocusOnNavigation()
   usePlayPauseKey()
+  useMenuControls()
   return (
     <div className="flex min-h-dvh">
       <a

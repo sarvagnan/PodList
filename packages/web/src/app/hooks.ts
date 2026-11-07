@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
+import { nextLastTargetAtom } from "./episodeActions.ts"
 import { nowPlayingAtom, stateAtom, syncStatusAtom } from "./runtime.ts"
 
 /** The user State, or null until the local database has loaded. */
@@ -18,4 +19,14 @@ export const usePlaylistStatus = (playlistId: string) => {
   const now = useNowPlaying()
   if (state?.activePlaylistId !== playlistId) return null
   return now?.playlistId === playlistId && now.playing ? "Playing" : "Paused"
+}
+
+/** The Playlist that Next and Last add to: the one chosen, else the Active one. */
+export function useNextLastTarget() {
+  const state = useAppState()
+  const chosen = useAtomValue(nextLastTargetAtom)
+  return (
+    state?.playlists.find((p) => p.id === chosen) ??
+    state?.playlists.find((p) => p.id === state.activePlaylistId)
+  )
 }

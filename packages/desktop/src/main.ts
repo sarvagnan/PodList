@@ -134,6 +134,12 @@ const profileFor = (server: string) => {
 
 const setupPage = join(import.meta.dirname, "setup.html")
 
+/** The Controls menu: the web app plays, skips and moves between Chapters. */
+const sendControl = (command: string) =>
+  void window?.webContents.executeJavaScript(
+    `document.dispatchEvent(new CustomEvent("podlist:control", { detail: ${JSON.stringify(command)} }))`
+  )
+
 const goBack = (win: BrowserWindow) => {
   if (win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack()
 }
@@ -274,7 +280,7 @@ const connect = async (address: string): Promise<string | null> => {
   try {
     url = new URL(/^https?:\/\//.test(address) ? address : `https://${address}`)
   } catch {
-    return "That doesn't look like a web address."
+    return "That doesn’t look like a web address."
   }
   try {
     const response = await net.fetch(new URL("/api/health", url).href, {
@@ -282,7 +288,7 @@ const connect = async (address: string): Promise<string | null> => {
     })
     if (!response.ok) return `The server answered ${response.status}. Is this your PodList server?`
   } catch {
-    return `Couldn't reach ${url.host}. Check the address, and that Tailscale is connected.`
+    return `Couldn’t reach ${url.host}. Check the address, and that Tailscale is connected.`
   }
   writeConfig({ ...readConfig(), serverUrl: url.origin })
   reopen()
@@ -320,6 +326,7 @@ const menu = (): MenuItemConstructorOptions[] => [
       { role: "quit" }
     ]
   },
+  { label: "File", submenu: [{ role: "close", label: "Close Window" }] },
   {
     label: "Edit",
     submenu: [
@@ -341,14 +348,44 @@ const menu = (): MenuItemConstructorOptions[] => [
   {
     label: "View",
     submenu: [
-      { role: "reload" },
-      { type: "separator" },
       { role: "resetZoom" },
       { role: "zoomIn" },
       { role: "zoomOut" },
       { type: "separator" },
       { role: "togglefullscreen" },
+      { type: "separator" },
+      { role: "reload" },
       ...(app.isPackaged ? [] : [{ role: "toggleDevTools" } as const])
+    ]
+  },
+  {
+    label: "Controls",
+    submenu: [
+      // Space is the web app's own key; shown here, not taken from text fields.
+      {
+        label: "Play/Pause",
+        accelerator: "Space",
+        registerAccelerator: false,
+        click: () => sendControl("toggle")
+      },
+      { type: "separator" },
+      { label: "Back 15 Seconds", accelerator: "CmdOrCtrl+Left", click: () => sendControl("back") },
+      {
+        label: "Forward 30 Seconds",
+        accelerator: "CmdOrCtrl+Right",
+        click: () => sendControl("forward")
+      },
+      { type: "separator" },
+      {
+        label: "Previous Chapter",
+        accelerator: "Alt+CmdOrCtrl+Left",
+        click: () => sendControl("previousChapter")
+      },
+      {
+        label: "Next Chapter",
+        accelerator: "Alt+CmdOrCtrl+Right",
+        click: () => sendControl("nextChapter")
+      }
     ]
   },
   {

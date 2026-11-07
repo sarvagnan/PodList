@@ -9,6 +9,7 @@ import { lastScreen } from "./lib/remembered.ts"
 import { routeTree } from "./routeTree.gen.ts"
 import "./index.css"
 
+// A new screen starts at the top; lists restore their own position (lib/scrollMemory.ts).
 const router = createRouter({ routeTree })
 router.subscribe("onResolved", ({ toLocation }) =>
   lastScreen.set(toLocation.pathname + (toLocation.searchStr ?? ""))

@@ -73,11 +73,11 @@ test("relaunching reopens the last screen and the Next / Last choice", async ({ 
   await expect(page.getByRole("combobox")).toHaveValue("commute")
 })
 
-test("? shows the keyboard shortcuts", async ({ page }) => {
+test("Cmd/Ctrl-/ shows the keyboard shortcuts", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/views/short`)
   await page.locator('[data-row="0"]').waitFor()
-  await page.keyboard.press("?")
+  await page.keyboard.press("ControlOrMeta+/")
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" })
   await expect(dialog).toContainText("Play or pause")
   await page.keyboard.press("Escape")

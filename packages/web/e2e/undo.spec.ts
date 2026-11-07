@@ -13,15 +13,15 @@ test.afterEach(() => demo.stop())
 
 const titles = (page: Page) =>
   page
-    .locator("main ol > li")
+    .locator("main [role=row]")
     .evaluateAll((items) =>
-      items.map((li) => li.querySelector("a.line-clamp-2, span.line-clamp-2")?.textContent ?? "")
+      items.map((li) => li.querySelector("[data-cell=title], .line-clamp-2")?.textContent ?? "")
     )
 
 test("removes an Entry, and Cmd/Ctrl-Z puts it back after the toast", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.locator("main ol > li").first().waitFor()
+  await page.locator("main [role=row]").first().waitFor()
   const before = await titles(page)
   const victim = before[1] ?? ""
   await page.getByRole("button", { name: `Remove ${victim} from Commute` }).click()
@@ -43,7 +43,7 @@ test("removes an Entry, and Cmd/Ctrl-Z puts it back after the toast", async ({ p
 test("the toast's Undo takes back its own step", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.locator("main ol > li").first().waitFor()
+  await page.locator("main [role=row]").first().waitFor()
   const before = await titles(page)
   await page.getByRole("button", { name: `Remove ${before[0]} from Commute` }).click()
   await page.getByRole("button", { name: "Undo" }).click()

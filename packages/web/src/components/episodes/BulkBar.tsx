@@ -7,6 +7,7 @@ import { bulkActionAtom, nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
 import type { EpisodeAction } from "../../lib/episodeActions.ts"
+import { Tip } from "../feedback/Tip.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
 
 const episodes = (n: number) => `${n} ${n === 1 ? "Episode" : "Episodes"}`
@@ -122,15 +123,16 @@ export function BulkBar({
       >
         Download
       </BulkButton>
-      <button
-        type="button"
-        aria-label="Clear selection"
-        title="Clear selection"
-        onClick={onClear}
-        className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-      >
-        <X aria-hidden="true" className="size-4" />
-      </button>
+      <Tip label={"Clear selection"}>
+        <button
+          type="button"
+          aria-label="Clear selection"
+          onClick={onClear}
+          className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+        >
+          <X aria-hidden="true" className="size-4" />
+        </button>
+      </Tip>
     </div>
   )
 }

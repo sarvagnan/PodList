@@ -2,13 +2,16 @@ import { Dialog } from "@base-ui/react/dialog"
 import { X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useBackLayers } from "../../lib/backLayers.ts"
+import { wrapTab } from "../../lib/focusTrap.ts"
 
-// The keyboard shortcuts reference (KEY-08): opens on "?", from the sidebar, and from
-// Help in the Mac app, all through one event.
+// The keyboard shortcuts reference (KEY-08): opens on Cmd/Ctrl-/, from the sidebar, and
+// from Help in the Mac app, all through one event. A modifier, so it can't fire while
+// typing or by accident (WKEY-02).
 
 export const openShortcuts = () => document.dispatchEvent(new CustomEvent("podlist:shortcuts"))
 
 const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
+const macApp = typeof navigator !== "undefined" && navigator.userAgent.includes("Electron")
 const cmd = mac ? "⌘" : "Ctrl+"
 
 const groups: ReadonlyArray<{
@@ -21,7 +24,7 @@ const groups: ReadonlyArray<{
       ["Space", "Play or pause"],
       [`${cmd}Z`, "Undo the last change"],
       ["Esc", "Close a sheet or panel; clear ticked Episodes"],
-      ["?", "Show these shortcuts"]
+      [`${cmd}/`, "Show these shortcuts"]
     ]
   },
   {
@@ -38,13 +41,15 @@ const groups: ReadonlyArray<{
       ["Letters", "Jump to a title"]
     ]
   },
-  ...(mac
+  ...(macApp
     ? [
         {
           title: "Mac app",
           keys: [
             ["⌘[ ⌘]", "Back or forward"],
-            ["⌘/", "Show these shortcuts"]
+            ["⌘← ⌘→", "Back 15 or forward 30 seconds"],
+            ["⌥⌘← ⌥⌘→", "Previous or next Chapter"],
+            ["⌘W", "Close the window"]
           ] as const
         }
       ]
@@ -65,9 +70,8 @@ export function Shortcuts() {
     const show = () => setOpen(true)
     const onKey = (event: KeyboardEvent) => {
       if (
-        event.key === "?" &&
-        !event.metaKey &&
-        !event.ctrlKey &&
+        event.key === "/" &&
+        (event.metaKey || event.ctrlKey) &&
         !typing(document.activeElement)
       ) {
         event.preventDefault()
@@ -87,6 +91,7 @@ export function Shortcuts() {
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
           data-sheet="dialog"
+          onKeyDown={wrapTab}
           className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">

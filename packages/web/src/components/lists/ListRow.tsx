@@ -49,7 +49,7 @@ export function ListRow({
 export function StatusBadge({ status }: { readonly status: "Playing" | "Paused" }) {
   return (
     <span
-      className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${status === "Playing" ? "bg-positive-tint text-positive" : "bg-secondary text-muted-foreground"}`}
+      className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${status === "Playing" ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground"}`}
     >
       {status}
     </span>

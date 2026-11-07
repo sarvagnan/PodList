@@ -1,9 +1,10 @@
+import { ContextMenu } from "@base-ui/react/context-menu"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { ArrowDownToLine, Check, ListPlus, Play, Plus, Star } from "lucide-react"
 import type * as React from "react"
-import { type ReactNode, useState } from "react"
+import { Fragment, type ReactNode, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { stateAtom } from "../../app/runtime.ts"
@@ -32,7 +33,7 @@ function IconButton({
   readonly buttonProps?: React.ComponentProps<"button">
 }) {
   return (
-    <GridCell className="shrink-0">
+    <GridCell className="relative z-10 shrink-0">
       <Tip label={label}>
         <button
           type="button"
@@ -61,7 +62,7 @@ function TextAction({
   readonly children: ReactNode
 }) {
   return (
-    <GridCell className="shrink-0">
+    <GridCell className="relative z-10 shrink-0">
       <Tip label={label}>
         <button
           type="button"
@@ -74,6 +75,24 @@ function TextAction({
         </button>
       </Tip>
     </GridCell>
+  )
+}
+
+/** A command in the row's right-click (or long-press) menu. */
+function MenuItem({
+  onClick,
+  children
+}: {
+  readonly onClick: () => void
+  readonly children: ReactNode
+}) {
+  return (
+    <ContextMenu.Item
+      onClick={onClick}
+      className="flex min-h-10 cursor-default items-center rounded-lg px-3 outline-none data-[highlighted]:bg-secondary"
+    >
+      {children}
+    </ContextMenu.Item>
   )
 }
 
@@ -105,6 +124,7 @@ export function EpisodeRow({
   readonly onCheck?: (checked: boolean, range: boolean) => void
 }) {
   const act = useEpisodeActions()
+  const navigate = useNavigate()
   const downloaded = useDownloadStatus(episode.id)?._tag === "Stored"
   const [adding, setAdding] = useState(false)
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
@@ -112,14 +132,21 @@ export function EpisodeRow({
   const target =
     state?.playlists.find((p) => p.id === chosen) ??
     state?.playlists.find((p) => p.id === state.activePlaylistId)
-  const meta = [
+  // Each fact stays in one piece when the line wraps ("26 min", not "26 / min").
+  const facts = [
     episode.podcast,
     formatPublished(episode.published),
     ...(episode.duration ? [formatLength(episode.duration)] : [])
-  ].join(" · ")
+  ]
+  const meta = facts.map((fact, i) => (
+    <Fragment key={fact}>
+      {i > 0 && " · "}
+      <span className="whitespace-nowrap">{fact}</span>
+    </Fragment>
+  ))
   const shown = selected || checked
   const play = (
-    <GridCell className="shrink-0">
+    <GridCell className="relative z-10 shrink-0">
       <Tip label="Play Now">
         <button
           type="button"
@@ -142,140 +169,187 @@ export function EpisodeRow({
     target && void act({ _tag: "Add", episodeId: episode.id, playlistId: target.id, placement })
 
   return (
-    <div
-      className={`group flex min-h-[76px] items-center gap-3 border-b px-2 py-2 ${
-        selected
-          ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
-          : checked
-            ? "bg-accent/60"
-            : ""
-      }`}
-    >
-      {onCheck && (
-        <GridCell className="hidden shrink-0 md:block">
-          <input
-            type="checkbox"
-            data-cell=""
-            checked={checked}
-            readOnly
-            onClick={(event) => onCheck(event.currentTarget.checked, event.shiftKey)}
-            aria-label={`Select ${episode.title}`}
-            className="block size-4 accent-primary"
-          />
-        </GridCell>
-      )}
-      <Artwork url={episode.artworkUrl} name={episode.podcast} size={48} />
-      <GridCell block className="min-w-0 flex-1">
-        {/* The title opens the Episode: a screen on the phone, a panel beside the View on wide screens. */}
-        <Link
-          to="/episodes/$episodeId"
-          params={{ episodeId: episode.id }}
-          data-cell="title"
-          data-episode-title={episode.id}
-          onClick={(event) => {
-            if (onOpen && plainClick(event) && window.matchMedia("(min-width: 64rem)").matches) {
-              event.preventDefault()
-              onOpen(episode.id)
-            }
-          }}
-          className={`line-clamp-2 text-row leading-snug font-medium hover:underline ${episode.played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
-        >
-          {episode.title}
-        </Link>
-        <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-          {episode.played && (
-            <span className="inline-flex items-center gap-0.5 font-medium text-positive">
-              <Check aria-hidden="true" className="size-3.5" />
-              Played
-              <span aria-hidden="true" className="text-muted-foreground">
-                ·
-              </span>
-            </span>
-          )}
-          {episode.starred && (
-            <Star aria-label="Starred" className="size-3.5 shrink-0 fill-star text-star" />
-          )}
-          {downloaded && (
-            <ArrowDownToLine aria-label="Downloaded" className="size-3.5 shrink-0 text-positive" />
-          )}
-          {/* Wraps rather than cut off at large text sizes (WTYPE-02). */}
-          <span className="line-clamp-2">{meta}</span>
-        </p>
-      </GridCell>
-
-      <div className="flex items-center gap-1 md:hidden">
-        <IconButton label={`Add ${episode.title} to a Playlist`} onClick={() => setAdding(true)}>
-          <Plus aria-hidden="true" className="size-5" />
-        </IconButton>
-        {play}
-      </div>
-
-      <div className="hidden items-center gap-0.5 md:flex">
-        <div
-          className={`flex items-center gap-0.5 ${
-            shown
-              ? ""
-              : "transition-opacity [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[[data-popup-open]]:opacity-100"
-          }`}
-        >
-          <TextAction
-            label={`Play Next in ${target?.name ?? "Playlist"}`}
-            onClick={() => addTo("next")}
-          >
-            Next
-          </TextAction>
-          <TextAction
-            label={`Play Last in ${target?.name ?? "Playlist"}`}
-            onClick={() => addTo("last")}
-          >
-            Last
-          </TextAction>
-          <IconButton label="Add to a Playlist…" onClick={() => setAdding(true)}>
-            <ListPlus aria-hidden="true" className="size-[18px]" />
-          </IconButton>
-          <IconButton
-            label="Star"
-            pressed={episode.starred}
-            onClick={() =>
-              void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
-            }
-            className={episode.starred ? "text-star hover:text-star" : ""}
-          >
-            <Star
-              aria-hidden="true"
-              className={`size-[18px] ${episode.starred ? "fill-current" : ""}`}
+    <ContextMenu.Root>
+      <ContextMenu.Trigger
+        className={`group relative flex min-h-[76px] items-center gap-3 border-b px-2 py-2 ${
+          selected
+            ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
+            : checked
+              ? "bg-accent/60"
+              : "hover:bg-secondary/60"
+        }`}
+      >
+        {onCheck && (
+          <GridCell className="relative z-10 hidden shrink-0 md:block">
+            <input
+              type="checkbox"
+              data-cell=""
+              checked={checked}
+              readOnly
+              onClick={(event) => onCheck(event.currentTarget.checked, event.shiftKey)}
+              aria-label={`Select ${episode.title}`}
+              className="block size-4 accent-primary"
             />
-          </IconButton>
-          <IconButton
-            label="Played"
-            pressed={episode.played}
-            onClick={() =>
-              void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
-            }
-            className={episode.played ? "text-positive hover:text-positive" : ""}
+          </GridCell>
+        )}
+        <Artwork url={episode.artworkUrl} name={episode.podcast} size={48} />
+        <GridCell block className="min-w-0 flex-1">
+          {/* The title opens the Episode: a screen on the phone, a panel beside the View on wide screens. */}
+          <Link
+            to="/episodes/$episodeId"
+            params={{ episodeId: episode.id }}
+            data-cell="title"
+            data-episode-title={episode.id}
+            onClick={(event) => {
+              if (onOpen && plainClick(event) && window.matchMedia("(min-width: 64rem)").matches) {
+                event.preventDefault()
+                onOpen(episode.id)
+              }
+            }}
+            // Stretched over the row, so the whole row opens the Episode; controls sit above.
+            className={`line-clamp-3 text-row leading-snug font-medium after:absolute after:inset-0 after:content-[''] hover:underline ${episode.played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
           >
-            <Check aria-hidden="true" className="size-[18px]" />
-          </IconButton>
-          <DownloadButton
-            episodeId={episode.id}
-            renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
-              <IconButton
-                label={label}
-                pressed={pressed}
-                {...(onClick ? { onClick } : {})}
-                {...(buttonProps ? { buttonProps } : {})}
-                className={pressed ? "text-positive hover:text-positive" : ""}
-              >
-                {icon}
-              </IconButton>
+            {episode.title}
+          </Link>
+          <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+            {episode.played && (
+              <span className="inline-flex items-center gap-0.5 font-medium text-positive">
+                <Check aria-hidden="true" className="size-3.5" />
+                Played
+                <span aria-hidden="true" className="text-muted-foreground">
+                  ·
+                </span>
+              </span>
             )}
-          />
-        </div>
-        <span className="ml-2 flex">{play}</span>
-      </div>
+            {episode.starred && (
+              <Star aria-label="Starred" className="size-3.5 shrink-0 fill-star text-star" />
+            )}
+            {downloaded && (
+              <ArrowDownToLine
+                aria-label="Downloaded"
+                className="size-3.5 shrink-0 text-foreground"
+              />
+            )}
+            {/* Wraps rather than cut off at large text sizes (WTYPE-02). */}
+            <span className="line-clamp-2">{meta}</span>
+          </p>
+        </GridCell>
 
-      {adding && <AddToPlaylist episode={episode} open={adding} onOpenChange={setAdding} />}
-    </div>
+        <div className="flex items-center gap-1 md:hidden">
+          <IconButton label={`Add ${episode.title} to a Playlist`} onClick={() => setAdding(true)}>
+            <Plus aria-hidden="true" className="size-5" />
+          </IconButton>
+          {play}
+        </div>
+
+        <div className="hidden items-center gap-0.5 md:flex">
+          <div
+            className={`flex items-center gap-0.5 ${
+              shown
+                ? ""
+                : "transition-opacity [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[[data-popup-open]]:opacity-100"
+            }`}
+          >
+            <TextAction
+              label={`Play Next in ${target?.name ?? "Playlist"}`}
+              onClick={() => addTo("next")}
+            >
+              Next
+            </TextAction>
+            <TextAction
+              label={`Play Last in ${target?.name ?? "Playlist"}`}
+              onClick={() => addTo("last")}
+            >
+              Last
+            </TextAction>
+            <IconButton label="Add to a Playlist…" onClick={() => setAdding(true)}>
+              <ListPlus aria-hidden="true" className="size-[18px]" />
+            </IconButton>
+            <IconButton
+              label="Star"
+              pressed={episode.starred}
+              onClick={() =>
+                void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
+              }
+              className={episode.starred ? "text-star hover:text-star" : ""}
+            >
+              <Star
+                aria-hidden="true"
+                className={`size-[18px] ${episode.starred ? "fill-current" : ""}`}
+              />
+            </IconButton>
+            <IconButton
+              label="Played"
+              pressed={episode.played}
+              onClick={() =>
+                void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
+              }
+              className={episode.played ? "text-positive hover:text-positive" : ""}
+            >
+              <Check aria-hidden="true" className="size-[18px]" />
+            </IconButton>
+            <DownloadButton
+              episodeId={episode.id}
+              renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
+                <IconButton
+                  label={label}
+                  pressed={pressed}
+                  {...(onClick ? { onClick } : {})}
+                  {...(buttonProps ? { buttonProps } : {})}
+                  className={pressed ? "text-foreground" : ""}
+                >
+                  {icon}
+                </IconButton>
+              )}
+            />
+          </div>
+          <span className="ml-2 flex">{play}</span>
+        </div>
+
+        {adding && <AddToPlaylist episode={episode} open={adding} onOpenChange={setAdding} />}
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Positioner className="z-50">
+          <ContextMenu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-sm text-popover-foreground shadow-lg">
+            <MenuItem onClick={() => void act({ _tag: "PlayNow", episodeId: episode.id })}>
+              Play Now
+            </MenuItem>
+            <MenuItem onClick={() => addTo("next")}>
+              Play Next in {target?.name ?? "Playlist"}
+            </MenuItem>
+            <MenuItem onClick={() => addTo("last")}>
+              Play Last in {target?.name ?? "Playlist"}
+            </MenuItem>
+            <MenuItem onClick={() => setAdding(true)}>Add to a Playlist…</MenuItem>
+            <ContextMenu.Separator className="my-1 h-px bg-border" />
+            <MenuItem
+              onClick={() =>
+                void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
+              }
+            >
+              {episode.starred ? "Unstar" : "Star"}
+            </MenuItem>
+            <MenuItem
+              onClick={() =>
+                void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
+              }
+            >
+              {episode.played ? "Mark Unplayed" : "Mark Played"}
+            </MenuItem>
+            <ContextMenu.Separator className="my-1 h-px bg-border" />
+            <MenuItem
+              onClick={() =>
+                onOpen && window.matchMedia("(min-width: 64rem)").matches
+                  ? onOpen(episode.id)
+                  : void navigate({ to: "/episodes/$episodeId", params: { episodeId: episode.id } })
+              }
+            >
+              Open Episode
+            </MenuItem>
+          </ContextMenu.Popup>
+        </ContextMenu.Positioner>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   )
 }
 

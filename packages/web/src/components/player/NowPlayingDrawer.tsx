@@ -101,28 +101,30 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
       />
       {current.chapters.length > 0 && (
         <div className="flex w-full items-center gap-2">
-          <button
-            type="button"
-            aria-label="Previous Chapter"
-            title="Previous Chapter"
-            onClick={() => seek(previousChapterStart(current.chapters, current.position))}
-            className={iconButton}
-          >
-            <SkipBack aria-hidden="true" className="size-5 fill-current" />
-          </button>
+          <Tip label={"Previous Chapter"}>
+            <button
+              type="button"
+              aria-label="Previous Chapter"
+              onClick={() => seek(previousChapterStart(current.chapters, current.position))}
+              className={iconButton}
+            >
+              <SkipBack aria-hidden="true" className="size-5 fill-current" />
+            </button>
+          </Tip>
           <p className="min-w-0 flex-1 truncate text-center text-small text-player-muted">
             {chapter?.title ?? "Before the first Chapter"}
           </p>
-          <button
-            type="button"
-            aria-label="Next Chapter"
-            title="Next Chapter"
-            disabled={nextChapterStart(current.chapters, current.position) === null}
-            onClick={() => seek(nextChapterStart(current.chapters, current.position))}
-            className={iconButton}
-          >
-            <SkipForward aria-hidden="true" className="size-5 fill-current" />
-          </button>
+          <Tip label={"Next Chapter"}>
+            <button
+              type="button"
+              aria-label="Next Chapter"
+              disabled={nextChapterStart(current.chapters, current.position) === null}
+              onClick={() => seek(nextChapterStart(current.chapters, current.position))}
+              className={iconButton}
+            >
+              <SkipForward aria-hidden="true" className="size-5 fill-current" />
+            </button>
+          </Tip>
         </div>
       )}
       <div className="w-full text-center">
@@ -154,37 +156,40 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
         </p>
       )}
       <div className="flex items-center gap-6">
-        <button
-          type="button"
-          aria-label={`Back ${backSeconds} seconds`}
-          title={`Back ${backSeconds} seconds`}
-          onClick={() => control({ _tag: "skip", seconds: -backSeconds })}
-          className={`${iconButton} size-14`}
-        >
-          <SkipIcon seconds={backSeconds} direction="back" large />
-        </button>
-        <button
-          type="button"
-          aria-label={current.playing ? "Pause" : "Play"}
-          title={current.playing ? "Pause" : "Play"}
-          onClick={() => control({ _tag: "toggle" })}
-          className="grid size-18 place-items-center rounded-full border border-transparent bg-player-foreground text-player hover:bg-player-foreground/90 active:bg-player-foreground/75"
-        >
-          {current.playing ? (
-            <Pause aria-hidden="true" className="size-8 fill-current" />
-          ) : (
-            <Play aria-hidden="true" className="size-8 translate-x-0.5 fill-current" />
-          )}
-        </button>
-        <button
-          type="button"
-          aria-label={`Forward ${forwardSeconds} seconds`}
-          title={`Forward ${forwardSeconds} seconds`}
-          onClick={() => control({ _tag: "skip", seconds: forwardSeconds })}
-          className={`${iconButton} size-14`}
-        >
-          <SkipIcon seconds={forwardSeconds} direction="forward" large />
-        </button>
+        <Tip label={`Back ${backSeconds} seconds`}>
+          <button
+            type="button"
+            aria-label={`Back ${backSeconds} seconds`}
+            onClick={() => control({ _tag: "skip", seconds: -backSeconds })}
+            className={`${iconButton} size-14`}
+          >
+            <SkipIcon seconds={backSeconds} direction="back" large />
+          </button>
+        </Tip>
+        <Tip label={current.playing ? "Pause" : "Play"}>
+          <button
+            type="button"
+            aria-label={current.playing ? "Pause" : "Play"}
+            onClick={() => control({ _tag: "toggle" })}
+            className="grid size-18 place-items-center rounded-full border border-transparent bg-player-foreground text-player hover:bg-player-foreground/90 active:bg-player-foreground/75"
+          >
+            {current.playing ? (
+              <Pause aria-hidden="true" className="size-8 fill-current" />
+            ) : (
+              <Play aria-hidden="true" className="size-8 translate-x-0.5 fill-current" />
+            )}
+          </button>
+        </Tip>
+        <Tip label={`Forward ${forwardSeconds} seconds`}>
+          <button
+            type="button"
+            aria-label={`Forward ${forwardSeconds} seconds`}
+            onClick={() => control({ _tag: "skip", seconds: forwardSeconds })}
+            className={`${iconButton} size-14`}
+          >
+            <SkipIcon seconds={forwardSeconds} direction="forward" large />
+          </button>
+        </Tip>
       </div>
       <PlayerMenus current={current} />
       <div className="flex flex-wrap justify-center gap-2">
@@ -209,7 +214,7 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
             icon={<ListMusic aria-hidden="true" className="size-4" />}
             onClick={() => push("queue")}
           >
-            Up next · {queued}
+            {queued > 0 ? `Up next · ${queued}` : "Up next"}
           </PillButton>
         </span>
       </div>
@@ -234,7 +239,7 @@ function ChaptersList({ current }: { readonly current: NowPlaying }) {
             }}
             className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-player-track ${i === playing ? "bg-player-track" : ""}`}
           >
-            <span className="w-14 shrink-0 text-xs text-player-muted tabular-nums">
+            <span className="min-w-14 shrink-0 text-xs whitespace-nowrap text-player-muted tabular-nums">
               {formatTime(c.start)}
             </span>
             <span className={`flex-1 text-sm ${i === playing ? "font-semibold" : ""}`}>
@@ -424,15 +429,16 @@ export function NowPlayingDrawer() {
             {page && (
               <h2 className="flex-1 text-center text-sm font-semibold">{pageTitles[page]}</h2>
             )}
-            <button
-              type="button"
-              aria-label="Close Now Playing"
-              title="Close"
-              onClick={close}
-              className={`${iconButton} ${page ? "" : "absolute right-3"}`}
-            >
-              <ChevronDown aria-hidden="true" className="size-6" />
-            </button>
+            <Tip label={"Close"}>
+              <button
+                type="button"
+                aria-label="Close Now Playing"
+                onClick={close}
+                className={`${iconButton} ${page ? "" : "absolute right-3"}`}
+              >
+                <ChevronDown aria-hidden="true" className="size-6" />
+              </button>
+            </Tip>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {page === undefined && (
