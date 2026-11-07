@@ -30,7 +30,8 @@ export function PageHeader({
           {back.label}
         </Link>
       )}
-      <div className="flex items-center justify-between gap-4">
+      {/* The actions swap (picker, bulk bar) without changing the header's height. */}
+      <div className="flex min-h-11 items-center justify-between gap-4">
         <h1
           tabIndex={-1}
           className="font-heading outline-offset-4 text-title leading-tight font-semibold md:text-3xl"

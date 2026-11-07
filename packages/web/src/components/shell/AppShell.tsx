@@ -1,6 +1,6 @@
 import { useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react"
 import { State } from "@podlist/domain"
-import { Link, Outlet, useRouter } from "@tanstack/react-router"
+import { Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import {
   AudioLines,
@@ -75,7 +75,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const openDrawer = (stack: ReadonlyArray<DrawerPage>) => setDrawer({ open: true, stack })
   if (current === null) return null
   const playlist = state?.playlists.find((p) => p.id === current.playlistId)
-  const label = `${current.podcast} · ${playlist?.name ?? ""}`
+  // Nothing half-filled while the catalogue arrives on a new Device (APPEAR-11).
+  const label = current.title ? `${current.podcast} · ${playlist?.name ?? ""}` : "\u00a0"
   const progress = current.duration ? Math.min(100, (current.position / current.duration) * 100) : 0
   const button =
     "grid size-11 shrink-0 place-items-center rounded-full text-player-foreground hover:bg-player-track active:bg-player-track/70"
@@ -256,9 +257,9 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           onSeek={(seconds) => control({ _tag: "seek", seconds })}
         />
       </div>
-      <div className="flex items-center justify-end gap-1">
+      <div className="@container flex min-w-0 items-center justify-end gap-1">
         {/* Speed and sleep beside Up next on wide windows (docs/design/ui-layout.md). */}
-        <span className="hidden xl:flex">
+        <span className="hidden @min-[18rem]:flex">
           <PlayerMenus current={current} />
         </span>
         {playlist && (
@@ -400,6 +401,12 @@ function Sidebar() {
 }
 
 function BottomTabs() {
+  // Screens reached from a tab keep that tab selected: Episodes and Search from Views,
+  // Settings from Library (LIST-06).
+  const path = useRouterState({ select: (r) => r.location.pathname })
+  const section = (to: string) =>
+    (to === "/views" && (path.startsWith("/episodes") || path.startsWith("/search"))) ||
+    (to === "/library" && path.startsWith("/settings"))
   return (
     <nav
       aria-label="Sections"
@@ -409,7 +416,8 @@ function BottomTabs() {
         <Link
           key={to}
           to={to}
-          className="group flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-small font-medium text-muted-foreground [&.active]:font-bold [&.active]:text-primary"
+          aria-current={section(to) ? "page" : undefined}
+          className={`group flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-small font-medium text-muted-foreground [&.active]:font-bold [&.active]:text-primary ${section(to) ? "active" : ""}`}
         >
           {/* The selected tab gets a pill behind its icon as well as colour (AX-02). */}
           <span className="tab-indicator grid h-8 w-16 place-items-center rounded-full group-[.active]:bg-accent">
@@ -469,9 +477,14 @@ function useMenuControls() {
   }, [control])
 }
 
-/** Cmd/Ctrl-K: Search, from anywhere. */
+/** Cmd/Ctrl-K: Search, from anywhere. Also the Mac app's Go menu ("podlist:go"). */
 function useSearchKey() {
   const router = useRouter()
+  useEffect(() => {
+    const go = (event: Event) => void router.navigate({ to: (event as CustomEvent<string>).detail })
+    document.addEventListener("podlist:go", go)
+    return () => document.removeEventListener("podlist:go", go)
+  }, [router])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey) || event.altKey)

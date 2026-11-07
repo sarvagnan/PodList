@@ -99,6 +99,20 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     sync()
   }
 
+  // The list went away with focus in it (its last row removed): the heading takes focus.
+  useEffect(
+    () => () => {
+      const was = focused.current
+      requestAnimationFrame(() => {
+        const lost = document.activeElement === null || document.activeElement === document.body
+        if (was !== null && !was.isConnected && lost) {
+          document.querySelector<HTMLElement>("main h1")?.focus()
+        }
+      })
+    },
+    []
+  )
+
   const onBlur = (event: FocusEvent<HTMLElement>) => {
     // Focus moved elsewhere on purpose (a removed control gives no next element).
     const next = event.relatedTarget as Node | null

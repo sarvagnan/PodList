@@ -85,7 +85,7 @@ export function AddToPlaylist({
                 />
                 <span className="flex-1 text-row font-medium">{p.name}</span>
                 <span className="text-small text-muted-foreground">
-                  {p.id === state?.activePlaylistId ? "Playing · " : ""}
+                  {p.id === state?.activePlaylistId ? "Active · " : ""}
                   {p.entries.length}
                 </span>
               </label>

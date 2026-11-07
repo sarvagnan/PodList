@@ -61,7 +61,7 @@ test("Mark all Played asks first", async ({ page }) => {
   await expect(dialog).toBeVisible()
   await dialog.getByRole("button", { name: "Mark all Played" }).click()
   await expect
-    .poll(async () => (await page.locator("main").innerText()).includes("0 unplayed"), {
+    .poll(async () => ((await page.locator("main").textContent()) ?? "").includes("0 unplayed"), {
       timeout: 15_000
     })
     .toBe(true)

@@ -37,7 +37,19 @@ Round 3: coverage 97.6%; 11 failures (8 major, 3 minor, no blockers); four categ
 
 Round 4: coverage 98.8%; 10 failures (8 major, 2 minor); five categories held at 6.9 or below. Report: [docs/ui-grade/round-4.md](docs/ui-grade/round-4.md). Graded build 6be414f. The grader probed side paths the flows don't cover (removing rows by keyboard, the drawer's Episode page, right-click), which is where most new failures came from.
 
-Round 5: coverage 96.3%; 10 failures (6 major, 4 minor; one counted once across two IDs). Report: [docs/ui-grade/round-5.md](docs/ui-grade/round-5.md). Graded build 651e1d4, before the View editor, Search and Library screens. Every round's grader is fresh and probes new side paths, so each round finds a new set of majors, and any major caps its categories at 6.9: rounds 2–5 sit at 6.9–7.2. Paused here for the owner to choose how to continue.
+Round 5: coverage 96.3%; 10 failures (6 major, 4 minor; one counted once across two IDs). Report: [docs/ui-grade/round-5.md](docs/ui-grade/round-5.md). Graded build 651e1d4, before the View editor, Search and Library screens. Every round's grader is fresh and probes new side paths, so each round finds a new set of majors, and any major caps its categories at 6.9: rounds 2–5 sit at 6.9–7.2. The owner chose (7 Nov): build the designed screens first, then keep grading with fresh graders exactly as before.
+
+## Work list (round 5)
+
+Fixed on 7 Nov, after the designed screens were built (View editor and Search, Library and Subscriptions, Download Rules, Playlist settings, Trash and reordering, History, Listening Timeline and Rewind, Settings, first run):
+- [x] WTYPE-05 / WIN-03: rows too narrow for every action get one More actions menu (a container query); titles keep their width.
+- [x] BROWSER-06 / BROWSER-08: on desktop the title is a plain link (the browser's link menu, selectable text) and the row's empty space opens the Episode; the app's own menu is desktop-only, so the phone keeps its long-press link menu.
+- [x] WKEY-03: when the last row goes, focus goes to the heading; toasts no longer block Esc.
+- [x] WTYPE-02: speed and sleep in the desktop bar only when there is room at the text size.
+- [x] APPEAR-04: "Turn off" in the sleep menu is readable on the dark player.
+- [x] LIST-06: Episode, Search and Settings screens keep their tab selected.
+- [x] COPY-01 one word, "Active"; APPEAR-11 no half-filled player on a new Device.
+- [x] Craft: ticked rows stay quiet; the header keeps its height when the bulk bar appears; the Mac Go menu has Views, Playlists, Library and Search (⌘1–3, ⌘K) and the app menu Settings (⌘,); the drawer has an edge in forced colors. Undo toasts last 20 s, paused while hovered or focused.
 
 ## Work list (round 4)
 

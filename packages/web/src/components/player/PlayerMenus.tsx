@@ -92,7 +92,7 @@ export function PlayerMenus({ current }: { readonly current: NowPlaying }) {
                 At the end of this Episode
               </Menu.Item>
               {current.sleep && (
-                <Menu.Item onClick={() => sleep(null)} className={`${item} text-destructive`}>
+                <Menu.Item onClick={() => sleep(null)} className={`${item} text-player-danger`}>
                   Turn off
                 </Menu.Item>
               )}

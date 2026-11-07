@@ -70,7 +70,7 @@ function ViewDetail() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return
       // A dialog or menu takes its own Esc.
-      if (document.querySelector('[role="dialog"], [role="menu"]')) return
+      if (document.querySelector('[data-sheet], [role="alertdialog"], [role="menu"]')) return
       onEscape.current()
     }
     document.addEventListener("keydown", onKey)
@@ -134,7 +134,9 @@ function ViewDetail() {
                   className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
                 >
                   <SlidersHorizontal aria-hidden="true" className="size-4" />
-                  Edit<span className="max-md:sr-only"> View</span>
+                  <span>
+                    Edit<span className="max-md:sr-only"> View</span>
+                  </span>
                 </button>
               )}
             </div>

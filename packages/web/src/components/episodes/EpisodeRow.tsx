@@ -1,8 +1,9 @@
 import { ContextMenu } from "@base-ui/react/context-menu"
+import { Menu } from "@base-ui/react/menu"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { ArrowDownToLine, Check, Play, Plus, Star } from "lucide-react"
+import { ArrowDownToLine, Check, Ellipsis, Play, Plus, Star } from "lucide-react"
 import type * as React from "react"
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
@@ -11,6 +12,7 @@ import { stateAtom } from "../../app/runtime.ts"
 import { nextLastTarget } from "../../lib/remembered.ts"
 import { episodeLink, inMacApp } from "../../lib/share.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
+import { useMinWidth } from "../../lib/useWide.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { GridCell } from "../lists/Grid.tsx"
@@ -146,7 +148,9 @@ export function EpisodeRow({
       <span className="whitespace-nowrap">{fact}</span>
     </Fragment>
   ))
-  const shown = selected || checked
+  // Ticked rows stay quiet: the bulk bar acts on them.
+  const shown = selected
+  const wide = useMinWidth("64rem")
   const play = (
     <GridCell className="relative z-10 shrink-0">
       <Tip label="Play Now">
@@ -196,7 +200,39 @@ export function EpisodeRow({
     return () => document.removeEventListener("podlist:episode", onCommand)
   }, [episode.id])
 
-  const rowClass = `group relative flex min-h-[76px] items-center gap-3 border-b px-2 py-2 ${
+  // One list of commands for the right-click menu and the narrow row's More menu.
+  const menuItems = (
+    <>
+      <MenuItem onClick={() => void act({ _tag: "PlayNow", episodeId: episode.id })}>
+        Play Now
+      </MenuItem>
+      <MenuItem onClick={() => addTo("next")}>Play Next in {target?.name ?? "Playlist"}</MenuItem>
+      <MenuItem onClick={() => addTo("last")}>Play Last in {target?.name ?? "Playlist"}</MenuItem>
+      <MenuItem onClick={() => setAdding(true)}>Add to a Playlist…</MenuItem>
+      <ContextMenu.Separator className="my-1 h-px bg-border" />
+      <MenuItem
+        onClick={() => void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })}
+      >
+        {episode.starred ? "Unstar" : "Star"}
+      </MenuItem>
+      <MenuItem
+        onClick={() => void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })}
+      >
+        {episode.played ? "Mark Unplayed" : "Mark Played"}
+      </MenuItem>
+      <ContextMenu.Separator className="my-1 h-px bg-border" />
+      <MenuItem onClick={open}>Open Episode</MenuItem>
+      <MenuItem
+        onClick={() =>
+          void episodeLink(episode.id).then((url) => window.open(url, "_blank", "noopener"))
+        }
+      >
+        Open in New Tab
+      </MenuItem>
+      <MenuItem onClick={() => void copyLink()}>Copy Link</MenuItem>
+    </>
+  )
+  const rowClass = `group @container relative flex min-h-[76px] items-center gap-3 border-b px-2 py-2 lg:cursor-pointer ${
     selected
       ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
       : checked
@@ -243,8 +279,10 @@ export function EpisodeRow({
               onOpen(episode.id)
             }
           }}
-          // Stretched over the row, so the whole row opens the Episode; controls sit above.
-          className={`line-clamp-3 text-row leading-snug font-medium after:absolute after:inset-0 after:content-[''] hover:underline ${episode.played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
+          // Phone: stretched over the row, so the whole row opens the Episode (controls sit
+          // above). Desktop: just the title, so it keeps the browser's link menu and text
+          // can be selected; the row opens the Episode from its empty space instead.
+          className={`line-clamp-3 text-row leading-snug font-medium after:absolute after:inset-0 after:content-[''] hover:underline lg:after:hidden ${episode.played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
         >
           {episode.title}
         </Link>
@@ -280,8 +318,29 @@ export function EpisodeRow({
       </div>
 
       <div className="hidden items-center gap-0.5 lg:flex">
+        {/* Too narrow for every action (a side panel open, a small window): one menu. */}
+        <GridCell className="relative z-10 hidden shrink-0 @max-[46rem]:block">
+          <Menu.Root>
+            <Tip label="More actions">
+              <Menu.Trigger
+                data-cell=""
+                aria-label={`More actions for ${episode.title}`}
+                className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input data-[popup-open]:bg-secondary"
+              >
+                <Ellipsis aria-hidden="true" className="size-5" />
+              </Menu.Trigger>
+            </Tip>
+            <Menu.Portal>
+              <Menu.Positioner sideOffset={6} align="end" className="z-50">
+                <Menu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">
+                  {menuItems}
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
+        </GridCell>
         <div
-          className={`flex items-center gap-0.5 ${
+          className={`hidden items-center gap-0.5 @min-[46rem]:flex ${
             shown
               ? ""
               : "transition-opacity [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[[data-popup-open]]:opacity-100"
@@ -346,56 +405,31 @@ export function EpisodeRow({
       {adding && <AddToPlaylist episode={episode} open={adding} onOpenChange={setAdding} />}
     </>
   )
-  if (inMacApp) {
+  // Desktop: a click in the row's empty space opens the Episode, as the title does.
+  const onRowClick = (event: React.MouseEvent) => {
+    if (!wide || !plainClick(event)) return
+    if ((event.target as Element).closest("a, button, input, label, select")) return
+    if (window.getSelection()?.isCollapsed === false) return
+    open()
+  }
+  // The phone keeps the browser's long-press menu; the Mac app shows a native one.
+  if (inMacApp || !wide) {
     return (
-      <div className={rowClass} data-episode-menu={menuData}>
+      // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.
+      <div className={rowClass} data-episode-menu={menuData} onClick={onRowClick}>
         {body}
       </div>
     )
   }
   return (
     <ContextMenu.Root>
-      <ContextMenu.Trigger className={rowClass} data-episode-menu={menuData}>
+      <ContextMenu.Trigger className={rowClass} data-episode-menu={menuData} onClick={onRowClick}>
         {body}
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50">
           <ContextMenu.Popup className="min-w-56 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">
-            <MenuItem onClick={() => void act({ _tag: "PlayNow", episodeId: episode.id })}>
-              Play Now
-            </MenuItem>
-            <MenuItem onClick={() => addTo("next")}>
-              Play Next in {target?.name ?? "Playlist"}
-            </MenuItem>
-            <MenuItem onClick={() => addTo("last")}>
-              Play Last in {target?.name ?? "Playlist"}
-            </MenuItem>
-            <MenuItem onClick={() => setAdding(true)}>Add to a Playlist…</MenuItem>
-            <ContextMenu.Separator className="my-1 h-px bg-border" />
-            <MenuItem
-              onClick={() =>
-                void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
-              }
-            >
-              {episode.starred ? "Unstar" : "Star"}
-            </MenuItem>
-            <MenuItem
-              onClick={() =>
-                void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
-              }
-            >
-              {episode.played ? "Mark Unplayed" : "Mark Played"}
-            </MenuItem>
-            <ContextMenu.Separator className="my-1 h-px bg-border" />
-            <MenuItem onClick={open}>Open Episode</MenuItem>
-            <MenuItem
-              onClick={() =>
-                void episodeLink(episode.id).then((url) => window.open(url, "_blank", "noopener"))
-              }
-            >
-              Open in New Tab
-            </MenuItem>
-            <MenuItem onClick={() => void copyLink()}>Copy Link</MenuItem>
+            {menuItems}
           </ContextMenu.Popup>
         </ContextMenu.Positioner>
       </ContextMenu.Portal>
@@ -424,7 +458,7 @@ export function NextLastTarget() {
         {state.playlists.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
-            {p.id === state.activePlaylistId ? " (active)" : ""}
+            {p.id === state.activePlaylistId ? " (Active)" : ""}
           </option>
         ))}
       </select>

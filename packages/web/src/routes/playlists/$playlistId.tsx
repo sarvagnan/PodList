@@ -77,7 +77,7 @@ function PlaylistDetail() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return
-      if (document.querySelector('[role="dialog"], [role="menu"]')) return
+      if (document.querySelector('[data-sheet], [role="alertdialog"], [role="menu"]')) return
       onEscape.current()
     }
     document.addEventListener("keydown", onKey)

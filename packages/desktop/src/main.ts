@@ -140,6 +140,14 @@ const sendControl = (command: string) =>
     `document.dispatchEvent(new CustomEvent("podlist:control", { detail: ${JSON.stringify(command)} }))`
   )
 
+/** Go menu destinations: the web app's own screens. */
+const goTo = (path: string) => {
+  if (window === undefined) return
+  void window.webContents.executeJavaScript(
+    `document.dispatchEvent(new CustomEvent("podlist:go", { detail: ${JSON.stringify(path)} }))`
+  )
+}
+
 const goBack = (win: BrowserWindow) => {
   if (win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack()
 }
@@ -365,6 +373,8 @@ const menu = (): MenuItemConstructorOptions[] => [
     submenu: [
       { role: "about" },
       { type: "separator" },
+      { label: "Settings…", accelerator: "CmdOrCtrl+,", click: () => goTo("/settings") },
+      { type: "separator" },
       { label: "Change Server…", click: () => void changeServer() },
       { type: "separator" },
       { role: "services" },
@@ -452,6 +462,11 @@ const menu = (): MenuItemConstructorOptions[] => [
   {
     label: "Go",
     submenu: [
+      { label: "Views", accelerator: "CmdOrCtrl+1", click: () => goTo("/views") },
+      { label: "Playlists", accelerator: "CmdOrCtrl+2", click: () => goTo("/playlists") },
+      { label: "Library", accelerator: "CmdOrCtrl+3", click: () => goTo("/library") },
+      { label: "Search", accelerator: "CmdOrCtrl+K", click: () => goTo("/search") },
+      { type: "separator" },
       {
         label: "Back",
         accelerator: "CmdOrCtrl+[",
