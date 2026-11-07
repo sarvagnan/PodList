@@ -1,4 +1,4 @@
-import { type State, Units, ViewQuery } from "@podlist/domain"
+import { type PlaybackSettings, type State, Units, ViewQuery } from "@podlist/domain"
 import { Effect } from "effect"
 import { AsyncResult, Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
@@ -54,6 +54,7 @@ export const entryEpisodesAtom = runtime
 
 export interface SubscriptionSummary {
   readonly id: string
+  readonly feedUrl: string
   readonly title: string
   readonly author: string | null
   readonly artworkUrl: string | null
@@ -66,13 +67,79 @@ export const subscriptionsAtom = runtime
       get(stateAtom)
       const sql = yield* SqlClient.SqlClient
       return yield* sql<SubscriptionSummary>`
-      SELECT s.id, s.title, s.author, s.artwork_url AS artworkUrl,
+      SELECT s.id, s.feed_url AS feedUrl, s.title, s.author, s.artwork_url AS artworkUrl,
         (SELECT count(*) FROM episode e LEFT JOIN episode_state st ON st.episode_id = e.id
           WHERE e.subscription_id = s.id AND st.played_at IS NULL) AS unplayed
       FROM subscription s WHERE s.unsubscribed_at IS NULL ORDER BY s.title COLLATE NOCASE`
     })
   )
   .pipe(Atom.withReactivity([catalogueKey]))
+
+export interface SubscriptionDetail {
+  readonly id: string
+  readonly feedUrl: string
+  readonly title: string
+  readonly author: string | null
+  readonly description: string | null
+  readonly artworkUrl: string | null
+  readonly subscribed: boolean
+  /** Seconds before the end that count as finished; null for the default. */
+  readonly playedThreshold: number | null
+  readonly playbackSettings: PlaybackSettings.PlaybackSettingsOverride
+  readonly episodes: number
+  readonly unplayed: number
+}
+
+/** One Subscription, with its overrides, for its settings screen. */
+export const subscriptionAtom = Atom.family((subscriptionId: string) =>
+  runtime
+    .atom((get) =>
+      Effect.gen(function* () {
+        get(stateAtom)
+        const sql = yield* SqlClient.SqlClient
+        const [row] = yield* sql<{
+          id: string
+          feed_url: string
+          title: string
+          author: string | null
+          description: string | null
+          artwork_url: string | null
+          unsubscribed_at: number | null
+          played_threshold: number | null
+          playback_settings: string
+          episodes: number
+          unplayed: number
+        }>`
+          SELECT s.*, (SELECT count(*) FROM episode e WHERE e.subscription_id = s.id) AS episodes,
+            (SELECT count(*) FROM episode e LEFT JOIN episode_state st ON st.episode_id = e.id
+              WHERE e.subscription_id = s.id AND st.played_at IS NULL) AS unplayed
+          FROM subscription s WHERE s.id = ${subscriptionId}`
+        if (row === undefined) return null
+        let playbackSettings: PlaybackSettings.PlaybackSettingsOverride = {}
+        try {
+          playbackSettings = JSON.parse(
+            row.playback_settings
+          ) as PlaybackSettings.PlaybackSettingsOverride
+        } catch {
+          // Unreadable overrides count as none.
+        }
+        return {
+          id: row.id,
+          feedUrl: row.feed_url,
+          title: row.title,
+          author: row.author,
+          description: row.description,
+          artworkUrl: row.artwork_url,
+          subscribed: row.unsubscribed_at === null,
+          playedThreshold: row.played_threshold,
+          playbackSettings,
+          episodes: row.episodes,
+          unplayed: row.unplayed
+        } satisfies SubscriptionDetail
+      })
+    )
+    .pipe(Atom.withReactivity([catalogueKey]))
+)
 
 export const activePlaylist = (state: State.State) =>
   state.playlists.find((p) => p.id === state.activePlaylistId) ?? state.playlists[0]

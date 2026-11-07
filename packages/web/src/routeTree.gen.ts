@@ -10,9 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LibraryRouteImport } from './routes/library'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as EpisodesEpisodeIdRouteImport } from './routes/episodes/$episodeId'
+import { Route as LibraryIndexRouteImport } from './routes/library/index'
+import { Route as LibrarySubscriptionIdRouteImport } from './routes/library/$subscriptionId'
 import { Route as PlaylistsIndexRouteImport } from './routes/playlists/index'
 import { Route as PlaylistsPlaylistIdRouteImport } from './routes/playlists/$playlistId'
 import { Route as ViewsIndexRouteImport } from './routes/views/index'
@@ -23,11 +24,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LibraryRoute = LibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -36,6 +32,16 @@ const SearchRoute = SearchRouteImport.update({
 const EpisodesEpisodeIdRoute = EpisodesEpisodeIdRouteImport.update({
   id: '/episodes/$episodeId',
   path: '/episodes/$episodeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
+  id: '/library/',
+  path: '/library/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibrarySubscriptionIdRoute = LibrarySubscriptionIdRouteImport.update({
+  id: '/library/$subscriptionId',
+  path: '/library/$subscriptionId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlaylistsIndexRoute = PlaylistsIndexRouteImport.update({
@@ -61,32 +67,35 @@ const ViewsViewIdRoute = ViewsViewIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/library': typeof LibraryRoute
   '/search': typeof SearchRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
+  '/library/$subscriptionId': typeof LibrarySubscriptionIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
   '/views/$viewId': typeof ViewsViewIdRoute
+  '/library/': typeof LibraryIndexRoute
   '/playlists/': typeof PlaylistsIndexRoute
   '/views/': typeof ViewsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/library': typeof LibraryRoute
   '/search': typeof SearchRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
+  '/library/$subscriptionId': typeof LibrarySubscriptionIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
   '/views/$viewId': typeof ViewsViewIdRoute
+  '/library': typeof LibraryIndexRoute
   '/playlists': typeof PlaylistsIndexRoute
   '/views': typeof ViewsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/library': typeof LibraryRoute
   '/search': typeof SearchRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
+  '/library/$subscriptionId': typeof LibrarySubscriptionIdRoute
   '/playlists/$playlistId': typeof PlaylistsPlaylistIdRoute
   '/views/$viewId': typeof ViewsViewIdRoute
+  '/library/': typeof LibraryIndexRoute
   '/playlists/': typeof PlaylistsIndexRoute
   '/views/': typeof ViewsIndexRoute
 }
@@ -94,42 +103,46 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/library'
     | '/search'
     | '/episodes/$episodeId'
+    | '/library/$subscriptionId'
     | '/playlists/$playlistId'
     | '/views/$viewId'
+    | '/library/'
     | '/playlists/'
     | '/views/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/library'
     | '/search'
     | '/episodes/$episodeId'
+    | '/library/$subscriptionId'
     | '/playlists/$playlistId'
     | '/views/$viewId'
+    | '/library'
     | '/playlists'
     | '/views'
   id:
     | '__root__'
     | '/'
-    | '/library'
     | '/search'
     | '/episodes/$episodeId'
+    | '/library/$subscriptionId'
     | '/playlists/$playlistId'
     | '/views/$viewId'
+    | '/library/'
     | '/playlists/'
     | '/views/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  LibraryRoute: typeof LibraryRoute
   SearchRoute: typeof SearchRoute
   EpisodesEpisodeIdRoute: typeof EpisodesEpisodeIdRoute
+  LibrarySubscriptionIdRoute: typeof LibrarySubscriptionIdRoute
   PlaylistsPlaylistIdRoute: typeof PlaylistsPlaylistIdRoute
   ViewsViewIdRoute: typeof ViewsViewIdRoute
+  LibraryIndexRoute: typeof LibraryIndexRoute
   PlaylistsIndexRoute: typeof PlaylistsIndexRoute
   ViewsIndexRoute: typeof ViewsIndexRoute
 }
@@ -141,13 +154,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library': {
-      id: '/library'
-      path: '/library'
-      fullPath: '/library'
-      preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -162,6 +168,20 @@ declare module '@tanstack/react-router' {
       path: '/episodes/$episodeId'
       fullPath: '/episodes/$episodeId'
       preLoaderRoute: typeof EpisodesEpisodeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/': {
+      id: '/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/$subscriptionId': {
+      id: '/library/$subscriptionId'
+      path: '/library/$subscriptionId'
+      fullPath: '/library/$subscriptionId'
+      preLoaderRoute: typeof LibrarySubscriptionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/playlists/': {
@@ -197,11 +217,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  LibraryRoute: LibraryRoute,
   SearchRoute: SearchRoute,
   EpisodesEpisodeIdRoute: EpisodesEpisodeIdRoute,
+  LibrarySubscriptionIdRoute: LibrarySubscriptionIdRoute,
   PlaylistsPlaylistIdRoute: PlaylistsPlaylistIdRoute,
   ViewsViewIdRoute: ViewsViewIdRoute,
+  LibraryIndexRoute: LibraryIndexRoute,
   PlaylistsIndexRoute: PlaylistsIndexRoute,
   ViewsIndexRoute: ViewsIndexRoute,
 }

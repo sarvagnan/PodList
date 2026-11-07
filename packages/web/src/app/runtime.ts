@@ -4,6 +4,7 @@ import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
 import { Downloads } from "../downloads/Downloads.ts"
 import { artworkSrc } from "../lib/artwork.ts"
+import { LibraryClient } from "../library/LibraryClient.ts"
 import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { Player } from "../platform/Player.ts"
@@ -49,7 +50,8 @@ export const AppLayer = PlaybackLive.pipe(
   Layer.provideMerge(LocalDb.layerWeb()),
   Layer.provide(DownloadStore.layerWeb),
   Layer.provide(Player.layerWeb),
-  Layer.provideMerge(Transport.layerHttp(location.origin))
+  Layer.provideMerge(Transport.layerHttp(location.origin)),
+  Layer.provideMerge(LibraryClient.layerHttp(location.origin))
 )
 
 export const runtime = Atom.runtime(AppLayer)

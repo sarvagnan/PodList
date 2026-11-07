@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -36,6 +36,8 @@ Round 2: coverage 97.5%; 19 failures (11 major, 8 minor, no blockers); four cate
 Round 3: coverage 97.6%; 11 failures (8 major, 3 minor, no blockers); four categories capped at 6.9. Report: [docs/ui-grade/round-3.md](docs/ui-grade/round-3.md). Graded build fd860c3. Core elements within 2 px at all widths; p75 100–118 ms.
 
 Round 4: coverage 98.8%; 10 failures (8 major, 2 minor); five categories held at 6.9 or below. Report: [docs/ui-grade/round-4.md](docs/ui-grade/round-4.md). Graded build 6be414f. The grader probed side paths the flows don't cover (removing rows by keyboard, the drawer's Episode page, right-click), which is where most new failures came from.
+
+Round 5: coverage 96.3%; 10 failures (6 major, 4 minor; one counted once across two IDs). Report: [docs/ui-grade/round-5.md](docs/ui-grade/round-5.md). Graded build 651e1d4, before the View editor, Search and Library screens. Every round's grader is fresh and probes new side paths, so each round finds a new set of majors, and any major caps its categories at 6.9: rounds 2–5 sit at 6.9–7.2. Paused here for the owner to choose how to continue.
 
 ## Work list (round 4)
 

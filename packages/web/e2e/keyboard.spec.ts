@@ -111,12 +111,13 @@ test("Esc closes the Episode panel from the list; right-click offers Episode com
 
 test("Back returns a list to where it was scrolled", async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 500 })
-  await page.goto(`${demo.base}/views/new-this-week`)
-  await page.locator('[data-row="5"]').waitFor()
-  await page.evaluate(() => window.scrollTo(0, 200))
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(200)
-  await page.locator('[data-row="4"] [data-cell="title"]').click()
+  // "Short" doesn't depend on today's date, unlike "New this week".
+  await page.goto(`${demo.base}/views/short`)
+  await page.locator('[data-row="4"]').waitFor()
+  await page.evaluate(() => window.scrollTo(0, 150))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(150)
+  await page.locator('[data-row="3"] [data-cell="title"]').click()
   await expect(page).toHaveURL(/\/episodes\//)
   await page.goBack()
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(200)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(150)
 })
