@@ -355,6 +355,10 @@ export function EpisodeRow({
     if ((event.target as Element).closest("a, button, input, label, select")) return
     if (window.getSelection()?.isCollapsed === false) return
     open()
+    // The click puts keyboard focus in the row too, so the arrows carry on from here.
+    ;(event.currentTarget as HTMLElement)
+      .querySelector<HTMLElement>("[data-cell=title]")
+      ?.focus({ preventScroll: true })
   }
   return (
     <RowMenu

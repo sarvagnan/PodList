@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -50,6 +50,16 @@ Round 9: coverage 93%; 7 failures (5 major, 2 minor, no blockers). Report: [docs
 Round 10: coverage 92.9%; 5 failures (3 major, 2 minor, no blockers). Report: [docs/ui-grade/round-10.md](docs/ui-grade/round-10.md). Graded build c4cadf6. Platform fit and Interaction capped at 6.9; uncapped 8.3 and 8.4, Overall about 8.4. Since round 7 every category without a cap scores 7.9–8.8: each fresh grader finds a few new narrow majors, and each one caps a category.
 
 Round 11: coverage 93.8%; 7 failures (4 major, 3 minor, no blockers). Report: [docs/ui-grade/round-11.md](docs/ui-grade/round-11.md). Graded build a64216b. Four categories capped at 6.9, each by one local defect; uncapped 8.4–8.8.
+
+Round 12: coverage 94.9%; 4 failures (2 major, 2 minor, no blockers). Report: [docs/ui-grade/round-12.md](docs/ui-grade/round-12.md). Graded build e26d615. Consistency and Platform fit capped at 6.9; uncapped about 8.3 and 8.7, Overall about 8.5. Interaction & feedback is uncapped for the first time (8.4).
+
+## Work list (round 12)
+
+Fixed on 7 Nov:
+- [x] LIST-07 a click on a View row puts keyboard focus in it, and with an Episode open the arrows carry it along · CTRL-04 the feed address is judged when you leave the field or press Enter, never mid-address.
+- [x] Minors: APPEAR-04 placeholders at the muted text colour (6.6:1) · APPEAR-11 loading Entries have a real row's title and facts lines.
+- [x] Owner decision (7 Nov): PodList runs in one tab at a time, so its own row menus drop "Open in New Tab" and keep Copy Link (ADR 0005); screens stay real links.
+- [ ] Not done: toast naming; settings layouts; Episode panel actions; shortcut sheet keys; wrapped metadata starting with "·"; drawer focus ring and Up next reorder; Search's form; Trash in the sidebar; first-run marks; icons at 200% text.
 
 ## Work list (round 11)
 

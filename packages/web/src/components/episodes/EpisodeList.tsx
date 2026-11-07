@@ -29,7 +29,8 @@ export function EpisodeList({
   readonly ready: boolean
   /** The Episode open beside the list. */
   readonly selected?: string | undefined
-  readonly onOpen: (episodeId: string) => void
+  /** Opens an Episode; `replace` when the keyboard moves the open one along the list. */
+  readonly onOpen: (episodeId: string, how?: { readonly replace: boolean }) => void
   readonly checked: ReadonlySet<string>
   readonly setChecked: (update: (current: ReadonlySet<string>) => ReadonlySet<string>) => void
 }) {
@@ -57,6 +58,12 @@ export function EpisodeList({
     onCopy: (index) => {
       const id = episodes[index]?.id
       if (id !== undefined) void copyLink(id)
+    },
+    // With an Episode open beside the list, the arrows carry it along (LIST-07).
+    onRowMove: (index) => {
+      const id = episodes[index]?.id
+      if (selected !== undefined && id !== undefined && id !== selected)
+        onOpen(id, { replace: true })
     }
   })
   // Shift-click ticks the range from the last row ticked or unticked.

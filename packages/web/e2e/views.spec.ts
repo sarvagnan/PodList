@@ -95,5 +95,6 @@ test("a View that isn't there says so, names the tab and leads back", async ({ p
   await expect(page.getByRole("heading", { name: "View not found", level: 1 })).toBeVisible()
   await expect(page).toHaveTitle("View not found · PodList")
   await page.getByRole("main").getByRole("link", { name: "See your Views" }).click()
-  await expect(page).toHaveURL(/\/views$/)
+  // Views, or (on desktop) straight on to one of them.
+  await expect(page).toHaveURL(/\/views(\/(?!nope)|$)/)
 })

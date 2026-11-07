@@ -1,7 +1,7 @@
 import { ContextMenu } from "@base-ui/react/context-menu"
 import { Check } from "lucide-react"
 import { cloneElement, type ReactElement, type ReactNode, useEffect, useId, useRef } from "react"
-import { inMacApp, shareLink } from "../../lib/share.ts"
+import { inMacApp } from "../../lib/share.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { useCopyLink } from "../feedback/useCopyLink.ts"
 
@@ -21,8 +21,10 @@ export type RowCommand =
 
 export interface RowMenuProps {
   readonly commands: ReadonlyArray<RowCommand>
-  /** The row's page in the app: adds Open in New Tab (in the Mac app, Open in Browser)
-   * and Copy Link, as links to the PodList server. */
+  /** The row's page in the app: adds Copy Link, a link to the PodList server (and in the
+   * Mac app, Open in Browser). No "Open in New Tab": PodList runs in one tab at a time, so
+   * a second would only offer to take over. The browser's own menu on a title link still
+   * has it. */
   readonly link?: string
   /** The row element; the menu opens from anywhere in it. */
   readonly render: ReactElement<Record<string, unknown>>
@@ -52,15 +54,7 @@ export function RowMenuItems({
   const all: ReadonlyArray<RowCommand> =
     link === undefined
       ? commands
-      : [
-          ...commands,
-          { separator: true },
-          {
-            label: "Open in New Tab",
-            run: () => void shareLink(link).then((url) => window.open(url, "_blank", "noopener"))
-          },
-          { label: "Copy Link", run: () => void copy(link) }
-        ]
+      : [...commands, { separator: true }, { label: "Copy Link", run: () => void copy(link) }]
   return all.map((command, index) =>
     "separator" in command ? (
       // biome-ignore lint/suspicious/noArrayIndexKey: separators have no identity of their own.

@@ -30,6 +30,8 @@ export interface RowGrid {
   readonly onSelectAll?: () => void
   /** Cmd/Ctrl-C on a row with no text selected: copy that row's link. */
   readonly onCopy?: (index: number) => void
+  /** The keyboard moved to another row (an open Episode follows it, as in Mail). */
+  readonly onRowMove?: (index: number) => void
 }
 
 export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGrid) {
@@ -70,7 +72,9 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
 
   const focusCell = (row: number, cell: number | null, then?: () => void) => {
     const index = Math.max(0, Math.min(grid.count - 1, row))
+    const moved = index !== active.current.row
     active.current = { row: index, cell }
+    if (moved) grid.onRowMove?.(index)
     const land = () => {
       const cells = visibleCells(rowAt(index))
       const target = cells[Math.min(cell ?? titleCell(rowAt(index)), cells.length - 1)]

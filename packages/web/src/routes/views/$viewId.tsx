@@ -57,7 +57,8 @@ function ViewDetail() {
     !AsyncResult.isWaiting(subscriptionsResult) &&
     AsyncResult.getOrElse(subscriptionsResult, () => null)?.length === 0
 
-  const open = (episodeId: string) => navigate({ search: { episode: episodeId } })
+  const open = (episodeId: string, how?: { readonly replace: boolean }) =>
+    navigate({ search: { episode: episodeId }, replace: how?.replace ?? false })
   // Closing the panel puts focus back on the row it showed (WKEY-03).
   const closePanel = () => {
     const shown = selected

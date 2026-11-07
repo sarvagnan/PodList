@@ -106,7 +106,9 @@ function SearchPage() {
             label="Search results"
             ready={!AsyncResult.isInitial(result)}
             selected={selected}
-            onOpen={(episodeId) => navigate({ search: { q, episode: episodeId } })}
+            onOpen={(episodeId, how) =>
+              navigate({ search: { q, episode: episodeId }, replace: how?.replace ?? false })
+            }
             checked={checked}
             setChecked={(update) => setCheckedState(update(checked))}
           />

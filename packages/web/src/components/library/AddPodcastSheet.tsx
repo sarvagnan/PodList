@@ -224,7 +224,10 @@ function FeedPreview({ url }: { readonly url: string }) {
 function AddressTab() {
   const id = useId()
   const [text, setText] = useState("")
-  const invalid = text.trim().length > 3 && !looksLikeFeed(text)
+  // Judged once you've finished typing (leaving the field, or Enter), never mid-address:
+  // "http" is the start of a good one (CTRL-04). Once shown, it clears as soon as it's right.
+  const [checked, setChecked] = useState(false)
+  const invalid = checked && text.trim().length > 0 && !looksLikeFeed(text)
   return (
     <div>
       <label htmlFor={`${id}-url`} className="text-row font-medium">
@@ -240,9 +243,11 @@ function AddressTab() {
         aria-describedby={`${id}-help`}
         onChange={(event) => setText(event.target.value)}
         // Enter subscribes, once the address has been found to be a podcast.
+        onBlur={() => setChecked(true)}
         onKeyDown={(event) => {
           if (event.key !== "Enter") return
           event.preventDefault()
+          setChecked(true)
           document.querySelector<HTMLButtonElement>("[data-feed-preview] [data-subscribe]")?.click()
         }}
         className="mt-1.5 min-h-11 w-full rounded-lg border border-field bg-card px-3 py-2 text-row aria-invalid:border-destructive"

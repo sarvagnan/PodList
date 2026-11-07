@@ -272,3 +272,18 @@ test("the Library's select-every box shows when only some are selected", async (
     )
     .toBe(true)
 })
+
+test("a feed address isn't called wrong while it's still being typed", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("button", { name: "Add podcasts" }).click()
+  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
+  await sheet.getByRole("button", { name: "Feed address" }).click()
+  const field = sheet.getByRole("textbox", { name: "Feed address" })
+  await field.pressSequentially("https://")
+  await expect(field).toHaveAttribute("aria-invalid", "false")
+  await field.press("Tab")
+  await expect(field).toHaveAttribute("aria-invalid", "true")
+  await field.fill("https://example.com/feed.xml")
+  await expect(field).toHaveAttribute("aria-invalid", "false")
+})

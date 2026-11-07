@@ -394,11 +394,15 @@ function PlaylistDetail() {
                             </span>
                           )}
                           {title === undefined && !ready ? (
+                            // A title line and (below) a facts line, each the height of the
+                            // real one, so nothing moves when the details arrive (APPEAR-11).
                             <span
                               role="status"
                               aria-label="Loading Episode"
-                              className="block h-3.5 w-2/3 rounded bg-secondary"
-                            />
+                              className="flex h-[1.5em] items-center text-row"
+                            >
+                              <span className="block h-3.5 w-2/3 rounded bg-secondary" />
+                            </span>
                           ) : title === undefined ? (
                             <span className="line-clamp-2 text-row font-medium">
                               Episode unavailable
@@ -437,7 +441,16 @@ function PlaylistDetail() {
                               </span>
                             )}
                             <span className="text-small whitespace-nowrap text-muted-foreground tabular-nums">
-                              {time}
+                              {title === undefined && !ready ? (
+                                <span
+                                  aria-hidden="true"
+                                  className="flex h-[1.5em] w-16 items-center"
+                                >
+                                  <span className="block h-3 w-full rounded bg-secondary" />
+                                </span>
+                              ) : (
+                                time
+                              )}
                             </span>
                           </span>
                         </GridCell>

@@ -132,6 +132,13 @@
 }
 
 /* High-contrast (forced colors) mode keeps boundaries, progress and selection (APPEAR-03). */
+/* Placeholders at the muted text colour (6.6:1), not half-strength: in the View editor
+   "Any words" is the row's whole value (APPEAR-04). */
+::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
 /* Selects keep the native control (its keyboard and phone picker) but match the app's
    fields: a chevron in the text colour, with room so text never runs under it.
    Unlayered, so it outlasts the padding utilities on each select. */

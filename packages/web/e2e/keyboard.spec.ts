@@ -184,3 +184,26 @@ test("the View editor holds together at 200% text", async ({ page }) => {
   expect(overflowing).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(412)
 })
+
+test("a click on a row puts focus in it, and the arrows carry the open Episode", async ({
+  page
+}) => {
+  await desktop(page, "/views/short")
+  const row = page.locator('[data-row="1"]')
+  const box = await row.boundingBox()
+  // The row's empty space, away from its link and buttons.
+  await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.55, (box?.y ?? 0) + 8)
+  await expect(page).toHaveURL(/\?episode=/)
+  await expect(page.locator('[data-row="1"] [data-cell="title"]')).toBeFocused()
+  const first = new URL(page.url()).searchParams.get("episode")
+  await page.keyboard.press("ArrowDown")
+  await expect(page.locator('[data-row="2"] [data-cell="title"]')).toBeFocused()
+  await expect.poll(() => new URL(page.url()).searchParams.get("episode")).not.toBe(first)
+  // The row menu offers Copy Link, not a second tab (PodList runs in one tab at a time).
+  await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.55, (box?.y ?? 0) + 8, {
+    button: "right"
+  })
+  const menu = page.getByRole("menu")
+  await expect(menu.getByRole("menuitem", { name: "Copy Link" })).toBeVisible()
+  await expect(menu.getByRole("menuitem", { name: "Open in New Tab" })).toHaveCount(0)
+})
