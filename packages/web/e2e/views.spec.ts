@@ -73,7 +73,8 @@ test("Search finds by words and saves as a named View", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/views/short`)
   await rows(page).first().waitFor()
-  await page.keyboard.press("ControlOrMeta+k")
+  // ⌘K, on every OS here: Ctrl+K belongs to the browser outside a Mac (BROWSER-05).
+  await page.keyboard.press("Meta+k")
   const field = page.getByRole("searchbox", { name: "Search the Library" })
   await expect(field).toBeFocused()
   await field.fill("market")
