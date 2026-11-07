@@ -21,7 +21,8 @@ const titles = (page: Page) =>
 test("removes an Entry, and Cmd/Ctrl-Z puts it back after the toast", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.locator("main [role=row]").first().waitFor()
+  // Titles arrive with the catalogue; until then rows show placeholders.
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const before = await titles(page)
   const victim = before[1] ?? ""
   await page.getByRole("button", { name: `Remove ${victim} from Commute` }).click()
@@ -43,7 +44,8 @@ test("removes an Entry, and Cmd/Ctrl-Z puts it back after the toast", async ({ p
 test("the toast's Undo takes back its own step", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.locator("main [role=row]").first().waitFor()
+  // Titles arrive with the catalogue; until then rows show placeholders.
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const before = await titles(page)
   await page.getByRole("button", { name: `Remove ${before[0]} from Commute` }).click()
   await page.getByRole("button", { name: "Undo" }).click()
@@ -53,7 +55,8 @@ test("the toast's Undo takes back its own step", async ({ page }) => {
 test("Cmd/Ctrl-Shift-Z does an undone step again", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.locator("main [role=row]").first().waitFor()
+  // Titles arrive with the catalogue; until then rows show placeholders.
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const before = await titles(page)
   const victim = before[0] ?? ""
   await page.getByRole("button", { name: `Remove ${victim} from Commute` }).click()
@@ -69,7 +72,8 @@ test("Cmd/Ctrl-Shift-Z does an undone step again", async ({ page }) => {
 test("removing a row by keyboard keeps focus in the list", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.locator("main [role=row]").first().waitFor()
+  // Titles arrive with the catalogue; until then rows show placeholders.
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const remove = page.getByRole("button", { name: /^Remove .* from Commute$/ }).first()
   await remove.focus()
   await page.keyboard.press("Enter")

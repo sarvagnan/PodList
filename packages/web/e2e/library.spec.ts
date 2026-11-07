@@ -4,6 +4,14 @@ import { startDemo } from "../ui-flows/demo.mjs"
 
 // The Library and a Subscription's screen (docs/design/ui-layout.md › Library).
 
+/** Waits until the server has an edit, so a reload can't arrive before it does. */
+const onServer = (path: string, text: string) =>
+  expect
+    .poll(async () => (await (await fetch(`${demo.base}/api${path}`)).text()).includes(text), {
+      timeout: 15_000
+    })
+    .toBe(true)
+
 let demo: { base: string; stop: () => void }
 test.beforeEach(async () => {
   demo = await startDemo()
@@ -25,6 +33,7 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   await page.getByRole("link", { name: /Slow Build/ }).click()
   await expect(page.getByRole("heading", { name: "Slow Build", level: 1 })).toBeVisible()
   await page.getByRole("combobox", { name: "Speed" }).selectOption("1.5")
+  await onServer("/subscriptions", '"speed":1.5')
   await page.reload()
   await expect(page.getByRole("combobox", { name: "Speed" })).toHaveValue("1.5")
 
@@ -67,6 +76,8 @@ test("Settings keep the default speed and how long the Trash keeps Playlists", a
     .click()
   await page.getByRole("combobox", { name: /^Speed/ }).selectOption("1.5")
   await page.getByRole("combobox", { name: "Keep deleted Playlists" }).selectOption("14")
+  await onServer("/sync/pull?since=0", '"trashDays":14')
+  await onServer("/sync/pull?since=0", '"speed":1.5')
   await page.reload()
   await expect(page.getByRole("combobox", { name: /^Speed/ })).toHaveValue("1.5")
   await expect(page.getByRole("combobox", { name: "Keep deleted Playlists" })).toHaveValue("14")
