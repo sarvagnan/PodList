@@ -55,7 +55,8 @@ test("the Default Playlist keeps its name and can't be deleted", async ({ page }
 test("reorders Entries with the keyboard", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/default`)
-  await page.locator("main [role=row]").first().waitFor()
+  // Titles arrive with the catalogue; until then rows show placeholders.
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const before = await titles(page)
   const handle = page
     .locator("main [role=row]")
