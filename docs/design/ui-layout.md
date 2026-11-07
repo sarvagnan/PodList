@@ -28,6 +28,28 @@ Artwork · back 15 s · **Play/Pause** · forward 30 s · queue badge (number of
 - Main page: large Artwork (Chapter, then Episode, then podcast — see `CONTEXT.md` › Artwork), Chapter title with previous/next, title, seekable scrubber with Chapter ticks, back 15 / Play / forward 30, speed, sleep, plus Chapters / Episode / Up next. Desktop shows the Chapter list and Up next beside the player.
 - **Everything opened from the drawer stays in the drawer** as stacked pages with Back until it is dismissed: **Queue** (the Active Playlist's Entries, play-from-here, reorder, *Switch Playlist*), **Episode** (same detail as above; Add opens over the drawer), **Chapters** (phone). Starting playback from any of these returns to the drawer's main page. The queue badge opens the drawer directly on Queue.
 
+## View editor and Search (design round 2, variant R)
+
+Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist-design-round-2/ (`#view-editor/R-desktop/view`); source on branch `prototype/design-round-2`.
+
+- **Form (from C):** every condition is always a row, set to "Any" until changed: Published, Podcasts, Mentions (text), Played, Starred, In a Playlist, Length; then Sort and Show (limit). Nothing is added or removed, so the "all must match" rule is visible.
+- **Desktop:** reading a View is unchanged: its Episodes, with the target Playlist (or the open Episode) beside them. **Edit View** swaps that panel for the form; the list becomes a live preview. Edits apply as they are made (no Save; Undo takes one back); **Done** puts the panel back. Delete View is at the bottom of the form.
+- **Phone:** the View screen has **Edit**; the form is a full screen that drills into a picker per row, with a live "Matches N Episodes" line.
+- **Played choices:** Any, Unplayed (includes in progress), In progress, Played.
+- **Search:** the same form with Mentions filled in, as an unsaved View. Saving it asks for a name.
+
+## Playlist settings and Rewind (design round 2, variant C)
+
+- **Settings** are their own page: name, Clear on Played, Delete (to Trash, with its History and Listening Timeline).
+- **Listening Timeline** is an event list grouped by Listening Session: started, finished, and your own edits, each with **Rewind to here**. A confirmation lists exactly what will become unplayed again and what is kept. A Rewind can be undone.
+
+## Library and Subscriptions (design round 2, variant C)
+
+- **Library** groups Subscriptions by their Download Rule on this Device; desktop is a table with bulk rule changes.
+- **Add** is one sheet: Search (Podcast Index), Feed address (resolved directly, no index needed), OPML.
+- **Subscription settings:** Download Rule for this Device (new Subscriptions start at Stream), Played threshold in seconds, Playback Settings overrides.
+- **First run** is a skippable checklist, and creates starter Views.
+
 ## Not yet designed
 
-Library / Subscription management and Download Rules, the View editor, Playlist settings (Clear on Played), the Rewind flow on the Listening Timeline, OPML import and first run, Search results, dark theme, Electron-specific chrome.
+Dark theme. Global Playback Settings (a Settings screen, pod-g1v.7).

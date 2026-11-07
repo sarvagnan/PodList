@@ -23,15 +23,19 @@ The date the feed says an Episode was released. "New" and every date-based View 
 _Avoid_: Added, discovered, fetched
 
 **Back Catalogue**:
-The Episodes a Subscription already had when the user subscribed. Part of the Library like any other Episode.
+The Episodes a Subscription already had when the user subscribed. Part of the Library like any other Episode, and unplayed like any other.
 _Avoid_: Archive, old episodes
 
 **Played**:
-An Episode-level fact that the user has finished (or marked as finished) the Episode, regardless of which Playlist it was heard in. Listening to within 30 seconds of the end counts as finishing, unless the Subscription overrides that.
+An Episode-level fact that the user has finished (or marked as finished) the Episode, regardless of which Playlist it was heard in. Listening to within 30 seconds of the end counts as finishing, unless the Subscription sets its own number of seconds.
 _Avoid_: Completed, listened, done
 
+**Unplayed**:
+Not Played. An Episode with a Position somewhere (in progress) is still Unplayed.
+_Avoid_: New, unheard
+
 **Orphaned**:
-An Episode whose Subscription was removed but which is still an Entry somewhere or Starred. It stays until the user removes it; nothing else from that podcast remains in the Library.
+An Episode whose Subscription was removed but which is still an Entry somewhere or Starred. It stays until the user removes it, and Views and Search still find it; nothing else from that podcast remains in the Library. Removing a Subscription doesn't remove downloads on any Device.
 _Avoid_: Unsubscribed episode, dangling
 
 **Chapter**:
@@ -49,11 +53,11 @@ _Avoid_: Favourite, saved, bookmark, like
 ### Finding
 
 **View**:
-A saved, named filter over the Library that is re-evaluated every time it is opened; it never stores a list of Episodes.
+A saved, named filter over the Library that is re-evaluated every time it is opened; it never stores a list of Episodes. Its conditions all have to match; text matches titles, podcast names and show notes (when the feed has them). Edits to a View take effect as they are made, with no separate save.
 _Avoid_: Filter, smart playlist, feed, saved search
 
 **Search**:
-An unsaved, one-off View; it can be promoted to a View.
+An unsaved, one-off View; it can be promoted to a View, which needs a name.
 _Avoid_: Query, ad-hoc filter
 
 ### Listening
@@ -94,13 +98,21 @@ _Avoid_: Log, played list
 A Playlist's continuous record of what it was playing and when (clock time, Entry, Position), kept for 30 days. Unlike History, it covers partial listening, not just finished Entries.
 _Avoid_: Log, playback history, undo stack
 
+**Listening Session**:
+One stretch of listening in a Playlist on its Listening Timeline. The Listening Timeline is shown, and Rewind is chosen from, a Listening Session at a time.
+_Avoid_: Sitting, visit
+
 **Rewind**:
-Returning a Playlist to a moment on its Listening Timeline: the Cursor and Position go back to that moment, and every Episode that became Played through that Playlist's playback since then becomes unplayed again, with its Entry restored. Deliberate edits made since — adds, reorders, Episodes marked Played by hand — are kept.
+Returning a Playlist to a moment on its Listening Timeline: the Cursor and Position go back to that moment, and every Episode that became Played through that Playlist's playback since then becomes unplayed again, with its Entry restored. Episodes started since then lose the Position they gained. Deliberate edits made since — adds, reorders, Episodes marked Played by hand — are kept. A Rewind can itself be undone.
 _Avoid_: Undo, time travel, restore
 
 **Clear on Played**:
-A Playlist setting under which an Entry leaves the Playlist as soon as its Episode becomes Played — wherever that happened. On by default for the Default Playlist; Playlists without it keep their Entries.
+A Playlist setting under which an Entry leaves the Playlist as soon as its Episode becomes Played — wherever that happened. On by default for the Default Playlist; Playlists without it keep their Entries. Turning it on doesn't remove Entries that are already Played.
 _Avoid_: Auto-delete, remove when finished
+
+**Trash**:
+Where a deleted Playlist goes, together with its History and Listening Timeline, which belong to it.
+_Avoid_: Bin, recycle, archive
 
 **Playback Settings**:
 Speed, intro/outro skipping, volume boost and similar. Global defaults, optionally overridden per Subscription; never per Playlist. Changing speed in the player affects only the Episode playing now; the saved Playback Settings are changed only in settings.
@@ -113,7 +125,7 @@ One installation of the client (a browser, the desktop app, a phone). Download d
 _Avoid_: Client, machine
 
 **Download Rule**:
-The per-Subscription, per-Device choice of when Episodes are stored for offline listening: never, when they become an Entry, or as soon as they are published — optionally capped at a maximum number kept. A download is discarded once its Episode is no longer an Entry anywhere.
+The per-Subscription, per-Device choice of when Episodes are stored for offline listening: Stream (never stored), when they become an Entry, or as soon as they are published — optionally capped at a maximum number kept. A new Subscription starts at Stream. A download is discarded once its Episode is no longer an Entry anywhere.
 _Avoid_: Auto-download setting, offline policy
 
 **Manual Download**:
