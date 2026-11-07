@@ -274,7 +274,7 @@ function parseHash() {
   const out = { area: AREAS[area] ? area : "view-editor", variant: "A", device: "phone", screen: null };
   if (vd) {
     const [v, d] = vd.split("-");
-    if (/^[ABC]$/.test(v)) out.variant = v;
+    if (/^[ABCR]$/.test(v)) out.variant = v;
     if (d === "desktop" || d === "phone") out.device = d;
   }
   const scr = AREAS[out.area].variants[out.variant].screens;
@@ -294,11 +294,11 @@ function load() {
 function chrome() {
   const ar = AREAS[S.area];
   document.getElementById("areas").innerHTML = AREA_ORDER.filter((k) => AREAS[k]).map((k) => `<button aria-pressed="${k === S.area}" data-chrome="area" data-v="${k}">${AREAS[k].title}</button>`).join("");
-  document.getElementById("variants").innerHTML = ["A", "B", "C"].filter((v) => ar.variants[v]).map((v) => `<button aria-pressed="${v === S.variant}" data-chrome="variant" data-v="${v}">${v} · ${ar.variants[v].name}</button>`).join("");
+  document.getElementById("variants").innerHTML = ["A", "B", "C", "R"].filter((v) => ar.variants[v]).map((v) => `<button aria-pressed="${v === S.variant}" data-chrome="variant" data-v="${v}">${v} · ${ar.variants[v].name}</button>`).join("");
   document.getElementById("devices").innerHTML = [["phone", "Phone 390"], ["desktop", "Desktop 1280"]].map(([k, l]) => `<button aria-pressed="${k === S.device}" data-chrome="device" data-v="${k}">${l}</button>`).join("");
   const v = ar.variants[S.variant];
   document.getElementById("notes").innerHTML = `<h2>${ar.title}: jump to a state in ${S.variant}</h2><div class="jump">${v.screens.map(([k, l]) => `<button aria-pressed="${k === S.st.screen0}" data-chrome="screen" data-v="${k}">${l}</button>`).join("")}</div>
-  <h2>Variants</h2><div class="vgrid">${["A", "B", "C"].filter((k) => ar.variants[k]).map((k) => `<div class="v ${k === S.variant ? "cur" : ""}"><b>${k} — ${ar.variants[k].name}</b><p>${ar.variants[k].caption}</p></div>`).join("")}</div>
+  <h2>Variants</h2><div class="vgrid">${["A", "B", "C", "R"].filter((k) => ar.variants[k]).map((k) => `<div class="v ${k === S.variant ? "cur" : ""}"><b>${k} — ${ar.variants[k].name}</b><p>${ar.variants[k].caption}</p></div>`).join("")}</div>
   <h2>Open questions</h2><div class="q"><ol>${ar.questions.map((q) => `<li>${q}</li>`).join("")}</ol></div>
   <p class="xs" style="color:var(--chrome-muted);margin-top:18px">Throwaway prototype. All podcasts and Episodes are invented. Interactions keep state in memory only; switching variant or reloading resets it. Esc closes the top sheet or dialog.</p>`;
 }

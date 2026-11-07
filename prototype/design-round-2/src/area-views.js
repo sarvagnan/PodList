@@ -337,12 +337,52 @@
     return desk({ sel: isSearch ? "search" : d.id, main, views, overlay: (st.sub && st.sub.kind === "delete" ? deleteAlert(st, 0) : "") + (st.toast ? toast(st.toast) : "") });
   }
 
+  // ================= Recommended: C's form, editing in the right-hand panel =================
+  // Reading a View is unchanged from today's app: results, and beside them the Playlist that
+  // Next and Last go to (or the open Episode). Edit swaps that panel for C's form; the
+  // results become a live preview; Save or Revert puts the panel back.
+  const UPNEXT = ["e1", "e3", "e7", "e5", "e19"].map((id) => EPS.find((e) => e.id === id));
+  function targetPanelR() {
+    return `<div style="padding:20px 18px"><div class="label">Next and Last go to</div>
+      <div class="row mt8" style="justify-content:space-between"><h2 class="h2" style="margin:0">Default</h2>${sel3()}</div>
+      <ol style="list-style:none;margin:12px 0 0;padding:0">${UPNEXT.map((e, i) => `<li><button class="row gap12" data-a="rOpenEp" data-v="${e.id}" style="width:100%;text-align:left;padding:8px;border-radius:12px;${i === 0 ? "background:var(--accent)" : ""}">${art(e.p, 36)}<span class="grow">${i === 0 ? '<span class="xs b" style="color:var(--primary);letter-spacing:.06em;display:block">NOW</span>' : ""}<span class="sm m clamp2" style="display:block">${esc(e.t)}</span><span class="xs muted">${e.pos ? e.m - e.pos + " min left" : fmtLen(e.m)}</span></span></button></li>`).join("")}</ol></div>`;
+  }
+  const sel3 = () => `<select aria-label="Next and Last go to" style="height:32px;width:auto;font-size:13px"><option>Default</option><option>Commute</option><option>Deep dives</option></select>`;
+  function episodePanelR(id) {
+    const e = EPS.find((x) => x.id === id) || EPS[0];
+    const act = (icon, label, on) => `<button class="col gap4" data-a="noop" style="align-items:center;width:62px;font-size:12px;font-weight:500"><span style="display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:${on ? "var(--primary);color:#fff" : "var(--sec)"}">${ic(icon, 18)}</span>${label}</button>`;
+    return `<div style="padding:12px 18px 24px"><div class="row" style="justify-content:flex-end"><button class="ib" aria-label="Close Episode" data-a="rCloseEp">${ic("x", 18)}</button></div>
+      <div class="row gap12">${art(e.p, 72)}<div class="grow"><div class="xs muted">${esc(POD[e.p].t)}</div><div class="m" style="font-size:17px;line-height:1.3;margin-top:2px">${esc(e.t)}</div><div class="xs muted mt4">${fmtPub(e.d)} · ${fmtLen(e.m)}</div></div></div>
+      <div class="row mt16" style="justify-content:space-between">${act("check", "Played")}${act("listStart", "Next")}${act("play", "Play", true)}${act("listEnd", "Last")}${act("star", "Star")}</div>
+      <div class="label mt16">Show notes</div><p class="sm" style="margin:6px 0 0">${esc(e.n)}</p></div>`;
+  }
+  function renderR(dev, st) {
+    if (dev === "phone") return renderC(dev, st);
+    const v = curView(st);
+    const editing = st.screen === "edit";
+    const d = st.draft;
+    const live = editing ? viewFromDraft(d) : runView(v.f, v.sort, v.limit);
+    const changed = editing && JSON.stringify({ f: d.f, sort: d.sort, limit: d.limit, name: d.name }) !== JSON.stringify({ f: v.f, sort: v.sort, limit: v.limit, name: v.name });
+    const header = `<header class="hdr"><div class="row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">${esc(editing ? d.name || "Untitled View" : v.name)}</h1>${editing ? '<span class="badge" style="background:var(--accent);color:var(--primary)">Editing · preview</span>' : `<button class="btn btn-s" data-a="rEdit">${ic("sliders", 16)}Edit View</button>`}</div>
+      <p class="sm muted" style="margin:6px 0 0" aria-live="polite">${esc(summaryLine(editing ? d.f : v.f))} · ${SORTS[editing ? d.sort : v.sort]} · <b class="tab-num" style="color:var(--fg)">${plural(live.rows.length, "Episode")}</b>${changed ? ' <span style="color:var(--primary)">· not saved</span>' : ""}</p></header>`;
+    const main = `${header}<div class="px20">${epTable(live.rows)}</div>`;
+    const right = editing
+      ? `<div class="rform" style="padding:20px 18px 24px"><div class="row" style="justify-content:space-between"><h2 class="h2" style="margin:0">Edit View</h2><button class="ib" aria-label="Close without saving" data-a="cCancel">${ic("x", 18)}</button></div>
+          <div class="mt12">${formC(st, true)}</div>
+          <div class="row mt16" style="justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:#fbfaf8;padding:10px 0"><button class="btn btn-s" data-a="cCancel">${changed ? "Revert" : "Done"}</button><button class="btn btn-p" data-a="cSave" ${changed ? "" : "disabled"}>Save</button></div></div>`
+      : st.screen === "episode"
+        ? episodePanelR(st.ep)
+        : targetPanelR();
+    return desk({ sel: st.cur, main, right, views: st.views, overlay: (st.sub && st.sub.kind === "delete" ? deleteAlert(st, 0) : "") + (st.toast ? toast(st.toast) : "") });
+  }
+
   AREAS["view-editor"] = {
     title: "View editor & Search",
     variants: {
       A: { name: "Editor sheet", caption: "Editing opens a sheet (phone) or dialog (desktop) listing only the conditions in use, each a row with its own editor and an “Add a condition” list. Calm and familiar, with a live count and Preview, but you edit away from the results.", screens: [["list", "Views list"], ["edit", "Edit a View"], ["add", "Add a condition"], ["new", "New View (empty)"], ["search", "Search results"]] },
       B: { name: "Chips over results", caption: "A View is its own editor: conditions are chips above the live Episode list, each opening a small editor; changes show at once and a bar offers Save or Discard. Search is the same screen with a text chip and Save as View. Fastest to tune, but chips wrap and crowd on a phone.", screens: [["view", "A View"], ["chip", "Chip editor open"], ["add", "Adding a condition"], ["search", "Search results"], ["save", "Save search as View"]] },
-      C: { name: "Settings form", caption: "Every condition is always present as a row set to “Any” until changed, so there is nothing to add or remove and the flat AND is obvious. Phone drills into pickers; desktop shows the form beside live results, and a Search is literally an unsaved View in the sidebar. Most explicit, but longest.", screens: [["edit", "Edit a View"], ["pick", "Picker (phone)"], ["search", "Search as unsaved View"], ["new", "New View"]] }
+      C: { name: "Settings form", caption: "Every condition is always present as a row set to “Any” until changed, so there is nothing to add or remove and the flat AND is obvious. Phone drills into pickers; desktop shows the form beside live results, and a Search is literally an unsaved View in the sidebar. Most explicit, but longest.", screens: [["edit", "Edit a View"], ["pick", "Picker (phone)"], ["search", "Search as unsaved View"], ["new", "New View"]] },
+      R: { name: "Recommended: C, editing in the side panel", caption: "C’s form, but a View reads as it does today: its Episodes, with the Playlist that Next and Last go to (or the open Episode) beside them. Edit View swaps that panel for the form, the list becomes a live preview of the edits, and Save or Revert puts the panel back. Editing is occasional, so the form doesn’t take room the rest of the time. Phone is C as mocked: the View screen with an Edit button, then the full-screen form.", screens: [["view", "Reading a View"], ["episode", "Episode open beside it"], ["edit", "Editing in the panel"], ["edited", "Edited, not saved yet"]] }
     },
     questions: [
       "Played state: the model has unplayed / inProgress / played. Does “unplayed” include In progress Episodes? These mocks add a fourth choice, “Not Played” (either), which most Views seem to want.",
@@ -374,6 +414,13 @@
         if (screen === "new") { st.draft = newDraft(null); st.screen = "edit"; }
         if (screen === "search") { st.draft = newDraft(null); st.draft.f.text = "budget"; st.screen = dev === "phone" ? "searchResults" : "search"; }
       }
+      if (variant === "R") {
+        st.cur = "v1";
+        st.draft = newDraft(curView(st));
+        st.screen = dev === "phone" ? (screen === "edit" || screen === "edited" ? "edit" : "view") : screen === "edited" ? "edit" : screen;
+        if (screen === "episode") st.ep = "e3";
+        if (screen === "edited") { st.draft.f.maxDuration = 45; delete st.draft.f.published; st.draft.f.published = { tag: "LastDays", days: 14 }; }
+      }
       return st;
     },
     esc(st) {
@@ -385,18 +432,19 @@
       if (st.draft && S.variant === "A") { st.draft = null; return true; }
       return false;
     },
-    render(variant, dev, st) { return variant === "A" ? renderA(dev, st) : variant === "B" ? renderB(dev, st) : renderC(dev, st); },
+    render(variant, dev, st) { return variant === "A" ? renderA(dev, st) : variant === "B" ? renderB(dev, st) : variant === "R" ? renderR(dev, st) : renderC(dev, st); },
     actions: Object.assign({}, edActions, {
       sheetScrim() { const st = S.st; if (st.sub) this.subCancel(); else if (S.variant === "A") st.draft = null; else st.chip = null; },
       toList() { const st = S.st; st.screen = "list"; st.chip = null; if (S.variant !== "A") st.draft = newDraft(curView(st)); },
       openView(v) {
         const st = S.st; st.cur = v; st.chip = null; st.toast = null;
+        if (S.variant === "R") { st.draft = newDraft(curView(st)); st.screen = "view"; return; }
         if (S.variant === "C") { st.draft = newDraft(curView(st)); st.screen = S.device === "phone" ? "view" : "edit"; return; }
         if (S.variant === "B") { st.draft = newDraft(curView(st)); }
         st.screen = "view";
       },
       newView() { const st = S.st; if (S.variant === "A") { st.draft = newDraft(null); st.focus = "vname"; } else if (S.variant === "B") { st.draft = newDraft(null); st.draft.name = "New View"; st.screen = "view"; st.views = [...st.views, { id: "tmp", name: "New View", f: {}, sort: "publishedDesc", limit: null }]; st.cur = "tmp"; st.draft.id = "tmp"; st.chip = "add"; } else { st.draft = newDraft(null); st.screen = "edit"; st.focus = "vname"; } },
-      editView() { const st = S.st; st.draft = newDraft(curView(st)); st.open = null; if (S.variant === "C") st.screen = "edit"; },
+      editView() { const st = S.st; st.draft = newDraft(curView(st)); st.open = null; if (S.variant === "C" || S.variant === "R") st.screen = "edit"; },
       openSearch() { const st = S.st; if (S.variant === "C") { st.draft = newDraft(null); st.draft.f.text = ""; st.screen = "searchResults"; st.focus = "q"; return; } st.screen = "search"; st.focus = "q"; },
       deskSearch() { const st = S.st; st.chip = null; if (S.variant === "B") { st.draft = newDraft(null); st.draft.f.text = ""; st.screen = "search"; } else if (S.variant === "C") { st.draft = newDraft(null); st.draft.f.text = ""; st.screen = "search"; st.focus = "cText"; return; } else st.screen = "search"; st.focus = "q"; },
       edCancel() { S.st.draft = null; S.st.sub = null; S.st.addMenu = false; },
@@ -429,6 +477,10 @@
       moreB() { S.st.more = !S.st.more; },
       nameCancel() { const st = S.st; if (st.naming === "rename") st.draft.name = curView(st).name; st.naming = null; },
       nameSave() { const st = S.st; const wasSearch = st.screen === "search"; const v = saveDraft(st); st.cur = v.id; st.naming = null; st.screen = "view"; st.draft = newDraft(v); st.toast = wasSearch ? `Saved “${esc(v.name)}” to Views` : `Renamed to “${esc(v.name)}”`; },
+      // Recommended
+      rEdit() { const st = S.st; st.draft = newDraft(curView(st)); st.screen = "edit"; },
+      rOpenEp(v) { S.st.ep = v; S.st.screen = "episode"; },
+      rCloseEp() { S.st.screen = "view"; },
       // C
       cPick(k) { S.st.fromSearch = S.st.screen === "search"; S.st.prev = S.st.screen; S.st.screen = "pick"; S.st.pick = k; },
       cBack() { S.st.screen = S.st.prev || "edit"; },
@@ -443,13 +495,13 @@
       cNotSel(v) { if (v === "any") delete S.st.draft.f.notInAnyPlaylist; else S.st.draft.f.notInAnyPlaylist = true; },
       cMinSel(v) { S.st.draft.f.minDuration = +v || undefined; },
       cMaxSel(v) { S.st.draft.f.maxDuration = +v || undefined; },
-      cCancel() { const st = S.st; if (st.screen === "search") { st.screen = "searchResults"; return; } st.draft = newDraft(curView(st)); if (S.device === "phone") st.screen = "list"; },
+      cCancel() { const st = S.st; if (st.screen === "search") { st.screen = "searchResults"; return; } st.draft = newDraft(curView(st)); if (S.variant === "R") { st.screen = "view"; return; } if (S.device === "phone") st.screen = "list"; },
       cSee() { const st = S.st; st.screen = "searchResults"; },
       cRefine() { S.st.screen = S.st.draft.id ? "edit" : "search"; },
       cSave() {
         const st = S.st;
         if ((st.screen === "search" || st.screen === "searchResults") && !st.draft.name.trim()) { st.draft.name = (st.draft.f.text || "Search").trim(); }
-        const v = saveDraft(st); st.cur = v.id; st.draft = newDraft(v); st.toast = `Saved “${esc(v.name)}”`; st.screen = S.device === "phone" ? "view" : "edit";
+        const v = saveDraft(st); st.cur = v.id; st.draft = newDraft(v); st.toast = `Saved “${esc(v.name)}”`; st.screen = S.device === "phone" || S.variant === "R" ? "view" : "edit";
       }
     })
   };
