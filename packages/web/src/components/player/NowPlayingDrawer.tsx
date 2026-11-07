@@ -432,7 +432,8 @@ export function NowPlayingDrawer() {
         <Drawer.Popup
           data-sheet="drawer"
           onKeyDown={wrapTab}
-          className="forced-colors:border forced-colors:border-[CanvasText] surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl"
+          // While a toast shows, its foot is kept free for it (components/feedback/Toasts).
+          className="forced-colors:border forced-colors:border-[CanvasText] surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] pb-[var(--toast-space,0px)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl"
         >
           <div className="flex h-14 shrink-0 items-center gap-2 px-3">
             {page ? (
@@ -466,7 +467,9 @@ export function NowPlayingDrawer() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {page === undefined && (
-              <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] md:gap-6 md:px-6">
+              // Desktop: the player and Up next side by side in one centred column, not at
+              // the sheet's far edges.
+              <div className="md:mx-auto md:grid md:max-w-[64rem] md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-8 md:px-6">
                 <MainPage current={current} />
                 {/* Desktop: Chapters and Up next beside the player. */}
                 <aside className="hidden space-y-6 md:block">
@@ -487,11 +490,20 @@ export function NowPlayingDrawer() {
                 </aside>
               </div>
             )}
-            {page === "queue" && <UpNext current={current} />}
-            {page === "chapters" && <ChaptersList current={current} />}
-            {page === "playlists" && <SwitchPlaylist />}
-            {page === "episode" && (
-              <EpisodeDetail episodeId={pinned ?? current.episodeId} tone="dark" onPlay={home} />
+            {/* Each page centred under its centred title. */}
+            {page !== undefined && (
+              <div className="mx-auto w-full max-w-[44rem]">
+                {page === "queue" && <UpNext current={current} />}
+                {page === "chapters" && <ChaptersList current={current} />}
+                {page === "playlists" && <SwitchPlaylist />}
+                {page === "episode" && (
+                  <EpisodeDetail
+                    episodeId={pinned ?? current.episodeId}
+                    tone="dark"
+                    onPlay={home}
+                  />
+                )}
+              </div>
             )}
           </div>
         </Drawer.Popup>

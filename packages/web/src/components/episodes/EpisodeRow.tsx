@@ -7,7 +7,7 @@ import type * as React from "react"
 import { Fragment, type ReactNode, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
-import { stateAtom } from "../../app/runtime.ts"
+import { downloadAtom, stateAtom } from "../../app/runtime.ts"
 import { nextLastTarget } from "../../lib/remembered.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -109,7 +109,9 @@ export function EpisodeRow({
 }) {
   const act = useEpisodeActions()
   const navigate = useNavigate()
-  const downloaded = useDownloadStatus(episode.id)?._tag === "Stored"
+  const downloadStatus = useDownloadStatus(episode.id)
+  const downloaded = downloadStatus?._tag === "Stored"
+  const runDownload = useAtomSet(downloadAtom)
   const [adding, setAdding] = useState(false)
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const chosen = useAtomValue(nextLastTargetAtom)
@@ -172,6 +174,21 @@ export function EpisodeRow({
       label: episode.played ? "Mark Unplayed" : "Mark Played",
       run: () => void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
     },
+    // Download, as the row's own button offers it, so the menu has the row's every command.
+    downloaded
+      ? {
+          label: "Remove Download",
+          run: () => runDownload({ _tag: "remove", episodeId: episode.id })
+        }
+      : downloadStatus?._tag === "Downloading"
+        ? {
+            label: "Stop Download",
+            run: () => runDownload({ _tag: "cancel", episodeId: episode.id })
+          }
+        : {
+            label: "Download",
+            run: () => runDownload({ _tag: "download", episodeId: episode.id })
+          },
     { separator: true },
     { label: "Open Episode", run: open }
   ]

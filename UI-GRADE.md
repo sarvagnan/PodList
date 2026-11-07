@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -54,6 +54,15 @@ Round 11: coverage 93.8%; 7 failures (4 major, 3 minor, no blockers). Report: [d
 Round 12: coverage 94.9%; 4 failures (2 major, 2 minor, no blockers). Report: [docs/ui-grade/round-12.md](docs/ui-grade/round-12.md). Graded build e26d615. Consistency and Platform fit capped at 6.9; uncapped about 8.3 and 8.7, Overall about 8.5. Interaction & feedback is uncapped for the first time (8.4).
 
 Round 13: coverage 94%; 1 failure (1 major). Report: [docs/ui-grade/round-13.md](docs/ui-grade/round-13.md). Graded build e619d23. The best round so far: only Typography is capped (WTYPE-02, the Episode action labels at large text); stability 9.0, Platform fit 8.8, Interaction 8.8. About 8.6 with the cap lifted.
+
+Round 14: coverage 91.9%; 3 failures (2 major, 1 minor), one cause: toasts on a layer above the Now Playing drawer. Report: [docs/ui-grade/round-14.md](docs/ui-grade/round-14.md). Graded build 922e506. Only Interaction is capped (about 8.8 uncapped).
+
+## Work list (round 14)
+
+Fixed on 7 Nov:
+- [x] WKEY-03 / WKEY-04 / APPEAR-10 with the drawer open, toasts show inside it, in a strip at its foot it keeps free: inside its focus trap, over none of its controls, and in a lighter fill with a border.
+- [x] Craft: the desktop drawer's player and Up next share one centred column, and its pages are centred; Download (or Stop, Remove) is in a row's right-click and More menus.
+- [ ] Not done: one left edge on the phone; one Play look; toasts across screens; focus ring shape; desktop Episode page alignment; Subscription rows repeat the name; 200% phone facts line; forced colours for NOW and the gear; first-run marks.
 
 ## Work list (round 13)
 

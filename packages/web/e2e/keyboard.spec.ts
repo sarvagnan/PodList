@@ -234,3 +234,50 @@ test("the Episode actions keep apart at 150% and 200% text", async ({ page }) =>
     expect(overlaps).toBe(false)
   }
 })
+
+test("with a toast showing, the drawer keeps focus and the toast covers none of it", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+  const drawer = page.getByRole("dialog")
+  await drawer.getByRole("button", { name: "Episode" }).click()
+  await drawer.getByRole("button", { name: "Star", exact: true }).click()
+  const undo = drawer.getByRole("button", { name: "Undo" })
+  await expect(undo).toBeVisible()
+  await drawer.getByRole("button", { name: /^Back/ }).first().click()
+  // The toast sits in the drawer's free strip, over none of its controls.
+  const overlaps = await page.evaluate(() => {
+    const sheet = document.querySelector('[data-sheet="drawer"]')
+    const toast = sheet?.querySelector(
+      '[data-base-ui-toast-root], [role="dialog"] li, [aria-live] > div'
+    )
+    const undoButton = [...(sheet?.querySelectorAll("button") ?? [])].find(
+      (b) => b.textContent === "Undo"
+    )
+    const box = (toast ?? undoButton?.parentElement)?.getBoundingClientRect()
+    if (!box) return ["no toast"]
+    return [...(sheet?.querySelectorAll("button") ?? [])]
+      .filter((b) => !b.closest("[aria-live], [data-base-ui-toast-viewport]") && b !== undoButton)
+      .filter((b) => {
+        const r = b.getBoundingClientRect()
+        return (
+          r.width > 0 &&
+          r.left < box.right &&
+          box.left < r.right &&
+          r.top < box.bottom &&
+          box.top < r.bottom
+        )
+      })
+      .map((b) => b.getAttribute("aria-label") ?? b.textContent)
+  })
+  expect(overlaps).toEqual([])
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press("Tab")
+    const inside = await page.evaluate(
+      () => document.activeElement?.closest('[data-sheet="drawer"]') !== null
+    )
+    expect(inside, `Tab ${i + 1} stays in the drawer`).toBe(true)
+  }
+})
