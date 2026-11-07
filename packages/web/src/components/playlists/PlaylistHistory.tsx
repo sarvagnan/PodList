@@ -159,7 +159,10 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
               </span>
               {event._tag === "Listened" && (
                 <span className="block text-small text-muted-foreground tabular-nums">
-                  {formatTime(event.from)} → {formatTime(event.to)}
+                  {/* A listen that didn't move gives one time, not "12:34 → 12:34". */}
+                  {Math.round(event.to) === Math.round(event.from)
+                    ? `at ${formatTime(event.from)}`
+                    : `${formatTime(event.from)} → ${formatTime(event.to)}`}
                   {event.end > event.start ? ` · until ${clock(event.end)}` : ""}
                 </span>
               )}

@@ -90,9 +90,9 @@ function PlaylistDetail() {
   if (playlist === undefined) {
     return (
       <>
-        <PageHeader title="Playlist" back={{ to: "/playlists", label: "Playlists" }} />
-        <EmptyState title="This Playlist no longer exists">
-          It may have been deleted on another Device.{" "}
+        <PageHeader title="Playlist not found" back={{ to: "/playlists", label: "Playlists" }} />
+        <EmptyState title="There’s no Playlist at this address">
+          It may have been deleted, here or on another Device, or the link is wrong.{" "}
           <Link to="/playlists" className="font-medium text-primary underline underline-offset-2">
             See your Playlists
           </Link>
@@ -194,12 +194,16 @@ function PlaylistDetail() {
               ["timeline", "Listening Timeline"]
             ] as const
           ).map(([value, label]) => (
-            <button
+            // Links to each section's own address (?tab=), so they open in a new tab, copy
+            // and bookmark like any page (BROWSER-04); the current one is marked as such.
+            <Link
               key={label}
-              type="button"
-              aria-pressed={tab === value}
-              onClick={() => void navigate({ search: value ? { tab: value } : {} })}
-              className="flex h-9 items-center justify-center rounded-full px-3 text-small font-medium whitespace-nowrap text-muted-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-sm"
+              to="/playlists/$playlistId"
+              params={{ playlistId: playlist.id }}
+              search={value ? { tab: value } : {}}
+              aria-current={tab === value ? "page" : undefined}
+              activeOptions={{ exact: true, includeSearch: true }}
+              className="flex h-9 items-center justify-center rounded-full px-3 text-small font-medium whitespace-nowrap text-muted-foreground aria-[current=page]:bg-card aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
             >
               {value === "timeline" ? (
                 // A narrow screen (or large text) keeps the three on one line.
@@ -209,7 +213,7 @@ function PlaylistDetail() {
               ) : (
                 label
               )}
-            </button>
+            </Link>
           ))}
         </div>
       </nav>

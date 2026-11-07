@@ -50,7 +50,14 @@ const tabs = [
 /** The playing Episode's title; a placeholder bar while its details are still syncing. */
 function TrackTitle({ title, className }: { readonly title: string; readonly className: string }) {
   const ready = useLibraryReady()
-  if (title === "" && !ready) {
+  // "Unavailable" only once it has had a moment to arrive: a cold start looks the Episode
+  // up after the bar first draws, and mustn't flash an error meanwhile (APPEAR-11).
+  const [patient, setPatient] = useState(true)
+  useEffect(() => {
+    const timer = setTimeout(() => setPatient(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
+  if (title === "" && (!ready || patient)) {
     return (
       <span
         role="status"

@@ -167,7 +167,8 @@ select:not([multiple]) {
     outline: 2px solid Highlight;
   }
   /* Selected segments (Entries / History / Timeline, Add podcasts) and pressed toggles. */
-  [aria-pressed="true"] {
+  [aria-pressed="true"],
+  nav [aria-current="page"] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }

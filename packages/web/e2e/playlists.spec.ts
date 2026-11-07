@@ -86,13 +86,18 @@ test("reorders Entries with the keyboard", async ({ page }) => {
 test("the Listening Timeline rewinds to a moment, with Undo", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/default`)
-  await page.getByRole("button", { name: "History" }).click()
+  const sections = page.getByRole("navigation", { name: "Entries, History and Listening Timeline" })
+  await sections.getByRole("link", { name: "History" }).click()
   await expect(page).toHaveURL(/tab=history/)
-  await expect(page.getByRole("button", { name: "History" })).toHaveAttribute(
-    "aria-pressed",
-    "true"
+  await expect(sections.getByRole("link", { name: "History" })).toHaveAttribute(
+    "aria-current",
+    "page"
   )
-  await page.getByRole("button", { name: "Listening Timeline" }).click()
+  await expect(sections.getByRole("link", { name: "Entries" })).not.toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await sections.getByRole("link", { name: "Listening Timeline" }).click()
   await page.getByRole("button", { name: "Rewind to here" }).first().click()
   const dialog = page.getByRole("alertdialog", { name: /^Rewind Default to/ })
   await expect(dialog).toContainText("Kept: Entries you added or moved since")

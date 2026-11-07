@@ -245,3 +245,30 @@ test("the Library table sorts by its columns", async ({ page }) => {
   await page.getByRole("button", { name: "Podcast", exact: true }).click()
   await expect.poll(names).toEqual(["Slow Build", "Market Hours", "Deep Field"])
 })
+
+test("on the phone, a Subscription's settings stay open after a reload", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("link", { name: "Deep Field", exact: true }).click()
+  const toggle = page.getByRole("button", { name: /Settings for this podcast/ })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "true")
+  await page.reload()
+  await expect(page.getByRole("button", { name: /Settings for this podcast/ })).toHaveAttribute(
+    "aria-expanded",
+    "true"
+  )
+})
+
+test("the Library's select-every box shows when only some are selected", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("checkbox", { name: "Select Deep Field" }).check()
+  await expect
+    .poll(() =>
+      page
+        .getByRole("checkbox", { name: "Select every podcast" })
+        .evaluate((box) => (box as HTMLInputElement).indeterminate)
+    )
+    .toBe(true)
+})

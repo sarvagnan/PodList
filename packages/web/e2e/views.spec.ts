@@ -88,3 +88,12 @@ test("Search finds by words and saves as a named View", async ({ page }) => {
   await dialog.getByRole("button", { name: "Save View" }).click()
   await expect(page.getByRole("heading", { name: "Markets", level: 1 })).toBeVisible()
 })
+
+test("a View that isn't there says so, names the tab and leads back", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views/nope`)
+  await expect(page.getByRole("heading", { name: "View not found", level: 1 })).toBeVisible()
+  await expect(page).toHaveTitle("View not found · PodList")
+  await page.getByRole("main").getByRole("link", { name: "See your Views" }).click()
+  await expect(page).toHaveURL(/\/views$/)
+})

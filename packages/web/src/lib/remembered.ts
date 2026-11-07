@@ -54,3 +54,9 @@ export const singleKeyShortcuts = {
   get: () => read("single-key-shortcuts") !== "off",
   set: (on: boolean) => write("single-key-shortcuts", on ? null : "off")
 }
+
+/** Whether a Subscription's settings are shown on a narrow screen (DATA-06). */
+export const subscriptionSettingsOpen = {
+  get: () => read("subscription-settings") === "open",
+  set: (open: boolean) => write("subscription-settings", open ? "open" : null)
+}

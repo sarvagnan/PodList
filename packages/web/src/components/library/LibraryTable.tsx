@@ -173,137 +173,145 @@ export function LibraryTable({
   }
   return (
     <div className="max-w-[960px] px-3 pb-8 md:px-6">
-      <table className="w-full table-fixed border-collapse text-row">
-        <colgroup>
-          <col className="w-12" />
-          <col />
-          <col className="w-24" />
-          <col className="w-52" />
-          {roomy && <col className="w-32" />}
-          {roomy && <col className="w-20" />}
-          <col className="w-14" />
-        </colgroup>
-        <thead>
-          <tr className="border-b text-left text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-            <th scope="col" className="py-2 pl-2">
-              <input
-                type="checkbox"
-                aria-label="Select every podcast"
-                checked={all}
-                onChange={(event) =>
-                  setTicked(new Set(event.target.checked ? subscriptions.map((s) => s.id) : []))
-                }
-                className="size-4 accent-primary"
-              />
-            </th>
-            {header("title", "Podcast", "py-2")}
-            {header("unplayed", "Unplayed", "py-2 text-right", true)}
-            {header("rule", "Downloads", "py-2 pl-6")}
-            {roomy && (
-              <>
-                <th scope="col" className="py-2 pl-4">
-                  Keep at most
-                </th>
-                <th scope="col" className="py-2 text-right">
-                  Speed
-                </th>
-              </>
-            )}
-            <th scope="col" className="py-2">
-              <span className="sr-only">Settings</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((s) => {
-            const rule = ruleOf(s.id)
-            const on = ticked.has(s.id)
-            return (
-              <RowMenu
-                key={s.id}
-                commands={commandsFor(s)}
-                link={`/library/${s.id}`}
-                render={
-                  <tr className={`border-b ${on ? "bg-accent/60" : "hover:bg-secondary/60"}`} />
-                }
-              >
-                <td className="py-2 pl-2">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${s.title}`}
-                    checked={on}
-                    onChange={(event) => tick(s.id, event.target.checked)}
-                    className="size-4 accent-primary"
-                  />
-                </td>
-                <td className="py-2">
-                  <span className="flex min-w-0 items-center gap-3">
-                    <Artwork url={s.artworkUrl} name={s.title} size={40} />
-                    <span className="min-w-0">
+      {/* At very large text the table scrolls sideways in its own box, not the page. */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[40rem] table-fixed border-collapse text-row">
+          <colgroup>
+            {/* In rem, so the columns grow with the text (WTYPE-02). */}
+            <col className="w-[3rem]" />
+            <col />
+            <col className="w-[7rem]" />
+            <col className="w-[13rem]" />
+            {roomy && <col className="w-[8rem]" />}
+            {roomy && <col className="w-[5rem]" />}
+            <col className="w-[3.5rem]" />
+          </colgroup>
+          <thead>
+            <tr className="border-b text-left text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+              <th scope="col" className="py-2 pl-2">
+                <input
+                  type="checkbox"
+                  aria-label="Select every podcast"
+                  checked={all}
+                  // Some, not all: the box says so (mixed), as the platform's do (CTRL-02).
+                  ref={(box) => {
+                    if (box) box.indeterminate = !all && subscriptions.some((s) => ticked.has(s.id))
+                  }}
+                  onChange={(event) =>
+                    setTicked(new Set(event.target.checked ? subscriptions.map((s) => s.id) : []))
+                  }
+                  className="size-4 accent-primary"
+                />
+              </th>
+              {header("title", "Podcast", "py-2")}
+              {header("unplayed", "Unplayed", "py-2 text-right", true)}
+              {header("rule", "Downloads", "py-2 pl-6")}
+              {roomy && (
+                <>
+                  <th scope="col" className="py-2 pl-4">
+                    Keep at most
+                  </th>
+                  <th scope="col" className="py-2 text-right">
+                    Speed
+                  </th>
+                </>
+              )}
+              <th scope="col" className="py-2">
+                <span className="sr-only">Settings</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((s) => {
+              const rule = ruleOf(s.id)
+              const on = ticked.has(s.id)
+              return (
+                <RowMenu
+                  key={s.id}
+                  commands={commandsFor(s)}
+                  link={`/library/${s.id}`}
+                  render={
+                    <tr className={`border-b ${on ? "bg-accent/60" : "hover:bg-secondary/60"}`} />
+                  }
+                >
+                  <td className="py-2 pl-2">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${s.title}`}
+                      checked={on}
+                      onChange={(event) => tick(s.id, event.target.checked)}
+                      className="size-4 accent-primary"
+                    />
+                  </td>
+                  <td className="py-2">
+                    <span className="flex min-w-0 items-center gap-3">
+                      <Artwork url={s.artworkUrl} name={s.title} size={40} />
+                      <span className="min-w-0">
+                        <Link
+                          to="/library/$subscriptionId"
+                          params={{ subscriptionId: s.id }}
+                          className="block truncate font-medium hover:underline"
+                        >
+                          {s.title}
+                        </Link>
+                        <span className="block truncate text-small text-muted-foreground">
+                          {s.customSettings === 0
+                            ? "All defaults"
+                            : `${s.customSettings} ${s.customSettings === 1 ? "custom setting" : "custom settings"}`}
+                        </span>
+                      </span>
+                    </span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{s.unplayed}</td>
+                  <td className="py-2 pl-6">
+                    <select
+                      id={`${id}-${s.id}`}
+                      aria-label={`Downloads for ${s.title}`}
+                      value={rule.mode}
+                      onChange={(event) => setRules([s.id], event.target.value as Mode)}
+                      className={select}
+                    >
+                      {ruleOptions.map(([mode, label]) => (
+                        <option key={mode} value={mode}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  {roomy && (
+                    <>
+                      <td className="py-2 pl-4 text-muted-foreground">
+                        {rule.mode !== "allNew"
+                          ? "—"
+                          : rule.keepAtMost === null
+                            ? "No limit"
+                            : `${rule.keepAtMost} Episodes`}
+                      </td>
+                      <td
+                        className={`py-2 text-right tabular-nums ${s.speed === null ? "text-muted-foreground" : ""}`}
+                      >
+                        {s.speed ?? defaultSpeed}×
+                      </td>
+                    </>
+                  )}
+                  <td className="py-2 text-right">
+                    <Tip label={`Settings for ${s.title}`}>
                       <Link
                         to="/library/$subscriptionId"
                         params={{ subscriptionId: s.id }}
-                        className="block truncate font-medium hover:underline"
+                        aria-label={`Settings for ${s.title}`}
+                        className="inline-grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                       >
-                        {s.title}
+                        <SlidersHorizontal aria-hidden="true" className="size-[18px]" />
                       </Link>
-                      <span className="block truncate text-small text-muted-foreground">
-                        {s.customSettings === 0
-                          ? "All defaults"
-                          : `${s.customSettings} ${s.customSettings === 1 ? "custom setting" : "custom settings"}`}
-                      </span>
-                    </span>
-                  </span>
-                </td>
-                <td className="py-2 text-right tabular-nums">{s.unplayed}</td>
-                <td className="py-2 pl-6">
-                  <select
-                    id={`${id}-${s.id}`}
-                    aria-label={`Downloads for ${s.title}`}
-                    value={rule.mode}
-                    onChange={(event) => setRules([s.id], event.target.value as Mode)}
-                    className={select}
-                  >
-                    {ruleOptions.map(([mode, label]) => (
-                      <option key={mode} value={mode}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                {roomy && (
-                  <>
-                    <td className="py-2 pl-4 text-muted-foreground">
-                      {rule.mode !== "allNew"
-                        ? "—"
-                        : rule.keepAtMost === null
-                          ? "No limit"
-                          : `${rule.keepAtMost} Episodes`}
-                    </td>
-                    <td
-                      className={`py-2 text-right tabular-nums ${s.speed === null ? "text-muted-foreground" : ""}`}
-                    >
-                      {s.speed ?? defaultSpeed}×
-                    </td>
-                  </>
-                )}
-                <td className="py-2 text-right">
-                  <Tip label={`Settings for ${s.title}`}>
-                    <Link
-                      to="/library/$subscriptionId"
-                      params={{ subscriptionId: s.id }}
-                      aria-label={`Settings for ${s.title}`}
-                      className="inline-grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    >
-                      <SlidersHorizontal aria-hidden="true" className="size-[18px]" />
-                    </Link>
-                  </Tip>
-                </td>
-              </RowMenu>
-            )
-          })}
-        </tbody>
-      </table>
+                    </Tip>
+                  </td>
+                </RowMenu>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

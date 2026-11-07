@@ -41,7 +41,11 @@ export const showGettingStarted = (navigate: (to: string) => Promise<unknown>) =
 export function FirstRun() {
   const state = useAppState()
   const ready = useLibraryReady()
-  const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => null)
+  const subscriptionsResult = useAtomValue(subscriptionsAtom)
+  // Not while the list is re-reading after a sync: it may be about to fill (APPEAR-11).
+  const subscriptions = AsyncResult.isWaiting(subscriptionsResult)
+    ? null
+    : AsyncResult.getOrElse(subscriptionsResult, () => null)
   const record = useAtomSet(recordAtom)
   const [hidden, setHidden] = useState(firstRunDone.get)
   const [reopened, setReopened] = useState(false)

@@ -4,6 +4,7 @@ import { AsyncResult } from "effect/reactivity"
 import { SlidersHorizontal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { subscriptionsAtom, viewEpisodesAtom } from "../../app/data.ts"
+import { useLibraryReady } from "../../app/hooks.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
@@ -38,15 +39,23 @@ function ViewDetail() {
     readonly viewId: string
     readonly ids: ReadonlySet<string>
   }>({ viewId, ids: new Set() })
-  const checked: ReadonlySet<string> = selection.viewId === viewId ? selection.ids : new Set()
+  const result = useAtomValue(viewEpisodesAtom(viewId))
+  const episodes = AsyncResult.getOrElse(result, () => [])
+  // Only rows still in the View count: Mark Played can take them out (the bar's count).
+  const checked: ReadonlySet<string> =
+    selection.viewId === viewId
+      ? new Set(episodes.filter((e) => selection.ids.has(e.id)).map((e) => e.id))
+      : new Set()
   const setChecked = (update: (current: ReadonlySet<string>) => ReadonlySet<string>) =>
     setSelection({ viewId, ids: update(checked) })
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
-  const result = useAtomValue(viewEpisodesAtom(viewId))
-  const episodes = AsyncResult.getOrElse(result, () => [])
   const view = state?.views.find((v) => v.id === viewId)
-  const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => null)
-  const noPodcasts = subscriptions !== null && subscriptions.length === 0
+  const ready = useLibraryReady()
+  const subscriptionsResult = useAtomValue(subscriptionsAtom)
+  const noPodcasts =
+    ready &&
+    !AsyncResult.isWaiting(subscriptionsResult) &&
+    AsyncResult.getOrElse(subscriptionsResult, () => null)?.length === 0
 
   const open = (episodeId: string) => navigate({ search: { episode: episodeId } })
   // Closing the panel puts focus back on the row it showed (WKEY-03).
@@ -91,14 +100,19 @@ function ViewDetail() {
   if (view === undefined) {
     return (
       <>
-        <PageHeader title="View" back={{ to: "/views", label: "Views" }} />
-        <EmptyState title="This View no longer exists">
-          It was deleted on another Device.
+        <PageHeader title="View not found" back={{ to: "/views", label: "Views" }} />
+        {/* Says what's likely, without guessing which, and the way on (COPY-02). */}
+        <EmptyState title="There’s no View at this address">
+          It may have been deleted, here or on another Device, or the link is wrong.{" "}
+          <Link to="/views" className="font-medium text-primary underline underline-offset-2">
+            See your Views
+          </Link>
         </EmptyState>
       </>
     )
   }
-  const loading = AsyncResult.isInitial(result)
+  // Until the catalogue has arrived once, an empty list is still loading, not empty.
+  const loading = AsyncResult.isInitial(result) || (!ready && episodes.length === 0)
   const count = `${episodes.length} ${episodes.length === 1 ? "Episode" : "Episodes"}`
   const form = <ViewForm key={view.id} view={view} onDelete={() => void remove(view)} />
 

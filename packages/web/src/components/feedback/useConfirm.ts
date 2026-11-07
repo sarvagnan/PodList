@@ -59,6 +59,8 @@ export function useConfirm() {
             undo(outcome.undo)
             // Used: it goes (APPEAR-11).
             toasts.close(toast)
+            // Says it's done, as ⌘Z does.
+            toasts.add({ description: `Undone: ${outcome.message}`, timeout: 3000 })
             refocus(focus, origin)
           }
         }

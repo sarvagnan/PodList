@@ -19,6 +19,7 @@ import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 
 // One Subscription (docs/design/ui-layout.md › Library and Subscriptions): its settings —
@@ -68,7 +69,12 @@ function SubscriptionScreen() {
   const toasts = Toast.useToastManager()
   const [asking, setAsking] = useState<"unsubscribe" | null>(null)
   const wide = useMinWidth("64rem")
-  const [showSettings, setShowSettings] = useState(false)
+  // Remembered on this Device, so a reload or the next podcast keeps it as left.
+  const [showSettings, setShowSettingsState] = useState(subscriptionSettingsOpen.get)
+  const setShowSettings = (open: boolean) => {
+    subscriptionSettingsOpen.set(open)
+    setShowSettingsState(open)
+  }
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
 
   if (AsyncResult.isInitial(result)) return <LoadingRows label="Loading Subscription" />
@@ -77,10 +83,11 @@ function SubscriptionScreen() {
       <>
         <PageHeader
           backOnDesktop
-          title="Subscription"
+          title="Podcast not found"
           back={{ to: "/library", label: "Library" }}
         />
         <EmptyState title="This podcast isn’t in your Library">
+          It may have been unsubscribed, or the link is wrong.{" "}
           <Link to="/library" className="font-medium text-primary underline underline-offset-2">
             See your Library
           </Link>

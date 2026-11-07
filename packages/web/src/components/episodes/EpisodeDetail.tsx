@@ -1,6 +1,6 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
-import { Check, ListEnd, ListStart, Play, Plus, Share, Star } from "lucide-react"
+import { Check, ListEnd, ListStart, Pause, Play, Plus, Share, Star } from "lucide-react"
 import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import { episodeDetailAtom } from "../../app/data.ts"
@@ -105,7 +105,17 @@ export function EpisodeDetail({
     return <div role="status" aria-label="Loading Episode" className="h-40" />
   }
   if (detail === null) {
-    return <p className={`px-5 py-8 text-center ${t.muted}`}>This Episode isn’t in your Library.</p>
+    // The tab names it too (BROWSER-03), on the Episode's own screen.
+    if (Heading === "h1") document.title = "Episode not found · PodList"
+    return (
+      <div className={`px-5 py-8 text-center ${t.muted}`}>
+        <Heading className="font-medium text-foreground">Episode not found</Heading>
+        <p className="mt-1.5">
+          This Episode isn’t in your Library: its podcast may have been unsubscribed, or the link is
+          wrong.
+        </p>
+      </div>
+    )
   }
   const episodeState = state?.episodeStates[episodeId]
   const played = episodeState?.played != null
@@ -215,16 +225,21 @@ export function EpisodeDetail({
           </span>
         )}
         <Action
-          label={loaded && now.playing ? "Playing" : "Play"}
+          // Play and Pause, as the player and the Playlist row say (not "Playing").
+          label={loaded && now.playing ? "Pause" : "Play"}
           onClick={() => {
             if (!loaded) void act({ _tag: "PlayNow", episodeId })
-            else if (!now.playing) control({ _tag: "toggle" })
-            onPlay?.()
+            else control({ _tag: "toggle" })
+            if (!(loaded && now.playing)) onPlay?.()
           }}
           className=""
         >
           <span className="grid size-12 place-items-center rounded-full border border-transparent bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80">
-            <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
+            {loaded && now.playing ? (
+              <Pause aria-hidden="true" className="size-5 fill-current" />
+            ) : (
+              <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
+            )}
           </span>
         </Action>
         {desktopExtras && (
