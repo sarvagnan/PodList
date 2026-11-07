@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) |
-|---|---:|---:|
-| Typography | 5.8 | 6.9 |
-| Hierarchy | 6.4 | 7.2 |
-| Spacing & density | 5.9 | 7.6 |
-| Color & contrast | 6.2 | 6.9 |
-| Iconography | 5.4 | 6.6 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) |
-| Clarity | 4.9 | 7.4 |
-| Platform fit | 6.8 | 6.7 |
-| Interaction & feedback | 5.6 | 6.5 |
-| **Overall** | **5.4** | **7.0** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) |
+|---|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 |
+| Hierarchy | 6.4 | 7.2 | 7.8 |
+| Spacing & density | 5.9 | 7.6 | 6.9 |
+| Color & contrast | 6.2 | 6.9 | 8.2 |
+| Iconography | 5.4 | 6.6 | 8.0 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) |
+| Clarity | 4.9 | 7.4 | 7.8 |
+| Platform fit | 6.8 | 6.7 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -33,7 +33,30 @@ Graded build: before View detail, Episode row actions and proxied artwork landed
 
 Round 2: coverage 97.5%; 19 failures (11 major, 8 minor, no blockers); four categories capped at 6.9 by majors. Report: [docs/ui-grade/round-2.md](docs/ui-grade/round-2.md). Graded build 6db9bb9 (after the round 1 fixes). No core element moved in 72 measured steps; open a Playlist p75 134 ms, Play from here 111 ms.
 
-## Work list (round 2)
+Round 3: coverage 97.6%; 11 failures (8 major, 3 minor, no blockers); four categories capped at 6.9. Report: [docs/ui-grade/round-3.md](docs/ui-grade/round-3.md). Graded build fd860c3. Core elements within 2 px at all widths; p75 100–118 ms.
+
+## Work list (round 3)
+
+### Majors
+- [ ] WKEY-03: Tab stays inside the Add and Keyboard shortcuts dialogs.
+- [ ] BROWSER-01 / DATA-06: Back and reload keep a View's scroll position.
+- [ ] WTYPE-02 / WTYPE-05: Playlist rows, the mini-player title and the drawer's times survive 200% text and 320 px.
+- [ ] WKEY-02: no single-character shortcut that can't be turned off (`?`).
+- [ ] WDATA-04: the phone's Undo doesn't vanish after 8 s.
+- [ ] DLG-07: the Add dialog has a way to cancel.
+
+### Minors
+- [ ] WCOPY-01 Esc closes the panel · PTR-04 player tooltips on focus · TYPE-08 Mac setup apostrophes.
+
+### Craft gaps
+- [ ] Desktop View: the designed right panel (target Playlist's Up next) and a row hover fill.
+- [ ] Whole row opens the Episode (phone target).
+- [ ] Mac shell: File menu (⌘W), Controls menu, View menu order, Episode commands on right-click.
+- [ ] One meaning per colour; one progress blue.
+- [ ] Details: no focus ring on launch, "1 Entry", no breaks inside "26 min", px radii, "Up next · 0", live Position in "In your Playlists".
+- [ ] Playlists: Episode in a side panel on wide screens; the same list keys as Views.
+
+
 
 ### Majors
 - [x] DATA-04 / WDATA-04 (Interaction, lowest): Remove on Playlist Entries and Up next; an undo stack that ⌘/Ctrl-Z walks; the toast stops being the only way back.
