@@ -1,0 +1,1699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PodList design round 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Page chrome (the picker around the mock-ups) follows the reader's theme. */
+:root{--chrome-bg:#fff;--chrome-ink:#17181c;--chrome-muted:#5c6070;--chrome-line:#e4e2dc;--page-bg:#dcd9d2}
+@media (prefers-color-scheme: dark){:root{--chrome-bg:#1c1d22;--chrome-ink:#f2f2f4;--chrome-muted:#a9acb6;--chrome-line:#33353d;--page-bg:#0f1013}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page-bg);color:var(--chrome-ink);font-family:Inter,system-ui,sans-serif}
+button{font-family:inherit;cursor:pointer;color:inherit}
+input,select{font-family:inherit}
+.bar{position:sticky;top:0;z-index:100;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 16px;background:var(--chrome-bg);border-bottom:1px solid var(--chrome-line)}
+.bar strong{font-size:14px}
+.bar .grp{display:flex;gap:4px;flex-wrap:wrap}
+.bar button{min-height:36px;padding:0 12px;border-radius:8px;border:1px solid var(--chrome-line);background:transparent;color:var(--chrome-ink);font-size:13px}
+.bar button[aria-pressed="true"]{background:var(--chrome-ink);color:var(--chrome-bg);border-color:var(--chrome-ink)}
+.bar .lbl{font-size:12px;color:var(--chrome-muted)}
+.bar :focus-visible,.notes :focus-visible{outline:2px solid #3a6df0;outline-offset:2px}
+#stage{display:flex;justify-content:center;padding:20px 12px;overflow-x:auto}
+#stage.desktop{justify-content:flex-start}
+#stage.desktop>.app{margin:0 auto}
+.notes{max-width:1100px;margin:0 auto;padding:4px 16px 48px;font-size:14px;line-height:1.5}
+.notes h2{font:600 18px/1.3 "Space Grotesk",Inter,sans-serif;margin:18px 0 8px}
+.notes .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.notes .v{background:var(--chrome-bg);border:1px solid var(--chrome-line);border-radius:12px;padding:12px 14px}
+.notes .v.cur{border-color:var(--chrome-ink);box-shadow:inset 0 0 0 1px var(--chrome-ink)}
+.notes .v b{display:block;margin-bottom:4px}
+.notes .v p{margin:0;color:var(--chrome-muted)}
+.notes ol{margin:6px 0 0;padding-left:22px}
+.notes li{margin:4px 0}
+.notes .q{background:var(--chrome-bg);border:1px solid var(--chrome-line);border-radius:12px;padding:10px 14px 12px}
+.notes .jump{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.notes .jump button{min-height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--chrome-line);background:var(--chrome-bg);font-size:13px}
+.notes .jump button[aria-pressed="true"]{border-color:var(--chrome-ink);font-weight:600}
+
+/* ---------- The app (light only, tokens from packages/web/src/index.css) ---------- */
+.app{--bg:#f6f5f2;--fg:#17181c;--card:#fff;--primary:#2b50c8;--sec:#ecebe6;--muted:#5c6070;--accent:#e8edfb;--danger:#b42318;--line:#e4e2dc;--input:#d6d3cc;--player:#1b2a33;--pmuted:#a9b6be;--ptrack:#2c3d47;--progress:#3aa0e8;--pos:#1d6b45;--postint:#ddf2e7;--star:#b5791a;--warnbg:#fdf3e1;--warn:#8a5a00;
+  position:relative;overflow:hidden;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,sans-serif;font-size:15px;line-height:1.375;color-scheme:light;flex:none}
+.app *{box-sizing:border-box}
+.app :focus-visible{outline:2px solid var(--focus,var(--primary));outline-offset:2px}
+.app .dark{--focus:#fff}
+:where(.app button){border:0;background:none;padding:0;font-size:inherit;text-align:left}
+.app input[type=text],.app input[type=search],.app input[type=number],.app input[type=date],.app input[type=url],.app input[type=time],.app select{height:44px;border:1px solid var(--input);border-radius:10px;background:var(--card);padding:0 12px;font-size:15px;color:var(--fg);width:100%}
+.app input:focus-visible,.app select:focus-visible{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+.app input[type=checkbox]{width:18px;height:18px;accent-color:var(--primary);margin:0;flex:none}
+.phone{width:390px;height:844px;border-radius:28px;box-shadow:0 10px 40px rgba(0,0,0,.25);display:flex;flex-direction:column}
+.desk{width:1280px;height:820px;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.2);display:grid;grid-template-columns:224px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 76px}
+.scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+.h1{margin:0;font:600 28px/34px "Space Grotesk",Inter,sans-serif}
+.h2{margin:0;font:600 20px/26px "Space Grotesk",Inter,sans-serif}
+.h3{margin:0;font-size:15px;font-weight:600}
+.hdr{padding:16px 20px 12px}
+.desk .hdr{padding:28px 32px 12px}
+.desk .h1{font-size:30px;line-height:36px}
+.muted{color:var(--muted)}
+.xs{font-size:12px;line-height:16px}
+.sm{font-size:13px;line-height:20px}
+.b{font-weight:600}
+.m{font-weight:500}
+.tab-num{font-variant-numeric:tabular-nums}
+.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px}
+.col{display:flex;flex-direction:column}
+.grow{flex:1;min-width:0}
+.gap4{gap:4px}.gap8{gap:8px}.gap12{gap:12px}.gap16{gap:16px}
+.px20{padding-left:20px;padding-right:20px}
+.desk .px20{padding-left:32px;padding-right:32px}
+.mt4{margin-top:4px}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt24{margin-top:24px}
+.sp{flex:1}
+.label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.backlink{display:inline-flex;align-items:center;gap:2px;height:44px;padding-right:12px;margin-left:-8px;color:var(--primary);font-weight:500;font-size:15px}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border-radius:999px;font-weight:600;font-size:15px;white-space:nowrap}
+.desk .btn{min-height:36px;padding:0 14px;font-size:14px}
+.btn-p{background:var(--primary);color:#fff}
+.btn-p:hover{background:#2446b3}
+.btn-s{background:var(--sec);color:var(--fg)}
+.btn-s:hover{background:#e2e0da}
+.btn-o{border:1px solid var(--input)!important;background:var(--card)}
+.btn-d{background:var(--danger);color:#fff}
+.btn-t{color:var(--primary);padding:0 8px}
+.btn-t.danger{color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:default}
+.ib{display:grid;place-items:center;width:44px;height:44px;border-radius:999px;color:var(--muted);flex:none}
+.desk .ib{width:40px;height:40px}
+.ib:hover{background:var(--sec);color:var(--fg)}
+.ib.play{background:var(--primary);color:#fff;width:44px;height:44px}
+.link{color:var(--primary);font-weight:500}
+/* Rows */
+.lrow{display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 8px;border-bottom:1px solid var(--line);width:100%}
+.lrow:last-child{border-bottom:0}
+button.lrow:hover,.lrow.click:hover{background:rgba(236,235,230,.6)}
+.tile{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;background:var(--accent);color:var(--primary);flex:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px}
+.group{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.group .gr{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 14px;border-bottom:1px solid var(--line);width:100%}
+.group .gr:last-child{border-bottom:0}
+button.gr:hover{background:#faf9f7}
+.gl{padding:18px 4px 6px}
+.help{font-size:13px;line-height:18px;color:var(--muted);padding:6px 4px 0}
+.art{display:grid;place-items:center;flex:none;border-radius:10px;color:#fff;font:600 13px "Space Grotesk",Inter,sans-serif;letter-spacing:.02em}
+/* Switch */
+.sw{position:relative;width:51px;height:31px;border-radius:999px;background:var(--input);flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw[aria-checked=true]{background:var(--pos)}
+.sw[aria-checked=true]::after{transform:translateX(20px)}
+.swhit{display:grid;place-items:center;min-width:51px;min-height:44px}
+/* Segmented */
+.seg{display:inline-flex;background:var(--sec);border-radius:10px;padding:2px;gap:2px;flex-wrap:wrap}
+.seg button{min-height:40px;padding:0 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--fg)}
+.desk .seg button{min-height:32px}
+.seg button[aria-pressed=true]{background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600}
+.seg.full{display:flex}.seg.full button{flex:1;text-align:center}
+/* Chips */
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 6px 0 12px;border-radius:999px;background:var(--accent);color:var(--primary);font-size:14px;font-weight:500;border:1px solid transparent}
+.chip.add{background:transparent;border:1px dashed var(--input)!important;color:var(--fg);padding:0 12px}
+.chip .x{display:grid;place-items:center;width:28px;height:28px;border-radius:999px}
+.chip .x:hover{background:rgba(43,80,200,.12)}
+.chip[aria-expanded=true]{border-color:var(--primary)}
+/* Tabs (phone bottom) */
+.tabs{display:flex;gap:4px;padding:6px 8px 14px;background:var(--bg)}
+.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:56px;font-size:12px;font-weight:500;color:var(--muted);text-align:center}
+.tabs button .pill{display:grid;place-items:center;width:64px;height:32px;border-radius:999px}
+.tabs button[aria-current=page]{color:var(--primary);font-weight:700}
+.tabs button[aria-current=page] .pill{background:var(--accent)}
+.mini{margin:0 10px;display:flex;align-items:center;gap:8px;padding:10px;border-radius:16px;background:var(--player);color:#fff;position:relative;overflow:hidden}
+.mini .ib{color:#fff}.mini .ib:hover{background:var(--ptrack)}
+.mini .pp{display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:#fff;color:var(--player);flex:none}
+.mini .prog{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--ptrack)}
+.mini .prog i{display:block;height:100%;background:var(--progress)}
+/* Desktop chrome */
+.side{grid-column:1;grid-row:1/3;border-right:1px solid var(--line);padding:20px 12px 92px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.side .brand{font:600 18px "Space Grotesk",Inter,sans-serif;padding:0 10px 10px}
+.side .sh{display:flex;align-items:center;justify-content:space-between;padding:18px 10px 4px}
+.side .sh .ib{width:28px;height:28px}
+.side a,.side .si{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;padding:0 10px;border-radius:8px;font-size:14px;color:var(--fg);width:100%}
+.side .si:hover{background:var(--sec)}
+.side .si[aria-current=page]{background:var(--accent);font-weight:600}
+.side .search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:8px;background:var(--sec);color:var(--muted);font-size:14px;width:100%;margin-bottom:4px}
+.dmain{grid-column:2;grid-row:1;min-width:0;min-height:0;display:flex}
+.dmain>.pane{flex:1;min-width:0;overflow-y:auto}
+.dmain>.rpanel{width:340px;flex:none;border-left:1px solid var(--line);overflow-y:auto;background:#fbfaf8}
+.pbar{grid-column:1/3;grid-row:2;background:var(--player);color:#fff;display:grid;grid-template-columns:1fr minmax(0,38rem) 1fr;align-items:center;gap:24px;padding:10px 20px;z-index:3}
+.pbar .ib{color:#fff}.pbar .ib:hover{background:var(--ptrack)}
+.pbar .pp{display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:#fff;color:var(--player)}
+.pbar .track{height:4px;border-radius:2px;background:var(--ptrack);position:relative}
+.pbar .track i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--progress)}
+/* Overlays */
+.scrim{position:absolute;inset:0;background:rgba(23,24,28,.42);z-index:20;animation:fade .2s ease-out}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:21;background:var(--bg);border-radius:20px 20px 0 0;max-height:88%;display:flex;flex-direction:column;animation:up .25s cubic-bezier(.2,.8,.2,1);box-shadow:0 -6px 30px rgba(0,0,0,.15)}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--input);margin:8px auto 0;flex:none}
+.sheet .shd{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 20px;flex:none}
+.sheet .sbody{overflow-y:auto;padding:0 16px 20px;flex:1;min-height:0}
+.sheet .sfoot{padding:12px 16px 20px;border-top:1px solid var(--line);flex:none;background:var(--bg)}
+.modal{position:absolute;z-index:21;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;max-height:86%;background:var(--bg);border-radius:16px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:fade .15s ease-out}
+.modal.wide{width:680px}.modal.narrow{width:440px}
+.modal .shd{display:flex;align-items:center;gap:8px;padding:18px 16px 10px 24px;flex:none}
+.modal .sbody{overflow-y:auto;padding:0 24px 20px;flex:1;min-height:0}
+.modal .sfoot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line);flex:none}
+.alert{position:absolute;z-index:23;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;background:var(--card);border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.desk .alert{width:420px}
+.pop{position:absolute;z-index:22;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:12px;width:320px}
+.menu{position:absolute;z-index:22;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:4px;min-width:220px}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 12px;border-radius:8px;font-size:15px}
+.desk .menu button{min-height:36px;font-size:14px}
+.menu button:hover{background:var(--sec)}
+.menu .danger{color:var(--danger)}
+.toast{position:absolute;z-index:19;left:12px;right:12px;bottom:170px;background:#17181c;color:#fff;border-radius:12px;padding:6px 6px 6px 14px;display:flex;align-items:center;gap:8px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);animation:fade .2s}
+.desk .toast{left:auto;right:24px;bottom:96px;width:420px}
+.toast .btn{color:#9db8ff;min-height:40px;padding:0 10px}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0}}
+@media (prefers-reduced-motion: reduce){.app *{animation:none!important;transition:none!important}}
+/* Episode rows */
+.ep{display:flex;align-items:center;gap:12px;min-height:76px;padding:8px;border-bottom:1px solid var(--line)}
+.ep .t{font-size:15px;line-height:20px;font-weight:500}
+.ep.played .t{color:var(--muted)}
+mark{background:#fff0b3;color:inherit;border-radius:2px;padding:0 1px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:hover td{background:rgba(236,235,230,.45)}
+.tbl tr.sel td{background:rgba(232,237,251,.7)}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:1px 6px;font-size:12px;font-weight:600;background:var(--sec);color:var(--muted);white-space:nowrap}
+.badge.blue{background:var(--accent);color:var(--primary)}
+.badge.green{background:var(--postint);color:var(--pos)}
+.badge.warn{background:var(--warnbg);color:var(--warn)}
+.badge.red{background:#fde8e6;color:var(--danger)}
+.prog{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--primary)}
+.dashed{border:1px dashed var(--input);border-radius:16px}
+.struck{opacity:.55}
+.struck .t,.struck .strk{text-decoration:line-through;text-decoration-color:var(--danger)}
+.radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--input);flex:none;display:grid;place-items:center}
+.radio.on{border-color:var(--primary)}
+.radio.on::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--primary)}
+.check{color:var(--primary)}
+.kbd{font-size:11px;border:1px solid var(--input);border-radius:4px;padding:0 4px;color:var(--muted)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--input);border-radius:10px;background:var(--card);overflow:hidden}
+.stepper button{width:44px;height:40px;display:grid;place-items:center;font-size:18px;color:var(--primary)}
+.stepper button:hover{background:var(--sec)}
+.stepper span{min-width:64px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.anno{position:absolute;z-index:30;background:#fff7d6;color:#5a4500;border:1px solid #e8d48a;border-radius:8px;padding:4px 8px;font-size:11px;line-height:14px;max-width:220px;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="bar" role="toolbar" aria-label="Choose a mock-up">
+  <strong>PodList · design round 2</strong>
+  <div class="grp" id="areas" aria-label="Area"></div>
+  <div class="grp" id="variants" aria-label="Variant"></div>
+  <div class="grp" id="devices" aria-label="Width"></div>
+</div>
+<div id="stage"></div>
+<div class="notes" id="notes"></div>
+<script>
+// PROTOTYPE — throwaway. Shared data, icons, app chrome, routing and events.
+"use strict";
+
+// ---------- Sample data (all invented) ----------
+const PODS = [
+  { id: "kit", t: "The Slow Kitchen", a: "Mara Okafor", c: "#b4532a" },
+  { id: "orb", t: "Orbit Notes", a: "Lena Varga", c: "#2f4b8f" },
+  { id: "moe", t: "Margins of Error", a: "Sam Whitlock & Priya Das", c: "#7a3f86" },
+  { id: "fld", t: "Field Recordings", a: "Tomas Lind", c: "#3c6e47" },
+  { id: "led", t: "Ledger & Lantern", a: "The Lantern Collective", c: "#8a6a1f" },
+  { id: "law", t: "Byte Sized Law", a: "Ines Moreau", c: "#335f6b" },
+  { id: "com", t: "The Long Commute", a: "Northlight Audio", c: "#a33a4a" },
+  { id: "qh", t: "Quiet Hours", a: "June Ashby", c: "#4a4f7a" },
+  { id: "eng", t: "Small Engines", a: "Dale Pruitt", c: "#5d6b2a" },
+  { id: "nlf", t: "Northern Line Football", a: "Kofi & Ade", c: "#1f6f8b" }
+];
+const POD = Object.fromEntries(PODS.map((p) => [p.id, p]));
+const initials = (t) => t.replace(/^The /, "").split(/[\s&]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+// d = days since Published, m = minutes, pos = minutes in (in some Entry), q = Playlists it is an Entry in
+const EPS = [
+  ["kit", "Bread that waits for you: the case for cold proving", 0, 52, 0, 0, 0, [], "Overnight dough, fridge temperatures and why patience beats yeast."],
+  ["orb", "The long quiet of Voyager 2", 1, 64, 0, 0, 1, ["Default"], "Fifty years out and still talking: power budgets and the last instruments."],
+  ["moe", "Polling the unpollable", 1, 41, 1, 0, 0, [], "Why response rates fell below 2% and what pollsters weight instead."],
+  ["fld", "Rain on the moor", 2, 47, 0, 0, 0, ["Default"], "Ninety minutes of rain recorded on Dartmoor, edited down to forty-seven."],
+  ["qh", "The lighthouse keeper's ledger", 2, 44, 0, 0, 0, ["Default"], "A slow bedtime story about counting ships and keeping the lamp."],
+  ["led", "Tulips, twice", 3, 58, 0, 27, 0, ["Default"], "The 1637 tulip crash, and the 1980s rerun nobody remembers. Budget bubbles."],
+  ["law", "Who owns your voice?", 3, 23, 0, 0, 0, [], "Voice cloning, consent and the first court rulings on synthetic speech."],
+  ["com", "Episode 41: The signal box", 4, 31, 0, 0, 0, ["Commute"], "Ada finds the logbook. Part of season three."],
+  ["eng", "Carburettors without fear", 4, 36, 0, 0, 0, ["Default"], "Float bowls, jets and the one screw you should never touch."],
+  ["nlf", "Derby week, again", 5, 72, 0, 18, 0, ["Commute"], "Predictions, regrets and a long argument about full-backs."],
+  ["kit", "A budget pantry in ten jars", 6, 38, 0, 0, 1, [], "Beans, grains and spices that cover most weeknight cooking on a budget."],
+  ["orb", "Ask Orbit: can you hear a black hole?", 7, 29, 1, 0, 0, [], "Listener questions on sonification and gravitational waves."],
+  ["moe", "The budget, line by line", 8, 66, 0, 12, 0, ["Deep dives"], "A walk through the autumn budget and the numbers behind the headlines."],
+  ["fld", "Dawn chorus, Białowieża", 9, 61, 0, 0, 1, [], "The last old-growth forest in lowland Europe, recorded at 4 a.m."],
+  ["led", "The first paper money", 10, 49, 1, 0, 0, [], "Song dynasty jiaozi and the invention of trust."],
+  ["law", "Terms of service nobody reads", 11, 19, 0, 0, 0, [], "Clickwrap, browsewrap and what a court will actually enforce."],
+  ["com", "Episode 40: Crossing at Hale", 11, 33, 1, 0, 0, [], "The train stops where it shouldn't."],
+  ["qh", "Snowfall over the harbour", 12, 52, 0, 0, 0, [], "Gentle narration for winding down."],
+  ["eng", "Two-stroke or four?", 13, 27, 0, 0, 0, [], "Mowers, mopeds and the mixing ratio."],
+  ["nlf", "Transfer window post-mortem", 14, 58, 1, 0, 0, [], "Who bought well, who panicked, who forgot."],
+  ["kit", "Stock, broth and the difference", 16, 44, 1, 0, 0, [], "Bones, time and the gelatine test."],
+  ["orb", "Moons with oceans", 17, 55, 0, 0, 0, ["Deep dives"], "Europa, Enceladus and the missions headed their way."],
+  ["moe", "Margins live: election night lessons", 19, 82, 0, 40, 0, ["Deep dives"], "Recorded in front of an audience in Leeds."],
+  ["fld", "Ice cracking on Lake Baikal", 21, 38, 0, 0, 1, [], "Hydrophones under the ice in February."],
+  ["led", "Debasement: a short history of shaving coins", 23, 51, 0, 0, 0, [], "Clipping, sweating and the budget crises behind them."],
+  ["law", "Can a robot sign a contract?", 25, 22, 1, 0, 0, [], "Agency law meets software agents."],
+  ["com", "Episode 39: The far platform", 25, 30, 1, 0, 0, [], "Season three begins."],
+  ["qh", "The night ferry", 26, 48, 0, 0, 0, ["Replay"], "A slow crossing, told quietly."],
+  ["eng", "Chainsaw chains, sharpened properly", 28, 24, 0, 0, 0, [], "File angles and depth gauges."],
+  ["nlf", "Season preview", 30, 64, 1, 0, 0, [], "Everyone finishes fourth."],
+  ["kit", "Ferments for beginners", 33, 46, 1, 0, 1, [], "Sauerkraut first, then everything else."],
+  ["orb", "What the JWST saw first", 36, 58, 1, 0, 0, [], "A year of deep-field images, explained."],
+  ["moe", "How to read a chart that lies", 40, 37, 1, 0, 1, ["Replay"], "Truncated axes, cherry-picked windows and budget charts."],
+  ["fld", "Wind turbines at night", 45, 40, 0, 0, 0, [], "Low hum, high blades."],
+  ["led", "Why gold?", 52, 63, 0, 0, 0, [], "Scarcity, shine and a very long habit."],
+  ["law", "Privacy by default, explained", 58, 26, 1, 0, 0, [], "What the regulation actually requires."]
+].map((e, i) => ({ id: "e" + i, p: e[0], t: e[1], d: e[2], m: e[3], pl: !!e[4], pos: e[5], st: !!e[6], q: e[7], n: e[8] }));
+
+const PLAYLISTS = [
+  { id: "def", name: "Default", n: 9, active: true, cop: true, isDefault: true },
+  { id: "com", name: "Commute", n: 6, cop: false },
+  { id: "deep", name: "Deep dives", n: 4, cop: false },
+  { id: "rep", name: "Replay", n: 2, cop: false }
+];
+const VIEWS0 = [
+  { id: "v1", name: "New this week", f: { published: { tag: "LastDays", days: 7 }, played: "notPlayed" }, sort: "publishedDesc", limit: null },
+  { id: "v2", name: "Short and unplayed", f: { played: "notPlayed", maxDuration: 30 }, sort: "durationAsc", limit: 20 },
+  { id: "v3", name: "Starred", f: { starred: true }, sort: "publishedDesc", limit: null },
+  { id: "v4", name: "Not in a Playlist yet", f: { published: { tag: "LastDays", days: 30 }, played: "unplayed", notInAnyPlaylist: true }, sort: "publishedDesc", limit: null },
+  { id: "v5", name: "Sleep", f: { podcasts: { mode: "include", ids: ["qh", "fld"] }, played: "notPlayed" }, sort: "publishedAsc", limit: null }
+];
+const DEVICE = { phone: "Pixel 8", desktop: "MacBook Air" };
+// What the player shows; an area may change it before drawing.
+let NOWP;
+const NOWP0 = { p: "orb", t: "The long quiet of Voyager 2", pl: "Default", at: "37:02", left: "−26:58", pct: 58 };
+
+// ---------- Formatting ----------
+const TODAY = new Date(2026, 10, 7);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const dateOf = (d) => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - d);
+const fmtPub = (d) => {
+  if (d === 0) return "Today";
+  if (d === 1) return "Yesterday";
+  const dt = dateOf(d);
+  if (d < 7) return DAYS[dt.getDay()];
+  return dt.getDate() + " " + MONTHS[dt.getMonth()];
+};
+const fmtLen = (m) => (m >= 60 ? Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min" : "") : m + " min").trim();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const plural = (n, one, many) => n + " " + (n === 1 ? one : many || one + "s");
+const snip = (text, q) => { const i = text.toLowerCase().indexOf(q.toLowerCase()); return i > 30 ? "…" + text.slice(i - 24) : text; };
+const hl = (text, q) => {
+  if (!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
+};
+
+// ---------- View filtering (mirrors packages/domain/src/View.ts) ----------
+const SORTS = { publishedDesc: "Newest first", publishedAsc: "Oldest first", durationAsc: "Shortest first", durationDesc: "Longest first" };
+function matches(e, f) {
+  if (f.published) {
+    if (f.published.tag === "LastDays" && e.d >= f.published.days) return false;
+    if (f.published.tag === "Between") {
+      if (f.published.from != null && e.d > f.published.from) return false;
+      if (f.published.to != null && e.d < f.published.to) return false;
+    }
+  }
+  if (f.podcasts) {
+    const inSet = f.podcasts.ids.includes(e.p);
+    if (f.podcasts.mode === "include" ? !inSet : inSet) return false;
+  }
+  if (f.text) {
+    const q = f.text.toLowerCase();
+    if (![e.t, e.n, POD[e.p].t].some((s) => s.toLowerCase().includes(q))) return false;
+  }
+  if (f.played === "unplayed" && (e.pl || e.pos > 0)) return false;
+  if (f.played === "inProgress" && (e.pl || e.pos === 0)) return false;
+  if (f.played === "played" && !e.pl) return false;
+  if (f.played === "notPlayed" && e.pl) return false;
+  if (f.starred === true && !e.st) return false;
+  if (f.starred === false && e.st) return false;
+  if (f.notInAnyPlaylist && e.q.length) return false;
+  if (f.minDuration && e.m < f.minDuration) return false;
+  if (f.maxDuration && e.m > f.maxDuration) return false;
+  return true;
+}
+function runView(f, sort, limit) {
+  const all = EPS.filter((e) => matches(e, f));
+  const by = { publishedDesc: (a, b) => a.d - b.d, publishedAsc: (a, b) => b.d - a.d, durationAsc: (a, b) => a.m - b.m, durationDesc: (a, b) => b.m - a.m }[sort || "publishedDesc"];
+  all.sort(by);
+  return { total: all.length, rows: limit ? all.slice(0, limit) : all };
+}
+const COND_TYPES = [
+  ["published", "Published", "A date range, or the last few days"],
+  ["podcasts", "Podcasts", "Only some podcasts, or all but some"],
+  ["text", "Text", "Words in the title, show notes or podcast name"],
+  ["played", "Played state", "Not started, In progress or Played"],
+  ["starred", "Starred", "Starred, or not Starred"],
+  ["notInAnyPlaylist", "Not in any Playlist", "Episodes that aren’t an Entry anywhere"],
+  ["duration", "Duration", "Longer than, shorter than, or between"]
+];
+function condSummary(k, f) {
+  switch (k) {
+    case "published": {
+      const p = f.published;
+      if (p.tag === "LastDays") return "Published in the last " + plural(p.days, "day");
+      return "Published between " + (p.from != null ? fmtPub(p.from) : "any time") + " and " + (p.to != null ? fmtPub(p.to).toLowerCase() : "today");
+    }
+    case "podcasts": {
+      const names = f.podcasts.ids.map((id) => POD[id].t);
+      const list = names.length > 2 ? names.slice(0, 2).join(", ") + " and " + (names.length - 2) + " more" : names.join(" and ");
+      return (f.podcasts.mode === "include" ? "Only from " : "Not from ") + list;
+    }
+    case "text": return "Mentions “" + f.text + "”";
+    case "played": return { unplayed: "Not started", inProgress: "In progress", played: "Played", notPlayed: "Not Played" }[f.played];
+    case "starred": return f.starred ? "Starred" : "Not Starred";
+    case "notInAnyPlaylist": return "Not in any Playlist";
+    case "duration": {
+      const a = f.minDuration, b = f.maxDuration;
+      if (a && b) return "Between " + a + " and " + b + " min";
+      if (a) return "At least " + a + " min";
+      return "At most " + b + " min";
+    }
+  }
+}
+const condKeys = (f) => COND_TYPES.map((c) => c[0]).filter((k) => (k === "duration" ? f.minDuration || f.maxDuration : f[k] !== undefined));
+function defaultCond(k) {
+  return { published: { published: { tag: "LastDays", days: 14 } }, podcasts: { podcasts: { mode: "include", ids: [] } }, text: { text: "" }, played: { played: "notPlayed" }, starred: { starred: true }, notInAnyPlaylist: { notInAnyPlaylist: true }, duration: { maxDuration: 30 } }[k];
+}
+function dropCond(f, k) {
+  const g = { ...f };
+  if (k === "duration") { delete g.minDuration; delete g.maxDuration; } else delete g[k];
+  return g;
+}
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+// ---------- Icons (lucide paths) ----------
+const IC = {
+  filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54z"/>',
+  listMusic: '<path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/>',
+  library: '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>',
+  right: '<path d="m9 18 6-6-6-6"/>', left: '<path d="m15 18-6-6 6-6"/>', down: '<path d="m6 9 6 6 6-6"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', check: '<path d="M20 6 9 17l-5-5"/>', plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  play: '<path d="M6 3.5v17l14-8.5z" fill="currentColor"/>', pause: '<rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/>',
+  star: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>',
+  dl: '<path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/>',
+  sliders: '<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
+  more: '<circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/><circle cx="5" cy="12" r="1.2" fill="currentColor"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  rewind: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+  audio: '<path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/>',
+  grip: '<circle cx="9" cy="6" r="1" fill="currentColor"/><circle cx="15" cy="6" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="18" r="1" fill="currentColor"/><circle cx="15" cy="18" r="1" fill="currentColor"/>',
+  pencil: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  listPlus: '<path d="M11 12H3M16 6H3M16 18H3M18 9v6M21 12h-6"/>',
+  listStart: '<path d="M16 12H3M16 18H3M10 6H3M21 18V8a2 2 0 0 0-2-2h-5"/><path d="m16 8-2-2 2-2"/>',
+  listEnd: '<path d="M16 12H3M16 6H3M10 18H3M21 6v10a2 2 0 0 1-2 2h-5"/><path d="m16 16-2 2 2 2"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  phone: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'
+};
+const ic = (n, s = 20, extra = "") => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${IC[n]}</svg>`;
+const art = (pid, s = 48) => {
+  const p = POD[pid] || { t: pid, c: "#6b6f7d" };
+  return `<span class="art" aria-hidden="true" style="width:${s}px;height:${s}px;background:${p.c};font-size:${Math.round(s / 3.4)}px;border-radius:${s >= 64 ? 14 : 10}px">${initials(p.t)}</span>`;
+};
+const sw = (on, a, v, label) => `<button class="swhit" role="switch" aria-checked="${on}" aria-label="${esc(label)}" data-a="${a}" data-v="${v ?? ""}"><span class="sw" aria-checked="${on}"></span></button>`;
+const seg = (opts, cur, a, cls = "") => `<div class="seg ${cls}" role="group">${opts.map(([v, l]) => `<button aria-pressed="${String(v) === String(cur)}" data-a="${a}" data-v="${v}">${l}</button>`).join("")}</div>`;
+const back = (label, a, v = "") => `<button class="backlink" data-a="${a}" data-v="${v}">${ic("left", 20)}${esc(label)}</button>`;
+
+// Episode rows as the app draws them today (EpisodeRow.tsx)
+function epRowPhone(e, q) {
+  return `<div class="ep ${e.pl ? "played" : ""}">${art(e.p, 48)}<div class="grow"><div class="t clamp2">${hl(e.t, q)}</div>
+  <div class="xs muted trunc mt4">${e.pl ? '<span style="color:var(--pos);font-weight:500">✓ Played · </span>' : ""}${e.st ? '<span style="color:var(--star)">★ </span>' : ""}${hl(POD[e.p].t, q)} · ${fmtPub(e.d)} · ${fmtLen(e.m)}${e.pos ? " · " + (e.m - e.pos) + " min left" : ""}</div>
+  ${q && !e.t.toLowerCase().includes(q.toLowerCase()) && e.n.toLowerCase().includes(q.toLowerCase()) ? `<div class="xs muted mt4 clamp2">Notes: ${hl(snip(e.n, q), q)}</div>` : ""}</div>
+  <button class="ib" aria-label="Add ${esc(e.t)} to a Playlist" data-a="noop">${ic("plus")}</button><button class="ib play" aria-label="Play ${esc(e.t)}" data-a="noop">${ic("play", 18)}</button></div>`;
+}
+function epTable(rows, q, opts = {}) {
+  if (!rows.length) return `<div class="dashed" style="padding:28px;text-align:center;margin-top:8px"><div class="m">No Episodes match</div><div class="sm muted mt4">${opts.empty || "Try removing a condition."}</div></div>`;
+  return `<table class="tbl" style="table-layout:fixed"><colgroup><col style="width:36px"><col><col style="width:96px"><col style="width:84px"><col style="width:188px"></colgroup><thead><tr><th><span class="sr">Select</span></th><th>Episode</th><th>Published</th><th>Length</th><th style="text-align:right">Actions</th></tr></thead><tbody>${rows
+    .map((e) => `<tr><td><input type="checkbox" aria-label="Select ${esc(e.t)}"></td><td><div class="row gap12">${art(e.p, 40)}<div class="grow"><div class="m trunc" style="${e.pl ? "color:var(--muted)" : ""}">${hl(e.t, q)}</div><div class="xs muted trunc">${e.pl ? '<span style="color:var(--pos)">✓ Played · </span>' : ""}${e.pos ? `<span>${e.m - e.pos} min left · </span>` : ""}${hl(POD[e.p].t, q)}${q && !e.t.toLowerCase().includes(q.toLowerCase()) && e.n.toLowerCase().includes(q.toLowerCase()) ? " · Notes: …" + hl(e.n.slice(Math.max(0, e.n.toLowerCase().indexOf(q.toLowerCase()) - 20)), q) : ""}</div></div></div></td><td class="muted tab-num">${fmtPub(e.d)}</td><td class="muted tab-num">${fmtLen(e.m)}</td>
+    <td><div class="row" style="gap:0;justify-content:flex-end"><button class="ib" aria-label="Play Next" title="Play Next" data-a="noop">${ic("listStart", 18)}</button><button class="ib" aria-label="Play Last" title="Play Last" data-a="noop">${ic("listEnd", 18)}</button><button class="ib" aria-label="Star" title="Star" data-a="noop" style="${e.st ? "color:var(--star)" : ""}">${ic("star", 18, e.st ? 'fill="currentColor"' : "")}</button><button class="ib play" aria-label="Play" title="Play now" data-a="noop" style="margin-left:6px">${ic("play", 18)}</button></div></td></tr>`)
+    .join("")}</tbody></table>`;
+}
+
+// ---------- App chrome ----------
+function miniPlayer() {
+  return `<section class="mini dark" aria-label="Now playing"><button class="row grow" style="gap:12px" data-a="noop" aria-label="Open Now Playing">${art(NOWP.p, 44)}<span class="grow"><span class="sm b trunc" style="display:block">${esc(NOWP.t)}</span><span class="xs trunc" style="display:block;color:var(--pmuted)">${esc(POD[NOWP.p].t)} · ${esc(NOWP.pl)}</span></span></button>
+  <button class="ib" aria-label="Back 15 seconds" data-a="noop">${ic("rewind", 20)}</button><button class="pp" aria-label="Play" data-a="noop">${ic("play", 18)}</button><button class="ib" aria-label="Forward 30 seconds" data-a="noop" style="transform:scaleX(-1)">${ic("rewind", 20)}</button><span class="prog"><i style="width:${NOWP.pct}%"></i></span></section>`;
+}
+function phone({ tab, content, overlay = "", mini = true }) {
+  const t = [["views", "Views", "filter"], ["playlists", "Playlists", "listMusic"], ["library", "Library", "library"]];
+  return `<div class="app phone">${content}${mini ? miniPlayer() : ""}<nav class="tabs" aria-label="Sections">${t
+    .map(([k, l, i]) => `<button data-a="tab" data-v="${k}" ${tab === k ? 'aria-current="page"' : ""}><span class="pill">${ic(i, 22)}</span>${l}</button>`)
+    .join("")}</nav>${overlay}</div>`;
+}
+function desk({ sel, main, right = "", overlay = "", views = VIEWS0, searchSel = false, playlists = PLAYLISTS, noPlayer = false }) {
+  return `<div class="app desk" ${noPlayer ? 'style="grid-template-rows:minmax(0,1fr) 0px"' : ""}><nav class="side" aria-label="Library and lists"><div class="brand">PodList</div>
+  <button class="search" data-a="deskSearch" ${searchSel ? 'aria-current="page" style="background:var(--accent);color:var(--fg)"' : ""}>${ic("search", 16)}<span class="grow trunc">Search the Library</span><span class="kbd">⌘K</span></button>
+  <div class="sh"><span class="label">Views</span><button class="ib" aria-label="New View" data-a="newView">${ic("plus", 16)}</button></div>
+  ${views.length ? "" : '<p class="sm muted" style="padding:4px 10px;margin:0">No Views yet</p>'}${views.map((v) => `<button class="si" data-a="openView" data-v="${v.id}" ${sel === v.id ? 'aria-current="page"' : ""}><span class="trunc">${esc(v.name)}</span>${v.unsaved ? '<span class="badge">Unsaved</span>' : ""}</button>`).join("")}
+  <div class="sh"><span class="label">Playlists</span><button class="ib" aria-label="New Playlist" data-a="noop">${ic("plus", 16)}</button></div>
+  ${playlists.map((p) => `<button class="si" data-a="openPlaylist" data-v="${p.id}" ${sel === p.id ? 'aria-current="page"' : ""}><span class="row gap8 trunc"><span class="trunc">${esc(p.name)}</span>${p.active ? `<span style="color:var(--pos)" title="Active Playlist">${ic("audio", 15)}</span>` : ""}</span><span class="xs muted">${p.n}</span></button>`).join("")}
+  <div class="sp"></div>
+  <button class="si" data-a="openLibrary" ${sel === "library" ? 'aria-current="page"' : ""}><span class="row gap8">${ic("library", 16)}Library</span></button>
+  <button class="si" data-a="noop"><span class="row gap8">${ic("gear", 16)}Settings</span></button></nav>
+  <div class="dmain"><div class="pane">${main}</div>${right ? `<aside class="rpanel">${right}</aside>` : ""}</div>
+  ${noPlayer ? "" : `<section class="pbar dark" aria-label="Now playing"><div class="row">${art(NOWP.p, 48)}<div class="grow"><div class="sm b trunc">${esc(NOWP.t)}</div><div class="xs trunc" style="color:var(--pmuted)">${esc(POD[NOWP.p].t)} · ${esc(NOWP.pl)}</div></div></div>
+  <div class="col gap4"><div class="row" style="justify-content:center;gap:6px"><button class="ib" aria-label="Back 15 seconds" data-a="noop">${ic("rewind")}</button><button class="pp" aria-label="Play" data-a="noop">${ic("play", 18)}</button><button class="ib" aria-label="Forward 30 seconds" data-a="noop" style="transform:scaleX(-1)">${ic("rewind")}</button></div>
+  <div class="row xs tab-num" style="gap:10px;color:var(--pmuted)"><span>${NOWP.at}</span><div class="track grow"><i style="width:${NOWP.pct}%"></i></div><span>${NOWP.left}</span></div></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" style="color:#fff" data-a="noop">${ic("listMusic")} 8 <span style="color:var(--pmuted);font-weight:400">up next</span></button></div></section>`}${overlay}</div>`;
+}
+const scroll = (html, style = "") => `<div class="scroll" style="${style}">${html}</div>`;
+const toast = (msg, undoA) => `<div class="toast" role="status"><span class="grow">${msg}</span>${undoA ? `<button class="btn" data-a="${undoA}">Undo</button>` : ""}<button class="ib" style="color:#fff;width:40px;height:40px" aria-label="Dismiss" data-a="toastOff">${ic("x", 18)}</button></div>`;
+
+// ---------- Areas, routing and events ----------
+const AREAS = {};
+const AREA_ORDER = ["view-editor", "playlists", "library"];
+const S = { area: "view-editor", variant: "A", device: "phone", screen: null, st: null };
+let A = {}; // actions for the current area: name -> (value, el, event)
+
+function parseHash() {
+  const [area, vd, screen] = location.hash.replace(/^#/, "").split("/");
+  const out = { area: AREAS[area] ? area : "view-editor", variant: "A", device: "phone", screen: null };
+  if (vd) {
+    const [v, d] = vd.split("-");
+    if (/^[ABC]$/.test(v)) out.variant = v;
+    if (d === "desktop" || d === "phone") out.device = d;
+  }
+  const scr = AREAS[out.area].variants[out.variant].screens;
+  out.screen = scr.some((s) => s[0] === screen) ? screen : scr[0][0];
+  return out;
+}
+function go(area, variant, device, screen) {
+  const h = `#${area}/${variant}-${device}${screen ? "/" + screen : ""}`;
+  if (location.hash !== h) location.hash = h;
+  else load();
+}
+function load() {
+  Object.assign(S, parseHash());
+  S.st = AREAS[S.area].init(S.variant, S.screen, S.device);
+  render();
+}
+function chrome() {
+  const ar = AREAS[S.area];
+  document.getElementById("areas").innerHTML = AREA_ORDER.filter((k) => AREAS[k]).map((k) => `<button aria-pressed="${k === S.area}" data-chrome="area" data-v="${k}">${AREAS[k].title}</button>`).join("");
+  document.getElementById("variants").innerHTML = ["A", "B", "C"].filter((v) => ar.variants[v]).map((v) => `<button aria-pressed="${v === S.variant}" data-chrome="variant" data-v="${v}">${v} · ${ar.variants[v].name}</button>`).join("");
+  document.getElementById("devices").innerHTML = [["phone", "Phone 390"], ["desktop", "Desktop 1280"]].map(([k, l]) => `<button aria-pressed="${k === S.device}" data-chrome="device" data-v="${k}">${l}</button>`).join("");
+  const v = ar.variants[S.variant];
+  document.getElementById("notes").innerHTML = `<h2>${ar.title}: jump to a state in ${S.variant}</h2><div class="jump">${v.screens.map(([k, l]) => `<button aria-pressed="${k === S.st.screen0}" data-chrome="screen" data-v="${k}">${l}</button>`).join("")}</div>
+  <h2>Variants</h2><div class="vgrid">${["A", "B", "C"].filter((k) => ar.variants[k]).map((k) => `<div class="v ${k === S.variant ? "cur" : ""}"><b>${k} — ${ar.variants[k].name}</b><p>${ar.variants[k].caption}</p></div>`).join("")}</div>
+  <h2>Open questions</h2><div class="q"><ol>${ar.questions.map((q) => `<li>${q}</li>`).join("")}</ol></div>
+  <p class="xs" style="color:var(--chrome-muted);margin-top:18px">Throwaway prototype. All podcasts and Episodes are invented. Interactions keep state in memory only; switching variant or reloading resets it. Esc closes the top sheet or dialog.</p>`;
+}
+function render() {
+  const ar = AREAS[S.area];
+  A = Object.assign({}, COMMON, ar.actions);
+  const active = document.activeElement;
+  const fid = active && active.id && active.closest("#stage") ? active.id : null;
+  const sel = fid && "selectionStart" in active ? [active.selectionStart, active.selectionEnd] : null;
+  const stage = document.getElementById("stage");
+  stage.className = S.device;
+  NOWP = NOWP0;
+  stage.innerHTML = ar.render(S.variant, S.device, S.st);
+  chrome();
+  if (fid) {
+    const el = document.getElementById(fid);
+    if (el) { el.focus({ preventScroll: true }); if (sel && el.setSelectionRange) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) {} }
+  } else if (S.st.focus) {
+    const el = document.getElementById(S.st.focus);
+    if (el) el.focus({ preventScroll: true });
+  }
+  S.st.focus = null;
+  if (S.st.scrollTo) { const el = document.getElementById(S.st.scrollTo); const sc = el && el.closest(".scroll, .pane"); if (sc) sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 120; S.st.scrollTo = null; }
+}
+const COMMON = {
+  noop() { return false; },
+  tab(v) { go({ views: "view-editor", playlists: "playlists", library: "library" }[v], S.variant, S.device); return false; },
+  openView() { go("view-editor", S.variant, S.device); return false; },
+  openPlaylist() { go("playlists", S.variant, S.device); return false; },
+  openLibrary() { go("library", S.variant, S.device); return false; },
+  newView() { go("view-editor", S.variant, S.device, "new"); return false; },
+  deskSearch() { go("view-editor", S.variant, S.device, "search"); return false; },
+  toastOff() { S.st.toast = null; }
+};
+document.addEventListener("click", (ev) => {
+  const c = ev.target.closest("[data-chrome]");
+  if (c) {
+    const v = c.dataset.v;
+    if (c.dataset.chrome === "area") go(v, "A", S.device);
+    if (c.dataset.chrome === "variant") go(S.area, v, S.device);
+    if (c.dataset.chrome === "device") go(S.area, S.variant, v, S.st.screen0);
+    if (c.dataset.chrome === "screen") go(S.area, S.variant, S.device, v);
+    return;
+  }
+  const el = ev.target.closest("#stage [data-a]");
+  if (!el) return;
+  const fn = A[el.dataset.a];
+  if (!fn) return;
+  if (el.tagName !== "INPUT") ev.preventDefault();
+  if (fn.call(A, el.dataset.v, el, ev) !== false) render();
+});
+document.addEventListener("input", (ev) => {
+  const el = ev.target.closest("#stage [data-in]");
+  if (!el) return;
+  const fn = A[el.dataset.in];
+  if (fn && fn.call(A, el.value, el, ev) !== false) render();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && AREAS[S.area].esc && AREAS[S.area].esc(S.st)) { ev.preventDefault(); render(); }
+});
+window.addEventListener("hashchange", load);
+// ===== Area 1: View editor and Search results =====
+(() => {
+  const DSTEPS = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120];
+  const LSTEPS = [null, 5, 10, 20, 50, 100];
+  const step = (arr, cur, dir) => { const i = Math.max(0, arr.indexOf(cur)); return arr[Math.min(arr.length - 1, Math.max(0, i + (dir === "+" ? 1 : -1)))]; };
+  const isoOf = (d) => { const x = dateOf(d); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
+  const daysFromIso = (s) => Math.round((TODAY - new Date(s + "T00:00")) / 864e5);
+
+  const valid = (k, f) => {
+    if (k === "podcasts") return f.podcasts && f.podcasts.ids.length > 0;
+    if (k === "text") return !!(f.text && f.text.trim());
+    if (k === "duration") return !!(f.minDuration || f.maxDuration);
+    return true;
+  };
+  const viewFromDraft = (d) => runView(d.f, d.sort, d.limit);
+  const summaryLine = (f) => { const ks = condKeys(f); return ks.length ? ks.map((k) => condSummary(k, f)).join(" · ") : "Every Episode in the Library"; };
+
+  // Radio list: big rows (44px+) with an optional second line.
+  const radios = (opts, cur, a) => `<div class="group" role="radiogroup">${opts
+    .map(([v, l, d]) => `<button class="gr" role="radio" aria-checked="${String(v) === String(cur)}" data-a="${a}" data-v="${v}"><span class="radio ${String(v) === String(cur) ? "on" : ""}"></span><span class="grow"><span class="m" style="display:block">${l}</span>${d ? `<span class="xs muted">${d}</span>` : ""}</span></button>`)
+    .join("")}</div>`;
+  const stepper = (label, val, a, fmt) => `<div class="row" style="justify-content:space-between;min-height:52px"><span class="m">${label}</span><span class="stepper"><button aria-label="Less: ${label}" data-a="${a}" data-v="-">−</button><span aria-live="polite">${fmt(val)}</span><button aria-label="More: ${label}" data-a="${a}" data-v="+">+</button></span></div>`;
+  const minFmt = (v) => (v ? v + " min" : "Any");
+
+  // The editor for one condition (or sort / limit). Edits the draft live.
+  function condEditor(k, d, opts = {}) {
+    const f = d.f;
+    switch (k) {
+      case "published": {
+        const p = f.published || { tag: "LastDays", days: 14 };
+        const cur = p.tag === "LastDays" ? p.days : "between";
+        return radios([[7, "Last 7 days"], [14, "Last 14 days"], [30, "Last 30 days"], ["between", "Between two dates"]], cur, "pubDays") +
+          (p.tag === "Between" ? `<div class="row gap12 mt12"><label class="grow"><span class="xs muted m">From</span><input id="pubFrom" type="date" data-in="pubFrom" value="${p.from != null ? isoOf(p.from) : ""}"></label><label class="grow"><span class="xs muted m">To</span><input id="pubTo" type="date" data-in="pubTo" value="${p.to != null ? isoOf(p.to) : ""}"></label></div><p class="help">Leave “To” empty for “until today”.</p>` : `<p class="help">Counts from the date the podcast published the Episode, not when PodList first saw it.</p>`);
+      }
+      case "podcasts": {
+        const p = f.podcasts || { mode: "include", ids: [] };
+        return seg([["include", "Only these"], ["exclude", "All except these"]], p.mode, "podMode", "full") +
+          `<div class="group mt12">${PODS.map((x) => `<label class="gr" style="cursor:pointer"><input type="checkbox" ${p.ids.includes(x.id) ? "checked" : ""} data-a="podTog" data-v="${x.id}">${art(x.id, 32)}<span class="grow trunc">${esc(x.t)}</span></label>`).join("")}</div>
+          <p class="help">${p.ids.length ? plural(p.ids.length, "podcast") + " chosen." : "Choose at least one podcast."}</p>`;
+      }
+      case "text":
+        return `<label><span class="sm m">Title, show notes or podcast name contains</span><input id="condText" class="mt4" type="text" data-in="condText" value="${esc(f.text || "")}" placeholder="For example: budget" autocomplete="off"></label><p class="help">Not case-sensitive. One phrase; use another condition to narrow further.</p>`;
+      case "played":
+        return radios([["unplayed", "Not started", "No Position in any Playlist"], ["inProgress", "In progress", "Started somewhere, not finished"], ["notPlayed", "Not Played", "Not started or in progress"], ["played", "Played", "Finished, or marked Played"]], f.played, "played");
+      case "starred":
+        return radios([["true", "Starred"], ["false", "Not Starred"]], String(f.starred), "starred");
+      case "notInAnyPlaylist":
+        return `<p class="sm" style="margin:4px 0">Shows only Episodes that aren’t an Entry in any Playlist. Nothing to set.</p>`;
+      case "duration":
+        return `<div class="group" style="padding:4px 14px">${stepper("At least", f.minDuration || 0, "durMin", minFmt)}<div style="border-top:1px solid var(--line)"></div>${stepper("At most", f.maxDuration || 0, "durMax", minFmt)}</div>`;
+      case "sort":
+        return radios(Object.entries(SORTS), d.sort, "sortSet");
+      case "limit":
+        return radios(LSTEPS.map((n) => [n === null ? "all" : n, n === null ? "All that match" : "The first " + n]), d.limit === null ? "all" : d.limit, "limitSet") + `<p class="help">Counted after sorting: “Newest first” with 20 shows the 20 newest.</p>`;
+    }
+    return "";
+  }
+  const condLabel = (k) => (COND_TYPES.find((c) => c[0] === k) || [k, { sort: "Sort", limit: "Show at most" }[k]])[1];
+
+  // Shared editing actions (all act on st.draft).
+  const edActions = {
+    pubDays(v) { const d = S.st.draft; d.f.published = v === "between" ? { tag: "Between", from: 30, to: null } : { tag: "LastDays", days: +v }; },
+    pubFrom(v) { S.st.draft.f.published.from = v ? daysFromIso(v) : null; },
+    pubTo(v) { S.st.draft.f.published.to = v ? daysFromIso(v) : null; },
+    podMode(v) { S.st.draft.f.podcasts.mode = v; },
+    podTog(v) { const p = S.st.draft.f.podcasts; p.ids = p.ids.includes(v) ? p.ids.filter((x) => x !== v) : [...p.ids, v]; },
+    condText(v) { S.st.draft.f.text = v; },
+    played(v) { S.st.draft.f.played = v; },
+    starred(v) { S.st.draft.f.starred = v === "true"; },
+    durMin(v) { const f = S.st.draft.f; f.minDuration = step(DSTEPS, f.minDuration || 0, v) || undefined; },
+    durMax(v) { const f = S.st.draft.f; f.maxDuration = step(DSTEPS, f.maxDuration || 0, v) || undefined; },
+    sortSet(v) { S.st.draft.sort = v; },
+    limitSet(v) { S.st.draft.limit = v === "all" ? null : +v; },
+    vname(v) { S.st.draft.name = v; return false; },
+    removeCond(k) { S.st.draft.f = dropCond(S.st.draft.f, k); },
+    q(v) { S.st.q = v; }
+  };
+  const newDraft = (v) => (v ? { id: v.id, name: v.name, f: clone(v.f), sort: v.sort, limit: v.limit } : { id: null, name: "", f: {}, sort: "publishedDesc", limit: null });
+  const saveDraft = (st) => {
+    const d = st.draft;
+    const name = d.name.trim() || "Untitled View";
+    if (d.id) st.views = st.views.map((v) => (v.id === d.id ? { ...v, name, f: clone(d.f), sort: d.sort, limit: d.limit } : v));
+    else { d.id = "n" + Date.now(); st.views = [...st.views.filter((v) => !v.unsaved), { id: d.id, name, f: clone(d.f), sort: d.sort, limit: d.limit }]; }
+    return st.views.find((v) => v.id === d.id);
+  };
+
+  // ---------- Common screens ----------
+  function viewsListPhone(st, searchHtml) {
+    return scroll(`<header class="hdr row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">Views</h1><button class="btn btn-t" data-a="newView">New View</button></header>
+      <div class="px20" style="margin-bottom:8px">${searchHtml}</div>
+      <div style="padding:0 12px">${st.views.map((v) => {
+        const r = runView(v.f, v.sort, v.limit);
+        return `<button class="lrow" data-a="openView" data-v="${v.id}"><span class="tile">${ic("filter")}</span><span class="grow"><span class="m" style="display:block;font-size:16px">${esc(v.name)}</span><span class="xs muted trunc" style="display:block;margin-top:2px">${esc(summaryLine(v.f))}</span></span><span class="sm muted tab-num">${r.rows.length}</span><span class="muted">${ic("right", 16)}</span></button>`;
+      }).join("")}</div>`);
+  }
+  const searchButton = `<button class="row gap8" data-a="openSearch" style="height:44px;border-radius:12px;background:#ecebe6;color:var(--muted);padding:0 12px;width:100%">${ic("search", 18)}Search the Library</button>`;
+  function viewPhone(st, v, extra = "") {
+    const r = runView(v.f, v.sort, v.limit);
+    return scroll(`<header class="hdr" style="padding-top:4px">${back("Views", "toList")}<div class="row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">${esc(v.name)}</h1><button class="btn btn-t" data-a="editView">Edit</button></div><p class="sm muted" style="margin:6px 0 0">${esc(summaryLine(v.f))} · ${SORTS[v.sort]}</p></header>${extra}<div style="padding:0 12px">${r.rows.map((e) => epRowPhone(e)).join("") || `<div class="dashed" style="margin:8px;padding:24px;text-align:center"><div class="m">No Episodes match right now</div><div class="sm muted mt4">New Episodes appear here when they match. Edit the View to widen it.</div></div>`}</div>`);
+  }
+  function viewDesk(st, v, actionsHtml = "") {
+    const r = runView(v.f, v.sort, v.limit);
+    return `<header class="hdr"><div class="row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">${esc(v.name)}</h1><div class="row gap8">${actionsHtml}</div></div><p class="sm muted" style="margin:6px 0 0">${esc(summaryLine(v.f))} · ${SORTS[v.sort]}${v.limit ? " · first " + v.limit : ""} · ${plural(r.rows.length, "Episode")}</p></header>
+      <div class="px20 row" style="justify-content:flex-end;padding-bottom:8px"><label class="row gap8 sm muted">Next / Last go to <select style="height:36px;width:auto;font-size:14px"><option>Default (active)</option><option>Commute</option></select></label></div><div class="px20">${epTable(r.rows)}</div>`;
+  }
+  const curView = (st) => st.views.find((v) => v.id === st.cur) || st.views[0];
+
+  // Sheet / modal wrappers
+  const sheet = (inner, { z = 0, h = "", label = "Dialog" } = {}) => `<div class="scrim" data-a="sheetScrim" style="z-index:${20 + z}"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(label)}" style="z-index:${21 + z};${h ? "height:" + h : ""}"><div class="grab"></div>${inner}</div>`;
+  const modal = (inner, { cls = "", z = 0, label = "Dialog" } = {}) => `<div class="scrim" data-a="sheetScrim" style="z-index:${20 + z}"></div><div class="modal ${cls}" role="dialog" aria-modal="true" aria-label="${esc(label)}" style="z-index:${21 + z}">${inner}</div>`;
+
+  // ================= Variant A: editor sheet with condition rows =================
+  function edBodyA(st, desk) {
+    const d = st.draft;
+    const ks = condKeys(d.f);
+    const row = (k) => {
+      const open = desk && st.open === k;
+      return `<div class="gr" style="flex-wrap:wrap;${open ? "background:#fbfaf8" : ""}"><button class="grow col" style="min-height:44px;justify-content:center" data-a="${desk ? "toggleOpen" : "openCond"}" data-v="${k}" aria-expanded="${open}"><span class="xs muted m">${condLabel(k)}</span><span class="m">${esc(valid(k, d.f) ? condSummary(k, d.f) : "Not set yet")}</span></button>
+        ${desk ? `<span class="muted" style="transform:rotate(${open ? 180 : 0}deg)">${ic("down", 16)}</span>` : `<span class="muted">${ic("right", 16)}</span>`}<button class="ib" aria-label="Remove ${condLabel(k)}" data-a="removeCond" data-v="${k}">${ic("x", 18)}</button>
+        ${open ? `<div style="flex-basis:100%;padding:4px 0 12px">${condEditor(k, d)}</div>` : ""}</div>`;
+    };
+    const unused = COND_TYPES.filter(([k]) => !ks.includes(k));
+    return `<label class="col gap4"><span class="label">Name</span><input id="vname" type="text" data-in="vname" value="${esc(d.name)}" placeholder="For example: Short and unplayed"></label>
+      <div class="gl label">Show Episodes that match all of these</div>
+      <div class="group">${ks.map(row).join("")}
+        <div style="position:relative"><button class="gr" style="color:var(--primary);font-weight:600" data-a="${desk ? "toggleAddMenu" : "openAdd"}" aria-expanded="${!!st.addMenu}" ${unused.length ? "" : "disabled"}>${ic("plus", 18)}Add a condition</button>
+        ${desk && st.addMenu ? `<div class="menu" style="left:8px;top:48px;width:360px">${unused.map(([k, l, dsc]) => `<button data-a="addCond" data-v="${k}" style="flex-direction:column;align-items:flex-start;justify-content:center;min-height:48px"><span class="m">${l}</span><span class="xs muted">${dsc}</span></button>`).join("")}</div>` : ""}</div></div>
+      ${ks.length ? "" : `<p class="help">No conditions yet, so this View shows every Episode in the Library.</p>`}
+      <div class="gl label">Order</div>
+      <div class="group">${["sort", "limit"].map((k) => {
+        const open = desk && st.open === k;
+        const val = k === "sort" ? SORTS[d.sort] : d.limit ? "The first " + d.limit : "All that match";
+        return `<div class="gr" style="flex-wrap:wrap"><button class="grow row" style="min-height:44px;justify-content:space-between" data-a="${desk ? "toggleOpen" : "openCond"}" data-v="${k}" aria-expanded="${open}"><span class="m">${condLabel(k)}</span><span class="muted">${val}</span></button><span class="muted">${ic(desk ? "down" : "right", 16)}</span>${open ? `<div style="flex-basis:100%;padding:4px 0 12px">${condEditor(k, d)}</div>` : ""}</div>`;
+      }).join("")}</div>
+      ${d.id ? `<div class="mt24"><button class="btn btn-t danger" style="padding:0 4px" data-a="askDelete">${ic("trash", 18)}Delete View</button></div>` : ""}`;
+  }
+  function countFoot(st) {
+    const r = viewFromDraft(st.draft);
+    return `<span class="grow" aria-live="polite"><b class="tab-num">${plural(r.total, "Episode")}</b> <span class="muted">match now${st.draft.limit && r.total > st.draft.limit ? ", showing " + st.draft.limit : ""}</span></span>`;
+  }
+  function overlayA_phone(st) {
+    if (!st.draft) return "";
+    let html = sheet(`<div class="shd" style="padding-left:8px"><button class="btn btn-t" data-a="edCancel">Cancel</button><h2 class="h3 grow" style="text-align:center">${st.draft.id ? "Edit View" : "New View"}</h2><button class="btn btn-t" data-a="edSave">Save</button></div>
+      <div class="sbody">${edBodyA(st, false)}</div><div class="sfoot row">${countFoot(st)}<button class="btn btn-s" data-a="openPreview">Preview</button></div>`, { h: "94%", label: "Edit View" });
+    const sub = st.sub;
+    if (sub && sub.kind === "add") {
+      const unused = COND_TYPES.filter(([k]) => !condKeys(st.draft.f).includes(k));
+      html += sheet(`<div class="shd"><h2 class="h3 grow">Add a condition</h2><button class="btn btn-t" data-a="subCancel">Cancel</button></div><div class="sbody"><div class="group">${unused.map(([k, l, dsc]) => `<button class="gr" data-a="addCond" data-v="${k}"><span class="grow"><span class="m" style="display:block">${l}</span><span class="xs muted">${dsc}</span></span><span class="muted">${ic("right", 16)}</span></button>`).join("")}</div></div>`, { z: 4, label: "Add a condition" });
+    }
+    if (sub && sub.kind === "cond") {
+      const ok = valid(sub.k, st.draft.f);
+      html += sheet(`<div class="shd" style="padding-left:8px"><button class="btn btn-t" data-a="subCancel">${sub.isNew ? "Back" : "Cancel"}</button><h2 class="h3 grow" style="text-align:center">${condLabel(sub.k)}</h2><button class="btn btn-t" data-a="subDone" ${ok ? "" : "disabled"}>${sub.isNew ? "Add" : "Done"}</button></div><div class="sbody">${condEditor(sub.k, st.draft)}</div><div class="sfoot row">${countFoot(st)}</div>`, { z: 4, label: condLabel(sub.k) });
+    }
+    if (sub && sub.kind === "preview") {
+      const r = viewFromDraft(st.draft);
+      html += sheet(`<div class="shd"><h2 class="h3 grow">Preview · ${plural(r.total, "Episode")}</h2><button class="btn btn-t" data-a="subCancel">Done</button></div><div class="sbody" style="padding:0 8px">${r.rows.slice(0, 8).map((e) => epRowPhone(e)).join("") || '<p class="help" style="padding:20px">No Episodes match yet.</p>'}${r.rows.length > 8 ? `<p class="help" style="text-align:center">and ${r.rows.length - 8} more</p>` : ""}</div>`, { z: 4, h: "70%", label: "Preview" });
+    }
+    if (sub && sub.kind === "delete") html += deleteAlert(st, 4);
+    return html;
+  }
+  const deleteAlert = (st, z) => `<div class="scrim" style="z-index:${22 + z}" data-a="subCancel"></div><div class="alert" role="alertdialog" aria-modal="true" aria-labelledby="dlT" style="z-index:${23 + z}"><h2 class="h3" id="dlT" style="font-size:17px">Delete “${esc(st.draft.name)}”?</h2><p class="sm muted" style="margin:8px 0 16px">The View goes away on every Device. No Episodes, Entries or downloads change.</p><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" data-a="subCancel" id="dlCancel">Cancel</button><button class="btn btn-d" data-a="doDelete">Delete View</button></div></div>`;
+
+  function searchResultsPhoneA(st) {
+    const r = st.q.trim() ? runView({ text: st.q.trim() }, "publishedDesc") : { total: 0, rows: [] };
+    return scroll(`<header class="hdr" style="padding-top:4px">${back("Views", "toList")}<h1 class="h1" tabindex="-1">Search</h1></header>
+      <div class="px20"><label class="sr" for="q">Search the Library</label><div style="position:relative"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><input id="q" type="search" data-in="q" value="${esc(st.q)}" placeholder="Titles, show notes, podcasts" style="padding-left:40px"></div>
+      <p class="xs muted" style="margin:6px 2px 0">Searches every Episode in your Library. To find new podcasts, use Library.</p>
+      ${st.q.trim() ? `<div class="row mt12" style="justify-content:space-between"><span class="sm"><b>${plural(r.total, "Episode")}</b> <span class="muted">mention “${esc(st.q.trim())}”</span></span><button class="btn btn-s" data-a="promote">${ic("filter", 16)}Save as View</button></div>` : ""}</div>
+      <div style="padding:4px 12px">${st.q.trim() ? (r.rows.map((e) => epRowPhone(e, st.q.trim())).join("") || `<div class="dashed mt12" style="padding:24px;text-align:center"><div class="m">Nothing in your Library mentions “${esc(st.q)}”</div><div class="sm muted mt4">Check the spelling, or search for a podcast to subscribe to in Library.</div></div>`) : `<p class="help" style="padding:12px 8px">Type to search. Results update as you type.</p>`}</div>`);
+  }
+  function searchDesk(st, extraBtn = "") {
+    const q = st.q.trim();
+    const r = q ? runView({ text: q }, "publishedDesc") : { total: 0, rows: [] };
+    return `<header class="hdr"><h1 class="h1" tabindex="-1">Search</h1></header><div class="px20"><div class="row gap12"><div class="grow" style="position:relative;max-width:560px"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><label class="sr" for="q">Search the Library</label><input id="q" type="search" data-in="q" value="${esc(st.q)}" placeholder="Titles, show notes, podcasts" style="padding-left:40px"></div>${q ? `<button class="btn btn-p" data-a="promote">${ic("filter", 16)}Save as View…</button>` : ""}${extraBtn}</div>
+      <p class="sm muted" style="margin:8px 0 12px">${q ? `<b style="color:var(--fg)">${plural(r.total, "Episode")}</b> in your Library mention “${esc(q)}” in the title, show notes or podcast name.` : "Searches every Episode in your Library."}</p>${q ? epTable(r.rows, q, { empty: "Check the spelling, or find a new podcast in Library." }) : ""}</div>`;
+  }
+
+  function renderA(dev, st) {
+    if (dev === "phone") {
+      let content;
+      if (st.screen === "search") content = searchResultsPhoneA(st);
+      else if (st.screen === "view") content = viewPhone(st, curView(st));
+      else content = viewsListPhone(st, searchButton);
+      return phone({ tab: "views", content, overlay: overlayA_phone(st) + (st.toast ? toast(st.toast) : "") });
+    }
+    let main = st.screen === "search" ? searchDesk(st) : viewDesk(st, curView(st), `<button class="btn btn-o" data-a="editView">${ic("sliders", 16)}Edit View</button>`);
+    let overlay = "";
+    if (st.draft) {
+      overlay = modal(`<div class="shd"><h2 class="h2 grow">${st.draft.id ? "Edit View" : "New View"}</h2><button class="ib" aria-label="Close" data-a="edCancel">${ic("x")}</button></div><div class="sbody">${edBodyA(st, true)}</div>
+        <div class="sfoot" style="align-items:center">${countFoot(st)}<button class="btn btn-s" data-a="edCancel">Cancel</button><button class="btn btn-p" data-a="edSave">Save</button></div>`, { cls: "wide", label: "Edit View" });
+      if (st.sub && st.sub.kind === "delete") overlay += deleteAlert(st, 4);
+    }
+    return desk({ sel: st.screen === "search" ? null : st.cur, main, overlay: overlay + (st.toast ? toast(st.toast) : ""), views: st.views, searchSel: st.screen === "search" });
+  }
+
+  // ================= Variant B: the View is its own editor (chips over live results) =================
+  function chipsB(st, desk) {
+    const d = st.draft, ks = condKeys(d.f);
+    const pop = (k) => (desk && st.chip === k ? `<div class="pop" role="dialog" aria-label="${condLabel(k)}" style="left:0;top:44px">${k === "add" ? addList(d) : `<div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="h3">${condLabel(k)}</span><button class="btn btn-t" data-a="chipClose">Done</button></div>${condEditor(k, d)}`}</div>` : "");
+    const chip = (k) => `<span style="position:relative;display:inline-block"><span class="chip" ${k === "text" && st.screen === "search" ? 'style="padding-right:12px"' : ""}><button class="row" style="gap:4px;min-height:36px;color:inherit" data-a="chipOpen" data-v="${k}" aria-expanded="${st.chip === k}">${esc(valid(k, d.f) ? condSummary(k, d.f) : condLabel(k) + "…")}${ic("down", 14)}</button>${k === "text" && st.screen === "search" ? "" : `<button class="x" aria-label="Remove ${condLabel(k)}" data-a="removeCond" data-v="${k}">${ic("x", 14)}</button>`}</span>${pop(k)}</span>`;
+    const sortChip = `<span style="position:relative;display:inline-block"><button class="chip add" style="border-style:solid!important" data-a="chipOpen" data-v="sort" aria-expanded="${st.chip === "sort"}">${SORTS[d.sort]}${d.limit ? " · first " + d.limit : ""} ${ic("down", 14)}</button>${desk && st.chip === "sort" ? `<div class="pop" style="left:0;top:44px"><div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="h3">Order</span><button class="btn btn-t" data-a="chipClose">Done</button></div>${condEditor("sort", d)}<div class="gl label">Show at most</div>${condEditor("limit", d)}</div>` : ""}</span>`;
+    return `<div class="row" style="flex-wrap:wrap;gap:8px">${ks.map(chip).join("")}<span style="position:relative;display:inline-block"><button class="chip add" data-a="chipOpen" data-v="add" aria-expanded="${st.chip === "add"}">${ic("plus", 14)}${ks.length ? "Add" : "Add a condition"}</button>${pop("add")}</span><span class="sp" style="flex:0 0 4px"></span>${sortChip}</div>`;
+  }
+  const addList = (d) => { const unused = COND_TYPES.filter(([k]) => !condKeys(d.f).includes(k)); return `<div class="col">${unused.map(([k, l, dsc]) => `<button class="row" style="min-height:48px;padding:4px 8px;border-radius:8px;align-items:flex-start;flex-direction:column;justify-content:center;gap:0" data-a="addCond" data-v="${k}"><span class="m">${l}</span><span class="xs muted">${dsc}</span></button>`).join("")}</div>`; };
+  const dirty = (st) => { if (st.screen === "search") return false; const v = curView(st); return JSON.stringify([v.name, v.f, v.sort, v.limit]) !== JSON.stringify([st.draft.name, st.draft.f, st.draft.sort, st.draft.limit]); };
+  function renderB(dev, st) {
+    const d = st.draft;
+    const r = viewFromDraft(d);
+    const isSearch = st.screen === "search";
+    const q = isSearch ? (d.f.text || "").trim() : "";
+    const unsavedBar = dirty(st) ? `<div class="row card" style="padding:6px 6px 6px 14px;margin-top:12px;background:var(--accent);border-color:#cdd7f5"><span class="grow sm"><b>Changed</b> · not saved yet</span><button class="btn btn-t" data-a="revertB">Discard</button><button class="btn btn-p" data-a="saveB">Save</button></div>` : "";
+    if (dev === "phone") {
+      let content, overlay = "";
+      if (st.screen === "list") {
+        content = viewsListPhone(st, `<label class="sr" for="q">Search the Library</label><div style="position:relative"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><input id="q" type="search" data-in="qB" value="" placeholder="Search the Library" style="padding-left:40px;background:#ecebe6;border-color:transparent"></div>`);
+      } else {
+        const head = isSearch
+          ? `<header class="hdr" style="padding-top:4px">${back("Views", "toList")}<label class="sr" for="q">Search the Library</label><div style="position:relative"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><input id="q" type="search" data-in="qB" value="${esc(d.f.text || "")}" style="padding-left:40px"></div></header>`
+          : `<header class="hdr" style="padding-top:4px">${back("Views", "toList")}<div class="row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">${esc(d.name)}</h1><button class="ib" aria-label="More for this View" data-a="moreB">${ic("more")}</button></div></header>`;
+        content = scroll(`${head}<div class="px20">${chipsB(st, false)}${unsavedBar}<div class="row mt12" style="justify-content:space-between;min-height:44px"><span class="sm" aria-live="polite"><b class="tab-num">${plural(r.total, "Episode")}</b>${isSearch ? ` <span class="muted">in your Library</span>` : ""}</span>${isSearch && q ? `<button class="btn btn-s" data-a="promoteB">${ic("filter", 16)}Save as View</button>` : ""}</div></div>
+          <div style="padding:0 12px">${r.rows.map((e) => epRowPhone(e, q)).join("") || `<div class="dashed" style="margin:8px;padding:24px;text-align:center"><div class="m">No Episodes match</div><div class="sm muted mt4">Remove a condition to widen it.</div></div>`}</div>`);
+        if (st.chip) {
+          const k = st.chip;
+          const ok = k === "add" || k === "sort" || valid(k, d.f);
+          overlay = sheet(k === "add" ? `<div class="shd"><h2 class="h3 grow">Add a condition</h2><button class="btn btn-t" data-a="chipClose">Cancel</button></div><div class="sbody">${addList(d)}</div>`
+            : `<div class="shd"><h2 class="h3 grow">${k === "sort" ? "Order" : condLabel(k)}</h2><button class="btn btn-t" data-a="chipClose" ${ok ? "" : "disabled"}>Done</button></div><div class="sbody">${k === "sort" ? condEditor("sort", d) + '<div class="gl label">Show at most</div>' + condEditor("limit", d) : condEditor(k, d)}<p class="help" aria-live="polite">The list behind updates as you change this: ${plural(r.total, "Episode")} now.</p></div>`, { h: k === "podcasts" || k === "sort" ? "72%" : "", label: condLabel(k) });
+        }
+        if (st.more) overlay += `<div class="scrim" style="background:transparent" data-a="moreB"></div><div class="menu" style="right:12px;top:64px"><button data-a="renameB">${ic("pencil", 18)}Rename</button><button data-a="noop">${ic("plus", 18)}Duplicate</button><button class="danger" data-a="noop">${ic("trash", 18)}Delete View</button></div>`;
+        if (st.naming) overlay += nameDialog(st, false);
+      }
+      return phone({ tab: "views", content, overlay: overlay + (st.toast ? toast(st.toast) : "") });
+    }
+    // desktop
+    let main;
+    if (st.screen === "list") main = viewDesk(st, curView(st));
+    else main = `<header class="hdr">${isSearch ? `<div class="row gap12"><div class="grow" style="position:relative;max-width:560px"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><label class="sr" for="q">Search the Library</label><input id="q" type="search" data-in="qB" value="${esc(d.f.text || "")}" style="padding-left:40px"></div></div>` : `<div class="row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">${esc(d.name)}</h1><div class="row gap8"><button class="btn btn-o" data-a="renameB">Rename</button><button class="ib" aria-label="More" data-a="noop">${ic("more")}</button></div></div>`}</header>
+      <div class="px20" style="position:relative;z-index:2">${chipsB(st, true)}${unsavedBar}</div>
+      <div class="px20 row" style="justify-content:space-between;padding-top:12px;padding-bottom:8px"><span class="sm" aria-live="polite"><b class="tab-num">${plural(r.total, "Episode")}</b>${d.limit && r.total > d.limit ? ` <span class="muted">· showing the first ${d.limit}</span>` : ""}</span><div class="row gap8">${isSearch && q ? `<button class="btn btn-p" data-a="promoteB">${ic("filter", 16)}Save as View…</button>` : ""}<label class="row gap8 sm muted">Next / Last go to <select style="height:36px;width:auto;font-size:14px"><option>Default (active)</option><option>Commute</option></select></label></div></div>
+      <div class="px20">${epTable(r.rows, q)}</div>`;
+    let overlay = st.naming ? nameDialog(st, true) : "";
+    if (st.chip) overlay = `<div class="scrim" style="background:transparent;z-index:1" data-a="chipClose"></div>` + overlay;
+    return desk({ sel: isSearch ? null : st.cur, main, views: st.views, searchSel: isSearch, overlay: overlay + (st.toast ? toast(st.toast) : "") });
+  }
+  const nameDialog = (st, isDesk) => `<div class="scrim" style="z-index:26" data-a="nameCancel"></div><div class="alert" role="dialog" aria-modal="true" aria-labelledby="nmT" style="z-index:27"><h2 class="h3" id="nmT" style="font-size:17px">${st.naming === "rename" ? "Rename View" : "Save as a View"}</h2>${st.naming === "rename" ? "" : `<p class="sm muted" style="margin:6px 0 0">Keeps these conditions and shows the latest matches whenever you open it.</p>`}<label class="col gap4 mt12"><span class="sm m">Name</span><input id="nameIn" type="text" data-in="vname" value="${esc(st.draft.name)}"></label><div class="row mt16" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" data-a="nameCancel">Cancel</button><button class="btn btn-p" data-a="nameSave">${st.naming === "rename" ? "Rename" : "Save View"}</button></div></div>`;
+
+  // ================= Variant C: every condition is a fixed row (settings form) =================
+  const C_ROWS = [["published", "Published"], ["podcasts", "Podcasts"], ["text", "Mentions"], ["played", "Played"], ["starred", "Starred"], ["notInAnyPlaylist", "In a Playlist"], ["duration", "Length"]];
+  function cValue(k, d) {
+    const f = d.f;
+    switch (k) {
+      case "published": return !f.published ? "Any time" : f.published.tag === "LastDays" ? "Last " + f.published.days + " days" : (f.published.from != null ? fmtPub(f.published.from) : "Any") + " – " + (f.published.to != null ? fmtPub(f.published.to) : "today");
+      case "podcasts": return !f.podcasts || !f.podcasts.ids.length ? "All podcasts" : (f.podcasts.mode === "include" ? "Only " : "All except ") + plural(f.podcasts.ids.length, "podcast");
+      case "text": return f.text || "";
+      case "played": return f.played ? condSummary("played", f) : "Any";
+      case "starred": return f.starred === undefined ? "Any" : f.starred ? "Starred" : "Not Starred";
+      case "notInAnyPlaylist": return f.notInAnyPlaylist ? "Not in any Playlist" : "Any";
+      case "duration": return f.minDuration || f.maxDuration ? condSummary("duration", f) : "Any length";
+      case "sort": return SORTS[d.sort];
+      case "limit": return d.limit ? "The first " + d.limit : "All";
+    }
+  }
+  const isSet = (k, d) => (k === "duration" ? !!(d.f.minDuration || d.f.maxDuration) : k === "sort" ? d.sort !== "publishedDesc" : k === "limit" ? d.limit !== null : d.f[k] !== undefined && !(k === "podcasts" && !d.f.podcasts.ids.length) && !(k === "text" && !d.f.text));
+  function pickerC(k, d) {
+    const anyRow = (label) => `<div class="group" style="margin-bottom:12px"><button class="gr" data-a="cAny" data-v="${k}"><span class="grow m">${label}</span>${isSet(k, d) ? "" : `<span class="check">${ic("check")}</span>`}</button></div>`;
+    const checks = (opts, cur, a) => `<div class="group">${opts.map(([v, l, dsc]) => `<button class="gr" data-a="${a}" data-v="${v}" aria-pressed="${String(v) === String(cur)}"><span class="grow"><span class="m" style="display:block">${l}</span>${dsc ? `<span class="xs muted">${dsc}</span>` : ""}</span>${String(v) === String(cur) ? `<span class="check">${ic("check")}</span>` : ""}</button>`).join("")}</div>`;
+    const f = d.f;
+    switch (k) {
+      case "published": { const p = f.published; const cur = !p ? "" : p.tag === "LastDays" ? p.days : "between"; return anyRow("Any time") + checks([[7, "Last 7 days"], [14, "Last 14 days"], [30, "Last 30 days"], ["between", "Between two dates"]], cur, "cPub") + (p && p.tag === "Between" ? `<div class="row gap12 mt12"><label class="grow"><span class="xs muted m">From</span><input id="pubFrom" type="date" data-in="pubFrom" value="${p.from != null ? isoOf(p.from) : ""}"></label><label class="grow"><span class="xs muted m">To</span><input id="pubTo" type="date" data-in="pubTo" value="${p.to != null ? isoOf(p.to) : ""}"></label></div>` : ""); }
+      case "podcasts": { const p = f.podcasts; return `${seg([["all", "All"], ["include", "Only these"], ["exclude", "All except"]], p ? p.mode : "all", "cPodMode", "full")}${p ? `<div class="group mt12">${PODS.map((x) => `<label class="gr" style="cursor:pointer"><input type="checkbox" ${p.ids.includes(x.id) ? "checked" : ""} data-a="podTog" data-v="${x.id}">${art(x.id, 32)}<span class="grow trunc">${esc(x.t)}</span></label>`).join("")}</div>` : `<p class="help">Every Subscription, including ones you add later.</p>`}`; }
+      case "played": return anyRow("Any") + checks([["unplayed", "Not started", "No Position in any Playlist"], ["inProgress", "In progress", "Started somewhere, not finished"], ["notPlayed", "Not Played", "Not started or in progress"], ["played", "Played"]], f.played, "played");
+      case "starred": return anyRow("Any") + checks([["true", "Starred"], ["false", "Not Starred"]], f.starred === undefined ? "" : String(f.starred), "starred");
+      case "notInAnyPlaylist": return anyRow("Any") + checks([["1", "Not in any Playlist", "Hides Episodes that are an Entry somewhere"]], f.notInAnyPlaylist ? "1" : "", "cNotIn");
+      case "duration": return anyRow("Any length") + condEditor("duration", d);
+      case "sort": return checks(Object.entries(SORTS), d.sort, "sortSet");
+      case "limit": return checks(LSTEPS.map((n) => [n === null ? "all" : n, n === null ? "All" : "The first " + n]), d.limit === null ? "all" : d.limit, "limitSet") + `<p class="help">Counted after sorting.</p>`;
+    }
+    return "";
+  }
+  function formC(st, isDesk) {
+    const d = st.draft;
+    const row = (k, l) => {
+      if (k === "text") return `<label class="gr"><span class="m" style="width:110px;flex:none">${l}</span><input id="cText" type="text" data-in="condText" value="${esc(d.f.text || "")}" placeholder="Any words" style="border:0;height:40px;padding:0;background:transparent"></label>`;
+      if (isDesk) return `<div class="gr"><span class="m" style="width:110px;flex:none">${l}</span><span class="grow">${deskControlC(k, d)}</span></div>`;
+      return `<button class="gr" data-a="cPick" data-v="${k}"><span class="m grow">${l}</span><span class="${isSet(k, d) ? "" : "muted"} trunc" style="max-width:180px;${isSet(k, d) ? "color:var(--primary);font-weight:500" : ""}">${esc(cValue(k, d))}</span><span class="muted">${ic("right", 16)}</span></button>`;
+    };
+    return `<div class="group"><label class="gr"><span class="m" style="width:110px;flex:none">Name</span><input id="vname" type="text" data-in="vname" value="${esc(d.name)}" placeholder="${st.screen === "search" ? "Name it to save" : "Untitled View"}" style="border:0;height:40px;padding:0;background:transparent"></label></div>
+      <div class="gl label">Show Episodes where</div><div class="group">${C_ROWS.map(([k, l]) => row(k, l)).join("")}</div><p class="help">Every row must match. Rows left at “Any” don’t narrow anything.</p>
+      <div class="gl label">Order</div><div class="group">${row("sort", "Sort")}${row("limit", "Show")}</div>
+      ${d.id && st.screen !== "search" ? `<div class="mt16"><button class="btn btn-t danger" style="padding:0 4px" data-a="askDelete">${ic("trash", 18)}Delete View</button></div>` : ""}`;
+  }
+  function deskControlC(k, d) {
+    const f = d.f;
+    const sel = (id, a, opts, cur) => `<select id="${id}" data-in="${a}" style="height:36px;font-size:14px">${opts.map(([v, l]) => `<option value="${v}" ${String(v) === String(cur) ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    switch (k) {
+      case "published": { const p = f.published; return sel("cPub", "cPubSel", [["any", "Any time"], [7, "Last 7 days"], [14, "Last 14 days"], [30, "Last 30 days"], ["between", "Between two dates…"]], !p ? "any" : p.tag === "LastDays" ? p.days : "between") + (p && p.tag === "Between" ? `<div class="row gap8 mt8"><input id="pubFrom" aria-label="From" type="date" data-in="pubFrom" value="${p.from != null ? isoOf(p.from) : ""}" style="height:36px"><input id="pubTo" aria-label="To" type="date" data-in="pubTo" value="${p.to != null ? isoOf(p.to) : ""}" style="height:36px"></div>` : ""); }
+      case "podcasts": { const p = f.podcasts; return sel("cPodSel", "cPodSel", [["all", "All podcasts"], ["include", "Only these…"], ["exclude", "All except…"]], p ? p.mode : "all") + (p ? `<div class="row mt8" style="flex-wrap:wrap;gap:4px">${PODS.map((x) => `<label class="chip" style="cursor:pointer;padding:0 10px;${p.ids.includes(x.id) ? "" : "background:var(--sec);color:var(--fg)"}"><input type="checkbox" class="sr" ${p.ids.includes(x.id) ? "checked" : ""} data-a="podTog" data-v="${x.id}">${p.ids.includes(x.id) ? ic("check", 14) : ""}${esc(x.t)}</label>`).join("")}</div>` : ""); }
+      case "played": return sel("cPlayed", "cPlayedSel", [["any", "Any"], ["unplayed", "Not started"], ["inProgress", "In progress"], ["notPlayed", "Not Played (not started or in progress)"], ["played", "Played"]], f.played || "any");
+      case "starred": return sel("cStar", "cStarSel", [["any", "Any"], ["true", "Starred"], ["false", "Not Starred"]], f.starred === undefined ? "any" : String(f.starred));
+      case "notInAnyPlaylist": return sel("cNot", "cNotSel", [["any", "Any"], ["1", "Not in any Playlist"]], f.notInAnyPlaylist ? "1" : "any");
+      case "duration": return `<div class="col gap4"><label class="row gap8"><span class="sm muted" style="width:64px">At least</span>${sel("cMin", "cMinSel", DSTEPS.map((n) => [n, n ? n + " min" : "Any"]), f.minDuration || 0)}</label><label class="row gap8"><span class="sm muted" style="width:64px">At most</span>${sel("cMax", "cMaxSel", DSTEPS.map((n) => [n, n ? n + " min" : "Any"]), f.maxDuration || 0)}</label></div>`;
+      case "sort": return sel("cSort", "sortSet", Object.entries(SORTS), d.sort);
+      case "limit": return sel("cLimit", "limitSet", LSTEPS.map((n) => [n === null ? "all" : n, n === null ? "All that match" : "The first " + n]), d.limit === null ? "all" : d.limit);
+    }
+  }
+  function renderC(dev, st) {
+    const d = st.draft;
+    const r = viewFromDraft(d);
+    const isSearch = st.screen === "search";
+    if (dev === "phone") {
+      let content;
+      if (st.screen === "pick") {
+        content = scroll(`<header class="hdr" style="padding-top:4px">${back(isSearch || st.fromSearch ? "Search" : "Edit View", "cBack")}<h1 class="h1" tabindex="-1">${condLabel(st.pick === "notInAnyPlaylist" ? "notInAnyPlaylist" : st.pick)}</h1></header><div class="px20">${pickerC(st.pick, d)}<p class="help mt12" aria-live="polite">${plural(r.total, "Episode")} match with this.</p></div>`);
+      } else if (st.screen === "list") {
+        content = viewsListPhone(st, searchButton);
+      } else if (st.screen === "view") {
+        content = viewPhone(st, curView(st));
+      } else if (st.screen === "searchResults") {
+        const q = (d.f.text || "").trim();
+        content = scroll(`<header class="hdr" style="padding-top:4px">${back("Views", "toList")}<div style="position:relative"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><label class="sr" for="q">Search the Library</label><input id="q" type="search" data-in="condText" value="${esc(d.f.text || "")}" style="padding-left:40px"></div></header>
+          <div class="px20"><div class="card row" style="padding:10px 10px 10px 14px"><span class="grow"><span class="xs muted m" style="display:block">${d.id ? "Preview, not saved yet" : "Unsaved View"}</span><span class="sm"><b>${plural(r.total, "Episode")}</b> ${esc(summaryLine(d.f))}</span></span><button class="btn btn-s" data-a="cRefine">Refine</button></div></div>
+          <div style="padding:4px 12px">${r.rows.map((e) => epRowPhone(e, q)).join("")}</div>`);
+      } else {
+        content = scroll(`<header class="hdr row" style="padding-top:4px;justify-content:space-between"><button class="btn btn-t" style="padding:0 4px" data-a="cCancel">Cancel</button><button class="btn btn-t" style="padding:0 4px" data-a="cSave">${isSearch ? "Save as View" : "Save"}</button></header>
+          <div class="px20"><h1 class="h1" tabindex="-1">${isSearch ? "Refine search" : d.id ? "Edit View" : "New View"}</h1>
+          <div class="card row mt12" style="padding:10px 10px 10px 14px;background:var(--accent);border-color:#cdd7f5" aria-live="polite"><span class="grow sm">Matches <b class="tab-num">${plural(r.total, "Episode")}</b> now${d.limit && r.total > d.limit ? `, shows ${d.limit}` : ""}</span><button class="btn btn-t" data-a="cSee">See them</button></div>
+          <div class="mt12">${formC(st, false)}</div><div style="height:16px"></div></div>`);
+      }
+      return phone({ tab: "views", content, overlay: (st.sub && st.sub.kind === "delete" ? deleteAlert(st, 0) : "") + (st.toast ? toast(st.toast) : "") });
+    }
+    const q = (d.f.text || "").trim();
+    const main = `<div style="display:grid;grid-template-columns:420px minmax(0,1fr);height:100%">
+      <div style="border-right:1px solid var(--line);overflow-y:auto;padding:24px 24px 32px;background:#fbfaf8"><div class="row" style="justify-content:space-between"><h1 class="h2" tabindex="-1">${isSearch ? "Search" : d.id ? "Edit View" : "New View"}</h1>${isSearch ? '<span class="badge">Unsaved View</span>' : ""}</div>
+        <div class="mt12">${formC(st, true)}</div>
+        <div class="row mt16" style="justify-content:flex-end;gap:8px">${isSearch ? `<button class="btn btn-p" data-a="cSave">Save as View</button>` : `<button class="btn btn-s" data-a="cCancel">Revert</button><button class="btn btn-p" data-a="cSave">Save</button>`}</div></div>
+      <div style="overflow-y:auto;padding:24px 24px 32px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><span aria-live="polite"><b class="tab-num" style="font-size:17px">${plural(r.total, "Episode")}</b> <span class="muted sm">match${d.limit && r.total > d.limit ? `, showing ${d.limit}` : ""} · ${SORTS[d.sort]}</span></span><label class="row gap8 sm muted">Next / Last go to <select style="height:36px;width:auto;font-size:14px"><option>Default (active)</option><option>Commute</option></select></label></div>${epTable(r.rows, q)}</div></div>`;
+    const views = isSearch ? [{ id: "search", name: "Search: " + (q || "…"), unsaved: true }, ...st.views] : st.views;
+    return desk({ sel: isSearch ? "search" : d.id, main, views, overlay: (st.sub && st.sub.kind === "delete" ? deleteAlert(st, 0) : "") + (st.toast ? toast(st.toast) : "") });
+  }
+
+  AREAS["view-editor"] = {
+    title: "View editor & Search",
+    variants: {
+      A: { name: "Editor sheet", caption: "Editing opens a sheet (phone) or dialog (desktop) listing only the conditions in use, each a row with its own editor and an “Add a condition” list. Calm and familiar, with a live count and Preview, but you edit away from the results.", screens: [["list", "Views list"], ["edit", "Edit a View"], ["add", "Add a condition"], ["new", "New View (empty)"], ["search", "Search results"]] },
+      B: { name: "Chips over results", caption: "A View is its own editor: conditions are chips above the live Episode list, each opening a small editor; changes show at once and a bar offers Save or Discard. Search is the same screen with a text chip and Save as View. Fastest to tune, but chips wrap and crowd on a phone.", screens: [["view", "A View"], ["chip", "Chip editor open"], ["add", "Adding a condition"], ["search", "Search results"], ["save", "Save search as View"]] },
+      C: { name: "Settings form", caption: "Every condition is always present as a row set to “Any” until changed, so there is nothing to add or remove and the flat AND is obvious. Phone drills into pickers; desktop shows the form beside live results, and a Search is literally an unsaved View in the sidebar. Most explicit, but longest.", screens: [["edit", "Edit a View"], ["pick", "Picker (phone)"], ["search", "Search as unsaved View"], ["new", "New View"]] }
+    },
+    questions: [
+      "Played state: the model has unplayed / inProgress / played. Does “unplayed” include In progress Episodes? These mocks add a fourth choice, “Not Played” (either), which most Views seem to want.",
+      "Should the editor show a live count (A, C) or live results (B, C desktop)? A live count implies evaluating the View on every keystroke on the phone.",
+      "Text condition and Search: do they match show notes as well as titles and podcast names? Mocks assume yes and say so in the help text.",
+      "Is “Not Starred” a real need, or should Starred be a single on/off condition?",
+      "B saves edits to an existing View only on Save. Should edits apply immediately instead (no Discard), as Views are cheap to rebuild?",
+      "Saving a Search: is the name required, or does it default to the search text (mocks prefill it)? Can Views be reordered in the list?",
+      "Do Orphaned Episodes appear in Views and Search? CONTEXT says “nothing else from that podcast remains in the Library”, which reads as no."
+    ],
+    init(variant, screen, dev) {
+      const st = { screen0: screen, screen, views: clone(VIEWS0), cur: "v2", draft: null, sub: null, q: "", toast: null, open: null, addMenu: false, chip: null };
+      if (variant === "A") {
+        if (screen === "list") st.screen = dev === "desktop" ? "view" : "list";
+        if (screen === "edit" || screen === "add") { st.screen = "view"; st.draft = newDraft(curView(st)); if (screen === "add") { if (dev === "phone") st.sub = { kind: "add" }; else st.addMenu = true; } }
+        if (screen === "new") { st.screen = "view"; st.draft = newDraft(null); }
+        if (screen === "search") st.q = "budget";
+      }
+      if (variant === "B") {
+        st.cur = "v1";
+        st.draft = newDraft(curView(st));
+        if (screen === "chip") { st.screen = "view"; st.chip = "played"; st.draft.f.played = "unplayed"; }
+        if (screen === "add") { st.screen = "view"; st.chip = "add"; }
+        if (screen === "search" || screen === "save") { st.screen = "search"; st.draft = newDraft(null); st.draft.f.text = "budget"; if (screen === "save") { st.naming = "save"; st.draft.name = "budget"; } }
+      }
+      if (variant === "C") {
+        st.draft = newDraft(curView(st));
+        if (screen === "pick") { if (dev === "phone") { st.screen = "pick"; st.pick = "played"; } else st.screen = "edit"; }
+        if (screen === "new") { st.draft = newDraft(null); st.screen = "edit"; }
+        if (screen === "search") { st.draft = newDraft(null); st.draft.f.text = "budget"; st.screen = dev === "phone" ? "searchResults" : "search"; }
+      }
+      return st;
+    },
+    esc(st) {
+      if (st.naming) { st.naming = null; return true; }
+      if (st.more) { st.more = false; return true; }
+      if (st.chip) { st.chip = null; return true; }
+      if (st.addMenu) { st.addMenu = false; return true; }
+      if (st.sub) { this.actions.subCancel(); return true; }
+      if (st.draft && S.variant === "A") { st.draft = null; return true; }
+      return false;
+    },
+    render(variant, dev, st) { return variant === "A" ? renderA(dev, st) : variant === "B" ? renderB(dev, st) : renderC(dev, st); },
+    actions: Object.assign({}, edActions, {
+      sheetScrim() { const st = S.st; if (st.sub) this.subCancel(); else if (S.variant === "A") st.draft = null; else st.chip = null; },
+      toList() { const st = S.st; st.screen = "list"; st.chip = null; if (S.variant !== "A") st.draft = newDraft(curView(st)); },
+      openView(v) {
+        const st = S.st; st.cur = v; st.chip = null; st.toast = null;
+        if (S.variant === "C") { st.draft = newDraft(curView(st)); st.screen = S.device === "phone" ? "view" : "edit"; return; }
+        if (S.variant === "B") { st.draft = newDraft(curView(st)); }
+        st.screen = "view";
+      },
+      newView() { const st = S.st; if (S.variant === "A") { st.draft = newDraft(null); st.focus = "vname"; } else if (S.variant === "B") { st.draft = newDraft(null); st.draft.name = "New View"; st.screen = "view"; st.views = [...st.views, { id: "tmp", name: "New View", f: {}, sort: "publishedDesc", limit: null }]; st.cur = "tmp"; st.draft.id = "tmp"; st.chip = "add"; } else { st.draft = newDraft(null); st.screen = "edit"; st.focus = "vname"; } },
+      editView() { const st = S.st; st.draft = newDraft(curView(st)); st.open = null; if (S.variant === "C") st.screen = "edit"; },
+      openSearch() { const st = S.st; if (S.variant === "C") { st.draft = newDraft(null); st.draft.f.text = ""; st.screen = "searchResults"; st.focus = "q"; return; } st.screen = "search"; st.focus = "q"; },
+      deskSearch() { const st = S.st; st.chip = null; if (S.variant === "B") { st.draft = newDraft(null); st.draft.f.text = ""; st.screen = "search"; } else if (S.variant === "C") { st.draft = newDraft(null); st.draft.f.text = ""; st.screen = "search"; st.focus = "cText"; return; } else st.screen = "search"; st.focus = "q"; },
+      edCancel() { S.st.draft = null; S.st.sub = null; S.st.addMenu = false; },
+      edSave() { const st = S.st; const v = saveDraft(st); st.cur = v.id; st.screen = "view"; st.draft = null; st.sub = null; st.toast = `Saved “${esc(v.name)}”`; },
+      openCond(k) { S.st.sub = { kind: "cond", k, before: clone(S.st.draft) }; },
+      toggleOpen(k) { S.st.open = S.st.open === k ? null : k; S.st.addMenu = false; },
+      toggleAddMenu() { S.st.addMenu = !S.st.addMenu; },
+      openAdd() { S.st.sub = { kind: "add" }; },
+      openPreview() { S.st.sub = { kind: "preview" }; },
+      addCond(k) {
+        const st = S.st; const before = clone(st.draft);
+        Object.assign(st.draft.f, clone(defaultCond(k)));
+        if (S.variant === "A") { if (S.device === "phone") st.sub = { kind: "cond", k, isNew: true, before }; else { st.open = k; st.addMenu = false; } }
+        if (S.variant === "B") st.chip = k;
+        if (k === "text") st.focus = S.variant === "A" && S.device === "phone" ? "condText" : "condText";
+      },
+      subCancel() { const st = S.st; if (st.sub && st.sub.before) st.draft = st.sub.before; st.sub = st.sub && st.sub.isNew ? { kind: "add" } : null; },
+      subDone() { S.st.sub = null; },
+      askDelete() { S.st.sub = { kind: "delete" }; S.st.focus = "dlCancel"; },
+      doDelete() { const st = S.st; const name = st.draft.name; st.views = st.views.filter((v) => v.id !== st.draft.id); st.cur = st.views[0].id; st.draft = S.variant === "A" ? null : newDraft(st.views[0]); st.sub = null; st.screen = S.variant === "C" && S.device === "desktop" ? "edit" : "list"; st.toast = `Deleted “${esc(name)}”`; },
+      promote() { const st = S.st; st.draft = newDraft(null); st.draft.name = st.q.trim(); st.draft.f.text = st.q.trim(); st.focus = "vname"; },
+      // B
+      chipOpen(k) { const st = S.st; st.chip = st.chip === k ? null : k; if (k === "text") st.focus = "condText"; },
+      chipClose() { const st = S.st; const k = st.chip; if (k && k !== "add" && k !== "sort" && !valid(k, st.draft.f)) st.draft.f = dropCond(st.draft.f, k); st.chip = null; },
+      revertB() { S.st.draft = newDraft(curView(S.st)); },
+      saveB() { const st = S.st; saveDraft(st); st.toast = `Saved “${esc(st.draft.name)}”`; },
+      qB(v) { const st = S.st; if (st.screen !== "search") { st.draft = newDraft(null); st.screen = "search"; } st.draft.f.text = v; st.focus = "q"; },
+      promoteB() { const st = S.st; st.naming = "save"; st.draft.name = (st.draft.f.text || "").trim(); st.focus = "nameIn"; },
+      renameB() { S.st.naming = "rename"; S.st.more = false; S.st.focus = "nameIn"; },
+      moreB() { S.st.more = !S.st.more; },
+      nameCancel() { const st = S.st; if (st.naming === "rename") st.draft.name = curView(st).name; st.naming = null; },
+      nameSave() { const st = S.st; const wasSearch = st.screen === "search"; const v = saveDraft(st); st.cur = v.id; st.naming = null; st.screen = "view"; st.draft = newDraft(v); st.toast = wasSearch ? `Saved “${esc(v.name)}” to Views` : `Renamed to “${esc(v.name)}”`; },
+      // C
+      cPick(k) { S.st.fromSearch = S.st.screen === "search"; S.st.prev = S.st.screen; S.st.screen = "pick"; S.st.pick = k; },
+      cBack() { S.st.screen = S.st.prev || "edit"; },
+      cAny(k) { const st = S.st; if (k === "limit") st.draft.limit = null; else if (k === "sort") st.draft.sort = "publishedDesc"; else st.draft.f = dropCond(st.draft.f, k); },
+      cPub(v) { this.pubDays(v); },
+      cPodMode(v) { const f = S.st.draft.f; if (v === "all") delete f.podcasts; else f.podcasts = { mode: v, ids: f.podcasts ? f.podcasts.ids : [] }; },
+      cNotIn(v) { const f = S.st.draft.f; if (f.notInAnyPlaylist) delete f.notInAnyPlaylist; else f.notInAnyPlaylist = true; },
+      cPubSel(v) { if (v === "any") delete S.st.draft.f.published; else this.pubDays(v); },
+      cPodSel(v) { this.cPodMode(v); },
+      cPlayedSel(v) { if (v === "any") delete S.st.draft.f.played; else S.st.draft.f.played = v; },
+      cStarSel(v) { if (v === "any") delete S.st.draft.f.starred; else S.st.draft.f.starred = v === "true"; },
+      cNotSel(v) { if (v === "any") delete S.st.draft.f.notInAnyPlaylist; else S.st.draft.f.notInAnyPlaylist = true; },
+      cMinSel(v) { S.st.draft.f.minDuration = +v || undefined; },
+      cMaxSel(v) { S.st.draft.f.maxDuration = +v || undefined; },
+      cCancel() { const st = S.st; if (st.screen === "search") { st.screen = "searchResults"; return; } st.draft = newDraft(curView(st)); if (S.device === "phone") st.screen = "list"; },
+      cSee() { const st = S.st; st.screen = "searchResults"; },
+      cRefine() { S.st.screen = S.st.draft.id ? "edit" : "search"; },
+      cSave() {
+        const st = S.st;
+        if ((st.screen === "search" || st.screen === "searchResults") && !st.draft.name.trim()) { st.draft.name = (st.draft.f.text || "Search").trim(); }
+        const v = saveDraft(st); st.cur = v.id; st.draft = newDraft(v); st.toast = `Saved “${esc(v.name)}”`; st.screen = S.device === "phone" ? "view" : "edit";
+      }
+    })
+  };
+})();
+// ===== Area 2: Playlist settings and the Rewind flow =====
+(() => {
+  const E = (id) => EPS[+id.slice(1)];
+  // Minutes since Thu 5 Nov 00:00. Thu = 0, Fri = 1440, Sat (today) = 2880.
+  const DAYN = ["Thu 5 Nov", "Fri 6 Nov", "Sat 7 Nov"];
+  const DAYREL = ["Thursday · 5 Nov", "Yesterday · Fri 6 Nov", "Today · Sat 7 Nov"];
+  const at = (day, h, m) => day * 1440 + h * 60 + m;
+  const fmtT = (abs) => { const m = ((abs % 1440) + 1440) % 1440; const h = Math.floor(m / 60), mm = m % 60; return (h % 12 || 12) + ":" + String(mm).padStart(2, "0") + " " + (h < 12 ? "am" : "pm"); };
+  const fmtDT = (abs) => DAYN[Math.floor(abs / 1440)].slice(0, 3) + " " + fmtT(abs);
+  const fmtPos = (min) => (min >= 60 ? Math.floor(min / 60) + ":" + String(min % 60).padStart(2, "0") + ":00" : min + ":00");
+
+  // The Default Playlist's Listening Timeline, as stretches of continuous playback (oldest first).
+  const STR = [
+    { id: "s6", ep: "e20", a: at(0, 7, 40), b: at(0, 8, 24), from: 0, to: 44, fin: true },
+    { id: "s5", ep: "e11", a: at(1, 18, 10), b: at(1, 18, 39), from: 0, to: 29, fin: true },
+    { id: "s4", ep: "e1", a: at(1, 23, 20), b: at(1, 23, 59), from: 25, to: 64, fin: true },
+    { id: "s3", ep: "e4", a: at(2, 0, 0), b: at(2, 0, 44), from: 0, to: 44, fin: true },
+    { id: "s2", ep: "e3", a: at(2, 0, 44), b: at(2, 1, 31), from: 0, to: 47, fin: true },
+    { id: "s1", ep: "e5", a: at(2, 1, 31), b: at(2, 1, 58), from: 0, to: 27, fin: false, why: "Paused" }
+  ];
+  // Deliberate edits made in the same period (kept by any Rewind).
+  const EDITS = [
+    { a: at(0, 8, 30), kind: "add", ep: "e13", text: "You added “Dawn chorus, Białowieża” with Play Last" },
+    { a: at(2, 8, 5), kind: "add", ep: "e8", text: "You added “Carburettors without fear” with Play Next" },
+    { a: at(2, 8, 7), kind: "played", ep: "e2", text: "You marked “Polling the unpollable” Played" }
+  ];
+  const DEFAULT_T = at(1, 23, 45);
+  const ENTRIES0 = { def: ["e5", "e8", "e6", "e17", "e18", "e13", "e0", "e15", "e21"], com: ["e9", "e7", "e16", "e19", "e10", "e6"], deep: ["e12", "e21", "e22", "e1"], rep: ["e27", "e32"] };
+  const POS0 = { e5: 27, e9: 18, e12: 12, e22: 40 };
+
+  function copOn(st, v) {
+    const p = plOf(st, v); p.cop = !p.cop; st.copNote = 0;
+    if (p.cop) { const before = st.entries[v].length; st.entries[v] = st.entries[v].filter((id) => !E(id).pl); st.copNote = before - st.entries[v].length; }
+  }
+  function plan(t) {
+    const st = STR.find((s) => s.a <= t && t < s.b) || STR.find((s) => s.a <= t && t <= s.b) || STR.find((s) => s.a > t) || STR[STR.length - 1];
+    const pos = st.from + Math.max(0, Math.min(st.to - st.from, t - st.a));
+    return { t, st, pos, undone: STR.filter((s) => s.fin && s.b > t), reset: STR.filter((s) => !s.fin && s.a > t), kept: EDITS.filter((e) => e.a > t) };
+  }
+  function applyRewind(st, t) {
+    const p = plan(t);
+    const cur = st.entries.def;
+    const restored = p.undone.map((s) => s.ep).filter((id) => !cur.includes(id));
+    st.entries.def = [...restored, ...cur];
+    st.restored = restored;
+    st.cursor = p.st.ep; st.pos[p.st.ep] = p.pos;
+    p.reset.forEach((s) => (st.pos[s.ep] = s.from));
+    st.rewoundTo = t;
+  }
+
+  // ---------- Playlist detail ----------
+  const plOf = (st, id) => st.playlists.find((p) => p.id === id);
+  function entryRow(st, id, idx, plId, isDesk) {
+    const e = E(id);
+    const cur = plId === "def" && st.cursor === id;
+    const pos = st.pos[id] || 0;
+    const back = st.restored && st.restored.includes(id) && plId === "def";
+    const pct = Math.round((pos / e.m) * 100);
+    return `<li class="row" style="gap:12px;padding:10px 8px;border-radius:12px;${cur ? "background:var(--accent)" : ""}"><span class="xs b" style="width:${isDesk ? 56 : 48}px;text-align:center;letter-spacing:.06em;color:${cur ? "var(--primary)" : "var(--muted)"}">${cur ? "RESUME" : idx + 1}</span>${art(e.p, 44)}
+      <span class="grow"><span class="sm m clamp2">${esc(e.t)}</span><span class="row mt4" style="gap:8px">${back ? '<span class="badge blue">Back from Rewind</span>' : ""}${e.pl && plId !== "def" ? '<span class="badge green">✓ Played</span>' : ""}<span class="prog grow"><i style="width:${pct}%"></i></span><span class="xs muted tab-num">${pos ? fmtLen(e.m - pos) + " left" : fmtLen(e.m)}</span></span></span>
+      <button class="ib" style="color:var(--primary)" aria-label="Play ${esc(e.t)} from here" data-a="noop">${ic("play", 18)}</button>${isDesk ? `<span class="muted" style="cursor:grab" aria-hidden="true">${ic("grip", 18)}</span>` : ""}</li>`;
+  }
+  const entriesList = (st, plId, isDesk) => `<ol style="list-style:none;margin:0;padding:0 12px">${st.entries[plId].map((id, i) => entryRow(st, id, i, plId, isDesk)).join("")}</ol>`;
+  const tabsSeg = (cur, extra = []) => seg([["entries", "Entries"], ["history", "History"], ["timeline", S.device === "phone" ? "Timeline" : "Listening Timeline"], ...extra], cur, "plTab", "full");
+  function historyList() {
+    return `<div style="padding:0 20px">${STR.filter((s) => s.fin).reverse().map((s) => { const e = E(s.ep); return `<div class="lrow" style="min-height:60px">${art(e.p, 40)}<span class="grow"><span class="sm m trunc" style="display:block">${esc(e.t)}</span><span class="xs muted">Finished ${fmtDT(s.b)}</span></span></div>`; }).join("")}</div>`;
+  }
+  function plHeader(st, plId, isDesk, actions) {
+    const p = plOf(st, plId);
+    return `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${isDesk ? "" : back("Playlists", "toPlList")}<div class="row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">${esc(p.name)}</h1><div class="row gap4">${actions || ""}</div></div>
+      <p class="sm muted" style="margin:6px 0 0">${p.active ? '<span style="color:var(--pos);font-weight:600">● Active</span> · ' : ""}${plural(st.entries[plId].length, "Entry", "Entries")} · ${p.cop ? "Clear on Played" : "Keeps Played Entries"}</p></header>`;
+  }
+
+  // ---------- Rewind summary (what will be undone) ----------
+  function planHtml(st, t, opts = {}) {
+    const p = plan(t);
+    const e = E(p.st.ep);
+    const li = (inner) => `<li class="row" style="gap:10px;padding:6px 0;align-items:flex-start">${inner}</li>`;
+    const sec = (title, items, tone) => (items.length ? `<div class="mt16"><div class="sm b" style="color:${tone || "var(--fg)"}">${title}</div><ul style="list-style:none;margin:4px 0 0;padding:0">${items.join("")}</ul></div>` : "");
+    return `<div class="card row" style="padding:12px;gap:12px">${art(e.p, 48)}<span class="grow"><span class="xs muted m" style="display:block">Playback goes back to</span><span class="m clamp2">${esc(e.t)}</span><span class="sm muted">at ${fmtPos(p.pos)}, where it was ${fmtDT(t)}</span></span></div>
+      ${sec(`Becomes unplayed and returns to ${esc(plOf(st, "def").name)} (${p.undone.length})`, p.undone.map((s) => li(`${art(E(s.ep).p, 28)}<span class="grow sm"><span class="m">${esc(E(s.ep).t)}</span><br><span class="muted">Finished ${fmtDT(s.b)}${st.entries.def.includes(s.ep) ? "" : " · its Entry comes back"}</span></span>`)), "var(--fg)")}
+      ${sec(`Position goes back (${p.reset.length})`, p.reset.map((s) => li(`${art(E(s.ep).p, 28)}<span class="grow sm"><span class="m">${esc(E(s.ep).t)}</span><br><span class="muted tab-num">${fmtPos(s.to).replace(/:00$/, "")}:15 → ${s.from ? fmtPos(s.from) : "the start"}</span></span>`)))}
+      ${sec(`Kept: your own changes since (${p.kept.length})`, p.kept.map((k) => li(`<span style="color:var(--pos);margin-top:2px">${ic("check", 16)}</span><span class="grow sm">${esc(k.text)} <span class="muted">· ${fmtDT(k.a)}</span></span>`)), "var(--pos)")}
+      ${opts.noFoot ? "" : `<p class="xs muted mt16" style="margin-bottom:0">Only ${esc(plOf(st, "def").name)} changes. Other Playlists, Stars and Episodes you marked Played yourself stay as they are.</p>`}`;
+  }
+  const planShort = (t) => { const p = plan(t); return [p.undone.length ? plural(p.undone.length, "finished Episode") + " back" : null, p.reset.length ? plural(p.reset.length, "Position") + " reset" : null, p.kept.length ? "keeps " + plural(p.kept.length, "change") + " of yours" : null].filter(Boolean).join(" · ") || "Nothing to undo"; };
+
+  // ---------- Settings content ----------
+  function settingsBody(st, plId, mode) {
+    const p = plOf(st, plId);
+    const playedHere = st.entries[plId].filter((id) => E(id).pl).length;
+    const nameRow = p.isDefault
+      ? `<div class="group"><div class="gr"><span class="m" style="width:72px">Name</span><span class="grow muted">Default</span></div></div><p class="help">The Default Playlist always exists; it can’t be renamed or deleted.</p>`
+      : `<label class="col gap4"><span class="label">Name</span><input id="plName" type="text" data-in="plName" value="${esc(st.nameDraft ?? p.name)}"></label>`;
+    return `${nameRow}
+      <div class="gl label">When an Episode is Played</div>
+      <div class="group"><div class="gr" style="align-items:flex-start;padding-top:12px;padding-bottom:12px"><span class="grow"><span class="m" style="display:block">Clear on Played</span><span class="sm muted">Its Entry leaves this Playlist as soon as the Episode becomes Played, wherever you finished it.</span></span>${sw(p.cop, "toggleCop", plId, "Clear on Played")}</div></div>
+      ${st.copNote && p.cop ? `<p class="help" role="status" style="color:var(--warn)">${ic("info", 14)} ${plural(st.copNote, "Entry", "Entries")} that ${st.copNote === 1 ? "was" : "were"} already Played left this Playlist just now.</p>` : `<p class="help">${p.cop ? "Played Entries leave on their own." : "Played Entries stay until you remove them."}${playedHere ? ` ${plural(playedHere, "Entry", "Entries")} here ${playedHere === 1 ? "is" : "are"} already Played.` : ""}</p>`}
+      ${p.isDefault ? "" : `<div class="${mode === "page" ? "gl" : "mt24"}">${mode === "page" ? '<div class="label" style="padding-bottom:6px">Danger zone</div>' : ""}<button class="btn ${mode === "page" ? "btn-o" : "btn-t"} danger" style="${mode === "page" ? "color:var(--danger)" : "padding:0 4px"}" data-a="askDeletePl" data-v="${plId}">${ic("trash", 18)}Delete Playlist…</button></div>`}`;
+  }
+  function deletePlAlert(st, plId, z = 6) {
+    const p = plOf(st, plId);
+    const n = st.entries[plId].length;
+    return `<div class="scrim" style="z-index:${20 + z}" data-a="cancelDelete"></div><div class="alert" role="alertdialog" aria-modal="true" aria-labelledby="dpT" style="z-index:${21 + z}"><h2 class="h3" id="dpT" style="font-size:17px">Delete “${esc(p.name)}”?</h2>
+      <ul class="sm muted" style="margin:8px 0 16px;padding-left:18px"><li>Its ${plural(n, "Entry", "Entries")}, their Positions, History and Listening Timeline go, on every Device.</li><li>The Episodes stay in your Library, Played or not as they are now.</li><li>2 downloads on this ${S.device === "phone" ? DEVICE.phone : DEVICE.desktop} that nothing else needs will be removed. Starred ones stay.</li></ul>
+      <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" id="dpCancel" data-a="cancelDelete">Cancel</button><button class="btn btn-d" data-a="doDeletePl" data-v="${plId}">Delete Playlist</button></div></div>`;
+  }
+  const sheet = (inner, { z = 0, h = "", label = "Dialog" } = {}) => `<div class="scrim" data-a="closeTop" style="z-index:${20 + z}"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(label)}" style="z-index:${21 + z};${h ? "height:" + h : ""}"><div class="grab"></div>${inner}</div>`;
+  const modal = (inner, { cls = "", z = 0, label = "Dialog" } = {}) => `<div class="scrim" data-a="closeTop" style="z-index:${20 + z}"></div><div class="modal ${cls}" role="dialog" aria-modal="true" aria-label="${esc(label)}" style="z-index:${21 + z}">${inner}</div>`;
+
+  // ---------- Timelines ----------
+  const byDay = (items) => { const g = {}; items.forEach((it) => { const d = Math.floor(it.a / 1440); (g[d] = g[d] || []).push(it); }); return Object.keys(g).sort((a, b) => b - a).map((d) => [d, g[d]]); };
+  const momentsOf = (s) => { const out = [s.a]; for (let t = Math.ceil((s.a + 1) / 5) * 5; t < s.b; t += 5) out.push(t); out.push(s.b); return out; };
+
+  // A: stretches; a stretch expands to its moments.
+  function timelineA(st, isDesk) {
+    const rows = byDay([...STR].reverse());
+    return `<div class="${isDesk ? "px20" : ""}" style="${isDesk ? "" : "padding:0 16px"}"><p class="sm muted" style="margin:0 0 4px">What ${esc(plOf(st, "def").name)} was playing, kept for 30 days. Choose a stretch, then the moment to Rewind to.</p>${rows.map(([d, items]) => `<div class="gl label">${DAYREL[d]}</div><div class="group">${items.map((s) => {
+      const e = E(s.ep); const open = st.openStretch === s.id;
+      return `<div id="str-${s.id}" style="border-bottom:1px solid var(--line)"><button class="gr" style="border:0" data-a="openStretch" data-v="${s.id}" aria-expanded="${open}">${art(e.p, 40)}<span class="grow"><span class="sm m clamp2">${esc(e.t)}</span><span class="xs muted tab-num">${fmtT(s.a)} – ${fmtT(s.b)} · ${fmtPos(s.from)} → ${fmtPos(s.to)}</span></span><span class="badge ${s.fin ? "green" : ""}">${s.fin ? "Finished" : s.why}</span><span class="muted" style="transform:rotate(${open ? 180 : 0}deg)">${ic("down", 16)}</span></button>
+        ${open ? `<div style="padding:0 14px 14px"><div class="xs muted m" style="margin-bottom:6px">Rewind to…</div><div class="row" style="flex-wrap:wrap;gap:6px">${momentsOf(s).map((t) => `<button class="btn btn-o" style="min-height:44px;padding:0 12px;font-weight:500;font-size:14px;border-radius:10px" data-a="pickMoment" data-v="${t}"><span class="tab-num">${fmtT(t)}</span><span class="xs muted tab-num">${fmtPos(s.from + (t - s.a))}</span></button>`).join("")}</div></div>` : ""}</div>`;
+    }).join("")}</div>`).join("")}<div style="height:16px"></div></div>`;
+  }
+  // B: every moment is a row, with edits interleaved; picking one strikes everything after it.
+  function timelineB(st, isDesk) {
+    const t0 = st.sel;
+    const items = [];
+    STR.forEach((s) => momentsOf(s).filter((t) => !(t === s.b && STR.some((o) => o.a === t))).forEach((t) => items.push({ kind: "m", a: t, s })));
+    EDITS.forEach((e) => items.push({ kind: "e", a: e.a, e }));
+    items.sort((x, y) => y.a - x.a);
+    let lastStretch = null;
+    const rows = byDay(items).map(([d, its]) => `<div class="gl label" style="padding-left:${isDesk ? 0 : 4}px">${DAYREL[d]}</div>${its.map((it) => {
+      const after = t0 != null && it.a > t0;
+      if (it.kind === "e") return `<div class="row" style="gap:10px;min-height:44px;padding:4px 12px;margin:2px 0;border-radius:10px;background:${after ? "var(--postint)" : "transparent"}"><span style="color:${after ? "var(--pos)" : "var(--muted)"}">${ic(it.e.kind === "add" ? "listPlus" : "check", 18)}</span><span class="grow sm">${esc(it.e.text)}</span><span class="xs muted tab-num">${fmtT(it.a)}</span>${after ? '<span class="badge green">Kept</span>' : ""}</div>`;
+      const s = it.s, e = E(s.ep);
+      const head = lastStretch !== s.id ? (lastStretch = s.id, `<div class="row ${after ? "struck" : ""}" style="gap:10px;padding:10px 12px 4px">${art(e.p, 28)}<span class="grow sm m trunc t">${esc(e.t)}</span>${s.fin ? `<span class="badge ${after && t0 < s.b ? "red" : "green"}">${after ? "Finish undone" : "Finished"}</span>` : ""}</div>`) : "";
+      const sel = t0 === it.a;
+      return `${head}<button class="row ${after ? "struck" : ""}" role="radio" aria-checked="${sel}" data-a="selMoment" data-v="${it.a}" style="gap:12px;min-height:44px;width:100%;padding:0 12px 0 50px;border-radius:10px;${sel ? "background:var(--accent);box-shadow:inset 0 0 0 1.5px var(--primary)" : ""}"><span class="radio ${sel ? "on" : ""}"></span><span class="grow tab-num strk">${fmtT(it.a)}</span><span class="xs muted tab-num strk">${it.a === s.b && s.fin ? "end" : "at " + fmtPos(s.from + (it.a - s.a))}</span></button>`;
+    }).join("")}`).join("");
+    return `<div role="radiogroup" aria-label="Moments to Rewind to" style="padding:0 ${isDesk ? 0 : 12}px">${rows}</div>`;
+  }
+  // C: a log of events (newest first), each with “Rewind to here”.
+  function eventsC() {
+    const ev = [];
+    STR.forEach((s) => {
+      const e = E(s.ep);
+      ev.push({ a: s.a, t: s.from ? `Resumed “${e.t}” at ${fmtPos(s.from)}` : `Started “${e.t}”`, p: e.p, rw: s.a });
+      if (s.fin) ev.push({ a: s.b, t: `Finished “${e.t}”`, sub: "Became Played · left the Playlist (Clear on Played)", p: e.p, rw: s.b - 1, fin: true });
+      else ev.push({ a: s.b, t: `${s.why} “${e.t}” at ${s.to}:15`, p: e.p, rw: s.b });
+    });
+    EDITS.forEach((x) => ev.push({ a: x.a, t: x.text, edit: true }));
+    return ev.sort((x, y) => y.a - x.a || (x.fin ? -1 : 1));
+  }
+  function timelineC(st, isDesk) {
+    return `<div style="padding:0 ${isDesk ? 32 : 16}px"><div class="card" style="padding:12px 14px"><div class="sm m">Rewind to a time</div><div class="row gap8 mt8" style="flex-wrap:wrap"><label class="sr" for="rwDay">Day</label><select id="rwDay" data-in="rwDay" style="width:auto;flex:1 1 120px">${[2, 1, 0].map((d) => `<option value="${d}" ${st.rwDay == d ? "selected" : ""}>${DAYREL[d].split(" · ")[0]}</option>`).join("")}</select><label class="sr" for="rwTime">Time</label><input id="rwTime" type="time" data-in="rwTime" value="${st.rwTime}" style="width:auto;flex:1 1 120px"><button class="btn btn-p" data-a="rwAtTime" style="${isDesk ? "" : "flex:1 1 100%"}">Review Rewind</button></div><p class="xs muted" style="margin:6px 0 0">Or choose an event below. Rewinding to it returns to the moment just before it.</p></div>
+      ${byDay(eventsC()).map(([d, its]) => `<div class="gl label">${DAYREL[d]}</div><div class="group">${its.map((x) => `<div class="gr" style="align-items:center"><span class="xs muted tab-num" style="width:${isDesk ? 64 : 56}px;flex:none">${fmtT(x.a)}</span>${x.edit ? `<span class="tile" style="width:28px;height:28px;border-radius:8px;background:var(--postint);color:var(--pos)">${ic("pencil", 14)}</span>` : art(x.p, 28)}<span class="grow sm"><span class="${x.fin ? "m" : ""}">${esc(x.t)}</span>${x.sub ? `<br><span class="xs muted">${x.sub}</span>` : ""}${x.edit ? '<br><span class="xs" style="color:var(--pos)">Your change: a Rewind keeps it</span>' : ""}</span>${x.edit ? "" : `<button class="btn btn-t" style="padding:0 6px;font-size:14px;gap:4px" data-a="pickMoment" data-v="${x.rw}" aria-label="Rewind to before: ${esc(x.t)}">${ic("rewind", 16)}${isDesk ? "Rewind to here" : "Rewind"}</button>`}</div>`).join("")}</div>`).join("")}<div style="height:16px"></div></div>`;
+  }
+
+  function confirmBody(st, t) {
+    return `<div class="shd"><h2 class="h3 grow" id="rwT" style="font-size:17px">Rewind ${esc(plOf(st, "def").name)} to ${fmtDT(t)}?</h2>${S.device === "desktop" ? `<button class="ib" aria-label="Close" data-a="closeTop">${ic("x")}</button>` : ""}</div><div class="sbody">${planHtml(st, t)}</div>
+      <div class="sfoot row" style="gap:8px;justify-content:flex-end"><button class="btn btn-s" data-a="closeTop" id="rwCancel" ${S.device === "phone" ? 'style="flex:1"' : ""}>Cancel</button><button class="btn btn-p" data-a="doRewind" data-v="${t}" ${S.device === "phone" ? 'style="flex:1"' : ""}>${ic("rewind", 18)}Rewind</button></div>`;
+  }
+
+  const plCounts = (st) => st.playlists.map((p) => ({ ...p, n: st.entries[p.id].length }));
+  // ---------- Render ----------
+  function render(variant, dev, st) {
+    const isDesk = dev === "desktop";
+    const p = plOf(st, st.pl);
+    if (st.cursor === "e1") NOWP = { p: "orb", t: "The long quiet of Voyager 2", pl: "Default", at: fmtPos(st.pos.e1), left: "−" + (64 - st.pos.e1) + ":00", pct: Math.round((st.pos.e1 / 64) * 100) };
+    else NOWP = { p: "led", t: "Tulips, twice", pl: "Default", at: "27:15", left: "−30:45", pct: 47 };
+    let body = "", overlay = "";
+    const setBtn = variant === "A" ? `<button class="${isDesk ? "btn btn-o" : "ib"}" aria-label="Playlist settings" data-a="openSettings">${ic(isDesk ? "sliders" : "more", 18)}${isDesk ? "Settings" : ""}</button>` : "";
+    const rewindBtn = variant === "B" && st.pl === "def" ? `<button class="${isDesk ? "btn btn-o" : "btn btn-s"}" data-a="openRewindB" style="${isDesk ? "" : "min-height:40px;padding:0 12px"}">${ic("rewind", 16)}Rewind…</button>` : "";
+    const moreB = variant === "B" ? `<button class="ib" aria-label="More for this Playlist" data-a="moreB">${ic("more")}</button>` : "";
+    const gearC = variant === "C" && !isDesk ? `<button class="ib" aria-label="Playlist settings" data-a="openSettingsC">${ic("gear")}</button>` : "";
+
+    if (variant === "B" && st.screen === "rewindB") {
+      // Dedicated Rewind screen
+      const t0 = st.sel;
+      if (!isDesk) {
+        const content = `<header class="hdr" style="padding-top:4px">${back(p.name, "closeRewindB")}<h1 class="h1" tabindex="-1">Rewind</h1><p class="sm muted" style="margin:4px 0 0">Choose the moment to go back to. Everything after it that playback did is undone; your own changes are kept.</p></header>${scroll(timelineB(st, false) + '<div style="height:12px"></div>')}
+          <div style="padding:10px 16px;border-top:1px solid var(--line);background:var(--card)"><div class="sm" aria-live="polite">${t0 != null ? `<b>${fmtDT(t0)}</b> · <span class="muted">${planShort(t0)}</span>` : '<span class="muted">No moment chosen yet</span>'}</div><button class="btn btn-p mt8" style="width:100%" data-a="reviewB" ${t0 == null ? "disabled" : ""}>${ic("rewind", 18)}Review Rewind</button></div>`;
+        if (st.confirm != null) overlay = sheet(confirmBody(st, st.confirm), { z: 4, h: "86%", label: "Confirm Rewind" });
+        return phone({ tab: "playlists", content: `<div class="col" style="flex:1;min-height:0">${content}</div>`, mini: false, overlay });
+      }
+      const main = `<div style="display:grid;grid-template-columns:minmax(0,1fr) 400px;height:100%"><div style="overflow-y:auto;padding:28px 32px">${back(p.name, "closeRewindB")}<h1 class="h1" tabindex="-1">Rewind ${esc(p.name)}</h1><p class="sm muted" style="margin:4px 0 8px">Choose the moment to go back to. Struck-through playback is undone; your own changes (green) are kept.</p>${timelineB(st, true)}</div>
+        <aside style="border-left:1px solid var(--line);background:#fbfaf8;overflow-y:auto;padding:28px 24px;display:flex;flex-direction:column"><h2 class="h2">What changes</h2>${t0 != null ? `<div class="mt12">${planHtml(st, t0)}</div><div class="sp"></div><button class="btn btn-p mt16" data-a="reviewB">${ic("rewind", 18)}Rewind to ${fmtDT(t0)}</button>` : '<p class="sm muted">Choose a moment on the left to see exactly what a Rewind would undo.</p>'}</aside></div>`;
+      if (st.confirm != null) overlay = `<div class="scrim" style="z-index:24" data-a="closeTop"></div><div class="alert" role="alertdialog" aria-modal="true" style="z-index:25"><h2 class="h3" style="font-size:17px">Rewind ${esc(p.name)} to ${fmtDT(st.confirm)}?</h2><p class="sm muted" style="margin:8px 0 16px">${planShort(st.confirm)}. Playback resumes from “${esc(E(plan(st.confirm).st.ep).t)}” at ${fmtPos(plan(st.confirm).pos)}.</p><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" data-a="closeTop" id="rwCancel">Cancel</button><button class="btn btn-p" data-a="doRewind" data-v="${st.confirm}">Rewind</button></div></div>`;
+      return desk({ sel: st.pl, main, overlay, playlists: plCounts(st) });
+    }
+
+    // Playlist detail
+    const tabs = variant === "C" && isDesk ? tabsSeg(st.tab, [["settings", "Settings"]]) : tabsSeg(st.tab);
+    let inner;
+    if (st.tab === "entries") inner = entriesList(st, st.pl, isDesk);
+    else if (st.tab === "history") inner = historyList();
+    else if (st.tab === "timeline") inner = st.pl !== "def" ? `<p class="help px20">Switch to Default to try Rewind in this mock-up.</p>` : variant === "C" ? timelineC(st, isDesk) : variant === "B" ? `<div class="${isDesk ? "px20" : ""}" style="${isDesk ? "" : "padding:0 16px"}"><div class="card row" style="padding:12px 14px;margin-bottom:4px"><span class="grow sm">Fell asleep, or lost your place? Go back to any moment in the last 30 days.</span><button class="btn btn-p" data-a="openRewindB">Rewind…</button></div></div>${historyLike(st)}` : timelineA(st, isDesk);
+    else if (st.tab === "settings") inner = `<div class="px20" style="max-width:640px">${settingsBody(st, st.pl, "page")}</div>`;
+    const clearRowB = variant === "B" ? `<div class="${isDesk ? "px20" : "px20"}" style="margin-bottom:8px"><div class="group"><div class="gr"><span class="grow"><span class="m">Clear on Played</span><span class="xs muted" style="display:block">${p.cop ? "Played Entries leave this Playlist" : "Played Entries stay here"}</span></span>${sw(p.cop, "toggleCop", st.pl, "Clear on Played")}</div></div>${st.copNote && p.cop ? `<p class="help" role="status" style="color:var(--warn)">${ic("info", 14)} ${plural(st.copNote, "Entry", "Entries")} that ${st.copNote === 1 ? "was" : "were"} already Played left just now.</p>` : ""}</div>` : "";
+    const titleB = variant === "B" && st.renaming ? `<input id="plName" type="text" data-in="plName" value="${esc(st.nameDraft ?? p.name)}" aria-label="Playlist name" style="font:600 26px 'Space Grotesk',Inter,sans-serif;height:48px"><div class="row gap8 mt8"><button class="btn btn-s" data-a="cancelRename">Cancel</button><button class="btn btn-p" data-a="saveName">Rename</button></div>` : "";
+    const header = titleB ? `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${isDesk ? "" : back("Playlists", "toPlList")}${titleB}</header>` : plHeader(st, st.pl, isDesk, rewindBtn + setBtn + moreB + gearC);
+    const plPicker = "";
+    body = `${header}${plPicker}${clearRowB}<div class="px20" style="margin-bottom:12px">${tabs}</div>${inner}`;
+    if (!isDesk && st.screen === "plList") {
+      body = `<header class="hdr row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">Playlists</h1><button class="btn btn-t" data-a="noop">New Playlist</button></header><div style="padding:0 12px">${st.playlists.map((x) => `<button class="lrow" data-a="openPlaylist" data-v="${x.id}"><span class="tile">${ic("listMusic")}</span><span class="grow"><span class="row gap8"><span class="m" style="font-size:16px">${esc(x.name)}</span>${x.active ? '<span class="badge green">Paused</span>' : ""}</span><span class="xs muted" style="display:block;margin-top:2px">${plural(st.entries[x.id].length, "Entry", "Entries")} · ${x.cop ? "Clear on Played" : "Keeps Played Entries"}</span></span><span class="muted">${ic("right", 16)}</span></button>`).join("")}</div>`;
+    }
+    if (variant === "C" && !isDesk && st.screen === "settingsC") {
+      body = `<header class="hdr" style="padding-top:4px">${back(p.name, "closeSettingsC")}<h1 class="h1" tabindex="-1">Playlist settings</h1></header><div class="px20">${settingsBody(st, st.pl, "page")}</div>`;
+    }
+
+    // Overlays
+    if (st.settings) {
+      const inner2 = `<div class="shd" ${isDesk ? "" : 'style="padding-left:8px"'}>${isDesk ? `<h2 class="h2 grow">Playlist settings</h2><button class="ib" aria-label="Close" data-a="saveName">${ic("x")}</button>` : `<span style="width:64px"></span><h2 class="h3 grow" style="text-align:center">Playlist settings</h2><button class="btn btn-t" data-a="saveName">Done</button>`}</div><div class="sbody">${settingsBody(st, st.pl, "sheet")}</div>${isDesk ? `<div class="sfoot"><button class="btn btn-p" data-a="saveName">Done</button></div>` : ""}`;
+      overlay += isDesk ? modal(inner2, { cls: "narrow", label: "Playlist settings" }) : sheet(inner2, { label: "Playlist settings" });
+    }
+    if (st.more) overlay += `<div class="scrim" style="background:transparent" data-a="closeTop"></div><div class="menu" style="right:${isDesk ? 32 : 12}px;top:${isDesk ? 80 : 96}px">${p.isDefault ? "" : `<button data-a="renameB">${ic("pencil", 18)}Rename</button>`}${st.pl === "def" ? `<button data-a="openRewindB">${ic("rewind", 18)}Rewind…</button>` : ""}<button data-a="noop">${ic("listPlus", 18)}Add Episodes…</button>${p.isDefault ? "" : `<button class="danger" data-a="askDeletePl" data-v="${st.pl}">${ic("trash", 18)}Delete Playlist…</button>`}</div>`;
+    if (st.confirm != null) overlay += isDesk ? modal(confirmBody(st, st.confirm), { z: 4, label: "Confirm Rewind" }) : sheet(confirmBody(st, st.confirm), { z: 4, h: "86%", label: "Confirm Rewind" });
+    if (st.deleting) overlay += deletePlAlert(st, st.deleting);
+    if (st.toast) overlay += toast(st.toast, st.undoable ? "undoRewind" : null);
+    if (isDesk) return desk({ sel: st.pl, main: body, overlay, playlists: plCounts(st) });
+    return phone({ tab: "playlists", content: scroll(body + '<div style="height:12px"></div>'), overlay });
+  }
+  // B's Timeline tab: a compact read-only list, the Rewind screen does the choosing.
+  function historyLike(st) {
+    return `<div style="padding:0 20px">${[...STR].reverse().map((s) => { const e = E(s.ep); return `<div class="lrow" style="min-height:60px">${art(e.p, 40)}<span class="grow"><span class="sm m trunc" style="display:block">${esc(e.t)}</span><span class="xs muted tab-num">${fmtDT(s.a)} – ${fmtT(s.b)} · ${fmtPos(s.from)} → ${fmtPos(s.to)}</span></span><span class="badge ${s.fin ? "green" : ""}">${s.fin ? "Finished" : s.why}</span></div>`; }).join("")}</div>`;
+  }
+
+  AREAS.playlists = {
+    title: "Playlist settings & Rewind",
+    variants: {
+      A: { name: "Expand a stretch", caption: "The Listening Timeline tab lists stretches of playback by day; open one to pick a moment (5-minute steps), then a sheet spells out what comes back, what resets and what is kept. Settings live in one sheet behind ⋯. Compact and close to the data, but finding a moment takes two taps.", screens: [["entries", "Playlist (Default)"], ["settings", "Settings sheet (Commute)"], ["cop", "Turning on Clear on Played"], ["delete", "Delete confirmation"], ["timeline", "Listening Timeline"], ["moment", "Choosing a moment"], ["confirm", "Rewind confirmation"], ["after", "After Rewind"]] },
+      B: { name: "Rewind screen with live strike-through", caption: "Rewind is its own screen: every moment is a row, your edits sit between them, and choosing one strikes through the playback that would be undone and marks your edits Kept. Clear on Played is a visible switch on the Playlist; rename is in place. Most legible effect, but the longest list.", screens: [["entries", "Playlist with inline Clear on Played"], ["rename", "Rename in place"], ["rewind", "Rewind screen"], ["picked", "Moment chosen"], ["confirm", "Final confirmation"], ["after", "After Rewind"]] },
+      C: { name: "Event log", caption: "The Timeline reads as a story of events (started, finished, became Played, your edits), each with “Rewind to here”, plus a day-and-time field for in-between moments. Settings are a page of their own (a fourth tab on desktop). Explains what happened overnight best; events are derived, not stored.", screens: [["entries", "Playlist"], ["settings", "Settings page"], ["timeline", "Event log"], ["confirm", "Rewind confirmation"], ["after", "After Rewind"]] }
+    },
+    questions: [
+      "Where do restored Entries go? Mocks put them back before the Cursor’s old Entry in their original order, so “Carburettors” (added with Play Next this morning) now sits after “Tulips, twice”, not right after the Cursor.",
+      "Positions of Entries that playback only started after the moment (“Tulips, twice”, 27:15): reset to where they were, or left alone? CONTEXT only says the Cursor’s Position goes back.",
+      "Can a Rewind itself be undone (mocks show Undo in the toast), or is Rewinding forward again the way back?",
+      "If an Episode undone here was also finished through another Playlist since, does it stay Played? (Played is Episode-level.)",
+      "Should the Timeline group by calendar day or by listening session? A night’s listening spans midnight, so “last night” is split across Yesterday and Today.",
+      "Granularity: the Timeline keeps a point a minute; are 5-minute moments (A, B) fine, or should the exact minute be pickable (C’s time field)?",
+      "Turning Clear on Played on with Played Entries already present: do they leave immediately (mocks say yes and tell you), or only Episodes Played from now on?",
+      "Deleting the Active Playlist: does Default become Active, and what happens to playback in progress?"
+    ],
+    init(variant, screen, dev) {
+      const st = { screen0: screen, screen: "detail", pl: "def", tab: "entries", playlists: clone(PLAYLISTS), entries: clone(ENTRIES0), pos: { ...POS0 }, cursor: "e5", sel: null, confirm: null, settings: false, deleting: null, openStretch: null, rwDay: 1, rwTime: "23:45", toast: null };
+      const s = screen;
+      if (s === "settings" || s === "cop" || s === "delete") { st.pl = "com"; if (variant === "A") st.settings = true; if (variant === "C") { if (dev === "phone") st.screen = "settingsC"; else st.tab = "settings"; } }
+      if (s === "cop") copOn(st, "com");
+      if (s === "delete") st.deleting = "com";
+      if (s === "rename") { st.pl = "com"; st.renaming = true; }
+      if (s === "timeline" || s === "moment") st.tab = "timeline";
+      if (s === "moment") { st.openStretch = "s4"; st.scrollTo = "str-s4"; }
+      if (s === "confirm") { if (variant === "B") { st.screen = "rewindB"; st.sel = DEFAULT_T; } else st.tab = "timeline"; st.openStretch = variant === "A" ? "s4" : null; st.confirm = DEFAULT_T; }
+      if (s === "rewind") st.screen = "rewindB";
+      if (s === "picked") { st.screen = "rewindB"; st.sel = DEFAULT_T; }
+      if (s === "after") { applyRewind(st, DEFAULT_T); st.toast = `Rewound Default to ${fmtDT(DEFAULT_T)}`; st.undoable = true; }
+      return st;
+    },
+    esc(st) { return AREAS.playlists.actions.closeTop() !== false; },
+    actions: {
+      plTab(v) { S.st.tab = v; },
+      toPlList() { const st = S.st; st.screen = "plList"; st.renaming = false; st.settings = false; },
+      tab(v) { if (v === "playlists") { S.st.screen = "plList"; return; } return COMMON.tab(v); },
+      openPlaylist(v) { const st = S.st; if (!plOf(st, v)) return; st.pl = v; st.screen = "detail"; st.renaming = false; st.nameDraft = null; },
+      pickPl(v) { const st = S.st; st.pl = v; st.renaming = false; st.nameDraft = null; if (st.tab === "settings" && false) st.tab = "entries"; },
+      openSettings() { S.st.settings = true; S.st.nameDraft = null; },
+      openSettingsC() { S.st.screen = "settingsC"; },
+      closeSettingsC() { S.st.screen = "detail"; },
+      plName(v) { S.st.nameDraft = v; return false; },
+      saveName() { const st = S.st; const p = plOf(st, st.pl); if (st.nameDraft && st.nameDraft.trim()) p.name = st.nameDraft.trim(); st.nameDraft = null; st.settings = false; st.renaming = false; },
+      cancelRename() { S.st.renaming = false; S.st.nameDraft = null; },
+      renameB() { S.st.renaming = true; S.st.more = false; S.st.focus = "plName"; },
+      toggleCop(v) { copOn(S.st, v); },
+      askDeletePl(v) { S.st.deleting = v; S.st.more = false; S.st.focus = "dpCancel"; },
+      cancelDelete() { S.st.deleting = null; },
+      doDeletePl(v) { const st = S.st; const name = plOf(st, v).name; st.playlists = st.playlists.filter((p) => p.id !== v); st.deleting = null; st.settings = false; st.screen = "detail"; st.pl = "def"; st.tab = "entries"; st.toast = `Deleted “${esc(name)}”`; st.undoable = false; },
+      moreB() { S.st.more = !S.st.more; },
+      openStretch(v) { S.st.openStretch = S.st.openStretch === v ? null : v; S.st.scrollTo = "str-" + v; },
+      pickMoment(v) { S.st.confirm = +v; S.st.focus = "rwCancel"; },
+      selMoment(v) { S.st.sel = +v; },
+      openRewindB() { const st = S.st; st.more = false; st.pl = "def"; st.screen = "rewindB"; st.sel = null; },
+      closeRewindB() { S.st.screen = "detail"; S.st.confirm = null; },
+      reviewB() { S.st.confirm = S.st.sel; S.st.focus = "rwCancel"; },
+      rwDay(v) { S.st.rwDay = +v; return false; },
+      rwTime(v) { S.st.rwTime = v; return false; },
+      rwAtTime() { const st = S.st; const [h, m] = (st.rwTime || "0:0").split(":").map(Number); st.confirm = at(st.rwDay, h, m); st.focus = "rwCancel"; },
+      doRewind(v) { const st = S.st; applyRewind(st, +v); st.confirm = null; st.screen = "detail"; st.tab = "entries"; st.pl = "def"; st.toast = `Rewound ${esc(plOf(st, "def").name)} to ${fmtDT(+v)}`; st.undoable = true; },
+      undoRewind() { const st = S.st; st.entries = clone(ENTRIES0); st.pos = { ...POS0 }; st.cursor = "e5"; st.restored = null; st.toast = "Rewind undone"; st.undoable = false; },
+      closeTop() {
+        const st = S.st;
+        if (st.deleting) { st.deleting = null; return; }
+        if (st.confirm != null) { st.confirm = null; return; }
+        if (st.more) { st.more = false; return; }
+        if (st.settings) { st.settings = false; st.nameDraft = null; return; }
+        if (st.renaming) { st.renaming = false; return; }
+        if (st.toast) { st.toast = null; return; }
+        return false;
+      }
+    },
+    render
+  };
+})();
+// ===== Area 3: Library, Subscription settings, subscribe, OPML, Orphaned, first run =====
+(() => {
+  const DEF = { speed: 1.2, skipIntro: 0, skipOutro: 0, volumeBoost: false, threshold: 30 };
+  const secFmt = (v) => (v >= 60 ? (v % 60 ? Math.floor(v / 60) + " min " + (v % 60) + " s" : v / 60 + " min") : v + " s");
+  const OV = {
+    speed: { label: "Speed", opts: [0.8, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2, 2.5, 3], fmt: (v) => v + "×" },
+    skipIntro: { label: "Skip intro", opts: [0, 10, 15, 20, 30, 45, 60, 90, 120], fmt: (v) => (v ? "First " + secFmt(v) : "Off") },
+    skipOutro: { label: "Skip outro", opts: [0, 10, 15, 20, 30, 45, 60, 90, 120], fmt: (v) => (v ? "Last " + secFmt(v) : "Off") },
+    volumeBoost: { label: "Volume boost", opts: [false, true], fmt: (v) => (v ? "On" : "Off") },
+    threshold: { label: "Counts as Played", opts: [0, 15, 30, 60, 90, 120, 300], fmt: (v) => (v ? "Within " + secFmt(v) + " of the end" : "Only at the very end"), short: (v) => (v ? secFmt(v) + " before end" : "At the end") }
+  };
+  const RULES = [["never", "Never", "Stream only. Manual Downloads still work."], ["onEntry", "When added to a Playlist", "Downloads each Episode that becomes an Entry anywhere."], ["allNew", "As soon as published", "Downloads every new Episode, even before you add it."]];
+  const RULE_SHORT = { never: "Doesn’t download", onEntry: "Downloads when added", allNew: "Downloads every new Episode" };
+  const KEEP = [null, 1, 2, 3, 5, 10, 20];
+  const SUBS0 = {
+    kit: { rule: "onEntry", keep: null, ov: {}, since: "3 Mar 2025" },
+    orb: { rule: "allNew", keep: 5, ov: { speed: 1 }, since: "12 Jan 2024" },
+    moe: { rule: "onEntry", keep: null, ov: { speed: 1.5 }, since: "8 Aug 2025" },
+    fld: { rule: "never", keep: null, ov: {}, since: "21 Jun 2025" },
+    led: { rule: "onEntry", keep: null, ov: {}, since: "2 Feb 2026" },
+    law: { rule: "onEntry", keep: null, ov: {}, since: "14 Apr 2026" },
+    com: { rule: "allNew", keep: 3, ov: { skipIntro: 45, threshold: 90 }, since: "30 Sep 2026" },
+    qh: { rule: "allNew", keep: 2, ov: { speed: 1, volumeBoost: true }, since: "5 May 2025" },
+    eng: { rule: "never", keep: null, ov: {}, since: "19 Oct 2026" },
+    nlf: { rule: "never", keep: null, ov: { skipOutro: 60, threshold: 120 }, since: "1 Aug 2026" }
+  };
+  const OTHER_DEVICE = { kit: "onEntry", orb: "onEntry", moe: "onEntry", fld: "allNew", led: "never", law: "onEntry", com: "onEntry", qh: "never", eng: "onEntry", nlf: "never" };
+  const DIR = [
+    { id: "d1", t: "Garden Hour", a: "Ruth Ellery", n: 312, c: "#4f7a3a" },
+    { id: "d2", t: "The Quiet Garden", a: "Maya Fenn", n: 48, c: "#6b8f5e" },
+    { id: "d3", t: "Weekend Woodworking", a: "Hollis & Grace", n: 112, c: "#9a6b3c" },
+    { id: "d4", t: "The History of Bread", a: "Ivo Marsh", n: 76, c: "#b88a3e" },
+    { id: "d5", t: "Moth Light", a: "Lantern Fiction", n: 24, c: "#3e3a6e" },
+    { id: "d6", t: "Pocket Philosophy", a: "Dr. Anwen Price", n: 205, c: "#7a3a5e" },
+    { id: "d7", t: "Tidewater", a: "Coastal Radio Co-op", n: 89, c: "#2f6f80" },
+    { id: "d8", t: "Gardeners’ Question Hour", a: "Allotment Media", n: 640, c: "#3d6b4f" },
+    { id: "orb", t: "Orbit Notes", a: "Lena Varga", n: 241, c: "#2f4b8f", subscribed: true },
+    { id: "eng", t: "Small Engines", a: "Dale Pruitt", n: 58, c: "#5d6b2a", subscribed: true }
+  ];
+  const ORPH0 = [
+    { id: "o1", t: "Ep 212: The 3 a.m. caller", why: "Entry in Commute" },
+    { id: "o2", t: "Ep 198: Lighthouse frequencies", why: "Starred" },
+    { id: "o3", t: "Ep 190: Snow on the line", why: "Entry in Default and Replay · Starred" }
+  ];
+  const OPML = [["Orbit Notes", true], ["Small Engines", true], ["Quiet Hours", true], ["Garden Hour"], ["Weekend Woodworking"], ["Pocket Philosophy"], ["Tidewater"], ["The History of Bread"], ["Moth Light"], ["Signal & Noise"], ["Fermentation Station"], ["Old Radio Archive"], ["Birdsong Daily"], ["The Map Room"]];
+  const dev = () => (S.device === "phone" ? DEVICE.phone : DEVICE.desktop);
+  const unplayed = (pid) => EPS.filter((e) => e.p === pid && !e.pl).length;
+  const total = (pid) => ({ kit: 186, orb: 241, moe: 133, fld: 24, led: 97, law: 62, com: 41, qh: 152, eng: 58, nlf: 310 })[pid];
+  const sheet = (inner, { z = 0, h = "", label = "Dialog" } = {}) => `<div class="scrim" data-a="closeTop" style="z-index:${20 + z}"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(label)}" style="z-index:${21 + z};${h ? "height:" + h : ""}"><div class="grab"></div>${inner}</div>`;
+  const modal = (inner, { cls = "", z = 0, label = "Dialog" } = {}) => `<div class="scrim" data-a="closeTop" style="z-index:${20 + z}"></div><div class="modal ${cls}" role="dialog" aria-modal="true" aria-label="${esc(label)}" style="z-index:${21 + z}">${inner}</div>`;
+  const dirArt = (d, s = 48) => `<span class="art" aria-hidden="true" style="width:${s}px;height:${s}px;background:${d.c};font-size:${Math.round(s / 3.4)}px">${initials(d.t)}</span>`;
+  const ruleLine = (sub) => RULE_SHORT[sub.rule] + (sub.rule === "allNew" && sub.keep ? `, keeps ${sub.keep}` : "");
+  const ovCount = (sub) => Object.keys(sub.ov).length;
+  const val = (sub, k) => (sub.ov[k] !== undefined ? sub.ov[k] : DEF[k]);
+
+  // ---------- Settings pieces ----------
+  function ruleSection(st, pid, style) {
+    const sub = st.subs[pid];
+    const keepRow = sub.rule === "allNew" ? `<div class="gr" style="flex-wrap:wrap;row-gap:2px"><span class="grow m">Keep at most</span><span class="stepper"><button aria-label="Fewer" data-a="keep" data-v="-">−</button><span aria-live="polite">${sub.keep ? sub.keep : "No limit"}</span><button aria-label="More" data-a="keep" data-v="+">+</button></span><span class="xs muted" style="flex-basis:100%;padding-bottom:4px">Older automatic downloads are removed. Entries, Starred and Manual Downloads don’t count.</span></div>` : "";
+    return `<div class="gl label row gap8">${ic(S.device === "phone" ? "phone" : "laptop", 14)}Downloads on this ${dev()}</div>
+      <div class="group" role="radiogroup">${RULES.map(([v, l, d]) => `<button class="gr" role="radio" aria-checked="${sub.rule === v}" data-a="rule" data-v="${v}"><span class="radio ${sub.rule === v ? "on" : ""}"></span><span class="grow"><span class="m" style="display:block">${l}</span><span class="xs muted">${d}</span></span></button>`).join("")}${keepRow}</div>
+      <p class="help">Each Device has its own rule. On your ${S.device === "phone" ? DEVICE.desktop : DEVICE.phone}: “${RULES.find((r) => r[0] === OTHER_DEVICE[pid])[1]}”.</p>`;
+  }
+  // A: rows that open a picker sheet (like the player’s speed menu).
+  function ovRowsA(st, pid) {
+    const sub = st.subs[pid];
+    const row = (k) => { const custom = sub.ov[k] !== undefined; return `<button class="gr" data-a="openPicker" data-v="${k}"><span class="grow m">${OV[k].label}</span><span class="${custom ? "" : "muted"}" style="${custom ? "color:var(--primary);font-weight:600" : ""}">${custom ? OV[k].fmt(sub.ov[k]) : "Default · " + OV[k].fmt(DEF[k])}</span><span class="muted">${ic("right", 16)}</span></button>`; };
+    return `<div class="gl label">Played</div><div class="group">${row("threshold")}</div><p class="help">When you stop this close to the end, the Episode counts as Played.</p>
+      <div class="gl label">Playback for this podcast</div><div class="group">${["speed", "skipIntro", "skipOutro", "volumeBoost"].map(row).join("")}</div><p class="help">“Default” follows your Playback Settings, so changing those changes these.</p>`;
+  }
+  function pickerA(st, pid, k) {
+    const sub = st.subs[pid];
+    const cur = sub.ov[k];
+    const opt = (v, l, on) => `<button class="gr" data-a="setOv" data-v="${k}:${v}" role="menuitemradio" aria-checked="${on}"><span class="grow">${l}</span>${on ? `<span class="check">${ic("check")}</span>` : ""}</button>`;
+    return `<div class="group">${opt("default", `Use default (${OV[k].fmt(DEF[k])})`, cur === undefined)}</div><div class="gl label">Just for ${esc(POD[pid].t)}</div><div class="group">${OV[k].opts.map((v) => opt(v, OV[k].fmt(v), cur === v)).join("")}</div>`;
+  }
+  // B: inline steppers with Reset.
+  function ovRowsB(st, pid) {
+    const sub = st.subs[pid];
+    const row = (k) => {
+      const custom = sub.ov[k] !== undefined, v = val(sub, k);
+      const control = k === "volumeBoost" ? sw(v, "ovBool", k, OV[k].label) : `<span class="stepper"><button aria-label="Less ${OV[k].label}" data-a="ovStep" data-v="${k}:-">−</button><span style="min-width:${k === "threshold" ? 70 : 64}px" aria-live="polite">${k === "threshold" ? (v ? secFmt(v) : "End") : k === "speed" ? v + "×" : v ? secFmt(v) : "Off"}</span><button aria-label="More ${OV[k].label}" data-a="ovStep" data-v="${k}:+">+</button></span>`;
+      return `<div class="gr"><span class="grow"><span class="m" style="display:block">${OV[k].label}</span>${custom ? `<span class="xs" style="color:var(--primary);font-weight:600">Just for this podcast</span><span class="xs muted"> · default ${(OV[k].short || OV[k].fmt)(DEF[k])}</span>` : `<span class="xs muted">Your default</span>`}</span>${custom ? `<button class="btn btn-t" style="padding:0 6px;font-size:14px" data-a="ovReset" data-v="${k}" aria-label="Reset ${OV[k].label} to default">Reset</button>` : ""}${control}</div>`;
+    };
+    return `<div class="gl label">Played</div><div class="group">${row("threshold")}</div><p class="help">Stopping this close to the end counts as Played.</p><div class="gl label">Playback</div><div class="group">${["speed", "skipIntro", "skipOutro", "volumeBoost"].map(row).join("")}</div>`;
+  }
+  // C: “same as everywhere” or “for this podcast”, spelled out.
+  function ovRowsC(st, pid) {
+    const sub = st.subs[pid];
+    const block = (k) => {
+      const custom = sub.ov[k] !== undefined, v = val(sub, k);
+      return `<div class="gr" style="flex-direction:column;align-items:stretch;gap:6px;padding-top:12px;padding-bottom:12px"><span class="m">${OV[k].label}</span>${seg([["default", "Default (" + (OV[k].short || OV[k].fmt)(DEF[k]) + ")"], ["custom", "For this podcast"]], custom ? "custom" : "default", "ovMode", "full").replace(/data-v="(default|custom)"/g, (m, x) => `data-v="${k}:${x}"`)}
+        ${custom ? (k === "volumeBoost" ? `<div class="row" style="justify-content:space-between"><span class="sm">Boost quiet voices</span>${sw(v, "ovBool", k, OV[k].label)}</div>` : `<div class="row" style="justify-content:space-between"><span class="sm muted">${OV[k].fmt(v)}</span><span class="stepper"><button aria-label="Less" data-a="ovStep" data-v="${k}:-">−</button><span>${k === "speed" ? v + "×" : v ? secFmt(v) : "Off"}</span><button aria-label="More" data-a="ovStep" data-v="${k}:+">+</button></span></div>`) : ""}</div>`;
+    };
+    return `<div class="gl label">Played</div><div class="group">${block("threshold")}</div><div class="gl label">Playback</div><div class="group">${["speed", "skipIntro", "skipOutro", "volumeBoost"].map(block).join("")}</div>`;
+  }
+  const actionsSection = (st, pid) => `<div class="gl label">Episodes</div><div class="group"><button class="gr" data-a="markAll" data-v="${pid}"><span class="grow"><span class="m" style="display:block">Mark all Played</span><span class="xs muted">${plural(unplayed(pid), "unplayed Episode")}</span></span></button><button class="gr" data-a="askUnsub" data-v="${pid}" style="color:var(--danger)"><span class="grow m">Unsubscribe…</span></button></div>`;
+  const podHead = (pid, big) => `<div class="row gap12">${art(pid, big ? 72 : 56)}<span class="grow"><span class="${big ? "h2" : "h3"}" style="display:block">${esc(POD[pid].t)}</span><span class="sm muted">${esc(POD[pid].a)}</span><span class="xs muted" style="display:block">${total(pid)} Episodes · subscribed ${SUBS0[pid].since}</span></span></div>`;
+  function unsubAlert(st, pid) {
+    const keeps = pid === "fld" ? 2 : 1;
+    return `<div class="scrim" style="z-index:26" data-a="closeTop"></div><div class="alert" role="alertdialog" aria-modal="true" aria-labelledby="usT" style="z-index:27"><h2 class="h3" id="usT" style="font-size:17px">Unsubscribe from ${esc(POD[pid].t)}?</h2>
+      <ul class="sm muted" style="margin:8px 0 16px;padding-left:18px"><li>Its ${total(pid)} Episodes leave your Library and Views.</li><li>${plural(keeps, "Episode")} you added to a Playlist or Starred ${keeps === 1 ? "stays" : "stay"} as Orphaned until you remove ${keeps === 1 ? "it" : "them"}.</li><li>Its downloads are removed from every Device, apart from the Orphaned ${keeps === 1 ? "one" : "ones"}.</li></ul>
+      <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" id="usCancel" data-a="closeTop">Cancel</button><button class="btn btn-d" data-a="doUnsub" data-v="${pid}">Unsubscribe</button></div></div>`;
+  }
+
+  // ---------- Subscribe ----------
+  const isUrl = (q) => /^(https?:\/\/|www\.)|\.(xml|rss)$|\/feed/i.test(q.trim());
+  function dirResults(st, q, compact) {
+    q = q.trim();
+    if (!q) return "";
+    if (isUrl(q)) {
+      const ok = /wood/i.test(q) || !/bad|broken/i.test(q);
+      return ok ? `<div class="card row mt12" style="padding:12px;gap:12px">${dirArt(DIR[2], 56)}<span class="grow"><span class="xs muted m" style="display:block">Feed found</span><span class="m">Weekend Woodworking</span><span class="xs muted" style="display:block">Hollis & Grace · 112 Episodes · newest 2 days ago</span></span>${subBtn(st, "d3")}</div>`
+        : `<div class="card mt12" style="padding:14px;border-color:#f3c9c4"><div class="m" style="color:var(--danger)">Couldn’t read a podcast at that address</div><p class="sm muted" style="margin:4px 0 0">Check it’s the feed (RSS) address, not the podcast’s web page. It often ends in .xml or /feed.</p></div>`;
+    }
+    const res = DIR.filter((d) => (d.t + " " + d.a).toLowerCase().includes(q.toLowerCase()));
+    if (!res.length) return `<div class="dashed mt12" style="padding:20px;text-align:center"><div class="m">No podcasts found for “${esc(q)}”</div><div class="sm muted mt4">Try fewer words, or paste the feed address if you have it.</div></div>`;
+    return `<div class="${compact ? "" : "mt8"}">${res.map((d) => `<div class="lrow" style="min-height:68px">${dirArt(d)}<span class="grow"><span class="m trunc" style="display:block">${hl(d.t, q)}</span><span class="xs muted trunc" style="display:block">${esc(d.a)} · ${d.n} Episodes</span></span>${subBtn(st, d.id)}</div>`).join("")}</div>`;
+  }
+  const subBtn = (st, id) => {
+    const d = DIR.find((x) => x.id === id);
+    return d.subscribed || st.added.includes(id) ? `<span class="badge green" style="min-height:32px;padding:0 10px">${ic("check", 14)}Subscribed</span>` : `<button class="btn btn-s" style="min-height:40px" data-a="subscribe" data-v="${id}" aria-label="Subscribe to ${esc(d.t)}">Subscribe</button>`;
+  };
+  const searchInput = (st, ph, id = "dirQ", a = "dirQ") => `<div style="position:relative"><span style="position:absolute;left:12px;top:12px;color:var(--muted)">${ic("search", 20)}</span><label class="sr" for="${id}">${ph}</label><input id="${id}" type="search" data-in="${a}" value="${esc(st.q)}" placeholder="${ph}" style="padding-left:40px" autocomplete="off"></div>`;
+
+  // ---------- OPML ----------
+  function opmlPanel(st) {
+    const o = st.opml;
+    if (o.step === "choose") return `<div class="dashed" style="padding:24px;text-align:center">${ic("file", 28)}<div class="m mt8">Choose an OPML file</div><p class="sm muted" style="margin:4px 0 14px">Most podcast apps can export your subscriptions as one, usually in Settings under Export or Backup.</p><button class="btn btn-p" data-a="opmlChoose">${ic("upload", 18)}Choose file…</button></div>`;
+    if (o.step === "review") {
+      const n = OPML.filter((x, i) => !x[1] && o.picked[i]).length;
+      return `<div class="row gap8"><span style="color:var(--muted)">${ic("file", 18)}</span><span class="grow sm"><b>podcasts-export.opml</b> · ${OPML.length} podcasts, ${OPML.filter((x) => x[1]).length} already subscribed</span></div>
+        <div class="group mt12">${OPML.map((x, i) => `<label class="gr" style="cursor:${x[1] ? "default" : "pointer"};min-height:48px"><input type="checkbox" ${x[1] || o.picked[i] ? "checked" : ""} ${x[1] ? "disabled" : ""} data-a="opmlTog" data-v="${i}"><span class="grow ${x[1] ? "muted" : ""}">${esc(x[0])}</span>${x[1] ? '<span class="xs muted">Already subscribed</span>' : ""}</label>`).join("")}</div>
+        <div class="row mt16" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" data-a="opmlCancel">Cancel</button><button class="btn btn-p" data-a="opmlImport" ${n ? "" : "disabled"}>Subscribe to ${n}</button></div>`;
+    }
+    return `<div class="card" style="padding:14px"><div class="row gap8"><span style="color:var(--pos)">${ic("check")}</span><span class="m">${plural(o.done, "Subscription")} added</span></div><p class="sm muted" style="margin:4px 0 0">Their Episodes are now in your Library. Downloads follow each one’s Download Rule on this ${dev()}: “When added to a Playlist” to start with.</p></div>
+      <div class="card mt12" style="padding:14px;border-color:#f3c9c4"><div class="m">1 couldn’t be added</div><div class="row mt8"><span class="grow sm">Old Radio Archive<br><span class="muted">The feed address no longer works.</span></span><button class="btn btn-s" data-a="noop">Try again</button></div></div>
+      <div class="row mt16" style="justify-content:flex-end"><button class="btn btn-p" data-a="opmlCancel">Done</button></div>`;
+  }
+
+  // ---------- Orphaned ----------
+  function orphPanel(st) {
+    if (!st.orph.length) return `<div class="dashed" style="padding:24px;text-align:center"><div class="m">No Orphaned Episodes</div><p class="sm muted" style="margin:4px 0 0">When you unsubscribe, Episodes you added to a Playlist or Starred stay here.</p></div>`;
+    return `<p class="sm muted" style="margin:0 0 10px">From podcasts you unsubscribed from. Each stays because it’s an Entry or Starred; nothing else from the podcast remains.</p>
+      <div class="group">${st.orph.map((o) => `<div class="gr" style="min-height:64px"><span class="art" aria-hidden="true" style="width:40px;height:40px;background:#6b6f7d;font-size:12px">NS</span><span class="grow"><span class="sm m clamp2">${esc(o.t)}</span><span class="xs muted">Night Shift Radio · ${o.why}</span></span><button class="btn btn-t danger" style="padding:0 6px" data-a="askOrph" data-v="${o.id}">Remove</button></div>`).join("")}</div>
+      <div class="row mt12 sm"><span class="grow muted">Unsubscribed from Night Shift Radio on 2 Nov.</span><button class="btn btn-t" data-a="noop">Subscribe again</button></div>`;
+  }
+  const orphAlert = (st, id) => { const o = st.orph.find((x) => x.id === id); return `<div class="scrim" style="z-index:26" data-a="closeTop"></div><div class="alert" role="alertdialog" aria-modal="true" style="z-index:27"><h2 class="h3" style="font-size:17px">Remove “${esc(o.t)}”?</h2><p class="sm muted" style="margin:8px 0 16px">It leaves every Playlist (${esc(o.why.replace(" · Starred", "").replace("Entry in ", "") || "none")}), loses its Star and its downloads, and can’t be found again unless you subscribe to Night Shift Radio again.</p><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn btn-s" data-a="closeTop">Cancel</button><button class="btn btn-d" data-a="doOrph" data-v="${id}">Remove</button></div></div>`; };
+
+  // ---------- Library lists ----------
+  const subIds = (st) => PODS.map((p) => p.id).filter((id) => st.subs[id]);
+  function subRow(st, pid, a = "openPod", noRule = false) {
+    const sub = st.subs[pid];
+    const cur = S.variant === "B" && S.device === "desktop" && st.pod === pid;
+    return `<button class="lrow" data-a="${a}" data-v="${pid}" ${cur ? 'aria-current="true" style="background:var(--accent);border-radius:10px"' : ""}>${art(pid, 48)}<span class="grow"><span class="m trunc" style="display:block">${esc(POD[pid].t)}</span><span class="xs muted trunc" style="display:block">${unplayed(pid)} unplayed${noRule ? (sub.rule === "allNew" && sub.keep ? " · keeps " + sub.keep : "") : " · " + ruleLine(sub)}${ovCount(sub) ? " · " + plural(ovCount(sub), "custom setting") : ""}</span></span><span class="muted">${ic("right", 16)}</span></button>`;
+  }
+  function podEpisodes(pid) {
+    return EPS.filter((e) => e.p === pid).sort((a, b) => a.d - b.d).map((e) => (S.device === "phone" ? epRowPhone(e) : "")).join("") || "";
+  }
+  function firstRunA(isDesk) {
+    return `<div style="padding:${isDesk ? "48px 32px" : "24px 20px"};max-width:560px;${isDesk ? "margin:0 auto" : ""}"><div class="card" style="padding:24px;text-align:center"><div class="tile" style="margin:0 auto;width:56px;height:56px;border-radius:16px">${ic("library", 28)}</div><h2 class="h2 mt12">No Subscriptions yet</h2><p class="sm muted" style="margin:6px 0 18px">Subscribe to a podcast and its Episodes appear in your Views, ready to add to a Playlist.</p><div class="col gap8"><button class="btn btn-p" data-a="openAdd">${ic("search", 18)}Find a podcast</button><button class="btn btn-s" data-a="openOpml">${ic("upload", 18)}Import from another app (OPML)</button></div></div><p class="help" style="text-align:center">You can also paste a feed address in Find a podcast.</p></div>`;
+  }
+
+  // ================= Render =================
+  function render(variant, dv, st) {
+    const isDesk = dv === "desktop";
+    let body = "", overlay = "", right = "";
+    const pid = st.pod;
+    const empty = st.first;
+
+    if (variant === "A") {
+      if (st.screen === "pod") {
+        body = `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${isDesk ? "" : back("Library", "toList")}${podHead(pid, isDesk)}<div class="row gap8 mt12"><button class="btn btn-s" data-a="openSettings">${ic("sliders", 18)}Settings</button><button class="btn btn-t" data-a="markAll" data-v="${pid}">Mark all Played</button></div><p class="xs muted" style="margin:8px 0 0">${ruleLine(st.subs[pid])} on this ${dev()} · Speed ${OV.speed.fmt(val(st.subs[pid], "speed"))}</p></header>
+          <div style="padding:0 12px">${isDesk ? `<div class="px20" style="padding:0 20px">${epTable(EPS.filter((e) => e.p === pid))}</div>` : podEpisodes(pid)}</div>`;
+      } else if (st.screen === "add") {
+        body = `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${back("Library", "toList")}<h1 class="h1" tabindex="-1">Find a podcast</h1></header><div class="px20" style="${isDesk ? "max-width:720px" : ""}">${searchInput(st, "Podcast name, or paste a feed address")}<p class="xs muted" style="margin:6px 2px 0">Searches the podcast directory. To search Episodes you already have, use Search in Views.</p>${dirResults(st, st.q)}</div>`;
+      } else if (st.screen === "opml") {
+        body = `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${back("Library", "toList")}<h1 class="h1" tabindex="-1">Import OPML</h1></header><div class="px20" style="${isDesk ? "max-width:640px" : ""}">${opmlPanel(st)}</div>`;
+      } else if (st.screen === "orphans") {
+        body = `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${back("Library", "toList")}<h1 class="h1" tabindex="-1">Orphaned Episodes</h1></header><div class="px20" style="${isDesk ? "max-width:720px" : ""}">${orphPanel(st)}</div>`;
+      } else {
+        const ids = subIds(st);
+        body = `<header class="hdr row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">Library</h1><div class="row gap4">${isDesk ? `<button class="btn btn-o" data-a="openOpml">${ic("upload", 16)}Import OPML…</button><button class="btn btn-p" data-a="openAdd">${ic("plus", 16)}Add podcast</button>` : `<button class="ib" aria-label="Add podcast" data-a="openAdd" style="color:var(--primary)">${ic("plus", 22)}</button><button class="ib" aria-label="More" data-a="moreA">${ic("more")}</button>`}</div></header>
+          ${empty ? firstRunA(isDesk) : `<div style="padding:0 ${isDesk ? 24 : 12}px">${isDesk ? `<p class="sm muted" style="margin:0 8px 8px">${plural(ids.length, "Subscription")} · downloads shown for this ${dev()}</p>` : ""}${ids.map((id) => subRow(st, id)).join("")}</div>
+          <div style="padding:16px ${isDesk ? 24 : 12}px 0"><div class="label" style="padding:0 8px 4px">Not in your Subscriptions</div><button class="lrow" data-a="openOrph"><span class="tile" style="background:var(--sec);color:var(--muted)">${ic("info")}</span><span class="grow"><span class="m" style="display:block">Orphaned Episodes</span><span class="xs muted">Kept because they’re Entries or Starred</span></span><span class="sm muted">${st.orph.length}</span><span class="muted">${ic("right", 16)}</span></button></div>`}`;
+        if (st.more) overlay += `<div class="scrim" style="background:transparent" data-a="closeTop"></div><div class="menu" style="right:12px;top:60px"><button data-a="openOpml">${ic("upload", 18)}Import OPML…</button><button data-a="noop">${ic("dl", 18)}Export OPML…</button><button data-a="noop">${ic("check", 18)}Mark everything Played…</button></div>`;
+      }
+      if (st.settings) {
+        const sub = st.subs[pid];
+        const inner = `<div class="shd" style="${isDesk ? "" : "padding-left:8px"}">${isDesk ? `<h2 class="h2 grow">Settings for ${esc(POD[pid].t)}</h2><button class="ib" aria-label="Close" data-a="closeTop">${ic("x")}</button>` : `<span style="width:64px"></span><h2 class="h3 grow" style="text-align:center">Settings</h2><button class="btn btn-t" data-a="closeTop">Done</button>`}</div>
+          <div class="sbody">${isDesk ? "" : podHead(pid)}${ruleSection(st, pid)}${ovRowsA(st, pid)}${actionsSection(st, pid)}</div>${isDesk ? `<div class="sfoot"><button class="btn btn-p" data-a="closeTop">Done</button></div>` : ""}`;
+        overlay += isDesk ? modal(inner, { label: "Subscription settings" }) : sheet(inner, { h: "92%", label: "Subscription settings" });
+        if (st.picker) {
+          const k = st.picker;
+          const pin = `<div class="shd">${isDesk ? "" : ""}<h2 class="h3 grow">${OV[k].label}</h2><button class="btn btn-t" data-a="closePicker">Done</button></div><div class="sbody">${pickerA(st, pid, k)}</div>`;
+          overlay += isDesk ? modal(pin, { cls: "narrow", z: 3, label: OV[k].label }) : sheet(pin, { z: 3, h: "70%", label: OV[k].label });
+        }
+        void sub;
+      }
+    }
+
+    if (variant === "B") {
+      const segTop = `<div class="${isDesk ? "" : "px20"}" style="margin-bottom:10px">${seg([["subs", "Subscriptions"], ["orph", `Orphaned (${st.orph.length})`]], st.listTab, "listTab", "full")}</div>`;
+      const q = st.q.trim();
+      const listCol = () => {
+        if (empty) return `<div style="padding:${isDesk ? "8px 0" : "8px 20px"}"><h2 class="h2">Add your first podcast</h2><p class="sm muted" style="margin:4px 0 12px">Search the directory or paste a feed address. Its Episodes show up in your Views.</p>${searchInput(st, "Podcast name or feed address")}${dirResults(st, st.q)}${q ? "" : `<button class="btn btn-t mt12" style="padding:0" data-a="openOpml">${ic("upload", 18)}Moving from another app? Import OPML</button>`}${st.opml ? `<div class="mt12">${opmlPanel(st)}</div>` : ""}</div>`;
+        const mine = subIds(st).filter((id) => !q || POD[id].t.toLowerCase().includes(q.toLowerCase()));
+        return `<div style="padding:0 ${isDesk ? 0 : 20}px 10px">${searchInput(st, "Search or paste a feed address")}</div>
+          ${q ? `<div style="padding:0 ${isDesk ? 0 : 12}px">${isUrl(q) ? "" : `<div class="label" style="padding:8px 8px 4px">Your Subscriptions (${mine.length})</div>${mine.map((id) => subRow(st, id)).join("") || '<p class="help" style="padding:0 8px">None match.</p>'}`}<div class="label" style="padding:16px 8px 4px">${isUrl(q) ? "Subscribe by address" : "Subscribe to more"}</div><div style="padding:0 8px">${dirResults(st, q, true)}</div></div>`
+            : `${segTop}<div style="padding:0 ${isDesk ? 0 : 12}px">${st.listTab === "orph" ? `<div style="padding:0 8px">${orphPanel(st)}</div>` : subIds(st).map((id) => subRow(st, id)).join("") + `<div id="opmlBox" style="padding:16px 8px">${st.opml ? opmlPanel(st) : `<button class="btn btn-t" style="padding:0" data-a="openOpml">${ic("upload", 18)}Import OPML from another app</button>`}</div>`}</div>`}`;
+      };
+      const detail = () => `<header class="hdr" style="${isDesk ? "padding:24px 28px 8px" : "padding-top:4px"}">${isDesk ? "" : back("Library", "toList")}${podHead(pid, isDesk)}</header><div class="${isDesk ? "" : "px20"}" style="${isDesk ? "padding:0 28px" : ""}">${seg([["eps", "Episodes"], ["settings", "Settings"]], st.podTab, "podTab", "full")}</div>
+        ${st.podTab === "settings" ? `<div style="padding:0 ${isDesk ? 28 : 20}px 20px">${ruleSection(st, pid)}${ovRowsB(st, pid)}${actionsSection(st, pid)}</div>` : `<div style="padding:8px ${isDesk ? 20 : 12}px">${isDesk ? epTable(EPS.filter((e) => e.p === pid)) : podEpisodes(pid)}</div>`}`;
+      if (isDesk) {
+        body = empty ? `<div style="max-width:600px;margin:0 auto;padding:48px 24px"><h1 class="h1" tabindex="-1" style="margin-bottom:12px">Library</h1>${listCol()}</div>` : `<div style="display:grid;grid-template-columns:380px minmax(0,1fr);height:100%"><div style="border-right:1px solid var(--line);overflow-y:auto;padding:24px 20px"><h1 class="h1" tabindex="-1" style="margin-bottom:12px">Library</h1>${listCol()}</div><div style="overflow-y:auto">${empty ? "" : detail()}</div></div>`;
+      } else {
+        body = st.screen === "pod" ? detail() : `<header class="hdr"><h1 class="h1" tabindex="-1">Library</h1></header>${listCol()}`;
+      }
+    }
+
+    if (variant === "C") {
+      const groups = [["allNew", "Downloads every new Episode"], ["onEntry", "Downloads when added to a Playlist"], ["never", "Doesn’t download"]];
+      const firstC = `<div class="card" style="padding:18px;margin:0 ${isDesk ? 0 : 20}px 12px"><div class="row" style="justify-content:space-between"><h2 class="h3" style="font-size:17px">Set up PodList</h2><button class="btn btn-t" style="padding:0 4px" data-a="skipSetup">Skip</button></div>
+        <ol style="list-style:none;margin:10px 0 0;padding:0" class="col gap8">${[["Add podcasts", "Search, paste a feed address, or import OPML.", st.added.length > 0, "openAddC"], ["Choose downloads for this " + dev(), "New Subscriptions start with “When added to a Playlist”.", st.setupDl, "setupDl"], ["Make your first View", "For example: new this week, not started.", false, "noop"]].map(([t, d, done, a], i) => `<li><button class="row gap12" style="width:100%;min-height:52px;text-align:left" data-a="${a}"><span class="radio ${done ? "on" : ""}" style="${done ? "background:var(--pos);border-color:var(--pos)" : ""}">${done ? "" : ""}</span><span class="grow"><span class="m" style="display:block;${done ? "text-decoration:line-through;color:var(--muted)" : ""}">${i + 1}. ${t}</span><span class="xs muted">${d}</span></span><span class="muted">${ic("right", 16)}</span></button></li>`).join("")}</ol></div>`;
+      if (st.screen === "settings" && !isDesk) {
+        body = `<header class="hdr" style="padding-top:4px">${back("Library", "toList")}${podHead(pid)}</header><div class="px20">${ruleSection(st, pid)}${ovRowsC(st, pid)}${actionsSection(st, pid)}<div style="height:16px"></div></div>`;
+      } else if (st.screen === "orphans" || st.screen === "opml") {
+        body = `<header class="hdr" style="${isDesk ? "" : "padding-top:4px"}">${back("Library", "toList")}<h1 class="h1" tabindex="-1">${st.screen === "opml" ? "Import OPML" : "Orphaned Episodes"}</h1></header><div class="px20" style="max-width:720px">${st.screen === "opml" ? opmlPanel(st) : orphPanel(st)}</div>`;
+      } else if (isDesk) {
+        const ids = subIds(st);
+        const sel = st.bulk;
+        const wide = !st.settings;
+        body = `<header class="hdr row" style="justify-content:space-between"><div><h1 class="h1" tabindex="-1">Library</h1><p class="sm muted" style="margin:4px 0 0">${plural(ids.length, "Subscription")} · downloads and settings for this ${dev()}</p></div><div class="row gap8"><button class="btn btn-o" data-a="openOrphC">Orphaned (${st.orph.length})</button><button class="btn btn-p" data-a="openAddC">${ic("plus", 16)}Add</button></div></header>
+          ${st.first && !st.added.length ? `<div style="padding:0 32px;max-width:640px">${firstC}</div>` : `<div class="px20">${sel.length ? `<div class="card row" style="padding:8px 8px 8px 14px;margin-bottom:8px;background:var(--accent);border-color:#cdd7f5"><span class="sm b">${sel.length} selected</span><span class="sp"></span><label class="row gap8 sm">Downloads on this ${dev()}<select id="bulkRule" data-in="bulkRule" style="height:36px;width:auto;font-size:14px">${RULES.map(([v, l]) => `<option value="${v}" ${st.bulkRule === v ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="btn btn-p" data-a="bulkApply">Apply to ${sel.length}</button><button class="btn btn-t" data-a="bulkClear">Clear</button></div>` : ""}
+          <table class="tbl" style="table-layout:fixed"><colgroup><col style="width:36px"><col><col style="width:84px"><col style="width:230px">${wide ? '<col style="width:120px"><col style="width:80px">' : ""}<col style="width:48px"></colgroup><thead><tr><th><input type="checkbox" aria-label="Select all" data-a="bulkAll" ${sel.length === ids.length ? "checked" : ""}></th><th>Podcast</th><th>Unplayed</th><th>Downloads on this ${dev()}</th>${wide ? "<th>Keep at most</th><th>Speed</th>" : ""}<th><span class="sr">Settings</span></th></tr></thead><tbody>
+          ${ids.map((id) => { const sub = st.subs[id]; return `<tr class="${sel.includes(id) || (st.settings && st.pod === id) ? "sel" : ""}" ${st.settings && st.pod === id ? 'aria-current="true"' : ""}><td><input type="checkbox" aria-label="Select ${esc(POD[id].t)}" data-a="bulkTog" data-v="${id}" ${sel.includes(id) ? "checked" : ""}></td><td><div class="row gap12">${art(id, 36)}<div class="grow"><div class="m trunc">${esc(POD[id].t)}</div><div class="xs muted trunc">${ovCount(sub) ? plural(ovCount(sub), "custom setting") : "All defaults"}</div></div></div></td><td class="tab-num">${unplayed(id)}</td>
+            <td><select id="r-${id}" aria-label="Downloads for ${esc(POD[id].t)}" data-in="ruleRow" data-pid="${id}" style="height:34px;font-size:14px">${RULES.map(([v, l]) => `<option value="${v}" ${sub.rule === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>${wide ? `<td class="muted">${sub.rule === "allNew" ? (sub.keep ? sub.keep + " Episodes" : "No limit") : "—"}</td><td class="tab-num ${sub.ov.speed !== undefined ? "" : "muted"}">${OV.speed.fmt(val(sub, "speed"))}</td>` : ""}<td><button class="ib" aria-label="Settings for ${esc(POD[id].t)}" data-a="openSetC" data-v="${id}">${ic("sliders", 18)}</button></td></tr>`; }).join("")}</tbody></table></div>`}`;
+        if (st.settings) right = `<div style="padding:20px"><div class="row" style="justify-content:space-between;margin-bottom:12px"><span class="label">Subscription settings</span><button class="ib" aria-label="Close" data-a="closeTop">${ic("x")}</button></div>${podHead(pid)}${ruleSection(st, pid)}${ovRowsC(st, pid)}${actionsSection(st, pid)}</div>`;
+      } else {
+        const ids = subIds(st);
+        body = `<header class="hdr row" style="justify-content:space-between"><h1 class="h1" tabindex="-1">Library</h1><button class="btn btn-s" style="min-height:40px" data-a="openAddC">${ic("plus", 18)}Add</button></header>
+          ${st.first && !st.added.length ? firstC : `<p class="sm muted px20" style="margin:0 0 4px">${ic("phone", 14)} Grouped by what downloads on this ${dev()}.</p>${groups.map(([g, l]) => { const its = ids.filter((id) => st.subs[id].rule === g); return its.length ? `<div class="label" style="padding:16px 20px 2px">${l} · ${its.length}</div><div style="padding:0 12px">${its.map((id) => subRow(st, id, "openSetC", true)).join("")}</div>` : ""; }).join("")}
+          <div style="padding:16px 12px 0"><button class="lrow" data-a="openOrphC"><span class="tile" style="background:var(--sec);color:var(--muted)">${ic("info")}</span><span class="grow"><span class="m" style="display:block">Orphaned Episodes</span><span class="xs muted">Kept because they’re Entries or Starred</span></span><span class="sm muted">${st.orph.length}</span><span class="muted">${ic("right", 16)}</span></button></div>`}`;
+      }
+      if (st.addSheet) {
+        const t = st.addTab;
+        const inner = `<div class="shd"><h2 class="${isDesk ? "h2" : "h3"} grow">Add podcasts</h2><button class="btn btn-t" data-a="closeTop">Done</button></div><div class="sbody">${seg([["search", "Search"], ["url", "Feed address"], ["opml", "OPML file"]], t, "addTab", "full")}<div class="mt12">${t === "search" ? searchInput(st, "Podcast name") + dirResults(st, st.q) : t === "url" ? `<label class="col gap4"><span class="sm m">Feed (RSS) address</span><input id="urlIn" type="url" data-in="dirQ" value="${esc(st.q)}" placeholder="https://example.com/feed.xml"></label><p class="help">Paste it from the podcast’s website. It often ends in .xml or /feed.</p>${dirResults(st, st.q)}` : opmlPanel(st)}</div></div>`;
+        overlay += isDesk ? modal(inner, { label: "Add podcasts" }) : sheet(inner, { h: "88%", label: "Add podcasts" });
+      }
+    }
+
+    if (st.unsub) overlay += unsubAlert(st, st.unsub);
+    if (st.orphAsk) overlay += orphAlert(st, st.orphAsk);
+    if (st.toast) overlay += toast(st.toast, null);
+    if (isDesk) return desk({ sel: "library", main: `<div style="height:100%">${body}</div>`, right, overlay, ...(st.first ? { views: [], playlists: [{ id: "def", name: "Default", n: 0 }], noPlayer: true } : {}) });
+    return phone({ tab: "library", content: scroll(body + '<div style="height:12px"></div>'), overlay, mini: !st.first });
+  }
+
+  AREAS.library = {
+    title: "Library & Subscriptions",
+    variants: {
+      A: { name: "List, podcast page, settings sheet", caption: "Library is a plain list with Add (+) and an Orphaned row at the end; a podcast page holds its Episodes and a Settings button that opens one sheet: Download Rule for this Device, Played threshold, then Playback overrides as rows that open pickers (like the speed menu). Familiar and tidy; settings are two taps deep.", screens: [["list", "Library"], ["pod", "Podcast page"], ["settings", "Settings sheet"], ["picker", "Override picker"], ["add", "Find a podcast"], ["url", "Paste a feed address"], ["opml", "Import OPML"], ["orphans", "Orphaned"], ["unsub", "Unsubscribe"], ["first", "First run"]] },
+      B: { name: "One search field, inline settings", caption: "A single field searches your Subscriptions, the directory and feed addresses at once; a podcast has Episodes and Settings tabs, with inline steppers that say “Your default” or offer Reset. Desktop is list + detail. Fewest screens, but the shared field mixes “mine” and “new”.", screens: [["list", "Library"], ["search", "Unified search"], ["url", "Paste a feed address"], ["settings", "Settings tab"], ["orphans", "Orphaned"], ["opml", "Import OPML"], ["first", "First run"]] },
+      C: { name: "Grouped by Download Rule", caption: "The Library is organised by what downloads on this Device; desktop is a table with an inline Download Rule per row and bulk edit. Settings spell out “Default” vs “For this podcast” per item. Add is one sheet with Search · Feed address · OPML, and first run is a skippable checklist. Best for managing storage, busiest to look at.", screens: [["list", "Library by Download Rule"], ["settings", "Settings"], ["bulk", "Bulk Download Rules"], ["add", "Add sheet"], ["opml", "Import OPML"], ["orphans", "Orphaned"], ["first", "First run checklist"]] }
+    },
+    questions: [
+      "What Download Rule does a new Subscription get on each Device: Never, or “When added to a Playlist” (mocks assume the latter)? Should subscribing ask?",
+      "Back Catalogue: when you subscribe (or import OPML), do old Episodes arrive unplayed and flood “Not Played” Views, or should there be a “mark older ones Played” choice?",
+      "Should a Device show other Devices’ Download Rules (mocks show one line, read-only), or only its own?",
+      "Is the Played threshold always “seconds before the end”, or also a percentage for very long or very short Episodes?",
+      "Which directory is searched (Podcast Index, Apple)? Is search done by the server or the Device?",
+      "Removing an Orphaned Episode removes its Entries and Star. Is that the only way to remove it, or does un-Starring / removing the last Entry make it disappear on its own?",
+      "First run: should the empty app also seed starter Views (e.g. “New this week”) so the Views tab isn’t blank after the first subscribe?",
+      "Unsubscribe removes downloads on every Device, not only this one. Correct?"
+    ],
+    init(variant, screen, dv) {
+      const st = { screen0: screen, screen: "list", subs: clone(SUBS0), pod: "com", q: "", added: [], orph: clone(ORPH0), opml: null, settings: false, picker: null, listTab: "subs", podTab: "eps", bulk: [], bulkRule: "onEntry", addSheet: false, addTab: "search", toast: null, first: false };
+      const s = screen;
+      if (s === "pod") st.screen = "pod";
+      if (s === "settings" || s === "picker" || s === "unsub") { st.screen = variant === "C" ? "settings" : "pod"; st.settings = variant !== "B"; st.podTab = "settings"; if (variant === "C" && dv === "desktop") st.screen = "list"; }
+      if (variant === "B" && dv === "desktop" && s !== "first") st.screen = "pod";
+      if (variant === "B" && (s === "list") && dv === "phone") st.screen = "list";
+      if (s === "picker") st.picker = "speed";
+      if (s === "unsub") st.unsub = "com";
+      if (s === "add") { if (variant === "C") st.addSheet = true; else st.screen = "add"; st.q = "garden"; }
+      if (s === "search") { st.q = "garden"; st.screen = dv === "desktop" ? "pod" : "list"; }
+      if (s === "url") { st.q = "https://feeds.example.net/weekend-woodworking.xml"; if (variant === "A") st.screen = "add"; }
+      if (s === "opml") { st.opml = { step: "review", picked: OPML.map(() => true) }; if (variant === "A" || variant === "C") st.screen = "opml"; else st.scrollTo = "opmlBox"; }
+      if (s === "orphans") { if (variant === "B") st.listTab = "orph"; else st.screen = "orphans"; }
+      if (s === "first") { st.first = true; st.subs = {}; st.orph = []; st.screen = "list"; }
+      if (s === "bulk") { st.bulk = ["fld", "eng", "nlf"]; st.bulkRule = "onEntry"; }
+      if (variant === "C" && dv === "desktop" && (s === "settings" || s === "unsub")) st.settings = true;
+      return st;
+    },
+    esc(st) { return AREAS.library.actions.closeTop() !== false; },
+    render,
+    actions: {
+      toList() { const st = S.st; st.screen = "list"; st.q = ""; st.opml = null; },
+      openPod(v) { const st = S.st; st.pod = v; st.screen = "pod"; st.q = ""; st.podTab = S.variant === "B" ? st.podTab : "eps"; },
+      openSettings() { S.st.settings = true; },
+      openPicker(k) { S.st.picker = k; },
+      closePicker() { S.st.picker = null; },
+      setOv(v) { const [k, x] = v.split(":"); const sub = S.st.subs[S.st.pod]; if (x === "default") delete sub.ov[k]; else sub.ov[k] = x === "true" ? true : x === "false" ? false : +x; },
+      ovStep(v) { const [k, d] = v.split(":"); const sub = S.st.subs[S.st.pod]; const o = OV[k].opts; const i = o.indexOf(val(sub, k)); const n = o[Math.max(0, Math.min(o.length - 1, i + (d === "+" ? 1 : -1)))]; if (n === DEF[k] && S.variant === "B") delete sub.ov[k]; else sub.ov[k] = n; },
+      ovReset(k) { delete S.st.subs[S.st.pod].ov[k]; },
+      ovBool(k) { const sub = S.st.subs[S.st.pod]; const n = !val(sub, k); if (n === DEF[k] && S.variant === "B") delete sub.ov[k]; else sub.ov[k] = n; },
+      ovMode(v) { const [k, m] = v.split(":"); const sub = S.st.subs[S.st.pod]; if (m === "default") delete sub.ov[k]; else if (sub.ov[k] === undefined) sub.ov[k] = DEF[k]; },
+      rule(v) { const sub = S.st.subs[S.st.pod]; sub.rule = v; if (v === "allNew" && sub.keep === null) sub.keep = 5; },
+      keep(d) { const sub = S.st.subs[S.st.pod]; const i = KEEP.indexOf(sub.keep); sub.keep = KEEP[Math.max(0, Math.min(KEEP.length - 1, i + (d === "+" ? 1 : -1)))]; },
+      markAll(pid) { S.st.toast = `Marked ${plural(unplayed(pid), "Episode")} of ${esc(POD[pid].t)} Played`; },
+      askUnsub(pid) { S.st.unsub = pid; S.st.focus = "usCancel"; },
+      doUnsub(pid) { const st = S.st; delete st.subs[pid]; st.unsub = null; st.settings = false; st.screen = "list"; st.pod = subIds(st)[0]; st.orph = [...st.orph, { id: "o" + Date.now(), t: POD[pid].t + ": an Episode in a Playlist", why: "Entry in Default" }]; st.toast = `Unsubscribed from ${esc(POD[pid].t)}. 1 Episode stays as Orphaned.`; },
+      openAdd() { const st = S.st; if (S.variant === "C") { st.addSheet = true; return; } st.screen = "add"; st.q = ""; st.focus = "dirQ"; },
+      openAddC() { S.st.addSheet = true; S.st.addTab = "search"; S.st.focus = "dirQ"; },
+      addTab(v) { S.st.addTab = v; if (v === "opml" && !S.st.opml) S.st.opml = { step: "choose", picked: OPML.map(() => true) }; S.st.q = ""; },
+      dirQ(v) { S.st.q = v; },
+      subscribe(id) { const st = S.st; const d = DIR.find((x) => x.id === id); st.added.push(id); st.toast = `Subscribed to ${esc(d.t)}. Its ${d.n} Episodes are in your Library.`; },
+      openOpml() { const st = S.st; st.more = false; st.opml = { step: "choose", picked: OPML.map(() => true) }; if (S.variant === "A") st.screen = "opml"; else st.scrollTo = "opmlBox"; },
+      opmlChoose() { S.st.opml.step = "review"; },
+      opmlTog(i) { const o = S.st.opml; o.picked[i] = !o.picked[i]; },
+      opmlImport() { const o = S.st.opml; o.done = OPML.filter((x, i) => !x[1] && o.picked[i]).length - 1; o.step = "done"; S.st.added.push("opml"); },
+      opmlCancel() { const st = S.st; st.opml = null; if (S.variant !== "B" && !st.addSheet) st.screen = "list"; if (st.addSheet) st.addSheet = false; },
+      openOrph() { S.st.screen = "orphans"; },
+      openOrphC() { S.st.screen = "orphans"; },
+      askOrph(id) { S.st.orphAsk = id; },
+      doOrph(id) { const st = S.st; st.orph = st.orph.filter((o) => o.id !== id); st.orphAsk = null; st.toast = "Removed from your Library"; },
+      listTab(v) { S.st.listTab = v; },
+      podTab(v) { S.st.podTab = v; },
+      openSetC(v) { const st = S.st; st.pod = v; if (S.device === "desktop") st.settings = true; else st.screen = "settings"; },
+      bulkTog(id) { const b = S.st.bulk; S.st.bulk = b.includes(id) ? b.filter((x) => x !== id) : [...b, id]; },
+      bulkAll() { const st = S.st; const ids = subIds(st); st.bulk = st.bulk.length === ids.length ? [] : ids; },
+      bulkClear() { S.st.bulk = []; },
+      bulkRule(v) { S.st.bulkRule = v; return false; },
+      bulkApply() { const st = S.st; st.bulk.forEach((id) => (st.subs[id].rule = st.bulkRule)); st.toast = `Downloads on this ${dev()} set to “${RULES.find((r) => r[0] === st.bulkRule)[1]}” for ${plural(st.bulk.length, "Subscription")}`; st.bulk = []; },
+      ruleRow(v, el) { S.st.subs[el.dataset.pid].rule = v; },
+      skipSetup() { S.st.first = false; S.st.subs = clone(SUBS0); S.st.toast = "Setup hidden. Find it again in Settings › Get started."; },
+      setupDl() { S.st.setupDl = true; },
+      moreA() { S.st.more = !S.st.more; },
+      closeTop() {
+        const st = S.st;
+        if (st.unsub) { st.unsub = null; return; }
+        if (st.orphAsk) { st.orphAsk = null; return; }
+        if (st.picker) { st.picker = null; return; }
+        if (st.more) { st.more = false; return; }
+        if (st.settings) { st.settings = false; return; }
+        if (st.addSheet) { st.addSheet = false; return; }
+        if (st.toast) { st.toast = null; return; }
+        return false;
+      }
+    }
+  };
+})();
+</script>
+<script>load();</script>
+</body>
+</html>
