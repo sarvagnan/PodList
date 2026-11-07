@@ -122,7 +122,8 @@ test("Search narrows with the View form, and saves its conditions", async ({ pag
   await page.goto(`${demo.base}/search?q=market`)
   const refine = page.getByRole("complementary", { name: "Refine" })
   await refine.getByRole("combobox", { name: "Played" }).selectOption("unplayed")
-  await expect(page).toHaveURL(/f=/)
+  // In plain words: ?q=market&played=unplayed.
+  await expect(page).toHaveURL(/[?&]played=unplayed(&|$)/)
   // Kept in the address: a reload keeps the condition.
   await page.reload()
   await expect(
@@ -134,6 +135,15 @@ test("Search narrows with the View form, and saves its conditions", async ({ pag
   await dialog.getByRole("button", { name: "Save View" }).click()
   await expect(page.getByRole("heading", { name: "Unplayed markets", level: 1 })).toBeVisible()
   await expect(page.getByText(/Unplayed/).first()).toBeVisible()
+})
+
+test("Search reads its conditions from plain words in the address", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/search?q=market&max=30&sort=shortest`)
+  const refine = page.getByRole("complementary", { name: "Refine" })
+  await expect(refine.getByRole("combobox", { name: "Sort" })).toHaveValue("durationAsc")
+  await expect(page).toHaveURL(/max=30/)
+  await expect(page).not.toHaveURL(/%7B/)
 })
 
 test("on the phone, Refine opens the View form under the field", async ({ page }) => {

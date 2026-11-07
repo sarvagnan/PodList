@@ -139,6 +139,11 @@ export function EpisodeRow({
   ))
   // Ticked rows stay quiet: the bulk bar acts on them.
   const shown = selected
+  // The row's secondary actions (or their More menu) show on hover, on focus, or while a
+  // menu of the row's is open; on touch, always.
+  const quiet = shown
+    ? ""
+    : "transition-opacity [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[[data-popup-open]]:opacity-100"
   const wide = useMinWidth("64rem")
   const play = (
     <GridCell className="relative z-10 shrink-0">
@@ -285,8 +290,9 @@ export function EpisodeRow({
       </div>
 
       <div className="hidden items-center gap-0.5 lg:flex">
-        {/* Too narrow for every action (a side panel open, a small window): one menu. */}
-        <GridCell className="relative z-10 hidden shrink-0 @max-[46rem]:block">
+        {/* Too narrow for every action (a side panel open, a small window): one menu,
+            quiet until the row is in hand, as the actions it stands for are. */}
+        <GridCell className={`relative z-10 hidden shrink-0 @max-[46rem]:block ${quiet}`}>
           <Menu.Root>
             <Tip label="More actions">
               <Menu.Trigger
@@ -306,13 +312,7 @@ export function EpisodeRow({
             </Menu.Portal>
           </Menu.Root>
         </GridCell>
-        <div
-          className={`hidden items-center gap-0.5 @min-[46rem]:flex ${
-            shown
-              ? ""
-              : "transition-opacity [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[[data-popup-open]]:opacity-100"
-          }`}
-        >
+        <div className={`hidden items-center gap-0.5 @min-[46rem]:flex ${quiet}`}>
           <TextAction
             label={`Play Next in ${target?.name ?? "Playlist"}`}
             onClick={() => addTo("next")}

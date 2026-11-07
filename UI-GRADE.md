@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) | Round 15 (7 Nov, Opus) | Round 16 (8 Nov, Opus) | Round 17 (8 Nov, Opus) | Round 18 (8 Nov, Opus) | Round 19 (8 Nov, Opus) | Round 20 (8 Nov, Opus) | Round 21 (8 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 | 6.9 | 8.6 | 8.6 | 8.6 | 8.6 | 8.7 | 8.6 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.6 | 8.5 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 | 8.2 | 8.3 | 8.4 | 8.3 | 8.4 | 8.5 | 8.3 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 | 8.6 | 8.8 | 8.6 | 8.8 | 6.9 | 8.9 | 8.7 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 | 8.4 | 8.7 | 8.4 | 8.5 | 8.7 | 8.6 | 8.6 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) | 8.5 (stability 9.2) | 8.3 (stability 8.6) | 8.4 (stability 8.7) | 8.3 (stability 8.8) | 8.4 (stability 8.8) | 8.4 (stability 8.8) | 8.3 (stability 8.4) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.6 | 8.8 | 8.5 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 | 8.9 | 8.8 | 8.7 | 8.8 | 8.8 | 8.8 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 | 4.9 | 6.9 | 8.8 | 8.7 | 8.8 | 6.9 | 8.8 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** | **6.9** | **8.4** | **8.6** | **8.6** | **8.5** | **8.4** | **8.3** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) | Round 15 (7 Nov, Opus) | Round 16 (8 Nov, Opus) | Round 17 (8 Nov, Opus) | Round 18 (8 Nov, Opus) | Round 19 (8 Nov, Opus) | Round 20 (8 Nov, Opus) | Round 21 (8 Nov, Opus) | Round 22 (8 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 | 6.9 | 8.6 | 8.6 | 8.6 | 8.6 | 8.7 | 8.6 | 8.7 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.6 | 8.5 | 8.6 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 | 8.2 | 8.3 | 8.4 | 8.3 | 8.4 | 8.5 | 8.3 | 8.4 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 | 8.6 | 8.8 | 8.6 | 8.8 | 6.9 | 8.9 | 8.7 | 8.8 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 | 8.4 | 8.7 | 8.4 | 8.5 | 8.7 | 8.6 | 8.6 | 8.6 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) | 8.5 (stability 9.2) | 8.3 (stability 8.6) | 8.4 (stability 8.7) | 8.3 (stability 8.8) | 8.4 (stability 8.8) | 8.4 (stability 8.8) | 8.3 (stability 8.4) | 8.4 (stability 8.9) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.6 | 8.8 | 8.5 | 8.7 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 | 8.9 | 8.8 | 8.7 | 8.8 | 8.8 | 8.8 | 6.9 | 8.7 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 | 4.9 | 6.9 | 8.8 | 8.7 | 8.8 | 6.9 | 8.8 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** | **6.9** | **8.4** | **8.6** | **8.6** | **8.5** | **8.4** | **8.3** | **8.4** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -70,6 +70,16 @@ Round 19: coverage 97.0%; 2 failures (1 major, 1 minor). Report: [docs/ui-grade/
 Round 20: coverage 96.0%; 1 failure (1 major: focus to body after first run's Skip). Report: [docs/ui-grade/round-20.md](docs/ui-grade/round-20.md). Graded build 3aa7f41. Interaction capped at 6.9 (about 8.8 uncapped); Color reaches 8.9. Rounds 19 and 20 were each capped by a regression from the round before: each fix batch now gets its own focus and forced-colour checks.
 
 Round 21: coverage 95.9%; 2 failures (1 major, 1 minor). Report: [docs/ui-grade/round-21.md](docs/ui-grade/round-21.md). Graded build 7bd406d. Platform fit capped at 6.9 by LIST-06 (the tab and sidebar lose their place when an Episode opens from the Library or a Playlist); 8.7 uncapped.
+
+Round 22: coverage 97.9%; 3 failures (2 major, 1 minor). Report: [docs/ui-grade/round-22.md](docs/ui-grade/round-22.md). Graded build 9498706. Interaction capped at 6.9 by WKEY-03 (focus to the page after bulk Mark Played and Mark all Played); about 8.8 uncapped. LIST-06 and FLOW-05 pass; Platform fit back to 8.7.
+
+## Work list (round 22)
+
+Fixed on 8 Nov:
+
+- [x] WKEY-03: after a bulk action takes its rows (and the bar), focus goes to the row now in their place; ⌘Z and the toast's Undo put it on the first row back; Mark all Played stays focusable (aria-disabled) and says when nothing is left · DRAG-01: the OPML tab is a drop area; a file dropped anywhere else is refused, and the Mac window navigates to no file but its setup page.
+- [x] APPEAR-11 checked, not reproduced: the lifted row is the row itself (RESUME and progress on a fresh demo); the grader's demo had lost that Position to earlier probes.
+- [x] Craft: the row's More button is quiet until the row is in hand, like the actions it stands for · the desktop drawer grows to fit its content · desktop screens opened from another name it on the title line ("Commute › Playlist settings") instead of a back link at the top edge · the target panel's empty state is the dashed card · an empty Active Playlist is badged "Active", not "Paused" · the welcome card only on Views · Search conditions as plain words in the address (`?q=market&played=unplayed&max=30&sort=shortest`; old `f=` links still read).
 
 ## Work list (round 21)
 

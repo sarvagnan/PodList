@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { type ReactNode, useEffect } from "react"
 
 /** A screen title, with a back link on drill-down screens (phone). */
@@ -40,9 +40,8 @@ export function PageHeader({
           <Link
             to={back.to}
             activeOptions={{ exact: true }}
-            // On desktop it sits in the header's top margin, so every screen's heading is at the
-            // same height, with or without a way back (a 24 px target).
-            className={`-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary ${backOnDesktop ? "md:-mt-7 md:mb-1 md:flex md:h-6 md:w-fit short:md:mt-0" : "md:hidden"}`}
+            // Phone only: on desktop the way back is the title line's breadcrumb, below.
+            className="-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary md:hidden"
           >
             <ChevronLeft aria-hidden="true" className="size-5" />
             {back.label}
@@ -50,12 +49,27 @@ export function PageHeader({
         )}
         {/* The actions swap (picker, bulk bar) without changing the header's height. */}
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h1
-            tabIndex={-1}
-            className="font-heading outline-offset-4 text-title leading-tight font-semibold md:text-3xl"
-          >
-            {title}
-          </h1>
+          {/* Desktop: a screen opened from another names it before its own title
+              ("Commute › Playlist settings"), so every heading sits at one height and the way
+              back has room. */}
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            {back && backOnDesktop && (
+              <Link
+                to={back.to}
+                activeOptions={{ exact: true }}
+                className="hidden items-baseline gap-2 rounded font-heading text-3xl leading-tight font-semibold text-muted-foreground hover:text-foreground md:inline-flex"
+              >
+                {back.label}
+                <ChevronRight aria-hidden="true" className="size-6 self-center" />
+              </Link>
+            )}
+            <h1
+              tabIndex={-1}
+              className="font-heading outline-offset-4 text-title leading-tight font-semibold md:text-3xl"
+            >
+              {title}
+            </h1>
+          </div>
           {actions}
         </div>
         {subtitle && <p className="mt-1.5 text-small text-muted-foreground">{subtitle}</p>}

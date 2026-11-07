@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { readFileSync, writeFileSync } from "node:fs"
 import { readFile, stat } from "node:fs/promises"
 import { extname, join, normalize, sep } from "node:path"
+import { pathToFileURL } from "node:url"
 import {
   app,
   BrowserWindow,
@@ -313,7 +314,10 @@ const createWindow = () => {
   })
 
   // Links away from the app open in the default browser.
-  const inApp = (url: string) => url.startsWith(`${appOrigin}/`) || url.startsWith("file:")
+  // Of files, only the setup page: a file dropped on the window must not replace the app
+  // (DRAG-01).
+  const inApp = (url: string) =>
+    url.startsWith(`${appOrigin}/`) || url.split("#")[0] === pathToFileURL(setupPage).href
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void shell.openExternal(url)
     return { action: "deny" }

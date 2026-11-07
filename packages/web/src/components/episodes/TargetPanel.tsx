@@ -4,6 +4,7 @@ import { AsyncResult } from "effect/reactivity"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useNextLastTarget } from "../../app/hooks.ts"
 import { formatLength, formatTime } from "../../lib/time.ts"
+import { EmptyState } from "../lists/ListRow.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 
 /**
@@ -36,9 +37,12 @@ export function TargetPanel({ onOpen }: { readonly onOpen: (episodeId: string) =
         </Link>
       </h2>
       {upcoming.length === 0 ? (
-        <p className="mt-3 text-row text-muted-foreground">
-          Nothing up next. Use Next or Last on an Episode to add it here.
-        </p>
+        // The same dashed card as every other empty state.
+        <div className="mt-3">
+          <EmptyState title="Nothing up next" inPanel>
+            Use Next or Last on an Episode to add it here.
+          </EmptyState>
+        </div>
       ) : (
         <ol className="mt-3">
           {upcoming.map((entry) => {

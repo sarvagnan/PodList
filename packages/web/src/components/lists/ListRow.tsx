@@ -45,7 +45,7 @@ export function ListRow({
 }
 
 /** The Active Playlist's state, in words as well as colour: "Playing" or "Paused". */
-export function StatusBadge({ status }: { readonly status: "Playing" | "Paused" }) {
+export function StatusBadge({ status }: { readonly status: "Playing" | "Paused" | "Active" }) {
   return (
     <span
       className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${status === "Playing" ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground"}`}
@@ -74,14 +74,19 @@ export function LoadingRows({ label }: { readonly label: string }) {
 
 export function EmptyState({
   title,
-  children
+  children,
+  inPanel = false
 }: {
   readonly title: string
   readonly children: ReactNode
+  /** In a side panel: its own padding holds it, and less room above and below. */
+  readonly inPanel?: boolean
 }) {
   return (
     // Ends where the screen's 960 px content does, not at the window's edge.
-    <div className="mx-5 h-fit self-start rounded-2xl border border-dashed px-5 py-8 text-center md:mx-8 md:max-w-[calc(960px-4rem)]">
+    <div
+      className={`h-fit self-start rounded-2xl border border-dashed px-5 text-center ${inPanel ? "py-6" : "mx-5 py-8 md:mx-8 md:max-w-[calc(960px-4rem)]"}`}
+    >
       <p className="font-medium">{title}</p>
       <p className="mt-1.5 text-row text-muted-foreground">{children}</p>
     </div>

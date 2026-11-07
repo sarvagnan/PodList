@@ -314,6 +314,33 @@ function OpmlTab() {
   const importOpml = useAtomSet(importOpmlAtom, { mode: "promiseExit" })
   const [summary, setSummary] = useState<ReactNode>(null)
   const [busy, setBusy] = useState(false)
+  // A file held over the drop area (DRAG-01).
+  const [over, setOver] = useState(false)
+  const importFile = async (file: File) => {
+    setBusy(true)
+    setSummary("Importing…")
+    const exit = await importOpml(await file.text())
+    setBusy(false)
+    if (Exit.isFailure(exit)) {
+      setSummary(<span className="text-destructive">{messageOf(exit)}</span>)
+      return
+    }
+    const { added, alreadySubscribed, failed } = exit.value
+    setSummary(
+      <>
+        <span className="block">
+          Added {added}
+          {alreadySubscribed > 0 ? `; ${alreadySubscribed} already subscribed` : ""}.
+        </span>
+        {failed.length > 0 && (
+          <span className="mt-1 block text-destructive">
+            {failed.length} couldn’t be read: {failed.map((f) => f.feedUrl).join(", ")}
+          </span>
+        )}
+      </>
+    )
+  }
+  const holdsFile = (event: React.DragEvent) => event.dataTransfer.types.includes("Files")
   return (
     <div>
       <label htmlFor={`${id}-file`} className="text-row font-medium">
@@ -322,42 +349,47 @@ function OpmlTab() {
       <p className="mt-0.5 text-small text-muted-foreground">
         Export it from your other podcast app; every podcast in it is subscribed.
       </p>
-      <input
-        id={`${id}-file`}
-        type="file"
-        accept=".opml,.xml,text/xml,text/x-opml,application/xml"
-        aria-disabled={busy}
-        onClick={(event) => {
-          if (busy) event.preventDefault()
+      {/* Drop the file here, or choose it: the area takes a file dragged from the Finder or
+          the desktop, and shows it will. */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: a pointer-only drop area; the file field inside it is the keyboard's way in. */}
+      <div
+        data-file-drop=""
+        onDragEnter={(event) => {
+          if (holdsFile(event)) setOver(true)
         }}
-        onChange={async (event) => {
-          const file = event.target.files?.[0]
-          if (file === undefined) return
-          setBusy(true)
-          setSummary("Importing…")
-          const exit = await importOpml(await file.text())
-          setBusy(false)
-          if (Exit.isFailure(exit)) {
-            setSummary(<span className="text-destructive">{messageOf(exit)}</span>)
-            return
-          }
-          const { added, alreadySubscribed, failed } = exit.value
-          setSummary(
-            <>
-              <span className="block">
-                Added {added}
-                {alreadySubscribed > 0 ? `; ${alreadySubscribed} already subscribed` : ""}.
-              </span>
-              {failed.length > 0 && (
-                <span className="mt-1 block text-destructive">
-                  {failed.length} couldn’t be read: {failed.map((f) => f.feedUrl).join(", ")}
-                </span>
-              )}
-            </>
-          )
+        onDragOver={(event) => {
+          if (!holdsFile(event)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = busy ? "none" : "copy"
         }}
-        className="mt-2 block w-full text-row file:mr-3 file:h-10 file:rounded-full file:border-0 file:bg-secondary file:px-4 file:font-medium"
-      />
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false)
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setOver(false)
+          const file = event.dataTransfer.files[0]
+          if (file !== undefined && !busy) void importFile(file)
+        }}
+        className={`mt-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors motion-reduce:transition-none ${over ? "border-primary bg-accent" : "border-input"}`}
+      >
+        <p className="text-row font-medium">{over ? "Drop to import" : "Drop an OPML file here"}</p>
+        <p className="mt-0.5 text-small text-muted-foreground">or</p>
+        <input
+          id={`${id}-file`}
+          type="file"
+          accept=".opml,.xml,text/xml,text/x-opml,application/xml"
+          aria-disabled={busy}
+          onClick={(event) => {
+            if (busy) event.preventDefault()
+          }}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file !== undefined) void importFile(file)
+          }}
+          className="mx-auto mt-2 block max-w-full text-row file:mr-3 file:h-10 file:rounded-full file:border-0 file:bg-secondary file:px-4 file:font-medium"
+        />
+      </div>
       <p aria-live="polite" className="mt-3 text-row">
         {summary}
       </p>

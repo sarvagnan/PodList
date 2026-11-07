@@ -53,20 +53,24 @@ function SubscriptionScreen() {
   // Playlists with Clear on Played let go (the bulk action works that out).
   const runBulk = useAtomSet(bulkActionAtom, { mode: "promise" })
   const confirm = useConfirm()
+  const toasts = Toast.useToastManager()
   const markAllPlayed = async () => {
     if (subscription === null) return
     const actions = episodes
       .filter((e) => !e.played)
       .map((e) => ({ _tag: "Played" as const, episodeId: e.id, played: true }))
-    if (actions.length === 0) return
+    if (actions.length === 0) {
+      toasts.add({ description: "Every Episode is already Played", timeout: 3000 })
+      return
+    }
     const again = () => runBulk({ actions, message: `Marked ${subscription.title} Played` })
-    confirm(await again(), again)
+    // Undo puts focus back here, where the step was taken.
+    confirm(await again(), again, () => document.querySelector<HTMLElement>("[data-mark-all]"))
   }
   const record = useAtomSet(recordAtom)
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promiseExit" })
-  const toasts = Toast.useToastManager()
   const [asking, setAsking] = useState<"unsubscribe" | null>(null)
   const wide = useMinWidth("64rem")
   // Remembered on this Device, so a reload or the next podcast keeps it as left.
@@ -350,9 +354,12 @@ function SubscriptionScreen() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={subscription.unplayed === 0}
+              data-mark-all=""
+              // Dimmed, not disabled, once nothing is left: disabling the focused button
+              // would drop focus to the page (WKEY-03). Pressed again, it says why.
+              aria-disabled={subscription.unplayed === 0}
               onClick={() => void markAllPlayed()}
-              className="h-10 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input disabled:opacity-50"
+              className="h-10 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input aria-disabled:opacity-60"
             >
               Mark all Played
             </button>

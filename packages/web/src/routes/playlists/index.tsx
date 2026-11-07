@@ -52,10 +52,13 @@ function PlaylistsList() {
                 : []),
               `${entries(p.entries.length)} · ${p.clearOnPlayed ? "Clear on Played" : "Keeps Entries"}`
             ]
+            // An empty Active Playlist has nothing to be paused on: it's just the Active one.
             const status = active
               ? now?.playlistId === p.id && now.playing
                 ? "Playing"
-                : "Paused"
+                : p.entries.length === 0
+                  ? "Active"
+                  : "Paused"
               : null
             return (
               <ListRow

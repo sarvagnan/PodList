@@ -503,7 +503,10 @@ export function NowPlayingDrawer() {
           data-sheet="drawer"
           onKeyDown={wrapTab}
           // While a toast shows, its foot is kept free for it (components/feedback/Toasts).
-          className="forced-colors:border forced-colors:border-[CanvasText] surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] pb-[var(--toast-space,0px)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl short:md:h-[calc(100dvh-1rem)] focus-visible:outline-none"
+          // Desktop: at least its usual height, and taller (to just under the window's top)
+          // when the player, Chapters and Up next need it, rather than scrolling under a
+          // dimmed strip.
+          className="forced-colors:border forced-colors:border-[CanvasText] surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] pb-[var(--toast-space,0px)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-auto md:max-h-[calc(100dvh-1rem)] md:min-h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl short:md:h-[calc(100dvh-1rem)] focus-visible:outline-none"
         >
           <div className="flex h-14 shrink-0 items-center gap-2 px-3">
             {page ? (

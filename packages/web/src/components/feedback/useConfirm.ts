@@ -7,13 +7,15 @@ import type { Outcome } from "../../lib/episodeActions.ts"
 let nextId = 0
 /** Each step's Undo toast, so ⌘Z can close the toast of the step it takes back. */
 export const toastOfStep = new Map<number, string>()
+/** What each step's Undo brings back, so ⌘Z can put focus on it too. */
+export const focusOfStep = new Map<number, () => HTMLElement | null>()
 /** How many steps Cmd/Ctrl-Z can take back. */
 const depth = 30
 
 /** After Undo, where focus goes: the given element once it is back (a restored row
  * arrives a moment later), else what had focus when the step was taken, else the screen's
  * heading. The toast's Undo button is going away, and focus must not fall to the page. */
-const refocus = (find: (() => HTMLElement | null) | undefined, origin: Element | null) => {
+export const refocus = (find: (() => HTMLElement | null) | undefined, origin: Element | null) => {
   let frames = 60
   const attempt = () => {
     const target = find?.()
@@ -68,6 +70,7 @@ export function useConfirm() {
         }
       })
       toastOfStep.set(id, toast)
+      if (focus) focusOfStep.set(id, focus)
     },
     [toasts, undo, setStack, setRedo]
   )

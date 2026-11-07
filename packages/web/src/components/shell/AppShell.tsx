@@ -529,6 +529,25 @@ function BottomTabs() {
  * After moving to another screen, focus its heading, as a page load would; coming back
  * (Back or Forward), focus the control that took you away, so the place is kept (WKEY-03).
  */
+/** A file dropped anywhere but a drop area must not open in place of the app (DRAG-01). */
+function useStrayDropGuard() {
+  useEffect(() => {
+    const guard = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) return
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('[data-file-drop], input[type="file"]')) return
+      event.preventDefault()
+      if (event.type === "dragover") event.dataTransfer.dropEffect = "none"
+    }
+    window.addEventListener("dragover", guard)
+    window.addEventListener("drop", guard)
+    return () => {
+      window.removeEventListener("dragover", guard)
+      window.removeEventListener("drop", guard)
+    }
+  }, [])
+}
+
 function useFocusOnNavigation() {
   const router = useRouter()
   useEffect(() => {
@@ -689,6 +708,7 @@ function usePlayPauseKey() {
 export function AppShell() {
   useAtomMount(backgroundSyncAtom)
   useFocusOnNavigation()
+  useStrayDropGuard()
   usePlayPauseKey()
   useSearchKey()
   useMenuControls()

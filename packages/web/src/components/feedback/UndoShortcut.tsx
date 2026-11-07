@@ -2,7 +2,7 @@ import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { useEffect, useRef } from "react"
 import { redoStackAtom, undoAtom, undoStackAtom } from "../../app/episodeActions.ts"
-import { toastOfStep } from "./useConfirm.ts"
+import { focusOfStep, refocus, toastOfStep } from "./useConfirm.ts"
 
 const editing = (el: Element | null) =>
   el instanceof HTMLElement &&
@@ -74,6 +74,10 @@ export function UndoShortcut() {
         const own = toastOfStep.get(step.id)
         if (own !== undefined) toasts.close(own)
         toasts.add({ description: `Undone: ${step.message}`, timeout: 4000 })
+        // Focus that was lost with the step (rows taken out) goes to what comes back.
+        const active = document.activeElement
+        if (active === null || active === document.body || !active.isConnected)
+          refocus(focusOfStep.get(step.id), null)
         return
       }
       const step = undone.at(-1)

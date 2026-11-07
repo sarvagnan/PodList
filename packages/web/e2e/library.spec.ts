@@ -296,3 +296,62 @@ test("with larger text, the Library gives way to its list", async ({ page }) => 
   await expect(page.getByRole("table")).toHaveCount(0)
   await expect(page.getByRole("link", { name: "Deep Field", exact: true })).toBeVisible()
 })
+
+test("focus stays on the page after bulk Mark Played, Mark all Played and Undo", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  // Bulk Mark Played in an Unplayed View takes the rows, and the bar, away.
+  await page.goto(`${demo.base}/views/new-this-week`)
+  const boxes = page.locator("main [data-row] input[type=checkbox]")
+  await boxes.nth(0).check()
+  await boxes.nth(1).check()
+  const toolbar = page.getByRole("toolbar", { name: /selected/ })
+  await toolbar.getByRole("button", { name: "Mark Played" }).focus()
+  await page.keyboard.press("Enter")
+  await expect(toolbar).toBeHidden()
+  const focusIn = () => page.evaluate(() => document.activeElement?.closest("main") !== null)
+  await expect.poll(focusIn).toBe(true)
+  await page.keyboard.press("Meta+z")
+  await expect.poll(focusIn).toBe(true)
+
+  // Mark all Played keeps focus on itself when nothing is left to mark.
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("link", { name: "Deep Field", exact: true }).click()
+  const markAll = page.getByRole("button", { name: "Mark all Played" })
+  await markAll.focus()
+  await page.keyboard.press("Enter")
+  await expect(page.getByText("Marked Deep Field Played")).toBeVisible()
+  await expect(markAll).toBeFocused()
+  await expect(markAll).toHaveAttribute("aria-disabled", "true")
+})
+
+test("an OPML file can be dropped on Add podcasts, and a stray drop is refused", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  // A file dropped outside a drop area doesn't navigate away.
+  const strayRefused = await page.evaluate(() => {
+    const data = new DataTransfer()
+    data.items.add(new File(["<opml/>"], "x.opml", { type: "text/xml" }))
+    const drop = new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true })
+    document.querySelector("main")?.dispatchEvent(drop)
+    return drop.defaultPrevented
+  })
+  expect(strayRefused).toBe(true)
+  await page.getByRole("button", { name: "Add podcasts" }).click()
+  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
+  await sheet.getByRole("button", { name: "OPML file" }).click()
+  await page.evaluate(() => {
+    const data = new DataTransfer()
+    const opml =
+      '<?xml version="1.0"?><opml version="2.0"><head/><body><outline type="rss" text="Nothing" xmlUrl="http://127.0.0.1:1/none.xml"/></body></opml>'
+    data.items.add(new File([opml], "subs.opml", { type: "text/xml" }))
+    const zone = document.querySelector("[data-file-drop]")
+    zone?.dispatchEvent(
+      new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true })
+    )
+  })
+  await expect(sheet.getByText(/Added 0|couldn’t be read/).first()).toBeVisible({ timeout: 20_000 })
+})

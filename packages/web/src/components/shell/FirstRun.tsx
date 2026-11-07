@@ -1,4 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { useRouterState } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Check } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -52,6 +53,9 @@ export function FirstRun() {
   const [hidden, setHidden] = useState(firstRunDone.get)
   const [reopened, setReopened] = useState(false)
   const [adding, setAdding] = useState(false)
+  // On Views only, where first run starts: the Library and Playlists have their own way
+  // to begin (an Add podcasts button, the Default Playlist), so the card would repeat them.
+  const onViews = useRouterState({ select: (r) => r.location.pathname.startsWith("/views") })
   // The current screen's notice slot (under its title), followed as screens come and go.
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
@@ -90,7 +94,7 @@ export function FirstRun() {
   const sheet = adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />
   // Adding the first podcast ends first run, but the sheet stays open for more: it sits
   // outside the card, in one place, so it keeps what was typed.
-  if (!(fresh || reopened) || hidden)
+  if (!(fresh || reopened) || hidden || !onViews)
     return (
       <>
         {null}

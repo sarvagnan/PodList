@@ -28,8 +28,8 @@ interface Refinement {
 
 const none: Refinement = { filter: {}, sort: "publishedDesc", limit: null }
 
-/** The conditions other than the words, as the address keeps them (`f`). */
-const readRefinement = (value: unknown): Refinement => {
+/** An older address kept the conditions as one JSON value (`f`); still read. */
+const readLegacy = (value: unknown): Refinement => {
   if (value === null || value === undefined) return none
   try {
     const parsed = (typeof value === "string" ? JSON.parse(value) : value) as Partial<Refinement>
@@ -43,20 +43,138 @@ const readRefinement = (value: unknown): Refinement => {
   }
 }
 
+// The conditions as plain words in the address, so it reads and shares as what it is:
+// ?q=rice&played=unplayed&max=30&sort=shortest (lengths in minutes, dates as days).
+const sortWords = {
+  publishedDesc: "newest",
+  publishedAsc: "oldest",
+  durationAsc: "shortest",
+  durationDesc: "longest"
+} as const
+type SortWord = (typeof sortWords)[keyof typeof sortWords]
+const sortOf = Object.fromEntries(
+  Object.entries(sortWords).map(([sort, word]) => [word, sort])
+) as Record<SortWord, ViewData["sort"]>
+
+interface RefineParams {
+  played?: "unplayed" | "inProgress" | "played"
+  starred?: "yes" | "no"
+  unqueued?: "yes"
+  min?: number
+  max?: number
+  days?: number
+  from?: string
+  to?: string
+  podcasts?: string
+  without?: string
+  sort?: SortWord
+  limit?: number
+}
+
+const day = (millis: number) => {
+  const date = new Date(millis)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+const atDay = (value: unknown, time: string) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const at = new Date(`${value}T${time}`).getTime()
+  return Number.isNaN(at) ? null : at
+}
+const count = (value: unknown) => {
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+const toParams = (r: Refinement): RefineParams => {
+  const f = r.filter
+  const p: RefineParams = {}
+  if (f.played) p.played = f.played
+  if (f.starred !== undefined) p.starred = f.starred ? "yes" : "no"
+  if (f.notInAnyPlaylist) p.unqueued = "yes"
+  if (f.minDuration) p.min = f.minDuration / 60
+  if (f.maxDuration) p.max = f.maxDuration / 60
+  if (f.published?._tag === "LastDays") p.days = f.published.days
+  if (f.published?._tag === "Between") {
+    if (f.published.from !== null) p.from = day(f.published.from)
+    if (f.published.to !== null) p.to = day(f.published.to)
+  }
+  if (f.podcasts)
+    p[f.podcasts.mode === "include" ? "podcasts" : "without"] = f.podcasts.subscriptionIds.join(",")
+  if (r.sort !== "publishedDesc") p.sort = sortWords[r.sort]
+  if (r.limit) p.limit = r.limit
+  return p
+}
+
+const fromParams = (search: Record<string, unknown>): Refinement => {
+  const filter: Record<string, unknown> = {}
+  const played = search.played
+  if (played === "unplayed" || played === "inProgress" || played === "played")
+    filter.played = played
+  if (search.starred === "yes" || search.starred === "no") filter.starred = search.starred === "yes"
+  if (search.unqueued === "yes") filter.notInAnyPlaylist = true
+  const min = count(search.min)
+  const max = count(search.max)
+  if (min) filter.minDuration = Math.round(min * 60)
+  if (max) filter.maxDuration = Math.round(max * 60)
+  const days = count(search.days)
+  const from = atDay(search.from, "00:00")
+  const to = atDay(search.to, "23:59")
+  if (days) filter.published = { _tag: "LastDays", days: Math.round(days) }
+  else if (from !== null || to !== null) filter.published = { _tag: "Between", from, to }
+  for (const [key, mode] of [
+    ["podcasts", "include"],
+    ["without", "exclude"]
+  ] as const) {
+    const ids =
+      typeof search[key] === "string" ? (search[key] as string).split(",").filter(Boolean) : []
+    if (ids.length > 0) filter.podcasts = { mode, subscriptionIds: ids }
+  }
+  const sort = typeof search.sort === "string" ? sortOf[search.sort as SortWord] : undefined
+  const limit = count(search.limit)
+  return {
+    filter: filter as Refinement["filter"],
+    sort: sort ?? "publishedDesc",
+    limit: limit ? Math.round(limit) : null
+  }
+}
+const paramKeys = [
+  "played",
+  "starred",
+  "unqueued",
+  "min",
+  "max",
+  "days",
+  "from",
+  "to",
+  "podcasts",
+  "without",
+  "sort",
+  "limit"
+] as const
+const withoutRefinement = (search: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(search).filter(
+      ([key]) => key !== "f" && !(paramKeys as ReadonlyArray<string>).includes(key)
+    )
+  )
+
 export const Route = createFileRoute("/search")({
   component: SearchPage,
   validateSearch: (
     search: Record<string, unknown>
-  ): { q?: string; f?: Refinement; episode?: string } => ({
+  ): { q?: string; episode?: string } & RefineParams => ({
     ...(typeof search.q === "string" && search.q !== "" ? { q: search.q } : {}),
-    // An object, which the router writes into the address once (not JSON in JSON).
-    ...(search.f !== undefined && search.f !== "" ? { f: readRefinement(search.f) } : {}),
+    // The conditions, each its own word in the address (an older `f` is read once).
+    ...toParams(
+      search.f !== undefined && search.f !== "" ? readLegacy(search.f) : fromParams(search)
+    ),
     ...(typeof search.episode === "string" ? { episode: search.episode } : {})
   })
 })
 
 function SearchPage() {
-  const { q = "", f, episode: selected } = Route.useSearch()
+  const search = Route.useSearch()
+  const { q = "", episode: selected } = search
   const navigate = Route.useNavigate()
   const router = useRouter()
   const id = useId()
@@ -64,11 +182,13 @@ function SearchPage() {
   const [text, setText] = useState(q)
   const [saving, setSaving] = useState(false)
   // Open when the search is already narrowed (a reload, a shared link).
-  const [refining, setRefining] = useState(() => readRefinement(f) !== none && f !== undefined)
+  const [refining, setRefining] = useState(
+    () => Object.keys(fromParams(search as Record<string, unknown>).filter).length > 0
+  )
   const [checked, setCheckedState] = useState<ReadonlySet<string>>(new Set())
   const input = useRef<HTMLInputElement>(null)
   const words = q.trim()
-  const refinement = readRefinement(f)
+  const refinement = fromParams(search as Record<string, unknown>)
   const narrowed = Object.keys(refinement.filter).length > 0
   // The draft View: Mentions from the field, the rest from the form.
   const draft: ViewData = {
@@ -110,9 +230,11 @@ function SearchPage() {
   const refine = (next: ViewData) => {
     const { text: _, ...filter } = next.filter
     const value: Refinement = { filter, sort: next.sort, limit: next.limit }
-    const empty = Object.keys(filter).length === 0 && next.sort === "publishedDesc" && !next.limit
     void navigate({
-      search: ({ f: _f, ...rest }) => (empty ? rest : { ...rest, f: value }),
+      search: (previous) => ({
+        ...withoutRefinement(previous as Record<string, unknown>),
+        ...toParams(value)
+      }),
       replace: true
     })
   }

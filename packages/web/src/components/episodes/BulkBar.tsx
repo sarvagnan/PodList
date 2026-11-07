@@ -7,6 +7,7 @@ import { bulkActionAtom, nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
 import type { EpisodeAction } from "../../lib/episodeActions.ts"
+import { focusAfterRowsGo } from "../../lib/focusAfterRemoval.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
 
@@ -60,7 +61,15 @@ export function BulkBar({
 
   const act = async (actions: ReadonlyArray<EpisodeAction>, message: string) => {
     const again = () => run({ actions, message })
-    confirm(await again(), again)
+    // Mark Played can take the rows, and this bar, away: focus stays in the list (WKEY-03).
+    const refocus = focusAfterRowsGo(selected)
+    const first = selected[0]
+    confirm(await again(), again, () =>
+      first === undefined
+        ? null
+        : document.querySelector<HTMLElement>(`main [data-episode-title="${CSS.escape(first)}"]`)
+    )
+    refocus()
   }
   const add = (placement: "next" | "last") => {
     if (!target) return
