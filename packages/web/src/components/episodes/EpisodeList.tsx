@@ -21,7 +21,8 @@ export function EpisodeList({
   selected,
   onOpen,
   checked,
-  setChecked
+  setChecked,
+  showPodcast = true
 }: {
   readonly episodes: ReadonlyArray<ViewEpisode>
   readonly label: string
@@ -33,6 +34,8 @@ export function EpisodeList({
   readonly onOpen: (episodeId: string, how?: { readonly replace: boolean }) => void
   readonly checked: ReadonlySet<string>
   readonly setChecked: (update: (current: ReadonlySet<string>) => ReadonlySet<string>) => void
+  /** Off on a podcast's own page, whose title already names it. */
+  readonly showPodcast?: boolean
 }) {
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -119,6 +122,7 @@ export function EpisodeList({
               onCheck={(on, range) => tick(item.index, on, range)}
               selected={episode.id === selected}
               onOpen={onOpen}
+              showPodcast={showPodcast}
             />
           </div>
         )

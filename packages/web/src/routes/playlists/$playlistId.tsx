@@ -184,7 +184,7 @@ function PlaylistDetail() {
       {/* Entries, History and Listening Timeline (docs/design/ui-layout.md › Desktop). */}
       <nav
         aria-label="Entries, History and Listening Timeline"
-        className="@container mb-3 px-4 md:px-8"
+        className="@container mb-3 px-5 md:px-8"
       >
         <div className="inline-flex flex-wrap gap-1 rounded-3xl bg-secondary p-1">
           {(

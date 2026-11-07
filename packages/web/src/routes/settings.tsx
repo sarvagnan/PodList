@@ -44,7 +44,7 @@ function SettingsScreen() {
     <>
       {/* On the phone Settings opens from the Library's header, so it leads back there. */}
       <PageHeader title="Settings" back={{ to: "/library", label: "Library" }} />
-      <div className="max-w-xl space-y-6 px-4 pb-10 md:px-8">
+      <div className="max-w-xl space-y-6 px-5 pb-10 md:px-8">
         <section aria-labelledby={`${id}-playback`}>
           <h2 id={`${id}-playback`} className={heading}>
             Playback

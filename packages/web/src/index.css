@@ -115,6 +115,10 @@
   .surface-dark {
     --focus: #ffffff;
   }
+  /* Links take the same rounded ring as every other control. */
+  a:focus-visible {
+    border-radius: 0.25rem;
+  }
   /* Headings take focus after navigation for screen readers and the Tab order; they
      aren't controls, so they show no ring. */
   h1[tabindex="-1"]:focus {
@@ -178,6 +182,15 @@ select:not([multiple]) {
   nav [aria-current="page"] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
+  }
+  /* The NOW / RESUME Entry keeps its mark when tints are dropped. */
+  [role="row"][aria-current="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  /* Icon links in a header (the settings gear) get the same edge as its buttons. */
+  header a[aria-label] {
+    border: 1px solid ButtonText;
   }
   /* The Episode open beside a View (AX-02). */
   .selected-row {

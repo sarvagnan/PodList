@@ -146,7 +146,7 @@ function SubscriptionScreen() {
           ) : undefined
         }
       />
-      <div className="grid max-w-[1100px] gap-6 px-4 pb-8 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid max-w-[1100px] gap-6 px-5 pb-8 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section aria-labelledby={`${id}-settings`} className="lg:order-2">
           <div className="flex items-center gap-4">
             <Artwork url={subscription.artworkUrl} name={subscription.title} size={72} />
@@ -383,6 +383,7 @@ function SubscriptionScreen() {
                 }
                 checked={checked}
                 setChecked={(update) => setChecked(update(checked))}
+                showPodcast={false}
               />
             </div>
           )}

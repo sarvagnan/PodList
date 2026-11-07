@@ -88,13 +88,14 @@ export function FirstRun() {
   }
   const hasPodcasts = (subscriptions?.length ?? 0) > 0
   const hasEntries = state?.playlists.some((p) => p.entries.length > 0) ?? false
-  const step = (done: boolean, title: string, body: string) => (
+  // A step number, not an empty circle (which reads as a radio button); a tick once done.
+  const step = (n: number, done: boolean, title: string, body: string) => (
     <li className="flex gap-3">
       <span
         aria-hidden="true"
-        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ${done ? "bg-primary text-primary-foreground" : "border border-field"}`}
+        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${done ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
       >
-        {done && <Check className="size-4" />}
+        {done ? <Check className="size-4" /> : n}
       </span>
       <span>
         <span className="block text-row font-medium">
@@ -130,16 +131,19 @@ export function FirstRun() {
         </div>
         <ol className="mt-3 space-y-3">
           {step(
+            1,
             hasPodcasts,
             "Add your podcasts",
             "Search by name, paste a feed address, or import an OPML file from another app."
           )}
           {step(
+            2,
             !noViews,
             "Views find Episodes for you",
             "Three to start with: New this week, Under 30 minutes and Starred. Edit them or make your own."
           )}
           {step(
+            3,
             hasEntries,
             "Playlists hold what you’ll listen to",
             "Use Next or Last on an Episode; the Default Playlist is ready."

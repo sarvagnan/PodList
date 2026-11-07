@@ -68,7 +68,7 @@ function PlaylistSettings() {
         subtitle={playlist.name}
         back={{ to: `/playlists/${playlistId}`, label: playlist.name }}
       />
-      <div className="max-w-xl space-y-5 px-4 pb-10 md:px-8">
+      <div className="max-w-xl space-y-5 px-5 pb-10 md:px-8">
         <div className="rounded-xl border bg-card">
           <div className="border-b px-4 py-3">
             <label htmlFor={`${id}-name`} className="block text-row font-medium">
@@ -130,12 +130,13 @@ function PlaylistSettings() {
             <button
               type="button"
               onClick={() => void remove(playlistId, playlist.name)}
-              className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-row font-medium text-destructive hover:bg-secondary active:bg-input"
+              // Its icon on the page's edge; the hover fill reaches past it.
+              className="-ml-3 inline-flex h-10 items-center gap-2 rounded-full px-3 text-row font-medium text-destructive hover:bg-secondary active:bg-input"
             >
               <Trash2 aria-hidden="true" className="size-4" />
               Delete Playlist
             </button>
-            <p className="mt-1 px-3 text-small text-muted-foreground">
+            <p className="mt-1 text-small text-muted-foreground">
               It goes to the Trash with its History and Listening Timeline, and can be restored for{" "}
               {State.trashDaysOf(state)} days.
             </p>

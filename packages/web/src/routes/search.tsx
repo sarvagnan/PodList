@@ -69,7 +69,7 @@ function SearchPage() {
           ) : undefined
         }
       />
-      <div className="px-4 pb-3 md:px-8">
+      <div className="px-5 pb-3 md:px-8">
         <label htmlFor={`${id}-q`} className="sr-only">
           Search the Library
         </label>

@@ -95,9 +95,12 @@ export function EpisodeRow({
   onOpen,
   selected = false,
   checked = false,
-  onCheck
+  onCheck,
+  showPodcast = true
 }: {
   readonly episode: ViewEpisode
+  /** Off on a podcast's own page, whose title already names it. */
+  readonly showPodcast?: boolean
   /** Wide screens: show the Episode beside the list instead of navigating. */
   readonly onOpen?: (episodeId: string) => void
   /** Open in the panel beside the list. */
@@ -120,7 +123,7 @@ export function EpisodeRow({
     state?.playlists.find((p) => p.id === state.activePlaylistId)
   // Each fact stays in one piece when the line wraps ("26 min", not "26 / min").
   const facts = [
-    episode.podcast,
+    ...(showPodcast ? [episode.podcast] : []),
     formatPublished(episode.published),
     ...(episode.duration ? [formatLength(episode.duration)] : [])
   ]
