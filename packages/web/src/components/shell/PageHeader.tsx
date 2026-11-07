@@ -29,30 +29,34 @@ export function PageHeader({
     document.title = `${tabTitle ?? title} · PodList`
   }, [title, tabTitle])
   return (
-    <header
-      className={`px-5 pt-4 pb-3 md:px-8 md:pt-8 short:md:pt-4 short:pb-2 ${narrow ? "max-w-[960px]" : ""}`}
-    >
-      {back && (
-        <Link
-          to={back.to}
-          activeOptions={{ exact: true }}
-          className={`-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary ${backOnDesktop ? "" : "md:hidden"}`}
-        >
-          <ChevronLeft aria-hidden="true" className="size-5" />
-          {back.label}
-        </Link>
-      )}
-      {/* The actions swap (picker, bulk bar) without changing the header's height. */}
-      <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h1
-          tabIndex={-1}
-          className="font-heading outline-offset-4 text-title leading-tight font-semibold md:text-3xl"
-        >
-          {title}
-        </h1>
-        {actions}
-      </div>
-      {subtitle && <p className="mt-1.5 text-small text-muted-foreground">{subtitle}</p>}
-    </header>
+    <>
+      <header
+        className={`px-5 pt-4 pb-3 md:px-8 md:pt-8 short:md:pt-4 short:pb-2 ${narrow ? "max-w-[960px]" : ""}`}
+      >
+        {back && (
+          <Link
+            to={back.to}
+            activeOptions={{ exact: true }}
+            className={`-ml-2 mb-1 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary ${backOnDesktop ? "" : "md:hidden"}`}
+          >
+            <ChevronLeft aria-hidden="true" className="size-5" />
+            {back.label}
+          </Link>
+        )}
+        {/* The actions swap (picker, bulk bar) without changing the header's height. */}
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h1
+            tabIndex={-1}
+            className="font-heading outline-offset-4 text-title leading-tight font-semibold md:text-3xl"
+          >
+            {title}
+          </h1>
+          {actions}
+        </div>
+        {subtitle && <p className="mt-1.5 text-small text-muted-foreground">{subtitle}</p>}
+      </header>
+      {/* Notices that belong under the screen's title, not above it (the welcome card). */}
+      <div data-page-notice="" />
+    </>
   )
 }

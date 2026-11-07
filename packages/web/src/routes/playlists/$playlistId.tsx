@@ -402,14 +402,16 @@ function PlaylistDetail() {
                             </span>
                           )}
                           {title === undefined && !ready ? (
-                            // A title line and (below) a facts line, each the height of the
-                            // real one, so nothing moves when the details arrive (APPEAR-11).
-                            <span
-                              role="status"
-                              aria-label="Loading Episode"
-                              className="flex h-[1.5em] items-center text-row"
-                            >
-                              <span className="block h-3.5 w-2/3 rounded bg-secondary" />
+                            // Title lines (two where the row is narrow, as titles wrap there) and
+                            // below a facts line, each the height of the real one, so nothing
+                            // moves when the details arrive (APPEAR-11).
+                            <span role="status" aria-label="Loading Episode" className="block">
+                              <span className="flex h-[1.5em] items-center text-row">
+                                <span className="block h-3.5 w-2/3 rounded bg-secondary" />
+                              </span>
+                              <span className="hidden h-[1.5em] items-center text-row @max-[26rem]:flex">
+                                <span className="block h-3.5 w-1/3 rounded bg-secondary" />
+                              </span>
                             </span>
                           ) : title === undefined ? (
                             <span className="line-clamp-2 text-row font-medium">
@@ -467,7 +469,7 @@ function PlaylistDetail() {
                           inert={title === undefined && !ready}
                           // Narrow for its text (200% on a phone): Play and Remove stack beside the
                           // title rather than on a line of their own between rows.
-                          className={`relative z-10 ml-auto flex shrink-0 @max-[15rem]:flex-col ${title === undefined && !ready ? "opacity-40" : ""}`}
+                          className={`relative z-10 ml-auto flex shrink-0 gap-1 @max-[15rem]:flex-col ${title === undefined && !ready ? "opacity-40" : ""}`}
                         >
                           {/* One button that stays put (and keeps focus) as it toggles. */}
                           <GridCell>

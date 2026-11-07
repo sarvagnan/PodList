@@ -30,9 +30,9 @@ const none: Refinement = { filter: {}, sort: "publishedDesc", limit: null }
 
 /** The conditions other than the words, as the address keeps them (`f`). */
 const readRefinement = (value: unknown): Refinement => {
-  if (typeof value !== "string") return none
+  if (value === null || value === undefined) return none
   try {
-    const parsed = JSON.parse(value) as Partial<Refinement>
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value) as Partial<Refinement>
     return {
       filter: (parsed.filter ?? {}) as Refinement["filter"],
       sort: parsed.sort ?? "publishedDesc",
@@ -47,9 +47,10 @@ export const Route = createFileRoute("/search")({
   component: SearchPage,
   validateSearch: (
     search: Record<string, unknown>
-  ): { q?: string; f?: string; episode?: string } => ({
+  ): { q?: string; f?: Refinement; episode?: string } => ({
     ...(typeof search.q === "string" && search.q !== "" ? { q: search.q } : {}),
-    ...(typeof search.f === "string" && search.f !== "" ? { f: search.f } : {}),
+    // An object, which the router writes into the address once (not JSON in JSON).
+    ...(search.f !== undefined && search.f !== "" ? { f: readRefinement(search.f) } : {}),
     ...(typeof search.episode === "string" ? { episode: search.episode } : {})
   })
 })
@@ -62,7 +63,8 @@ function SearchPage() {
   const wide = useMinWidth("64rem")
   const [text, setText] = useState(q)
   const [saving, setSaving] = useState(false)
-  const [refining, setRefining] = useState(false)
+  // Open when the search is already narrowed (a reload, a shared link).
+  const [refining, setRefining] = useState(() => readRefinement(f) !== none && f !== undefined)
   const [checked, setCheckedState] = useState<ReadonlySet<string>>(new Set())
   const input = useRef<HTMLInputElement>(null)
   const words = q.trim()
@@ -110,7 +112,7 @@ function SearchPage() {
     const value: Refinement = { filter, sort: next.sort, limit: next.limit }
     const empty = Object.keys(filter).length === 0 && next.sort === "publishedDesc" && !next.limit
     void navigate({
-      search: ({ f: _f, ...rest }) => (empty ? rest : { ...rest, f: JSON.stringify(value) }),
+      search: ({ f: _f, ...rest }) => (empty ? rest : { ...rest, f: value }),
       replace: true
     })
   }

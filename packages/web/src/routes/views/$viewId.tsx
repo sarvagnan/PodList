@@ -15,6 +15,7 @@ import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useViewActions } from "../../components/views/useViewActions.ts"
 import { ViewForm } from "../../components/views/ViewForm.tsx"
+import { firstRunDone } from "../../lib/remembered.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { describeView } from "../../lib/viewSummary.ts"
 
@@ -169,7 +170,10 @@ function ViewDetail() {
         }
       />
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        {!loading && episodes.length === 0 && noPodcasts ? (
+        {!loading && episodes.length === 0 && noPodcasts && !firstRunDone.get() ? (
+          // The welcome card above already offers Add podcasts: no second one here.
+          <div />
+        ) : !loading && episodes.length === 0 && noPodcasts ? (
           // Nothing to match yet: the next step is podcasts, not the View (COPY-03).
           <EmptyState title="Add podcasts to fill your Views">
             Views find Episodes in your Library, which is empty.{" "}

@@ -127,10 +127,14 @@ export function EpisodeRow({
     formatPublished(episode.published),
     ...(episode.duration ? [formatLength(episode.duration)] : [])
   ]
+  // The "·" ends a line rather than starting the next when the line wraps.
   const meta = facts.map((fact, i) => (
     <Fragment key={fact}>
-      {i > 0 && " · "}
-      <span className="whitespace-nowrap">{fact}</span>
+      <span className="whitespace-nowrap">
+        {fact}
+        {i < facts.length - 1 ? " ·" : ""}
+      </span>
+      {i < facts.length - 1 && " "}
     </Fragment>
   ))
   // Ticked rows stay quiet: the bulk bar acts on them.
@@ -249,9 +253,8 @@ export function EpisodeRow({
             <>
               <span className="font-medium whitespace-nowrap text-positive">
                 <Check aria-hidden="true" className="mr-0.5 inline size-3.5 align-[-2px]" />
-                Played
-              </span>
-              {" · "}
+                Played ·
+              </span>{" "}
             </>
           )}
           {episode.starred && (

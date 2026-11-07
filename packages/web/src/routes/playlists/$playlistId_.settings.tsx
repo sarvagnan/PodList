@@ -30,11 +30,21 @@ function PlaylistSettings() {
   const id = useId()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   const [name, setName] = useState(playlist?.name ?? "")
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const rename = (value: string) => {
     const trimmed = value.trim()
-    setError(trimmed === "")
-    if (playlist !== undefined && trimmed !== "" && trimmed !== playlist.name) {
+    // Two of the same name couldn't be told apart in the sidebar or the Next/Last picker.
+    const taken = state?.playlists.some(
+      (p) => p.id !== playlistId && p.name.toLowerCase() === trimmed.toLowerCase()
+    )
+    const problem =
+      trimmed === ""
+        ? "A Playlist needs a name."
+        : taken
+          ? `There’s already a Playlist called “${trimmed}”.`
+          : null
+    setError(problem)
+    if (playlist !== undefined && problem === null && trimmed !== playlist.name) {
       record(change({ _tag: "RenamePlaylist", playlistId, name: trimmed }))
     }
   }
@@ -66,7 +76,6 @@ function PlaylistSettings() {
         backOnDesktop
         title="Playlist settings"
         tabTitle={`${playlist.name} settings`}
-        subtitle={playlist.name}
         back={{ to: `/playlists/${playlistId}`, label: playlist.name }}
       />
       <div className="max-w-[704px] space-y-5 px-5 pb-10 md:px-8">
@@ -85,7 +94,7 @@ function PlaylistSettings() {
               value={name}
               disabled={playlist.isDefault}
               required
-              aria-invalid={error}
+              aria-invalid={error !== null}
               aria-describedby={error ? `${id}-name-error` : undefined}
               onChange={(event) => {
                 const value = event.target.value
@@ -97,7 +106,7 @@ function PlaylistSettings() {
             />
             {error && (
               <p id={`${id}-name-error`} className="mt-1 text-small text-destructive">
-                A Playlist needs a name.
+                {error}
               </p>
             )}
           </SettingsRow>

@@ -1,6 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog"
 import { X } from "lucide-react"
 import { useId, useRef, useState } from "react"
+import { useAppState } from "../../app/hooks.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { usePlaylistActions } from "./usePlaylistActions.ts"
@@ -17,12 +18,19 @@ export function NewPlaylistDialog({
   const [name, setName] = useState("")
   const nameField = useRef<HTMLInputElement>(null)
   const [clearOnPlayed, setClearOnPlayed] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const { create } = usePlaylistActions()
+  const state = useAppState()
   useBackLayers(open ? 1 : 0, () => onOpenChange(false))
   const save = async () => {
-    if (name.trim() === "") {
-      setError(true)
+    const trimmed = name.trim()
+    if (trimmed === "") {
+      setError("A Playlist needs a name.")
+      return
+    }
+    // Two of the same name couldn't be told apart in the sidebar or the Next/Last picker.
+    if (state?.playlists.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`There’s already a Playlist called “${trimmed}”.`)
       return
     }
     onOpenChange(false)
@@ -56,11 +64,11 @@ export function NewPlaylistDialog({
             type="text"
             value={name}
             required
-            aria-invalid={error}
+            aria-invalid={error !== null}
             aria-describedby={error ? `${id}-error` : undefined}
             onChange={(event) => {
               setName(event.target.value)
-              setError(false)
+              setError(null)
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") void save()
@@ -69,7 +77,7 @@ export function NewPlaylistDialog({
           />
           {error && (
             <p id={`${id}-error`} className="mt-1 text-small text-destructive">
-              A Playlist needs a name.
+              {error}
             </p>
           )}
           <label className="mt-4 flex items-start gap-3">

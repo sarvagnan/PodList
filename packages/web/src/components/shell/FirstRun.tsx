@@ -2,6 +2,7 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { Check } from "lucide-react"
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
@@ -50,6 +51,20 @@ export function FirstRun() {
   const [hidden, setHidden] = useState(firstRunDone.get)
   const [reopened, setReopened] = useState(false)
   const [adding, setAdding] = useState(false)
+  // The current screen's notice slot (under its title), followed as screens come and go.
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    const main = document.querySelector("main")
+    if (main === null) return
+    const find = () =>
+      setSlot((current) =>
+        current?.isConnected ? current : main.querySelector<HTMLElement>("[data-page-notice]")
+      )
+    find()
+    const observer = new MutationObserver(find)
+    observer.observe(main, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     const reopen = () => {
       setHidden(false)
@@ -106,59 +121,63 @@ export function FirstRun() {
       </span>
     </li>
   )
+  const card = (
+    <section
+      aria-labelledby="first-run-title"
+      className="mx-4 mt-4 mb-2 rounded-2xl border bg-card p-5 md:mx-8"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <h2
+          id="first-run-title"
+          tabIndex={-1}
+          className="font-heading text-xl font-semibold outline-none"
+        >
+          Welcome to PodList
+        </h2>
+        {/* One way to dismiss it: Skip for now (or Done), below. */}
+      </div>
+      <ol className="mt-3 space-y-3">
+        {step(
+          1,
+          hasPodcasts,
+          "Add your podcasts",
+          "Search by name, paste a feed address, or import an OPML file from another app."
+        )}
+        {step(
+          2,
+          !noViews,
+          "Views find Episodes for you",
+          "Three to start with: New this week, Under 30 minutes and Starred. Edit them or make your own."
+        )}
+        {step(
+          3,
+          hasEntries,
+          "Playlists hold what you’ll listen to",
+          "Use Next or Last on an Episode; the Default Playlist is ready."
+        )}
+      </ol>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="h-10 rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90"
+        >
+          Add podcasts
+        </button>
+        <button
+          type="button"
+          onClick={hide}
+          className="h-10 rounded-full px-4 text-row font-medium hover:bg-secondary"
+        >
+          {reopened ? "Done" : "Skip for now"}
+        </button>
+      </div>
+    </section>
+  )
+  // Under the screen's title (PageHeader's notice slot), so the heading stays first.
   return (
     <>
-      <section
-        aria-labelledby="first-run-title"
-        className="mx-4 mt-4 mb-2 rounded-2xl border bg-card p-5 md:mx-8"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <h2
-            id="first-run-title"
-            tabIndex={-1}
-            className="font-heading text-xl font-semibold outline-none"
-          >
-            Welcome to PodList
-          </h2>
-          {/* One way to dismiss it: Skip for now (or Done), below. */}
-        </div>
-        <ol className="mt-3 space-y-3">
-          {step(
-            1,
-            hasPodcasts,
-            "Add your podcasts",
-            "Search by name, paste a feed address, or import an OPML file from another app."
-          )}
-          {step(
-            2,
-            !noViews,
-            "Views find Episodes for you",
-            "Three to start with: New this week, Under 30 minutes and Starred. Edit them or make your own."
-          )}
-          {step(
-            3,
-            hasEntries,
-            "Playlists hold what you’ll listen to",
-            "Use Next or Last on an Episode; the Default Playlist is ready."
-          )}
-        </ol>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="h-10 rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90"
-          >
-            Add podcasts
-          </button>
-          <button
-            type="button"
-            onClick={hide}
-            className="h-10 rounded-full px-4 text-row font-medium hover:bg-secondary"
-          >
-            {reopened ? "Done" : "Skip for now"}
-          </button>
-        </div>
-      </section>
+      {slot ? createPortal(card, slot) : card}
       {sheet}
     </>
   )

@@ -204,7 +204,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           </button>
         ) : (
           // Large text on a small phone: the title keeps the room; back 15 is in Now Playing.
-          <span className="contents @max-[20rem]:hidden">{back}</span>
+          // On a phone-width bar the title keeps the room; back 15 is in Now Playing.
+          <span className="contents @max-[26rem]:hidden">{back}</span>
         )}
         {toggle}
         {forward}
@@ -437,7 +438,8 @@ function Sidebar() {
                   <span
                     role="img"
                     aria-label="Active Playlist"
-                    className="size-2 shrink-0 rounded-full bg-primary"
+                    // Forced colours drop backgrounds: it keeps the text colour (APPEAR-03).
+                    className="size-2 shrink-0 rounded-full bg-primary forced-colors:bg-[CanvasText] forced-colors:forced-color-adjust-none"
                   />
                 ))}
             </span>
