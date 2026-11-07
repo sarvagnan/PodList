@@ -31,6 +31,7 @@ import { SkipIcon } from "../player/SkipIcon.tsx"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
+import { FirstRun } from "./FirstRun.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
 import { VersionNotice } from "./VersionNotice.tsx"
 
@@ -528,6 +529,7 @@ export function AppShell() {
       <Sidebar />
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-44 outline-none md:pb-28">
         <VersionNotice />
+        <FirstRun />
         <Outlet />
       </main>
       <div className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">

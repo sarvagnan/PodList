@@ -35,3 +35,15 @@ export const nextLastTarget = {
   get: () => read("next-last-target"),
   set: (playlistId: string | null) => write("next-last-target", playlistId)
 }
+
+/** This Device has shown (or been told to skip) the first-run checklist. */
+export const firstRunDone = {
+  get: () => read("first-run-done") === "1",
+  set: () => write("first-run-done", "1")
+}
+
+/** Starter Views were made for this Library from this Device; never again. */
+export const starterViewsMade = {
+  get: () => read("starter-views") === "1",
+  set: () => write("starter-views", "1")
+}

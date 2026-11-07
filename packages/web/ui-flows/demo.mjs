@@ -169,7 +169,8 @@ const waitFor = async (url) => {
 }
 
 /** Starts the fixture host and a seeded PodList server; returns its URL and a stop function. */
-export const startDemo = async () => {
+/** A demo server; `{ empty: true }` skips the seed, for first-run tests. */
+export const startDemo = async ({ empty = false } = {}) => {
   const fixtures = await startFixtures()
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = await freePort()
@@ -191,12 +192,12 @@ export const startDemo = async () => {
   }
   try {
     await waitFor(`${base}/api/health`)
-    await seed(base, fixtures.origin)
+    if (!empty) await seed(base, fixtures.origin)
   } catch (error) {
     stop()
     throw error
   }
-  return { base, stop }
+  return { base, stop, fixtures: fixtures.origin }
 }
 
 const post = async (base, path, body) => {
