@@ -1,10 +1,10 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
-import { Check, Play, Plus, Share, Star } from "lucide-react"
+import { Check, ListEnd, ListStart, Play, Plus, Share, Star } from "lucide-react"
 import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import { episodeDetailAtom } from "../../app/data.ts"
-import { useAppState, useNowPlaying } from "../../app/hooks.ts"
+import { useAppState, useNextLastTarget, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt } from "../../lib/chapters.ts"
 import { episodeLink } from "../../lib/share.ts"
@@ -93,6 +93,8 @@ export function EpisodeDetail({
   const act = useEpisodeActions()
   const control = useAtomSet(playbackAtom)
   const [adding, setAdding] = useState(false)
+  const target = useNextLastTarget()
+  const desktopExtras = tone === "light"
   const copyLink = useCopyEpisodeLink()
 
   if (AsyncResult.isInitial(result)) {
@@ -144,7 +146,11 @@ export function EpisodeDetail({
         </div>
       </div>
 
-      <div className="mt-6 flex items-start justify-center gap-1">
+      {/* Desktop beside a View: Played · Download · Next · Play · Last · Add · Star, aligned
+          with the header (docs/design/ui-layout.md). */}
+      <div
+        className={`mt-6 flex flex-wrap items-start justify-center gap-1 ${desktopExtras ? "lg:justify-start" : ""}`}
+      >
         <Action
           label="Played"
           pressed={played}
@@ -181,6 +187,22 @@ export function EpisodeDetail({
             </Action>
           )}
         />
+        {desktopExtras && (
+          <span className="hidden lg:contents">
+            <Action
+              label="Next"
+              onClick={() =>
+                target &&
+                void act({ _tag: "Add", episodeId, playlistId: target.id, placement: "next" })
+              }
+              className=""
+            >
+              <span className={iconCircle}>
+                <ListStart aria-hidden="true" className="size-5" />
+              </span>
+            </Action>
+          </span>
+        )}
         <Action
           label={loaded && now.playing ? "Playing" : "Play"}
           onClick={() => {
@@ -194,6 +216,23 @@ export function EpisodeDetail({
             <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
           </span>
         </Action>
+        {desktopExtras && (
+          <span className="hidden lg:contents">
+            <Action
+              label="Last"
+              onClick={() =>
+                target &&
+                void act({ _tag: "Add", episodeId, playlistId: target.id, placement: "last" })
+              }
+              className=""
+            >
+              <span className={iconCircle}>
+                <ListEnd aria-hidden="true" className="size-5" />
+              </span>
+            </Action>
+          </span>
+        )}
+
         <Action label="Add" onClick={() => setAdding(true)} className="">
           <span className={iconCircle}>
             <Plus aria-hidden="true" className="size-5" />

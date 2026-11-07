@@ -95,14 +95,14 @@ export function AddToPlaylist({
             <button
               type="button"
               onClick={() => add("next")}
-              className="h-11 rounded-full bg-primary font-semibold text-primary-foreground"
+              className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
             >
               Play Next
             </button>
             <button
               type="button"
               onClick={() => add("last")}
-              className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground"
+              className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground hover:bg-input active:bg-input/70"
             >
               Play Last
             </button>

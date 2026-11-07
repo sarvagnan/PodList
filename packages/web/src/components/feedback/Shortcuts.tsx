@@ -22,7 +22,8 @@ const groups: ReadonlyArray<{
     title: "Anywhere",
     keys: [
       ["Space", "Play or pause"],
-      [`${cmd}K`, "Search the Library"],
+      // ⌘K on a Mac only: elsewhere Ctrl+K belongs to the browser (BROWSER-05).
+      ...(mac ? [["⌘K", "Search the Library"] as const] : []),
       [`${cmd}Z`, "Undo the last change"],
       [mac ? "⌘⇧Z" : "Ctrl+Shift+Z", "Redo it"],
       ["Esc", "Close a sheet or panel; clear ticked Episodes"],
@@ -30,10 +31,10 @@ const groups: ReadonlyArray<{
     ]
   },
   {
-    title: "In a View's Episode list",
+    title: "In a View’s Episode list",
     keys: [
       ["↑ ↓", "Previous or next Episode"],
-      ["← →", "Move between an Episode's actions"],
+      ["← →", "Move between an Episode’s actions"],
       ["Home End", `First or last action; with ${cmd} the first or last Episode`],
       ["Page Up Page Down", "Ten Episodes up or down"],
       ["Enter", "Open the Episode"],
@@ -48,6 +49,10 @@ const groups: ReadonlyArray<{
         {
           title: "Mac app",
           keys: [
+            ["⌘1 ⌘2 ⌘3", "Views, Playlists or Library"],
+            ["⌘N", "New Playlist"],
+            ["⇧⌘N", "New View"],
+            ["⇧⌘A", "Add podcasts"],
             ["⌘[ ⌘]", "Back or forward"],
             ["⌘← ⌘→", "Back 15 or forward 30 seconds"],
             ["⌥⌘← ⌥⌘→", "Previous or next Chapter"],

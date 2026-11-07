@@ -2,9 +2,10 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import type { View } from "@podlist/domain"
 import { AsyncResult } from "effect/reactivity"
 import { Trash2 } from "lucide-react"
-import { type ReactNode, useEffect, useId, useRef, useState } from "react"
+import { type ReactNode, useId, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { recordAtom } from "../../app/runtime.ts"
+import { useDebounced } from "../../lib/useDebounced.ts"
 import {
   type Filter,
   type PublishedChoice,
@@ -54,24 +55,6 @@ function Row({
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
-}
-
-/** Commits a typed value a moment after typing stops, and at once on blur. */
-function useDebounced(commit: (value: string) => void) {
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const latest = useRef(commit)
-  latest.current = commit
-  useEffect(() => () => clearTimeout(timer.current), [])
-  return {
-    schedule: (value: string) => {
-      clearTimeout(timer.current)
-      timer.current = setTimeout(() => latest.current(value), 500)
-    },
-    now: (value: string) => {
-      clearTimeout(timer.current)
-      latest.current(value)
-    }
-  }
 }
 
 export function ViewForm({

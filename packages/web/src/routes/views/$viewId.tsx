@@ -54,7 +54,15 @@ function ViewDetail() {
       document.querySelector<HTMLElement>(`[data-episode-title="${shown}"]`)?.focus()
     )
   }
-  const startEditing = () => void navigate({ search: { edit: true } })
+  // The button goes away as the editor opens, so focus goes to the editor's heading.
+  const startEditing = () =>
+    void navigate({ search: { edit: true } }).then(() =>
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(wide ? "[data-edit-heading]" : "main h1")
+          ?.focus({ preventScroll: true })
+      )
+    )
   const doneEditing = () =>
     void navigate({ search: {} }).then(() =>
       document.querySelector<HTMLElement>("[data-edit-view]")?.focus()
@@ -169,7 +177,13 @@ function ViewDetail() {
           {editing ? (
             <div className="px-4 pt-2">
               <div className="flex items-center justify-between pb-3">
-                <h2 className="font-heading text-xl font-semibold">Edit View</h2>
+                <h2
+                  tabIndex={-1}
+                  data-edit-heading=""
+                  className="font-heading text-xl font-semibold outline-none"
+                >
+                  Edit View
+                </h2>
                 <button
                   type="button"
                   onClick={doneEditing}

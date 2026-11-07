@@ -133,7 +133,7 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
   }
   return (
     <>
-      <p className="max-w-[960px] px-4 pb-3 text-small text-muted-foreground md:px-8">
+      <p className="max-w-[70ch] px-4 pb-3 text-small text-muted-foreground md:px-8">
         What {playlist.name} played, kept for 30 days. Rewind takes playback back to a moment;
         Entries you added or moved since, and Episodes you marked Played yourself, stay as they are.
       </p>
@@ -151,7 +151,7 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
             ) : (
               <Play aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
             )}
-            <span className="min-w-0 flex-1">
+            <span className="min-w-0 grow basis-[12rem]">
               <span className="block text-row">
                 {event._tag === "Finished" ? "Finished " : "Listened to "}
                 <span className="font-medium">{title(event.episodeId)}</span>

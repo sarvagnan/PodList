@@ -106,7 +106,7 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
       requestAnimationFrame(() => {
         const lost = document.activeElement === null || document.activeElement === document.body
         if (was !== null && !was.isConnected && lost) {
-          document.querySelector<HTMLElement>("main h1")?.focus()
+          document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true })
         }
       })
     },

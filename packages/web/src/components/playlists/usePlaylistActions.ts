@@ -1,3 +1,4 @@
+import { Toast } from "@base-ui/react/toast"
 import { useAtomSet } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
 import { useNavigate } from "@tanstack/react-router"
@@ -36,9 +37,13 @@ export function usePlaylistActions() {
     },
     [record, navigate, confirm]
   )
+  const toasts = Toast.useToastManager()
   const restore = useCallback(
-    (playlistId: string) => record(change({ _tag: "RestorePlaylist", playlistId })),
-    [record]
+    async (playlistId: string, name: string) => {
+      await record(change({ _tag: "RestorePlaylist", playlistId }))
+      toasts.add({ description: `Restored “${name}”`, timeout: 4000 })
+    },
+    [record, toasts]
   )
   return { create, remove, restore }
 }

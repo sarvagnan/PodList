@@ -24,7 +24,16 @@ const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
 
 const looksLikeFeed = (text: string) => /^https?:\/\/\S+\.\S+/.test(text.trim())
 
-function SubscribeButton({ feedUrl, title }: { readonly feedUrl: string; readonly title: string }) {
+function SubscribeButton({
+  feedUrl,
+  title,
+  onProblem
+}: {
+  readonly feedUrl: string
+  readonly title: string
+  /** Says what went wrong next to the podcast, not in a passing toast (COPY-02). */
+  readonly onProblem: (problem: string | null) => void
+}) {
   const subscribed = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => []).some(
     (s) => s.feedUrl === feedUrl
   )
@@ -46,9 +55,11 @@ function SubscribeButton({ feedUrl, title }: { readonly feedUrl: string; readonl
       aria-label={`Subscribe to ${title}`}
       onClick={async () => {
         setBusy(true)
+        onProblem(null)
         const problem = messageOf(await subscribe(feedUrl))
         setBusy(false)
-        toasts.add({ description: problem ?? `Subscribed to ${title}`, timeout: 4000 })
+        if (problem === null) toasts.add({ description: `Subscribed to ${title}`, timeout: 4000 })
+        else onProblem(problem)
       }}
       className="h-9 shrink-0 rounded-full bg-primary px-4 text-small font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
     >
@@ -83,12 +94,13 @@ function SearchTab() {
       </label>
       <input
         id={`${id}-q`}
+        data-add-field=""
         type="search"
         value={text}
         onChange={(event) => setText(event.target.value)}
         className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row"
       />
-      <div aria-live="polite" className="mt-3 max-h-[50dvh] overflow-y-auto">
+      <div aria-live="polite" className="mt-3 max-h-[50dvh] min-h-24 overflow-y-auto">
         {looksLikeFeed(text) ? (
           <Result
             title={text.trim()}
@@ -127,16 +139,24 @@ function Result({
   readonly feedUrl: string
   readonly artworkUrl: string | null
 }) {
+  const [problem, setProblem] = useState<string | null>(null)
   return (
-    <div className="flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0">
-      <Artwork url={artworkUrl} name={title} size={44} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-row font-medium">{title}</span>
-        {detail && (
-          <span className="block truncate text-small text-muted-foreground">{detail}</span>
-        )}
-      </span>
-      <SubscribeButton feedUrl={feedUrl} title={title} />
+    <div className="border-b py-2 last:border-b-0">
+      <div className="flex min-h-14 items-center gap-3">
+        <Artwork url={artworkUrl} name={title} size={44} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-row font-medium">{title}</span>
+          {detail && (
+            <span className="block truncate text-small text-muted-foreground">{detail}</span>
+          )}
+        </span>
+        <SubscribeButton feedUrl={feedUrl} title={title} onProblem={setProblem} />
+      </div>
+      {problem && (
+        <p role="alert" className="mt-1 text-small text-destructive">
+          {problem} Check the address, or find the podcast by name with Search.
+        </p>
+      )}
     </div>
   )
 }
@@ -144,6 +164,7 @@ function Result({
 function AddressTab() {
   const id = useId()
   const [text, setText] = useState("")
+  const invalid = text.trim().length > 3 && !looksLikeFeed(text)
   return (
     <div>
       <label htmlFor={`${id}-url`} className="text-row font-medium">
@@ -155,11 +176,19 @@ function AddressTab() {
         inputMode="url"
         value={text}
         placeholder="https://example.com/feed.xml"
+        aria-invalid={invalid}
+        aria-describedby={`${id}-help`}
         onChange={(event) => setText(event.target.value)}
-        className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row"
+        className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row aria-invalid:border-destructive"
       />
-      <p className="mt-1.5 text-small text-muted-foreground">
-        Any podcast’s RSS address; no directory needed.
+      {/* Says at once what's wrong with an address, as it's typed (WDATA-03). */}
+      <p
+        id={`${id}-help`}
+        className={`mt-1.5 text-small ${invalid ? "text-destructive" : "text-muted-foreground"}`}
+      >
+        {invalid
+          ? "Enter the whole address, starting with https://"
+          : "Any podcast’s RSS address; no directory needed."}
       </p>
       {looksLikeFeed(text) && (
         <div className="mt-3">
@@ -249,6 +278,8 @@ export function AddPodcastSheet({
         <Dialog.Popup
           data-sheet="dialog"
           onKeyDown={wrapTab}
+          // Opens on the search field, not the close button (KEY-04).
+          initialFocus={() => document.querySelector<HTMLElement>("[data-add-field]")}
           className="fixed inset-x-0 bottom-0 z-50 max-h-[90dvh] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">

@@ -66,7 +66,13 @@ test("reorders Entries with the keyboard", async ({ page }) => {
   await handle.focus()
   await page.keyboard.press("Space")
   await expect(handle).toHaveAttribute("aria-pressed", "true")
-  await page.keyboard.press("ArrowDown")
+  // dnd-kit starts listening for arrows a moment after the pick-up (a timer), so an
+  // arrow pressed at once can go unheard. Press again only if the move wasn't announced.
+  const moved = page.getByText(`${before[0]} is at position 2 of`)
+  await expect(async () => {
+    if ((await moved.count()) === 0) await page.keyboard.press("ArrowDown")
+    await expect(moved).toBeAttached({ timeout: 1000 })
+  }).toPass()
   // The move animates; dropping before it lands keeps the old place.
   await page.waitForTimeout(400)
   await page.keyboard.press("Space")

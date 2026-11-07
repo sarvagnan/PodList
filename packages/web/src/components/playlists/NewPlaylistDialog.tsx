@@ -1,6 +1,6 @@
 import { Dialog } from "@base-ui/react/dialog"
 import { X } from "lucide-react"
-import { useId, useState } from "react"
+import { useId, useRef, useState } from "react"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { usePlaylistActions } from "./usePlaylistActions.ts"
@@ -15,6 +15,7 @@ export function NewPlaylistDialog({
 }) {
   const id = useId()
   const [name, setName] = useState("")
+  const nameField = useRef<HTMLInputElement>(null)
   const [clearOnPlayed, setClearOnPlayed] = useState(false)
   const [error, setError] = useState(false)
   const { create } = usePlaylistActions()
@@ -34,6 +35,7 @@ export function NewPlaylistDialog({
         <Dialog.Popup
           data-sheet="dialog"
           onKeyDown={wrapTab}
+          initialFocus={nameField}
           className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(26rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">
@@ -49,6 +51,7 @@ export function NewPlaylistDialog({
             Name
           </label>
           <input
+            ref={nameField}
             id={`${id}-name`}
             type="text"
             value={name}
@@ -84,13 +87,13 @@ export function NewPlaylistDialog({
             </span>
           </label>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Dialog.Close className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground">
+            <Dialog.Close className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground hover:bg-input active:bg-input/70">
               Cancel
             </Dialog.Close>
             <button
               type="button"
               onClick={() => void save()}
-              className="h-11 rounded-full bg-primary font-semibold text-primary-foreground"
+              className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
             >
               Create
             </button>

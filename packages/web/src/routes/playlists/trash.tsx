@@ -45,7 +45,20 @@ function Trash() {
               </span>
               <button
                 type="button"
-                onClick={() => restore(t.playlist.id)}
+                onClick={(event) => {
+                  // Its row goes: focus moves to the next Restore, or the heading.
+                  const buttons = [...document.querySelectorAll<HTMLElement>("main [data-restore]")]
+                  const next = buttons[buttons.indexOf(event.currentTarget) + 1] ?? buttons.at(-2)
+                  void restore(t.playlist.id, t.playlist.name).then(() =>
+                    requestAnimationFrame(() =>
+                      (next?.isConnected
+                        ? next
+                        : document.querySelector<HTMLElement>("main h1")
+                      )?.focus()
+                    )
+                  )
+                }}
+                data-restore=""
                 className="h-10 shrink-0 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
               >
                 Restore

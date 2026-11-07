@@ -146,7 +146,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
     return (
       <section
         aria-label="Now playing"
-        className="surface-dark relative mx-2.5 flex items-center gap-2 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
+        className="@container surface-dark relative mx-2.5 flex items-center gap-2 overflow-hidden rounded-2xl bg-player p-2.5 text-player-foreground"
       >
         {/* Tapping the bar outside its buttons opens Now Playing. */}
         <button
@@ -176,7 +176,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             Try again
           </button>
         ) : (
-          back
+          // Large text on a small phone: the title keeps the room; back 15 is in Now Playing.
+          <span className="contents @max-[20rem]:hidden">{back}</span>
         )}
         {toggle}
         {forward}
@@ -298,6 +299,16 @@ function Sidebar() {
   const state = useAppState()
   const { create: createView } = useViewActions()
   const [newPlaylist, setNewPlaylist] = useState(false)
+  // The Mac app's File menu.
+  useEffect(() => {
+    const onCommand = (event: Event) => {
+      const command = (event as CustomEvent<string>).detail
+      if (command === "newPlaylist") setNewPlaylist(true)
+      if (command === "newView") void createView()
+    }
+    document.addEventListener("podlist:command", onCommand)
+    return () => document.removeEventListener("podlist:command", onCommand)
+  }, [createView])
   const ready = useLibraryReady()
   const link =
     "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
@@ -315,9 +326,9 @@ function Sidebar() {
       >
         <Search aria-hidden="true" className="size-4" />
         <span className="flex-1">Search</span>
-        <kbd className="rounded border border-input px-1.5 font-sans text-xs">
-          {/Mac/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
-        </kbd>
+        {/Mac/.test(navigator.platform) && (
+          <kbd className="rounded border border-input px-1.5 font-sans text-xs">⌘K</kbd>
+        )}
       </Link>
       <div className="flex items-center justify-between">
         <p className={heading}>Views</p>
@@ -437,12 +448,17 @@ function useFocusOnNavigation() {
     () =>
       router.subscribe("onResolved", (event) => {
         if (event.fromLocation === undefined || !event.pathChanged) return
-        requestAnimationFrame(() => {
+        // The heading may arrive a moment later, with the screen's data: try for a second.
+        let tries = 60
+        const focusHeading = () => {
           // A screen that put focus somewhere itself (Search's field) keeps it.
           const main = document.querySelector("main")
           if (main?.contains(document.activeElement) && document.activeElement !== main) return
-          document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true })
-        })
+          const heading = document.querySelector<HTMLElement>("main h1")
+          if (heading !== null) heading.focus({ preventScroll: true })
+          else if (--tries > 0) requestAnimationFrame(focusHeading)
+        }
+        requestAnimationFrame(focusHeading)
       }),
     [router]
   )
@@ -487,8 +503,8 @@ function useSearchKey() {
   }, [router])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey) || event.altKey)
-        return
+      // ⌘K on a Mac; elsewhere Ctrl+K is the browser's own (BROWSER-05).
+      if (event.key.toLowerCase() !== "k" || !event.metaKey || event.ctrlKey || event.altKey) return
       event.preventDefault()
       const field = document.querySelector<HTMLInputElement>('main input[type="search"]')
       if (router.state.location.pathname === "/search" && field) field.focus()

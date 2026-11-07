@@ -9,7 +9,8 @@ import { useEffect, useLayoutEffect, useRef } from "react"
 const storageKey = (entry: string) => `podlist:scroll:${entry}`
 
 export function useScrollMemory(ready: boolean) {
-  const { history } = useRouter()
+  const router = useRouter()
+  const { history } = router
   const entry = history.location.state.__TSR_key ?? "initial"
 
   useEffect(() => {
@@ -26,16 +27,52 @@ export function useScrollMemory(ready: boolean) {
     return () => window.removeEventListener("scroll", save)
   }, [entry, history])
 
+  // Restore once the list is ready, and again if the router renders this entry later:
+  // it scrolls to the top when it does, which would undo a restore made before then.
   const restored = useRef<string | null>(null)
+  const readyNow = useRef(ready)
+  readyNow.current = ready
   useLayoutEffect(() => {
     if (!ready || restored.current === entry) return
     restored.current = entry
-    let saved = 0
-    try {
-      saved = Number(sessionStorage.getItem(storageKey(entry)) ?? 0)
-    } catch {
-      return
-    }
-    if (saved > 0) window.scrollTo(0, saved)
+    return restore(entry)
   }, [ready, entry])
+  useEffect(
+    () =>
+      router.subscribe("onRendered", (event) => {
+        const key = event.toLocation.state.__TSR_key ?? "initial"
+        if (key === entry && readyNow.current) restore(entry)
+      }),
+    [router, entry]
+  )
+}
+
+/** Scrolls back to the entry's saved position, trying for half a second while the list
+ * grows to its full height, and stopping if the reader scrolls first. */
+const restore = (entry: string) => {
+  let saved = 0
+  try {
+    saved = Number(sessionStorage.getItem(storageKey(entry)) ?? 0)
+  } catch {
+    return
+  }
+  if (!(saved > 0)) return
+  let frames = 30
+  let frame = 0
+  const stop = () => {
+    cancelAnimationFrame(frame)
+    window.removeEventListener("wheel", stop)
+    window.removeEventListener("touchstart", stop)
+    window.removeEventListener("keydown", stop)
+  }
+  const attempt = () => {
+    window.scrollTo(0, saved)
+    if (Math.abs(window.scrollY - saved) < 2 || --frames === 0) stop()
+    else frame = requestAnimationFrame(attempt)
+  }
+  window.addEventListener("wheel", stop, { passive: true })
+  window.addEventListener("touchstart", stop, { passive: true })
+  window.addEventListener("keydown", stop)
+  attempt()
+  return stop
 }

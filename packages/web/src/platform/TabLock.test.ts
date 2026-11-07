@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Context, Effect, Layer, SubscriptionRef } from "effect"
+import { Context, Effect, Exit, Fiber, Layer, Scope, SubscriptionRef } from "effect"
 import { TabLock } from "./TabLock.ts"
 
 // Two TabLock instances in one page stand in for two tabs: Web Locks are per origin.
@@ -22,5 +22,24 @@ describe("TabLock (Web Locks)", () => {
         expect(yield* SubscriptionRef.get(second.ownership)).toBe("owner")
       })
     )
+  )
+
+  it.live("waits a moment for a page that is unloading to let the lock go", () =>
+    Effect.gen(function* () {
+      const leaving = yield* Scope.make()
+      const first = yield* tab().pipe(Scope.provide(leaving))
+      expect(yield* first.claim({ takeOver: false })).toBe(true)
+      const second = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const second = yield* tab()
+          const claimed = yield* Effect.forkChild(second.claim({ takeOver: false }))
+          // The first page finishes unloading after the second has asked.
+          yield* Effect.sleep("300 millis")
+          yield* Scope.close(leaving, Exit.void)
+          return yield* Fiber.join(claimed)
+        })
+      )
+      expect(second).toBe(true)
+    })
   )
 })

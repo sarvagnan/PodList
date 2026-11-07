@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { deviceIdAtom } from "../../app/runtime.ts"
@@ -15,13 +15,27 @@ import { PageHeader } from "../../components/shell/PageHeader.tsx"
 // each opening its settings and Episodes; Add finds podcasts, takes a feed address or an
 // OPML file. Grouping by Download Rule arrives with Download Rules (pod-g1v.5).
 
-export const Route = createFileRoute("/library/")({ component: LibraryScreen })
+export const Route = createFileRoute("/library/")({
+  component: LibraryScreen,
+  // ?add=true opens Add podcasts (the Mac app's File › Add Podcasts).
+  validateSearch: (search: Record<string, unknown>): { add?: boolean } =>
+    search.add === true || search.add === "true" ? { add: true } : {}
+})
 
 function LibraryScreen() {
   const result = useAtomValue(subscriptionsAtom)
   const subscriptions = AsyncResult.getOrElse(result, () => [])
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
+  // ?add=true (File › Add Podcasts in the Mac app) opens the sheet once, then leaves the
+  // URL so a reload doesn't open it again.
+  const { add: addFromUrl } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  useEffect(() => {
+    if (!addFromUrl) return
+    // Clean the URL first: the sheet's Back step must not lead back to ?add=true.
+    void navigate({ search: {}, replace: true }).then(() => setAdding(true))
+  }, [addFromUrl, navigate])
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const modeOf = (subscriptionId: string) =>

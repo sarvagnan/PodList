@@ -142,6 +142,11 @@
   .active .tab-indicator {
     outline: 2px solid Highlight;
   }
+  /* Selected segments (Entries / History / Timeline, Add podcasts) and pressed toggles. */
+  [aria-pressed="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
   /* The Episode open beside a View (AX-02). */
   .selected-row {
     outline: 2px solid Highlight;

@@ -140,6 +140,12 @@ const sendControl = (command: string) =>
     `document.dispatchEvent(new CustomEvent("podlist:control", { detail: ${JSON.stringify(command)} }))`
   )
 
+/** File menu commands the web app carries out ("podlist:command"). */
+const sendCommand = (command: string) =>
+  void window?.webContents.executeJavaScript(
+    `document.dispatchEvent(new CustomEvent("podlist:command", { detail: ${JSON.stringify(command)} }))`
+  )
+
 /** Go menu destinations: the web app's own screens. */
 const goTo = (path: string) => {
   if (window === undefined) return
@@ -386,7 +392,24 @@ const menu = (): MenuItemConstructorOptions[] => [
       { role: "quit" }
     ]
   },
-  { label: "File", submenu: [{ role: "close", label: "Close Window" }] },
+  {
+    label: "File",
+    submenu: [
+      {
+        label: "New Playlist…",
+        accelerator: "CmdOrCtrl+N",
+        click: () => sendCommand("newPlaylist")
+      },
+      { label: "New View", accelerator: "Shift+CmdOrCtrl+N", click: () => sendCommand("newView") },
+      {
+        label: "Add Podcasts…",
+        accelerator: "Shift+CmdOrCtrl+A",
+        click: () => goTo("/library?add=true")
+      },
+      { type: "separator" },
+      { role: "close", label: "Close Window" }
+    ]
+  },
   {
     label: "Edit",
     submenu: [

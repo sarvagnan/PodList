@@ -2,7 +2,7 @@ import { Dialog } from "@base-ui/react/dialog"
 import { useAtomSet } from "@effect/atom-react"
 import { useNavigate } from "@tanstack/react-router"
 import { X } from "lucide-react"
-import { useId, useState } from "react"
+import { useId, useRef, useState } from "react"
 import { recordAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
@@ -20,6 +20,7 @@ export function SaveSearchDialog({
 }) {
   const id = useId()
   const [name, setName] = useState("")
+  const nameField = useRef<HTMLInputElement>(null)
   const [error, setError] = useState(false)
   const record = useAtomSet(recordAtom, { mode: "promise" })
   const navigate = useNavigate()
@@ -42,6 +43,7 @@ export function SaveSearchDialog({
         <Dialog.Popup
           data-sheet="dialog"
           onKeyDown={wrapTab}
+          initialFocus={nameField}
           className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(26rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">
@@ -63,6 +65,7 @@ export function SaveSearchDialog({
             Name
           </label>
           <input
+            ref={nameField}
             id={`${id}-name`}
             type="text"
             value={name}
@@ -84,13 +87,13 @@ export function SaveSearchDialog({
             </p>
           )}
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Dialog.Close className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground">
+            <Dialog.Close className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground hover:bg-input active:bg-input/70">
               Cancel
             </Dialog.Close>
             <button
               type="button"
               onClick={() => void save()}
-              className="h-11 rounded-full bg-primary font-semibold text-primary-foreground"
+              className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
             >
               Save View
             </button>

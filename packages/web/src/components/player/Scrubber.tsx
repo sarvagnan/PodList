@@ -29,7 +29,7 @@ export function Scrubber({
   return (
     <div className="flex items-center gap-2 text-small text-player-muted tabular-nums">
       <span className="min-w-14 shrink-0 text-right whitespace-nowrap">{formatTime(value)}</span>
-      <div className="relative grid h-6 flex-1 items-center">
+      <div className="relative grid h-6 min-w-0 flex-1 items-center">
         <div className="progress-track absolute inset-x-0 h-1 rounded-full bg-player-track" />
         <div
           className="progress-fill absolute left-0 h-1 rounded-full bg-progress"

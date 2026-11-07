@@ -105,3 +105,15 @@ test("a Download Rule stores Entries on this Device and Stream lets them go", as
   await page.goto(`${demo.base}/views/new-this-week`)
   await expect(row.getByLabel("Downloaded")).toHaveCount(0, { timeout: 20_000 })
 })
+
+test("?add=true opens Add podcasts once, and Esc closes it", async ({ page }) => {
+  await page.goto(`${demo.base}/library?add=true`)
+  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
+  await expect(sheet).toBeVisible()
+  await expect(page).toHaveURL(/\/library$/)
+  await page.keyboard.press("Escape")
+  await expect(sheet).toBeHidden()
+  await page.reload()
+  await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible()
+  await expect(sheet).toBeHidden()
+})

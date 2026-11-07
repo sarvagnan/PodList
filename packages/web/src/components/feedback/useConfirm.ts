@@ -26,16 +26,18 @@ export function useConfirm() {
       const id = ++nextId
       setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome, again }])
       setRedo([])
-      // Long enough to reach on a phone, where this Undo is the way back (WDATA-04), and
-      // paused while hovered or focused; ⌘/Ctrl-Z reaches it afterwards on a keyboard.
-      toasts.add({
+      const toast = toasts.add({
         description: outcome.message,
-        timeout: 20_000,
+        // Stays until dismissed or replaced by the next step (one shows at a time): on a
+        // phone this Undo is the way back (WDATA-04).
+        timeout: 0,
         actionProps: {
           children: "Undo",
           onClick: () => {
             setStack((stack) => stack.filter((step) => step.id !== id))
             undo(outcome.undo)
+            // Used: it goes (APPEAR-11).
+            toasts.close(toast)
           }
         }
       })

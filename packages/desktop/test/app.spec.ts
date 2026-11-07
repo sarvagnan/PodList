@@ -135,3 +135,36 @@ test("a second launch hands over to the open window", async () => {
     demo.stop()
   }
 })
+
+test("the File menu makes a Playlist or a View and adds podcasts", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
+  try {
+    const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+    const page = await app.firstWindow()
+    await expect(page.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
+    const choose = (label: string) =>
+      app.evaluate(({ Menu }, label) => {
+        const file = Menu.getApplicationMenu()?.items.find((item) => item.label === "File")
+        file?.submenu?.items.find((item) => item.label === label)?.click()
+      }, label)
+
+    await choose("New Playlist…")
+    await expect(page.getByRole("dialog", { name: "New Playlist" })).toBeVisible()
+    await page.keyboard.press("Escape")
+
+    await choose("New View")
+    await expect(page.getByRole("heading", { name: "Edit View" })).toBeVisible()
+
+    await choose("Add Podcasts…")
+    await expect(page.getByRole("dialog", { name: "Add podcasts" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible()
+    // Again, from the Library itself.
+    await choose("Add Podcasts…")
+    await expect(page.getByRole("dialog", { name: "Add podcasts" })).toBeVisible()
+    await app.close()
+  } finally {
+    demo.stop()
+  }
+})

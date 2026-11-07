@@ -3,12 +3,13 @@ import { Operation, State } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { Trash2 } from "lucide-react"
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { useAppState } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { usePlaylistActions } from "../../components/playlists/usePlaylistActions.ts"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useDebounced } from "../../lib/useDebounced.ts"
 
 // A Playlist's settings (docs/design/ui-layout.md › Playlist settings): its name, Clear
 // on Played, and Delete, which sends it with its History and Listening Timeline to the
@@ -29,8 +30,14 @@ function PlaylistSettings() {
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   const [name, setName] = useState(playlist?.name ?? "")
   const [error, setError] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const rename = (value: string) => {
+    const trimmed = value.trim()
+    setError(trimmed === "")
+    if (playlist !== undefined && trimmed !== "" && trimmed !== playlist.name) {
+      record(change({ _tag: "RenamePlaylist", playlistId, name: trimmed }))
+    }
+  }
+  const renameLater = useDebounced(rename)
   useEffect(() => {
     if (playlist !== undefined && name === "" && !error) setName(playlist.name)
   }, [playlist, name, error])
@@ -47,13 +54,6 @@ function PlaylistSettings() {
         </EmptyState>
       </>
     )
-  }
-  const rename = (value: string) => {
-    const trimmed = value.trim()
-    setError(trimmed === "")
-    if (trimmed !== "" && trimmed !== playlist.name) {
-      record(change({ _tag: "RenamePlaylist", playlistId, name: trimmed }))
-    }
   }
   return (
     <>
@@ -79,13 +79,9 @@ function PlaylistSettings() {
               onChange={(event) => {
                 const value = event.target.value
                 setName(value)
-                clearTimeout(timer.current)
-                timer.current = setTimeout(() => rename(value), 500)
+                renameLater.schedule(value)
               }}
-              onBlur={(event) => {
-                clearTimeout(timer.current)
-                rename(event.target.value)
-              }}
+              onBlur={(event) => renameLater.now(event.target.value)}
               className="mt-1.5 h-11 w-full rounded-lg border border-input bg-card px-3 text-row disabled:bg-secondary disabled:text-muted-foreground"
             />
             <p

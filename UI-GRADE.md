@@ -43,10 +43,13 @@ Round 6: coverage 94.7%; 14 failures (1 blocker, 9 major, 4 minor). Report: [doc
 
 ## Work list (round 6)
 
-- [ ] DATA-01 (blocker): a pending rename is saved when the screen closes.
-- [ ] DATA-04 moving an Entry can be undone · KEY-04 dialogs open on their field · WKEY-03 focus after Edit View, Restore and Back · WDATA-03 / COPY-02 feed address errors inline, with a way forward · WDATA-04 the Undo offer doesn't vanish · BROWSER-05 Ctrl+K left to the browser · APPEAR-03 selected segments in forced colors · WTYPE-02 200% text on a phone.
-- [ ] Minors: APPEAR-11 toast closes after Undo · CTRL-05 dialog button states · TYPE-06 line length · TYPE-08 apostrophes.
-- [ ] Craft: header label at 720 px; desktop Episode detail with Next and Last; consistent confirmations; menus on Entry and Library rows; Mac File menu; 320 px segments; one Settings glyph.
+Fixed on 7 Nov:
+- [x] DATA-01 (blocker): a pending rename (Playlist or View name) is saved when the screen closes.
+- [x] DATA-04 moving an Entry can be undone · KEY-04 dialogs open on their field · WKEY-03 focus after Edit View, Restore and Back · WDATA-03 / COPY-02 feed address errors inline, with a way forward · WDATA-04 the Undo offer stays until dismissed · BROWSER-05 Ctrl+K left to the browser (⌘K on a Mac) · APPEAR-03 selected segments in forced colors · WTYPE-02 200% text on a phone (no sideways scroll on any measured screen).
+- [x] Minors: APPEAR-11 toast closes after Undo · CTRL-05 dialog button states · TYPE-06 line length · TYPE-08 apostrophes.
+- [x] Craft: header label at 720 px; desktop Episode detail with Play Next and Play Last; Undo for every reversible edit; the Mac File menu (New Playlist ⌘N, New View ⇧⌘N, Add Podcasts ⇧⌘A); one Settings glyph.
+- [x] Found while testing: Back could return a list to the top on a slow machine (the router's scroll reset, and a late focus move); a reload could show "open in another tab" while the old page let go of the database.
+- [ ] Not done: menus on Entry and Library rows; 320 px segments.
 
 ## Work list (round 5)
 

@@ -446,7 +446,8 @@ export function NextLastTarget() {
   const value = state.playlists.some((p) => p.id === chosen) ? chosen : state.activePlaylistId
   return (
     <label className="hidden items-center gap-2 text-small text-muted-foreground md:flex">
-      Play Next and Play Last go to
+      {/* The full words where there's room; the picker keeps them as its name. */}
+      <span className="max-xl:sr-only">Play Next and Play Last go to</span>
       <select
         value={value ?? ""}
         onChange={(event) => {

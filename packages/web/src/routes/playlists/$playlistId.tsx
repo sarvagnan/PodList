@@ -3,7 +3,7 @@ import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
-import { GripVertical, Pause, Play, Settings2, X } from "lucide-react"
+import { GripVertical, Pause, Play, Settings, X } from "lucide-react"
 import type * as React from "react"
 import { useEffect, useRef } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
@@ -12,6 +12,7 @@ import { playbackAtom, recordAtom } from "../../app/runtime.ts"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../../components/episodes/useEpisodeActions.ts"
 import { Tip } from "../../components/feedback/Tip.tsx"
+import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { GridCell } from "../../components/lists/Grid.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
@@ -46,6 +47,7 @@ function PlaylistDetail() {
   const control = useAtomSet(playbackAtom)
   const playing = useNowPlaying()
   const act = useEpisodeActions()
+  const confirm = useConfirm()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   const { episode: selected, tab } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -131,7 +133,7 @@ function PlaylistDetail() {
                 aria-label="Playlist settings"
                 className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary hover:bg-input active:bg-input/70"
               >
-                <Settings2 aria-hidden="true" className="size-5" />
+                <Settings aria-hidden="true" className="size-5" />
               </Link>
             </Tip>
             {playlist.entries.length > 0 && (
@@ -153,7 +155,7 @@ function PlaylistDetail() {
       />
       {/* Entries, History and Listening Timeline (docs/design/ui-layout.md › Desktop). */}
       <nav aria-label="Entries, History and Listening Timeline" className="mb-3 px-4 md:px-8">
-        <div className="inline-grid grid-cols-3 gap-1 rounded-full bg-secondary p-1">
+        <div className="inline-flex flex-wrap gap-1 rounded-3xl bg-secondary p-1">
           {(
             [
               [undefined, "Entries"],
@@ -197,16 +199,27 @@ function PlaylistDetail() {
             <SortableList
               ids={entries.map((e) => e.episodeId)}
               label={(id) => episodes.get(id)?.title ?? "Entry"}
-              onMove={(episodeId, after) =>
-                record(
+              onMove={(episodeId, after) => {
+                // One step that Undo takes back: the Entry returns after its old neighbour.
+                const index = entries.findIndex((e) => e.episodeId === episodeId)
+                const before = index > 0 ? (entries[index - 1]?.episodeId ?? null) : null
+                const move = (to: string | null) =>
                   Schema.decodeUnknownSync(Operation.Change)({
                     _tag: "MoveEntry",
                     playlistId: playlist.id,
                     episodeId,
-                    after
+                    after: to
                   })
-                )
-              }
+                const step = {
+                  message: `Moved “${episodes.get(episodeId)?.title ?? "Entry"}”`,
+                  undo: [move(before)]
+                }
+                record(move(after))
+                confirm(step, async () => {
+                  record(move(after))
+                  return step
+                })
+              }}
             >
               {playlist.entries.map((entry, index) => {
                 const episode = episodes.get(entry.episodeId)
