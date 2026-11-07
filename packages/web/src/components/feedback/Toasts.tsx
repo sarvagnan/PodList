@@ -16,13 +16,13 @@ export function Toasts() {
             <Toast.Root
               key={toast.id}
               toast={toast}
-              className="surface-dark flex items-center gap-2 rounded-xl bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
+              className="surface-dark flex items-center gap-2 rounded-xl bg-player py-1.5 pr-1.5 pl-4 text-sm text-player-foreground shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
             >
               <Toast.Description className="min-w-0 flex-1 truncate" />
               <Toast.Action className="h-10 rounded-lg px-3 font-semibold text-[#9db4ff] hover:bg-white/10" />
               <Toast.Close
                 aria-label="Dismiss"
-                className="grid size-10 place-items-center rounded-lg text-background/70 hover:bg-white/10"
+                className="grid size-10 place-items-center rounded-lg text-player-muted hover:bg-white/10"
               >
                 <X aria-hidden="true" className="size-4" />
               </Toast.Close>

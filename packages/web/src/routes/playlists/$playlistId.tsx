@@ -126,12 +126,12 @@ function PlaylistDetail() {
                       className="block h-3.5 w-2/3 rounded bg-secondary"
                     />
                   ) : title === undefined ? (
-                    <span className="line-clamp-2 text-sm font-medium">Episode unavailable</span>
+                    <span className="line-clamp-2 text-row font-medium">Episode unavailable</span>
                   ) : (
                     <Link
                       to="/episodes/$episodeId"
                       params={{ episodeId: entry.episodeId }}
-                      className="line-clamp-2 text-sm font-medium hover:underline"
+                      className="line-clamp-2 text-row font-medium hover:underline"
                     >
                       {title}
                     </Link>

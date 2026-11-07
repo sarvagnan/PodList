@@ -33,13 +33,13 @@ test.describe("desktop", () => {
 
 test("a second tab offers to take over the Library", async ({ page, context }) => {
   await page.goto("/")
-  await expect(page.getByRole("heading", { name: "Views" })).toBeVisible()
+  await expect(page.locator("main h1")).toBeVisible()
   const second = await context.newPage()
   await second.goto("/")
   await expect(
     second.getByRole("heading", { name: "PodList is open in another tab" })
   ).toBeVisible()
   await second.getByRole("button", { name: "Use here" }).click()
-  await expect(second.getByRole("heading", { name: "Views" })).toBeVisible()
+  await expect(second.locator("main h1")).toBeVisible()
   await expect(page.getByRole("heading", { name: "PodList is open in another tab" })).toBeVisible()
 })

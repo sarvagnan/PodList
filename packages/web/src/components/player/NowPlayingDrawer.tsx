@@ -299,7 +299,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                   size={40}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className={`line-clamp-2 text-sm ${isCurrent ? "font-semibold" : ""}`}>
+                  <span className={`line-clamp-2 text-row ${isCurrent ? "font-semibold" : ""}`}>
                     {episode?.title ?? "Episode unavailable"}
                   </span>
                   <span className="text-xs text-player-muted">

@@ -230,7 +230,7 @@ export function EpisodeRow({
           >
             Last
           </TextAction>
-          <IconButton label="Add to another Playlist…" onClick={() => setAdding(true)}>
+          <IconButton label="Add to a Playlist…" onClick={() => setAdding(true)}>
             <ListPlus aria-hidden="true" className="size-[18px]" />
           </IconButton>
           <IconButton
@@ -288,7 +288,7 @@ export function NextLastTarget() {
   const value = state.playlists.some((p) => p.id === chosen) ? chosen : state.activePlaylistId
   return (
     <label className="hidden items-center gap-2 text-small text-muted-foreground md:flex">
-      Next / Last go to
+      Play Next and Play Last go to
       <select
         value={value ?? ""}
         onChange={(event) => {

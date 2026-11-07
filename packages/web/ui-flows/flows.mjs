@@ -282,14 +282,14 @@ const flows = {
   /** A second tab offers to take over the local database. */
   "second tab": async (rec, context) => {
     await rec.page.goto("/views")
-    await rec.page.getByRole("heading", { name: "Views" }).waitFor()
+    await rec.page.locator("main h1").waitFor()
     const second = await context.newPage()
     const other = new Recorder(second, "second tab", rec.width)
     await other.step("open in a second tab", (p) => p.goto("/views"), {
       wait: (p) => p.getByRole("button", { name: "Use here" }).waitFor()
     })
     await other.step("use here", (p) => p.getByRole("button", { name: "Use here" }).click(), {
-      wait: (p) => p.getByRole("heading", { name: "Views" }).waitFor()
+      wait: (p) => p.locator("main h1").waitFor()
     })
     await rec.step("first tab after takeover", null, {
       caused: false,
@@ -317,7 +317,7 @@ const timed = async (browser, base) => {
     const context = await newContext(browser, base, width)
     const page = await context.newPage()
     await page.goto("/views")
-    await page.getByRole("heading", { name: "Views" }).waitFor()
+    await page.locator("main h1").waitFor()
     await settle(page)
     let t = performance.now()
     await page

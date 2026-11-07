@@ -36,19 +36,21 @@ Round 2: coverage 97.5%; 19 failures (11 major, 8 minor, no blockers); four cate
 ## Work list (round 2)
 
 ### Majors
-- [ ] DATA-04 / WDATA-04 (Interaction, lowest): Remove on Playlist Entries and Up next; an undo stack that ⌘/Ctrl-Z walks; the toast stops being the only way back.
-- [ ] WKEY-03: the drawer holds focus; closing the panel returns focus to the row.
-- [ ] APPEAR-05: reduced motion cross-fades instead of sliding.
-- [ ] DATA-06: relaunch reopens the last screen and the "Next / Last go to" target.
-- [ ] AX-02: the Episode open in the panel has a row tint, a leading bar and `aria-current`.
-- [ ] BROWSER-01: Back closes one overlay at a time.
-- [ ] BROWSER-04: modified clicks on titles behave like links.
-- [ ] BROWSER-06: Mac context menu.
-- [ ] LIST-07: desktop Episode list keyboarding (one Tab stop, arrows, Space, Enter).
-- [ ] WTYPE-02: rows and player bars survive 200% text.
+- [x] DATA-04 / WDATA-04 (Interaction, lowest): Remove on Playlist Entries and Up next; an undo stack that ⌘/Ctrl-Z walks; the toast stops being the only way back.
+- [x] WKEY-03: the drawer holds focus; closing the panel returns focus to the row.
+- [x] APPEAR-05: reduced motion cross-fades instead of sliding.
+- [x] DATA-06: relaunch reopens the last screen and the "Next / Last go to" target.
+- [x] AX-02: the Episode open in the panel has a row tint, a leading bar and `aria-current`.
+- [x] BROWSER-01: Back closes one overlay at a time.
+- [x] BROWSER-04: modified clicks on titles behave like links.
+- [x] BROWSER-06: Mac context menu.
+- [x] LIST-07: desktop Episode list keyboarding (one Tab stop, arrows, Space, Enter).
+- [x] WTYPE-02: rows and player bars survive 200% text.
 
 ### Minors
-- [ ] FLOW-06 sidebar skeletons · KEY-08 shortcuts reference · PTR-04 tooltips on focus · APPEAR-09 distinct row icons · TYPE-07 no underlined buttons · COPY-04 one wording per term · BROWSER-09 Mac Back/Forward · WTYPE-01 skip numerals ≥ 11 px.
+- [x] FLOW-06 sidebar skeletons · KEY-08 shortcuts reference · PTR-04 tooltips on focus · APPEAR-09 distinct row icons · TYPE-07 no underlined buttons · COPY-04 one wording per term · BROWSER-09 Mac Back/Forward · WTYPE-01 skip numerals ≥ 11 px.
+
+Fixed on 7 Nov (beads pod-6jf.12–.19), with e2e tests for the list keys, focus, Back, undo and relaunch (`e2e/keyboard`, `navigation`, `undo`). Also from the round 2 notes: row actions show on hover, focus or selection and row Play stays quiet, so a View reads as titles; one size for Episode titles; one near-black for the toast and player; the desktop opens on a View rather than repeating the sidebar; "Play Next and Play Last go to". Flow run 3: no stability failures; open a Playlist p75 118 ms, Play from here 100 ms.
 
 ## Work list (round 1)
 

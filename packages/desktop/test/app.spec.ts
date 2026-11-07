@@ -25,7 +25,7 @@ test("runs its own copy of the web app, with a local database, and opens offline
     const page = await app.firstWindow()
     expect(page.url()).toMatch(/^app:\/\/podlist\//)
     const sidebar = page.getByRole("navigation", { name: "Library and lists" })
-    await expect(page.getByRole("heading", { name: "Views", level: 1 })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
     // Synced through the app's pass-through into SQLite on OPFS inside Electron.
     await expect(sidebar.getByRole("link", { name: /^Commute/ })).toBeVisible()
 
@@ -107,7 +107,7 @@ test("asks for the server address on first launch and checks it answers", async 
     const opened = app.waitForEvent("window")
     await page.getByRole("button", { name: "Connect" }).click()
     const appPage = await opened
-    await expect(appPage.getByRole("heading", { name: "Views", level: 1 })).toBeVisible()
+    await expect(appPage.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
     expect(app.windows()).toHaveLength(1)
     await app.close()
   } finally {
@@ -120,7 +120,9 @@ test("a second launch hands over to the open window", async () => {
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
     const first = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
-    await (await first.firstWindow()).getByRole("heading", { name: "Views", level: 1 }).waitFor()
+    await (await first.firstWindow())
+      .getByRole("heading", { name: "New this week", level: 1 })
+      .waitFor()
     const second = spawn(electronBinary, ["."], {
       cwd: appDir,
       env: environment({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
