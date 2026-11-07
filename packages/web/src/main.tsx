@@ -17,7 +17,8 @@ declare module "@tanstack/react-router" {
 }
 
 // Keep the installed app current: a new service worker activates on the next load.
-registerSW({ immediate: true })
+// The Mac app carries its own copy (app://), so it has no service worker.
+if (location.protocol !== "app:") registerSW({ immediate: true })
 
 const root = document.getElementById("root")
 if (!root) throw new Error("Missing #root element")

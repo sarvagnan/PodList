@@ -1,4 +1,4 @@
-/* PodList's tokens (packages/web/src/index.css) for the app's two local pages. */
+/* PodList's tokens (packages/web/src/index.css) for the app's setup page. */
 :root {
   color-scheme: light;
   --background: #f6f5f2;
@@ -82,4 +82,16 @@ button:disabled {
 .hint {
   font-size: 13px;
   margin-top: 20px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+button.secondary {
+  background: transparent;
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px var(--input);
+}
+button[hidden] {
+  display: none;
 }

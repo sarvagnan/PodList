@@ -16,7 +16,10 @@
           spellcheck="false" placeholder="podlist.your-tailnet.ts.net" required
           aria-describedby="error" />
         <p class="error" id="error" role="alert"></p>
-        <button type="submit">Connect</button>
+        <div class="actions">
+          <button type="submit">Connect</button>
+          <button type="button" id="cancel" class="secondary" hidden>Cancel</button>
+        </div>
       </form>
     </main>
     <script src="setup.js"></script>
