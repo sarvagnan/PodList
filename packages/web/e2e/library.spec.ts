@@ -30,7 +30,7 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   expect(slow).toBeDefined()
 
   await page.goto(`${demo.base}/library`)
-  await page.getByRole("link", { name: /Slow Build/ }).click()
+  await page.getByRole("link", { name: "Slow Build", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Slow Build", level: 1 })).toBeVisible()
   await page.getByRole("combobox", { name: "Speed" }).selectOption("1.5")
   await onServer("/subscriptions", '"speed":1.5')
@@ -40,7 +40,7 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   await page.getByRole("button", { name: "Unsubscribe" }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Unsubscribe" }).click()
   await expect(page).toHaveURL(/\/library$/)
-  await expect(page.getByRole("link", { name: /Slow Build/ })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Slow Build", exact: true })).toHaveCount(0)
 
   await page.getByRole("button", { name: "Add podcasts" }).click()
   const sheet = page.getByRole("dialog", { name: "Add podcasts" })
@@ -49,13 +49,13 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   await sheet.getByRole("button", { name: /^Subscribe to/ }).click()
   await expect(sheet.getByText("Subscribed")).toBeVisible()
   await sheet.getByRole("button", { name: "Close" }).click()
-  await expect(page.getByRole("link", { name: /Slow Build/ })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Slow Build", exact: true })).toBeVisible()
 })
 
 test("Mark all Played asks first", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
-  await page.getByRole("link", { name: /Deep Field/ }).click()
+  await page.getByRole("link", { name: "Deep Field", exact: true }).click()
   await page.getByRole("button", { name: "Mark all Played" }).click()
   const dialog = page.getByRole("alertdialog", { name: "Mark all Played?" })
   await expect(dialog).toBeVisible()
@@ -89,10 +89,12 @@ test("a Download Rule stores Entries on this Device and Stream lets them go", as
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await page.evaluate(() => navigator.serviceWorker.ready)
-  await page.getByRole("link", { name: /Market Hours/ }).click()
+  await page.getByRole("link", { name: "Market Hours", exact: true }).click()
   await page.getByRole("combobox", { name: /^Downloads on this Device/ }).selectOption("onEntry")
   await page.getByRole("link", { name: "Library" }).first().click()
-  await expect(page.getByRole("heading", { name: /^Downloads Entries · 1/ })).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "Downloads for Market Hours" })).toHaveValue(
+    "onEntry"
+  )
 
   // Market Hours' Entry in Default ends up stored, without anyone pressing Download.
   await page.goto(`${demo.base}/views/new-this-week`)
@@ -100,7 +102,7 @@ test("a Download Rule stores Entries on this Device and Stream lets them go", as
   await expect(row.getByLabel("Downloaded").first()).toBeVisible({ timeout: 20_000 })
 
   await page.goto(`${demo.base}/library`)
-  await page.getByRole("link", { name: /Market Hours/ }).click()
+  await page.getByRole("link", { name: "Market Hours", exact: true }).click()
   await page.getByRole("combobox", { name: /^Downloads on this Device/ }).selectOption("never")
   await page.goto(`${demo.base}/views/new-this-week`)
   await expect(row.getByLabel("Downloaded")).toHaveCount(0, { timeout: 20_000 })
@@ -121,24 +123,50 @@ test("?add=true opens Add podcasts once, and Esc closes it", async ({ page }) =>
 test("right-click on a Subscription changes its Download Rule", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
-  const streams = page.getByRole("region", { name: /^Streams/ })
-  const row = streams.getByRole("listitem").first()
-  const name = (await row.locator(".font-medium").first().textContent()) ?? ""
-  await row.click({ button: "right" })
+  const rule = page.getByRole("combobox", { name: "Downloads for Deep Field" })
+  await expect(rule).toHaveValue("never")
+  // Away from the title link, which keeps the browser's own menu.
+  await page
+    .getByRole("row", { name: /Deep Field/ })
+    .getByRole("cell")
+    .nth(2)
+    .click({ button: "right" })
   const menu = page.getByRole("menu")
   await expect(menu.getByRole("menuitemcheckbox", { name: "Stream" })).toBeChecked()
   await menu.getByRole("menuitemcheckbox", { name: "Download Entries" }).click()
-  await expect(
-    page
-      .getByRole("region", { name: /^Downloads Entries/ })
-      .getByRole("link", { name: new RegExp(`^${name}`) })
-  ).toBeVisible()
+  await expect(rule).toHaveValue("onEntry")
+})
+
+test("on desktop, ticked podcasts change Download Rule together, with Undo", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("checkbox", { name: "Tick Deep Field" }).check()
+  await page.getByRole("checkbox", { name: "Tick Slow Build" }).check()
+  const bar = page.getByRole("region", { name: "Change ticked podcasts" })
+  await bar.getByRole("combobox").selectOption("allNew")
+  await bar.getByRole("button", { name: "Apply to 2" }).click()
+  const deep = page.getByRole("combobox", { name: "Downloads for Deep Field" })
+  const slow = page.getByRole("combobox", { name: "Downloads for Slow Build" })
+  await expect(deep).toHaveValue("allNew")
+  await expect(slow).toHaveValue("allNew")
+  await expect(page.getByRole("combobox", { name: "Downloads for Market Hours" })).toHaveValue(
+    "never"
+  )
+  await page.getByRole("button", { name: "Undo" }).click()
+  await expect(deep).toHaveValue("never")
+  await expect(slow).toHaveValue("never")
+})
+
+test("on the phone, the Library is grouped by Download Rule", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/library`)
+  await expect(page.getByRole("heading", { name: "Streams · 3" })).toBeVisible()
 })
 
 test("Unsubscribe that fails says so in its dialog, with Try again", async ({ page, context }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
-  await page.getByRole("link", { name: /Slow Build/ }).click()
+  await page.getByRole("link", { name: "Slow Build", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Slow Build", level: 1 })).toBeVisible()
   await context.setOffline(true)
   await page.getByRole("button", { name: "Unsubscribe" }).click()

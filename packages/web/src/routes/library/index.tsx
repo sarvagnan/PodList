@@ -6,21 +6,28 @@ import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
 import type * as React from "react"
 import { useEffect, useState } from "react"
-import { subscriptionsAtom } from "../../app/data.ts"
+import { type SubscriptionSummary, subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
+import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { useCopyText } from "../../components/feedback/useCopyLink.ts"
 import { AddPodcastSheet } from "../../components/library/AddPodcastSheet.tsx"
+import {
+  LibraryBulkBar,
+  LibraryTable,
+  type Mode,
+  ruleOptions
+} from "../../components/library/LibraryTable.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
-import { RowMenu } from "../../components/lists/RowMenu.tsx"
+import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useMinWidth } from "../../lib/useWide.ts"
 
 // The Library (docs/design/ui-layout.md › Library and Subscriptions): every Subscription,
 // each opening its settings and Episodes; Add finds podcasts, takes a feed address or an
 // OPML file. Grouping by Download Rule arrives with Download Rules (pod-g1v.5).
 
-type Mode = "never" | "onEntry" | "allNew"
 /** The Download Rules, as a row's menu offers them. */
 const rules: ReadonlyArray<readonly [Mode, string]> = [
   ["allNew", "Download Every New Episode"],
@@ -55,29 +62,75 @@ function LibraryScreen() {
   }, [addFromUrl, navigate])
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
-  const modeOf = (subscriptionId: string) =>
-    state?.downloadRules.find((r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId)
-      ?.mode ?? "never"
-  const record = useAtomSet(recordAtom)
-  const setRule = (subscriptionId: string, mode: Mode) =>
-    record(
-      decodeChange({
-        _tag: "SetDownloadRule",
-        rule: {
-          subscriptionId,
-          deviceId,
-          mode,
-          // Every new Episode keeps what the Subscription's screen last set.
-          keepAtMost:
-            mode === "allNew"
-              ? (state?.downloadRules.find(
-                  (r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId
-                )?.keepAtMost ?? null)
-              : null
-        }
-      })
+  const ruleOf = (subscriptionId: string) => {
+    const rule = state?.downloadRules.find(
+      (r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId
     )
+    return { mode: rule?.mode ?? ("never" as Mode), keepAtMost: rule?.keepAtMost ?? null }
+  }
+  const modeOf = (subscriptionId: string) => ruleOf(subscriptionId).mode
+  const record = useAtomSet(recordAtom)
+  const confirm = useConfirm()
+  const ruleChange = (subscriptionId: string, mode: Mode, keepAtMost: number | null) =>
+    decodeChange({
+      _tag: "SetDownloadRule",
+      rule: {
+        subscriptionId,
+        deviceId,
+        mode,
+        // Every new Episode keeps what the Subscription's screen last set.
+        keepAtMost: mode === "allNew" ? keepAtMost : null
+      }
+    })
+  /** Sets the rule for these podcasts; more than one at once is one step, with Undo. */
+  const setRules = (subscriptionIds: ReadonlyArray<string>, mode: Mode) => {
+    const before = subscriptionIds.map((id) => ({ id, ...ruleOf(id) }))
+    const apply = () => {
+      for (const { id, keepAtMost } of before) record(ruleChange(id, mode, keepAtMost))
+    }
+    apply()
+    if (subscriptionIds.length < 2) return
+    const label = ruleOptions.find(([m]) => m === mode)?.[1] ?? mode
+    const step = {
+      message: `Downloads on this Device set to “${label}” for ${subscriptionIds.length} podcasts`,
+      undo: before.map((b) => ruleChange(b.id, b.mode, b.keepAtMost))
+    }
+    confirm(step, async () => {
+      apply()
+      return step
+    })
+  }
   const copy = useCopyText()
+  const wide = useMinWidth("64rem")
+  // Ticked rows of the desktop table; only podcasts still in the Library count.
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
+  const chosen = wide ? subscriptions.filter((s) => ticked.has(s.id)).map((s) => s.id) : []
+  // Esc clears the ticks, as in a View.
+  const anyTicked = chosen.length > 0
+  useEffect(() => {
+    if (!anyTicked) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (document.querySelector('[data-sheet], [role="alertdialog"], [role="menu"]')) return
+      setTicked(new Set())
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [anyTicked])
+  const commandsFor = (s: SubscriptionSummary): ReadonlyArray<RowCommand> => [
+    {
+      label: "Open",
+      run: () => void navigate({ to: "/library/$subscriptionId", params: { subscriptionId: s.id } })
+    },
+    { separator: true },
+    ...rules.map(([ruleMode, label]) => ({
+      label,
+      checked: modeOf(s.id) === ruleMode,
+      run: () => setRules([s.id], ruleMode)
+    })),
+    { separator: true },
+    { label: "Copy Feed Address", run: () => void copy(() => s.feedUrl, "Feed address") }
+  ]
   const groups = (
     [
       ["allNew", "Downloads every new Episode"],
@@ -106,21 +159,29 @@ function LibraryScreen() {
         title="Library"
         {...(subscriptions.length > 0
           ? {
-              subtitle: `${subscriptions.length} ${subscriptions.length === 1 ? "Subscription" : "Subscriptions"}`
+              subtitle: `${subscriptions.length} ${subscriptions.length === 1 ? "Subscription" : "Subscriptions"}${wide ? " · downloads and settings for this Device" : ""}`
             }
           : {})}
         actions={
-          <div className="flex items-center gap-2">
-            {/* The phone has no sidebar: Settings lives here. */}
-            <Link
-              to="/settings"
-              aria-label="Settings"
-              className="grid size-11 place-items-center rounded-full bg-secondary hover:bg-input active:bg-input/70 md:hidden"
-            >
-              <Settings aria-hidden="true" className="size-5" />
-            </Link>
-            {add}
-          </div>
+          chosen.length > 0 ? (
+            <LibraryBulkBar
+              chosen={chosen}
+              setRules={setRules}
+              onClear={() => setTicked(new Set())}
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              {/* The phone has no sidebar: Settings lives here. */}
+              <Link
+                to="/settings"
+                aria-label="Settings"
+                className="grid size-11 place-items-center rounded-full bg-secondary hover:bg-input active:bg-input/70 md:hidden"
+              >
+                <Settings aria-hidden="true" className="size-5" />
+              </Link>
+              {add}
+            </div>
+          )
         }
       />
       {AsyncResult.isInitial(result) || (subscriptions.length === 0 && !ready) ? (
@@ -130,6 +191,16 @@ function LibraryScreen() {
           Add podcasts by name, by feed address, or from another app’s OPML file. Their Episodes
           then appear in your Views.
         </EmptyState>
+      ) : wide && state !== null ? (
+        <LibraryTable
+          subscriptions={subscriptions}
+          ruleOf={ruleOf}
+          defaultSpeed={state.playbackSettings.speed}
+          setRules={setRules}
+          commandsFor={commandsFor}
+          ticked={ticked}
+          setTicked={setTicked}
+        />
       ) : (
         // Grouped by what this Device stores for each podcast (design C).
         <div className="max-w-[960px] space-y-5 px-3 md:px-6">
@@ -146,27 +217,7 @@ function LibraryScreen() {
                   {items.map((s) => (
                     <RowMenu
                       key={s.id}
-                      commands={[
-                        {
-                          label: "Open",
-                          run: () =>
-                            void navigate({
-                              to: "/library/$subscriptionId",
-                              params: { subscriptionId: s.id }
-                            })
-                        },
-                        { separator: true },
-                        ...rules.map(([ruleMode, label]) => ({
-                          label,
-                          checked: mode === ruleMode,
-                          run: () => setRule(s.id, ruleMode)
-                        })),
-                        { separator: true },
-                        {
-                          label: "Copy Feed Address",
-                          run: () => void copy(() => s.feedUrl, "Feed address")
-                        }
-                      ]}
+                      commands={commandsFor(s)}
                       link={`/library/${s.id}`}
                       render={
                         // biome-ignore lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.

@@ -59,6 +59,10 @@ export interface SubscriptionSummary {
   readonly author: string | null
   readonly artworkUrl: string | null
   readonly unplayed: number
+  /** This podcast's own speed, or null for the default. */
+  readonly speed: number | null
+  /** How many settings differ from the defaults (overrides and the Played threshold). */
+  readonly customSettings: number
 }
 
 export const subscriptionsAtom = runtime
@@ -66,11 +70,32 @@ export const subscriptionsAtom = runtime
     Effect.gen(function* () {
       get(stateAtom)
       const sql = yield* SqlClient.SqlClient
-      return yield* sql<SubscriptionSummary>`
+      const rows = yield* sql<
+        Omit<SubscriptionSummary, "speed" | "customSettings"> & {
+          readonly playbackSettings: string
+          readonly playedThreshold: number | null
+        }
+      >`
       SELECT s.id, s.feed_url AS feedUrl, s.title, s.author, s.artwork_url AS artworkUrl,
+        s.playback_settings AS playbackSettings, s.played_threshold AS playedThreshold,
         (SELECT count(*) FROM episode e LEFT JOIN episode_state st ON st.episode_id = e.id
           WHERE e.subscription_id = s.id AND st.played_at IS NULL) AS unplayed
       FROM subscription s WHERE s.unsubscribed_at IS NULL ORDER BY s.title COLLATE NOCASE`
+      return rows.map(({ playbackSettings, playedThreshold, ...row }): SubscriptionSummary => {
+        let overrides: PlaybackSettings.PlaybackSettingsOverride = {}
+        try {
+          overrides = JSON.parse(playbackSettings) as PlaybackSettings.PlaybackSettingsOverride
+        } catch {
+          // Unreadable overrides count as none.
+        }
+        return {
+          ...row,
+          speed: overrides.speed ?? null,
+          customSettings:
+            Object.values(overrides).filter((v) => v !== undefined).length +
+            (playedThreshold === null ? 0 : 1)
+        }
+      })
     })
   )
   .pipe(Atom.withReactivity([catalogueKey]))

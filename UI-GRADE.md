@@ -49,7 +49,7 @@ Fixed on 7 Nov:
 - [x] BROWSER-06 links, fields and selected text in a row keep the browser's menu; on desktop only an Entry's or Subscription's title is a link, and the rest of the row opens it and has the row's menu · WKEY-03 after a toast's Undo focus goes to what it brought back; after Subscribe to "Subscribed"; the Add sheet returns focus to its opener · WDATA-04 Unsubscribe errors stay in their dialog with Try again; a failed copy stays with Try again · START-02 Settings › Help › Show getting started, and the Mac app's Help › Getting Started.
 - [x] Minors: FLOW-06 Search keeps its scope line, with the count beside it · APPEAR-10 fields and selects have a 3.6:1 edge.
 - [x] Craft: the desktop player title uses its column; Subscription settings fold away below 1024 px; the phone's five Episode actions share one row; one settings row for Settings and Subscriptions; "Subscribed to" names the podcast; a "Next/Last to" label at every width; Switch Playlist is a filled button; the Trash's empty text; History and Timeline as plain rows; Episode detail capped at 44 rem; short windows tighten the header and player.
-- [ ] Not done: the Library as a desktop table with bulk Download Rule changes (Library C).
+- [x] The Library as a desktop table (Library C): each podcast's Download Rule in its row, ticked rows changed together from the header with Undo; Keep at most and Speed from 1280 px; the phone keeps the grouped list.
 
 ## Work list (round 6)
 

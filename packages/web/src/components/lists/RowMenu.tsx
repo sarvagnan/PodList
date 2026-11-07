@@ -74,6 +74,8 @@ export function RowMenuItems({
         key={command.label}
         checked={command.checked}
         onCheckedChange={command.run}
+        // A choice made from a right-click menu is the whole errand: the menu goes.
+        closeOnClick
         className={`${itemClass} gap-2 pl-2`}
       >
         <span className="grid w-4 place-items-center">
