@@ -22,20 +22,34 @@ export interface EpisodeSummary {
 export const entryEpisodesAtom = runtime
   .atom((get) =>
     Effect.gen(function* () {
-      get(stateAtom)
+      // Every Episode a Playlist mentions: its Entries, and what its History and Listening
+      // Timeline name, which may have left it (Clear on Played, Remove).
+      const state = get(stateAtom)
+      const ids = new Set<string>()
+      if (AsyncResult.isSuccess(state)) {
+        for (const p of state.value.playlists) {
+          for (const e of p.entries) ids.add(e.episodeId)
+          for (const h of p.history) ids.add(h.episodeId)
+          for (const t of p.timeline) ids.add(t.episodeId)
+          for (const e of p.edits ?? []) ids.add(e.episodeId)
+        }
+      }
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<{
-        id: string
-        title: string
-        podcast: string
-        duration: number | null
-        artwork_url: string | null
-        podcast_artwork_url: string | null
-      }>`SELECT DISTINCT e.id, e.title, s.title AS podcast, e.duration, e.artwork_url,
-         s.artwork_url AS podcast_artwork_url
-       FROM entry_index x
-       JOIN episode e ON e.id = x.episode_id
-       JOIN subscription s ON s.id = e.subscription_id`
+      const rows =
+        ids.size === 0
+          ? []
+          : yield* sql<{
+              id: string
+              title: string
+              podcast: string
+              duration: number | null
+              artwork_url: string | null
+              podcast_artwork_url: string | null
+            }>`SELECT e.id, e.title, s.title AS podcast, e.duration, e.artwork_url,
+               s.artwork_url AS podcast_artwork_url
+             FROM episode e
+             JOIN subscription s ON s.id = e.subscription_id
+             WHERE ${sql.in("e.id", [...ids])}`
       return new Map<string, EpisodeSummary>(
         rows.map((r) => [
           r.id,

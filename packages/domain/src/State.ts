@@ -77,6 +77,15 @@ export interface Context {
 
 const findPlaylist = (state: State, id: PlaylistId) => state.playlists.find((p) => p.id === id)
 
+/** The Playlist after an edit, with the edit recorded; no change records nothing. */
+const edited = (
+  before: Playlist,
+  after: Playlist,
+  kind: "added" | "moved" | "removed",
+  episodeId: EpisodeId,
+  at: EpochMillis
+) => (after === before ? before : TimelineRules.recordEdit(after, kind, episodeId, at))
+
 const withPlaylist = (state: State, id: PlaylistId, f: (p: Playlist) => Playlist): State => {
   const playlist = findPlaylist(state, id)
   if (playlist === undefined) return state
@@ -114,17 +123,36 @@ export const apply = (state: State, change: Change, context: Context): State =>
 
 const applyChange = (state: State, change: Change, context: Context): State => {
   switch (change._tag) {
+    // Each edit that changes the Playlist goes on its Listening Timeline too.
     case "AddEntry":
       return withPlaylist(state, change.playlistId, (p) =>
-        PlaylistRules.addEntry(p, change.episodeId, change.placement, context.at)
+        edited(
+          p,
+          PlaylistRules.addEntry(p, change.episodeId, change.placement, context.at),
+          "added",
+          change.episodeId,
+          context.at
+        )
       )
     case "MoveEntry":
       return withPlaylist(state, change.playlistId, (p) =>
-        PlaylistRules.moveEntry(p, change.episodeId, change.after)
+        edited(
+          p,
+          PlaylistRules.moveEntry(p, change.episodeId, change.after),
+          "moved",
+          change.episodeId,
+          context.at
+        )
       )
     case "RemoveEntry":
       return withPlaylist(state, change.playlistId, (p) =>
-        PlaylistRules.removeEntry(p, change.episodeId)
+        edited(
+          p,
+          PlaylistRules.removeEntry(p, change.episodeId),
+          "removed",
+          change.episodeId,
+          context.at
+        )
       )
     case "SetCursor":
       return withPlaylist(state, change.playlistId, (p) =>
@@ -194,14 +222,20 @@ const applyChange = (state: State, change: Change, context: Context): State => {
       const source = change.source
       return replace(state, {
         episodeStates: setEpisodeState(state, change.episodeId, { played }),
-        playlists: state.playlists.map((p) =>
-          PlayedRules.onPlayed(
+        playlists: state.playlists.map((p) => {
+          const next = PlayedRules.onPlayed(
             p,
             change.episodeId,
             source._tag === "Playback" && source.playlistId === p.id,
             context.at
           )
-        )
+          // Marked Played by hand, while it was one of this Playlist's Entries.
+          const byHand =
+            source._tag === "User" && p.entries.some((e) => e.episodeId === change.episodeId)
+          return byHand
+            ? TimelineRules.recordEdit(next, "markedPlayed", change.episodeId, context.at)
+            : next
+        })
       })
     }
     case "MarkUnplayed":

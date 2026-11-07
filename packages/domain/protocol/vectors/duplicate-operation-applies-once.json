@@ -1,7 +1,7 @@
 {
   "name": "duplicate-operation-applies-once",
   "description": "An operation delivered twice takes effect once.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -119,7 +119,24 @@
             "followedBy": "B"
           }
         ],
-        "timeline": []
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          }
+        ]
       }
     ],
     "activePlaylistId": "default",

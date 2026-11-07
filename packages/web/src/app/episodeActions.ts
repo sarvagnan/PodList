@@ -1,6 +1,7 @@
 import type { Operation } from "@podlist/domain"
 import { Effect, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
+import { SqlClient } from "effect/sql"
 import {
   changesFor,
   confirmation,
@@ -33,6 +34,20 @@ export const episodeActionAtom = runtime.fn(
               m === "Playing next" ? "Already next" : "Already last"
             )
           : confirmation(action, before)
+      // A removal names what went, as a move does (one message form).
+      if (action._tag === "Remove" && undo.length > 0) {
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ title: string }>`
+          SELECT title FROM episode WHERE id = ${action.episodeId}`.pipe(
+          Effect.orElseSucceed(() => [])
+        )
+        const title = rows[0]?.title
+        if (title)
+          return {
+            message: `Removed “${title}” from ${message.replace(/^Removed from /, "")}`,
+            undo
+          } satisfies Outcome
+      }
       return { message, undo } satisfies Outcome
     }),
   // Actions on different rows must not cancel one another.

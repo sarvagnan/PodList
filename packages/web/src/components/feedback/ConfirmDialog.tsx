@@ -51,7 +51,9 @@ export function ConfirmDialog({
               {problem}
             </p>
           )}
-          <div className="mt-5 flex justify-end gap-3">
+          {/* The same full-width pair as every other dialog's footer; no ×, since an alert
+              asks for an answer. */}
+          <div className="mt-5 grid grid-cols-2 gap-3">
             <AlertDialog.Close className="h-11 rounded-full bg-secondary px-5 font-semibold text-secondary-foreground hover:bg-input">
               Cancel
             </AlertDialog.Close>

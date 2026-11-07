@@ -1,7 +1,7 @@
 {
   "name": "trash-restore-and-expiry",
   "description": "A deleted Playlist goes to the Trash with its Entries and can be restored; once older than the Trash keeps (here 7 days), it is gone and can't be.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {

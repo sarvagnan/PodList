@@ -1,7 +1,7 @@
 {
   "name": "latest-listen-wins",
   "description": "Position reports resolve to the most recent listen regardless of arrival order.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -126,6 +126,23 @@
             "at": 1793751600000,
             "episodeId": "A",
             "position": 600
+          }
+        ],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
           }
         ]
       }

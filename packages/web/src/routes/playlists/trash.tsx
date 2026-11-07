@@ -51,8 +51,15 @@ function Trash() {
               <button
                 type="button"
                 onClick={(event) => {
-                  // Its row goes: focus to the next Restore, or the heading (the shared rule).
-                  focusAfterRemoval(event.currentTarget, "main [data-restore]")
+                  // Its row goes: focus to the next Restore; the last one restored takes focus
+                  // to the Playlist itself in the sidebar, else the heading.
+                  const id = t.playlist.id
+                  focusAfterRemoval(event.currentTarget, "main [data-restore]", () => {
+                    const link = document.querySelector<HTMLElement>(
+                      `nav a[href="/playlists/${CSS.escape(id)}"]`
+                    )
+                    return link?.offsetParent ? link : null
+                  })
                   void restore(t.playlist.id, t.playlist.name)
                 }}
                 data-restore=""

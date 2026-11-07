@@ -1,7 +1,7 @@
 {
   "name": "default-playlist-protected",
   "description": "Default cannot be renamed or deleted; deleting the Active Playlist makes Default Active.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {

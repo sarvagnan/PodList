@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://podlist.local/protocol/v2/operation.schema.json",
-  "$comment": "PodList sync protocol v2. Generated from packages/domain/src/Operation.ts; do not edit.",
+  "$id": "https://podlist.local/protocol/v3/operation.schema.json",
+  "$comment": "PodList sync protocol v3. Generated from packages/domain/src/Operation.ts; do not edit.",
   "$ref": "#/$defs/@podlist~1domain~1OperationEncoded",
   "$defs": {
     "@podlist/domain/ViewEncoded": {

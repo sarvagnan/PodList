@@ -4,7 +4,12 @@
 
 const heading = () => document.querySelector<HTMLElement>("[data-sheet] h2, main h1")
 
-export const focusAfterRemoval = (control: HTMLElement, sameControl?: string) => {
+export const focusAfterRemoval = (
+  control: HTMLElement,
+  sameControl?: string,
+  /** Where focus goes when no peer is left, before the heading (a restored Playlist). */
+  fallback?: () => HTMLElement | null
+) => {
   const peers = sameControl ? [...document.querySelectorAll<HTMLElement>(sameControl)] : []
   const index = peers.indexOf(control)
   const next = index >= 0 ? (peers[index + 1] ?? peers[index - 1]) : undefined
@@ -17,9 +22,9 @@ export const focusAfterRemoval = (control: HTMLElement, sameControl?: string) =>
       const target =
         next?.isConnected === true
           ? next
-          : sameControl
-            ? (document.querySelector<HTMLElement>(sameControl) ?? heading())
-            : heading()
+          : ((sameControl ? document.querySelector<HTMLElement>(sameControl) : null) ??
+            fallback?.() ??
+            heading())
       target?.focus({ preventScroll: true })
     })
   )

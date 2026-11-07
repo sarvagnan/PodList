@@ -1,7 +1,7 @@
 {
   "name": "two-devices-offline",
   "description": "Offline reorder on one Device merges with adds and removes from another.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -137,7 +137,39 @@
         ],
         "cursor": "A",
         "history": [],
-        "timeline": []
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "D"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "removed",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "moved",
+            "episodeId": "C"
+          }
+        ]
       }
     ],
     "activePlaylistId": "default",

@@ -1,7 +1,7 @@
 {
   "name": "user-played-adds-no-history",
   "description": "Marking Played by hand clears Entries but records no History.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -98,7 +98,29 @@
         ],
         "cursor": "B",
         "history": [],
-        "timeline": []
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "markedPlayed",
+            "episodeId": "A"
+          }
+        ]
       }
     ],
     "activePlaylistId": "default",

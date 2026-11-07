@@ -1,5 +1,5 @@
 import type { EpisodeId } from "./Ids.ts"
-import { Playlist, TimelinePoint } from "./Playlist.ts"
+import { Playlist, PlaylistEdit, TimelinePoint } from "./Playlist.ts"
 import type { EpochMillis, Seconds } from "./Units.ts"
 
 /** The Listening Timeline keeps 30 days (Q43). */
@@ -29,3 +29,20 @@ export const record = (
 /** The last point at or before `to`, which is where a Rewind returns to. */
 export const pointAt = (playlist: Playlist, to: EpochMillis): TimelinePoint | undefined =>
   playlist.timeline.findLast((t) => t.at <= to)
+
+/** At most this many edits are kept per Playlist, besides the 30 days. */
+export const editLimit = 300
+
+/** Records one of the person's own edits, for the Listening Timeline. */
+export const recordEdit = (
+  playlist: Playlist,
+  kind: PlaylistEdit["kind"],
+  episodeId: EpisodeId,
+  at: EpochMillis
+): Playlist => {
+  const edits = [...(playlist.edits ?? []), new PlaylistEdit({ at, kind, episodeId })]
+    .filter((e) => e.at >= at - retentionMillis)
+    .sort((a, b) => a.at - b.at)
+    .slice(-editLimit)
+  return new Playlist({ ...playlist, edits })
+}

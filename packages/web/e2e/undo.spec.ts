@@ -26,7 +26,7 @@ test("removes an Entry, and Cmd/Ctrl-Z puts it back after the toast", async ({ p
   const before = await titles(page)
   const victim = before[1] ?? ""
   await page.getByRole("button", { name: `Remove ${victim} from Commute` }).click()
-  await expect(page.getByText("Removed from Commute")).toBeVisible()
+  await expect(page.getByText(`Removed “${victim}” from Commute`)).toBeVisible()
   await expect.poll(() => titles(page)).not.toContain(victim)
 
   // A second step hides the first toast; the shortcut walks back through both.
@@ -66,7 +66,7 @@ test("Cmd/Ctrl-Shift-Z does an undone step again", async ({ page }) => {
   await expect.poll(() => titles(page)).toEqual(before)
   await page.keyboard.press("ControlOrMeta+Shift+z")
   await expect.poll(() => titles(page)).not.toContain(victim)
-  await expect(page.getByText(`Redone: Removed from Commute`)).toBeVisible()
+  await expect(page.getByText(/^Redone: Removed “.+” from Commute/)).toBeVisible()
 })
 
 test("removing a row by keyboard keeps focus in the list", async ({ page }) => {
@@ -109,7 +109,7 @@ test("an Undo toast is named by what it says", async ({ page }) => {
   await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const [first] = await titles(page)
   await page.getByRole("button", { name: `Remove ${first} from Commute` }).click()
-  await expect(page.getByRole("dialog", { name: /^Removed from Commute/ })).toBeVisible()
+  await expect(page.getByRole("dialog", { name: /^Removed “.+” from Commute/ })).toBeVisible()
 })
 
 test("Cmd/Ctrl-Z closes the step's own Undo toast", async ({ page }) => {
@@ -118,11 +118,11 @@ test("Cmd/Ctrl-Z closes the step's own Undo toast", async ({ page }) => {
   await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const [first] = await titles(page)
   await page.getByRole("button", { name: `Remove ${first} from Commute` }).click()
-  const original = page.getByRole("dialog", { name: /^Removed from Commute/ })
+  const original = page.getByRole("dialog", { name: /^Removed “.+” from Commute/ })
   await expect(original).toBeVisible()
   await page.locator("main h1").click()
   await page.keyboard.press("ControlOrMeta+z")
-  await expect(page.getByText(/^Undone: Removed from Commute/)).toBeVisible()
+  await expect(page.getByText(/^Undone: Removed “.+” from Commute/)).toBeVisible()
   await expect(original).toHaveCount(0)
   // It doesn't come back once the "Undone" note has gone.
   await page.waitForTimeout(4500)

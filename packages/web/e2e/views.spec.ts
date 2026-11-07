@@ -154,3 +154,20 @@ test("on the phone, Refine opens the View form under the field", async ({ page }
   await expect(refine).toHaveAttribute("aria-expanded", "true")
   await expect(page.getByRole("combobox", { name: "Played" })).toBeVisible()
 })
+
+test("New View twice leaves one View; an untouched one goes, with Undo", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views/short`)
+  const sidebar = page.getByRole("navigation", { name: "Library and lists" })
+  const newView = sidebar.getByRole("button", { name: "New View" })
+  await newView.click()
+  await expect(page).toHaveURL(/edit=true/)
+  await newView.click()
+  await expect(page.getByText(/^Discarded empty View/)).toBeVisible()
+  await expect(sidebar.getByRole("link", { name: /^New View/ })).toHaveCount(1)
+  // Leaving the second untouched takes it away too; Undo brings it back.
+  await sidebar.getByRole("link", { name: "Under 30 minutes" }).click()
+  await expect(sidebar.getByRole("link", { name: /^New View/ })).toHaveCount(0)
+  await page.getByRole("button", { name: "Undo" }).last().click()
+  await expect(sidebar.getByRole("link", { name: /^New View/ })).toHaveCount(1)
+})

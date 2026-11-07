@@ -1,7 +1,7 @@
 {
   "name": "clear-on-played-everywhere",
   "description": "Played in Replay clears it from Default; Replay keeps it at 0:00 and moves on.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -135,7 +135,24 @@
         ],
         "cursor": "A",
         "history": [],
-        "timeline": []
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          }
+        ]
       },
       {
         "id": "replay",
@@ -162,7 +179,19 @@
             "followedBy": "C"
           }
         ],
-        "timeline": []
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          }
+        ]
       }
     ],
     "activePlaylistId": "default",

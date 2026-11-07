@@ -13,7 +13,7 @@ import { NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { TargetPanel } from "../../components/episodes/TargetPanel.tsx"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
-import { useViewActions } from "../../components/views/useViewActions.ts"
+import { untouched, useViewActions } from "../../components/views/useViewActions.ts"
 import { ViewForm } from "../../components/views/ViewForm.tsx"
 import { firstRunDone } from "../../lib/remembered.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -34,7 +34,7 @@ function ViewDetail() {
   const { episode: selected, edit: editing = false } = Route.useSearch()
   const navigate = Route.useNavigate()
   const wide = useMinWidth("64rem")
-  const { remove } = useViewActions()
+  const { remove, discard } = useViewActions()
   // Desktop bulk selection, kept per View: another View starts with none. Escape clears it.
   const [selection, setSelection] = useState<{
     readonly viewId: string
@@ -51,6 +51,21 @@ function ViewDetail() {
     setSelection({ viewId, ids: update(checked) })
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const view = state?.views.find((v) => v.id === viewId)
+  // A new View left as New View made it (no name, no condition) goes when it's left. Each
+  // View is remembered by its id: going to another View renders that one first.
+  const seen = useRef(new Map<string, NonNullable<typeof view>>())
+  if (view) seen.current.set(view.id, view)
+  const drop = useRef(discard)
+  drop.current = discard
+  useEffect(
+    () => () => {
+      const left = seen.current.get(viewId)
+      // Only once it's really left (not React re-running effects on the same screen).
+      const still = window.location.pathname === `/views/${viewId}`
+      if (!still && left !== undefined && untouched(left)) void drop.current(left)
+    },
+    [viewId]
+  )
   const ready = useLibraryReady()
   const subscriptionsResult = useAtomValue(subscriptionsAtom)
   const noPodcasts =

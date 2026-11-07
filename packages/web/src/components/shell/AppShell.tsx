@@ -69,7 +69,7 @@ function TrackTitle({ title, className }: { readonly title: string; readonly cla
             <span className="block h-3.5 w-40 max-w-full rounded bg-player-track" />
           </span>
           <span
-            className={`hidden h-[1lh] items-center font-semibold @max-[9rem]:flex ${className}`}
+            className={`hidden h-[1lh] items-center font-semibold @max-[6rem]:flex ${className}`}
           >
             <span className="block h-3.5 w-20 max-w-full rounded bg-player-track" />
           </span>
@@ -81,7 +81,7 @@ function TrackTitle({ title, className }: { readonly title: string; readonly cla
   // text is large for the space (WTYPE-02), measured in rem.
   return (
     <div className="@container min-w-0">
-      <p className={`line-clamp-1 font-semibold break-words @max-[9rem]:line-clamp-2 ${className}`}>
+      <p className={`line-clamp-1 font-semibold break-words @max-[6rem]:line-clamp-2 ${className}`}>
         {title || "Episode unavailable"}
       </p>
     </div>

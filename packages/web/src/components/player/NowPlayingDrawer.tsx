@@ -16,7 +16,7 @@ import {
   SkipForward,
   X
 } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
@@ -71,17 +71,22 @@ function useDrawer() {
 function PillButton({
   icon,
   children,
-  onClick
+  onClick,
+  opens
 }: {
   readonly icon: ReactNode
   readonly children: ReactNode
   readonly onClick: () => void
+  /** The drawer page it opens, so focus can come back to it. */
+  readonly opens?: string
 }) {
   return (
     <button
       type="button"
+      data-opens-page={opens}
       onClick={onClick}
-      className="inline-flex h-11 items-center gap-2 rounded-full bg-player-track px-4 text-row font-medium hover:bg-player-track/80 active:bg-player-track/60"
+      // Three fit one row on a phone (Chapters · Episode · Up next).
+      className="inline-flex h-11 items-center gap-1.5 rounded-full bg-player-track px-3 text-row font-medium whitespace-nowrap hover:bg-player-track/80 active:bg-player-track/60"
     >
       {icon}
       {children}
@@ -208,6 +213,7 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
           <span className="md:hidden">
             <PillButton
               icon={<ListOrdered aria-hidden="true" className="size-4" />}
+              opens="chapters"
               onClick={() => push("chapters")}
             >
               Chapters
@@ -216,6 +222,7 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
         )}
         <PillButton
           icon={<BookOpen aria-hidden="true" className="size-4" />}
+          opens="episode"
           onClick={() => push("episode")}
         >
           Episode
@@ -223,6 +230,7 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
         <span className="md:hidden">
           <PillButton
             icon={<ListMusic aria-hidden="true" className="size-4" />}
+            opens="queue"
             onClick={() => push("queue")}
           >
             {queued > 0 ? `Up next · ${queued}` : "Up next"}
@@ -358,6 +366,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
         <p className="text-small text-player-muted">From {playlist.name}</p>
         <button
           type="button"
+          data-opens-page="playlists"
           onClick={() => push("playlists")}
           className="h-10 rounded-full bg-player-track px-4 text-row font-medium text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
         >
@@ -479,6 +488,25 @@ export function NowPlayingDrawer() {
       d.stack.length > 0 ? { ...d, stack: d.stack.slice(0, -1) } : { open: false, stack: [] }
     )
   )
+  // A page's heading takes focus as the page opens, as a screen's does, so a screen reader
+  // starts at the page rather than reading the whole drawer; going back returns focus to
+  // the button that opened it.
+  const shown = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const left = shown.current
+    shown.current = drawer.open ? page : undefined
+    if (!drawer.open || page === left) return
+    const target = () =>
+      page !== undefined
+        ? document.querySelector<HTMLElement>("[data-sheet=drawer] [data-page-title]")
+        : left !== undefined
+          ? document.querySelector<HTMLElement>(`[data-sheet=drawer] [data-opens-page="${left}"]`)
+          : null
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => target()?.focus({ preventScroll: true }))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [page, drawer.open])
   if (current === null) return null
   return (
     <Drawer.Root
@@ -527,7 +555,11 @@ export function NowPlayingDrawer() {
             {/* The top page's heading names the dialog (AX-01), as the Episode's title does
                 on the main page. */}
             {page && (
-              <Drawer.Title className="flex-1 text-center text-row font-semibold">
+              <Drawer.Title
+                tabIndex={-1}
+                data-page-title=""
+                className="flex-1 text-center text-row font-semibold"
+              >
                 {pageTitles[page]}
               </Drawer.Title>
             )}

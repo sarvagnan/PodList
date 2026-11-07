@@ -2,7 +2,15 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import type { Playlist } from "@podlist/domain"
 import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { History as HistoryIcon, Play, RotateCcw } from "lucide-react"
+import {
+  ArrowUpDown,
+  Check,
+  History as HistoryIcon,
+  Minus,
+  Play,
+  Plus,
+  RotateCcw
+} from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState } from "../../app/hooks.ts"
@@ -100,6 +108,20 @@ export function PlaylistHistory({ playlist }: { readonly playlist: Playlist.Play
   )
 }
 
+const editIconClass = "size-4 shrink-0 text-muted-foreground"
+const editIcon = {
+  added: <Plus aria-hidden="true" className={editIconClass} />,
+  moved: <ArrowUpDown aria-hidden="true" className={editIconClass} />,
+  removed: <Minus aria-hidden="true" className={editIconClass} />,
+  markedPlayed: <Check aria-hidden="true" className={editIconClass} />
+} as const
+const editWords = {
+  added: ["You added ", ""],
+  moved: ["You moved ", ""],
+  removed: ["You removed ", ""],
+  markedPlayed: ["You marked ", " Played"]
+} as const
+
 export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Playlist }) {
   const state = useAppState()
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
@@ -135,13 +157,14 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
   return (
     <>
       <p className="max-w-[70ch] px-5 pb-6 text-small text-muted-foreground md:px-8">
-        What {playlist.name} played, kept for 30 days. Rewind takes playback back to a moment;
-        Entries you added or moved since, and Episodes you marked Played yourself, stay as they are.
+        What {playlist.name} played, and your own changes to it, kept for 30 days. Rewind takes
+        playback back to a moment; Entries you added or moved since, and Episodes you marked Played
+        yourself, stay as they are.
       </p>
       <ByDay items={events} at={momentOf}>
         {(event) => (
           <li
-            key={`${event._tag}-${event.episodeId}-${momentOf(event)}`}
+            key={`${event._tag}-${event._tag === "Edited" ? event.kind : ""}-${event.episodeId}-${momentOf(event)}`}
             className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-2 py-2 last:border-b-0"
           >
             <span className="w-12 shrink-0 text-small text-muted-foreground tabular-nums">
@@ -149,20 +172,34 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
             </span>
             {event._tag === "Finished" ? (
               <HistoryIcon aria-hidden="true" className="size-4 shrink-0 text-positive" />
+            ) : event._tag === "Edited" ? (
+              editIcon[event.kind]
             ) : (
               <Play aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
             )}
             <span className="min-w-0 grow basis-[12rem]">
               <span className="block text-row">
-                {event._tag === "Finished" ? "Finished " : "Listened to "}
-                <span className="font-medium">{title(event.episodeId)}</span>
+                {event._tag === "Edited" ? (
+                  // Your own edits: kept by a Rewind, and said as yours.
+                  <>
+                    {editWords[event.kind][0]}
+                    <span className="font-medium">{title(event.episodeId)}</span>
+                    {editWords[event.kind][1]}
+                  </>
+                ) : (
+                  <>
+                    {event._tag === "Finished" ? "Finished " : "Listened to "}
+                    <span className="font-medium">{title(event.episodeId)}</span>
+                  </>
+                )}
               </span>
               {event._tag === "Listened" && (
                 <span className="block text-small text-muted-foreground tabular-nums">
-                  {/* A listen that didn't move gives one time, not "12:34 → 12:34". */}
+                  {/* A place in the Episode, said as one, so it doesn't read as a second clock
+                      beside the time of day; a listen that didn't move gives one place. */}
                   {Math.round(event.to) === Math.round(event.from)
-                    ? `at ${formatTime(event.from)}`
-                    : `${formatTime(event.from)} → ${formatTime(event.to)}`}
+                    ? `At ${formatTime(event.from)} in the Episode`
+                    : `${formatTime(event.from)} to ${formatTime(event.to)} in the Episode`}
                   {event.end > event.start ? ` · until ${clock(event.end)}` : ""}
                 </span>
               )}

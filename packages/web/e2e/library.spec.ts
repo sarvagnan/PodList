@@ -331,6 +331,7 @@ test("an OPML file can be dropped on Add podcasts, and a stray drop is refused",
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
+  await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible()
   // A file dropped outside a drop area doesn't navigate away.
   const strayRefused = await page.evaluate(() => {
     const data = new DataTransfer()

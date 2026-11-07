@@ -1,7 +1,7 @@
 {
   "name": "rewind-after-sleep",
   "description": "Rewind undoes playback since the moment and keeps deliberate edits.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -243,6 +243,38 @@
             "at": 1793754060000,
             "episodeId": "C",
             "position": 20
+          }
+        ],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "D"
+          },
+          {
+            "at": 1793753400000,
+            "kind": "added",
+            "episodeId": "X"
+          },
+          {
+            "at": 1793753700000,
+            "kind": "markedPlayed",
+            "episodeId": "D"
           }
         ]
       }

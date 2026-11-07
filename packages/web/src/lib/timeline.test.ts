@@ -41,7 +41,8 @@ describe("the Listening Timeline", () => {
   it("reads as stretches of listening and finished Episodes, newest first", () => {
     const playlist = listened().playlists[0]
     if (playlist === undefined) throw new Error("no Default Playlist")
-    const events = timelineEvents(playlist)
+    // Playback only: the adds that set it up are edits (below).
+    const events = timelineEvents(playlist).filter((e) => e._tag !== "Edited")
     // A pause of more than 10 minutes (10 → 30) starts a new stretch.
     expect(events.map((e) => [e._tag, e.episodeId])).toEqual([
       ["Listened", "B"],
@@ -66,5 +67,26 @@ describe("the Listening Timeline", () => {
     expect(back.playlists[0]?.entries.map((e) => e.episodeId)).toEqual(["B"])
     expect(back.playlists[0]?.cursor).toBe("B")
     expect(back.episodeStates.A?.played).not.toBeNull()
+  })
+})
+
+describe("your own edits on the Listening Timeline", () => {
+  it("lists adds, moves, removals and hand-marked Played, newest first; playback isn't an edit", () => {
+    let s = listened()
+    s = run(s, 40, { _tag: "AddEntry", playlistId: "default", episodeId: "C", placement: "last" })
+    s = run(s, 41, { _tag: "MoveEntry", playlistId: "default", episodeId: "C", after: null })
+    s = run(s, 42, { _tag: "MarkPlayed", episodeId: "B", source: { _tag: "User" } })
+    s = run(s, 43, { _tag: "RemoveEntry", playlistId: "default", episodeId: "C" })
+    const playlist = s.playlists.find((p) => p.id === "default")
+    if (playlist === undefined) throw new Error("no Default Playlist")
+    const edits = timelineEvents(playlist).filter((e) => e._tag === "Edited")
+    expect(edits.map((e) => (e._tag === "Edited" ? `${e.kind} ${e.episodeId}` : ""))).toEqual([
+      "removed C",
+      "markedPlayed B",
+      "moved C",
+      "added C",
+      "added B",
+      "added A"
+    ])
   })
 })

@@ -1,7 +1,7 @@
 {
   "name": "play-now-next-last",
   "description": "Play Now goes before the current Entry and starts; Next after it; Last at the end.",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "initial": {
     "playlists": [
       {
@@ -141,7 +141,39 @@
         ],
         "cursor": "X",
         "history": [],
-        "timeline": []
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "B"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "C"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "X"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "Y"
+          },
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "Z"
+          }
+        ]
       }
     ],
     "activePlaylistId": "default",

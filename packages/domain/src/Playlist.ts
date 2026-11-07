@@ -29,6 +29,13 @@ export class TimelinePoint extends Schema.Class<TimelinePoint>("@podlist/domain/
   position: Seconds
 }) {}
 
+/** One of the person's own edits to a Playlist, shown on its Listening Timeline. */
+export class PlaylistEdit extends Schema.Class<PlaylistEdit>("@podlist/domain/PlaylistEdit")({
+  at: EpochMillis,
+  kind: Schema.Literals(["added", "moved", "removed", "markedPlayed"]),
+  episodeId: EpisodeId
+}) {}
+
 /** An ordered collection of Entries with its own playback state. */
 export class Playlist extends Schema.Class<Playlist>("@podlist/domain/Playlist")({
   id: PlaylistId,
@@ -43,7 +50,9 @@ export class Playlist extends Schema.Class<Playlist>("@podlist/domain/Playlist")
   /** Most recent first, capped at `historyLimit` items. */
   history: Schema.Array(HistoryItem),
   /** Oldest first, sampled at most once a minute and kept for 30 days. */
-  timeline: Schema.Array(TimelinePoint)
+  timeline: Schema.Array(TimelinePoint),
+  /** The person's own edits, oldest first, kept as long as the Timeline (30 days). */
+  edits: Schema.optionalKey(Schema.Array(PlaylistEdit))
 }) {}
 
 export const historyLimit = 500

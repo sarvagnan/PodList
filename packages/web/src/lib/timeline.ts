@@ -16,6 +16,13 @@ export type TimelineEvent =
       readonly to: number
     }
   | { readonly _tag: "Finished"; readonly episodeId: string; readonly at: number }
+  | {
+      /** One of the person's own edits (added, moved, removed, marked Played). */
+      readonly _tag: "Edited"
+      readonly kind: "added" | "moved" | "removed" | "markedPlayed"
+      readonly episodeId: string
+      readonly at: number
+    }
 
 /** Points of one Episode further apart than this start a new stretch. */
 const gapMillis = 10 * 60_000
@@ -42,13 +49,25 @@ export const timelineEvents = (playlist: Playlist.Playlist): ReadonlyArray<Timel
   for (const h of playlist.history) {
     events.push({ _tag: "Finished", episodeId: h.episodeId, at: h.finishedAt })
   }
-  const time = (e: TimelineEvent) => (e._tag === "Finished" ? e.at : e.start)
-  return events.sort((a, b) => time(b) - time(a))
+  // The same edit twice at one moment (one step that added and then moved) shows once.
+  const seen = new Set<string>()
+  for (const e of playlist.edits ?? []) {
+    const key = `${e.kind}\u0000${e.episodeId}\u0000${e.at}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    events.push({ _tag: "Edited", kind: e.kind, episodeId: e.episodeId, at: e.at })
+  }
+  const time = (e: TimelineEvent) => (e._tag === "Listened" ? e.start : e.at)
+  // Newest first; at one moment, what was recorded last comes first.
+  return events
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => time(b.event) - time(a.event) || b.index - a.index)
+    .map(({ event }) => event)
 }
 
 /** The moment a Rewind to this event returns to. */
 export const momentOf = (event: TimelineEvent) =>
-  event._tag === "Finished" ? event.at - 1 : event.start
+  event._tag === "Finished" ? event.at - 1 : event._tag === "Edited" ? event.at : event.start
 
 const change = Schema.decodeUnknownSync(Operation.Change)
 
