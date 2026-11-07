@@ -75,3 +75,21 @@ test("reorders Entries with the keyboard", async ({ page }) => {
   await page.locator("main [role=row]").first().waitFor()
   await expect.poll(() => titles(page)).toEqual([before[1], before[0], ...before.slice(2)])
 })
+
+test("the Listening Timeline rewinds to a moment, with Undo", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.getByRole("button", { name: "History" }).click()
+  await expect(page).toHaveURL(/tab=history/)
+  await expect(page.getByRole("button", { name: "History" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  )
+  await page.getByRole("button", { name: "Listening Timeline" }).click()
+  await page.getByRole("button", { name: "Rewind to here" }).first().click()
+  const dialog = page.getByRole("alertdialog", { name: /^Rewind Default to/ })
+  await expect(dialog).toContainText("Kept: Entries you added or moved since")
+  await dialog.getByRole("button", { name: "Rewind" }).click()
+  await expect(page.getByText(/^Rewound Default to/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Undo" })).toBeVisible()
+})

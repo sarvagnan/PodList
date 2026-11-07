@@ -281,27 +281,38 @@ const rewind = (state: State, playlistId: PlaylistId, to: EpochMillis, at: Epoch
     }
   }
 
-  const present = new Set(playlist.entries.map((e) => e.episodeId))
-  const restored = [...new Set([...finished.map((h) => h.episodeId), point.episodeId])].filter(
-    (id) => !present.has(id)
-  )
-  const cursorIndex =
-    playlist.cursor === null
-      ? -1
-      : playlist.entries.findIndex((e) => e.episodeId === playlist.cursor)
-  const insertAt = cursorIndex === -1 ? playlist.entries.length : cursorIndex
-  const restoredEntries = restored.map(
-    (episodeId) => new Entry({ episodeId, position: Seconds.make(0), positionAt: at })
-  )
-  const entries = [
-    ...playlist.entries.slice(0, insertAt),
-    ...restoredEntries,
-    ...playlist.entries.slice(insertAt)
-  ].map((e) =>
-    e.episodeId === point.episodeId
-      ? new Entry({ ...e, position: point.position, positionAt: at })
-      : e
-  )
+  // Entries come back where they were: before the Entry that followed them when they
+  // finished, newest first so earlier ones line up in front; otherwise before the Cursor.
+  let entries = [...playlist.entries]
+  const has = (id: EpisodeId) => entries.some((e) => e.episodeId === id)
+  const restore = (episodeId: EpisodeId, followedBy: EpisodeId | null | undefined) => {
+    if (has(episodeId)) return
+    const anchor =
+      followedBy != null && has(followedBy)
+        ? entries.findIndex((e) => e.episodeId === followedBy)
+        : playlist.cursor !== null && has(playlist.cursor)
+          ? entries.findIndex((e) => e.episodeId === playlist.cursor)
+          : entries.length
+    entries = [
+      ...entries.slice(0, anchor),
+      new Entry({ episodeId, position: Seconds.make(0), positionAt: at }),
+      ...entries.slice(anchor)
+    ]
+  }
+  for (const h of [...finished].reverse()) restore(h.episodeId, h.followedBy)
+  restore(point.episodeId, undefined)
+
+  // Positions go back too: an Entry this playback moved since then returns to where the
+  // Timeline last had it by the moment, or to the start.
+  const movedSince = new Set(playlist.timeline.filter((t) => t.at > to).map((t) => t.episodeId))
+  entries = entries.map((e) => {
+    if (e.episodeId === point.episodeId) {
+      return new Entry({ ...e, position: point.position, positionAt: at })
+    }
+    if (!movedSince.has(e.episodeId)) return e
+    const earlier = playlist.timeline.findLast((t) => t.episodeId === e.episodeId && t.at <= to)
+    return new Entry({ ...e, position: earlier?.position ?? Seconds.make(0), positionAt: at })
+  })
 
   return replace(state, {
     episodeStates,

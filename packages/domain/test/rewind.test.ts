@@ -76,6 +76,27 @@ describe("Rewind", () => {
     expect(def(after).history).toEqual([])
   })
 
+  it("resets what playback moved since then: C, started after the moment, is back at 0:00", () => {
+    const after = replay(...asleep(), rewind(70, 6))
+    expect(def(after).entries.find((e) => e.episodeId === "C")?.position).toBe(0)
+  })
+
+  it("puts restored Entries back where they were, before the Entry that followed them", () => {
+    const s = replay(
+      add(0, "Q"),
+      add(0, "A"),
+      add(0, "B"),
+      report(0, "A", 100),
+      playedBy(10, "A"),
+      report(11, "B", 30),
+      // A deliberate reorder since: Q moves to the end.
+      op(20, { _tag: "MoveEntry", playlistId: "default", episodeId: "Q", after: "B" }),
+      rewind(30, 5)
+    )
+    expect(def(s).entries.map((e) => e.episodeId)).toEqual(["A", "B", "Q"])
+    expect(def(s).cursor).toBe("A")
+  })
+
   it("only undoes Played facts from this Playlist's playback", () => {
     const s = replay(
       add(0, "A"),

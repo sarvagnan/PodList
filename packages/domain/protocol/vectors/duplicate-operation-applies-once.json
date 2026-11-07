@@ -115,7 +115,8 @@
         "history": [
           {
             "episodeId": "A",
-            "finishedAt": 1793752200000
+            "finishedAt": 1793752200000,
+            "followedBy": "B"
           }
         ],
         "timeline": []

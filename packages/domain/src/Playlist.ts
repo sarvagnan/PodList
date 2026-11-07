@@ -17,7 +17,9 @@ export class Entry extends Schema.Class<Entry>("@podlist/domain/Entry")({
 /** An Entry finished by this Playlist's own playback. */
 export class HistoryItem extends Schema.Class<HistoryItem>("@podlist/domain/HistoryItem")({
   episodeId: EpisodeId,
-  finishedAt: EpochMillis
+  finishedAt: EpochMillis,
+  /** The Entry that came next when it finished: where Rewind puts it back. */
+  followedBy: Schema.optionalKey(Schema.NullOr(EpisodeId))
 }) {}
 
 /** One sample of what a Playlist was playing, and where, at a moment (ADR 0006). */

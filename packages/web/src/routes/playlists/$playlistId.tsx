@@ -16,6 +16,7 @@ import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { GridCell } from "../../components/lists/Grid.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { SortableList, SortableRow } from "../../components/lists/SortableRow.tsx"
+import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useRowGrid } from "../../lib/rowGrid.ts"
@@ -25,8 +26,12 @@ import { formatLength, formatTime } from "../../lib/time.ts"
 export const Route = createFileRoute("/playlists/$playlistId")({
   component: PlaylistDetail,
   // Wide screens show an Episode beside the Entries, as beside a View.
-  validateSearch: (search: Record<string, unknown>): { episode?: string } =>
-    typeof search.episode === "string" ? { episode: search.episode } : {}
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { episode?: string; tab?: "history" | "timeline" } => ({
+    ...(typeof search.episode === "string" ? { episode: search.episode } : {}),
+    ...(search.tab === "history" || search.tab === "timeline" ? { tab: search.tab } : {})
+  })
 })
 
 const plainClick = (event: React.MouseEvent) =>
@@ -42,7 +47,7 @@ function PlaylistDetail() {
   const playing = useNowPlaying()
   const act = useEpisodeActions()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
-  const { episode: selected } = Route.useSearch()
+  const { episode: selected, tab } = Route.useSearch()
   const navigate = Route.useNavigate()
   useScrollMemory(state !== null)
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
@@ -146,7 +151,33 @@ function PlaylistDetail() {
           </div>
         }
       />
-      {playlist.entries.length === 0 ? (
+      {/* Entries, History and Listening Timeline (docs/design/ui-layout.md › Desktop). */}
+      <nav aria-label="Entries, History and Listening Timeline" className="mb-3 px-4 md:px-8">
+        <div className="inline-grid grid-cols-3 gap-1 rounded-full bg-secondary p-1">
+          {(
+            [
+              [undefined, "Entries"],
+              ["history", "History"],
+              ["timeline", "Listening Timeline"]
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={tab === value}
+              onClick={() => void navigate({ search: value ? { tab: value } : {} })}
+              className="flex h-9 items-center justify-center rounded-full px-3 text-small font-medium whitespace-nowrap text-muted-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-sm"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+      {tab === "history" ? (
+        <PlaylistHistory playlist={playlist} />
+      ) : tab === "timeline" ? (
+        <PlaylistTimeline playlist={playlist} />
+      ) : playlist.entries.length === 0 ? (
         <EmptyState title="Nothing here yet">
           In a View, use Play Next or Play Last to add Episodes here.
         </EmptyState>

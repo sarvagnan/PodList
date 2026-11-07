@@ -36,10 +36,11 @@ export const onPlayed = (
   if (index === -1) return playlist
   let next = playlist
   if (finishedHere) {
-    const history = [new HistoryItem({ episodeId, finishedAt: at }), ...playlist.history].slice(
-      0,
-      historyLimit
-    )
+    const followedBy = playlist.entries[index + 1]?.episodeId ?? null
+    const history = [
+      new HistoryItem({ episodeId, finishedAt: at, followedBy }),
+      ...playlist.history
+    ].slice(0, historyLimit)
     next = new Playlist({ ...next, history })
     if (!playlist.clearOnPlayed) {
       const entries = next.entries.map((e) =>
