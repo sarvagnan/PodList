@@ -123,7 +123,7 @@
   html {
     @apply font-sans;
     /* Keep focused rows clear of the fixed player and tabs (WKEY-04). */
-    scroll-padding-bottom: 11rem;
+    scroll-padding-bottom: calc(11rem + var(--toast-space, 0px));
     -webkit-tap-highlight-color: transparent;
   }
   body {
@@ -188,7 +188,7 @@ select:not([multiple]) {
 
 @media (min-width: 44rem) {
   html {
-    scroll-padding-bottom: 7.5rem;
+    scroll-padding-bottom: calc(7.5rem + var(--toast-space, 0px));
   }
 }
 

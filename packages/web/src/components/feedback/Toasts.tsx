@@ -1,5 +1,6 @@
 import { Toast } from "@base-ui/react/toast"
 import { X } from "lucide-react"
+import { useEffect } from "react"
 
 /**
  * Above everything, the Now Playing drawer included, so an Undo is never hidden (FLOW-04).
@@ -8,6 +9,11 @@ import { X } from "lucide-react"
  */
 export function Toasts() {
   const { toasts } = Toast.useToastManager()
+  // While a toast shows, focused rows scroll clear of it too, not just of the player.
+  const showing = toasts.some((toast) => !toast.limited)
+  useEffect(() => {
+    document.documentElement.style.setProperty("--toast-space", showing ? "5rem" : "0px")
+  }, [showing])
   return (
     <Toast.Portal>
       <Toast.Viewport className="fixed inset-x-3 bottom-[calc(var(--bottom-stack,10.5rem)+0.5rem)] z-[60] mx-auto max-w-md md:right-auto md:bottom-28 md:left-[256px] md:mx-0 md:w-[min(26rem,calc(100vw-288px))]">

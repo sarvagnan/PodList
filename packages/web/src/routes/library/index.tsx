@@ -270,14 +270,11 @@ function LibraryScreen() {
                         >
                           {s.title}
                         </Link>
-                        {s.author && (
-                          <span className="mt-0.5 block truncate text-small text-muted-foreground">
-                            {s.author}
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-small whitespace-nowrap text-muted-foreground">
-                        {s.unplayed} unplayed
+                        {/* The count shares the second line, so a long name keeps the row's
+                            width at large text sizes. */}
+                        <span className="mt-0.5 block truncate text-small text-muted-foreground">
+                          {[s.author, `${s.unplayed} unplayed`].filter(Boolean).join(" · ")}
+                        </span>
                       </span>
                       <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
                     </RowMenu>

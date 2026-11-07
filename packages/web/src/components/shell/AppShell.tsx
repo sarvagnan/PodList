@@ -12,7 +12,8 @@ import {
   Plus,
   Search,
   SkipBack,
-  SkipForward
+  SkipForward,
+  Trash2
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
@@ -82,7 +83,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const current = AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
   const control = useAtomSet(playbackAtom)
   const setDrawer = useAtomSet(drawerAtom)
-  const openDrawer = (stack: ReadonlyArray<DrawerPage>) => setDrawer({ open: true, stack })
+  const openDrawer = (stack: ReadonlyArray<DrawerPage>) =>
+    setDrawer({ open: true, stack, openedOn: stack.length })
   if (current === null) return null
   const playlist = state?.playlists.find((p) => p.id === current.playlistId)
   // Nothing half-filled while the catalogue arrives on a new Device (APPEAR-11).
@@ -401,8 +403,13 @@ function Sidebar() {
         )
       })}
       {state !== null && State.trashOf(state).length > 0 && (
-        <Link to="/playlists/trash" className={`${link} text-muted-foreground`}>
-          Trash
+        // Set apart from the Playlists above it: an icon and a little space, so it doesn't
+        // read as one of them.
+        <Link to="/playlists/trash" className={`${link} mt-1 text-muted-foreground`}>
+          <span className="flex items-center gap-2">
+            <Trash2 aria-hidden="true" className="size-4" />
+            Trash
+          </span>
           <span className="text-xs">{State.trashOf(state).length}</span>
         </Link>
       )}

@@ -6,6 +6,9 @@ export type DrawerPage = "queue" | "episode" | "chapters" | "playlists"
 export interface DrawerState {
   readonly open: boolean
   readonly stack: ReadonlyArray<DrawerPage>
+  /** How many of those pages it opened onto (the player's Up next opens straight on the
+   * Queue): Esc steps back through the rest, then closes the drawer. */
+  readonly openedOn?: number
 }
 
 /** The Now Playing drawer: whether it's open, and the pages opened inside it. */

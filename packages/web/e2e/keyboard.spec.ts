@@ -207,3 +207,30 @@ test("a click on a row puts focus in it, and the arrows carry the open Episode",
   await expect(menu.getByRole("menuitem", { name: "Copy Link" })).toBeVisible()
   await expect(menu.getByRole("menuitem", { name: "Open in New Tab" })).toHaveCount(0)
 })
+
+test("the Episode actions keep apart at 150% and 200% text", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/views/short`)
+  const href = (await page.locator("main [data-cell=title]").first().getAttribute("href")) ?? ""
+  await page.goto(`${demo.base}${href}`)
+  for (const size of [24, 32]) {
+    await page.addStyleTag({ content: `html { font-size: ${size}px !important }` })
+    await page.getByRole("button", { name: "Played" }).waitFor()
+    const overlaps = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll("main article button")]
+        .filter((b) => b.querySelector(".rounded-full"))
+        .map((b) => b.getBoundingClientRect())
+      return boxes.some((a) =>
+        boxes.some(
+          (b) =>
+            a !== b &&
+            a.left < b.right - 1 &&
+            b.left < a.right - 1 &&
+            a.top < b.bottom - 1 &&
+            b.top < a.bottom - 1
+        )
+      )
+    })
+    expect(overlaps).toBe(false)
+  }
+})

@@ -413,7 +413,19 @@ export function NowPlayingDrawer() {
   return (
     <Drawer.Root
       open={drawer.open}
-      onOpenChange={(open) => setDrawer({ open, stack: open ? drawer.stack : [] })}
+      onOpenChange={(open, details) => {
+        // Esc on a stacked page goes back one page, as Back does; on the main page it closes.
+        if (
+          !open &&
+          details.reason === "escape-key" &&
+          drawer.stack.length > (drawer.openedOn ?? 0)
+        ) {
+          details.cancel()
+          setDrawer({ ...drawer, stack: drawer.stack.slice(0, -1) })
+          return
+        }
+        setDrawer({ open, stack: open ? drawer.stack : [] })
+      }}
     >
       <Drawer.Portal>
         <Drawer.Backdrop className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />

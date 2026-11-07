@@ -25,7 +25,7 @@ const groups: ReadonlyArray<{
       // ⌘K on a Mac only: elsewhere Ctrl+K belongs to the browser (BROWSER-05).
       [mac ? "/ or ⌘K" : "/", "Search the Library"],
       [`${cmd}Z`, "Undo the last change"],
-      [mac ? "⌘⇧Z" : "Ctrl+Shift+Z", "Redo it"],
+      [mac ? "⇧⌘Z" : "Ctrl+Shift+Z", "Redo it"],
       ["Esc", "Close a sheet or panel; clear the selection"],
       [`${cmd}/`, "Show these shortcuts"]
     ]
@@ -36,7 +36,7 @@ const groups: ReadonlyArray<{
       ["↑ ↓", "Previous or next Episode"],
       ["← →", "Move between an Episode’s actions"],
       ["Home End", `First or last action; with ${cmd} the first or last Episode`],
-      ["Page Up Page Down", "Ten Episodes up or down"],
+      ["PgUp PgDn", "Ten Episodes up or down"],
       ["Enter", "Open the Episode"],
       ["Space", "Select the Episode for bulk actions"],
       ["Shift ↑ ↓", "Select a run of Episodes"],

@@ -10,6 +10,7 @@ import { chapterAt } from "../../lib/chapters.ts"
 import { episodeLink } from "../../lib/share.ts"
 import { showNotesText } from "../../lib/showNotes.ts"
 import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
+import { useMinWidth } from "../../lib/useWide.ts"
 import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
@@ -68,13 +69,24 @@ function Action({
       aria-pressed={buttonProps ? undefined : pressed}
       onClick={onClick ?? buttonProps?.onClick}
       // The phone's five share one row (Play in the middle); wider panels keep 80 px each.
-      className={`flex min-w-14 max-w-20 flex-1 basis-0 flex-col items-center gap-1.5 text-small font-medium lg:w-20 lg:flex-none ${className}`}
+      // A column in rem, so it widens with the label as text grows (WTYPE-02).
+      className={`flex w-[4.25rem] max-w-full flex-col items-center gap-1.5 text-center text-small font-medium break-words ${className}`}
     >
       {children}
       {label}
     </button>
   )
 }
+
+// The action row's two shapes; the break points are the width of every action in one row:
+// 5 × 4.25rem + 4 × 0.25rem gaps = 22.25rem, and 7 × 4.25rem + 6 gaps = 31.25rem. Under
+// them, Play's own row, then 4 (17.75rem) or 2 across, or 3 (13.25rem) or 2.
+const rowOfFive =
+  "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[17.75rem]:grid-cols-4 @min-[22.25rem]:flex @min-[22.25rem]:items-start @min-[22.25rem]:justify-center"
+const playOfFive = "col-span-full order-first @min-[22.25rem]:order-none"
+const rowOfSeven =
+  "grid grid-cols-2 justify-items-center gap-x-1 gap-y-4 @min-[13.25rem]:grid-cols-3 @min-[31.25rem]:flex @min-[31.25rem]:items-start @min-[31.25rem]:justify-center"
+const playOfSeven = "col-span-full order-first @min-[31.25rem]:order-none"
 
 export function EpisodeDetail({
   episodeId,
@@ -99,6 +111,8 @@ export function EpisodeDetail({
   const [adding, setAdding] = useState(false)
   const target = useNextLastTarget()
   const desktopExtras = tone === "light"
+  // Next and Last join the row on wide screens (beside a View, or the Episode's page).
+  const seven = useMinWidth("64rem") && desktopExtras
   const copyLink = useCopyEpisodeLink()
 
   if (AsyncResult.isInitial(result)) {
@@ -166,114 +180,115 @@ export function EpisodeDetail({
         </div>
       </div>
 
-      {/* Desktop beside a View: Played · Download · Next · Play · Last · Add · Star, aligned
-          with the header (docs/design/ui-layout.md). */}
-      <div
-        // No gap on the narrowest phones, so the five still fit on one row (not four and one).
-        className={`mt-6 flex flex-wrap items-start justify-center gap-0 min-[22.5rem]:gap-1 ${desktopExtras ? "lg:justify-start" : ""}`}
-      >
-        <Action
-          label="Played"
-          pressed={played}
-          onClick={() => void act({ _tag: "Played", episodeId, played: !played })}
-          className=""
-        >
-          {/* Pressed: the icon takes the colour and a ring; the label stays readable. */}
-          <span className={`${iconCircle} ${played ? `${t.played} ring-2 ring-current` : ""}`}>
-            <Check aria-hidden="true" className="size-5" />
-          </span>
-        </Action>
-        <DownloadButton
-          episodeId={episodeId}
-          renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
-            <Action
-              label={
-                label.startsWith("Stop")
-                  ? "Stop"
-                  : label.startsWith("Download failed")
-                    ? "Try again"
-                    : label
-              }
-              pressed={pressed}
-              {...(onClick ? { onClick } : {})}
-              {...(buttonProps ? { buttonProps } : {})}
-              className=""
-            >
-              <span
-                aria-hidden="true"
-                className={`${iconCircle} ${pressed ? "ring-2 ring-current" : ""}`}
+      {/* Played · Download · (Next) · Play · (Last) · Add · Star, Play in the middle
+          (docs/design/ui-layout.md). One row when they all fit at the text's size; otherwise
+          Play takes a row of its own, centred, with the rest evenly under it (2 + 2, 4, or
+          3 + 3), never one left alone (WTYPE-02). Measured in rem, so text size counts. */}
+      <div className="@container mt-6">
+        <div className={seven ? rowOfSeven : rowOfFive}>
+          <Action
+            label="Played"
+            pressed={played}
+            onClick={() => void act({ _tag: "Played", episodeId, played: !played })}
+            className=""
+          >
+            {/* Pressed: the icon takes the colour and a ring; the label stays readable. */}
+            <span className={`${iconCircle} ${played ? `${t.played} ring-2 ring-current` : ""}`}>
+              <Check aria-hidden="true" className="size-5" />
+            </span>
+          </Action>
+          <DownloadButton
+            episodeId={episodeId}
+            renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
+              <Action
+                label={
+                  label.startsWith("Stop")
+                    ? "Stop"
+                    : label.startsWith("Download failed")
+                      ? "Try again"
+                      : label
+                }
+                pressed={pressed}
+                {...(onClick ? { onClick } : {})}
+                {...(buttonProps ? { buttonProps } : {})}
+                className=""
               >
-                {icon}
-              </span>
-            </Action>
-          )}
-        />
-        {desktopExtras && (
-          <span className="hidden lg:contents">
-            <Action
-              label="Next"
-              onClick={() =>
-                target &&
-                void act({ _tag: "Add", episodeId, playlistId: target.id, placement: "next" })
-              }
-              className=""
-            >
-              <span className={iconCircle}>
-                <ListStart aria-hidden="true" className="size-5" />
-              </span>
-            </Action>
-          </span>
-        )}
-        <Action
-          // Play and Pause, as the player and the Playlist row say (not "Playing").
-          label={loaded && now.playing ? "Pause" : "Play"}
-          onClick={() => {
-            if (!loaded) void act({ _tag: "PlayNow", episodeId })
-            else control({ _tag: "toggle" })
-            if (!(loaded && now.playing)) onPlay?.()
-          }}
-          className=""
-        >
-          <span className="grid size-12 place-items-center rounded-full border border-transparent bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80">
-            {loaded && now.playing ? (
-              <Pause aria-hidden="true" className="size-5 fill-current" />
-            ) : (
-              <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
+                <span
+                  aria-hidden="true"
+                  className={`${iconCircle} ${pressed ? "ring-2 ring-current" : ""}`}
+                >
+                  {icon}
+                </span>
+              </Action>
             )}
-          </span>
-        </Action>
-        {desktopExtras && (
-          <span className="hidden lg:contents">
-            <Action
-              label="Last"
-              onClick={() =>
-                target &&
-                void act({ _tag: "Add", episodeId, playlistId: target.id, placement: "last" })
-              }
-              className=""
-            >
-              <span className={iconCircle}>
-                <ListEnd aria-hidden="true" className="size-5" />
-              </span>
-            </Action>
-          </span>
-        )}
+          />
+          {desktopExtras && (
+            <span className="hidden lg:contents">
+              <Action
+                label="Next"
+                onClick={() =>
+                  target &&
+                  void act({ _tag: "Add", episodeId, playlistId: target.id, placement: "next" })
+                }
+                className=""
+              >
+                <span className={iconCircle}>
+                  <ListStart aria-hidden="true" className="size-5" />
+                </span>
+              </Action>
+            </span>
+          )}
+          <Action
+            // Play and Pause, as the player and the Playlist row say (not "Playing").
+            label={loaded && now.playing ? "Pause" : "Play"}
+            onClick={() => {
+              if (!loaded) void act({ _tag: "PlayNow", episodeId })
+              else control({ _tag: "toggle" })
+              if (!(loaded && now.playing)) onPlay?.()
+            }}
+            className={seven ? playOfSeven : playOfFive}
+          >
+            <span className="grid size-12 place-items-center rounded-full border border-transparent bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80">
+              {loaded && now.playing ? (
+                <Pause aria-hidden="true" className="size-5 fill-current" />
+              ) : (
+                <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
+              )}
+            </span>
+          </Action>
+          {desktopExtras && (
+            <span className="hidden lg:contents">
+              <Action
+                label="Last"
+                onClick={() =>
+                  target &&
+                  void act({ _tag: "Add", episodeId, playlistId: target.id, placement: "last" })
+                }
+                className=""
+              >
+                <span className={iconCircle}>
+                  <ListEnd aria-hidden="true" className="size-5" />
+                </span>
+              </Action>
+            </span>
+          )}
 
-        <Action label="Add" onClick={() => setAdding(true)} className="">
-          <span className={iconCircle}>
-            <Plus aria-hidden="true" className="size-5" />
-          </span>
-        </Action>
-        <Action
-          label="Star"
-          pressed={starred}
-          onClick={() => void act({ _tag: "Star", episodeId, starred: !starred })}
-          className=""
-        >
-          <span className={`${iconCircle} ${starred ? `${t.starred} ring-2 ring-current` : ""}`}>
-            <Star aria-hidden="true" className={`size-5 ${starred ? "fill-current" : ""}`} />
-          </span>
-        </Action>
+          <Action label="Add" onClick={() => setAdding(true)} className="">
+            <span className={iconCircle}>
+              <Plus aria-hidden="true" className="size-5" />
+            </span>
+          </Action>
+          <Action
+            label="Star"
+            pressed={starred}
+            onClick={() => void act({ _tag: "Star", episodeId, starred: !starred })}
+            className=""
+          >
+            <span className={`${iconCircle} ${starred ? `${t.starred} ring-2 ring-current` : ""}`}>
+              <Star aria-hidden="true" className={`size-5 ${starred ? "fill-current" : ""}`} />
+            </span>
+          </Action>
+        </div>
       </div>
 
       {playlists.length > 0 && (

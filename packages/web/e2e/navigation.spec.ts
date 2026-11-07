@@ -35,6 +35,19 @@ test.describe("phone", () => {
     await expect(page).toHaveURL(/\/playlists$/)
   })
 
+  test("Esc on a drawer page goes back one page, then closes the drawer", async ({ page }) => {
+    await page.goto(`${demo.base}/playlists/default`)
+    await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+    const drawer = page.getByRole("dialog")
+    await drawer.getByRole("button", { name: "Episode" }).click()
+    await expect(drawer.getByRole("heading", { name: "Episode", level: 2 })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(drawer.getByRole("button", { name: "Episode" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(drawer).toBeHidden()
+    await expect(page).toHaveURL(/\/playlists\/default$/)
+  })
+
   test("Back closes the Add sheet and stays on the View", async ({ page }) => {
     await page.goto(`${demo.base}/views/short`)
     await page

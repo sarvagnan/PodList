@@ -27,7 +27,8 @@ function EpisodeScreen() {
     if (section === "playlists") return "Playlists"
     if (section === "library") return "Library"
     if (section === "search") return "Search"
-    return "Back"
+    // Opened directly: Back has nowhere earlier to go, so it leads to Views.
+    return "Views"
   })()
   const detail = AsyncResult.getOrElse(useAtomValue(episodeDetailAtom(episodeId)), () => null)
   useEffect(() => {
