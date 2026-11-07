@@ -1,6 +1,6 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
-import { Check, X } from "lucide-react"
+import { Check } from "lucide-react"
 import { useEffect, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
@@ -120,14 +120,7 @@ export function FirstRun() {
           >
             Welcome to PodList
           </h2>
-          <button
-            type="button"
-            onClick={hide}
-            aria-label="Hide getting started"
-            className="-mt-1 -mr-2 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-          >
-            <X aria-hidden="true" className="size-5" />
-          </button>
+          {/* One way to dismiss it: Skip for now (or Done), below. */}
         </div>
         <ol className="mt-3 space-y-3">
           {step(

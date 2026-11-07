@@ -22,6 +22,7 @@ import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runt
 import { cameFrom } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { singleKeyShortcuts } from "../../lib/remembered.ts"
+import { leftFrom, selectorFor } from "../../lib/returnFocus.ts"
 import { inMacApp } from "../../lib/share.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
 import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
@@ -460,19 +461,6 @@ function BottomTabs() {
       ))}
     </nav>
   )
-}
-
-/** What had focus on each history entry when it was left, to return to on Back. */
-const leftFrom = new Map<string, string>()
-
-/** A selector that finds the same control again once its screen is back. */
-const selectorFor = (element: Element | null): string | null => {
-  if (!(element instanceof HTMLElement) || !document.querySelector("main")?.contains(element))
-    return null
-  const episode = element.closest<HTMLElement>("[data-episode-title]")?.dataset.episodeTitle
-  if (episode) return `[data-episode-title="${CSS.escape(episode)}"]`
-  const link = element.closest("a[href]")?.getAttribute("href")
-  return link ? `main a[href="${CSS.escape(link)}"]` : null
 }
 
 /**

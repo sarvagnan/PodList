@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Search as SearchIcon } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
@@ -10,6 +10,7 @@ import { EpisodeList } from "../components/episodes/EpisodeList.tsx"
 import { EmptyState } from "../components/lists/ListRow.tsx"
 import { PageHeader } from "../components/shell/PageHeader.tsx"
 import { SaveSearchDialog } from "../components/views/SaveSearchDialog.tsx"
+import { isReturn } from "../lib/returnFocus.ts"
 
 // Search (CONTEXT.md): an unsaved, one-off View over the Library, here by its words
 // (titles, show notes, podcast names). It can be saved as a View with a name.
@@ -28,6 +29,7 @@ const keyFor = (text: string) =>
 function SearchPage() {
   const { q = "", episode: selected } = Route.useSearch()
   const navigate = Route.useNavigate()
+  const router = useRouter()
   const id = useId()
   const [text, setText] = useState(q)
   const [saving, setSaving] = useState(false)
@@ -44,9 +46,11 @@ function SearchPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [text, q, navigate])
+  // A fresh Search starts in its field; coming back to one (Back from an Episode) puts focus
+  // on the Episode that was opened instead, as other lists do (KEY-04).
   useEffect(() => {
-    input.current?.focus()
-  }, [])
+    if (!isReturn(router.history.location.state.__TSR_key ?? "initial")) input.current?.focus()
+  }, [router])
 
   const count = `${episodes.length} ${episodes.length === 1 ? "Episode" : "Episodes"}`
   return (

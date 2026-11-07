@@ -2,6 +2,7 @@ import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { useEffect, useRef } from "react"
 import { redoStackAtom, undoAtom, undoStackAtom } from "../../app/episodeActions.ts"
+import { toastOfStep } from "./useConfirm.ts"
 
 const editing = (el: Element | null) =>
   el instanceof HTMLElement &&
@@ -69,6 +70,9 @@ export function UndoShortcut() {
         setUndo(latest.current.undo)
         setRedo(latest.current.redo)
         undo(step.undo)
+        // Its own Undo toast goes: the step is taken back, so it has nothing left to offer.
+        const own = toastOfStep.get(step.id)
+        if (own !== undefined) toasts.close(own)
         toasts.add({ description: `Undone: ${step.message}`, timeout: 4000 })
         return
       }

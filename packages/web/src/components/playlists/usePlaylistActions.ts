@@ -1,4 +1,3 @@
-import { Toast } from "@base-ui/react/toast"
 import { useAtomSet } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
 import { useNavigate } from "@tanstack/react-router"
@@ -43,13 +42,24 @@ export function usePlaylistActions() {
     },
     [record, navigate, confirm]
   )
-  const toasts = Toast.useToastManager()
+  // Restoring is a step like deleting: Undo sends it back to the Trash.
   const restore = useCallback(
     async (playlistId: string, name: string) => {
+      const step = {
+        message: `Restored “${name}”`,
+        undo: [change({ _tag: "DeletePlaylist", playlistId })]
+      }
       await record(change({ _tag: "RestorePlaylist", playlistId }))
-      toasts.add({ description: `Restored “${name}”`, timeout: 4000 })
+      confirm(
+        step,
+        async () => {
+          await record(change({ _tag: "RestorePlaylist", playlistId }))
+          return step
+        },
+        () => document.querySelector<HTMLElement>(`a[href="/playlists/trash"]`)
+      )
     },
-    [record, toasts]
+    [record, confirm]
   )
   return { create, remove, restore }
 }

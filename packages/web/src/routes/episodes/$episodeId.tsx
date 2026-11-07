@@ -37,16 +37,21 @@ function EpisodeScreen() {
   return (
     <>
       <header className="px-5 pt-4 pb-2 md:px-8 md:pt-8">
-        <button
-          type="button"
-          onClick={() =>
-            router.history.canGoBack() ? router.history.back() : router.navigate({ to: "/views" })
-          }
+        {/* A link, like every other back control: its address is where it leads; a plain
+            click goes Back through history, so the list keeps its place. */}
+        <a
+          href={from ?? "/views"}
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
+            event.preventDefault()
+            if (router.history.canGoBack()) router.history.back()
+            else void router.navigate({ to: "/views" })
+          }}
           className="-ml-2 inline-flex h-11 items-center gap-0.5 pr-3 text-row font-medium text-primary"
         >
           <ChevronLeft aria-hidden="true" className="size-5" />
           {backLabel}
-        </button>
+        </a>
       </header>
       <div className="md:px-3">
         {/* Its title is the screen's heading (h1). */}

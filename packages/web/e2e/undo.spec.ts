@@ -111,3 +111,20 @@ test("an Undo toast is named by what it says", async ({ page }) => {
   await page.getByRole("button", { name: `Remove ${first} from Commute` }).click()
   await expect(page.getByRole("dialog", { name: /^Removed from Commute/ })).toBeVisible()
 })
+
+test("Cmd/Ctrl-Z closes the step's own Undo toast", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/commute`)
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
+  const [first] = await titles(page)
+  await page.getByRole("button", { name: `Remove ${first} from Commute` }).click()
+  const original = page.getByRole("dialog", { name: /^Removed from Commute/ })
+  await expect(original).toBeVisible()
+  await page.locator("main h1").click()
+  await page.keyboard.press("ControlOrMeta+z")
+  await expect(page.getByText(/^Undone: Removed from Commute/)).toBeVisible()
+  await expect(original).toHaveCount(0)
+  // It doesn't come back once the "Undone" note has gone.
+  await page.waitForTimeout(4500)
+  await expect(original).toHaveCount(0)
+})

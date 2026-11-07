@@ -53,7 +53,11 @@ function useDrawer() {
     push: (page: DrawerPage) => setDrawer({ open: true, stack: [...drawer.stack, page] }),
     back: () => setDrawer({ ...drawer, stack: drawer.stack.slice(0, -1) }),
     /** After starting playback from a page: back to the drawer's main page. */
-    home: () => setDrawer({ open: true, stack: [] }),
+    home: () => {
+      setDrawer({ open: true, stack: [] })
+      // Back at the main page's top, so what now plays is in view (not scrolled away).
+      document.querySelector('[data-sheet="drawer"] .overflow-y-auto')?.scrollTo({ top: 0 })
+    },
     close: () => setDrawer({ ...drawer, open: false })
   }
 }

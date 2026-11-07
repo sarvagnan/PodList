@@ -5,6 +5,8 @@ import { redoStackAtom, undoAtom, undoStackAtom } from "../../app/episodeActions
 import type { Outcome } from "../../lib/episodeActions.ts"
 
 let nextId = 0
+/** Each step's Undo toast, so ⌘Z can close the toast of the step it takes back. */
+export const toastOfStep = new Map<number, string>()
 /** How many steps Cmd/Ctrl-Z can take back. */
 const depth = 30
 
@@ -47,7 +49,7 @@ export function useConfirm() {
       const id = ++nextId
       setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome, again }])
       setRedo([])
-      const toast = toasts.add({
+      const toast: string = toasts.add({
         description: outcome.message,
         // Stays until dismissed or replaced by the next step (one shows at a time): on a
         // phone this Undo is the way back (WDATA-04).
@@ -65,6 +67,7 @@ export function useConfirm() {
           }
         }
       })
+      toastOfStep.set(id, toast)
     },
     [toasts, undo, setStack, setRedo]
   )

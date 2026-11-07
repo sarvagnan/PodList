@@ -98,3 +98,21 @@ test("a View that isn't there says so, names the tab and leads back", async ({ p
   // Views, or (on desktop) straight on to one of them.
   await expect(page).toHaveURL(/\/views(\/(?!nope)|$)/)
 })
+
+test("Back to Search returns focus to the Episode that was opened", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/search?q=market`)
+  const title = page.locator('[data-row="1"] [data-cell="title"]')
+  await title.focus()
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/episodes\//)
+  await page.goBack()
+  await expect(title).toBeFocused()
+})
+
+test("a fresh Search starts in its field", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/views/short`)
+  await page.goto(`${demo.base}/search`)
+  await expect(page.getByRole("searchbox", { name: "Search the Library" })).toBeFocused()
+})
