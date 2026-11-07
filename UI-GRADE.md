@@ -14,24 +14,43 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) |
-|---|---:|
-| Typography | 5.8 |
-| Hierarchy | 6.4 |
-| Spacing & density | 5.9 |
-| Color & contrast | 6.2 |
-| Iconography | 5.4 |
-| Consistency & polish | 5.3 (stability 6.0) |
-| Clarity | 4.9 |
-| Platform fit | 6.8 |
-| Interaction & feedback | 5.6 |
-| **Overall** | **5.4** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) |
+|---|---:|---:|
+| Typography | 5.8 | 6.9 |
+| Hierarchy | 6.4 | 7.2 |
+| Spacing & density | 5.9 | 7.6 |
+| Color & contrast | 6.2 | 6.9 |
+| Iconography | 5.4 | 6.6 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) |
+| Clarity | 4.9 | 7.4 |
+| Platform fit | 6.8 | 6.7 |
+| Interaction & feedback | 5.6 | 6.5 |
+| **Overall** | **5.4** | **7.0** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
 Graded build: before View detail, Episode row actions and proxied artwork landed (commits c717897, 7f04e17, 05d04d4), so COPY-03's View placeholder is already gone.
 
-## Work list
+Round 2: coverage 97.5%; 19 failures (11 major, 8 minor, no blockers); four categories capped at 6.9 by majors. Report: [docs/ui-grade/round-2.md](docs/ui-grade/round-2.md). Graded build 6db9bb9 (after the round 1 fixes). No core element moved in 72 measured steps; open a Playlist p75 134 ms, Play from here 111 ms.
+
+## Work list (round 2)
+
+### Majors
+- [ ] DATA-04 / WDATA-04 (Interaction, lowest): Remove on Playlist Entries and Up next; an undo stack that ⌘/Ctrl-Z walks; the toast stops being the only way back.
+- [ ] WKEY-03: the drawer holds focus; closing the panel returns focus to the row.
+- [ ] APPEAR-05: reduced motion cross-fades instead of sliding.
+- [ ] DATA-06: relaunch reopens the last screen and the "Next / Last go to" target.
+- [ ] AX-02: the Episode open in the panel has a row tint, a leading bar and `aria-current`.
+- [ ] BROWSER-01: Back closes one overlay at a time.
+- [ ] BROWSER-04: modified clicks on titles behave like links.
+- [ ] BROWSER-06: Mac context menu.
+- [ ] LIST-07: desktop Episode list keyboarding (one Tab stop, arrows, Space, Enter).
+- [ ] WTYPE-02: rows and player bars survive 200% text.
+
+### Minors
+- [ ] FLOW-06 sidebar skeletons · KEY-08 shortcuts reference · PTR-04 tooltips on focus · APPEAR-09 distinct row icons · TYPE-07 no underlined buttons · COPY-04 one wording per term · BROWSER-09 Mac Back/Forward · WTYPE-01 skip numerals ≥ 11 px.
+
+## Work list (round 1)
 
 ### Majors
 - [x] COPY-02 (Clarity, lowest): playback errors in plain words with Try again; "Playlist no longer exists"; a styled not-found page.
