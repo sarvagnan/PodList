@@ -20,8 +20,14 @@ export class Downloads extends Context.Service<
   {
     /** Every Episode with a download on this Device, or one in progress or failed. */
     readonly status: SubscriptionRef.SubscriptionRef<ReadonlyMap<string, DownloadStatus>>
-    /** Starts a Manual Download in the background; does nothing if stored or under way. */
-    readonly download: (episodeId: string) => Effect.Effect<void>
+    /**
+     * Starts a download in the background; does nothing if stored or under way. A Manual
+     * Download unless `rule` says a Download Rule asked for it (so the rule may let it go).
+     */
+    readonly download: (
+      episodeId: string,
+      options?: { readonly rule?: boolean }
+    ) => Effect.Effect<void>
     /** Stops a download in progress and forgets a failed one. */
     readonly cancel: (episodeId: string) => Effect.Effect<void>
     /** Deletes a stored download. */
@@ -64,8 +70,9 @@ export class Downloads extends Context.Service<
             return copy
           })
 
-        const download = (episodeId: string) =>
+        const download = (episodeId: string, how?: { readonly rule?: boolean }) =>
           Effect.gen(function* () {
+            const manual = how?.rule !== true
             const current = (yield* SubscriptionRef.get(status)).get(episodeId)
             if (current?._tag === "Stored" || current?._tag === "Downloading") return
             yield* set(episodeId, DownloadStatus.Downloading({ received: 0, total: null }))
@@ -85,11 +92,11 @@ export class Downloads extends Context.Service<
                   const at = yield* Clock.currentTimeMillis
                   yield* sql`INSERT OR REPLACE INTO download ${sql.insert({
                     episode_id: episodeId,
-                    manual: 1,
+                    manual: manual ? 1 : 0,
                     bytes: saved.bytes,
                     saved_at: at
                   })}`.pipe(Effect.orDie)
-                  yield* set(episodeId, DownloadStatus.Stored({ bytes: saved.bytes, manual: true }))
+                  yield* set(episodeId, DownloadStatus.Stored({ bytes: saved.bytes, manual }))
                 })
               ),
               Effect.catch((error) =>

@@ -2,6 +2,7 @@ import { type Operation, PlaybackSettings, Units } from "@podlist/domain"
 import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
+import { DownloadRulesLive } from "../downloads/DownloadRules.ts"
 import { Downloads } from "../downloads/Downloads.ts"
 import { artworkSrc } from "../lib/artwork.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
@@ -44,7 +45,7 @@ const PlaybackLive = Layer.unwrap(
   })
 )
 
-export const AppLayer = PlaybackLive.pipe(
+export const AppLayer = Layer.merge(PlaybackLive, DownloadRulesLive).pipe(
   Layer.provideMerge(Downloads.layer({ audioUrl })),
   Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: deviceName() })),
   Layer.provideMerge(LocalDb.layerWeb()),
@@ -96,6 +97,9 @@ export const recordAtom = runtime.fn(
   // Quick edits (a View's conditions) must each be recorded, not cancel one another.
   { concurrent: true }
 )
+
+/** This Device's id: Download Rules are per Device. */
+export const deviceIdAtom = runtime.atom(Effect.map(SyncEngine, (engine) => engine.deviceId))
 
 /** The loaded Entry and whether it is playing; null when nothing is queued. */
 export const nowPlayingAtom = runtime.atom(

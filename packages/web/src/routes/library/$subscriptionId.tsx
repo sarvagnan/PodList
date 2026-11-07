@@ -6,8 +6,9 @@ import { Exit, Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { type ReactNode, useId, useState } from "react"
 import { filterEpisodesAtom, subscriptionAtom } from "../../app/data.ts"
+import { useAppState } from "../../app/hooks.ts"
 import { unsubscribeAtom } from "../../app/library.ts"
-import { recordAtom } from "../../app/runtime.ts"
+import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { ConfirmDialog } from "../../components/feedback/ConfirmDialog.tsx"
@@ -67,6 +68,8 @@ function SubscriptionScreen() {
   )
   const episodes = AsyncResult.getOrElse(episodesResult, () => [])
   const record = useAtomSet(recordAtom)
+  const state = useAppState()
+  const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promiseExit" })
   const toasts = Toast.useToastManager()
   const [asking, setAsking] = useState<"unsubscribe" | "played" | null>(null)
@@ -86,6 +89,16 @@ function SubscriptionScreen() {
     )
   }
   const overrides = subscription.playbackSettings
+  const rule = state?.downloadRules.find(
+    (r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId
+  ) ?? { mode: "never" as const, keepAtMost: null }
+  const setRule = (mode: "never" | "onEntry" | "allNew", keepAtMost: number | null) =>
+    record(
+      decodeChange({
+        _tag: "SetDownloadRule",
+        rule: { subscriptionId, deviceId, mode, keepAtMost: mode === "allNew" ? keepAtMost : null }
+      })
+    )
   const setOverrides = (
     playbackSettings: PlaybackSettings.PlaybackSettingsOverride,
     playedThreshold: number | null = subscription.playedThreshold
@@ -142,6 +155,48 @@ function SubscriptionScreen() {
             Settings for this podcast
           </h2>
           <div className="rounded-xl border bg-card">
+            <Row
+              label="Downloads on this Device"
+              htmlFor={`${id}-rule`}
+              help={
+                rule.mode === "never"
+                  ? "Episodes play from the internet"
+                  : rule.mode === "onEntry"
+                    ? "Stored while they’re in a Playlist"
+                    : "Stored as they’re published, until Played"
+              }
+            >
+              <select
+                id={`${id}-rule`}
+                disabled={deviceId === ""}
+                value={rule.mode}
+                onChange={(event) =>
+                  setRule(event.target.value as "never" | "onEntry" | "allNew", rule.keepAtMost)
+                }
+                className={control}
+              >
+                <option value="never">Stream</option>
+                <option value="onEntry">Entries</option>
+                <option value="allNew">Every new Episode</option>
+              </select>
+              {rule.mode === "allNew" && (
+                <select
+                  aria-label="Keep at most"
+                  value={rule.keepAtMost === null ? "" : String(rule.keepAtMost)}
+                  onChange={(event) =>
+                    setRule("allNew", event.target.value === "" ? null : Number(event.target.value))
+                  }
+                  className={`${control} mt-2`}
+                >
+                  {[3, 5, 10, 20].map((n) => (
+                    <option key={n} value={n}>
+                      Keep the newest {n}
+                    </option>
+                  ))}
+                  <option value="">Keep all new ones</option>
+                </select>
+              )}
+            </Row>
             <Row
               label="Played"
               htmlFor={`${id}-threshold`}

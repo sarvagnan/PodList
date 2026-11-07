@@ -4,7 +4,8 @@ import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
 import { useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
-import { useLibraryReady } from "../../app/hooks.ts"
+import { useAppState, useLibraryReady } from "../../app/hooks.ts"
+import { deviceIdAtom } from "../../app/runtime.ts"
 import { AddPodcastSheet } from "../../components/library/AddPodcastSheet.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
@@ -21,6 +22,22 @@ function LibraryScreen() {
   const subscriptions = AsyncResult.getOrElse(result, () => [])
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
+  const state = useAppState()
+  const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
+  const modeOf = (subscriptionId: string) =>
+    state?.downloadRules.find((r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId)
+      ?.mode ?? "never"
+  const groups = (
+    [
+      ["allNew", "Downloads every new Episode"],
+      ["onEntry", "Downloads Entries"],
+      ["never", "Streams"]
+    ] as const
+  ).map(([mode, title]) => ({
+    mode,
+    title,
+    items: subscriptions.filter((s) => modeOf(s.id) === mode)
+  }))
   const add = (
     <button
       type="button"
@@ -62,31 +79,46 @@ function LibraryScreen() {
           then appear in your Views.
         </EmptyState>
       ) : (
-        <ul className="max-w-[960px] px-3 md:px-6">
-          {subscriptions.map((s) => (
-            <li key={s.id} className="border-b last:border-b-0">
-              <Link
-                to="/library/$subscriptionId"
-                params={{ subscriptionId: s.id }}
-                className="flex min-h-16 items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-secondary/60"
-              >
-                <Artwork url={s.artworkUrl} name={s.title} size={48} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-row font-medium">{s.title}</span>
-                  {s.author && (
-                    <span className="mt-0.5 block truncate text-small text-muted-foreground">
-                      {s.author}
-                    </span>
-                  )}
-                </span>
-                <span className="text-small whitespace-nowrap text-muted-foreground">
-                  {s.unplayed} unplayed
-                </span>
-                <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        // Grouped by what this Device stores for each podcast (design C).
+        <div className="max-w-[960px] space-y-5 px-3 md:px-6">
+          {groups.map(({ mode, title, items }) =>
+            items.length === 0 ? null : (
+              <section key={mode} aria-labelledby={`group-${mode}`}>
+                <h2
+                  id={`group-${mode}`}
+                  className="px-2 pb-1 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+                >
+                  {title} · {items.length}
+                </h2>
+                <ul>
+                  {items.map((s) => (
+                    <li key={s.id} className="border-b last:border-b-0">
+                      <Link
+                        to="/library/$subscriptionId"
+                        params={{ subscriptionId: s.id }}
+                        className="flex min-h-16 items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-secondary/60"
+                      >
+                        <Artwork url={s.artworkUrl} name={s.title} size={48} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-row font-medium">{s.title}</span>
+                          {s.author && (
+                            <span className="mt-0.5 block truncate text-small text-muted-foreground">
+                              {s.author}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-small whitespace-nowrap text-muted-foreground">
+                          {s.unplayed} unplayed
+                        </span>
+                        <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )
+          )}
+        </div>
       )}
       {adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />}
     </>
