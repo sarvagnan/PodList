@@ -130,10 +130,34 @@
   .active .tab-indicator {
     outline: 2px solid Highlight;
   }
+  /* The Episode open beside a View (AX-02). */
+  .selected-row {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 @media (min-width: 48rem) {
   html {
     scroll-padding-bottom: 7.5rem;
+  }
+}
+
+/* Reduced motion: the drawer and sheets fade in place instead of sliding (APPEAR-05). */
+@media (prefers-reduced-motion: reduce) {
+  [data-sheet] {
+    --sheet-rest-y: 0px;
+    transition-property: opacity;
+    transition-duration: 150ms;
+  }
+  [data-sheet][data-starting-style],
+  [data-sheet][data-ending-style] {
+    --tw-translate-y: var(--sheet-rest-y);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) and (min-width: 48rem) {
+  [data-sheet="dialog"] {
+    --sheet-rest-y: -50%;
   }
 }

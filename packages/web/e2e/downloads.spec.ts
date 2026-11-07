@@ -19,7 +19,7 @@ test("a downloaded Episode plays with no connection", async ({ browser }) => {
   await page.evaluate(() => navigator.serviceWorker.ready)
   await page.reload()
 
-  const row = page.locator("main ol > li").filter({ hasText: "Joinery without screws" })
+  const row = page.getByRole("row").filter({ hasText: "Joinery without screws" })
   await row.getByRole("button", { name: "Download" }).click()
   await expect(row.getByRole("button", { name: "Downloaded" })).toBeVisible({ timeout: 20_000 })
   await expect(row.getByLabel("Downloaded").first()).toBeVisible()

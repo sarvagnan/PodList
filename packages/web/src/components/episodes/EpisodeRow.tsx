@@ -1,22 +1,15 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import {
-  ArrowDownToLine,
-  Check,
-  ListEnd,
-  ListPlus,
-  ListStart,
-  Play,
-  Plus,
-  Star
-} from "lucide-react"
+import { ArrowDownToLine, Check, ListPlus, Play, Plus, Star } from "lucide-react"
 import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
+import { Tip } from "../feedback/Tip.tsx"
+import { GridCell } from "../lists/Grid.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
 import { DownloadButton, useDownloadStatus } from "./DownloadButton.tsx"
@@ -38,23 +31,60 @@ function IconButton({
   readonly buttonProps?: React.ComponentProps<"button">
 }) {
   return (
-    <button
-      type="button"
-      {...buttonProps}
-      aria-label={label}
-      title={label}
-      aria-pressed={buttonProps ? undefined : pressed}
-      onClick={onClick ?? buttonProps?.onClick}
-      className={`grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input ${className}`}
-    >
-      {children}
-    </button>
+    <GridCell className="shrink-0">
+      <Tip label={label}>
+        <button
+          type="button"
+          {...buttonProps}
+          data-cell=""
+          aria-label={label}
+          aria-pressed={buttonProps ? undefined : pressed}
+          onClick={onClick ?? buttonProps?.onClick}
+          className={`grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input ${className}`}
+        >
+          {children}
+        </button>
+      </Tip>
+    </GridCell>
   )
 }
 
+/** Play Next / Play Last: words, not two near-identical list glyphs (APPEAR-09). */
+function TextAction({
+  label,
+  onClick,
+  children
+}: {
+  readonly label: string
+  readonly onClick: () => void
+  readonly children: ReactNode
+}) {
+  return (
+    <GridCell className="shrink-0">
+      <Tip label={label}>
+        <button
+          type="button"
+          data-cell=""
+          aria-label={label}
+          onClick={onClick}
+          className="h-9 rounded-full px-3 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
+        >
+          {children}
+        </button>
+      </Tip>
+    </GridCell>
+  )
+}
+
+/** A plain left click; modified clicks keep their browser meaning (new tab, window). */
+const plainClick = (event: React.MouseEvent) =>
+  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+
 /**
- * One Episode in a View. Phone: Add (a sheet to choose the Playlist) then Play. Desktop:
- * Play Next, Play Last, Add to…, Star, Played, and Play last of all (docs/design/ui-layout.md).
+ * One Episode in a View, a row of the View's grid (lib/rowGrid.ts). Phone: Add (a sheet
+ * to choose the Playlist) then Play. Desktop: Next, Last, Add to…, Star, Played,
+ * Download, and Play last of all (docs/design/ui-layout.md); all but Play show on hover,
+ * focus or selection, so the list reads as titles. Their states show in the facts line.
  */
 export function EpisodeRow({
   episode,
@@ -66,10 +96,12 @@ export function EpisodeRow({
   readonly episode: ViewEpisode
   /** Wide screens: show the Episode beside the list instead of navigating. */
   readonly onOpen?: (episodeId: string) => void
+  /** Open in the panel beside the list. */
   readonly selected?: boolean
   /** Desktop: ticked for bulk actions. */
   readonly checked?: boolean
-  readonly onCheck?: (checked: boolean) => void
+  /** Desktop: tick or untick; with Shift, the range from the last tick. */
+  readonly onCheck?: (checked: boolean, range: boolean) => void
 }) {
   const act = useEpisodeActions()
   const downloaded = useDownloadStatus(episode.id)?._tag === "Stored"
@@ -84,41 +116,63 @@ export function EpisodeRow({
     formatPublished(episode.published),
     ...(episode.duration ? [formatLength(episode.duration)] : [])
   ].join(" · ")
+  const shown = selected || checked
   const play = (
-    <button
-      type="button"
-      aria-label={`Play ${episode.title}`}
-      title="Play now"
-      onClick={() => void act({ _tag: "PlayNow", episodeId: episode.id })}
-      className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
-    >
-      <Play aria-hidden="true" className="size-[18px] translate-x-px fill-current" />
-    </button>
+    <GridCell className="shrink-0">
+      <Tip label="Play Now">
+        <button
+          type="button"
+          data-cell=""
+          aria-label={`Play ${episode.title}`}
+          onClick={() => void act({ _tag: "PlayNow", episodeId: episode.id })}
+          // Quiet until the row is in hand, so a View reads as titles, not a column of buttons.
+          className={`grid size-11 place-items-center rounded-full hover:bg-primary hover:text-primary-foreground active:bg-primary/80 ${
+            shown
+              ? "bg-primary text-primary-foreground"
+              : "bg-accent text-primary group-focus-within:bg-primary group-focus-within:text-primary-foreground group-hover:bg-primary group-hover:text-primary-foreground"
+          }`}
+        >
+          <Play aria-hidden="true" className="size-[18px] translate-x-px fill-current" />
+        </button>
+      </Tip>
+    </GridCell>
   )
   const addTo = (placement: "next" | "last") =>
     target && void act({ _tag: "Add", episodeId: episode.id, playlistId: target.id, placement })
 
   return (
     <div
-      className={`flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2 ${checked ? "bg-accent/60" : ""}`}
+      className={`group flex min-h-[4.75rem] items-center gap-3 border-b px-2 py-2 ${
+        selected
+          ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
+          : checked
+            ? "bg-accent/60"
+            : ""
+      }`}
     >
       {onCheck && (
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onCheck(event.target.checked)}
-          aria-label={`Select ${episode.title}`}
-          className="hidden size-4 shrink-0 accent-primary md:block"
-        />
+        <GridCell className="hidden shrink-0 md:block">
+          <input
+            type="checkbox"
+            data-cell=""
+            checked={checked}
+            readOnly
+            onClick={(event) => onCheck(event.currentTarget.checked, event.shiftKey)}
+            aria-label={`Select ${episode.title}`}
+            className="block size-4 accent-primary"
+          />
+        </GridCell>
       )}
       <Artwork url={episode.artworkUrl} name={episode.podcast} size={48} />
-      <div className="min-w-0 flex-1">
+      <GridCell block className="min-w-0 flex-1">
         {/* The title opens the Episode: a screen on the phone, a panel beside the View on wide screens. */}
         <Link
           to="/episodes/$episodeId"
           params={{ episodeId: episode.id }}
+          data-cell="title"
+          data-episode-title={episode.id}
           onClick={(event) => {
-            if (onOpen && window.matchMedia("(min-width: 64rem)").matches) {
+            if (onOpen && plainClick(event) && window.matchMedia("(min-width: 64rem)").matches) {
               event.preventDefault()
               onOpen(episode.id)
             }
@@ -138,17 +192,14 @@ export function EpisodeRow({
             </span>
           )}
           {episode.starred && (
-            <Star
-              aria-label="Starred"
-              className="size-3.5 shrink-0 fill-star text-star md:hidden"
-            />
+            <Star aria-label="Starred" className="size-3.5 shrink-0 fill-star text-star" />
           )}
           {downloaded && (
             <ArrowDownToLine aria-label="Downloaded" className="size-3.5 shrink-0 text-positive" />
           )}
           <span className="truncate">{meta}</span>
         </p>
-      </div>
+      </GridCell>
 
       <div className="flex items-center gap-1 md:hidden">
         <IconButton label={`Add ${episode.title} to a Playlist`} onClick={() => setAdding(true)}>
@@ -158,59 +209,67 @@ export function EpisodeRow({
       </div>
 
       <div className="hidden items-center gap-0.5 md:flex">
-        <IconButton
-          label={`Play Next in ${target?.name ?? "Playlist"}`}
-          onClick={() => addTo("next")}
+        <div
+          className={`flex items-center gap-0.5 ${
+            shown
+              ? ""
+              : "transition-opacity [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[[data-popup-open]]:opacity-100"
+          }`}
         >
-          <ListStart aria-hidden="true" className="size-[18px]" />
-        </IconButton>
-        <IconButton
-          label={`Play Last in ${target?.name ?? "Playlist"}`}
-          onClick={() => addTo("last")}
-        >
-          <ListEnd aria-hidden="true" className="size-[18px]" />
-        </IconButton>
-        <IconButton label="Add to another Playlist…" onClick={() => setAdding(true)}>
-          <ListPlus aria-hidden="true" className="size-[18px]" />
-        </IconButton>
-        <IconButton
-          label="Star"
-          pressed={episode.starred}
-          onClick={() =>
-            void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
-          }
-          className={episode.starred ? "text-star hover:text-star" : ""}
-        >
-          <Star
-            aria-hidden="true"
-            className={`size-[18px] ${episode.starred ? "fill-current" : ""}`}
+          <TextAction
+            label={`Play Next in ${target?.name ?? "Playlist"}`}
+            onClick={() => addTo("next")}
+          >
+            Next
+          </TextAction>
+          <TextAction
+            label={`Play Last in ${target?.name ?? "Playlist"}`}
+            onClick={() => addTo("last")}
+          >
+            Last
+          </TextAction>
+          <IconButton label="Add to another Playlist…" onClick={() => setAdding(true)}>
+            <ListPlus aria-hidden="true" className="size-[18px]" />
+          </IconButton>
+          <IconButton
+            label="Star"
+            pressed={episode.starred}
+            onClick={() =>
+              void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
+            }
+            className={episode.starred ? "text-star hover:text-star" : ""}
+          >
+            <Star
+              aria-hidden="true"
+              className={`size-[18px] ${episode.starred ? "fill-current" : ""}`}
+            />
+          </IconButton>
+          <IconButton
+            label="Played"
+            pressed={episode.played}
+            onClick={() =>
+              void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
+            }
+            className={episode.played ? "text-positive hover:text-positive" : ""}
+          >
+            <Check aria-hidden="true" className="size-[18px]" />
+          </IconButton>
+          <DownloadButton
+            episodeId={episode.id}
+            renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
+              <IconButton
+                label={label}
+                pressed={pressed}
+                {...(onClick ? { onClick } : {})}
+                {...(buttonProps ? { buttonProps } : {})}
+                className={pressed ? "text-positive hover:text-positive" : ""}
+              >
+                {icon}
+              </IconButton>
+            )}
           />
-        </IconButton>
-        <IconButton
-          label="Played"
-          pressed={episode.played}
-          onClick={() =>
-            void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
-          }
-          className={episode.played ? "text-positive hover:text-positive" : ""}
-        >
-          <Check aria-hidden="true" className="size-[18px]" />
-        </IconButton>
-        <DownloadButton
-          episodeId={episode.id}
-          renderButton={({ icon, label, pressed, onClick, buttonProps }) => (
-            <IconButton
-              label={label}
-              pressed={pressed}
-              {...(onClick ? { onClick } : {})}
-              {...(buttonProps ? { buttonProps } : {})}
-              className={pressed ? "text-positive hover:text-positive" : ""}
-            >
-              {icon}
-            </IconButton>
-          )}
-        />
-        <span className="ml-2">{play}</span>
+        </div>
+        <span className="ml-2 flex">{play}</span>
       </div>
 
       {adding && <AddToPlaylist episode={episode} open={adding} onOpenChange={setAdding} />}

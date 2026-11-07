@@ -18,6 +18,7 @@ import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
+import { wrapTab } from "../../lib/focusTrap.ts"
 import { formatLength, formatTime } from "../../lib/time.ts"
 import type { NowPlaying } from "../../playback/Playback.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
@@ -370,7 +371,11 @@ export function NowPlayingDrawer() {
     >
       <Drawer.Portal>
         <Drawer.Backdrop className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Drawer.Popup className="surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl">
+        <Drawer.Popup
+          data-sheet="drawer"
+          onKeyDown={wrapTab}
+          className="surface-dark fixed inset-x-0 bottom-0 z-50 flex h-[calc(100dvh-2.5rem)] translate-y-[var(--drawer-swipe-movement-y)] flex-col rounded-t-3xl bg-player text-player-foreground shadow-2xl transition-transform duration-300 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:h-[min(46rem,calc(100dvh-4rem))] md:rounded-t-2xl"
+        >
           <div className="flex h-14 shrink-0 items-center gap-2 px-3">
             {page ? (
               <button

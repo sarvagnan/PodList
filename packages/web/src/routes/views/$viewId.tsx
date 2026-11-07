@@ -11,6 +11,7 @@ import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeRow, NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useRowGrid } from "../../lib/rowGrid.ts"
 import { describeView } from "../../lib/viewSummary.ts"
 
 export const Route = createFileRoute("/views/$viewId")({
@@ -50,7 +51,7 @@ function ViewDetail() {
   const view = state?.views.find((v) => v.id === viewId)
 
   // Views can match thousands of Episodes: only the rows on screen are rendered.
-  const listRef = useRef<HTMLOListElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
   useLayoutEffect(() => {
     setScrollMargin(listRef.current?.offsetTop ?? 0)
@@ -61,6 +62,35 @@ function ViewDetail() {
     overscan: 8,
     scrollMargin
   })
+  const grid = useRowGrid(listRef, {
+    count: episodes.length,
+    scrollToIndex: (index) => virtualizer.scrollToIndex(index, { align: "auto" }),
+    titleAt: (index) => episodes[index]?.title ?? "",
+    onSelectAll: () => setChecked(new Set(episodes.map((e) => e.id)))
+  })
+  // Shift-click ticks the range from the last row ticked or unticked.
+  const lastTicked = useRef<number | null>(null)
+  const tick = (index: number, on: boolean, range: boolean) => {
+    const from = range && lastTicked.current !== null ? lastTicked.current : index
+    lastTicked.current = index
+    setChecked((current) => {
+      const next = new Set(current)
+      for (let i = Math.min(from, index); i <= Math.max(from, index); i++) {
+        const id = episodes[i]?.id
+        if (id === undefined) continue
+        if (on) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }
+  // Closing the panel puts focus back on the row it showed (WKEY-03).
+  const closePanel = () => {
+    const shown = selected
+    void navigate({ search: {} }).then(() =>
+      document.querySelector<HTMLElement>(`[data-episode-title="${shown}"]`)?.focus()
+    )
+  }
 
   if (state === null) return null
   if (view === undefined) {
@@ -95,9 +125,15 @@ function ViewDetail() {
             New Episodes appear here as your podcasts publish them.
           </EmptyState>
         ) : (
-          <ol
+          // biome-ignore lint/a11y/useSemanticElements: a virtualised grid of flex rows (components/lists/Grid.tsx).
+          <div
             ref={listRef}
+            role="grid"
             aria-label={`${view.name} Episodes`}
+            aria-rowcount={episodes.length}
+            aria-multiselectable="true"
+            onKeyDown={grid.onKeyDown}
+            onFocus={grid.onFocus}
             className="relative mx-3 md:mx-6"
             style={{ height: virtualizer.getTotalSize() }}
           >
@@ -105,12 +141,16 @@ function ViewDetail() {
               const episode = episodes[item.index]
               if (episode === undefined) return null
               return (
-                <li
+                // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
+                <div
                   key={episode.id}
                   ref={virtualizer.measureElement}
+                  role="row"
                   data-index={item.index}
-                  aria-posinset={item.index + 1}
-                  aria-setsize={episodes.length}
+                  data-row={item.index}
+                  aria-rowindex={item.index + 1}
+                  aria-selected={checked.has(episode.id)}
+                  aria-current={episode.id === selected ? "true" : undefined}
                   className="absolute inset-x-0 top-0"
                   style={{
                     transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`
@@ -119,33 +159,28 @@ function ViewDetail() {
                   <EpisodeRow
                     episode={episode}
                     checked={checked.has(episode.id)}
-                    onCheck={(on) =>
-                      setChecked((current) => {
-                        const next = new Set(current)
-                        if (on) next.add(episode.id)
-                        else next.delete(episode.id)
-                        return next
-                      })
-                    }
+                    onCheck={(on, range) => tick(item.index, on, range)}
                     selected={episode.id === selected}
                     onOpen={(episodeId) => navigate({ search: { episode: episodeId } })}
                   />
-                </li>
+                </div>
               )
             })}
-          </ol>
+          </div>
         )}
         {selected && (
           <aside
             aria-label="Episode"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !event.defaultPrevented) closePanel()
+            }}
             className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pb-28 lg:block"
           >
             <div className="flex justify-end px-3">
               <button
                 type="button"
                 aria-label="Close Episode"
-                title="Close"
-                onClick={() => navigate({ search: {} })}
+                onClick={closePanel}
                 className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
               >
                 <X aria-hidden="true" className="size-5" />

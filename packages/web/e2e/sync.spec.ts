@@ -48,9 +48,9 @@ const addLast = async (page: Page, title: string) => {
     .getByRole("navigation", { name: "Library and lists" })
     .getByRole("link", { name: "Under 30 minutes" })
     .click()
-  await page.locator("main ol > li").first().waitFor()
+  await page.getByRole("row").first().waitFor()
   await page.getByRole("combobox").selectOption({ label: "Commute" })
-  const row = page.locator("main ol > li").filter({ hasText: title })
+  const row = page.getByRole("row").filter({ hasText: title })
   await row.getByRole("button", { name: "Play Last in Commute" }).click()
   await expect(page.getByText("Added last in Commute")).toBeVisible()
 }
