@@ -28,11 +28,16 @@ export interface RowGrid {
   /** For type-ahead. */
   readonly titleAt: (index: number) => string
   readonly onSelectAll?: () => void
+  /** Cmd/Ctrl-C on a row with no text selected: copy that row's link. */
+  readonly onCopy?: (index: number) => void
 }
 
 export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGrid) {
   const active = useRef<{ row: number; cell: number | null }>({ row: 0, cell: null })
   const typed = useRef({ text: "", at: 0 })
+  // The control focused in the list. If its row leaves (removed, or no longer matching
+  // the View), focus goes to the row that takes its place (FLOW-02).
+  const focused = useRef<HTMLElement | null>(null)
 
   const rowAt = (index: number) =>
     container.current?.querySelector<HTMLElement>(`[data-row="${index}"]`) ?? null
@@ -48,7 +53,20 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     const target = cells[index]
     if (target) target.tabIndex = 0
   }
-  useEffect(sync)
+  useEffect(() => {
+    sync()
+    const lost = document.activeElement === null || document.activeElement === document.body
+    if (focused.current === null || focused.current.isConnected || !lost || grid.count === 0) return
+    focused.current = null
+    const index = Math.min(active.current.row, grid.count - 1)
+    const row = rowAt(index)
+    if (row === null) return
+    active.current = { row: index, cell: active.current.cell }
+    const cells = visibleCells(row)
+    cells[Math.min(active.current.cell ?? titleCell(row), cells.length - 1)]?.focus({
+      preventScroll: true
+    })
+  })
 
   const focusCell = (row: number, cell: number | null, then?: () => void) => {
     const index = Math.max(0, Math.min(grid.count - 1, row))
@@ -77,7 +95,14 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     const row = cell?.closest<HTMLElement>("[data-row]")
     if (!cell || !row || !container.current?.contains(row)) return
     active.current = { row: Number(row.dataset.row), cell: visibleCells(row).indexOf(cell) }
+    focused.current = cell
     sync()
+  }
+
+  const onBlur = (event: FocusEvent<HTMLElement>) => {
+    // Focus moved elsewhere on purpose (a removed control gives no next element).
+    const next = event.relatedTarget as Node | null
+    if (next !== null && !container.current?.contains(next)) focused.current = null
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -134,6 +159,12 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
           grid.onSelectAll()
           break
         }
+        if (mod && event.key.toLowerCase() === "c" && grid.onCopy) {
+          // Selected text copies as usual.
+          if (window.getSelection()?.isCollapsed === false) return
+          grid.onCopy(r)
+          break
+        }
         if (mod || event.altKey || event.key.length !== 1) return
         // Type-ahead: jump to the next title starting with what was typed.
         const now = Date.now()
@@ -152,5 +183,5 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     event.preventDefault()
   }
 
-  return { onKeyDown, onFocus }
+  return { onKeyDown, onFocus, onBlur }
 }

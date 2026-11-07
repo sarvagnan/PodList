@@ -12,6 +12,7 @@ import { playbackAtom, recordAtom } from "../../app/runtime.ts"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../../components/episodes/useEpisodeActions.ts"
 import { Tip } from "../../components/feedback/Tip.tsx"
+import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { GridCell } from "../../components/lists/Grid.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
@@ -46,11 +47,16 @@ function PlaylistDetail() {
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
   const listRef = useRef<HTMLDivElement>(null)
   const entries = playlist?.entries ?? []
+  const copyLink = useCopyEpisodeLink()
   const grid = useRowGrid(listRef, {
     count: entries.length,
     scrollToIndex: (index) =>
       listRef.current?.querySelector(`[data-row="${index}"]`)?.scrollIntoView({ block: "nearest" }),
-    titleAt: (index) => episodes.get(entries[index]?.episodeId ?? "")?.title ?? ""
+    titleAt: (index) => episodes.get(entries[index]?.episodeId ?? "")?.title ?? "",
+    onCopy: (index) => {
+      const id = entries[index]?.episodeId
+      if (id !== undefined) void copyLink(id)
+    }
   })
   const closePanel = () => {
     const shown = selected
@@ -114,7 +120,7 @@ function PlaylistDetail() {
           <button
             type="button"
             onClick={headerAction}
-            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-transparent bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-transparent bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
           >
             {isPlaying ? (
               <Pause aria-hidden="true" className="size-4 fill-current" />
@@ -130,7 +136,7 @@ function PlaylistDetail() {
           In a View, use Play Next or Play Last to add Episodes here.
         </EmptyState>
       ) : (
-        <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : ""}>
+        <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : "max-w-[960px]"}>
           {/* biome-ignore lint/a11y/useSemanticElements: a grid of flex rows (components/lists/Grid.tsx). */}
           <div
             ref={listRef}
@@ -139,6 +145,7 @@ function PlaylistDetail() {
             aria-rowcount={entries.length}
             onKeyDown={grid.onKeyDown}
             onFocus={grid.onFocus}
+            onBlur={grid.onBlur}
             className="px-3 md:px-6"
           >
             {playlist.entries.map((entry, index) => {
@@ -170,7 +177,7 @@ function PlaylistDetail() {
                   className={`@container relative flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 ${current ? "bg-accent" : ""}`}
                 >
                   <span
-                    className={`min-w-10 shrink-0 text-center text-xs font-semibold tracking-wider @max-[22rem]:hidden ${current ? "text-primary" : "text-muted-foreground"}`}
+                    className={`hidden min-w-10 shrink-0 text-center text-xs font-semibold tracking-wider @min-[30rem]:block ${current ? "text-primary" : "text-muted-foreground"}`}
                   >
                     {current ? (active ? "NOW" : "RESUME") : index + 1}
                   </span>
@@ -181,7 +188,7 @@ function PlaylistDetail() {
                   />
                   <GridCell block className="min-w-0 flex-1">
                     {current && (
-                      <span className="hidden text-xs font-semibold tracking-wider text-primary @max-[22rem]:block">
+                      <span className="block text-xs font-semibold tracking-wider text-primary @min-[30rem]:hidden">
                         {active ? "NOW" : "RESUME"}
                       </span>
                     )}
@@ -214,13 +221,16 @@ function PlaylistDetail() {
                       </Link>
                     )}
                     <span className="mt-1.5 flex items-center gap-2">
-                      <span className="progress-track h-1 flex-1 overflow-hidden rounded-full bg-border">
-                        <span
-                          className="progress-fill block h-1 bg-primary"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </span>
-                      <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                      {/* Only a started Entry has progress to show. */}
+                      {position > 0 && (
+                        <span className="progress-track h-1 flex-1 overflow-hidden rounded-full bg-border">
+                          <span
+                            className="progress-fill block h-1 bg-primary"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </span>
+                      )}
+                      <span className="text-small whitespace-nowrap text-muted-foreground tabular-nums">
                         {time}
                       </span>
                     </span>

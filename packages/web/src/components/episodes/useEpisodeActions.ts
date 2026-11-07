@@ -11,7 +11,7 @@ export function useEpisodeActions() {
   return useCallback(
     async (action: EpisodeAction) => {
       const outcome = await run(action)
-      if (action._tag !== "PlayNow") confirm(outcome)
+      if (action._tag !== "PlayNow") confirm(outcome, () => run(action))
     },
     [run, confirm]
   )

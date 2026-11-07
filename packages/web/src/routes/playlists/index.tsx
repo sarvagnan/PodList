@@ -1,10 +1,10 @@
 import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { ListMusic } from "lucide-react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
 import { ListRow, LoadingRows, StatusBadge } from "../../components/lists/ListRow.tsx"
+import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 
 export const Route = createFileRoute("/playlists/")({ component: PlaylistsList })
@@ -38,7 +38,14 @@ function PlaylistsList() {
               <ListRow
                 key={p.id}
                 link={{ to: "/playlists/$playlistId", params: { playlistId: p.id } }}
-                icon={<ListMusic aria-hidden="true" className="size-5" />}
+                // What each Playlist is on, rather than the same icon on every row.
+                icon={
+                  <Artwork
+                    url={current?.artworkUrl ?? null}
+                    name={current?.podcast ?? p.name}
+                    size={40}
+                  />
+                }
                 title={p.name}
                 badge={status ? <StatusBadge status={status} /> : undefined}
                 lines={lines}

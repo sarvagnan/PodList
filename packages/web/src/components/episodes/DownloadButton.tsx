@@ -1,7 +1,7 @@
 import { Menu } from "@base-ui/react/menu"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
-import { AlertCircle, ArrowDownToLine, CircleCheck, Square } from "lucide-react"
+import { AlertCircle, ArrowDownToLine, CircleArrowDown, Square } from "lucide-react"
 import type * as React from "react"
 import type { ReactNode } from "react"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
@@ -78,7 +78,7 @@ export function DownloadButton({
         <Menu.Trigger
           render={(props) =>
             renderButton({
-              icon: <CircleCheck aria-hidden="true" className="size-5" />,
+              icon: <CircleArrowDown aria-hidden="true" className="size-5" />,
               label: "Downloaded",
               pressed: true,
               buttonProps: props
@@ -87,8 +87,8 @@ export function DownloadButton({
         />
         <Menu.Portal>
           <Menu.Positioner sideOffset={6} className="z-50">
-            <Menu.Popup className="min-w-48 rounded-xl border bg-popover p-1 text-sm text-popover-foreground shadow-lg">
-              <p className="px-3 py-2 text-xs text-muted-foreground">
+            <Menu.Popup className="min-w-48 rounded-xl border bg-popover p-1 text-row text-popover-foreground shadow-lg">
+              <p className="px-3 py-2 text-small text-muted-foreground">
                 Stored on this Device · {megabytes(status.bytes)}
               </p>
               <Menu.Item

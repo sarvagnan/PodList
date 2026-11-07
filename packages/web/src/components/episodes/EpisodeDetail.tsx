@@ -1,14 +1,16 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
-import { Check, Play, Plus, Star } from "lucide-react"
+import { Check, Play, Plus, Share, Star } from "lucide-react"
 import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import { episodeDetailAtom } from "../../app/data.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt } from "../../lib/chapters.ts"
+import { episodeLink } from "../../lib/share.ts"
 import { showNotesText } from "../../lib/showNotes.ts"
 import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
+import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
 import { DownloadButton } from "./DownloadButton.tsx"
@@ -27,7 +29,9 @@ const tones = {
     action: "bg-secondary text-foreground hover:bg-input active:bg-input/70",
     row: "hover:bg-secondary",
     current: "bg-accent",
-    rule: "border-border"
+    rule: "border-border",
+    played: "text-positive",
+    starred: "text-star"
   },
   dark: {
     muted: "text-player-muted",
@@ -35,7 +39,10 @@ const tones = {
       "bg-player-track text-player-foreground hover:bg-player-track/80 active:bg-player-track/60",
     row: "hover:bg-player-track",
     current: "bg-player-track",
-    rule: "border-player-track"
+    rule: "border-player-track",
+    // Lighter on the dark player, for contrast (APPEAR-04).
+    played: "text-[#86d9ab]",
+    starred: "text-[#f2c46b]"
   }
 } as const
 
@@ -60,7 +67,7 @@ function Action({
       {...buttonProps}
       aria-pressed={buttonProps ? undefined : pressed}
       onClick={onClick ?? buttonProps?.onClick}
-      className={`flex w-20 flex-col items-center gap-1.5 text-xs font-medium ${className}`}
+      className={`flex w-20 flex-col items-center gap-1.5 text-small font-medium ${className}`}
     >
       {children}
       {label}
@@ -86,6 +93,7 @@ export function EpisodeDetail({
   const act = useEpisodeActions()
   const control = useAtomSet(playbackAtom)
   const [adding, setAdding] = useState(false)
+  const copyLink = useCopyEpisodeLink()
 
   if (AsyncResult.isInitial(result)) {
     return <div role="status" aria-label="Loading Episode" className="h-40" />
@@ -119,6 +127,20 @@ export function EpisodeDetail({
           <p className={`text-small ${t.muted}`}>{detail.podcast}</p>
           <h2 className="mt-1 font-heading text-xl leading-snug font-semibold">{detail.title}</h2>
           <p className={`mt-1.5 text-small ${t.muted}`}>{facts}</p>
+          {/* The Episode's link: the system share sheet where there is one, else copied. */}
+          <button
+            type="button"
+            onClick={async () => {
+              const url = await episodeLink(episodeId)
+              if (navigator.share) {
+                await navigator.share({ title: detail.title, url }).catch(() => undefined)
+              } else void copyLink(episodeId)
+            }}
+            className={`mt-2 -ml-2 inline-flex h-9 items-center gap-1.5 rounded-full px-2 text-small font-medium ${t.row}`}
+          >
+            <Share aria-hidden="true" className="size-4" />
+            Share
+          </button>
         </div>
       </div>
 
@@ -127,9 +149,10 @@ export function EpisodeDetail({
           label="Played"
           pressed={played}
           onClick={() => void act({ _tag: "Played", episodeId, played: !played })}
-          className={played ? "text-positive" : ""}
+          className=""
         >
-          <span className={iconCircle}>
+          {/* Pressed: the icon takes the colour and a ring; the label stays readable. */}
+          <span className={`${iconCircle} ${played ? `${t.played} ring-2 ring-current` : ""}`}>
             <Check aria-hidden="true" className="size-5" />
           </span>
         </Action>
@@ -147,9 +170,12 @@ export function EpisodeDetail({
               pressed={pressed}
               {...(onClick ? { onClick } : {})}
               {...(buttonProps ? { buttonProps } : {})}
-              className={pressed ? "text-foreground" : ""}
+              className=""
             >
-              <span aria-hidden="true" className={iconCircle}>
+              <span
+                aria-hidden="true"
+                className={`${iconCircle} ${pressed ? "ring-2 ring-current" : ""}`}
+              >
                 {icon}
               </span>
             </Action>
@@ -174,12 +200,12 @@ export function EpisodeDetail({
           </span>
         </Action>
         <Action
-          label={starred ? "Starred" : "Star"}
+          label="Star"
           pressed={starred}
           onClick={() => void act({ _tag: "Star", episodeId, starred: !starred })}
-          className={starred ? "text-star" : ""}
+          className=""
         >
-          <span className={iconCircle}>
+          <span className={`${iconCircle} ${starred ? `${t.starred} ring-2 ring-current` : ""}`}>
             <Star aria-hidden="true" className={`size-5 ${starred ? "fill-current" : ""}`} />
           </span>
         </Action>
@@ -201,8 +227,8 @@ export function EpisodeDetail({
                   className={`flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0 ${t.rule}`}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{playlist.name}</span>
-                    <span className={`block text-xs ${t.muted}`}>
+                    <span className="block text-row font-medium">{playlist.name}</span>
+                    <span className={`block text-small ${t.muted}`}>
                       {live && now.playing
                         ? `Playing · ${formatTime(position)}${detail.duration ? ` of ${formatTime(detail.duration)}` : ""}`
                         : position > 0
@@ -219,7 +245,7 @@ export function EpisodeDetail({
                         onPlay?.()
                       }
                     }}
-                    className={`h-10 rounded-full px-4 text-sm font-semibold ${t.action}`}
+                    className={`h-10 rounded-full px-4 text-row font-semibold ${t.action}`}
                   >
                     {live && now.playing ? "Pause" : position > 0 ? "Resume" : "Play"}
                   </button>
@@ -246,20 +272,20 @@ export function EpisodeDetail({
                     className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left ${t.row} ${i === playingChapter ? t.current : ""}`}
                   >
                     <span
-                      className={`min-w-14 shrink-0 text-xs whitespace-nowrap tabular-nums ${t.muted}`}
+                      className={`min-w-14 shrink-0 text-small whitespace-nowrap tabular-nums ${t.muted}`}
                     >
                       {formatTime(c.start)}
                     </span>
-                    <span className="text-sm">{c.title}</span>
+                    <span className="text-row">{c.title}</span>
                   </button>
                 ) : (
                   <div className="flex min-h-11 items-center gap-3 px-2">
                     <span
-                      className={`min-w-14 shrink-0 text-xs whitespace-nowrap tabular-nums ${t.muted}`}
+                      className={`min-w-14 shrink-0 text-small whitespace-nowrap tabular-nums ${t.muted}`}
                     >
                       {formatTime(c.start)}
                     </span>
-                    <span className="text-sm">{c.title}</span>
+                    <span className="text-row">{c.title}</span>
                   </div>
                 )}
               </li>
@@ -272,7 +298,7 @@ export function EpisodeDetail({
         <h3 className={`text-xs font-semibold tracking-[0.08em] uppercase ${t.muted}`}>
           Show notes
         </h3>
-        <div className="mt-2 max-w-prose space-y-3 text-sm leading-relaxed whitespace-pre-line">
+        <div className="mt-2 max-w-prose space-y-3 text-row leading-relaxed whitespace-pre-line">
           {notes.length > 0 ? (
             notes.map((p) => <p key={p}>{p}</p>)
           ) : (

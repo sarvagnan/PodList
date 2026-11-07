@@ -126,7 +126,7 @@ export function Shortcuts() {
                         </kbd>
                       ))}
                     </dt>
-                    <dd className="text-sm">{what}</dd>
+                    <dd className="text-row">{what}</dd>
                   </div>
                 ))}
               </dl>

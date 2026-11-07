@@ -35,7 +35,10 @@ export function SyncIndicator({ variant }: { readonly variant: "phone" | "deskto
       : "Changes will sync when you’re back online"
   if (variant === "desktop") {
     return (
-      <p role="status" className="flex items-start gap-2 px-2.5 py-2 text-xs text-muted-foreground">
+      <p
+        role="status"
+        className="flex items-start gap-2 px-2.5 py-2 text-small text-muted-foreground"
+      >
         <CloudOff aria-hidden="true" className="mt-px size-4 shrink-0" />
         <span>
           <span className="block font-semibold text-foreground">Offline</span>
@@ -47,7 +50,7 @@ export function SyncIndicator({ variant }: { readonly variant: "phone" | "deskto
   return (
     <p
       role="status"
-      className="mx-2.5 mb-1.5 flex items-center gap-2 rounded-lg bg-secondary px-3 py-1.5 text-xs text-muted-foreground"
+      className="mx-2.5 mb-1.5 flex items-center gap-2 rounded-lg bg-secondary px-3 py-1.5 text-small text-muted-foreground"
     >
       <CloudOff aria-hidden="true" className="size-4 shrink-0" />
       <span className="truncate">

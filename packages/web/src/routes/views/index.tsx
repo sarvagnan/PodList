@@ -1,7 +1,6 @@
 import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { Filter } from "lucide-react"
 import { useEffect } from "react"
 import { viewCountsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
@@ -12,7 +11,7 @@ import { describeView } from "../../lib/viewSummary.ts"
 export const Route = createFileRoute("/views/")({ component: ViewsList })
 
 /** Wide screens list Views in the sidebar already, so the main area shows the first one. */
-const wide = () => window.matchMedia("(min-width: 48rem)").matches
+const wide = () => window.matchMedia("(min-width: 44rem)").matches
 
 function ViewsList() {
   const state = useAppState()
@@ -44,7 +43,6 @@ function ViewsList() {
             <ListRow
               key={v.id}
               link={{ to: "/views/$viewId", params: { viewId: v.id } }}
-              icon={<Filter aria-hidden="true" className="size-5" />}
               title={v.name}
               lines={[describeView(v)]}
               trailing={counts.has(v.id) ? String(counts.get(v.id)) : undefined}

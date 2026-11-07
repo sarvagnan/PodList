@@ -22,6 +22,7 @@ import { Tip } from "../feedback/Tip.tsx"
 import { Toasts } from "../feedback/Toasts.tsx"
 import { UndoShortcut } from "../feedback/UndoShortcut.tsx"
 import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
+import { PlayerMenus } from "../player/PlayerMenus.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
 import { Artwork } from "./Artwork.tsx"
@@ -121,7 +122,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   )
   // Plain words and a way forward, not the media element's own text (COPY-02).
   const error = current.error && (
-    <p role="alert" className="flex items-center gap-2 text-xs text-player-danger">
+    <p role="alert" className="flex items-center gap-2 text-small text-player-danger">
       <span className="truncate">Couldn’t play this Episode.</span>
       <button
         type="button"
@@ -150,11 +151,11 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           <span className="min-w-0 flex-1 pl-1">
             <TrackTitle title={current.title} className="text-small" />
             {current.error ? (
-              <span role="alert" className="block truncate text-xs text-player-danger">
+              <span role="alert" className="block truncate text-small text-player-danger">
                 Couldn’t play this Episode.
               </span>
             ) : (
-              <span className="block truncate text-xs text-player-muted">{label}</span>
+              <span className="block truncate text-small text-player-muted">{label}</span>
             )}
           </span>
         </button>
@@ -162,7 +163,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           <button
             type="button"
             onClick={() => control({ _tag: "retry" })}
-            className="h-9 shrink-0 rounded-full bg-player-track px-3 text-xs font-semibold text-player-foreground active:bg-player-track/70"
+            className="h-9 shrink-0 rounded-full bg-player-track px-3 text-small font-semibold text-player-foreground active:bg-player-track/70"
           >
             Try again
           </button>
@@ -197,7 +198,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   return (
     <section
       aria-label="Now playing"
-      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(0,1fr)_minmax(0,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
+      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground md:grid"
     >
       <div className="flex min-w-0 flex-col">
         <button
@@ -213,9 +214,9 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             size={48}
           />
           <span className="min-w-0">
-            <TrackTitle title={current.title} className="text-sm" />
+            <TrackTitle title={current.title} className="text-row" />
             {!current.error && (
-              <span className="block truncate text-xs text-player-muted">
+              <span className="block truncate text-small text-player-muted">
                 {chapter ? `${chapter.title} · ${label}` : label}
               </span>
             )}
@@ -248,17 +249,21 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           onSeek={(seconds) => control({ _tag: "seek", seconds })}
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-1">
+        {/* Speed and sleep beside Up next on wide windows (docs/design/ui-layout.md). */}
+        <span className="hidden xl:flex">
+          <PlayerMenus current={current} />
+        </span>
         {playlist && (
           <Tip label={`Up next in ${playlist.name}`}>
             <button
               type="button"
               onClick={() => openDrawer(["queue"])}
-              className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
+              className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-row whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
             >
               <ListMusic aria-hidden="true" className="size-5" />
               <span>
-                {queued} <span className="text-player-muted">up next</span>
+                {queued} <span className="text-player-muted max-lg:sr-only">up next</span>
               </span>
             </button>
           </Tip>
@@ -285,7 +290,7 @@ function Sidebar() {
   const state = useAppState()
   const ready = useLibraryReady()
   const link =
-    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-sm text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
+    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
   const heading =
     "px-2.5 pt-5 pb-1 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
   return (
@@ -322,7 +327,7 @@ function Sidebar() {
                 <AudioLines aria-label="Active Playlist" className="size-4 shrink-0 text-primary" />
               )}
             </span>
-            <span className="text-xs text-muted-foreground">{p.entries.length}</span>
+            <span className="text-small text-muted-foreground">{p.entries.length}</span>
           </Link>
         )
       })}
@@ -351,7 +356,7 @@ function BottomTabs() {
         <Link
           key={to}
           to={to}
-          className="group flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground [&.active]:font-bold [&.active]:text-primary"
+          className="group flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-small font-medium text-muted-foreground [&.active]:font-bold [&.active]:text-primary"
         >
           {/* The selected tab gets a pill behind its icon as well as colour (AX-02). */}
           <span className="tab-indicator grid h-8 w-16 place-items-center rounded-full group-[.active]:bg-accent">
@@ -413,7 +418,14 @@ function usePlayPauseKey() {
   const control = useAtomSet(playbackAtom)
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== " " || event.repeat || event.metaKey || event.ctrlKey || event.altKey)
+      if (
+        event.key !== " " ||
+        event.repeat ||
+        event.shiftKey ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
         return
       const target = event.target as HTMLElement
       if (target.closest("input, textarea, select, button, a, [contenteditable], [role=dialog]")) {
@@ -436,7 +448,7 @@ export function AppShell() {
     <div className="flex min-h-dvh">
       <a
         href="#main"
-        className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-card px-4 py-2.5 text-sm font-semibold shadow focus:translate-y-0"
+        className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-card px-4 py-2.5 text-row font-semibold shadow focus:translate-y-0"
       >
         Skip to content
       </a>

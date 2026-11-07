@@ -65,7 +65,7 @@ export function AddToPlaylist({
               <X aria-hidden="true" className="size-5" />
             </Dialog.Close>
           </div>
-          <Dialog.Description className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+          <Dialog.Description className="mt-1 line-clamp-2 text-row text-muted-foreground">
             {episode.title}
           </Dialog.Description>
           <fieldset className="mt-4">
@@ -84,7 +84,7 @@ export function AddToPlaylist({
                   className="size-4 accent-primary"
                 />
                 <span className="flex-1 text-row font-medium">{p.name}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-small text-muted-foreground">
                   {p.id === state?.activePlaylistId ? "Playing · " : ""}
                   {p.entries.length}
                 </span>

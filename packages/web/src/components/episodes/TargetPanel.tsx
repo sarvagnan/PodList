@@ -36,7 +36,7 @@ export function TargetPanel({ onOpen }: { readonly onOpen: (episodeId: string) =
         </Link>
       </h2>
       {upcoming.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-3 text-row text-muted-foreground">
           Nothing up next. Use Next or Last on an Episode to add it here.
         </p>
       ) : (
@@ -52,9 +52,22 @@ export function TargetPanel({ onOpen }: { readonly onOpen: (episodeId: string) =
                   : ""
             return (
               <li key={entry.episodeId}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(entry.episodeId)}
+                <Link
+                  to="/episodes/$episodeId"
+                  params={{ episodeId: entry.episodeId }}
+                  onClick={(event) => {
+                    // A plain click opens it beside the View; modified clicks stay links.
+                    if (
+                      event.button === 0 &&
+                      !event.metaKey &&
+                      !event.ctrlKey &&
+                      !event.shiftKey &&
+                      !event.altKey
+                    ) {
+                      event.preventDefault()
+                      onOpen(entry.episodeId)
+                    }
+                  }}
                   className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-secondary ${current ? "bg-accent" : ""}`}
                 >
                   <Artwork
@@ -68,14 +81,14 @@ export function TargetPanel({ onOpen }: { readonly onOpen: (episodeId: string) =
                         {active ? "NOW" : "RESUME"}
                       </span>
                     )}
-                    <span className="line-clamp-2 text-sm font-medium">
+                    <span className="line-clamp-2 text-row font-medium">
                       {episode?.title ?? "Episode unavailable"}
                     </span>
-                    <span className="block text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                    <span className="block text-small whitespace-nowrap text-muted-foreground tabular-nums">
                       {time}
                     </span>
                   </span>
-                </button>
+                </Link>
               </li>
             )
           })}

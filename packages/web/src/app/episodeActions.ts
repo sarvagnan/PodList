@@ -76,6 +76,8 @@ export interface Undoable {
   readonly id: number
   readonly message: string
   readonly undo: ReadonlyArray<Operation.Change>
+  /** Does the step again, for Redo; answers with the new way to take it back. */
+  readonly again: () => Promise<Outcome>
 }
 
 /**
@@ -83,6 +85,9 @@ export interface Undoable {
  * it; a toast's Undo takes back its own step wherever it is in the stack.
  */
 export const undoStackAtom = Atom.make<ReadonlyArray<Undoable>>([]).pipe(Atom.keepAlive)
+
+/** Steps taken back, newest last; Cmd/Ctrl-Shift-Z does them again. A new step clears it. */
+export const redoStackAtom = Atom.make<ReadonlyArray<Undoable>>([]).pipe(Atom.keepAlive)
 
 /** Desktop: the Playlist that Play Next and Play Last go to; the Active one when unset. */
 export const nextLastTargetAtom = Atom.make<string | null>(nextLastTarget.get()).pipe(

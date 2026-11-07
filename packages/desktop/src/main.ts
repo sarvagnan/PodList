@@ -148,19 +148,60 @@ const goForward = (win: BrowserWindow) => {
     win.webContents.navigationHistory.goForward()
 }
 
+/** The steps Edit › Undo and Redo will act on, as the web app reports them. */
+const undoLabels: { undo: string | null; redo: string | null } = { undo: null, redo: null }
+
 /**
- * Edit › Undo: text fields keep their own undo; elsewhere the web app takes back its last
- * step (its Cmd-Z handler), which the menu's built-in Undo would otherwise swallow.
+ * Edit › Undo and Redo: text fields keep their own; elsewhere the web app takes back (or
+ * redoes) its last step through its Cmd-Z handler, which the menu would otherwise swallow.
  */
-const undo = async (win: BrowserWindow) => {
+const undo = async (win: BrowserWindow, redo: boolean) => {
   const editing = (await win.webContents.executeJavaScript(`(() => {
     const el = document.activeElement
     const editing = !!el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
       (el.tagName === "INPUT" && !["checkbox", "radio", "range", "button"].includes(el.type)))
-    if (!editing) document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", metaKey: true, bubbles: true, cancelable: true }))
+    if (!editing) document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", metaKey: true, shiftKey: ${redo}, bubbles: true, cancelable: true }))
     return editing
   })()`)) as boolean
-  if (editing) win.webContents.undo()
+  if (editing) {
+    if (redo) win.webContents.redo()
+    else win.webContents.undo()
+  }
+}
+
+/** What an Episode row tells the shell for its right-click menu (data-episode-menu). */
+interface EpisodeMenu {
+  readonly id: string
+  readonly path: string
+  readonly starred: boolean
+  readonly played: boolean
+  readonly target: string
+}
+
+const episodeMenu = (win: BrowserWindow, e: EpisodeMenu): MenuItemConstructorOptions[] => {
+  const send = (command: string) => () =>
+    void win.webContents.executeJavaScript(
+      `document.dispatchEvent(new CustomEvent("podlist:episode", { detail: ${JSON.stringify({ id: e.id, command })} }))`
+    )
+  const server = serverUrl()
+  const shared = server === undefined ? undefined : new URL(e.path, server).href
+  return [
+    { label: "Play Now", click: send("play") },
+    { label: `Play Next in ${e.target}`, click: send("next") },
+    { label: `Play Last in ${e.target}`, click: send("last") },
+    { label: "Add to a Playlist…", click: send("add") },
+    { type: "separator" },
+    { label: e.starred ? "Unstar" : "Star", click: send("star") },
+    { label: e.played ? "Mark Unplayed" : "Mark Played", click: send("played") },
+    { type: "separator" },
+    { label: "Open Episode", click: send("open") },
+    ...(shared === undefined
+      ? []
+      : [
+          { label: "Open in Browser", click: () => void shell.openExternal(shared) },
+          { label: "Copy Link", click: () => clipboard.writeText(shared) }
+        ])
+  ]
 }
 
 /** Right-click: what a Mac app offers for links, selected text and text fields (BROWSER-06). */
@@ -251,7 +292,16 @@ const createWindow = () => {
     if (/^https?:/.test(url)) void shell.openExternal(url)
   })
   win.webContents.on("context-menu", (_event, params) => {
-    Menu.buildFromTemplate(contextMenu(win, params)).popup({ window: win })
+    void (async () => {
+      // On an Episode row, the Episode's commands, as a native menu (BROWSER-06).
+      const episode = (await win.webContents
+        .executeJavaScript(
+          `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-episode-menu]"); return el ? JSON.parse(el.dataset.episodeMenu) : null })()`
+        )
+        .catch(() => null)) as EpisodeMenu | null
+      const items = episode ? episodeMenu(win, episode) : contextMenu(win, params)
+      Menu.buildFromTemplate(items).popup({ window: win })
+    })()
   })
   // Three-finger swipes and mouse back/forward buttons walk history (BROWSER-09).
   win.on("swipe", (_event, direction) => {
@@ -331,13 +381,19 @@ const menu = (): MenuItemConstructorOptions[] => [
     label: "Edit",
     submenu: [
       {
-        label: "Undo",
+        label: undoLabels.undo ? `Undo “${undoLabels.undo}”` : "Undo",
         accelerator: "CmdOrCtrl+Z",
         click: () => {
-          if (window) void undo(window)
+          if (window) void undo(window, false)
         }
       },
-      { role: "redo" },
+      {
+        label: undoLabels.redo ? `Redo “${undoLabels.redo}”` : "Redo",
+        accelerator: "Shift+CmdOrCtrl+Z",
+        click: () => {
+          if (window) void undo(window, true)
+        }
+      },
       { type: "separator" },
       { role: "cut" },
       { role: "copy" },
@@ -353,9 +409,14 @@ const menu = (): MenuItemConstructorOptions[] => [
       { role: "zoomOut" },
       { type: "separator" },
       { role: "togglefullscreen" },
-      { type: "separator" },
-      { role: "reload" },
-      ...(app.isPackaged ? [] : [{ role: "toggleDevTools" } as const])
+      // Reload and the developer tools only when run from source.
+      ...(app.isPackaged
+        ? []
+        : [
+            { type: "separator" } as const,
+            { role: "reload" } as const,
+            { role: "toggleDevTools" } as const
+          ])
     ]
   },
   {
@@ -436,6 +497,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("podlist:connect", (_event, address: string) => connect(address))
     ipcMain.handle("podlist:server", () => serverUrl() ?? null)
     ipcMain.handle("podlist:cancel", () => window?.loadURL(`${appOrigin}/`))
+    ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown) => {
+      undoLabels.undo = typeof undoStep === "string" ? undoStep : null
+      undoLabels.redo = typeof redoStep === "string" ? redoStep : null
+      Menu.setApplicationMenu(Menu.buildFromTemplate(menu()))
+    })
     createWindow()
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

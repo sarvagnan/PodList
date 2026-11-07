@@ -25,7 +25,7 @@ function BulkButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium hover:bg-secondary active:bg-input"
+      className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-row font-medium hover:bg-secondary active:bg-input"
     >
       {icon}
       {children}
@@ -59,7 +59,8 @@ export function BulkBar({
   const allPlayed = selected.every((id) => state?.episodeStates[id]?.played != null)
 
   const act = async (actions: ReadonlyArray<EpisodeAction>, message: string) => {
-    confirm(await run({ actions, message }))
+    const again = () => run({ actions, message })
+    confirm(await again(), again)
   }
   const add = (placement: "next" | "last") => {
     if (!target) return
@@ -78,7 +79,7 @@ export function BulkBar({
       aria-label={`${episodes(n)} selected`}
       className="flex flex-wrap items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
     >
-      <span className="mr-2 text-sm font-semibold">{n} selected</span>
+      <span className="mr-2 text-row font-semibold">{n} selected</span>
       <BulkButton
         onClick={() => add("next")}
         icon={<ListStart aria-hidden="true" className="size-4" />}

@@ -12,7 +12,8 @@ export function ListRow({
   trailing
 }: {
   readonly link: LinkProps
-  readonly icon: ReactNode
+  /** Artwork or an icon; left out when it would only repeat on every row. */
+  readonly icon?: ReactNode
   readonly title: string
   readonly badge?: ReactNode | undefined
   readonly lines: ReadonlyArray<string>
@@ -23,16 +24,14 @@ export function ListRow({
       {...link}
       className="flex min-h-16 items-center gap-3 border-b px-2 py-3 text-foreground last:border-b-0 hover:bg-secondary/60"
     >
-      <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-accent text-accent-foreground">
-        {icon}
-      </span>
+      {icon !== undefined && icon}
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate text-base font-medium">{title}</span>
+          <span className="truncate text-row font-medium">{title}</span>
           {badge}
         </span>
         {lines.map((line) => (
-          <span key={line} className="mt-0.5 block truncate text-xs text-muted-foreground">
+          <span key={line} className="mt-0.5 block truncate text-small text-muted-foreground">
             {line}
           </span>
         ))}
@@ -83,7 +82,7 @@ export function EmptyState({
   return (
     <div className="mx-5 rounded-2xl border border-dashed px-5 py-8 text-center md:mx-8">
       <p className="font-medium">{title}</p>
-      <p className="mt-1.5 text-sm text-muted-foreground">{children}</p>
+      <p className="mt-1.5 text-row text-muted-foreground">{children}</p>
     </div>
   )
 }

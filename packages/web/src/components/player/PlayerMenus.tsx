@@ -8,11 +8,12 @@ const speeds = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
 const sleepMinutes = [5, 15, 30, 45, 60]
 
 const trigger =
-  "inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-medium text-player-foreground hover:bg-player-track active:bg-player-track/70 data-[popup-open]:bg-player-track"
+  "inline-flex h-11 items-center gap-2 rounded-full px-4 text-row font-medium text-player-foreground hover:bg-player-track active:bg-player-track/70 data-[popup-open]:bg-player-track"
+// Dark, like the player they open from.
 const popup =
-  "min-w-52 rounded-xl border bg-popover p-1 text-sm text-popover-foreground shadow-lg outline-none"
+  "surface-dark min-w-52 rounded-xl border border-player-track bg-player p-1 text-row text-player-foreground shadow-lg outline-none"
 const item =
-  "flex min-h-10 cursor-default items-center gap-3 rounded-lg px-3 outline-none data-[highlighted]:bg-secondary"
+  "flex min-h-10 cursor-default items-center gap-3 rounded-lg px-3 outline-none data-[highlighted]:bg-player-track"
 
 const speedLabel = (speed: number) => `${speed}×`
 
@@ -29,7 +30,7 @@ export const sleepLabel = (sleep: NowPlaying["sleep"], at = Date.now()) => {
   }
 }
 
-/** Speed and sleep timer, for the Now Playing drawer. */
+/** Speed and sleep timer, for the Now Playing drawer and the desktop player bar. */
 export function PlayerMenus({ current }: { readonly current: NowPlaying }) {
   const control = useAtomSet(playbackAtom)
   const sleep = (request: SleepRequest | null) => control({ _tag: "setSleep", sleep: request })

@@ -31,12 +31,12 @@ function LibraryScreen() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-row font-medium">{s.title}</span>
                 {s.author && (
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                  <span className="mt-0.5 block truncate text-small text-muted-foreground">
                     {s.author}
                   </span>
                 )}
               </span>
-              <span className="text-xs text-muted-foreground">{s.unplayed} unplayed</span>
+              <span className="text-small text-muted-foreground">{s.unplayed} unplayed</span>
             </li>
           ))}
         </ul>

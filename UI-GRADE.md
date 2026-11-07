@@ -40,19 +40,21 @@ Round 4: coverage 98.8%; 10 failures (8 major, 2 minor); five categories held at
 ## Work list (round 4)
 
 ### Majors
-- [ ] FLOW-04: Undo shows above the Now Playing drawer.
-- [ ] FLOW-02: removing a row by keyboard keeps focus in the list.
-- [ ] APPEAR-04: the drawer's Episode page labels pass contrast; Starred label text passes on light.
-- [ ] KEY-07: Shift-Space doesn't play or pause.
-- [ ] WTYPE-04: the desktop row checkbox has a real target, clear of the row link.
-- [ ] BROWSER-06 / EDIT-05: right-click and ⌘C offer Open in New Tab and Copy Link; native menu in the Mac app; Share on the Episode page.
-- [ ] BROWSER-04: the "Next and Last go to" panel opens Episodes with links.
+- [x] FLOW-04: Undo shows above the Now Playing drawer.
+- [x] FLOW-02: removing a row by keyboard keeps focus in the list.
+- [x] APPEAR-04: the drawer's Episode page labels pass contrast; Starred label text passes on light.
+- [x] KEY-07: Shift-Space doesn't play or pause.
+- [x] WTYPE-04: the desktop row checkbox has a real target, clear of the row link.
+- [x] BROWSER-06 / EDIT-05: right-click and ⌘C offer Open in New Tab and Copy Link; native menu in the Mac app; Share on the Episode page.
+- [x] BROWSER-04: the "Next and Last go to" panel opens Episodes with links.
 
 ### Minors
-- [ ] APPEAR-11 the drawer's Episode page stays on its Episode after Played · APPEAR-09 Downloaded doesn't use a check.
+- [x] APPEAR-11 the drawer's Episode page stays on its Episode after Played · APPEAR-09 Downloaded doesn't use a check.
 
 ### Craft gaps
-- [ ] Two body text steps; dark menus in the drawer; capped Playlist width; phone Playlist rows without the number column or empty tracks; no repeated tiles; one Add icon; desktop layout from 704 px; Mac: no Reload in the shipped app, Redo, Undo names its step; speed and sleep in the desktop bar.
+- [x] Two body text steps; dark menus in the drawer; capped Playlist width; phone Playlist rows without the number column or empty tracks; no repeated tiles; one Add icon; desktop layout from 704 px; Mac: no Reload in the shipped app, Redo, Undo names its step; speed and sleep in the desktop bar.
+
+Fixed on 7 Nov (bead pod-6jf.22). Notes: Base UI's modal drawer doesn't block clicks on a toast above it, so raising the toast layer was enough. Focus recovery happens only when the focused control itself has left the page, so clicking empty space never pulls focus back into a list. In the Mac app, Episode rows get a native menu: the shell asks the page what is under the pointer (`data-episode-menu`) and sends commands back as events. Body text is now 15 px and 13 px, with 12 px only for small capitals, keys and badges. The desktop layout starts at 704 px. Flow run 5: no stability failures.
 
 ## Work list (round 3)
 

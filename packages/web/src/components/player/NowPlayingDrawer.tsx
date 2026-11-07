@@ -13,7 +13,7 @@ import {
   SkipForward,
   X
 } from "lucide-react"
-import type { ReactNode } from "react"
+import { type ReactNode, useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
@@ -71,7 +71,7 @@ function PillButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-11 items-center gap-2 rounded-full bg-player-track px-4 text-sm font-medium hover:bg-player-track/80 active:bg-player-track/60"
+      className="inline-flex h-11 items-center gap-2 rounded-full bg-player-track px-4 text-row font-medium hover:bg-player-track/80 active:bg-player-track/60"
     >
       {icon}
       {children}
@@ -239,10 +239,10 @@ function ChaptersList({ current }: { readonly current: NowPlaying }) {
             }}
             className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-player-track ${i === playing ? "bg-player-track" : ""}`}
           >
-            <span className="min-w-14 shrink-0 text-xs whitespace-nowrap text-player-muted tabular-nums">
+            <span className="min-w-14 shrink-0 text-small whitespace-nowrap text-player-muted tabular-nums">
               {formatTime(c.start)}
             </span>
-            <span className={`flex-1 text-sm ${i === playing ? "font-semibold" : ""}`}>
+            <span className={`flex-1 text-row ${i === playing ? "font-semibold" : ""}`}>
               {c.title}
             </span>
           </button>
@@ -267,7 +267,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
         <button
           type="button"
           onClick={() => push("playlists")}
-          className="h-10 rounded-full px-3 text-sm font-medium text-player-foreground hover:bg-player-track active:bg-player-track/70"
+          className="h-10 rounded-full px-3 text-row font-medium text-player-foreground hover:bg-player-track active:bg-player-track/70"
         >
           Switch Playlist
         </button>
@@ -307,7 +307,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                   <span className={`line-clamp-2 text-row ${isCurrent ? "font-semibold" : ""}`}>
                     {episode?.title ?? "Episode unavailable"}
                   </span>
-                  <span className="text-xs text-player-muted">
+                  <span className="text-small text-player-muted">
                     {isCurrent
                       ? "Now"
                       : entry.position > 0 && episode?.duration
@@ -368,8 +368,8 @@ function SwitchPlaylist() {
               className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-player-track disabled:opacity-50 ${active ? "bg-player-track" : ""}`}
             >
               <span className="min-w-0 flex-1">
-                <span className={`block text-sm ${active ? "font-semibold" : ""}`}>{p.name}</span>
-                <span className="block truncate text-xs text-player-muted">
+                <span className={`block text-row ${active ? "font-semibold" : ""}`}>{p.name}</span>
+                <span className="block truncate text-small text-player-muted">
                   {active
                     ? "Playing from here"
                     : start
@@ -377,7 +377,7 @@ function SwitchPlaylist() {
                       : "No Entries"}
                 </span>
               </span>
-              <span className="text-xs text-player-muted">{p.entries.length}</span>
+              <span className="text-small text-player-muted">{p.entries.length}</span>
             </button>
           </li>
         )
@@ -391,6 +391,10 @@ export function NowPlayingDrawer() {
   const { drawer, back, close, home } = useDrawer()
   const setDrawer = useAtomSet(drawerAtom)
   const page = drawer.stack.at(-1)
+  // The Episode page stays on the Episode it opened for, even when Played moves playback on.
+  const [pinned, setPinned] = useState<string | null>(null)
+  if (page === "episode" && pinned === null && current !== null) setPinned(current.episodeId)
+  if (page !== "episode" && pinned !== null) setPinned(null)
   // Back pops a stacked page, then closes the drawer (BROWSER-01).
   useBackLayers(drawer.open && current !== null ? 1 + drawer.stack.length : 0, () =>
     setDrawer((d) =>
@@ -415,7 +419,7 @@ export function NowPlayingDrawer() {
               <button
                 type="button"
                 onClick={back}
-                className="inline-flex h-11 items-center gap-0.5 rounded-full pr-3 pl-1 text-sm font-medium hover:bg-player-track"
+                className="inline-flex h-11 items-center gap-0.5 rounded-full pr-3 pl-1 text-row font-medium hover:bg-player-track"
               >
                 <ChevronLeft aria-hidden="true" className="size-5" />
                 Back
@@ -427,7 +431,7 @@ export function NowPlayingDrawer() {
               />
             )}
             {page && (
-              <h2 className="flex-1 text-center text-sm font-semibold">{pageTitles[page]}</h2>
+              <h2 className="flex-1 text-center text-row font-semibold">{pageTitles[page]}</h2>
             )}
             <Tip label={"Close"}>
               <button
@@ -467,7 +471,7 @@ export function NowPlayingDrawer() {
             {page === "chapters" && <ChaptersList current={current} />}
             {page === "playlists" && <SwitchPlaylist />}
             {page === "episode" && (
-              <EpisodeDetail episodeId={current.episodeId} tone="dark" onPlay={home} />
+              <EpisodeDetail episodeId={pinned ?? current.episodeId} tone="dark" onPlay={home} />
             )}
           </div>
         </Drawer.Popup>

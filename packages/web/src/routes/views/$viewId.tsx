@@ -10,6 +10,7 @@ import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeRow, NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { TargetPanel } from "../../components/episodes/TargetPanel.tsx"
+import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useRowGrid } from "../../lib/rowGrid.ts"
@@ -57,11 +58,16 @@ function ViewDetail() {
     scrollMargin
   })
   useScrollMemory(!AsyncResult.isInitial(result) && view !== undefined)
+  const copyLink = useCopyEpisodeLink()
   const grid = useRowGrid(listRef, {
     count: episodes.length,
     scrollToIndex: (index) => virtualizer.scrollToIndex(index, { align: "auto" }),
     titleAt: (index) => episodes[index]?.title ?? "",
-    onSelectAll: () => setChecked(new Set(episodes.map((e) => e.id)))
+    onSelectAll: () => setChecked(new Set(episodes.map((e) => e.id))),
+    onCopy: (index) => {
+      const id = episodes[index]?.id
+      if (id !== undefined) void copyLink(id)
+    }
   })
   // Shift-click ticks the range from the last row ticked or unticked.
   const lastTicked = useRef<number | null>(null)
@@ -145,6 +151,7 @@ function ViewDetail() {
             aria-multiselectable="true"
             onKeyDown={grid.onKeyDown}
             onFocus={grid.onFocus}
+            onBlur={grid.onBlur}
             className="relative mx-3 md:mx-6"
             style={{ height: virtualizer.getTotalSize() }}
           >

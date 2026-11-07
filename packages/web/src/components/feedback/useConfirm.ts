@@ -1,7 +1,7 @@
 import { Toast } from "@base-ui/react/toast"
 import { useAtomSet } from "@effect/atom-react"
 import { useCallback } from "react"
-import { undoAtom, undoStackAtom } from "../../app/episodeActions.ts"
+import { redoStackAtom, undoAtom, undoStackAtom } from "../../app/episodeActions.ts"
 import type { Outcome } from "../../lib/episodeActions.ts"
 
 let nextId = 0
@@ -16,14 +16,16 @@ export function useConfirm() {
   const toasts = Toast.useToastManager()
   const undo = useAtomSet(undoAtom)
   const setStack = useAtomSet(undoStackAtom)
+  const setRedo = useAtomSet(redoStackAtom)
   return useCallback(
-    (outcome: Outcome) => {
+    (outcome: Outcome, again: () => Promise<Outcome>) => {
       if (outcome.undo.length === 0) {
         toasts.add({ description: outcome.message, timeout: 4000 })
         return
       }
       const id = ++nextId
-      setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome }])
+      setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome, again }])
+      setRedo([])
       // Stays until dismissed or replaced by the next step: on a phone this Undo is the
       // way back, so it doesn't time out (WDATA-04).
       toasts.add({
@@ -38,6 +40,6 @@ export function useConfirm() {
         }
       })
     },
-    [toasts, undo, setStack]
+    [toasts, undo, setStack, setRedo]
   )
 }

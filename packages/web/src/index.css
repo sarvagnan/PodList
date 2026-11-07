@@ -16,6 +16,9 @@
   /* Spacing and control sizes in px, so larger text gets the room instead of the chrome
      (WTYPE-02); identical at the default 16 px. */
   --spacing: 4px;
+  /* The desktop layout (sidebar, player bar) from 704 px, so the Mac app's 720 px
+     minimum window is a desktop window. */
+  --breakpoint-md: 44rem;
   /* Type steps in rem, so text follows the browser's font size (TYPE-05). */
   --text-small: 0.8125rem;
   --text-small--line-height: 1.25rem;
@@ -146,7 +149,7 @@
   }
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 44rem) {
   html {
     scroll-padding-bottom: 7.5rem;
   }
@@ -165,7 +168,7 @@
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) and (min-width: 48rem) {
+@media (prefers-reduced-motion: reduce) and (min-width: 44rem) {
   [data-sheet="dialog"] {
     --sheet-rest-y: -50%;
   }
