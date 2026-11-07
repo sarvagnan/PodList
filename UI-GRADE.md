@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) |
-|---|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 |
-| Hierarchy | 6.4 | 7.2 | 7.8 |
-| Spacing & density | 5.9 | 7.6 | 6.9 |
-| Color & contrast | 6.2 | 6.9 | 8.2 |
-| Iconography | 5.4 | 6.6 | 8.0 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) |
-| Clarity | 4.9 | 7.4 | 7.8 |
-| Platform fit | 6.8 | 6.7 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -34,6 +34,25 @@ Graded build: before View detail, Episode row actions and proxied artwork landed
 Round 2: coverage 97.5%; 19 failures (11 major, 8 minor, no blockers); four categories capped at 6.9 by majors. Report: [docs/ui-grade/round-2.md](docs/ui-grade/round-2.md). Graded build 6db9bb9 (after the round 1 fixes). No core element moved in 72 measured steps; open a Playlist p75 134 ms, Play from here 111 ms.
 
 Round 3: coverage 97.6%; 11 failures (8 major, 3 minor, no blockers); four categories capped at 6.9. Report: [docs/ui-grade/round-3.md](docs/ui-grade/round-3.md). Graded build fd860c3. Core elements within 2 px at all widths; p75 100–118 ms.
+
+Round 4: coverage 98.8%; 10 failures (8 major, 2 minor); five categories held at 6.9 or below. Report: [docs/ui-grade/round-4.md](docs/ui-grade/round-4.md). Graded build 6be414f. The grader probed side paths the flows don't cover (removing rows by keyboard, the drawer's Episode page, right-click), which is where most new failures came from.
+
+## Work list (round 4)
+
+### Majors
+- [ ] FLOW-04: Undo shows above the Now Playing drawer.
+- [ ] FLOW-02: removing a row by keyboard keeps focus in the list.
+- [ ] APPEAR-04: the drawer's Episode page labels pass contrast; Starred label text passes on light.
+- [ ] KEY-07: Shift-Space doesn't play or pause.
+- [ ] WTYPE-04: the desktop row checkbox has a real target, clear of the row link.
+- [ ] BROWSER-06 / EDIT-05: right-click and ⌘C offer Open in New Tab and Copy Link; native menu in the Mac app; Share on the Episode page.
+- [ ] BROWSER-04: the "Next and Last go to" panel opens Episodes with links.
+
+### Minors
+- [ ] APPEAR-11 the drawer's Episode page stays on its Episode after Played · APPEAR-09 Downloaded doesn't use a check.
+
+### Craft gaps
+- [ ] Two body text steps; dark menus in the drawer; capped Playlist width; phone Playlist rows without the number column or empty tracks; no repeated tiles; one Add icon; desktop layout from 704 px; Mac: no Reload in the shipped app, Redo, Undo names its step; speed and sleep in the desktop bar.
 
 ## Work list (round 3)
 
