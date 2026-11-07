@@ -25,3 +25,6 @@ packages/server/data/
 
 # Packaged Mac app
 packages/desktop/out/
+
+# Agent worktrees
+.claude/worktrees/

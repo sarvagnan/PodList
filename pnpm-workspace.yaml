@@ -29,3 +29,8 @@ minimumReleaseAgeExclude:
   - '@tailwindcss/vite@4.3.5'
   - tailwindcss@4.3.5
   - playwright-core@1.65.0
+permissions:
+  '@tanstack/react-router':
+    skills: true
+  '@tanstack/router-plugin':
+    skills: true
