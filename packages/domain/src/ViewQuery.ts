@@ -78,11 +78,14 @@ export const compile = (view: ViewQueryInput, now: EpochMillis): CompiledQuery =
   }
 
   if (f.text !== undefined) {
-    // Every word must appear in the title or the description (case-insensitive).
+    // Every word must appear in the title, the show notes or the podcast's name
+    // (case-insensitive).
     for (const word of f.text.trim().split(/\s+/)) {
-      where.push("(e.title LIKE ? ESCAPE '\\' OR e.description LIKE ? ESCAPE '\\')")
+      where.push(
+        "(e.title LIKE ? ESCAPE '\\' OR e.description LIKE ? ESCAPE '\\' OR s.title LIKE ? ESCAPE '\\')"
+      )
       const pattern = `%${escapeLike(word)}%`
-      params.push(pattern, pattern)
+      params.push(pattern, pattern, pattern)
     }
   }
 

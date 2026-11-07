@@ -92,6 +92,12 @@ describe("View queries", () => {
     expect(run({ text: "%" })).toEqual(["e5"])
   })
 
+  it("matches the podcast's name too", () => {
+    expect(run({ text: "sci" })).toEqual(
+      run({ podcasts: { mode: "include", subscriptionIds: ["sci"] } })
+    )
+  })
+
   it("filters by played state, including in progress", () => {
     expect(run({ played: "played" })).toEqual(["e2"])
     expect(run({ played: "inProgress" })).toEqual(["e1"])

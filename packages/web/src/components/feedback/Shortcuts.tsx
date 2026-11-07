@@ -22,7 +22,9 @@ const groups: ReadonlyArray<{
     title: "Anywhere",
     keys: [
       ["Space", "Play or pause"],
+      [`${cmd}K`, "Search the Library"],
       [`${cmd}Z`, "Undo the last change"],
+      [mac ? "⌘⇧Z" : "Ctrl+Shift+Z", "Redo it"],
       ["Esc", "Close a sheet or panel; clear ticked Episodes"],
       [`${cmd}/`, "Show these shortcuts"]
     ]

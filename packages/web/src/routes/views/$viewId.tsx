@@ -1,90 +1,52 @@
 import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute } from "@tanstack/react-router"
-import { useWindowVirtualizer } from "@tanstack/react-virtual"
 import { AsyncResult } from "effect/reactivity"
-import { X } from "lucide-react"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { SlidersHorizontal, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { viewEpisodesAtom } from "../../app/data.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
-import { EpisodeRow, NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
+import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
+import { NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { TargetPanel } from "../../components/episodes/TargetPanel.tsx"
-import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
-import { useRowGrid } from "../../lib/rowGrid.ts"
-import { useScrollMemory } from "../../lib/scrollMemory.ts"
+import { useViewActions } from "../../components/views/useViewActions.ts"
+import { ViewForm } from "../../components/views/ViewForm.tsx"
+import { useMinWidth } from "../../lib/useWide.ts"
 import { describeView } from "../../lib/viewSummary.ts"
 
 export const Route = createFileRoute("/views/$viewId")({
   component: ViewDetail,
-  // Wide screens show an Episode beside the list; the URL keeps it across reloads.
-  validateSearch: (search: Record<string, unknown>): { episode?: string } =>
-    typeof search.episode === "string" ? { episode: search.episode } : {}
+  // Wide screens show an Episode beside the list; the URL keeps it, and editing, across
+  // reloads.
+  validateSearch: (search: Record<string, unknown>): { episode?: string; edit?: boolean } => ({
+    ...(typeof search.episode === "string" ? { episode: search.episode } : {}),
+    ...(search.edit === true || search.edit === "true" ? { edit: true } : {})
+  })
 })
-
-/** A row's height at the default font size; rows are measured as they render. */
-const rowHeight = 76
 
 function ViewDetail() {
   const { viewId } = Route.useParams()
-  const { episode: selected } = Route.useSearch()
+  const { episode: selected, edit: editing = false } = Route.useSearch()
   const navigate = Route.useNavigate()
+  const wide = useMinWidth("64rem")
+  const { remove } = useViewActions()
   // Desktop bulk selection, kept per View: another View starts with none. Escape clears it.
   const [selection, setSelection] = useState<{
     readonly viewId: string
     readonly ids: ReadonlySet<string>
   }>({ viewId, ids: new Set() })
   const checked: ReadonlySet<string> = selection.viewId === viewId ? selection.ids : new Set()
-  const setChecked = (
-    next: ReadonlySet<string> | ((current: ReadonlySet<string>) => ReadonlySet<string>)
-  ) => setSelection({ viewId, ids: typeof next === "function" ? next(checked) : next })
+  const setChecked = (update: (current: ReadonlySet<string>) => ReadonlySet<string>) =>
+    setSelection({ viewId, ids: update(checked) })
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const result = useAtomValue(viewEpisodesAtom(viewId))
   const episodes = AsyncResult.getOrElse(result, () => [])
   const view = state?.views.find((v) => v.id === viewId)
 
-  // Views can match thousands of Episodes: only the rows on screen are rendered.
-  const listRef = useRef<HTMLDivElement>(null)
-  const [scrollMargin, setScrollMargin] = useState(0)
-  useLayoutEffect(() => {
-    setScrollMargin(listRef.current?.offsetTop ?? 0)
-  }, [])
-  const virtualizer = useWindowVirtualizer({
-    count: episodes.length,
-    estimateSize: () => rowHeight,
-    overscan: 8,
-    scrollMargin
-  })
-  useScrollMemory(!AsyncResult.isInitial(result) && view !== undefined)
-  const copyLink = useCopyEpisodeLink()
-  const grid = useRowGrid(listRef, {
-    count: episodes.length,
-    scrollToIndex: (index) => virtualizer.scrollToIndex(index, { align: "auto" }),
-    titleAt: (index) => episodes[index]?.title ?? "",
-    onSelectAll: () => setChecked(new Set(episodes.map((e) => e.id))),
-    onCopy: (index) => {
-      const id = episodes[index]?.id
-      if (id !== undefined) void copyLink(id)
-    }
-  })
-  // Shift-click ticks the range from the last row ticked or unticked.
-  const lastTicked = useRef<number | null>(null)
-  const tick = (index: number, on: boolean, range: boolean) => {
-    const from = range && lastTicked.current !== null ? lastTicked.current : index
-    lastTicked.current = index
-    setChecked((current) => {
-      const next = new Set(current)
-      for (let i = Math.min(from, index); i <= Math.max(from, index); i++) {
-        const id = episodes[i]?.id
-        if (id === undefined) continue
-        if (on) next.add(id)
-        else next.delete(id)
-      }
-      return next
-    })
-  }
+  const open = (episodeId: string) => navigate({ search: { episode: episodeId } })
   // Closing the panel puts focus back on the row it showed (WKEY-03).
   const closePanel = () => {
     const shown = selected
@@ -92,10 +54,16 @@ function ViewDetail() {
       document.querySelector<HTMLElement>(`[data-episode-title="${shown}"]`)?.focus()
     )
   }
-  // Esc, wherever focus is in the View: first clears the ticks, then closes the panel.
+  const startEditing = () => void navigate({ search: { edit: true } })
+  const doneEditing = () =>
+    void navigate({ search: {} }).then(() =>
+      document.querySelector<HTMLElement>("[data-edit-view]")?.focus()
+    )
+  // Esc, wherever focus is in the View: clears the ticks, then closes the panel or editor.
   const onEscape = useRef(() => {})
   onEscape.current = () => {
     if (checked.size > 0) setSelection({ viewId, ids: new Set() })
+    else if (editing) doneEditing()
     else if (selected) closePanel()
   }
   useEffect(() => {
@@ -122,6 +90,30 @@ function ViewDetail() {
   }
   const loading = AsyncResult.isInitial(result)
   const count = `${episodes.length} ${episodes.length === 1 ? "Episode" : "Episodes"}`
+  const form = <ViewForm key={view.id} view={view} onDelete={() => void remove(view)} />
+
+  // Phone and narrow windows: the editor is a screen of its own, with a live count.
+  if (editing && !wide) {
+    return (
+      <>
+        <PageHeader
+          title="Edit View"
+          subtitle={`Matches ${count} now`}
+          actions={
+            <button
+              type="button"
+              onClick={doneEditing}
+              className="inline-flex h-11 items-center rounded-full bg-primary px-5 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+            >
+              Done
+            </button>
+          }
+        />
+        <div className="mx-auto max-w-xl px-4 pb-8">{form}</div>
+      </>
+    )
+  }
+
   return (
     <>
       <PageHeader
@@ -130,68 +122,63 @@ function ViewDetail() {
         subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
         actions={
           checked.size > 0 ? (
-            <BulkBar selected={[...checked]} onClear={() => setChecked(new Set())} />
+            <BulkBar selected={[...checked]} onClear={() => setChecked(() => new Set())} />
           ) : (
-            <NextLastTarget />
+            <div className="flex items-center gap-3">
+              <NextLastTarget />
+              {!editing && (
+                <button
+                  type="button"
+                  data-edit-view=""
+                  onClick={startEditing}
+                  className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
+                >
+                  <SlidersHorizontal aria-hidden="true" className="size-4" />
+                  Edit<span className="max-md:sr-only"> View</span>
+                </button>
+              )}
+            </div>
           )
         }
       />
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
         {!loading && episodes.length === 0 ? (
           <EmptyState title="No Episodes match this View">
-            New Episodes appear here as your podcasts publish them.
+            {editing
+              ? "Set a row back to “Any” to widen it."
+              : "New Episodes appear here as your podcasts publish them."}
           </EmptyState>
         ) : (
-          // biome-ignore lint/a11y/useSemanticElements: a virtualised grid of flex rows (components/lists/Grid.tsx).
-          <div
-            ref={listRef}
-            role="grid"
-            aria-label={`${view.name} Episodes`}
-            aria-rowcount={episodes.length}
-            aria-multiselectable="true"
-            onKeyDown={grid.onKeyDown}
-            onFocus={grid.onFocus}
-            onBlur={grid.onBlur}
-            className="relative mx-3 md:mx-6"
-            style={{ height: virtualizer.getTotalSize() }}
-          >
-            {virtualizer.getVirtualItems().map((item) => {
-              const episode = episodes[item.index]
-              if (episode === undefined) return null
-              return (
-                // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
-                <div
-                  key={episode.id}
-                  ref={virtualizer.measureElement}
-                  role="row"
-                  data-index={item.index}
-                  data-row={item.index}
-                  aria-rowindex={item.index + 1}
-                  aria-selected={checked.has(episode.id)}
-                  aria-current={episode.id === selected ? "true" : undefined}
-                  className="absolute inset-x-0 top-0"
-                  style={{
-                    transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`
-                  }}
-                >
-                  <EpisodeRow
-                    episode={episode}
-                    checked={checked.has(episode.id)}
-                    onCheck={(on, range) => tick(item.index, on, range)}
-                    selected={episode.id === selected}
-                    onOpen={(episodeId) => navigate({ search: { episode: episodeId } })}
-                  />
-                </div>
-              )
-            })}
-          </div>
+          <EpisodeList
+            episodes={episodes}
+            label={`${view.name} Episodes`}
+            ready={!loading}
+            selected={selected}
+            onOpen={open}
+            checked={checked}
+            setChecked={setChecked}
+          />
         )}
-        {/* Beside the list: the open Episode, or where Next and Last go. */}
+        {/* Beside the list: the editor, the open Episode, or where Next and Last go. */}
         <aside
-          aria-label={selected ? "Episode" : "Next and Last go to"}
+          aria-label={editing ? "Edit View" : selected ? "Episode" : "Next and Last go to"}
           className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pb-28 lg:block"
         >
-          {selected ? (
+          {editing ? (
+            <div className="px-4 pt-2">
+              <div className="flex items-center justify-between pb-3">
+                <h2 className="font-heading text-xl font-semibold">Edit View</h2>
+                <button
+                  type="button"
+                  onClick={doneEditing}
+                  className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+                >
+                  Done
+                </button>
+              </div>
+              {form}
+            </div>
+          ) : selected ? (
             <>
               <div className="flex justify-end px-3">
                 <button
@@ -206,7 +193,7 @@ function ViewDetail() {
               <EpisodeDetail episodeId={selected} />
             </>
           ) : (
-            <TargetPanel onOpen={(episodeId) => navigate({ search: { episode: episodeId } })} />
+            <TargetPanel onOpen={open} />
           )}
         </aside>
       </div>

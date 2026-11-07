@@ -8,6 +8,8 @@ import {
   ListMusic,
   Pause,
   Play,
+  Plus,
+  Search,
   SkipBack,
   SkipForward
 } from "lucide-react"
@@ -25,6 +27,7 @@ import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { PlayerMenus } from "../player/PlayerMenus.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
+import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
 
@@ -288,6 +291,7 @@ function SidebarSkeleton() {
 
 function Sidebar() {
   const state = useAppState()
+  const { create: createView } = useViewActions()
   const ready = useLibraryReady()
   const link =
     "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
@@ -299,7 +303,29 @@ function Sidebar() {
       className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-24 md:flex"
     >
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
-      <p className={heading}>Views</p>
+      <Link
+        to="/search"
+        className="mb-1 flex h-10 items-center gap-2 rounded-lg bg-secondary px-2.5 text-row text-muted-foreground hover:bg-input active:bg-input/70 [&.active]:bg-accent [&.active]:text-foreground"
+      >
+        <Search aria-hidden="true" className="size-4" />
+        <span className="flex-1">Search</span>
+        <kbd className="rounded border border-input px-1.5 font-sans text-xs">
+          {/Mac/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
+        </kbd>
+      </Link>
+      <div className="flex items-center justify-between">
+        <p className={heading}>Views</p>
+        <Tip label="New View">
+          <button
+            type="button"
+            aria-label="New View"
+            onClick={() => void createView()}
+            className="mt-4 grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+          </button>
+        </Tip>
+      </div>
       {state === null && <SidebarSkeleton />}
       {state?.views.length === 0 && ready && (
         <p className="px-2.5 py-1.5 text-small text-muted-foreground">No Views yet</p>
@@ -377,6 +403,9 @@ function useFocusOnNavigation() {
       router.subscribe("onResolved", (event) => {
         if (event.fromLocation === undefined || !event.pathChanged) return
         requestAnimationFrame(() => {
+          // A screen that put focus somewhere itself (Search's field) keeps it.
+          const main = document.querySelector("main")
+          if (main?.contains(document.activeElement) && document.activeElement !== main) return
           document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true })
         })
       }),
@@ -413,6 +442,23 @@ function useMenuControls() {
   }, [control])
 }
 
+/** Cmd/Ctrl-K: Search, from anywhere. */
+function useSearchKey() {
+  const router = useRouter()
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey) || event.altKey)
+        return
+      event.preventDefault()
+      const field = document.querySelector<HTMLInputElement>('main input[type="search"]')
+      if (router.state.location.pathname === "/search" && field) field.focus()
+      else void router.navigate({ to: "/search" })
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [router])
+}
+
 /** Space plays or pauses when no control has focus, as in other media apps. */
 function usePlayPauseKey() {
   const control = useAtomSet(playbackAtom)
@@ -443,6 +489,7 @@ export function AppShell() {
   useAtomMount(backgroundSyncAtom)
   useFocusOnNavigation()
   usePlayPauseKey()
+  useSearchKey()
   useMenuControls()
   return (
     <div className="flex min-h-dvh">

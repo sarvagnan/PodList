@@ -85,11 +85,14 @@ export const backgroundSyncAtom = runtime.atom(
 )
 
 /** Records an edit (applied locally at once, synced in the background). */
-export const recordAtom = runtime.fn((change: Operation.Change) =>
-  Effect.gen(function* () {
-    const engine = yield* SyncEngine
-    yield* engine.record(change)
-  })
+export const recordAtom = runtime.fn(
+  (change: Operation.Change) =>
+    Effect.gen(function* () {
+      const engine = yield* SyncEngine
+      yield* engine.record(change)
+    }),
+  // Quick edits (a View's conditions) must each be recorded, not cancel one another.
+  { concurrent: true }
 )
 
 /** The loaded Entry and whether it is playing; null when nothing is queued. */

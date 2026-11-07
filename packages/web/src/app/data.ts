@@ -93,38 +93,62 @@ const compiled = (state: State.State, viewId: string) => {
   return view && ViewQuery.compile(view, Units.EpochMillis.make(Date.now()))
 }
 
+type EpisodeRowData = {
+  id: string
+  title: string
+  podcast: string
+  published: number
+  duration: number | null
+  artwork_url: string | null
+  podcast_artwork_url: string | null
+  played_at: number | null
+  starred: number
+}
+
+const episodesFor = (query: ViewQuery.CompiledQuery | undefined) =>
+  Effect.gen(function* () {
+    if (query === undefined) return []
+    const sql = yield* SqlClient.SqlClient
+    const rows = yield* sql.unsafe<EpisodeRowData>(query.sql, [...query.params])
+    return rows.map(
+      (r): ViewEpisode => ({
+        id: r.id,
+        title: r.title,
+        podcast: r.podcast,
+        published: r.published,
+        duration: r.duration,
+        artworkUrl: r.artwork_url ?? r.podcast_artwork_url,
+        played: r.played_at !== null,
+        starred: r.starred === 1
+      })
+    )
+  })
+
 /** The Episodes a View matches right now, in its order. */
 export const viewEpisodesAtom = Atom.family((viewId: string) =>
   runtime
     .atom((get) =>
       Effect.gen(function* () {
         const state = get(stateAtom)
-        const sql = yield* SqlClient.SqlClient
-        const query = AsyncResult.isSuccess(state) ? compiled(state.value, viewId) : undefined
-        if (query === undefined) return []
-        const rows = yield* sql.unsafe<{
-          id: string
-          title: string
-          podcast: string
-          published: number
-          duration: number | null
-          artwork_url: string | null
-          podcast_artwork_url: string | null
-          played_at: number | null
-          starred: number
-        }>(query.sql, [...query.params])
-        return rows.map(
-          (r): ViewEpisode => ({
-            id: r.id,
-            title: r.title,
-            podcast: r.podcast,
-            published: r.published,
-            duration: r.duration,
-            artworkUrl: r.artwork_url ?? r.podcast_artwork_url,
-            played: r.played_at !== null,
-            starred: r.starred === 1
-          })
+        return yield* episodesFor(
+          AsyncResult.isSuccess(state) ? compiled(state.value, viewId) : undefined
         )
+      })
+    )
+    .pipe(Atom.withReactivity([catalogueKey]))
+)
+
+/**
+ * The Episodes an unsaved filter matches, for Search. Keyed by the JSON of
+ * `{ filter, sort, limit }`.
+ */
+export const filterEpisodesAtom = Atom.family((key: string) =>
+  runtime
+    .atom((get) =>
+      Effect.gen(function* () {
+        get(stateAtom)
+        const input = JSON.parse(key) as ViewQuery.ViewQueryInput
+        return yield* episodesFor(ViewQuery.compile(input, Units.EpochMillis.make(Date.now())))
       })
     )
     .pipe(Atom.withReactivity([catalogueKey]))

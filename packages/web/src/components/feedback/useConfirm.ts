@@ -43,3 +43,19 @@ export function useConfirm() {
     [toasts, undo, setStack, setRedo]
   )
 }
+
+/**
+ * Puts a step on the undo stack without a toast, for edits that show themselves (a
+ * View's conditions change its list at once).
+ */
+export function useUndoable() {
+  const setStack = useAtomSet(undoStackAtom)
+  const setRedo = useAtomSet(redoStackAtom)
+  return useCallback(
+    (step: Outcome & { readonly again: () => Promise<Outcome> }) => {
+      setStack((stack) => [...stack.slice(1 - depth), { id: ++nextId, ...step }])
+      setRedo([])
+    },
+    [setStack, setRedo]
+  )
+}
