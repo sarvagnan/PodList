@@ -134,7 +134,7 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
   }
   return (
     <>
-      <p className="max-w-[70ch] px-5 pb-3 text-small text-muted-foreground md:px-8">
+      <p className="max-w-[70ch] px-5 pb-6 text-small text-muted-foreground md:px-8">
         What {playlist.name} played, kept for 30 days. Rewind takes playback back to a moment;
         Entries you added or moved since, and Episodes you marked Played yourself, stay as they are.
       </p>

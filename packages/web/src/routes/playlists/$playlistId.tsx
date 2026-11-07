@@ -494,7 +494,7 @@ function PlaylistDetail() {
                                   )
                                 }
                                 // The same tinted round Play as a View's rows.
-                                className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-primary hover:bg-primary hover:text-primary-foreground active:bg-primary/80"
+                                className={`grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-primary hover:text-primary-foreground active:bg-primary/80 ${current ? "bg-card" : "bg-accent"}`}
                               >
                                 {live && playing.playing ? (
                                   <Pause aria-hidden="true" className="size-5 fill-current" />

@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) | Round 15 (7 Nov, Opus) | Round 16 (8 Nov, Opus) | Round 17 (8 Nov, Opus) | Round 18 (8 Nov, Opus) | Round 19 (8 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 | 6.9 | 8.6 | 8.6 | 8.6 | 8.6 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 | 8.2 | 8.3 | 8.4 | 8.3 | 8.4 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 | 8.6 | 8.8 | 8.6 | 8.8 | 6.9 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 | 8.4 | 8.7 | 8.4 | 8.5 | 8.7 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) | 8.5 (stability 9.2) | 8.3 (stability 8.6) | 8.4 (stability 8.7) | 8.3 (stability 8.8) | 8.4 (stability 8.8) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.6 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 | 8.9 | 8.8 | 8.7 | 8.8 | 8.8 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 | 4.9 | 6.9 | 8.8 | 8.7 | 8.8 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** | **6.9** | **8.4** | **8.6** | **8.6** | **8.5** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) | Round 15 (7 Nov, Opus) | Round 16 (8 Nov, Opus) | Round 17 (8 Nov, Opus) | Round 18 (8 Nov, Opus) | Round 19 (8 Nov, Opus) | Round 20 (8 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 | 6.9 | 8.6 | 8.6 | 8.6 | 8.6 | 8.7 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.6 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 | 8.2 | 8.3 | 8.4 | 8.3 | 8.4 | 8.5 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 | 8.6 | 8.8 | 8.6 | 8.8 | 6.9 | 8.9 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 | 8.4 | 8.7 | 8.4 | 8.5 | 8.7 | 8.6 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) | 8.5 (stability 9.2) | 8.3 (stability 8.6) | 8.4 (stability 8.7) | 8.3 (stability 8.8) | 8.4 (stability 8.8) | 8.4 (stability 8.8) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.6 | 8.8 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 | 8.9 | 8.8 | 8.7 | 8.8 | 8.8 | 8.8 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 | 4.9 | 6.9 | 8.8 | 8.7 | 8.8 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** | **6.9** | **8.4** | **8.6** | **8.6** | **8.5** | **8.4** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -66,6 +66,15 @@ Round 17: coverage 93.3%; 1 failure (1 minor), no blocker or major for the first
 Round 18: coverage 93.9%; 2 failures (both minor). Report: [docs/ui-grade/round-18.md](docs/ui-grade/round-18.md). Graded build 8a7318b. No caps again: categories 8.3–8.8. The gap to 9.0 is consistency between screens (insets, widths, settings rows, row actions).
 
 Round 19: coverage 97.0%; 2 failures (1 major, 1 minor). Report: [docs/ui-grade/round-19.md](docs/ui-grade/round-19.md). Graded build bf2bd0c. The major is round 18's own Active Playlist dot, which vanishes in forced colours (Color capped at 6.9; 8.8 uncapped). Every other category is 8.4–8.8.
+
+Round 20: coverage 96.0%; 1 failure (1 major: focus to body after first run's Skip). Report: [docs/ui-grade/round-20.md](docs/ui-grade/round-20.md). Graded build 3aa7f41. Interaction capped at 6.9 (about 8.8 uncapped); Color reaches 8.9. Rounds 19 and 20 were each capped by a regression from the round before: each fix batch now gets its own focus and forced-colour checks.
+
+## Work list (round 20)
+
+Fixed on 8 Nov:
+- [x] WKEY-03 one rule for focus when a control's row goes (lib/focusAfterRemoval.ts): the same control in the next row, else the previous, else the heading; used by first run's Skip, the drawer's Up next Remove and Trash's Restore.
+- [x] Craft: Up next in the drawer reorders (drag by pointer or touch; ↑ ↓ on its handle from the keyboard), each move with Undo; back 15 back on the phone bar; the current Entry's Play keeps its shape; the Active dot says so on hover; the welcome card at the content width; an empty Search starts with a card; Timeline intro spacing.
+- [x] Checked before grading this time: focus after each new removal path, and forced colours on the new handles and the dot.
 
 ## Work list (round 19)
 

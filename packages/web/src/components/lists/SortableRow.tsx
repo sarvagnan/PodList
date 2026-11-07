@@ -25,7 +25,8 @@ export function SortableList({
   ids,
   label,
   onMove,
-  children
+  children,
+  keyboard = true
 }: {
   readonly ids: ReadonlyArray<string>
   /** Names a row for screen reader announcements. */
@@ -33,12 +34,13 @@ export function SortableList({
   /** The row `id` now sits right after `after` (null: first). */
   readonly onMove: (id: string, after: string | null) => void
   readonly children: ReactNode
+  /** Off where the rows take their own arrow keys (the Now Playing drawer). */
+  readonly keyboard?: boolean
 }) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const pointer = useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  const touch = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
+  const keys = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  const sensors = useSensors(pointer, touch, ...(keyboard ? [keys] : []))
   const position = (id: string | number) => ids.indexOf(String(id)) + 1
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (over === null || active.id === over.id) return

@@ -187,7 +187,12 @@ function SearchPage() {
       </div>
       {/* As on a View: the results, with the form (or the open Episode) beside them. */}
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        {active && !AsyncResult.isInitial(result) && episodes.length === 0 ? (
+        {!active ? (
+          // A starting point, not a blank page.
+          <EmptyState title="Search your Library">
+            Type words above, or narrow by Played, Podcasts, Length and more with Refine.
+          </EmptyState>
+        ) : active && !AsyncResult.isInitial(result) && episodes.length === 0 ? (
           <EmptyState title="Nothing matches">
             Try fewer or different words{narrowed ? ", or set a condition back to Any" : ""}.
           </EmptyState>

@@ -74,3 +74,12 @@ test("with no podcasts, a View points to Add podcasts", async ({ page }) => {
   await page.getByRole("main").getByRole("link", { name: "Add podcasts" }).click()
   await expect(page.getByRole("dialog", { name: "Add podcasts" })).toBeVisible()
 })
+
+test("Skip for now leaves focus on the screen's heading", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views`)
+  const welcome = page.getByRole("region", { name: "Welcome to PodList" })
+  await welcome.getByRole("button", { name: "Skip for now" }).click()
+  await expect(welcome).toHaveCount(0)
+  await expect(page.locator("main h1")).toBeFocused()
+})

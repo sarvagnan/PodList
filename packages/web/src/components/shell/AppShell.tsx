@@ -204,8 +204,8 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           </button>
         ) : (
           // Large text on a small phone: the title keeps the room; back 15 is in Now Playing.
-          // On a phone-width bar the title keeps the room; back 15 is in Now Playing.
-          <span className="contents @max-[26rem]:hidden">{back}</span>
+          // Back 15 as the design has it; only the narrowest bar gives it up for the title.
+          <span className="contents @max-[20rem]:hidden">{back}</span>
         )}
         {toggle}
         {forward}
@@ -435,12 +435,15 @@ function Sidebar() {
                     className="size-4 shrink-0 text-primary"
                   />
                 ) : (
-                  <span
-                    role="img"
-                    aria-label="Active Playlist"
-                    // Forced colours drop backgrounds: it keeps the text colour (APPEAR-03).
-                    className="size-2 shrink-0 rounded-full bg-primary forced-colors:bg-[CanvasText] forced-colors:forced-color-adjust-none"
-                  />
+                  // Said in words on hover and focus too, not only to screen readers.
+                  <Tip label="Active Playlist">
+                    <span
+                      role="img"
+                      aria-label="Active Playlist"
+                      // Forced colours drop backgrounds: it keeps the text colour (APPEAR-03).
+                      className="size-2 shrink-0 rounded-full bg-primary forced-colors:bg-[CanvasText] forced-colors:forced-color-adjust-none"
+                    />
+                  </Tip>
                 ))}
             </span>
             <span className="text-small text-muted-foreground">{p.entries.length}</span>

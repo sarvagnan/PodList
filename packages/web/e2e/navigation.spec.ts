@@ -141,3 +141,25 @@ test("the Episode screen's back link names the View it came from", async ({ page
   await back.click()
   await expect(page).toHaveURL(/\/views\/short$/)
 })
+
+test("Up next in the drawer reorders with the keyboard, with Undo", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+  const drawer = page.getByRole("dialog")
+  await drawer.getByRole("button", { name: /^Up next/ }).click()
+  const list = drawer.getByRole("list", { name: /^Up next in/ })
+  const order = () =>
+    list
+      .getByRole("button", { name: /from here$/ })
+      .evaluateAll((buttons) => buttons.map((b) => b.getAttribute("aria-label") ?? ""))
+  const before = await order()
+  expect(before.length).toBeGreaterThan(1)
+  // Its handle takes the arrows: down moves it one place.
+  const handle = list.getByRole("button", { name: /^Move / }).first()
+  await handle.focus()
+  await page.keyboard.press("ArrowDown")
+  await expect.poll(order).toEqual([before[1], before[0], ...before.slice(2)])
+  await drawer.getByRole("button", { name: "Undo" }).click()
+  await expect.poll(order).toEqual(before)
+})

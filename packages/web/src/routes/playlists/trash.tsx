@@ -4,6 +4,7 @@ import { useAppState } from "../../app/hooks.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { usePlaylistActions } from "../../components/playlists/usePlaylistActions.ts"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 
 // The Trash (CONTEXT.md): deleted Playlists, each restorable until the Trash lets it go.
 
@@ -50,17 +51,9 @@ function Trash() {
               <button
                 type="button"
                 onClick={(event) => {
-                  // Its row goes: focus moves to the next Restore, or the heading.
-                  const buttons = [...document.querySelectorAll<HTMLElement>("main [data-restore]")]
-                  const next = buttons[buttons.indexOf(event.currentTarget) + 1] ?? buttons.at(-2)
-                  void restore(t.playlist.id, t.playlist.name).then(() =>
-                    requestAnimationFrame(() =>
-                      (next?.isConnected
-                        ? next
-                        : document.querySelector<HTMLElement>("main h1")
-                      )?.focus()
-                    )
-                  )
+                  // Its row goes: focus to the next Restore, or the heading (the shared rule).
+                  focusAfterRemoval(event.currentTarget, "main [data-restore]")
+                  void restore(t.playlist.id, t.playlist.name)
                 }}
                 data-restore=""
                 aria-label={`Restore ${t.playlist.name}`}

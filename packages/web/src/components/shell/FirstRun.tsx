@@ -6,6 +6,7 @@ import { createPortal } from "react-dom"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
+import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { firstRunDone, starterViewsMade } from "../../lib/remembered.ts"
 import { blankView, saveViewChange } from "../../lib/viewEdit.ts"
 import { AddPodcastSheet } from "../library/AddPodcastSheet.tsx"
@@ -96,7 +97,9 @@ export function FirstRun() {
         {sheet}
       </>
     )
-  const hide = () => {
+  const hide = (event?: { readonly currentTarget: HTMLElement }) => {
+    // The card goes: focus to the screen's heading, not the page (WKEY-03).
+    if (event) focusAfterRemoval(event.currentTarget)
     firstRunDone.set()
     setHidden(true)
     setReopened(false)
@@ -124,7 +127,7 @@ export function FirstRun() {
   const card = (
     <section
       aria-labelledby="first-run-title"
-      className="mx-4 mt-4 mb-2 rounded-2xl border bg-card p-5 md:mx-8"
+      className="mx-4 mt-4 mb-2 rounded-2xl border bg-card p-5 md:mx-8 md:max-w-[640px]"
     >
       <div className="flex items-start justify-between gap-4">
         <h2
