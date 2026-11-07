@@ -7,7 +7,7 @@ import {
   System
 } from "@podlist/api"
 import { Protocol } from "@podlist/domain"
-import { Effect, Layer } from "effect"
+import { Config, Effect, Layer, Option } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
 import { Chapters } from "./Chapters.ts"
@@ -20,9 +20,17 @@ export const SystemHandlers = HttpApiBuilder.group(
   PodListApi,
   "system",
   Effect.fn(function* (handlers) {
+    // Set by the deploy (deploy/deploy), so it can tell when the new release answers.
+    const release = yield* Config.option(Config.String("PODLIST_RELEASE"))
     return handlers.handleAll({
       health: () =>
-        Effect.succeed(new System.Health({ status: "ok", protocolVersion: Protocol.version }))
+        Effect.succeed(
+          new System.Health({
+            status: "ok",
+            protocolVersion: Protocol.version,
+            ...Option.match(release, { onNone: () => ({}), onSome: (r) => ({ release: r }) })
+          })
+        )
     })
   })
 )

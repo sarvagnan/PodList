@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Deploys the current commit to PodList's Incus container over Tailscale SSH
+# (deploy/README.md): checks, builds the web app, copies a release, installs the
+# server's dependencies on the box, switches to it, and rolls back if it doesn't answer.
+set -euo pipefail
+
+host=${PODLIST_HOST:-sarvagnan@podlist}
+cd "$(dirname "$0")/.."
+
+if [[ -n $(git status --porcelain) ]]; then
+  echo "Commit or stash your changes first: every release is a commit." >&2
+  exit 1
+fi
+commit=$(git rev-parse --short=12 HEAD)
+
+pnpm install --frozen-lockfile
+pnpm check
+pnpm --filter @podlist/web build
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+git archive HEAD package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json \
+  packages/domain packages/api packages/server packages/web/package.json | tar -x -C "$stage"
+cp -R packages/web/dist "$stage/packages/web/dist"
+printf 'PODLIST_RELEASE=%s\n' "$commit" > "$stage/release.env"
+
+echo "Copying release $commit to $host"
+# Unchanged files are hard-linked to the running release; installed modules are kept.
+rsync -a --delete --filter='protect node_modules/' --link-dest=/opt/podlist/current/ \
+  "$stage/" "$host:/opt/podlist/releases/$commit/"
+
+ssh "$host" bash -s -- "$commit" <<'REMOTE'
+set -euo pipefail
+commit=$1
+app=/opt/podlist
+release=$app/releases/$commit
+export PATH=/opt/node/bin:$PATH
+
+cd "$release"
+pnpm install --prod --frozen-lockfile --filter "@podlist/server..."
+
+previous=$(readlink "$app/current" || true)
+switch() { ln -sfn "$1" "$app/current.next" && mv -T "$app/current.next" "$app/current"; }
+switch "$release"
+sudo systemctl restart podlist
+
+for _ in $(seq 30); do
+  if curl -fsS http://127.0.0.1:8787/api/health 2>/dev/null | grep -q "\"release\":\"$commit\""; then
+    echo "Release $commit is live."
+    # Keep the five newest releases, and always the running one.
+    ls -1dt "$app"/releases/* | tail -n +6 | grep -vx "$release" | xargs -r rm -rf
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Release $commit didn't answer within 30 seconds:" >&2
+sudo journalctl -u podlist -n 20 --no-pager -o cat >&2
+if [[ -n $previous && $previous != "$release" ]]; then
+  echo "Rolling back to $(basename "$previous")." >&2
+  switch "$previous"
+  sudo systemctl restart podlist
+fi
+exit 1
+REMOTE

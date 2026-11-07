@@ -50,7 +50,12 @@ const Main = Layer.unwrap(
       Poller.background,
       Backup.background
     ).pipe(
-      Layer.provide(NodeHttpServer.layer(createServer, { port: config.port })),
+      Layer.provide(
+        NodeHttpServer.layer(createServer, {
+          port: config.port,
+          ...Option.match(config.host, { onNone: () => ({}), onSome: (host) => ({ host }) })
+        })
+      ),
       Layer.provide(Services)
     )
   })

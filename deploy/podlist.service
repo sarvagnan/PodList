@@ -1,0 +1,35 @@
+# PodList's server in its Incus container (deploy/README.md). Runs the release that
+# /opt/podlist/current points at, as the podlist user, writing only to the data volume.
+[Unit]
+Description=PodList server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=podlist
+Group=podlist
+WorkingDirectory=/opt/podlist/current
+# PODLIST_RELEASE, written by deploy/deploy.
+EnvironmentFile=/opt/podlist/current/release.env
+# Optional: PODCASTINDEX_KEY and PODCASTINDEX_SECRET (deploy/env.example).
+EnvironmentFile=-/etc/podlist/env
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+Environment=DATABASE_PATH=/srv/podlist/podlist.db
+Environment=BACKUP_DIR=/srv/podlist/backups
+Environment=ARTWORK_DIR=/srv/podlist/artwork
+Environment=WEB_ROOT=/opt/podlist/current/packages/web/dist
+ExecStart=/opt/node/bin/node packages/server/src/main.ts
+Restart=on-failure
+RestartSec=5
+
+ProtectSystem=strict
+ReadWritePaths=/srv/podlist
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
