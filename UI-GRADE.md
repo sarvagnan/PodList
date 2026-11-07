@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -38,6 +38,15 @@ Round 3: coverage 97.6%; 11 failures (8 major, 3 minor, no blockers); four categ
 Round 4: coverage 98.8%; 10 failures (8 major, 2 minor); five categories held at 6.9 or below. Report: [docs/ui-grade/round-4.md](docs/ui-grade/round-4.md). Graded build 6be414f. The grader probed side paths the flows don't cover (removing rows by keyboard, the drawer's Episode page, right-click), which is where most new failures came from.
 
 Round 5: coverage 96.3%; 10 failures (6 major, 4 minor; one counted once across two IDs). Report: [docs/ui-grade/round-5.md](docs/ui-grade/round-5.md). Graded build 651e1d4, before the View editor, Search and Library screens. Every round's grader is fresh and probes new side paths, so each round finds a new set of majors, and any major caps its categories at 6.9: rounds 2–5 sit at 6.9–7.2. The owner chose (7 Nov): build the designed screens first, then keep grading with fresh graders exactly as before.
+
+Round 6: coverage 94.7%; 14 failures (1 blocker, 9 major, 4 minor). Report: [docs/ui-grade/round-6.md](docs/ui-grade/round-6.md). Graded build 9aa0f2b, the first with every designed screen. The blocker (a rename typed just before leaving the screen was lost) caps Interaction at 4.9; uncapped, most categories are 8.0–8.6.
+
+## Work list (round 6)
+
+- [ ] DATA-01 (blocker): a pending rename is saved when the screen closes.
+- [ ] DATA-04 moving an Entry can be undone · KEY-04 dialogs open on their field · WKEY-03 focus after Edit View, Restore and Back · WDATA-03 / COPY-02 feed address errors inline, with a way forward · WDATA-04 the Undo offer doesn't vanish · BROWSER-05 Ctrl+K left to the browser · APPEAR-03 selected segments in forced colors · WTYPE-02 200% text on a phone.
+- [ ] Minors: APPEAR-11 toast closes after Undo · CTRL-05 dialog button states · TYPE-06 line length · TYPE-08 apostrophes.
+- [ ] Craft: header label at 720 px; desktop Episode detail with Next and Last; consistent confirmations; menus on Entry and Library rows; Mac File menu; 320 px segments; one Settings glyph.
 
 ## Work list (round 5)
 
