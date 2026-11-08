@@ -20,6 +20,8 @@ export type EpisodeAction =
 export interface Outcome {
   readonly message: string
   readonly undo: ReadonlyArray<Operation.Change>
+  /** Server work runs before local restoration; a failure leaves the step available. */
+  readonly undoAsync?: () => Promise<void>
 }
 
 const change = Schema.decodeUnknownSync(Operation.Change)

@@ -87,10 +87,8 @@ export const undoAtom = runtime.fn(
 )
 
 /** One step that can be taken back: what it said, and the operations that undo it. */
-export interface Undoable {
+export interface Undoable extends Outcome {
   readonly id: number
-  readonly message: string
-  readonly undo: ReadonlyArray<Operation.Change>
   /** Does the step again, for Redo; answers with the new way to take it back. */
   readonly again: () => Promise<Outcome>
 }

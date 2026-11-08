@@ -15,7 +15,8 @@ Prototype (throwaway, not production code): https://generatedpages.burmese-mount
 
 - **Sidebar**: lists of Views and Playlists (+ to create), Library, Settings.
 - **Selecting a View** → main area is its episode table. Row: checkbox · title (click → Episode detail) · Play Next · Play Last · Add to another Playlist… · Star · Download · Played · **Play** (always last). Toolbar picker "Next / Last go to" chooses the target Playlist; ticking rows swaps it for a bulk bar (Play Next, Play Last, Mark Played, Star, Download).
-- **Right panel** (only while a View is shown, or an episode is selected): the target Playlist's upcoming Entries, or the Episode detail. Detail action row: the five of Episode detail, in one row (*Played · Download · **Play** · Add · Star*); the list's rows have Next and Last. The Episode's own page on a wide screen adds them: *Played · Download · Next · **Play** · Last · Add · Star*.
+- **Right panel** (while a View or a Playlist’s Entries are shown): the target Playlist's upcoming Entries, or the Episode detail. A Playlist’s Entries always have a 400 px panel from `lg` up: the Episode explicitly opened from a row (with Close), otherwise the Cursor’s Episode (without Close). Showing the Cursor does not mark its row as open. Empty Playlists and Playlists past their end keep a quiet “No current Entry” panel. Detail action row: the five of Episode detail, in one row (*Played · Download · **Play** · Add · Star*); the list's rows have Next and Last. The Episode's own page on a wide screen adds them: *Played · Download · Next · **Play** · Last · Add · Star*.
+- **Reading width:** Library (table and list), Playlists and Views overviews, Trash, a Subscription, and a Playlist’s History and Listening Timeline stop at the shared 960 px page width, including padding. Header actions and empty states end at the same content edge. A View and a Playlist’s Entries use the full column with their side panel.
 - **Selecting a Playlist** → it fills the main area: Entries / History / Listening Timeline tabs; Entry row ends with Play from here.
 
 ## Player bar (both)
@@ -41,13 +42,14 @@ Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist
 ## Playlist settings and Rewind (design round 2, variant C)
 
 - **Settings** are their own page: name, Clear on Played, Delete (to Trash, with its History and Listening Timeline).
-- **Listening Timeline** is an event list under date and time headings: started, finished, and your own edits, each with **Rewind to here**. A confirmation lists exactly what will become unplayed again and what is kept; restored Entries go back where they were. A Rewind can be undone.
+- **Listening Timeline** is an event list under date and time headings: started, finished, and your own edits, each with **Rewind to here**, revealed on row hover or keyboard focus and always visible on touch. Its layout space and Tab stop stay in place. A confirmation lists exactly what will become unplayed again and what is kept; restored Entries go back where they were. A Rewind can be undone.
 - **Trash** holds deleted Playlists (with their History and Listening Timeline) for 30 days, changeable in Settings, with Restore.
 
 ## Library and Subscriptions (design round 2, variant C)
 
 - **Library** groups Subscriptions by their Download Rule on this Device; desktop is a table with bulk rule changes.
 - **Add** is one sheet: Search (Podcast Index), Feed address (resolved directly, no index needed), OPML.
+- **Unsubscribe:** asks for confirmation, then offers Undo in the toast and through Cmd/Ctrl+Z; Redo repeats it. Undo re-subscribes to the same feed. The server retains the Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices’ Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals these retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Downloads stay on their Devices.
 - **Subscription settings:** Download Rule for this Device (new Subscriptions start at Stream), Played threshold in seconds, Playback Settings overrides.
 - **First run** is a skippable checklist, and creates starter Views.
 

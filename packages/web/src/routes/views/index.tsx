@@ -34,6 +34,7 @@ function ViewsList() {
   return (
     <>
       <PageHeader
+        narrow
         title="Views"
         actions={
           <div className="flex items-center gap-1 md:hidden">
@@ -62,7 +63,7 @@ function ViewsList() {
           A View is a saved filter over your Library, such as new episodes this week.
         </EmptyState>
       ) : (
-        <div className="px-3 md:px-6">
+        <div className="max-w-[960px] px-3 md:px-6">
           {views.map((v) => (
             <ListRow
               key={v.id}

@@ -67,6 +67,62 @@ describe("Subscriptions", () => {
     }).pipe(Effect.provide(services))
   )
 
+  it.effect(
+    "Unsubscribe and re-subscribe retain ids, settings and every Device’s listening state",
+    () =>
+      Effect.gen(function* () {
+        const subs = yield* Subscriptions
+        const sql = yield* SqlClient.SqlClient
+        const store = yield* SyncStore
+        const sub = yield* subs.subscribe("https://example.test/night.xml")
+        const episodes = yield* sql<{ id: string }>`SELECT id FROM episode ORDER BY id`
+        const first = episodes[0]?.id
+        const second = episodes[1]?.id
+        const changes = [
+          {
+            _tag: "SetSubscriptionOverrides",
+            subscriptionId: sub.id,
+            playedThreshold: 60,
+            playbackSettings: { speed: 1.5, skipIntro: 30, volumeBoost: true }
+          },
+          ...["phone", "desktop"].map((deviceId) => ({
+            _tag: "SetDownloadRule",
+            rule: { subscriptionId: sub.id, deviceId, mode: "allNew", keepAtMost: 5 }
+          })),
+          { _tag: "AddEntry", playlistId: "default", episodeId: first, placement: "last" },
+          { _tag: "SetCursor", playlistId: "default", episodeId: first },
+          {
+            _tag: "ReportPosition",
+            playlistId: "default",
+            episodeId: first,
+            position: 123,
+            listenedAt: 5
+          },
+          { _tag: "SetStar", episodeId: first, starred: true },
+          { _tag: "MarkPlayed", episodeId: second, source: { _tag: "User" } }
+        ]
+        yield* store.push(
+          changes.map((change, i) =>
+            Schema.decodeUnknownSync(Operation.Operation)({
+              id: `retained-${i}`,
+              deviceId: "phone",
+              sequence: i + 1,
+              recordedAt: 5,
+              change
+            })
+          )
+        )
+        const before = yield* store.pull(0)
+        const settings = (yield* subs.list)[0]
+        yield* subs.unsubscribe(sub.id)
+        assert.deepStrictEqual((yield* store.pull(0)).snapshot, before.snapshot)
+        const restored = yield* subs.subscribe(sub.feedUrl)
+        assert.deepStrictEqual(restored, settings)
+        assert.deepStrictEqual(yield* sql`SELECT id FROM episode ORDER BY id`, episodes)
+        assert.deepStrictEqual((yield* store.pull(0)).snapshot, before.snapshot)
+      }).pipe(Effect.provide(services))
+  )
+
   it.effect("imports OPML, reporting duplicates and failures, and exports it back", () =>
     Effect.gen(function* () {
       const subs = yield* Subscriptions
