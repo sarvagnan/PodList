@@ -60,7 +60,7 @@ class DatabaseTest {
         val source = Files.readString(repo.resolve("packages/domain/src/Sql.ts"))
             .substringAfter("export const migrations:").substringBefore("/** Runs the shared")
         val bodies = Regex("statements: \\[([\\s\\S]*?)\\n    ]").findAll(source).map { it.groupValues[1] }.toList()
-        fun normalize(sql: String) = sql.trim().replace(Regex("\\s+"), " ")
+        fun normalize(sql: String) = sql.trim().replace(Regex("\\s+"), " ").replace("( ", "(").replace(" )", ")")
         val statements = bodies.flatMap { body ->
             val withoutComments = body.replace(Regex("//[^\\n]*"), "")
             Regex("`([^`]+)`|\"([^\"\\n]+)\"").findAll(withoutComments).map { match ->
