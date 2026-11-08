@@ -166,6 +166,7 @@ function ViewDetail() {
     <>
       <PageHeader
         title={view.name}
+        stableActions
         back={{ to: "/views", label: "Views" }}
         subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
         notice={false}
@@ -173,14 +174,14 @@ function ViewDetail() {
           checked.size > 0 ? (
             <BulkBar selected={[...checked]} onClear={() => setChecked(() => new Set())} />
           ) : (
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
+            <div className="flex w-max shrink-0 items-center gap-3">
               <NextLastTarget />
               {!editing && (
                 <button
                   type="button"
                   data-edit-view=""
                   onClick={startEditing}
-                  className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
+                  className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
                 >
                   <SlidersHorizontal aria-hidden="true" className="size-4" />
                   <span>

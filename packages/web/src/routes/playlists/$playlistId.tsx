@@ -264,6 +264,7 @@ function PlaylistDetail() {
                 ready,
                 playlist.name,
                 id === playlist.cursor,
+                id === selected,
                 id === playlist.cursor && active,
                 playing?.playlistId === playlist.id && playing.episodeId === id ? playing : null,
                 entries[index]?.position,
@@ -283,6 +284,8 @@ function PlaylistDetail() {
                 const entry = entries[index]
                 if (!entry) return null
                 const episode = episodes.get(entry.episodeId)
+                // Open beside the list has an edge; NOW keeps its blue tint (SIDE-04).
+                const opened = entry.episodeId === selected
                 const current = entry.episodeId === playlist.cursor
                 const live =
                   playing?.playlistId === playlist.id && playing.episodeId === entry.episodeId
@@ -391,6 +394,7 @@ function PlaylistDetail() {
                             data-row={index}
                             aria-rowindex={index + 1}
                             aria-current={current ? "true" : undefined}
+                            aria-selected={opened}
                             // Desktop: a click in the row's empty space opens the Episode too.
                             onClick={(event: React.MouseEvent) => {
                               if (
@@ -407,7 +411,7 @@ function PlaylistDetail() {
                             }}
                             // Narrow for its text (a small phone, large text): the number column
                             // gives way, then the buttons stack beside the title (WTYPE-02).
-                            className={`@container relative flex items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer data-[popup-open]:bg-secondary ${current ? "bg-accent" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
+                            className={`@container relative flex items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer data-[popup-open]:bg-secondary ${opened ? "selected-row shadow-[inset_3px_0_0_var(--color-primary)]" : ""} ${current ? "bg-accent" : opened ? "bg-secondary" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
                           />
                         }
                       >
@@ -488,7 +492,7 @@ function PlaylistDetail() {
                               }}
                               // The whole row on the phone; on desktop only the title is the link, so the
                               // rest of the row keeps the row's own menu (BROWSER-06).
-                              className="line-clamp-3 text-row font-medium hover:underline max-lg:after:absolute max-lg:after:inset-0 max-lg:after:rounded-xl max-lg:after:content-['']"
+                              className={`line-clamp-3 text-row font-medium hover:underline max-lg:after:absolute max-lg:after:inset-0 max-lg:after:rounded-xl max-lg:after:content-[''] ${opened ? "text-primary" : ""}`}
                             >
                               {title}
                             </Link>

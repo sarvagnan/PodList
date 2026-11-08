@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react"
-import type { View } from "@podlist/domain"
+import { View } from "@podlist/domain"
+import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { Trash2 } from "lucide-react"
 import { type ReactNode, useEffect, useId, useRef, useState } from "react"
@@ -33,6 +34,7 @@ const sorts: ReadonlyArray<readonly [View.ViewSort, string]> = [
 ]
 
 const control = fieldControl
+const sameFilter = Schema.toEquivalence(View.ViewFilter)
 
 function Row({
   label,
@@ -129,10 +131,51 @@ export function ViewFormFields({
     current.filter.podcasts?.mode ?? "all"
   )
 
+  // Keep rapid changes together while live saves catch up, including an invalid pair
+  // that needs correction. Only valid conditions leave the form (CTRL-04).
+  const [pendingFilter, setPendingFilter] = useState<Filter | null>(null)
+  const awaitingFilters = useRef<Array<Filter>>([])
+  const f = pendingFilter ?? current.filter
+  const lengthError =
+    f.minDuration !== undefined && f.maxDuration !== undefined && f.minDuration > f.maxDuration
+      ? `At most must be ${f.minDuration / 60} minutes or more.`
+      : null
+  const dateError =
+    f.published?._tag === "Between" &&
+    f.published.from !== null &&
+    f.published.to !== null &&
+    f.published.from > f.published.to
+      ? "To must be on or after From."
+      : null
+  useEffect(() => {
+    const acknowledged = awaitingFilters.current.findIndex((sent) =>
+      sameFilter(sent, current.filter)
+    )
+    if (acknowledged >= 0) awaitingFilters.current.splice(0, acknowledged + 1)
+    // Replayed, remote and Undo edits resume following saved data after our writes land.
+    if (awaitingFilters.current.length === 0 && !lengthError && !dateError) setPendingFilter(null)
+  }, [current.filter, lengthError, dateError])
+
   const save = (next: ViewData) => {
     if (JSON.stringify(data) !== JSON.stringify(next)) onChange(next)
   }
-  const setFilter = (filter: Filter) => save({ ...data, filter })
+  const setFilter = (filter: Filter) => {
+    const reversedLength =
+      filter.minDuration !== undefined &&
+      filter.maxDuration !== undefined &&
+      filter.minDuration > filter.maxDuration
+    const published = filter.published
+    const reversedDates =
+      published?._tag === "Between" &&
+      published.from !== null &&
+      published.to !== null &&
+      published.from > published.to
+    setPendingFilter(filter)
+    if (!reversedLength && !reversedDates) {
+      if (!sameFilter(filter, current.filter)) awaitingFilters.current.push(filter)
+      save({ ...data, filter })
+    }
+  }
 
   const nameCommit = useDebounced((value) => {
     const trimmed = value.trim()
@@ -140,10 +183,9 @@ export function ViewFormFields({
     if (trimmed !== "") save({ ...data, name: trimmed })
   })
   const textCommit = useDebounced((value) =>
-    setFilter(withCondition(data.filter, "text", value.trim() || undefined))
+    setFilter(withCondition(f, "text", value.trim() || undefined))
   )
 
-  const f = current.filter
   const podcastIds: ReadonlyArray<string> = f.podcasts?.subscriptionIds ?? []
   const togglePodcast = (subscriptionId: string, on: boolean) => {
     const ids = on
@@ -172,8 +214,11 @@ export function ViewFormFields({
       )
     }
   }
-  const asDate = (millis: number | null) =>
-    millis === null ? "" : new Date(millis).toISOString().slice(0, 10)
+  const asDate = (millis: number | null) => {
+    if (millis === null) return ""
+    const date = new Date(millis)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+  }
   const between = f.published?._tag === "Between" ? f.published : null
   const setBetween = (key: "from" | "to", value: string) => {
     const at =
@@ -250,6 +295,8 @@ export function ViewFormFields({
                   <input
                     type="date"
                     value={asDate(between.from)}
+                    aria-invalid={dateError !== null}
+                    aria-describedby={dateError ? `${id}-date-error` : undefined}
                     onChange={(event) => setBetween("from", event.target.value)}
                     className={`${control} mt-1`}
                   />
@@ -259,11 +306,22 @@ export function ViewFormFields({
                   <input
                     type="date"
                     value={asDate(between.to)}
+                    aria-invalid={dateError !== null}
+                    aria-describedby={dateError ? `${id}-date-error` : undefined}
                     onChange={(event) => setBetween("to", event.target.value)}
                     className={`${control} mt-1`}
                   />
                 </label>
               </div>
+            )}
+            {dateError && (
+              <p
+                id={`${id}-date-error`}
+                aria-live="polite"
+                className="mt-1 text-small text-destructive"
+              >
+                {dateError}
+              </p>
             )}
           </Row>
           <Row label="Podcasts" htmlFor={`${id}-podcasts`}>
@@ -388,6 +446,8 @@ export function ViewFormFields({
               <label className="text-small text-muted-foreground">
                 At least
                 <select
+                  aria-invalid={lengthError !== null}
+                  aria-describedby={lengthError ? `${id}-length-error` : undefined}
                   value={f.minDuration === undefined ? "" : String(f.minDuration / 60)}
                   onChange={(event) =>
                     setFilter(
@@ -413,6 +473,8 @@ export function ViewFormFields({
               <label className="text-small text-muted-foreground">
                 At most
                 <select
+                  aria-invalid={lengthError !== null}
+                  aria-describedby={lengthError ? `${id}-length-error` : undefined}
                   value={f.maxDuration === undefined ? "" : String(f.maxDuration / 60)}
                   onChange={(event) =>
                     setFilter(
@@ -436,6 +498,15 @@ export function ViewFormFields({
                 </select>
               </label>
             </div>
+            {lengthError && (
+              <p
+                id={`${id}-length-error`}
+                aria-live="polite"
+                className="mt-1 text-small text-destructive"
+              >
+                {lengthError}
+              </p>
+            )}
           </Row>
         </div>
         <p className="px-1 pt-1.5 text-small text-muted-foreground">

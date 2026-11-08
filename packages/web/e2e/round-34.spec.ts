@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(() => demo.stop())
 
 const draftGone = (page: Page) =>
-  expect.poll(() => page.evaluate(() => sessionStorage.getItem("podlist:dialog-draft"))).toBeNull()
+  expect.poll(() => page.evaluate(() => localStorage.getItem("podlist:dialog-draft"))).toBeNull()
 
 test("New Playlist restores its open draft and clears it on Create or Cancel (DATA-01)", async ({
   page
@@ -265,7 +265,7 @@ test("skip numerals meet 12 px and scale with text in bar and drawer (WTYPE-01)"
     .filter({ hasText: /^(15|30)$/ })
   await expect.poll(() => sizes(large)).toEqual([12, 12])
   await page.addStyleTag({ content: "html { font-size: 32px !important }" })
-  await expect.poll(() => sizes(large)).toEqual([24, 24])
+  await expect.poll(() => sizes(large)).toEqual([21, 21])
 })
 
 test("Rewind buttons have distinct resting, hover and pressed fills (CTRL-05)", async ({

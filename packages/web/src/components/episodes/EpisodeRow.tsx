@@ -215,7 +215,7 @@ export function EpisodeRow({
   const link = `/episodes/${episode.id}`
   const rowClass = `group @container relative flex min-h-[76px] items-center gap-3 border-b px-2 py-2 lg:cursor-pointer ${
     selected
-      ? "selected-row bg-accent shadow-[inset_3px_0_0_var(--color-primary)]"
+      ? "selected-row bg-secondary shadow-[inset_3px_0_0_var(--color-primary)]"
       : checked
         ? "bg-accent/60"
         : "hover:bg-secondary/60"

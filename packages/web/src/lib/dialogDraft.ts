@@ -57,7 +57,7 @@ const decode = Schema.decodeUnknownSync(
 
 export const readDialogDraft = (): DialogDraft | null => {
   try {
-    return decode(JSON.parse(sessionStorage.getItem(key) ?? "null"))
+    return decode(JSON.parse(localStorage.getItem(key) ?? "null"))
   } catch {
     return null
   }
@@ -65,14 +65,15 @@ export const readDialogDraft = (): DialogDraft | null => {
 
 const write = (draft: DialogDraft | null) => {
   try {
-    if (draft === null) sessionStorage.removeItem(key)
-    else sessionStorage.setItem(key, JSON.stringify(draft))
+    if (draft === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, JSON.stringify(draft))
   } catch {
     // Storage refused: the dialog still works for this visit (WDATA-01).
   }
 }
 
-/** One open input dialog per tab; origin (and Electron's server partition) scopes it.
+/** Recover the open typed draft across tab closure; the origin (and Electron’s server
+ * partition) scopes it (DATA-01, WDATA-01).
  * Write at each edit, before React renders, as the typed-edit journal does (DATA-01). */
 export function useDialogDraft<K extends DialogDraft["kind"]>(
   initial: { readonly kind: K } & Extract<DialogDraft, { readonly kind: K }>

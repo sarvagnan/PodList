@@ -71,7 +71,8 @@ export function useConfirm() {
       const outcome = joined === null ? given : { ...given, undo: joined.undo }
       const id = ++nextId
       burst = merge === undefined ? null : { key: merge, id, at: now, undo: outcome.undo }
-      setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome, again }])
+      const step = { id, ...outcome, again }
+      setStack((stack) => [...stack.slice(1 - depth), step])
       setRedo([])
       const toast: string = toasts.add({
         description: outcome.message,
@@ -82,6 +83,9 @@ export function useConfirm() {
           children: "Undo",
           onClick: () => {
             setStack((stack) => stack.filter((step) => step.id !== id))
+            // Toast Undo retains the same replayable step as keyboard Undo (DATA-04).
+            setRedo((stack) => [...stack, step])
+            burst = null
             undo(outcome.undo)
             // Used: it goes (APPEAR-11).
             toasts.close(toast)

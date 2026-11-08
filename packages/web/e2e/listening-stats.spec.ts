@@ -52,6 +52,11 @@ for (const viewport of [
     await expect(page.getByRole("region", { name: "All time", exact: true })).toContainText("2 min")
     await expect(page.getByText("Removed Subscription", { exact: true })).toBeVisible()
     await expect(page.getByText("1 day", { exact: true })).toBeVisible()
+    await expect(page.locator("#stats-periods")).toHaveClass(/text-xs/)
+    await expect(page.locator("#stats-days")).toHaveClass(/uppercase/)
+    await expect(
+      page.getByRole("region", { name: "All time", exact: true }).locator("dd").first()
+    ).toHaveClass(/text-title/)
     await page.getByText("Daily listening table", { exact: true }).focus()
     await page.keyboard.press("Enter")
     const table = page.getByRole("table")
@@ -74,8 +79,14 @@ for (const viewport of [
 test("a new Library starts with an honest empty state", async ({ page }) => {
   demo = await startDemo({ empty: true })
   await page.goto(`${demo.base}/listening-stats`)
-  await expect(page.getByRole("heading", { name: "Your stats start here…" })).toBeVisible()
-  await expect(page.getByText("Podcasts appear here when you listen.")).toBeVisible()
+  await expect(page.getByText("No listening yet", { exact: true })).toBeVisible()
+  await expect(
+    page.getByText("Play an Episode and it’s counted here.", { exact: false })
+  ).toBeVisible()
+  await expect(page.getByText("Daily listening table", { exact: true })).toHaveCount(0)
+  await expect(page.locator('[aria-labelledby="stats-days"]')).toHaveCount(0)
+  await expect(page.getByText("No listening yet").locator("..")).toHaveClass(/border-dashed/)
+  await expect(page.getByText(/with this update/)).toHaveCount(0)
 })
 
 test("real playback records a permanent listening total without counting a skip", async ({
@@ -128,5 +139,5 @@ test("stats wait for the first sync before claiming zero", async ({ page }) => {
   await expect(page.getByRole("status", { name: "Loading listening stats" })).toBeVisible()
   await expect(page.getByRole("region", { name: "All time", exact: true })).toHaveCount(0)
   release()
-  await expect(page.getByRole("heading", { name: "Your stats start here…" })).toBeVisible()
+  await expect(page.getByText("No listening yet", { exact: true })).toBeVisible()
 })

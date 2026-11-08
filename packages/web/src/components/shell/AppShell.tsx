@@ -93,8 +93,25 @@ function TrackTitle({ title, className }: { readonly title: string; readonly cla
 }
 
 function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
+  const desktopBar = useRef<HTMLElement>(null)
   const state = useAppState()
   const current = AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
+  // The enlarged player reserves its actual height for content and focus (WTYPE-02).
+  const hasCurrent = current !== null
+  useEffect(() => {
+    if (!hasCurrent || variant !== "desktop") return
+    const bar = desktopBar.current
+    if (bar === null) return
+    const measure = () =>
+      document.documentElement.style.setProperty("--desktop-player", `${bar.offsetHeight}px`)
+    const observer = new ResizeObserver(measure)
+    observer.observe(bar)
+    measure()
+    return () => {
+      observer.disconnect()
+      document.documentElement.style.removeProperty("--desktop-player")
+    }
+  }, [hasCurrent, variant])
   const control = useAtomSet(playbackAtom)
   const setDrawer = useAtomSet(drawerAtom)
   const openDrawer = (stack: ReadonlyArray<DrawerPage>) =>
@@ -212,7 +229,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           <button
             type="button"
             onClick={problem.retry}
-            className="h-9 shrink-0 rounded-full bg-player-track px-3 text-small font-semibold text-player-foreground active:bg-player-track/70"
+            className="min-h-9 shrink-0 rounded-full bg-player-track px-3 text-small font-semibold text-player-foreground active:bg-player-track/70"
           >
             Try again
           </button>
@@ -264,6 +281,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   return (
     <section
       aria-label="Now playing"
+      ref={desktopBar}
       className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground short:py-1.5 md:grid forced-colors:border-t forced-colors:border-[CanvasText]"
     >
       <div className="flex min-w-0 flex-col">
@@ -327,7 +345,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             <button
               type="button"
               onClick={() => openDrawer(["queue"])}
-              className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-row whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
+              className="inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-row whitespace-nowrap text-player-foreground hover:bg-player-track active:bg-player-track/70"
             >
               <ListMusic aria-hidden="true" className="size-5" />
               <span>
@@ -378,21 +396,22 @@ function Sidebar() {
   const from = path.startsWith("/episodes") ? cameFrom.of(entry) : null
   const held = (to: string) =>
     from !== null && (from === to || from.startsWith(`${to}/`)) ? " active" : ""
+  // Rows keep their natural text height and scroll in short windows (WTYPE-02).
   const link =
-    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold [&.active]:shadow-[inset_3px_0_0_var(--color-primary)]"
+    "flex min-h-9 shrink-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold [&.active]:shadow-[inset_3px_0_0_var(--color-primary)]"
   // The section headings lead to their overviews (all Views, all Playlists), and show
   // as selected there.
   const heading =
-    "mt-4 flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase hover:text-foreground [&.active]:bg-accent [&.active]:text-foreground"
+    "mt-4 flex min-h-8 shrink-0 items-center rounded-lg px-2.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase hover:text-foreground [&.active]:bg-accent [&.active]:text-foreground"
   return (
     <nav
       aria-label="Library and lists"
-      className="sticky top-0 hidden h-dvh w-56 shrink-0 scroll-pb-28 flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-24 md:flex"
+      className="sticky top-0 hidden h-dvh w-56 shrink-0 scroll-pb-[max(112px,var(--desktop-player,0px))] flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-[max(96px,var(--desktop-player,0px))] md:flex [&>*]:shrink-0"
     >
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
       <Link
         to="/search"
-        className={`mb-1 flex h-10 items-center gap-2 rounded-lg bg-secondary px-2.5 text-row text-muted-foreground hover:bg-input active:bg-input/70 [&.active]:bg-accent [&.active]:text-foreground${held("/search")}`}
+        className={`mb-1 flex min-h-10 items-center gap-2 rounded-lg bg-secondary px-2.5 text-row text-muted-foreground hover:bg-input active:bg-input/70 [&.active]:bg-accent [&.active]:text-foreground${held("/search")}`}
       >
         <Search aria-hidden="true" className="size-4" />
         <span className="flex-1">Search</span>
@@ -481,7 +500,7 @@ function Sidebar() {
           </Link>
         )
       })}
-      {state !== null && State.trashOf(state).length > 0 && (
+      {state !== null && (State.trashOf(state).length > 0 || path === "/playlists/trash") && (
         // Set apart from the Playlists above it: an icon and a little space, so it doesn't
         // read as one of them.
         <Link to="/playlists/trash" className={`${link} mt-1 text-muted-foreground`}>
@@ -498,7 +517,11 @@ function Sidebar() {
       <Link to="/library" className={`${link}${held("/library")}`}>
         Library
       </Link>
-      <Link to="/settings" className={link}>
+      <Link
+        to="/settings"
+        aria-current={path === "/listening-stats" ? "page" : undefined}
+        className={`${link}${path === "/listening-stats" ? " active" : ""}`}
+      >
         Settings
       </Link>
       <button type="button" onClick={openShortcuts} className={`${link} text-muted-foreground`}>
@@ -521,7 +544,7 @@ function BottomTabs() {
   const section = (to: string) =>
     episodeSection === to ||
     (to === "/views" && path.startsWith("/search")) ||
-    (to === "/library" && path.startsWith("/settings"))
+    (to === "/library" && (path.startsWith("/settings") || path === "/listening-stats"))
   return (
     <nav
       aria-label="Sections"
@@ -810,7 +833,11 @@ export function AppShell() {
         Skip to content
       </a>
       <Sidebar />
-      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-44 outline-none md:pb-28">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="min-w-0 flex-1 pb-44 outline-none md:pb-[max(112px,var(--desktop-player,0px))]"
+      >
         <VersionNotice />
         <FirstRun />
         <Outlet />

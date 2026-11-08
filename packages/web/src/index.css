@@ -197,10 +197,9 @@ input[type="search"]::-webkit-search-cancel-button {
   header a[aria-label] {
     border: 1px solid ButtonText;
   }
-  /* The Episode open beside a View (AX-02). */
+  /* An open Episode keeps a leading edge distinct from NOW’s outline (SIDE-04, AX-02). */
   .selected-row {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
+    border-inline-start: 3px solid CanvasText;
   }
   /* Episode actions: the round icon carries the edge, not the whole column, so the row
      reads as round buttons as it does in colour, not touching boxes. */
@@ -222,7 +221,7 @@ input[type="search"]::-webkit-search-cancel-button {
 
 @media (min-width: 44rem) {
   html {
-    scroll-padding-bottom: calc(7.5rem + var(--toast-space, 0px));
+    scroll-padding-bottom: calc(max(7.5rem, var(--desktop-player, 0px)) + var(--toast-space, 0px));
   }
 }
 

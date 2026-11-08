@@ -63,6 +63,7 @@ interface RefineParams {
   min?: number
   max?: number
   days?: number
+  dates?: "between"
   from?: string
   to?: string
   podcasts?: string
@@ -95,6 +96,8 @@ const toParams = (r: Refinement): RefineParams => {
   if (f.maxDuration) p.max = f.maxDuration / 60
   if (f.published?._tag === "LastDays") p.days = f.published.days
   if (f.published?._tag === "Between") {
+    // The date picker stays open even before either bound is filled (CTRL-04).
+    p.dates = "between"
     if (f.published.from !== null) p.from = day(f.published.from)
     if (f.published.to !== null) p.to = day(f.published.to)
   }
@@ -120,7 +123,8 @@ const fromParams = (search: Record<string, unknown>): Refinement => {
   const from = atDay(search.from, "00:00")
   const to = atDay(search.to, "23:59")
   if (days) filter.published = { _tag: "LastDays", days: Math.round(days) }
-  else if (from !== null || to !== null) filter.published = { _tag: "Between", from, to }
+  else if (search.dates === "between" || from !== null || to !== null)
+    filter.published = { _tag: "Between", from, to }
   for (const [key, mode] of [
     ["podcasts", "include"],
     ["without", "exclude"]
@@ -144,6 +148,7 @@ const paramKeys = [
   "min",
   "max",
   "days",
+  "dates",
   "from",
   "to",
   "podcasts",
@@ -245,6 +250,7 @@ function SearchPage() {
     <>
       <PageHeader
         title="Search"
+        stableActions
         back={{ to: "/views", label: "Views" }}
         actions={
           checked.size > 0 ? (
@@ -253,7 +259,7 @@ function SearchPage() {
             <button
               type="button"
               onClick={() => setSaving(true)}
-              className="inline-flex h-10 shrink-0 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
+              className="inline-flex min-h-10 shrink-0 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
             >
               Save as View
             </button>

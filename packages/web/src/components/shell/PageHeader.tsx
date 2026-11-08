@@ -11,7 +11,8 @@ export function PageHeader({
   narrow = false,
   backOnDesktop = false,
   tabTitle,
-  notice = true
+  notice = true,
+  stableActions = false
 }: {
   readonly title: string
   readonly back?: { readonly to: string; readonly label: string }
@@ -26,6 +27,8 @@ export function PageHeader({
   readonly tabTitle?: string
   /** False when the screen places the notice slot itself (a View: in its list column). */
   readonly notice?: boolean
+  /** Reserve one scrollable action row while selection swaps its contents (APPEAR-11). */
+  readonly stableActions?: boolean
 }) {
   // The tab names the screen (BROWSER-03).
   useEffect(() => {
@@ -48,11 +51,15 @@ export function PageHeader({
           </Link>
         )}
         {/* The actions swap (picker, bulk bar) without changing the header's height. */}
-        <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div
+          className={`flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 ${stableActions ? "md:flex-col md:flex-nowrap md:items-stretch" : ""}`}
+        >
           {/* Desktop: a screen opened from another names it before its own title
               ("Commute › Playlist settings"), so every heading sits at one height and the way
               back has room. */}
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <div
+            className={`flex min-w-0 flex-wrap items-baseline gap-x-2 ${stableActions ? "md:min-h-11" : ""}`}
+          >
             {back && backOnDesktop && (
               <Link
                 to={back.to}
@@ -70,7 +77,13 @@ export function PageHeader({
               {title}
             </h1>
           </div>
-          {actions}
+          {stableActions ? (
+            <div className="min-w-0 md:flex md:h-[max(48px,2.75rem)] md:items-center md:overflow-x-auto">
+              {actions}
+            </div>
+          ) : (
+            actions
+          )}
         </div>
         {subtitle && <p className="mt-1.5 text-small text-muted-foreground">{subtitle}</p>}
       </header>

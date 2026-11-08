@@ -1,7 +1,7 @@
 import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
-import { ArrowDownToLine, Check, ListEnd, ListStart, Star, X } from "lucide-react"
+import { ArrowDownToLine, Check, ListEnd, ListPlus, ListStart, Star, X } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { bulkActionAtom, nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
@@ -28,7 +28,7 @@ function BulkButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-row font-medium hover:bg-secondary active:bg-input"
+      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-row font-medium hover:bg-secondary active:bg-input"
     >
       {icon}
       {children}
@@ -89,7 +89,7 @@ export function BulkBar({
     <div
       role="toolbar"
       aria-label={`${episodes(n)} selected`}
-      className="flex flex-wrap items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
+      className="flex w-max shrink-0 items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
     >
       {adding && (
         <AddToPlaylist
@@ -100,13 +100,14 @@ export function BulkBar({
           onOpenChange={setAdding}
         />
       )}
+      {/* Count first; creation has its own glyph (APPEAR-09). */}
+      <span className="mr-2 text-row font-semibold">{n} selected</span>
       <BulkButton
         onClick={() => setAdding(true)}
-        icon={<ListEnd aria-hidden="true" className="size-4" />}
+        icon={<ListPlus aria-hidden="true" className="size-4" />}
       >
         New Playlist…
       </BulkButton>
-      <span className="mr-2 text-row font-semibold">{n} selected</span>
       <BulkButton
         onClick={() => add("next")}
         icon={<ListStart aria-hidden="true" className="size-4" />}
