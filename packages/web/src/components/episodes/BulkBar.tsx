@@ -2,7 +2,7 @@ import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { ArrowDownToLine, Check, ListEnd, ListStart, Star, X } from "lucide-react"
-import type { ReactNode } from "react"
+import { type ReactNode, useState } from "react"
 import { bulkActionAtom, nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
@@ -10,6 +10,8 @@ import type { EpisodeAction } from "../../lib/episodeActions.ts"
 import { focusAfterRowsGo } from "../../lib/focusAfterRemoval.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
+
+import { AddToPlaylist } from "./AddToPlaylist.tsx"
 
 const episodes = (n: number) => `${n} ${n === 1 ? "Episode" : "Episodes"}`
 
@@ -45,6 +47,7 @@ export function BulkBar({
   readonly selected: ReadonlyArray<string>
   readonly onClear: () => void
 }) {
+  const [adding, setAdding] = useState(false)
   const state = useAppState()
   const chosen = useAtomValue(nextLastTargetAtom)
   const run = useAtomSet(bulkActionAtom, { mode: "promise" })
@@ -88,6 +91,21 @@ export function BulkBar({
       aria-label={`${episodes(n)} selected`}
       className="flex flex-wrap items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
     >
+      {adding && (
+        <AddToPlaylist
+          episode={{ id: selected[0] ?? "", title: episodes(n) }}
+          episodeIds={selected}
+          startNew
+          open={adding}
+          onOpenChange={setAdding}
+        />
+      )}
+      <BulkButton
+        onClick={() => setAdding(true)}
+        icon={<ListEnd aria-hidden="true" className="size-4" />}
+      >
+        New Playlist…
+      </BulkButton>
       <span className="mr-2 text-row font-semibold">{n} selected</span>
       <BulkButton
         onClick={() => add("next")}

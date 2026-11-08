@@ -116,6 +116,7 @@ export function EpisodeRow({
   const downloaded = downloadStatus?._tag === "Stored"
   const runDownload = useAtomSet(downloadAtom)
   const [adding, setAdding] = useState(false)
+  const [creating, setCreating] = useState(false)
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const chosen = useAtomValue(nextLastTargetAtom)
   const target =
@@ -177,6 +178,13 @@ export function EpisodeRow({
     { label: `Play Next in ${target?.name ?? "Playlist"}`, run: () => addTo("next") },
     { label: `Play Last in ${target?.name ?? "Playlist"}`, run: () => addTo("last") },
     { label: "Add to a Playlist…", run: () => setAdding(true) },
+    {
+      label: "New Playlist…",
+      run: () => {
+        setCreating(true)
+        setAdding(true)
+      }
+    },
     { separator: true },
     {
       label: episode.starred ? "Unstar" : "Star",
@@ -369,7 +377,17 @@ export function EpisodeRow({
         <span className="ml-2 flex">{play}</span>
       </div>
 
-      {adding && <AddToPlaylist episode={episode} open={adding} onOpenChange={setAdding} />}
+      {adding && (
+        <AddToPlaylist
+          episode={episode}
+          startNew={creating}
+          open={adding}
+          onOpenChange={(open) => {
+            setAdding(open)
+            if (!open) setCreating(false)
+          }}
+        />
+      )}
     </>
   )
   // Desktop: a click in the row's empty space opens the Episode, as the title does.

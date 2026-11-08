@@ -1,5 +1,5 @@
-import type { Operation } from "@podlist/domain"
-import { Effect, SubscriptionRef } from "effect"
+import { Operation } from "@podlist/domain"
+import { Effect, Schema, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { SqlClient } from "effect/sql"
 import {
@@ -107,4 +107,41 @@ export const redoStackAtom = Atom.make<ReadonlyArray<Undoable>>([]).pipe(Atom.ke
 /** Desktop: the Playlist that Play Next and Play Last go to; the Active one when unset. */
 export const nextLastTargetAtom = Atom.make<string | null>(nextLastTarget.get()).pipe(
   Atom.keepAlive
+)
+
+/** Creating and filling a Playlist is one user step, including Undo (pod-1jt). */
+export const createAndAddAtom = runtime.fn(
+  (input: {
+    readonly name: string
+    readonly episodeIds: ReadonlyArray<string>
+    readonly placement: "next" | "last"
+  }) =>
+    Effect.gen(function* () {
+      const engine = yield* SyncEngine
+      const state = yield* SubscriptionRef.get(engine.state)
+      const name = input.name.trim()
+      if (!name || state.playlists.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+        return {
+          message: !name
+            ? "A Playlist needs a name."
+            : `There’s already a Playlist called “${name}”.`,
+          undo: []
+        } satisfies Outcome
+      }
+      const change = Schema.decodeUnknownSync(Operation.Change)
+      const playlistId = crypto.randomUUID()
+      yield* engine.record(
+        change({ _tag: "CreatePlaylist", playlistId, name, clearOnPlayed: false })
+      )
+      // A new Playlist has no previous Cursor. Both choices keep the View’s order;
+      // inserting Next repeatedly would reverse it around the first Entry (pod-1jt).
+      for (const episodeId of input.episodeIds) {
+        yield* engine.record(change({ _tag: "AddEntry", playlistId, episodeId, placement: "last" }))
+      }
+      return {
+        message: `Created “${name}” with ${input.episodeIds.length} ${input.episodeIds.length === 1 ? "Episode" : "Episodes"}`,
+        undo: [change({ _tag: "DeletePlaylist", playlistId })]
+      } satisfies Outcome
+    }),
+  { concurrent: true }
 )
