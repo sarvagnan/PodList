@@ -230,7 +230,11 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
                     val row = byId[entry.episodeId]
                     val cursor = playlist.cursor == entry.episodeId
                     Column(Modifier.fillMaxWidth().background(if (cursor) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface)) {
-                        if (cursor) Text(stringResource(if (playlist.id == data.state.activePlaylistId) R.string.cursor_now else R.string.cursor),
+                        if (cursor) Text(stringResource(when {
+                            playlist.id == data.state.activePlaylistId -> R.string.cursor_now
+                            entry.position > 0 -> R.string.cursor_resume
+                            else -> R.string.cursor_here
+                        }),
                             Modifier.padding(start = 68.dp, top = 12.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                         if (row == null) Hint(stringResource(R.string.metadata_pending))
                         else EpisodeRow(row, data, session, entry.position, true) { open("episode:${entry.episodeId}") }
@@ -260,16 +264,16 @@ private fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: D
             ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(row["title"] as String, style = MaterialTheme.typography.titleMedium)
-                Text(row["podcast"] as String, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.published, date((row["published"] as Number).toLong())), style = MaterialTheme.typography.bodySmall)
-                Text(duration?.let { stringResource(R.string.duration, duration(it)) } ?: stringResource(R.string.duration_unknown), style = MaterialTheme.typography.bodySmall)
-                Text(when {
-                    row["played_at"] != null -> stringResource(R.string.played)
-                    progress > 0 -> stringResource(R.string.in_progress, duration(progress))
+                val published = shortDate((row["published"] as Number).toLong())
+                Text(listOfNotNull(row["podcast"] as String, published, duration?.let { lengthLabel(it) }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val played = row["played_at"] != null
+                val state = when {
+                    played -> stringResource(R.string.played)
+                    progress > 0 -> stringResource(R.string.in_progress, if (duration != null) "${duration(progress)} / ${duration(duration)}" else duration(progress))
                     else -> stringResource(R.string.unplayed)
-                }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                if (entry) Text(stringResource(R.string.entry_position, duration(progress)), style = MaterialTheme.typography.bodySmall)
-                if ((row["starred"] as? Number)?.toInt() == 1) Text(stringResource(R.string.starred), style = MaterialTheme.typography.labelSmall)
+                }
+                val starred = (row["starred"] as? Number)?.toInt() == 1
+                Text(if (starred) "$state · ${stringResource(R.string.starred)}" else state, style = MaterialTheme.typography.bodySmall, color = if (played) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (progress > 0 && duration != null && duration > 0) LinearProgressIndicator(progress = { (progress / duration).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
         }
@@ -304,6 +308,19 @@ private fun NameRow(title: String, subtitle: String, artwork: String? = null, se
 @Composable private fun Loading() { Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(); Text(stringResource(R.string.loading)) } }
 
 private fun date(millis: Long): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
+@Composable private fun lengthLabel(seconds: Double): String {
+    val minutes = ((seconds + 30) / 60).toLong()
+    return if (minutes >= 60) stringResource(R.string.length_hours, minutes / 60, minutes % 60) else stringResource(R.string.length_minutes, minutes)
+}
+
+private fun shortDate(millis: Long): String {
+    val zone = ZoneId.systemDefault()
+    val at = Instant.ofEpochMilli(millis).atZone(zone)
+    val skeleton = if (at.year == java.time.Year.now(zone).value) "MMMd" else "yMMMd"
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), skeleton)
+    return DateTimeFormatter.ofPattern(pattern).format(at)
+}
+
 private fun duration(seconds: Double): String { val s = seconds.toLong(); return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60) }
 
 @Composable private fun sortLabel(sort: ViewSort): String = stringResource(when (sort) {
