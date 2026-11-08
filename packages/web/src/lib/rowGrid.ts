@@ -75,8 +75,11 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     const moved = index !== active.current.row
     active.current = { row: index, cell }
     if (moved) grid.onRowMove?.(index)
+    let frames = 10
     const land = () => {
       const cells = visibleCells(rowAt(index))
+      // Concurrent rendering can need another frame to mount a distant virtual row.
+      if (cells.length === 0 && --frames > 0) return requestAnimationFrame(land)
       const target = cells[Math.min(cell ?? titleCell(rowAt(index)), cells.length - 1)]
       sync()
       target?.focus()

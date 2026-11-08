@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import type * as React from "react"
-import type { ReactNode } from "react"
+import { type ReactNode, useMemo } from "react"
 
 // Reordering a list by dragging its rows' handles: pointer, touch (press and hold) or
 // keyboard (Space on the handle, arrows, Space again). Announcements name the rows.
@@ -26,7 +26,8 @@ export function SortableList({
   label,
   onMove,
   children,
-  keyboard = true
+  keyboard = true,
+  onDragChange
 }: {
   readonly ids: ReadonlyArray<string>
   /** Names a row for screen reader announcements. */
@@ -35,14 +36,17 @@ export function SortableList({
   readonly onMove: (id: string, after: string | null) => void
   readonly children: ReactNode
   /** Off where the rows take their own arrow keys (the Now Playing drawer). */
+  readonly onDragChange?: (id: string | null) => void
   readonly keyboard?: boolean
 }) {
+  const items = useMemo(() => [...ids], [ids])
   const pointer = useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   const touch = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
   const keys = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   const sensors = useSensors(pointer, touch, ...(keyboard ? [keys] : []))
   const position = (id: string | number) => ids.indexOf(String(id)) + 1
   const onDragEnd = ({ active, over }: DragEndEvent) => {
+    onDragChange?.(null)
     if (over === null || active.id === over.id) return
     const from = ids.indexOf(String(active.id))
     const to = ids.indexOf(String(over.id))
@@ -55,6 +59,8 @@ export function SortableList({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={({ active }) => onDragChange?.(String(active.id))}
+      onDragCancel={() => onDragChange?.(null)}
       onDragEnd={onDragEnd}
       accessibility={{
         screenReaderInstructions: {
@@ -75,7 +81,7 @@ export function SortableList({
         }
       }}
     >
-      <SortableContext items={[...ids]} strategy={verticalListSortingStrategy}>
+      <SortableContext items={items} strategy={verticalListSortingStrategy}>
         {children}
       </SortableContext>
     </DndContext>

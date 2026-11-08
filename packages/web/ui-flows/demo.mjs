@@ -55,6 +55,17 @@ const podcasts = [
   }
 ]
 
+const largePodcast = {
+  slug: "long-list",
+  title: "Long listening",
+  author: "Fixture",
+  color: "#2b50c8",
+  episodes: Array.from({ length: 500 }, (_, i) => [
+    `Long Episode ${String(i + 1).padStart(3, "0")}`,
+    120
+  ])
+}
+
 const artwork = (title, color) => {
   const initials = title
     .split(" ")
@@ -102,7 +113,7 @@ const listen = (server) =>
 const startFixtures = async () => {
   const server = createServer((req, res) => {
     const path = new URL(req.url, "http://x").pathname
-    const podcast = podcasts.find((p) => path === `/feeds/${p.slug}.xml`)
+    const podcast = [...podcasts, largePodcast].find((p) => path === `/feeds/${p.slug}.xml`)
     if (podcast) {
       res.writeHead(200, { "content-type": "application/rss+xml" })
       return res.end(feed(origin, podcast))
@@ -121,13 +132,14 @@ const startFixtures = async () => {
       res.writeHead(200, { "content-type": "application/json" })
       return res.end(JSON.stringify({ resultCount: results.length, results }))
     }
-    const art = podcasts.find((p) => path === `/art/${p.slug}.svg`)
+    const art = [...podcasts, largePodcast].find((p) => path === `/art/${p.slug}.svg`)
     if (art) {
       res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "max-age=3600" })
       return res.end(artwork(art.title, art.color))
     }
     const chapterFile = path.match(/^\/chapters\/([a-z-]+)\/(\d+)\.json$/)
-    const chaptered = chapterFile && podcasts.find((p) => p.slug === chapterFile[1])
+    const chaptered =
+      chapterFile && [...podcasts, largePodcast].find((p) => p.slug === chapterFile[1])
     const chapteredEpisode = chaptered?.episodes[Number(chapterFile?.[2])]
     if (chaptered?.chapters && chapteredEpisode) {
       // Chapters spread evenly over the Episode (Podcasting 2.0 JSON chapters).
@@ -144,7 +156,9 @@ const startFixtures = async () => {
       )
     }
     const audio = path.match(/^\/audio\/([a-z-]+)\/(\d+)\.mp3$/)
-    const episode = audio && podcasts.find((p) => p.slug === audio[1])?.episodes[Number(audio[2])]
+    const episode =
+      audio &&
+      [...podcasts, largePodcast].find((p) => p.slug === audio[1])?.episodes[Number(audio[2])]
     if (episode) {
       const bytes = audioFor(episode[1])
       const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/)
@@ -184,7 +198,7 @@ const waitFor = async (url) => {
 
 /** Starts the fixture host and a seeded PodList server; returns its URL and a stop function. */
 /** A demo server; `{ empty: true }` skips the seed, for first-run tests. */
-export const startDemo = async ({ empty = false } = {}) => {
+export const startDemo = async ({ empty = false, large = false } = {}) => {
   const fixtures = await startFixtures()
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = await freePort()
@@ -198,7 +212,7 @@ export const startDemo = async ({ empty = false } = {}) => {
       PORT: String(port),
       DATABASE_PATH: join(dir, "podlist.db"),
       BACKUP_DIR: join(dir, "backups"),
-      WEB_ROOT: join(repo, "packages/web/dist"),
+      WEB_ROOT: process.env.PODLIST_TEST_WEB_ROOT ?? join(repo, "packages/web/dist"),
       // Search finds the fixture feeds, never the real directories.
       ITUNES_SEARCH_URL: `${fixtures.origin}/search`
     },
@@ -211,7 +225,7 @@ export const startDemo = async ({ empty = false } = {}) => {
   }
   try {
     await waitFor(`${base}/api/health`)
-    if (!empty) await seed(base, fixtures.origin)
+    if (!empty) await seed(base, fixtures.origin, large)
   } catch (error) {
     stop()
     throw error
@@ -229,9 +243,9 @@ const post = async (base, path, body) => {
   return response.json()
 }
 
-const seed = async (base, origin) => {
+const seed = async (base, origin, large) => {
   const subscriptions = []
-  for (const podcast of podcasts) {
+  for (const podcast of large ? [...podcasts, largePodcast] : podcasts) {
     subscriptions.push(
       await post(base, "/subscriptions", { feedUrl: `${origin}/feeds/${podcast.slug}.xml` })
     )
@@ -247,6 +261,22 @@ const seed = async (base, origin) => {
   const device = { id: "demo-seed", name: "Demo seed", kind: "pwa", registeredAt: demoNow }
   await post(base, "/devices", device)
   const changes = [
+    ...(large
+      ? [
+          {
+            _tag: "CreatePlaylist",
+            playlistId: "large",
+            name: "Long listening",
+            clearOnPlayed: false
+          },
+          ...episodesOf(3).map((episodeId) => ({
+            _tag: "AddEntry",
+            playlistId: "large",
+            episodeId,
+            placement: "last"
+          }))
+        ]
+      : []),
     ...[field[0], market[1], build[0], field[2]].map((episodeId) => ({
       _tag: "AddEntry",
       playlistId: "default",

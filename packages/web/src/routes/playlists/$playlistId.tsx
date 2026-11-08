@@ -18,7 +18,11 @@ import { GridCell } from "../../components/lists/Grid.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { MoreMenu } from "../../components/lists/MoreMenu.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
-import { SortableList, SortableRow } from "../../components/lists/SortableRow.tsx"
+import { SortableRow } from "../../components/lists/SortableRow.tsx"
+import {
+  type EntryScroller,
+  VirtualSortableList
+} from "../../components/lists/VirtualSortableList.tsx"
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
@@ -57,11 +61,11 @@ function PlaylistDetail() {
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
   const listRef = useRef<HTMLDivElement>(null)
   const entries = playlist?.entries ?? []
+  const scroller = useRef<EntryScroller>(null)
   const copyLink = useCopyEpisodeLink()
   const grid = useRowGrid(listRef, {
     count: entries.length,
-    scrollToIndex: (index) =>
-      listRef.current?.querySelector(`[data-row="${index}"]`)?.scrollIntoView({ block: "nearest" }),
+    scrollToIndex: (index) => scroller.current?.scrollToIndex(index),
     titleAt: (index) => episodes.get(entries[index]?.episodeId ?? "")?.title ?? "",
     onCopy: (index) => {
       const id = entries[index]?.episodeId
@@ -251,12 +255,32 @@ function PlaylistDetail() {
             onBlur={grid.onBlur}
             className="px-3 md:px-6"
           >
-            <SortableList
+            <VirtualSortableList
+              key={playlist.id}
+              memoryKey={playlist.id}
+              rowVersion={(id, index) => [
+                episodes.get(id),
+                ready,
+                playlist.name,
+                id === playlist.cursor,
+                id === playlist.cursor && active,
+                playing?.playlistId === playlist.id && playing.episodeId === id ? playing : null,
+                entries[index]?.position,
+                state.episodeStates[id]?.starred,
+                (state.episodeStates[id]?.played ?? null) !== null,
+                entries[index - 2]?.episodeId,
+                entries[index - 1]?.episodeId,
+                entries[index + 1]?.episodeId,
+                entries.at(-1)?.episodeId
+              ]}
+              scroller={scroller}
               ids={entries.map((e) => e.episodeId)}
               label={(id) => episodes.get(id)?.title ?? "Entry"}
               onMove={moveEntry}
             >
-              {playlist.entries.map((entry, index) => {
+              {(_id, index) => {
+                const entry = entries[index]
+                if (!entry) return null
                 const episode = episodes.get(entry.episodeId)
                 const current = entry.episodeId === playlist.cursor
                 const live =
@@ -560,8 +584,8 @@ function PlaylistDetail() {
                     )}
                   </SortableRow>
                 )
-              })}
-            </SortableList>
+              }}
+            </VirtualSortableList>
           </div>
           {selected && (
             <aside

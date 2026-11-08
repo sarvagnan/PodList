@@ -33,7 +33,8 @@ import { useEpisodeActions } from "../episodes/useEpisodeActions.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
 import { MoreMenu } from "../lists/MoreMenu.tsx"
-import { SortableList, SortableRow } from "../lists/SortableRow.tsx"
+import { SortableRow } from "../lists/SortableRow.tsx"
+import { VirtualSortableList } from "../lists/VirtualSortableList.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { PlayerMenus } from "./PlayerMenus.tsx"
 import { Scrubber } from "./Scrubber.tsx"
@@ -429,50 +430,66 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
       <ol aria-label={`Up next in ${playlist.name}`}>
         {nowEntry && <li className="flex items-center gap-1">{row(nowEntry, true)}</li>}
         {/* Dragged by pointer or touch; from the keyboard its handle takes the arrows. */}
-        <SortableList
+        <VirtualSortableList
+          key={playlist.id}
+          memoryKey={playlist.id}
+          rowVersion={(id, index) => [
+            episodes.get(id),
+            after[index]?.position,
+            current.playlistId,
+            current.episodeId,
+            after[index - 2]?.episodeId,
+            after[index - 1]?.episodeId,
+            after[index + 1]?.episodeId,
+            after.at(-1)?.episodeId
+          ]}
+          drawer
           ids={after.map((e) => e.episodeId)}
           label={title}
           onMove={moveEntry}
-          keyboard={false}
         >
-          {after.map((entry) => (
-            <SortableRow key={entry.episodeId} id={entry.episodeId}>
-              {(sortable) => (
-                <li
-                  ref={sortable.ref}
-                  style={sortable.style}
-                  className={`flex items-center gap-1 rounded-xl ${sortable.dragging ? "bg-player-track shadow-lg" : ""}`}
-                >
-                  {row(
-                    entry,
-                    false,
-                    <Tip label="Drag to reorder">
-                      <button
-                        type="button"
-                        {...sortable.handle}
-                        aria-label={`Move ${title(entry.episodeId)}`}
-                        aria-description="Up and down arrows move it one place"
-                        onKeyDown={(event) => {
-                          const index = after.findIndex((e) => e.episodeId === entry.episodeId)
-                          if (event.key === "ArrowUp" && index > 0) {
-                            event.preventDefault()
-                            moveEntry(entry.episodeId, after[index - 2]?.episodeId ?? null)
-                          } else if (event.key === "ArrowDown" && index < after.length - 1) {
-                            event.preventDefault()
-                            moveEntry(entry.episodeId, after[index + 1]?.episodeId ?? null)
-                          }
-                        }}
-                        className="-mr-1 grid size-11 shrink-0 cursor-grab touch-none place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground active:cursor-grabbing"
-                      >
-                        <GripVertical aria-hidden="true" className="size-5" />
-                      </button>
-                    </Tip>
-                  )}
-                </li>
-              )}
-            </SortableRow>
-          ))}
-        </SortableList>
+          {(_id, index) => {
+            const entry = after[index]
+            if (!entry) return null
+            return (
+              <SortableRow key={entry.episodeId} id={entry.episodeId}>
+                {(sortable) => (
+                  <li
+                    ref={sortable.ref}
+                    style={sortable.style}
+                    className={`flex items-center gap-1 rounded-xl ${sortable.dragging ? "bg-player-track shadow-lg" : ""}`}
+                  >
+                    {row(
+                      entry,
+                      false,
+                      <Tip label="Drag to reorder">
+                        <button
+                          type="button"
+                          {...sortable.handle}
+                          aria-label={`Move ${title(entry.episodeId)}`}
+                          aria-description="Up and down arrows move it one place"
+                          onKeyDown={(event) => {
+                            const index = after.findIndex((e) => e.episodeId === entry.episodeId)
+                            if (event.key === "ArrowUp" && index > 0) {
+                              event.preventDefault()
+                              moveEntry(entry.episodeId, after[index - 2]?.episodeId ?? null)
+                            } else if (event.key === "ArrowDown" && index < after.length - 1) {
+                              event.preventDefault()
+                              moveEntry(entry.episodeId, after[index + 1]?.episodeId ?? null)
+                            }
+                          }}
+                          className="-mr-1 grid size-11 shrink-0 cursor-grab touch-none place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground active:cursor-grabbing"
+                        >
+                          <GripVertical aria-hidden="true" className="size-5" />
+                        </button>
+                      </Tip>
+                    )}
+                  </li>
+                )}
+              </SortableRow>
+            )
+          }}
+        </VirtualSortableList>
       </ol>
       {after.length === 0 && (
         // The same dashed card as every other empty state.
@@ -627,7 +644,7 @@ export function NowPlayingDrawer() {
               </button>
             </Tip>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div data-drawer-scroll="" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {page === undefined && (
               // Desktop: the player and Up next side by side in one centred column, not at
               // the sheet's far edges.

@@ -18,25 +18,30 @@ export interface EpisodeSummary {
   readonly artworkUrl: string | null
 }
 
+/** Membership is stable across Positions and reorders: avoid re-querying 500 titles
+ * and blanking the grid on every playback report (pod-b90). */
+const entryEpisodeIdsAtom = Atom.make((get) => {
+  const state = get(stateAtom)
+  const ids = new Set<string>()
+  if (AsyncResult.isSuccess(state)) {
+    for (const p of state.value.playlists) {
+      for (const e of p.entries) ids.add(e.episodeId)
+      for (const h of p.history) ids.add(h.episodeId)
+      for (const t of p.timeline) ids.add(t.episodeId)
+      for (const e of p.edits ?? []) ids.add(e.episodeId)
+    }
+  }
+  return JSON.stringify([...ids].sort())
+})
+
 /** Titles and podcasts for every Episode that is an Entry in some Playlist. */
 export const entryEpisodesAtom = runtime
   .atom((get) =>
     Effect.gen(function* () {
-      // Every Episode a Playlist mentions: its Entries, and what its History and Listening
-      // Timeline name, which may have left it (Clear on Played, Remove).
-      const state = get(stateAtom)
-      const ids = new Set<string>()
-      if (AsyncResult.isSuccess(state)) {
-        for (const p of state.value.playlists) {
-          for (const e of p.entries) ids.add(e.episodeId)
-          for (const h of p.history) ids.add(h.episodeId)
-          for (const t of p.timeline) ids.add(t.episodeId)
-          for (const e of p.edits ?? []) ids.add(e.episodeId)
-        }
-      }
+      const ids: string[] = JSON.parse(get(entryEpisodeIdsAtom))
       const sql = yield* SqlClient.SqlClient
       const rows =
-        ids.size === 0
+        ids.length === 0
           ? []
           : yield* sql<{
               id: string
