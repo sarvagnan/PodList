@@ -6,6 +6,8 @@ PodList was one React build shipped as an installable PWA and an Electron app, w
 - **Android:** a fully native Kotlin app. **macOS, iOS and iPadOS:** one fully native SwiftUI codebase. All of them keep a local database, listen offline and keep working when the server can't be reached.
 - **Electron:** stays, as the client for Windows, Linux and any desktop without its own native app, keeping its local database and offline use.
 
+Every client can be driven on its own over MCP, and the Apple apps also expose App Intents, for Shortcuts and Siri. Native clients make these possible; how each platform hosts MCP is settled in the platform plan.
+
 The PWA is retired once the Android app replaces it. Until then it keeps working: moving the web build online-only before then would take offline listening away from the phone.
 
 This reverses ADR 0005's "one code path": the web client and Electron share the React screens over two data layers (server-backed and local), and the native clients are separate codebases, so ADR 0007's Capacitor step is dropped. The native clients reimplement the domain rules and pass the language-neutral conformance vectors (ADR 0007), which become their definition of correct behaviour. The cost, accepted for platform-correct apps, is three UI codebases to maintain (React, Kotlin, SwiftUI), and new server read APIs for what the web client used to query locally.
