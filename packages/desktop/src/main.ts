@@ -142,9 +142,24 @@ const profileFor = (server: string) => {
           const source = new URL(url.searchParams.get("url") ?? "", appOrigin)
           if (!["http:", "https:"].includes(source.protocol) || source.username || source.password)
             return new Response(null, { status: 400 })
-          return decodedResponse(
-            await net.fetch(source.href, { credentials: "omit", signal: request.signal })
-          )
+          const upstream = await net.fetch(source.href, {
+            credentials: "omit",
+            signal: request.signal
+          })
+          // Audio only: this fetches from the main process, past CORS and the browser's
+          // private-network checks, so it must not hand the page any other kind of body
+          // (a local service's HTML or JSON).
+          const type = upstream.headers.get("content-type") ?? ""
+          const audioLike =
+            type === "" ||
+            /^(audio\/|video\/|(application|binary)\/octet-stream|application\/(mp4|ogg))/i.test(
+              type
+            )
+          if (upstream.ok && !audioLike) {
+            await upstream.body?.cancel()
+            return new Response(null, { status: 415 })
+          }
+          return decodedResponse(upstream)
         } catch {
           return Response.error()
         }
