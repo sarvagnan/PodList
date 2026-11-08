@@ -4,7 +4,7 @@ PodList was one React build shipped as an installable PWA and an Electron app, w
 
 - **Web:** an online-only client that talks to the server. No local database, no offline, no install as a PWA. Any number of tabs work; pressing Play in one stops the others, as on Spotify's web player. Coordination is between tabs only; other Devices stay independent and sync Positions as they do now.
 - **Android:** a fully native Kotlin app. **macOS, iOS and iPadOS:** one fully native SwiftUI codebase. All of them keep a local database, listen offline and keep working when the server can't be reached.
-- **Electron:** stays, as the client for Windows, Linux and any desktop without its own native app, keeping its local database and offline use.
+- **Electron:** stays, as the client for Windows, Linux and any desktop without its own native app, keeping its local database and offline use. It also keeps running on the Mac, where the native app is the one we recommend.
 
 Agents and automation drive each client through what its platform offers: the Mac and Electron apps run an MCP server, the Apple apps expose App Intents (Shortcuts, Siri, Spotlight), and the Android app exposes the Android equivalent, settled in the platform plan. The web client has none.
 

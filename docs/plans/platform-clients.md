@@ -1,25 +1,95 @@
 # Platform clients plan
 
-Status: draft for the owner's review. Decision record: [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md). Work is tracked under bead `pod-apx`.
+Status: agreed with the owner on 8 Nov 2026, apart from the open questions at the end. Decision record: [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md). Work is tracked under bead `pod-apx`.
 
 ## What we're building
 
-| Client | Stack | Local data, offline | Automation |
-|---|---|---|---|
-| Android | Kotlin, Compose, Media3 | Yes | Media3 and app shortcuts, then exported intents, then AppFunctions |
-| macOS, iOS, iPadOS | One SwiftUI codebase | Yes | App Intents on all three; MCP server on macOS |
-| Windows, Linux, other desktops | Electron (existing React screens) | Yes, as today | MCP server |
-| Web | Existing React screens over server APIs | No, online only | None |
+| Client | Stack | Screens | Local data, offline | Automation |
+|---|---|---|---|---|
+| Android | Kotlin, Compose, Material 3, Media3 | Phones, foldables, tablets, desktop windows, Android Auto | Yes | Media3 and app shortcuts, then exported intents, then AppFunctions |
+| macOS, iOS, iPadOS | One SwiftUI codebase | iPhones including the foldable Duo, iPads, Mac windows, CarPlay | Yes | App Intents on all three; MCP server on macOS |
+| Windows, Linux, other desktops | Electron (existing React screens) | Desktop windows | Yes, as today | MCP server |
+| Web | Existing React screens over server APIs | Any browser window | No, online only | None |
+
+Electron also keeps running on the Mac. There we recommend the native app, but nothing stops anyone using Electron.
+
+**Minimum versions** (current release plus the number back that the owner chose; reviewed when a new major version ships):
+
+| Platform | Current | Minimum |
+|---|---|---|
+| Android | 17 (API 37) | 14 (API 34) |
+| iOS, iPadOS, macOS | 27 | 26 |
 
 The server stays the hub. It already applies the same domain rules as the clients and keeps the same SQLite schema (`packages/domain`, `SyncStore.ts`).
+
+**Not a concern yet:** how the apps are installed. The owner will probably get developer accounts for both stores; emulators and simulators need neither until then. CarPlay needs an entitlement from Apple, so it waits for the Apple account. There is no switchover either: PodList has no users yet, so no phone needs moving from the PWA to the app.
+
+## Repository layout
+
+Everything stays in this repository, with the native apps in `apps/android` and `apps/apple`. They are ordinary Gradle and Xcode projects outside the pnpm workspace.
+
+Comparable projects are split on this:
+
+| Separate repository per platform | One repository |
+|---|---|
+| Signal, Element X, Pocket Casts, Bitwarden (mobile apps apart; web, desktop and CLI together), Home Assistant, Nextcloud, Audiobookshelf | Immich (server, web, mobile and generated OpenAPI), Firefox (desktop, Android and iOS) |
+
+Separate repositories mostly suit separate teams with their own contributors and release schedules. PodList has one owner, and what ties its clients together is the contract: the vectors, schema and domain rules. In one repository, a protocol change and the matching change in every client land in one commit and are checked together. Across repositories, the vectors would need versioning and publishing, and each client would drift until someone updated it.
+
+The usual costs of one repository are handled by each client having its own build and release tags, and by CI running only what a change touches. **The exception is `packages/domain`: any change there runs every client's vector tests.** Splitting a client out later is cheap, because `git filter-repo` keeps its history.
 
 ## What already exists
 
 - **The sync contract:** clients push operations and pull everyone else's (`/sync/push`, `/sync/pull`), and pull catalogue changes (`/library/changes`).
 - **The rules a native client must reimplement:** about 840 lines of TypeScript (`State`, `PlaylistRules`, `PlayedRules`, `TimelineRules`, `ViewQuery`, `Listening`).
 - **11 conformance vectors** define correct merge behaviour in any language (ADR 0007). They don't yet cover every change or View filtering.
-- **The screens to reproduce:** about 10,000 lines of React, specified by `docs/design/ui-layout.md`.
-- **Toolchains on this Mac:** Xcode 27.2, Swift, Java and the Android SDK with an emulator.
+- **The product design:** about 10,000 lines of React and `docs/design/ui-layout.md`. These describe what the product does. They are not a layout for the native apps to copy.
+- **Toolchains on this Mac:** Xcode 27.2 with an iPhone Duo simulator, and the Android SDK with API 37 and emulator profiles for phones, foldables, tablets and resizable desktop windows.
+
+## Platform conventions
+
+Native apps are only worth their cost if they feel native, so each one follows its own platform. What the clients share is **what the product does**. What differs is **how it's presented**.
+
+**Shared across every client:** the domain language (`CONTEXT.md`), the rules and sync, the features, and behaviour decisions such as Unsubscribe asking first and still offering Undo afterwards.
+
+**Each platform decides for itself:** navigation, components, gestures, type, and where each action lives.
+
+| | Android | iPhone | iPad | Mac |
+|---|---|---|---|---|
+| Follows | Material 3 | Human Interface Guidelines | Human Interface Guidelines | Human Interface Guidelines |
+| Navigation | Bar on compact windows, rail on wider ones; predictive back | Tab bar and navigation stacks | Sidebar, split view | Sidebar and window toolbar |
+| Row actions | Long press to select, contextual bar, swipe | Swipe actions, long-press context menu | Those, plus pointer hover and right-click | Right-click, full menu bar, keyboard shortcuts |
+| Undo | Snackbar with Undo | Inline confirmation, shake to undo | Inline confirmation, ⌘Z | Edit menu, ⌘Z |
+| Sheets and panels | Bottom sheets, side sheets | Sheets with detents | Popovers and sheets | Popovers, separate Settings window |
+| System integration | Edge to edge, media notification, Android Auto | Dynamic Type, lock screen, CarPlay | Stage Manager, external keyboard | Media keys, multiple windows |
+
+`docs/design/ui-layout.md` is split before Android's milestone 2: a shared behaviour document, then one layout document per platform, starting with Android. Each platform's first screens are mocked and chosen the same way the web layout was.
+
+Each client gets its own UI grading, as its own target. The brief names that platform's guidelines, so Platform fit means fit with Material or the HIG, and the flow runs cover every screen size below.
+
+## Screen sizes
+
+Every client adapts to its window from its first screen, because retrofitting is the expensive way round. Layouts respond to the window and not to the device type.
+
+**Android** is one adaptive app:
+
+- **Phones:** compact windows, single pane.
+- **Foldables:** the outer and inner screens, keeping your place when folding or unfolding. Tabletop posture puts the artwork above the fold and the controls below it on Now Playing.
+- **Tablets:** portrait and landscape, with list and detail side by side at expanded width, built on `NavigationSuiteScaffold` and `ListDetailPaneScaffold`.
+- **Split screen and desktop windows:** any size, with keyboard, mouse and right-click.
+- **Android Auto:** through Media3.
+
+Android 17 ignores orientation and resizing locks on large screens, so this is required anyway when targeting API 37. Each milestone is checked on the phone, foldable, tablet and resizable emulator profiles.
+
+**Apple** is one SwiftUI codebase:
+
+- **iPhone:** from the smallest supported size to the Pro Max.
+- **iPhone Duo:** a 5.4-inch outer and a 7.6-inch inner screen, keeping your place on folding. The inner screen uses the wider layout.
+- **iPad:** every size, in freely resizable windows.
+- **Mac:** resizable windows.
+- **CarPlay:** added once the entitlement is granted.
+
+Layouts collapse through `NavigationSplitView` and size classes. Each milestone is checked on the small iPhone, Duo, iPad and Mac targets.
 
 ## Phases
 
@@ -34,17 +104,17 @@ Native clients are only as correct as this contract.
 
 ### 1. Android
 
-Each milestone is usable on its own.
+Each milestone is usable on its own and works on every Android screen size.
 
-1. Project, native SQLite with the shared schema, the rules passing every vector.
-2. Sync and read-only Library, Views and Playlists.
+1. Project in `apps/android`, native SQLite with the shared schema, the rules passing every vector.
+2. Android layout document and chosen mock-ups; sync and read-only Library, Views and Playlists.
 3. Playback (Media3: background, lock screen, Android Auto), downloads and Download Rules.
 4. Every remaining screen, including Rewind and Listening stats; app shortcuts.
-5. Parity check and regrade as an Android target, then retire the PWA. Exported intents follow; AppFunctions once out of preview.
+5. Parity check and regrade as an Android target. Exported intents follow; AppFunctions once out of preview.
 
 ### 2. Apple apps
 
-The same milestones in SwiftUI, with iPhone first and the iPad and Mac layouts adapted from it. App Intents arrive with milestone 4. The Mac's native menus, media keys and MCP server come with its layout.
+The same milestones in SwiftUI, in `apps/apple`. iPhone comes first, with the Duo, iPad and Mac layouts designed alongside it from milestone 2. App Intents arrive with milestone 4. The Mac's native menus, media keys and MCP server come with its layout. CarPlay follows the entitlement.
 
 ### 3. Web client goes online-only
 
@@ -54,23 +124,22 @@ The same milestones in SwiftUI, with iPhone first and the iPad and Mac layouts a
 - Many tabs, with Play in one stopping the others (`BroadcastChannel`).
 - Remove the service worker, install manifest and tab lock from the web build.
 
-The seam and APIs can be built alongside phase 1. **Only the switch waits**, because switching removes offline listening from the phone until the Android app replaces the PWA.
+This can be built alongside phase 1. See open question 3 for when it ships.
 
 ### 4. Electron for other desktops
 
-Windows and Linux packaging, and the MCP server. The local data layer stays.
+Windows and Linux packaging, and the MCP server. The local data layer stays, and the macOS build carries on.
 
 ## Risks
 
-- **Three UI codebases.** Every future feature is built up to three times. `ui-layout.md` becomes the shared spec and has to be kept current.
+- **Three UI codebases.** Every future feature is built up to three times, and each platform's layout document has to be kept current.
 - **Rule drift between languages.** Vector coverage is the defence, which is why phase 0 comes first.
-- **Scale.** Two full native apps are far more work than anything done so far on this project.
+- **Scale.** Two full native apps, each across many screen sizes, are far more work than anything done so far on this project.
 - **The tailnet.** Native apps reach the server over Tailscale as the PWA does (ADR 0004), so Tailscale is needed on each device for sync.
 
-## Questions for the owner
+## Open questions for the owner
 
-1. **Order:** Android first, then Apple? Android retires the PWA. If you use an iPhone day to day, Apple may be the better first target, though the PWA couldn't retire until Android is done.
-2. **Minimum versions:** recommended Android 10 and later; iOS, iPadOS and macOS current and one back.
-3. **Distribution:** sideloaded Android builds or Play Store? iOS needs the Apple Developer account in any case: TestFlight or direct installs?
-4. **The Mac app during phase 2:** Electron stays usable on the Mac until the Swift app reaches parity, then Electron stops being offered for macOS. Agreed?
-5. **Moving phones over:** the server holds everything except Downloads and any edits not yet synced. Plan: sync, install the app, re-download. Acceptable?
+1. **One repository:** recommended as above. Agreed?
+2. **Native look:** recommended: platform components and system fonts (Roboto, San Francisco), keeping PodList's blue as the accent, with dark mode from the start because both platforms expect it. Inter, Space Grotesk and light-only remain web decisions.
+3. **When the web client switches:** it was to wait for Android so the phone kept offline listening, but nobody depends on that yet. Recommended: ship it when it's ready and retire the PWA with it, unless you want to use the PWA on your phone before the Android app exists.
+4. **Watches, TVs and Vision Pro:** left out for now as separate products. Recommended: revisit once the phone, tablet and desktop apps are done.
