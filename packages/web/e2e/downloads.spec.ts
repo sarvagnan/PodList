@@ -29,11 +29,14 @@ test("a downloaded Episode plays with no connection", async ({ browser }) => {
   await sidebar.getByRole("link", { name: /^Default/ }).click()
   const player = page.getByRole("region", { name: "Now playing" })
 
-  // Not downloaded: a plain explanation and a way to try again.
+  // Not downloaded: says it's offline and not on this Device, not a Try again that can't
+  // work (COPY-02).
   await page
     .getByRole("button", { name: "Play The quiet edge of the solar system from here" })
     .click()
-  await expect(player.getByRole("alert")).toContainText("Couldn’t play this Episode")
+  await expect(player.getByRole("alert")).toContainText("Not downloaded")
+  await expect(player.getByRole("alert")).toContainText("plays when you’re back online")
+  await expect(player.getByRole("button", { name: "Try again" })).toHaveCount(0)
 
   // Downloaded: it plays from this Device.
   await page.getByRole("button", { name: "Play Joinery without screws from here" }).click()

@@ -1,23 +1,8 @@
 import { useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { CloudOff } from "lucide-react"
-import { useEffect, useState } from "react"
 import { syncStatusAtom } from "../../app/runtime.ts"
-
-/** Whether the browser thinks it is online, kept up to date. */
-function useOnline() {
-  const [online, setOnline] = useState(navigator.onLine)
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine)
-    window.addEventListener("online", update)
-    window.addEventListener("offline", update)
-    return () => {
-      window.removeEventListener("online", update)
-      window.removeEventListener("offline", update)
-    }
-  }, [])
-  return online
-}
+import { useOnline } from "../../lib/useOnline.ts"
 
 /**
  * Says so when this Device can't reach the server, and that edits are kept: everything

@@ -33,6 +33,7 @@ import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { PlayerMenus } from "../player/PlayerMenus.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
+import { usePlaybackProblem } from "../player/usePlaybackProblem.ts"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
@@ -95,6 +96,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
   const setDrawer = useAtomSet(drawerAtom)
   const openDrawer = (stack: ReadonlyArray<DrawerPage>) =>
     setDrawer({ open: true, stack, openedOn: stack.length })
+  const problem = usePlaybackProblem(current)
   if (current === null) return null
   const playlist = state?.playlists.find((p) => p.id === current.playlistId)
   // Nothing half-filled while the catalogue arrives on a new Device (APPEAR-11).
@@ -156,16 +158,21 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
     </span>
   )
   // Plain words and a way forward, not the media element's own text (COPY-02).
-  const error = current.error && (
+  const error = problem && (
     <p role="alert" className="flex items-center gap-2 text-small text-player-danger">
-      <span className="truncate">Couldn’t play this Episode.</span>
-      <button
-        type="button"
-        onClick={() => control({ _tag: "retry" })}
-        className="shrink-0 rounded-full bg-player-track px-3 py-1 font-semibold text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
-      >
-        Try again
-      </button>
+      <span className="truncate" title={problem.long}>
+        {problem.short}
+      </span>
+      <span className="sr-only">{problem.long}</span>
+      {problem.retry && (
+        <button
+          type="button"
+          onClick={problem.retry}
+          className="shrink-0 rounded-full bg-player-track px-3 py-1 font-semibold text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
+        >
+          Try again
+        </button>
+      )}
     </p>
   )
 
@@ -185,19 +192,21 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
           <Artwork url={current.artworkUrl} name={current.podcast} size={44} />
           <span className="min-w-0 flex-1 pl-1">
             <TrackTitle title={current.title} className="text-small" />
-            {current.error ? (
+            {problem ? (
+              // The short form fits the bar; the drawer says the rest.
               <span role="alert" className="block truncate text-small text-player-danger">
-                Couldn’t play this Episode.
+                {problem.short}
+                <span className="sr-only">. {problem.long}</span>
               </span>
             ) : (
               <span className="block truncate text-small text-player-muted">{label}</span>
             )}
           </span>
         </button>
-        {current.error ? (
+        {problem?.retry ? (
           <button
             type="button"
-            onClick={() => control({ _tag: "retry" })}
+            onClick={problem.retry}
             className="h-9 shrink-0 rounded-full bg-player-track px-3 text-small font-semibold text-player-foreground active:bg-player-track/70"
           >
             Try again

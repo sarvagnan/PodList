@@ -27,6 +27,9 @@ import {
 if (process.env.PODLIST_USER_DATA) app.setPath("userData", process.env.PODLIST_USER_DATA)
 
 const scheme = "app"
+/** A step's message inside the menu's own quotes: its quotes become single ones (TYPE-08). */
+const inner = (message: string) => message.replace(/“/g, "‘").replace(/”/g, "’")
+
 const appOrigin = `${scheme}://podlist`
 
 // A secure, standard origin: OPFS, Web Locks and media streaming work as on https.
@@ -436,7 +439,7 @@ const menu = (): MenuItemConstructorOptions[] => [
     label: "Edit",
     submenu: [
       {
-        label: undoLabels.undo ? `Undo “${undoLabels.undo}”` : "Undo",
+        label: undoLabels.undo ? `Undo “${inner(undoLabels.undo)}”` : "Undo",
         enabled: undoLabels.editing || undoLabels.undo !== null,
         accelerator: "CmdOrCtrl+Z",
         click: () => {
@@ -444,7 +447,7 @@ const menu = (): MenuItemConstructorOptions[] => [
         }
       },
       {
-        label: undoLabels.redo ? `Redo “${undoLabels.redo}”` : "Redo",
+        label: undoLabels.redo ? `Redo “${inner(undoLabels.redo)}”` : "Redo",
         enabled: undoLabels.editing || undoLabels.redo !== null,
         accelerator: "Shift+CmdOrCtrl+Z",
         click: () => {

@@ -38,6 +38,7 @@ import { Artwork } from "../shell/Artwork.tsx"
 import { PlayerMenus } from "./PlayerMenus.tsx"
 import { Scrubber } from "./Scrubber.tsx"
 import { SkipIcon } from "./SkipIcon.tsx"
+import { usePlaybackProblem } from "./usePlaybackProblem.ts"
 
 // The Now Playing drawer (docs/design/ui-layout.md): it slides up over the current
 // screen, and everything opened from it (Up next, Episode, Chapters, Switch Playlist)
@@ -96,6 +97,7 @@ function PillButton({
 }
 
 function MainPage({ current }: { readonly current: NowPlaying }) {
+  const problem = usePlaybackProblem(current)
   const state = useAppState()
   const control = useAtomSet(playbackAtom)
   const { push } = useDrawer()
@@ -160,16 +162,18 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
           onSeek={(seconds) => control({ _tag: "seek", seconds })}
         />
       </div>
-      {current.error && (
-        <p role="alert" className="text-small text-player-danger">
-          Couldn’t play this Episode.{" "}
-          <button
-            type="button"
-            onClick={() => control({ _tag: "retry" })}
-            className="ml-1 rounded-full bg-player-track px-3 py-1 font-semibold text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
-          >
-            Try again
-          </button>
+      {problem && (
+        <p role="alert" className="text-center text-small text-player-danger">
+          {problem.long}{" "}
+          {problem.retry && (
+            <button
+              type="button"
+              onClick={problem.retry}
+              className="ml-1 rounded-full bg-player-track px-3 py-1 font-semibold text-player-foreground hover:bg-player-track/80 active:bg-player-track/60"
+            >
+              Try again
+            </button>
+          )}
         </p>
       )}
       <div className="flex items-center gap-6">
