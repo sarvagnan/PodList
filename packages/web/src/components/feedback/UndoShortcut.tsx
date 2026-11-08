@@ -1,8 +1,7 @@
-import { Toast } from "@base-ui/react/toast"
-import { useAtomSet, useAtomValue } from "@effect/atom-react"
-import { useEffect, useRef } from "react"
-import { redoStackAtom, undoAtom, undoStackAtom } from "../../app/episodeActions.ts"
-import { focusOfStep, refocus, toastOfStep } from "./useConfirm.ts"
+import { useAtomValue } from "@effect/atom-react"
+import { useEffect } from "react"
+import { redoStackAtom, undoStackAtom } from "../../app/episodeActions.ts"
+import { useUndoRedo } from "./useConfirm.ts"
 
 const editing = (el: Element | null) =>
   el instanceof HTMLElement &&
@@ -18,13 +17,7 @@ const editing = (el: Element | null) =>
 export function UndoShortcut() {
   const undoStack = useAtomValue(undoStackAtom)
   const redoStack = useAtomValue(redoStackAtom)
-  const setUndo = useAtomSet(undoStackAtom)
-  const setRedo = useAtomSet(redoStackAtom)
-  const undo = useAtomSet(undoAtom)
-  const toasts = Toast.useToastManager()
-  // Read at key time, and updated at once, so quick presses each take a different step.
-  const latest = useRef({ undo: undoStack, redo: redoStack })
-  latest.current = { undo: undoStack, redo: redoStack }
+  const run = useUndoRedo()
 
   // The Mac app's Edit menu: the next steps, and whether a text field has focus (it has
   // its own undo), so Undo and Redo are dimmed only when there's nothing to take back.
@@ -59,43 +52,10 @@ export function UndoShortcut() {
       const isUndo = key === "z" && !event.shiftKey
       if ((!isUndo && !isRedo) || editing(document.activeElement)) return
       event.preventDefault()
-      const { undo: done, redo: undone } = latest.current
-      if (isUndo) {
-        const step = done.at(-1)
-        if (step === undefined) {
-          toasts.add({ description: "Nothing to undo", timeout: 3000 })
-          return
-        }
-        latest.current = { undo: done.slice(0, -1), redo: [...undone, step] }
-        setUndo(latest.current.undo)
-        setRedo(latest.current.redo)
-        undo(step.undo)
-        // Its own Undo toast goes: the step is taken back, so it has nothing left to offer.
-        const own = toastOfStep.get(step.id)
-        if (own !== undefined) toasts.close(own)
-        toasts.add({ description: `Undone: ${step.message}`, timeout: 4000 })
-        // Focus goes to what comes back (a restored row), as the toast's Undo does; with
-        // nothing to find, only lost focus is helped back.
-        const find = focusOfStep.get(step.id)
-        const active = document.activeElement
-        if (find || active === null || active === document.body || !active.isConnected)
-          refocus(find, null)
-        return
-      }
-      const step = undone.at(-1)
-      if (step === undefined) {
-        toasts.add({ description: "Nothing to redo", timeout: 3000 })
-        return
-      }
-      latest.current = { undo: done, redo: undone.slice(0, -1) }
-      setRedo(latest.current.redo)
-      void step.again().then((outcome) => {
-        setUndo((stack) => [...stack, { ...step, undo: outcome.undo }])
-        toasts.add({ description: `Redone: ${step.message}`, timeout: 4000 })
-      })
+      void run(undefined, isRedo)
     }
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
-  }, [setUndo, setRedo, undo, toasts])
+  }, [run])
   return null
 }

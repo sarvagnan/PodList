@@ -209,8 +209,8 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
               onClick={() => setAsking(event)}
               // The visible words first (label in name), then which moment.
               aria-label={`Rewind to here: ${clock(momentOf(event))}, ${title(event.episodeId)}`}
-              // Visible but quiet (no fill) until the row is in hand, so the events lead.
-              className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-small font-medium text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input group-hover:bg-secondary group-hover:text-foreground"
+              // Keep its space and Tab stop; touch has no hover to reveal it.
+              className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-small font-medium text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0"
             >
               <RotateCcw aria-hidden="true" className="size-4" />
               Rewind to here

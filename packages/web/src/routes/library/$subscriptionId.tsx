@@ -2,14 +2,14 @@ import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Operation, type PlaybackSettings } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { Exit, Schema } from "effect"
+import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight } from "lucide-react"
 import { useId, useState } from "react"
 import { filterEpisodesAtom, subscriptionAtom } from "../../app/data.ts"
 import { bulkActionAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
-import { unsubscribeAtom } from "../../app/library.ts"
+import { subscribeAtom, unsubscribeAtom } from "../../app/library.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
@@ -19,6 +19,7 @@ import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { serverUnavailable } from "../../lib/connectionMessage.ts"
 import { ruleNames } from "../../lib/downloadRules.ts"
 import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -71,7 +72,8 @@ function SubscriptionScreen() {
   const record = useAtomSet(recordAtom)
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
-  const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promiseExit" })
+  const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promise" })
+  const subscribe = useAtomSet(subscribeAtom, { mode: "promise" })
   const [asking, setAsking] = useState<"unsubscribe" | null>(null)
   const wide = useMinWidth("64rem")
   // Remembered on this Device, so a reload or the next podcast keeps it as left.
@@ -87,6 +89,7 @@ function SubscriptionScreen() {
     return (
       <>
         <PageHeader
+          narrow
           backOnDesktop
           title="Podcast not found"
           back={{ to: "/library", label: "Library" }}
@@ -136,6 +139,7 @@ function SubscriptionScreen() {
   return (
     <>
       <PageHeader
+        narrow
         backOnDesktop
         title={subscription.title}
         back={{ to: "/library", label: "Library" }}
@@ -151,7 +155,7 @@ function SubscriptionScreen() {
           ) : undefined
         }
       />
-      <div className="grid max-w-[1100px] gap-6 px-5 pb-8 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid max-w-[960px] gap-6 px-5 pb-8 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section aria-labelledby={`${id}-settings`} className="lg:order-2">
           <div className="flex items-center gap-4">
             <Artwork url={subscription.artworkUrl} name={subscription.title} size={72} />
@@ -400,9 +404,24 @@ function SubscriptionScreen() {
         confirm="Unsubscribe"
         destructive
         onConfirm={async () => {
-          const exit = await unsubscribe(subscriptionId)
-          if (Exit.isFailure(exit)) return "Couldn’t unsubscribe. Check that you’re online."
-          toasts.add({ description: `Unsubscribed from ${subscription.title}`, timeout: 4000 })
+          const again = async () => {
+            await unsubscribe(subscriptionId)
+            return {
+              message: `Unsubscribed from ${subscription.title}`,
+              undo: [],
+              // The server retains settings, states, Entries and Positions under stable ids.
+              undoAsync: async () => {
+                await subscribe(subscription.feedUrl)
+              }
+            }
+          }
+          try {
+            confirm(await again(), again, () =>
+              document.querySelector<HTMLElement>(`a[href="/library/${subscriptionId}"]`)
+            )
+          } catch {
+            return `Couldn’t unsubscribe. ${serverUnavailable} Try again when it’s reachable.`
+          }
           await navigate({ to: "/library" })
           return null
         }}

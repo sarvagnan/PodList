@@ -184,8 +184,9 @@ function LibraryScreen() {
   )
   return (
     // Measured for the table-or-list choice (and the table's extra columns).
-    <div ref={contentRef}>
+    <div ref={contentRef} className="max-w-[960px]">
       <PageHeader
+        narrow
         title="Library"
         {...(subscriptions.length > 0
           ? {

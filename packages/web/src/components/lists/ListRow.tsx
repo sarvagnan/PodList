@@ -62,7 +62,11 @@ export function StatusBadge({ status }: { readonly status: "Playing" | "Paused" 
 /** Stands in for a list while it loads, so nothing claims to be empty before it knows. */
 export function LoadingRows({ label }: { readonly label: string }) {
   return (
-    <div role="status" aria-label={label} className="mx-5 space-y-3 py-2 md:mx-8">
+    <div
+      role="status"
+      aria-label={label}
+      className="mx-5 max-w-[920px] space-y-3 py-2 md:mx-8 md:max-w-[896px]"
+    >
       {[0, 1, 2].map((i) => (
         <div key={i} className="flex items-center gap-3">
           <div className="size-10 rounded-lg bg-secondary" />
@@ -88,7 +92,7 @@ export function EmptyState({
 }) {
   return (
     <div
-      className={`h-fit self-start rounded-2xl border border-dashed px-5 text-center ${inPanel ? "py-6" : "mx-5 py-8 md:mx-8"}`}
+      className={`h-fit self-start rounded-2xl border border-dashed px-5 text-center ${inPanel ? "py-6" : "mx-5 max-w-[920px] py-8 md:mx-8 md:max-w-[896px]"}`}
     >
       <p className="font-medium">{title}</p>
       <p className="mt-1.5 text-row text-muted-foreground">{children}</p>

@@ -4,7 +4,7 @@ import { type ReactNode, useState } from "react"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 
-/** Asks before a step that has no Undo (Unsubscribe). */
+/** Asks before a consequential step, including Unsubscribe and Rewind. */
 export function ConfirmDialog({
   open,
   onOpenChange,

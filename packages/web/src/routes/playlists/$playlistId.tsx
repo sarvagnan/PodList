@@ -151,9 +151,43 @@ function PlaylistDetail() {
     )
   }
 
+  const panelEpisode =
+    selected ?? (entries.some((e) => e.episodeId === playlist.cursor) ? playlist.cursor : null)
+  const panel = (
+    <aside
+      aria-label="Episode"
+      className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
+    >
+      {selected && (
+        <div className="flex justify-end px-3">
+          <button
+            type="button"
+            aria-label="Close Episode"
+            onClick={closePanel}
+            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+          >
+            <X aria-hidden="true" className="size-5" />
+          </button>
+        </div>
+      )}
+      {panelEpisode ? (
+        <EpisodeDetail episodeId={panelEpisode} />
+      ) : (
+        <div className="p-5">
+          <EmptyState inPanel title="No current Entry">
+            {entries.length === 0
+              ? "Add Episodes to this Playlist to start listening."
+              : "You’ve reached the end of this Playlist. Open an Episode or play from an Entry to listen again."}
+          </EmptyState>
+        </div>
+      )}
+    </aside>
+  )
+
   return (
     <>
       <PageHeader
+        narrow={tab !== undefined}
         title={playlist.name}
         // Each section has its own address, so its own tab name too (BROWSER-03).
         tabTitle={
@@ -231,20 +265,27 @@ function PlaylistDetail() {
         </div>
       </nav>
       {tab === "history" ? (
-        <PlaylistHistory playlist={playlist} />
+        <div className="max-w-[960px]">
+          <PlaylistHistory playlist={playlist} />
+        </div>
       ) : tab === "timeline" ? (
-        <PlaylistTimeline playlist={playlist} />
+        <div className="max-w-[960px]">
+          <PlaylistTimeline playlist={playlist} />
+        </div>
       ) : playlist.entries.length === 0 ? (
-        <EmptyState title="Nothing here yet">
-          {/* A way on, as every empty state has (COPY-03). */}
-          In a{" "}
-          <Link to="/views" className="font-medium text-primary underline underline-offset-2">
-            View
-          </Link>
-          , use Play Next or Play Last to add Episodes here.
-        </EmptyState>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+          <EmptyState title="Nothing here yet">
+            {/* A way on, as every empty state has (COPY-03). */}
+            In a{" "}
+            <Link to="/views" className="font-medium text-primary underline underline-offset-2">
+              View
+            </Link>
+            , use Play Next or Play Last to add Episodes here.
+          </EmptyState>
+          {panel}
+        </div>
       ) : (
-        <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : ""}>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
           {/* biome-ignore lint/a11y/useSemanticElements: a grid of flex rows (components/lists/Grid.tsx). */}
           <div
             ref={listRef}
@@ -598,24 +639,7 @@ function PlaylistDetail() {
               }}
             </VirtualSortableList>
           </div>
-          {selected && (
-            <aside
-              aria-label="Episode"
-              className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
-            >
-              <div className="flex justify-end px-3">
-                <button
-                  type="button"
-                  aria-label="Close Episode"
-                  onClick={closePanel}
-                  className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-                >
-                  <X aria-hidden="true" className="size-5" />
-                </button>
-              </div>
-              <EpisodeDetail episodeId={selected} />
-            </aside>
-          )}
+          {panel}
         </div>
       )}
     </>
