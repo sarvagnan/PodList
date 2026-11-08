@@ -104,7 +104,10 @@ Round 34, two graders on 2cf1123:
 
 ## Work list (round 34)
 
-- [ ] Dialog drafts survive a reload (New Playlist, Save as View, Add podcasts) · the View editor's Name follows the saved name until typed in · focus after the last Entry goes · directory search waiting state · skip numerals at 12 px · Rewind dialog pressed states · Mac spelling suggestions.
+Fixed on 8 Nov by Codex (gpt-6.1-sol, high), reviewed and merged:
+
+- [x] Dialog drafts (New Playlist, the Add sheet's New Playlist, Save as View, Add podcasts) come back open after a reload; the View editor's Name and Mentions follow the saved values until typed in · removing the last Entry focuses the heading (page and drawer) · directory search says "Searching…" in reserved space · skip numerals 0.75rem · confirmation buttons have hover and pressed states · Mac text menus offer spelling suggestions and Add to Dictionary.
+- Also shipped with this release (owner requests): streaming direct from podcast hosts (ADR 0009), "Can’t reach your PodList server", virtualised long Playlists, Add to a new Playlist, and Listening stats with a permanent listening log (protocol 4, ADR 0010).
 
 ## Work list (round 33)
 
