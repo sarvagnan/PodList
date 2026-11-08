@@ -2,7 +2,7 @@ package app.podlist.data
 
 import app.podlist.domain.*
 
-/** Parameters carry every user value; SQLite itself provides LIKE folding and binary ties. */
+/** Parameters carry every user value; folded columns provide Mentions and SQLite provides binary ties. */
 data class CompiledQuery(val sql: String, val params: List<Any?>)
 
 object ViewQuery {
@@ -32,8 +32,8 @@ object ViewQuery {
             // ECMAScript whitespace, including BOM/NBSP. An empty word yields LIKE '%%'.
             val trimmed = text.replace(Regex("^${whitespace.pattern}|${whitespace.pattern}$"), "")
             for (word in trimmed.split(whitespace)) {
-                where += "(e.title LIKE ? ESCAPE '\\' OR e.description LIKE ? ESCAPE '\\' OR s.title LIKE ? ESCAPE '\\')"
-                val pattern = "%${escapeLike(word)}%"
+                where += "(e.title_folded LIKE ? ESCAPE '\\' OR e.description_folded LIKE ? ESCAPE '\\' OR s.title_folded LIKE ? ESCAPE '\\')"
+                val pattern = "%${escapeLike(Mentions.fold(word))}%"
                 params.addAll(listOf(pattern, pattern, pattern))
             }
         }

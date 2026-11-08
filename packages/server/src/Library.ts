@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { Mentions } from "@podlist/domain"
 import { Context, Data, Duration, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/http"
 import { SqlClient } from "effect/sql"
@@ -83,6 +84,7 @@ export class Library extends Context.Service<
         Effect.gen(function* () {
           yield* sql`UPDATE subscription SET
               title = ${feed.title},
+              title_folded = ${Mentions.fold(feed.title)},
               author = ${feed.author},
               description = ${feed.description},
               artwork_url = ${feed.artworkUrl}
@@ -115,6 +117,8 @@ export class Library extends Context.Service<
                 subscription_id: subscriptionId,
                 guid: e.guid,
                 title: e.title,
+                title_folded: Mentions.fold(e.title),
+                description_folded: Mentions.fold(e.description),
                 description: e.description,
                 published: e.published,
                 duration: e.duration,
@@ -143,6 +147,8 @@ export class Library extends Context.Service<
             yield* sql`UPDATE episode SET
                 guid = ${e.guid},
                 title = ${e.title},
+                title_folded = ${Mentions.fold(e.title)},
+                description_folded = ${Mentions.fold(e.description)},
                 description = ${e.description},
                 published = ${e.published},
                 duration = ${e.duration},

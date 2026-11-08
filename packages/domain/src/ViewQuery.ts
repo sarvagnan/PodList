@@ -1,9 +1,10 @@
+import * as Mentions from "./Mentions.ts"
 import type { EpochMillis } from "./Units.ts"
 import type { ViewFilter, ViewSort } from "./View.ts"
 
 // Compiles a View (or an unsaved Search) into one SQL query over the shared schema
-// (Sql.ts). All values travel as parameters. Text matching uses LIKE in v1 (Q51); this
-// module is the only place that would change for FTS5 (pod-301.11).
+// (Sql.ts). All values travel as parameters. Text matching uses LIKE over folded
+// companion columns; this module would compile FTS5 queries for pod-301.11.
 
 export interface CompiledQuery {
   readonly sql: string
@@ -79,12 +80,12 @@ export const compile = (view: ViewQueryInput, now: EpochMillis): CompiledQuery =
 
   if (f.text !== undefined) {
     // Every word must appear in the title, the show notes or the podcast's name
-    // (case-insensitive).
+    // (case- and accent-insensitive).
     for (const word of f.text.trim().split(/\s+/)) {
       where.push(
-        "(e.title LIKE ? ESCAPE '\\' OR e.description LIKE ? ESCAPE '\\' OR s.title LIKE ? ESCAPE '\\')"
+        "(e.title_folded LIKE ? ESCAPE '\\' OR e.description_folded LIKE ? ESCAPE '\\' OR s.title_folded LIKE ? ESCAPE '\\')"
       )
-      const pattern = `%${escapeLike(word)}%`
+      const pattern = `%${escapeLike(Mentions.fold(word))}%`
       params.push(pattern, pattern, pattern)
     }
   }

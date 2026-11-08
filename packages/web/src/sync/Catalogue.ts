@@ -1,4 +1,4 @@
-import type { Library } from "@podlist/domain"
+import { type Library, Mentions } from "@podlist/domain"
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 
@@ -13,6 +13,7 @@ export const upsertSubscriptions = (subscriptions: ReadonlyArray<Library.Subscri
         id: s.id,
         feed_url: s.feedUrl,
         title: s.title,
+        title_folded: Mentions.fold(s.title),
         author: s.author,
         description: s.description,
         artwork_url: s.artwork?.url ?? null,
@@ -33,6 +34,8 @@ export const upsertEpisodes = (episodes: ReadonlyArray<Library.Episode>) =>
         subscription_id: e.subscriptionId,
         guid: e.guid,
         title: e.title,
+        title_folded: Mentions.fold(e.title),
+        description_folded: Mentions.fold(e.description),
         description: e.description,
         published: e.published,
         duration: e.duration,

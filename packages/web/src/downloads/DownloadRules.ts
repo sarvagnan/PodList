@@ -1,6 +1,7 @@
 import { Duration, Effect, Layer, Stream, SubscriptionRef } from "effect"
+import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
-import { SyncEngine } from "../sync/SyncEngine.ts"
+import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 import { Downloads } from "./Downloads.ts"
 import { type EpisodeFacts, planDownloads, type RuleFacts } from "./plan.ts"
 
@@ -15,8 +16,9 @@ export const DownloadRulesLive = Layer.effectDiscard(
     const engine = yield* SyncEngine
     const downloads = yield* Downloads
     const sql = yield* SqlClient.SqlClient
+    const reactivity = yield* Reactivity.Reactivity
 
-    /** When this Device first saw each rule, so "every new Episode" counts from then. */
+    /** Compatibility for legacy All New rules without a synced activation time. */
     const sinceFor = (subscriptionId: string) =>
       Effect.gen(function* () {
         const key = `ruleSince:${subscriptionId}`
@@ -30,13 +32,22 @@ export const DownloadRulesLive = Layer.effectDiscard(
     const apply = Effect.gen(function* () {
       const state = yield* SubscriptionRef.get(engine.state)
       const mine = state.downloadRules.filter((r) => r.deviceId === engine.deviceId)
+      // Retire legacy local dates when the corresponding rule leaves All New.
+      const legacy = yield* sql<{
+        key: string
+      }>`SELECT key FROM sync_meta WHERE key LIKE 'ruleSince:%'`
+      const active = new Set(
+        mine.filter((r) => r.mode === "allNew").map((r) => `ruleSince:${r.subscriptionId}`)
+      )
+      for (const row of legacy)
+        if (!active.has(row.key)) yield* sql`DELETE FROM sync_meta WHERE key = ${row.key}`
       const rules: Array<RuleFacts> = []
       for (const r of mine) {
         rules.push({
           subscriptionId: r.subscriptionId,
           mode: r.mode,
           keepAtMost: r.keepAtMost,
-          since: r.mode === "allNew" ? yield* sinceFor(r.subscriptionId) : 0
+          since: r.mode === "allNew" ? (r.since ?? (yield* sinceFor(r.subscriptionId))) : 0
         })
       }
       const status = yield* SubscriptionRef.get(downloads.status)
@@ -85,9 +96,13 @@ export const DownloadRulesLive = Layer.effectDiscard(
       Effect.catchCause(() => Effect.void)
     )
 
-    const changes = Stream.merge(
-      SubscriptionRef.changes(engine.state).pipe(Stream.map(() => undefined)),
-      SubscriptionRef.changes(downloads.status).pipe(Stream.map(() => undefined))
+    const changes = Stream.mergeAll(
+      [
+        SubscriptionRef.changes(engine.state).pipe(Stream.map(() => undefined)),
+        SubscriptionRef.changes(downloads.status).pipe(Stream.map(() => undefined)),
+        reactivity.stream([catalogueKey], Effect.void)
+      ],
+      { concurrency: "unbounded" }
     )
     yield* changes.pipe(
       Stream.debounce(Duration.seconds(1)),

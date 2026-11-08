@@ -24,7 +24,7 @@ object StateIndex {
         ) } },
         "download_rule" to state.downloadRules.map { r -> mapOf(
             "subscription_id" to r.subscriptionId, "device_id" to r.deviceId,
-            "mode" to json(r.mode).removeSurrounding("\""), "keep_at_most" to r.keepAtMost
+            "mode" to json(r.mode).removeSurrounding("\""), "keep_at_most" to r.keepAtMost, "since" to if (r.mode == DownloadMode.AllNew) r.since else null
         ) },
         "setting" to buildList {
             state.listeningLog?.let { add(mapOf("key" to "listeningLog", "value" to json(it))) }
@@ -47,7 +47,7 @@ object StateIndex {
             views = rows.getValue("view").sortedBy { (it.getValue("ordinal") as Number).toLong() }.map { decode(it["doc"]) },
             downloadRules = rows.getValue("download_rule").map { row -> DownloadRule(
                 row.getValue("subscription_id") as String, row.getValue("device_id") as String,
-                decode(json(row.getValue("mode") as String)), (row["keep_at_most"] as? Number)?.toLong()
+                decode(json(row.getValue("mode") as String)), (row["keep_at_most"] as? Number)?.toLong(), (row["since"] as? Number)?.toLong()
             ) },
             playbackSettings = decode(settings.getValue("playbackSettings")),
             trash = settings["trash"]?.let { decode(it) },

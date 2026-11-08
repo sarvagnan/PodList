@@ -208,7 +208,8 @@
         "subscriptionId": "s",
         "deviceId": "mac",
         "mode": "allNew",
-        "keepAtMost": 3
+        "keepAtMost": 3,
+        "since": 1793750400000
       },
       {
         "subscriptionId": "s",
@@ -491,7 +492,8 @@
           "subscriptionId": "s",
           "deviceId": "mac",
           "mode": "allNew",
-          "keepAtMost": 3
+          "keepAtMost": 3,
+          "since": 1793750400000
         }
       ],
       "playbackSettings": {
@@ -532,7 +534,8 @@
           "subscriptionId": "s",
           "deviceId": "mac",
           "mode": "allNew",
-          "keepAtMost": 3
+          "keepAtMost": 3,
+          "since": 1793750400000
         },
         {
           "subscriptionId": "s",
@@ -579,7 +582,8 @@
           "subscriptionId": "s",
           "deviceId": "mac",
           "mode": "allNew",
-          "keepAtMost": 3
+          "keepAtMost": 3,
+          "since": 1793750400000
         },
         {
           "subscriptionId": "s",
@@ -626,7 +630,8 @@
           "subscriptionId": "s",
           "deviceId": "mac",
           "mode": "allNew",
-          "keepAtMost": 3
+          "keepAtMost": 3,
+          "since": 1793750400000
         },
         {
           "subscriptionId": "s",

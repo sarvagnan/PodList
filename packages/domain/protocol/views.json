@@ -5,7 +5,7 @@
     {
       "id": "sci",
       "feedUrl": "https://example.test/sci",
-      "title": "Science",
+      "title": "Sciénce",
       "author": null,
       "description": null,
       "artwork": null,
@@ -539,43 +539,43 @@
       "expected": ["a", "d"]
     },
     {
-      "name": "Mentions diacritics preserved, Unicode case not folded",
+      "name": "Mentions ignores accents and case",
       "view": {
         "id": "v",
-        "name": "Mentions diacritics preserved, Unicode case not folded",
+        "name": "Mentions ignores accents and case",
         "filter": {
           "text": "café"
         },
         "sort": "publishedDesc",
         "limit": null
       },
-      "expected": ["h", "a"]
+      "expected": ["h", "a", "b", "c"]
     },
     {
-      "name": "Mentions uppercase accented letter is distinct",
+      "name": "Mentions uppercase accented letters fold",
       "view": {
         "id": "v",
-        "name": "Mentions uppercase accented letter is distinct",
+        "name": "Mentions uppercase accented letters fold",
         "filter": {
           "text": "CAFÉ"
         },
         "sort": "publishedDesc",
         "limit": null
       },
-      "expected": ["b"]
+      "expected": ["h", "a", "b", "c"]
     },
     {
-      "name": "Mentions no accent folding",
+      "name": "Mentions unaccented text matches accents",
       "view": {
         "id": "v",
-        "name": "Mentions no accent folding",
+        "name": "Mentions unaccented text matches accents",
         "filter": {
           "text": "cafe"
         },
         "sort": "publishedDesc",
         "limit": null
       },
-      "expected": ["c"]
+      "expected": ["h", "a", "b", "c"]
     },
     {
       "name": "Mentions percent literal",
@@ -806,17 +806,465 @@
       "expected": ["h", "e", "f", "a", "b"]
     },
     {
-      "name": "Mentions does not normalize composed and decomposed accents",
+      "name": "Mentions normalizes decomposed accents",
       "view": {
         "id": "v",
-        "name": "Mentions does not normalize composed and decomposed accents",
+        "name": "Mentions normalizes decomposed accents",
         "filter": {
           "text": "Café"
         },
         "sort": "publishedDesc",
         "limit": null
       },
+      "expected": ["h", "a", "b", "c"]
+    },
+    {
+      "name": "Mentions Unicode: \"Café\" searched with \"cafe\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "cafe"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "Café",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"é\" searched with \"É\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "É"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "é",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"été\" searched with \"ÉTÉ\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "ÉTÉ"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "été",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"Straße\" searched with \"STRASSE\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "STRASSE"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "Straße",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"ẞ\" searched with \"ss\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "ss"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "ẞ",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"İSTANBUL\" searched with \"istanbul\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "istanbul"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "İSTANBUL",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"I\" searched with \"i\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "i"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "I",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"ı\" searched with \"i\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "i"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "ı",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
       "expected": []
+    },
+    {
+      "name": "Mentions Unicode: \"i\" searched with \"ı\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "ı"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "i",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "Mentions Unicode: \"ПРИВЕТ\" searched with \"привет\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "привет"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "ПРИВЕТ",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"Ёлка\" searched with \"елка\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "елка"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "Ёлка",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"ΟΣ ος\" searched with \"οσ\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "οσ"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "ΟΣ ος",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"𐐀\" searched with \"𐐨\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "𐐨"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "𐐀",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"한\" searched with \"한\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "한"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "한",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"café\" searched with \"CAFÉ\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "CAFÉ"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "café",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions folds show notes and podcast names as well as titles",
+      "view": {
+        "id": "v",
+        "name": "All fields",
+        "filter": {
+          "text": "SCIENCE ÉTÉ привет"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode-fields",
+          "subscriptionId": "sci",
+          "guid": "unicode-fields",
+          "title": "ÉTÉ",
+          "description": "ПРИВЕТ",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode-fields.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode-fields"]
     },
     {
       "name": "Binary Episode id tie-break for publishedAsc, independent of input order and locale",

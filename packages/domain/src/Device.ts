@@ -18,5 +18,7 @@ export class DownloadRule extends Schema.Class<DownloadRule>("@podlist/domain/Do
   subscriptionId: SubscriptionId,
   deviceId: DeviceId,
   mode: Schema.Literals(["never", "onEntry", "allNew"]),
-  keepAtMost: Schema.NullOr(PositiveInt)
+  keepAtMost: Schema.NullOr(PositiveInt),
+  /** Activation time for All New; absent only in legacy rules or other modes. */
+  since: Schema.optional(EpochMillis)
 }) {}
