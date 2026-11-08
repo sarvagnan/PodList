@@ -38,6 +38,8 @@ export function ConfirmDialog({
         <AlertDialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <AlertDialog.Popup
           data-sheet="dialog"
+          // Opens on Cancel: the safe answer is the one Enter gives.
+          initialFocus={() => document.querySelector<HTMLElement>("[data-confirm-cancel]")}
           onKeyDown={wrapTab}
           className="fixed top-1/2 left-1/2 z-50 w-[min(26rem,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-card p-5 shadow-xl transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
         >
@@ -47,7 +49,7 @@ export function ConfirmDialog({
               {title}
             </AlertDialog.Title>
             <AlertDialog.Close
-              aria-label="Cancel"
+              aria-label="Close"
               className="-mt-1 -mr-2 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
             >
               <X aria-hidden="true" className="size-5" />
@@ -63,7 +65,10 @@ export function ConfirmDialog({
           )}
           {/* The same full-width pair as every other dialog's footer. */}
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <AlertDialog.Close className="h-11 rounded-full bg-secondary px-5 font-semibold text-secondary-foreground hover:bg-input">
+            <AlertDialog.Close
+              data-confirm-cancel=""
+              className="h-11 rounded-full bg-secondary px-5 font-semibold text-secondary-foreground hover:bg-input"
+            >
               Cancel
             </AlertDialog.Close>
             <button

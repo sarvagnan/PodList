@@ -30,6 +30,9 @@ test("a new Library starts with Views and a checklist; adding a podcast ends it"
   await sheet.getByRole("button", { name: /^Subscribe to/ }).click()
   await expect(sheet.getByText("Subscribed")).toBeVisible()
   await sheet.getByRole("button", { name: "Close" }).click()
+  // It stays, with the step ticked, until it's dismissed (FLOW-06).
+  await expect(welcome.getByText("Add your podcasts (done)")).toBeAttached()
+  await welcome.getByRole("button", { name: "Done" }).click()
   await expect(welcome).toBeHidden()
 })
 

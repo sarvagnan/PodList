@@ -171,3 +171,22 @@ test("New View twice leaves one View; an untouched one goes, with Undo", async (
   await page.getByRole("button", { name: "Undo" }).last().click()
   await expect(sidebar.getByRole("link", { name: /^New View/ })).toHaveCount(1)
 })
+
+test("a View edit shows an Undo you can tap; changes made together are one step", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views/short?edit=true`)
+  const editor = page.getByRole("complementary", { name: "Edit View" })
+  const played = editor.getByRole("combobox", { name: "Played" })
+  const sort = editor.getByRole("combobox", { name: "Sort" })
+  const playedBefore = await played.inputValue()
+  const sortBefore = await sort.inputValue()
+  await played.selectOption("played")
+  await sort.selectOption("publishedAsc")
+  const toast = page.getByRole("dialog", { name: /^Edited “Under 30 minutes”/ })
+  await expect(toast).toHaveCount(1)
+  await toast.getByRole("button", { name: "Undo" }).click()
+  await expect(played).toHaveValue(playedBefore)
+  await expect(sort).toHaveValue(sortBefore)
+})

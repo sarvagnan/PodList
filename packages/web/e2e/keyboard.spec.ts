@@ -88,7 +88,7 @@ test("Tab stays inside the Add dialog, and it can be cancelled", async ({ page }
       `Tab ${i + 1} stays in the dialog`
     ).toBe(true)
   }
-  await dialog.getByRole("button", { name: "Cancel" }).click()
+  await dialog.getByRole("button", { name: "Close" }).click()
   await expect(dialog).toBeHidden()
 })
 

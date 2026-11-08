@@ -79,6 +79,10 @@ export function FirstRun() {
     return () => document.removeEventListener("podlist:getting-started", reopen)
   }, [])
   const fresh = ready && subscriptions !== null && subscriptions.length === 0
+  // Once shown, it stays until it's dismissed, ticking steps as they're done, rather than
+  // vanishing as the first podcast arrives (FLOW-06).
+  const [begun, setBegun] = useState(false)
+  if (fresh && !begun && !hidden) setBegun(true)
 
   // A new Library starts with Views to find Episodes in (decided 7 Nov 2026).
   const noViews = state !== null && state.views.length === 0
@@ -94,7 +98,7 @@ export function FirstRun() {
   const sheet = adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />
   // Adding the first podcast ends first run, but the sheet stays open for more: it sits
   // outside the card, in one place, so it keeps what was typed.
-  if (!(fresh || reopened) || hidden || !onViews)
+  if (!(fresh || reopened || begun) || hidden || !onViews)
     return (
       <>
         {null}
@@ -107,6 +111,7 @@ export function FirstRun() {
     firstRunDone.set()
     setHidden(true)
     setReopened(false)
+    setBegun(false)
   }
   const hasPodcasts = (subscriptions?.length ?? 0) > 0
   const hasEntries = state?.playlists.some((p) => p.entries.length > 0) ?? false
@@ -176,7 +181,7 @@ export function FirstRun() {
           onClick={hide}
           className="h-10 rounded-full px-4 text-row font-medium hover:bg-secondary"
         >
-          {reopened ? "Done" : "Skip for now"}
+          {reopened || hasPodcasts ? "Done" : "Skip for now"}
         </button>
       </div>
     </section>

@@ -49,7 +49,7 @@ export function NewPlaylistDialog({
           <div className="flex items-start justify-between gap-4">
             <Dialog.Title className="font-heading text-xl font-semibold">New Playlist</Dialog.Title>
             <Dialog.Close
-              aria-label="Cancel"
+              aria-label="Close"
               className="-mt-1 -mr-2 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
             >
               <X aria-hidden="true" className="size-5" />

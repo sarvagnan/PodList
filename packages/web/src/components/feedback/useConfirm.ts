@@ -9,6 +9,11 @@ let nextId = 0
 export const toastOfStep = new Map<number, string>()
 /** What each step's Undo brings back, so ⌘Z can put focus on it too. */
 export const focusOfStep = new Map<number, () => HTMLElement | null>()
+/** Edits in quick succession to one thing (a View's conditions) are one step: Undo goes
+ * back to before the first of them. */
+let burst: { key: string; id: number; at: number; undo: Outcome["undo"] } | null = null
+const burstMillis = 2000
+
 /** How many steps Cmd/Ctrl-Z can take back. */
 const depth = 30
 
@@ -38,17 +43,34 @@ export function useConfirm() {
   const setRedo = useAtomSet(redoStackAtom)
   return useCallback(
     (
-      outcome: Outcome,
+      given: Outcome,
       again: () => Promise<Outcome>,
       /** Finds what Undo brings back, to put focus on it (WKEY-03). */
-      focus?: () => HTMLElement | null
+      focus?: () => HTMLElement | null,
+      /** Joins this step to the last one with the same key, if that was moments ago. */
+      merge?: string
     ) => {
       const origin = document.activeElement
-      if (outcome.undo.length === 0) {
-        toasts.add({ description: outcome.message, timeout: 4000 })
+      if (given.undo.length === 0) {
+        toasts.add({ description: given.message, timeout: 4000 })
         return
       }
+      const now = Date.now()
+      const joined =
+        merge !== undefined && burst !== null && burst.key === merge && now - burst.at < burstMillis
+          ? burst
+          : null
+      if (joined !== null) {
+        // The earlier step gives way to this one, which undoes the whole burst.
+        setStack((stack) => stack.filter((step) => step.id !== joined.id))
+        const earlier = toastOfStep.get(joined.id)
+        if (earlier !== undefined) toasts.close(earlier)
+        toastOfStep.delete(joined.id)
+        focusOfStep.delete(joined.id)
+      }
+      const outcome = joined === null ? given : { ...given, undo: joined.undo }
       const id = ++nextId
+      burst = merge === undefined ? null : { key: merge, id, at: now, undo: outcome.undo }
       setStack((stack) => [...stack.slice(1 - depth), { id, ...outcome, again }])
       setRedo([])
       const toast: string = toasts.add({
@@ -73,21 +95,5 @@ export function useConfirm() {
       if (focus) focusOfStep.set(id, focus)
     },
     [toasts, undo, setStack, setRedo]
-  )
-}
-
-/**
- * Puts a step on the undo stack without a toast, for edits that show themselves (a
- * View's conditions change its list at once).
- */
-export function useUndoable() {
-  const setStack = useAtomSet(undoStackAtom)
-  const setRedo = useAtomSet(redoStackAtom)
-  return useCallback(
-    (step: Outcome & { readonly again: () => Promise<Outcome> }) => {
-      setStack((stack) => [...stack.slice(1 - depth), { id: ++nextId, ...step }])
-      setRedo([])
-    },
-    [setStack, setRedo]
   )
 }

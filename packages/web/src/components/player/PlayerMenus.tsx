@@ -36,14 +36,26 @@ export function PlayerMenus({ current }: { readonly current: NowPlaying }) {
   const sleep = (request: SleepRequest | null) => control({ _tag: "setSleep", sleep: request })
   return (
     <div className="flex items-center justify-center gap-2">
-      <Menu.Root>
+      <Menu.Root
+        // Opens on the speed that's set, not the list's first (a radio group's checked item).
+        onOpenChange={(open) => {
+          if (open)
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() =>
+                document
+                  .querySelector<HTMLElement>('[data-speed-menu] [aria-checked="true"]')
+                  ?.focus()
+              )
+            )
+        }}
+      >
         <Menu.Trigger className={trigger} aria-label={`Speed: ${speedLabel(current.speed)}`}>
           <Gauge aria-hidden="true" className="size-4" />
           <span className="tabular-nums">{speedLabel(current.speed)}</span>
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner side="top" sideOffset={8} className="z-[60]">
-            <Menu.Popup className={popup}>
+            <Menu.Popup data-speed-menu="" className={popup}>
               <Menu.RadioGroup
                 value={current.speed}
                 onValueChange={(speed: number) => control({ _tag: "setSpeed", speed })}

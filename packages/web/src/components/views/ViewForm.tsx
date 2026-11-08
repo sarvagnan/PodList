@@ -16,7 +16,7 @@ import {
   withCondition,
   withPublished
 } from "../../lib/viewEdit.ts"
-import { useUndoable } from "../feedback/useConfirm.ts"
+import { useConfirm } from "../feedback/useConfirm.ts"
 import { fieldControl } from "../lists/SettingsRow.tsx"
 
 // The View editor's form (docs/design/ui-layout.md › View editor): every condition is a
@@ -68,20 +68,24 @@ export function ViewForm({
   readonly onDelete: () => void
 }) {
   const record = useAtomSet(recordAtom, { mode: "promise" })
-  const undoable = useUndoable()
+  const confirm = useConfirm()
   const save = (next: ViewData) => {
     const before = viewData(view)
     if (JSON.stringify(before) === JSON.stringify(next)) return
     const message = `Edited “${next.name}”`
     const step = { message, undo: [saveViewChange(before)] }
     void record(saveViewChange(next))
-    undoable({
-      ...step,
-      again: async () => {
+    // An Undo you can see and tap, as every other edit has (DATA-04); a run of changes
+    // made together is one step.
+    confirm(
+      step,
+      async () => {
         await record(saveViewChange(next))
         return step
-      }
-    })
+      },
+      () => document.querySelector<HTMLElement>("[data-edit-heading], main h1"),
+      `view:${view.id}`
+    )
   }
   return <ViewFormFields data={viewData(view)} onChange={save} onDelete={onDelete} />
 }
