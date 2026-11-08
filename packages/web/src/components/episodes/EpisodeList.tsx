@@ -60,7 +60,11 @@ export function EpisodeList({
     onSelectAll: () => setChecked(() => new Set(episodes.map((e) => e.id))),
     onCopy: (index) => {
       const id = episodes[index]?.id
-      if (id !== undefined) void copyLink(id)
+      const selection = episodes
+        .filter((episode) => checked.has(episode.id))
+        .map((episode) => episode.id)
+      if (selection.length > 0) void copyLink(selection)
+      else if (id !== undefined) void copyLink(id)
     },
     // With an Episode open beside the list, the arrows carry it along (LIST-07).
     onRowMove: (index) => {

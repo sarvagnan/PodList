@@ -5,6 +5,7 @@ import { useAppState } from "../../app/hooks.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
+import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { usePlaylistActions } from "./usePlaylistActions.ts"
 
 /** Names a new Playlist; a Playlist needs a name. */
@@ -19,7 +20,9 @@ export function NewPlaylistDialog({
   const {
     draft: saved,
     update,
-    clear
+    clear,
+    unsaved,
+    retry
   } = useDialogDraft({ kind: "playlist", name: "", clearOnPlayed: false })
   const { name } = saved
   const close = (next: boolean) => {
@@ -54,7 +57,7 @@ export function NewPlaylistDialog({
           data-sheet="dialog"
           onKeyDown={wrapTab}
           initialFocus={nameField}
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(26rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[90dvh] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(26rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">
             <Dialog.Title className="font-heading text-xl font-semibold">New Playlist</Dialog.Title>
@@ -95,7 +98,7 @@ export function NewPlaylistDialog({
               type="checkbox"
               checked={clearOnPlayed}
               onChange={(event) => update({ clearOnPlayed: event.target.checked })}
-              className="mt-1 size-4 accent-primary"
+              className="mt-1 size-4 shrink-0 accent-primary"
             />
             <span>
               <span className="block text-row font-medium">Clear on Played</span>
@@ -104,6 +107,7 @@ export function NewPlaylistDialog({
               </span>
             </span>
           </label>
+          <DraftNotice unsaved={unsaved} retry={retry} />
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Dialog.Close className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground hover:bg-input active:bg-input/70">
               Cancel

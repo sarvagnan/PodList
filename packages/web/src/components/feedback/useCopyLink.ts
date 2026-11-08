@@ -1,6 +1,6 @@
 import { Toast } from "@base-ui/react/toast"
 import { useCallback } from "react"
-import { shareLink } from "../../lib/share.ts"
+import { episodeLink, shareLink } from "../../lib/share.ts"
 
 /**
  * Copies text and says so. A failure stays until dismissed, with Try again, rather than
@@ -40,6 +40,16 @@ export function useCopyLink() {
 
 /** Copies an Episode's link and says so. */
 export function useCopyEpisodeLink() {
-  const copy = useCopyLink()
-  return useCallback((episodeId: string) => copy(`/episodes/${episodeId}`), [copy])
+  const copy = useCopyText()
+  return useCallback(
+    (episodeId: string | ReadonlyArray<string>) => {
+      const ids = typeof episodeId === "string" ? [episodeId] : episodeId
+      // Copy every ticked Episode, in list order, including virtual rows (EDIT-02).
+      return copy(
+        async () => (await Promise.all(ids.map(episodeLink))).join("\n"),
+        ids.length === 1 ? "Link" : "Links"
+      )
+    },
+    [copy]
+  )
 }

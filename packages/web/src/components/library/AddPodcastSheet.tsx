@@ -19,6 +19,7 @@ import { useBackLayers } from "../../lib/backLayers.ts"
 import { serverNeeded } from "../../lib/connectionMessage.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
+import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 
 // Add podcasts (docs/design/ui-layout.md › Library): Search through Podcast Index, a feed
@@ -442,7 +443,7 @@ export function AddPodcastSheet({
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
-  const { draft, update, clear } = useDialogDraft({
+  const { draft, update, clear, unsaved, retry } = useDialogDraft({
     kind: "podcasts",
     tab: "search",
     search: "",
@@ -517,6 +518,7 @@ export function AddPodcastSheet({
                 <OpmlTab />
               )}
             </div>
+            <DraftNotice unsaved={unsaved} retry={retry} />
           </Dialog.Popup>
         </Dialog.Portal>
       </Dialog.Root>

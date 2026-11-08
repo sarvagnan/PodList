@@ -16,7 +16,10 @@ export function useEpisodeActions() {
         confirm(
           outcome,
           () => run(action),
-          () => document.querySelector<HTMLElement>(`[data-episode-title="${action.episodeId}"]`)
+          () =>
+            document.querySelector<HTMLElement>(
+              `[data-sheet="drawer"] [data-episode-title="${action.episodeId}"]`
+            ) ?? document.querySelector<HTMLElement>(`[data-episode-title="${action.episodeId}"]`)
         )
     },
     [run, confirm]

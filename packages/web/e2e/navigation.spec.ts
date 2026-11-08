@@ -22,11 +22,15 @@ test.describe("phone", () => {
     await page.getByRole("button", { name: /^Open Now Playing/ }).click()
     const drawer = page.getByRole("dialog")
     await drawer.getByRole("button", { name: "Episode" }).click()
-    await expect(drawer.getByRole("heading", { name: "Episode", level: 2 })).toBeVisible()
+    await expect(
+      drawer.getByRole("heading", { name: "Episode", level: 2, exact: true })
+    ).toBeVisible()
 
     await page.goBack()
     await expect(drawer.getByRole("button", { name: "Episode" })).toBeVisible()
-    await expect(drawer.getByRole("heading", { name: "Episode", level: 2 })).toBeHidden()
+    await expect(
+      drawer.getByRole("heading", { name: "Episode", level: 2, exact: true })
+    ).toBeHidden()
     await expect(page).toHaveURL(/\/playlists\/default$/)
     await page.goBack()
     await expect(drawer).toBeHidden()
@@ -40,7 +44,9 @@ test.describe("phone", () => {
     await page.getByRole("button", { name: /^Open Now Playing/ }).click()
     const drawer = page.getByRole("dialog")
     await drawer.getByRole("button", { name: "Episode" }).click()
-    await expect(drawer.getByRole("heading", { name: "Episode", level: 2 })).toBeVisible()
+    await expect(
+      drawer.getByRole("heading", { name: "Episode", level: 2, exact: true })
+    ).toBeVisible()
     // Every page names the dialog (AX-01).
     await expect(page.getByRole("dialog", { name: "Episode" })).toBeVisible()
     await page.keyboard.press("Escape")

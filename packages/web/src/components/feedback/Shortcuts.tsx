@@ -19,9 +19,9 @@ const groups: ReadonlyArray<{
   readonly keys: ReadonlyArray<readonly [string, string]>
 }> = [
   {
-    title: "Anywhere",
+    title: "Outside fields and controls",
     keys: [
-      ["Space", "Play or pause"],
+      ["Space", "Play or pause, including in Now Playing"],
       // ⌘K on a Mac only: elsewhere Ctrl+K belongs to the browser (BROWSER-05).
       [mac ? "/ or ⌘K" : "/", "Search the Library"],
       [`${cmd}Z`, "Undo the last change"],
@@ -41,7 +41,26 @@ const groups: ReadonlyArray<{
       ["Space", "Select the Episode for bulk actions"],
       ["Shift ↑ ↓", "Select a run of Episodes"],
       [`${cmd}A`, "Select every Episode"],
+      [`${cmd}C`, "Copy the ticked Episodes’ links, or the focused Episode’s link"],
       ["Letters", "Jump to a title"]
+    ]
+  },
+  // Name the two Entry lists and their distinct reorder controls (KEY-08, WCOPY-01).
+  {
+    title: "In a Playlist or Up next",
+    keys: [
+      ["↑ ↓", "Previous or next Entry"],
+      ["← →", "Move between an Entry’s actions"],
+      ["Home End", `First or last action (${cmd}Home, ${cmd}End: first or last Entry)`],
+      ["PgUp PgDn", "Ten Entries up or down"],
+      ["Letters", "Jump to a title"],
+      [`${cmd}C`, "Copy the focused Entry’s Episode link"],
+      [
+        "Delete Backspace",
+        "Remove the focused Entry; Undo brings it back (Up next: upcoming Entries)"
+      ],
+      ["Space, ↑ ↓, Space", "Pick up, move and drop a Playlist reorder handle"],
+      ["↑ ↓ on a handle", "Move an Up next Entry one place"]
     ]
   },
   ...(macApp
@@ -121,7 +140,7 @@ export function Shortcuts() {
                 {group.keys.map(([keys, what]) => (
                   <div
                     key={keys}
-                    className="flex items-baseline gap-4 border-b py-2 last:border-b-0"
+                    className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b py-2 last:border-b-0"
                   >
                     <dt className="w-36 shrink-0">
                       {keys.split(" ").map((k) => (
@@ -133,7 +152,7 @@ export function Shortcuts() {
                         </kbd>
                       ))}
                     </dt>
-                    <dd className="text-row">{what}</dd>
+                    <dd className="min-w-0 flex-1 basis-40 text-row">{what}</dd>
                   </div>
                 ))}
               </dl>

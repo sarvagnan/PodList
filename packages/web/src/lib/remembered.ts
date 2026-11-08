@@ -66,3 +66,15 @@ export const librarySort = {
   get: () => read("library-sort"),
   set: (sort: string | null) => write("library-sort", sort)
 }
+
+/** Disclosure choices belong to this Device, independently of URL filters (DATA-06, LIST-05). */
+const disclosure = (key: string) => ({
+  get: (): boolean | null => {
+    const value = read(key)
+    return value === null ? null : value === "open"
+  },
+  set: (open: boolean) => write(key, open ? "open" : "closed")
+})
+export const searchRefineOpen = disclosure("search-refine")
+export const statsTableOpen = disclosure("stats-table")
+export const statsAboutOpen = disclosure("stats-about")

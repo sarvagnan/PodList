@@ -132,7 +132,8 @@ function PlaylistSettings() {
                   })
                 )
               }
-              className="mt-1 size-4 accent-primary"
+              // Keep the checkbox square beside wrapping text (WTYPE-04).
+              className="mt-1 size-4 shrink-0 accent-primary"
             />
             <span>
               <span className="block text-row font-medium">Clear on Played</span>

@@ -25,6 +25,7 @@ import { useBackLayers } from "../../lib/backLayers.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
+import { useRowGrid } from "../../lib/rowGrid.ts"
 import { formatLength, formatTime } from "../../lib/time.ts"
 import type { NowPlaying } from "../../playback/Playback.ts"
 import { backSeconds, forwardSeconds } from "../../playback/Playback.ts"
@@ -32,9 +33,10 @@ import { EpisodeDetail } from "../episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../episodes/useEpisodeActions.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
+import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { MoreMenu } from "../lists/MoreMenu.tsx"
 import { SortableRow } from "../lists/SortableRow.tsx"
-import { VirtualSortableList } from "../lists/VirtualSortableList.tsx"
+import { type EntryScroller, VirtualSortableList } from "../lists/VirtualSortableList.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { PlayerMenus } from "./PlayerMenus.tsx"
 import { Scrubber } from "./Scrubber.tsx"
@@ -294,11 +296,28 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
   const { home, push } = useDrawer()
   const act = useEpisodeActions()
   const playlist = state?.playlists.find((p) => p.id === current.playlistId)
-  if (!playlist) return null
   // What plays now and after it: Entries before it aren't "up next".
-  const at = playlist.entries.findIndex((e) => e.episodeId === current.episodeId)
-  const nowEntry = at >= 0 ? playlist.entries[at] : undefined
-  const after = playlist.entries.slice(at + 1)
+  const at = playlist?.entries.findIndex((e) => e.episodeId === current.episodeId) ?? -1
+  const nowEntry = at >= 0 ? playlist?.entries[at] : undefined
+  const after = playlist?.entries.slice(at + 1) ?? []
+  const listRef = useRef<HTMLDivElement>(null)
+  const scroller = useRef<EntryScroller>(null)
+  const copyLink = useCopyEpisodeLink()
+  const grid = useRowGrid(listRef, {
+    count: after.length,
+    scrollToIndex: (index) => scroller.current?.scrollToIndex(index),
+    titleAt: (index) => episodes.get(after[index]?.episodeId ?? "")?.title ?? "",
+    onCopy: (index) => {
+      const entry = after[index]
+      if (entry) void copyLink(entry.episodeId)
+    },
+    onRemove: (index) => {
+      const entry = after[index]
+      if (entry && playlist)
+        void act({ _tag: "Remove", episodeId: entry.episodeId, playlistId: playlist.id })
+    }
+  })
+  if (!playlist) return null
   const title = (episodeId: string) => episodes.get(episodeId)?.title ?? "Entry"
   // The Queue reorders (docs/design/ui-layout.md): a move is one step, with Undo; what
   // plays now stays first.
@@ -323,6 +342,8 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
         {handle}
         <button
           type="button"
+          data-cell={isCurrent ? undefined : "title"}
+          data-episode-title={entry.episodeId}
           aria-current={isCurrent ? "true" : undefined}
           aria-label={
             isCurrent
@@ -407,6 +428,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
               type="button"
               aria-label={`Remove ${episode?.title ?? "Entry"} from ${playlist.name}`}
               data-upnext-remove=""
+              data-cell=""
               onClick={async (event) => {
                 const control = event.currentTarget
                 // Capture a peer before it moves; wait for the last Entry to leave (WKEY-03).
@@ -424,7 +446,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
     )
   }
   return (
-    <div className="px-3">
+    <div ref={listRef} {...grid} className="px-3">
       <div className="flex items-center justify-between px-3 pb-2">
         <p className="text-small text-player-muted">From {playlist.name}</p>
         <button
@@ -441,6 +463,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
         {/* Dragged by pointer or touch; from the keyboard its handle takes the arrows. */}
         <VirtualSortableList
           key={playlist.id}
+          scroller={scroller}
           memoryKey={playlist.id}
           rowVersion={(id, index) => [
             episodes.get(id),
@@ -465,6 +488,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                 {(sortable) => (
                   <li
                     ref={sortable.ref}
+                    data-row={index}
                     style={sortable.style}
                     className={`flex items-center gap-1 rounded-xl ${sortable.dragging ? "bg-player-track shadow-lg" : ""}`}
                   >
@@ -475,6 +499,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                         <button
                           type="button"
                           {...sortable.handle}
+                          data-cell=""
                           aria-label={`Move ${title(entry.episodeId)}`}
                           aria-description="Up and down arrows move it one place"
                           onKeyDown={(event) => {

@@ -369,3 +369,68 @@ test("misspelled text offers dictionary suggestions, replacement and learning (B
     demo.stop()
   }
 })
+
+test("row backgrounds offer row commands while fields, selected text and links keep native menus (BROWSER-06)", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-row-menu-"))
+  const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+  try {
+    const page = await app.firstWindow()
+    const row = page.locator("main [data-row-menu]").first()
+    await expect(row).toBeVisible()
+    const bounds = await row.boundingBox()
+    if (!bounds) throw new Error("No row bounds")
+    const point = { x: bounds.x + 2, y: bounds.y + bounds.height / 2 }
+    await app.evaluate(({ Menu }) => {
+      Menu.prototype.popup = function (this: Electron.Menu) {
+        ;(globalThis as { rowMenuShown?: Electron.Menu }).rowMenuShown = this
+      }
+    })
+    for (const scenario of [
+      { isEditable: true, selectionText: "", linkURL: "", expected: "Paste" },
+      { isEditable: false, selectionText: "Episode text", linkURL: "", expected: "Copy" },
+      {
+        isEditable: false,
+        selectionText: "",
+        linkURL: "https://example.com/episode",
+        expected: "Open Link in Browser"
+      },
+      { isEditable: false, selectionText: "", linkURL: "", expected: "Play Now" }
+    ]) {
+      await app.evaluate(
+        ({ BrowserWindow }, { point, scenario }) => {
+          delete (globalThis as { rowMenuShown?: Electron.Menu }).rowMenuShown
+          BrowserWindow.getAllWindows()[0]?.webContents.emit(
+            "context-menu",
+            {},
+            {
+              ...point,
+              ...scenario,
+              misspelledWord: "",
+              dictionarySuggestions: [],
+              editFlags: {
+                canCut: true,
+                canCopy: true,
+                canPaste: true,
+                canUndo: true,
+                canRedo: true
+              }
+            }
+          )
+        },
+        { point, scenario }
+      )
+      const labels = () =>
+        app.evaluate(() =>
+          (globalThis as { rowMenuShown?: Electron.Menu }).rowMenuShown?.items.map(
+            (item) => item.label
+          )
+        )
+      await expect.poll(labels).toContain(scenario.expected)
+      if (scenario.expected !== "Play Now") expect(await labels()).not.toContain("Play Now")
+    }
+  } finally {
+    await app.close()
+    demo.stop()
+  }
+})

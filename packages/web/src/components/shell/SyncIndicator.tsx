@@ -16,7 +16,8 @@ export function SyncIndicator({ variant }: { readonly variant: "phone" | "deskto
   if (!unreachable) return null
   const pending = status?.pending ?? 0
   const title = online ? serverUnavailable : "Offline"
-  const detail = `${pending > 0 ? `${pending} ${pending === 1 ? "change is" : "changes are"} kept. ` : "Edits are kept. "}They’ll sync when your server is reachable. ${online ? "Episodes can stream directly or play from downloads." : "Downloaded Episodes still play."} Searching and adding podcasts need the server.`
+  // A single pending change needs a singular pronoun (COPY-01).
+  const detail = `${pending > 0 ? `${pending} ${pending === 1 ? "change is" : "changes are"} kept. ` : "Edits are kept. "}${pending === 1 ? "It’ll" : "They’ll"} sync when your server is reachable. ${online ? "Episodes can stream directly or play from downloads." : "Downloaded Episodes still play."} Searching and adding podcasts need the server.`
   if (variant === "desktop") {
     return (
       <p
