@@ -18,6 +18,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
+import { useReplayJournal } from "../../app/journal.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { cameFrom, sectionOf } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
@@ -753,6 +754,7 @@ function usePlayPauseKey() {
 export function AppShell() {
   useAtomMount(backgroundSyncAtom)
   useFocusOnNavigation()
+  useReplayJournal()
   useStrayDropGuard()
   usePlayPauseKey()
   useSearchKey()

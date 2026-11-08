@@ -1,10 +1,10 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { useAtomValue } from "@effect/atom-react"
 import type { View } from "@podlist/domain"
 import { AsyncResult } from "effect/reactivity"
 import { Trash2 } from "lucide-react"
 import { type ReactNode, useId, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
-import { recordAtom } from "../../app/runtime.ts"
+import { useJournaledRecord } from "../../app/journal.ts"
 import { useDebounced } from "../../lib/useDebounced.ts"
 import {
   type Filter,
@@ -67,7 +67,8 @@ export function ViewForm({
   readonly view: View.View
   readonly onDelete: () => void
 }) {
-  const record = useAtomSet(recordAtom, { mode: "promise" })
+  // Typed: journaled until recorded, so closing the page at once can't lose it (DATA-01).
+  const record = useJournaledRecord()
   const confirm = useConfirm()
   const save = (next: ViewData) => {
     const before = viewData(view)

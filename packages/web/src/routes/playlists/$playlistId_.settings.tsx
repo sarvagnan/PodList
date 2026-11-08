@@ -1,11 +1,10 @@
-import { useAtomSet } from "@effect/atom-react"
 import { Operation, State } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { Trash2 } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 import { useAppState } from "../../app/hooks.ts"
-import { recordAtom } from "../../app/runtime.ts"
+import { useJournaledRecord } from "../../app/journal.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { usePlaylistActions } from "../../components/playlists/usePlaylistActions.ts"
@@ -25,7 +24,8 @@ const change = Schema.decodeUnknownSync(Operation.Change)
 function PlaylistSettings() {
   const { playlistId } = Route.useParams()
   const state = useAppState()
-  const record = useAtomSet(recordAtom)
+  // Typed: journaled until recorded, so closing the page at once can't lose it (DATA-01).
+  const record = useJournaledRecord()
   const { remove } = usePlaylistActions()
   const id = useId()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
@@ -49,15 +49,14 @@ function PlaylistSettings() {
     }
   }
   const renameLater = useDebounced(rename)
-  // The field starts from the saved name once the Playlist has loaded, once per Playlist.
-  // After that it holds what's typed, an empty field included (with its error), never the
-  // old name put back under the cursor (WDATA-03).
-  const filledFor = useRef<string | null>(null)
+  // The field shows the saved name (as it loads, or changes from elsewhere) until it's
+  // typed in; from then until it's left it holds what's typed, an empty field included
+  // (with its error), never the old name put back under the cursor (WDATA-03).
+  const typing = useRef(false)
+  const saved = playlist?.name
   useEffect(() => {
-    if (playlist === undefined || filledFor.current === playlist.id) return
-    filledFor.current = playlist.id
-    setName(playlist.name)
-  }, [playlist])
+    if (saved !== undefined && !typing.current) setName(saved)
+  }, [saved])
 
   if (state === null) return <LoadingRows label="Loading Playlist" />
   if (playlist === undefined) {
@@ -104,10 +103,14 @@ function PlaylistSettings() {
               aria-describedby={error ? `${id}-name-error` : undefined}
               onChange={(event) => {
                 const value = event.target.value
+                typing.current = true
                 setName(value)
                 renameLater.schedule(value)
               }}
-              onBlur={(event) => renameLater.now(event.target.value)}
+              onBlur={(event) => {
+                renameLater.now(event.target.value)
+                typing.current = false
+              }}
               className={`${fieldControl} aria-invalid:border-destructive disabled:bg-secondary disabled:text-muted-foreground`}
             />
             {error && (

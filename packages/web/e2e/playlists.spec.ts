@@ -171,3 +171,30 @@ test("a Playlist's name field keeps what's typed, an empty field included (WDATA
     page.getByRole("navigation", { name: "Library and lists" }).getByRole("link", { name: /^Bus/ })
   ).toBeVisible()
 })
+
+test("a name typed just before the page closes or reloads is kept (DATA-01)", async ({
+  page,
+  context
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/commute/settings`)
+  const name = page.getByRole("textbox", { name: "Name" })
+  await expect(name).toHaveValue("Commute")
+  // Reloaded 100 ms after typing.
+  await name.focus()
+  await page.keyboard.press("End")
+  await name.pressSequentially(" evenings")
+  await page.waitForTimeout(100)
+  await page.reload()
+  await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("Commute evenings")
+  // Closed 100 ms after typing; the next page has it.
+  await page.getByRole("textbox", { name: "Name" }).focus()
+  await page.keyboard.press("End")
+  await page.getByRole("textbox", { name: "Name" }).pressSequentially("!")
+  await page.waitForTimeout(100)
+  await page.close({ runBeforeUnload: true })
+  const next = await context.newPage()
+  await next.setViewportSize({ width: 1440, height: 900 })
+  await next.goto(`${demo.base}/playlists/commute/settings`)
+  await expect(next.getByRole("textbox", { name: "Name" })).toHaveValue("Commute evenings!")
+})
