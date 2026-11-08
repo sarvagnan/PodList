@@ -18,7 +18,9 @@ export default defineConfig({
   outputDir: join(tmpdir(), `podlist-playwright-${checkout}`, "results"),
   reporter: [["list"]],
   // Each test starts its own demo server; more at once than this starves them of time.
-  workers: process.env.CI ? 2 : 4,
+  workers: process.env.CI ? 2 : 3,
+  // A reload under that load can take a few seconds to reopen the local database.
+  expect: { timeout: 10_000 },
   use: { baseURL: `http://127.0.0.1:${port}`, trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

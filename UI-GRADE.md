@@ -108,7 +108,10 @@ Round 35, two graders on 4d7197c:
 
 ## Work list (round 35)
 
-- [ ] Drafts persist across a closed tab · 200% text in short windows · Redo after a toast's Undo · length range validation · the open Entry marked in a Playlist · Listening stats and the empty Trash in the sidebar and tabs · the bulk bar doesn't push the list · bulk bar glyph and order · Listening stats copy and empty chart.
+Fixed on 8 Nov by Codex (gpt-6.1-sol, high), reviewed and merged:
+
+- [x] Dialog drafts in localStorage, surviving a closed tab · sidebar and skip glyphs hold at 200% text in short windows · Redo works after a toast's Undo · length and date ranges say what's wrong at the field and don't save · the open Entry is marked in a Playlist, distinct from NOW · Listening stats and the empty Trash keep their sidebar and tab selection · the bulk bar replaces the header's actions without moving the list · its count comes first and New Playlist has its own glyph · Listening stats on the shared type scale, plain copy, no empty chart.
+- Browser suite: 3 workers and a 10 s expect timeout (it has grown to 144 tests); intermittent keyboard-reorder failures are tracked in pod-ejj.
 
 ## Work list (round 34)
 
