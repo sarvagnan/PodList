@@ -86,7 +86,7 @@ export class SyncStore extends Context.Service<
        * becomes one Played per Episode, and Subscription overrides update the
        * catalogue record.
        */
-      const expandServerSide = (o: Operation.Operation) =>
+      const expandServerSide = (o: Operation.Operation, state: State.State) =>
         Effect.gen(function* () {
           const change = o.change
           if (change._tag === "SetSubscriptionOverrides") {
@@ -98,20 +98,22 @@ export class SyncStore extends Context.Service<
           }
           if (change._tag !== "MarkSubscriptionPlayed") return [o]
           const episodes = yield* sql<{ id: string }>`
-            SELECT e.id FROM episode e LEFT JOIN episode_state st ON st.episode_id = e.id
-            WHERE e.subscription_id = ${change.subscriptionId} AND st.played_at IS NULL
+            SELECT e.id FROM episode e
+            WHERE e.subscription_id = ${change.subscriptionId}
             ORDER BY e.published`
           return [
             o,
-            ...episodes.map((e) =>
-              Schema.decodeUnknownSync(Operation.Operation)({
-                id: `${o.id}:${e.id}`,
-                deviceId: o.deviceId,
-                sequence: o.sequence,
-                recordedAt: o.recordedAt,
-                change: { _tag: "MarkPlayed", episodeId: e.id, source: { _tag: "User" } }
-              })
-            )
+            ...episodes
+              .filter((e) => state.episodeStates[e.id]?.played == null)
+              .map((e) =>
+                Schema.decodeUnknownSync(Operation.Operation)({
+                  id: `${o.id}:${e.id}`,
+                  deviceId: o.deviceId,
+                  sequence: o.sequence,
+                  recordedAt: o.recordedAt,
+                  change: { _tag: "MarkPlayed", episodeId: e.id, source: { _tag: "User" } }
+                })
+              )
           ]
         })
 
@@ -125,12 +127,17 @@ export class SyncStore extends Context.Service<
           const fresh = operations.filter((o) => !seen.some((s) => s.id === o.id))
           const unique = fresh.filter((o, i) => fresh.findIndex((x) => x.id === o.id) === i)
           if (unique.length > 0) {
-            const expanded = yield* Effect.forEach(unique, expandServerSide).pipe(
-              Effect.map((all) => all.flat())
-            )
             const hasState = (yield* sql`SELECT 1 FROM setting LIMIT 1`).length > 0
             const before = yield* loadState
-            const after = State.applyOperations(before, expanded).state
+            // Expand against the result of preceding intentions in this push, not
+            // the pre-push episode_state index (ADR 0003's ordered replay).
+            const expanded: Array<Operation.Operation> = []
+            let after = before
+            for (const operation of unique) {
+              const concrete = yield* expandServerSide(operation, after)
+              after = State.applyOperations(after, concrete).state
+              expanded.push(...concrete)
+            }
             yield* saveState(hasState ? before : null, after)
             const now = Date.now()
             for (const o of expanded) {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { Media as MediaContract } from "@podlist/api"
 import { Effect } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { SqlClient } from "effect/sql"
@@ -61,7 +62,7 @@ export const ArtworkRoute = (cacheDir: string) =>
 
       yield* router.add(
         "GET",
-        "/api/artwork",
+        MediaContract.artworkPath,
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest
           const query = new URL(request.url, "http://local").searchParams

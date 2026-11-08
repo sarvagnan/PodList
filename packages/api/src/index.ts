@@ -7,6 +7,7 @@ import { SystemApi } from "./System.ts"
 
 export * as Directory from "./Directory.ts"
 export * as Library from "./Library.ts"
+export * as Media from "./Media.ts"
 export * as Subscriptions from "./Subscriptions.ts"
 export * as Sync from "./Sync.ts"
 export * as System from "./System.ts"

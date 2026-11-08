@@ -1,0 +1,1720 @@
+[
+  {
+    "name": "subscription-played-and-retry",
+    "description": "Only currently Unplayed Episodes in the Subscription are marked by hand; Entries clear; retry adds no operations; missing Subscription has no Episode effects.",
+    "protocolVersion": 4,
+    "subscriptions": [
+      {
+        "id": "sci",
+        "feedUrl": "https://example.test/sci",
+        "title": "Science",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      },
+      {
+        "id": "tech",
+        "feedUrl": "https://example.test/tech",
+        "title": "Technology",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      }
+    ],
+    "episodes": [
+      {
+        "id": "a",
+        "subscriptionId": "sci",
+        "guid": "a",
+        "title": "Café AI 100%_\\",
+        "description": "small device",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/a.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "b",
+        "subscriptionId": "tech",
+        "guid": "b",
+        "title": "CAFÉ ai",
+        "description": "model",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/b.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "c",
+        "subscriptionId": "sci",
+        "guid": "c",
+        "title": "Cafe AI",
+        "description": "",
+        "published": 8467200000,
+        "duration": 120,
+        "audioUrl": "https://example.test/c.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      }
+    ],
+    "initial": {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    "batches": [
+      {
+        "operations": [
+          {
+            "id": "subscription-played-and-retry-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "a",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "c",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedAccepted": 3,
+        "expectedCursor": 3,
+        "expectedOperations": [
+          {
+            "id": "subscription-played-and-retry-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "a",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "c",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [
+                {
+                  "episodeId": "a",
+                  "position": 0,
+                  "positionAt": 1001
+                }
+              ],
+              "cursor": "a",
+              "history": [],
+              "timeline": [],
+              "edits": [
+                {
+                  "at": 1001,
+                  "kind": "added",
+                  "episodeId": "a"
+                },
+                {
+                  "at": 1002,
+                  "kind": "added",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1003,
+                  "kind": "markedPlayed",
+                  "episodeId": "c"
+                }
+              ]
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "c": {
+              "episodeId": "c",
+              "played": {
+                "at": 1003,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      },
+      {
+        "operations": [
+          {
+            "id": "subscription-played-and-retry-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          }
+        ],
+        "expectedAccepted": 1,
+        "expectedCursor": 5,
+        "expectedOperations": [
+          {
+            "id": "subscription-played-and-retry-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "a",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "c",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-3:a",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": [],
+              "edits": [
+                {
+                  "at": 1001,
+                  "kind": "added",
+                  "episodeId": "a"
+                },
+                {
+                  "at": 1002,
+                  "kind": "added",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1003,
+                  "kind": "markedPlayed",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1004,
+                  "kind": "markedPlayed",
+                  "episodeId": "a"
+                }
+              ]
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "c": {
+              "episodeId": "c",
+              "played": {
+                "at": 1003,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            },
+            "a": {
+              "episodeId": "a",
+              "played": {
+                "at": 1004,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      },
+      {
+        "operations": [
+          {
+            "id": "subscription-played-and-retry-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          }
+        ],
+        "expectedAccepted": 0,
+        "expectedCursor": 5,
+        "expectedOperations": [
+          {
+            "id": "subscription-played-and-retry-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "a",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "c",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-3:a",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": [],
+              "edits": [
+                {
+                  "at": 1001,
+                  "kind": "added",
+                  "episodeId": "a"
+                },
+                {
+                  "at": 1002,
+                  "kind": "added",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1003,
+                  "kind": "markedPlayed",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1004,
+                  "kind": "markedPlayed",
+                  "episodeId": "a"
+                }
+              ]
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "c": {
+              "episodeId": "c",
+              "played": {
+                "at": 1003,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            },
+            "a": {
+              "episodeId": "a",
+              "played": {
+                "at": 1004,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      },
+      {
+        "operations": [
+          {
+            "id": "subscription-played-and-retry-4",
+            "deviceId": "phone",
+            "sequence": 4,
+            "recordedAt": 1005,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "missing"
+            }
+          }
+        ],
+        "expectedAccepted": 1,
+        "expectedCursor": 6,
+        "expectedOperations": [
+          {
+            "id": "subscription-played-and-retry-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "a",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "AddEntry",
+              "playlistId": "default",
+              "episodeId": "c",
+              "placement": "last"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-3:a",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "subscription-played-and-retry-4",
+            "deviceId": "phone",
+            "sequence": 4,
+            "recordedAt": 1005,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "missing"
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": [],
+              "edits": [
+                {
+                  "at": 1001,
+                  "kind": "added",
+                  "episodeId": "a"
+                },
+                {
+                  "at": 1002,
+                  "kind": "added",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1003,
+                  "kind": "markedPlayed",
+                  "episodeId": "c"
+                },
+                {
+                  "at": 1004,
+                  "kind": "markedPlayed",
+                  "episodeId": "a"
+                }
+              ]
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "c": {
+              "episodeId": "c",
+              "played": {
+                "at": 1003,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            },
+            "a": {
+              "episodeId": "a",
+              "played": {
+                "at": 1004,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "unplayed-before-subscription-played",
+    "description": "Server expansion observes earlier changes in the same push: Unplayed then mark Subscription Played marks that Episode again.",
+    "protocolVersion": 4,
+    "subscriptions": [
+      {
+        "id": "sci",
+        "feedUrl": "https://example.test/sci",
+        "title": "Science",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      },
+      {
+        "id": "tech",
+        "feedUrl": "https://example.test/tech",
+        "title": "Technology",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      }
+    ],
+    "episodes": [
+      {
+        "id": "a",
+        "subscriptionId": "sci",
+        "guid": "a",
+        "title": "Café AI 100%_\\",
+        "description": "small device",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/a.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "b",
+        "subscriptionId": "tech",
+        "guid": "b",
+        "title": "CAFÉ ai",
+        "description": "model",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/b.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "c",
+        "subscriptionId": "sci",
+        "guid": "c",
+        "title": "Cafe AI",
+        "description": "",
+        "published": 8467200000,
+        "duration": 120,
+        "audioUrl": "https://example.test/c.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      }
+    ],
+    "initial": {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    "batches": [
+      {
+        "operations": [
+          {
+            "id": "unplayed-before-subscription-played-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedAccepted": 1,
+        "expectedCursor": 1,
+        "expectedOperations": [
+          {
+            "id": "unplayed-before-subscription-played-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": []
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "a": {
+              "episodeId": "a",
+              "played": {
+                "at": 1001,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      },
+      {
+        "operations": [
+          {
+            "id": "unplayed-before-subscription-played-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "MarkUnplayed",
+              "episodeId": "a"
+            }
+          },
+          {
+            "id": "unplayed-before-subscription-played-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          }
+        ],
+        "expectedAccepted": 2,
+        "expectedCursor": 5,
+        "expectedOperations": [
+          {
+            "id": "unplayed-before-subscription-played-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "unplayed-before-subscription-played-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "MarkUnplayed",
+              "episodeId": "a"
+            }
+          },
+          {
+            "id": "unplayed-before-subscription-played-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          },
+          {
+            "id": "unplayed-before-subscription-played-2:c",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "unplayed-before-subscription-played-2:a",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": []
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "c": {
+              "episodeId": "c",
+              "played": {
+                "at": 1003,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            },
+            "a": {
+              "episodeId": "a",
+              "played": {
+                "at": 1003,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "played-before-subscription-played",
+    "description": "An Episode marked Played earlier in the same push is excluded from the Subscription expansion; expansion is ordered by Published ascending.",
+    "protocolVersion": 4,
+    "subscriptions": [
+      {
+        "id": "sci",
+        "feedUrl": "https://example.test/sci",
+        "title": "Science",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      },
+      {
+        "id": "tech",
+        "feedUrl": "https://example.test/tech",
+        "title": "Technology",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      }
+    ],
+    "episodes": [
+      {
+        "id": "a",
+        "subscriptionId": "sci",
+        "guid": "a",
+        "title": "Café AI 100%_\\",
+        "description": "small device",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/a.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "b",
+        "subscriptionId": "tech",
+        "guid": "b",
+        "title": "CAFÉ ai",
+        "description": "model",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/b.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "c",
+        "subscriptionId": "sci",
+        "guid": "c",
+        "title": "Cafe AI",
+        "description": "",
+        "published": 8467200000,
+        "duration": 120,
+        "audioUrl": "https://example.test/c.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      }
+    ],
+    "initial": {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    "batches": [
+      {
+        "operations": [
+          {
+            "id": "played-before-subscription-played-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "played-before-subscription-played-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          }
+        ],
+        "expectedAccepted": 2,
+        "expectedCursor": 3,
+        "expectedOperations": [
+          {
+            "id": "played-before-subscription-played-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "c",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          },
+          {
+            "id": "played-before-subscription-played-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "MarkSubscriptionPlayed",
+              "subscriptionId": "sci"
+            }
+          },
+          {
+            "id": "played-before-subscription-played-1:a",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "MarkPlayed",
+              "episodeId": "a",
+              "source": {
+                "_tag": "User"
+              }
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": []
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {
+            "c": {
+              "episodeId": "c",
+              "played": {
+                "at": 1001,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            },
+            "a": {
+              "episodeId": "a",
+              "played": {
+                "at": 1002,
+                "source": {
+                  "_tag": "User"
+                }
+              },
+              "starred": false
+            }
+          },
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "subscription-overrides-replace",
+    "description": "Overrides replace the whole override document, not individual keys; null threshold restores the default. Missing Subscription is a logged no-op. These operations never change shared State.",
+    "protocolVersion": 4,
+    "subscriptions": [
+      {
+        "id": "sci",
+        "feedUrl": "https://example.test/sci",
+        "title": "Science",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      },
+      {
+        "id": "tech",
+        "feedUrl": "https://example.test/tech",
+        "title": "Technology",
+        "author": null,
+        "description": null,
+        "artwork": null,
+        "subscribedAt": 0,
+        "unsubscribedAt": null,
+        "playedThreshold": null,
+        "playbackSettings": {}
+      }
+    ],
+    "episodes": [
+      {
+        "id": "a",
+        "subscriptionId": "sci",
+        "guid": "a",
+        "title": "Café AI 100%_\\",
+        "description": "small device",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/a.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "b",
+        "subscriptionId": "tech",
+        "guid": "b",
+        "title": "CAFÉ ai",
+        "description": "model",
+        "published": 8553600000,
+        "duration": 60,
+        "audioUrl": "https://example.test/b.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      },
+      {
+        "id": "c",
+        "subscriptionId": "sci",
+        "guid": "c",
+        "title": "Cafe AI",
+        "description": "",
+        "published": 8467200000,
+        "duration": 120,
+        "audioUrl": "https://example.test/c.mp3",
+        "artwork": null,
+        "chapters": [],
+        "audioUpdatedAt": null
+      }
+    ],
+    "initial": {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    "batches": [
+      {
+        "operations": [
+          {
+            "id": "subscription-overrides-replace-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "sci",
+              "playbackSettings": {
+                "speed": 2,
+                "volumeBoost": true
+              },
+              "playedThreshold": 10
+            }
+          }
+        ],
+        "expectedAccepted": 1,
+        "expectedCursor": 1,
+        "expectedOperations": [
+          {
+            "id": "subscription-overrides-replace-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "sci",
+              "playbackSettings": {
+                "speed": 2,
+                "volumeBoost": true
+              },
+              "playedThreshold": 10
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": []
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {},
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": 10,
+            "playbackSettings": {
+              "speed": 2,
+              "volumeBoost": true
+            }
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          }
+        ]
+      },
+      {
+        "operations": [
+          {
+            "id": "subscription-overrides-replace-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "sci",
+              "playbackSettings": {},
+              "playedThreshold": null
+            }
+          },
+          {
+            "id": "subscription-overrides-replace-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "tech",
+              "playbackSettings": {
+                "speed": 0.5
+              },
+              "playedThreshold": 0
+            }
+          },
+          {
+            "id": "subscription-overrides-replace-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "missing",
+              "playbackSettings": {
+                "skipIntro": 20
+              },
+              "playedThreshold": 5
+            }
+          }
+        ],
+        "expectedAccepted": 3,
+        "expectedCursor": 4,
+        "expectedOperations": [
+          {
+            "id": "subscription-overrides-replace-0",
+            "deviceId": "phone",
+            "sequence": 0,
+            "recordedAt": 1001,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "sci",
+              "playbackSettings": {
+                "speed": 2,
+                "volumeBoost": true
+              },
+              "playedThreshold": 10
+            }
+          },
+          {
+            "id": "subscription-overrides-replace-1",
+            "deviceId": "phone",
+            "sequence": 1,
+            "recordedAt": 1002,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "sci",
+              "playbackSettings": {},
+              "playedThreshold": null
+            }
+          },
+          {
+            "id": "subscription-overrides-replace-2",
+            "deviceId": "phone",
+            "sequence": 2,
+            "recordedAt": 1003,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "tech",
+              "playbackSettings": {
+                "speed": 0.5
+              },
+              "playedThreshold": 0
+            }
+          },
+          {
+            "id": "subscription-overrides-replace-3",
+            "deviceId": "phone",
+            "sequence": 3,
+            "recordedAt": 1004,
+            "change": {
+              "_tag": "SetSubscriptionOverrides",
+              "subscriptionId": "missing",
+              "playbackSettings": {
+                "skipIntro": 20
+              },
+              "playedThreshold": 5
+            }
+          }
+        ],
+        "expectedState": {
+          "playlists": [
+            {
+              "id": "default",
+              "name": "Default",
+              "isDefault": true,
+              "clearOnPlayed": true,
+              "entries": [],
+              "cursor": null,
+              "history": [],
+              "timeline": []
+            }
+          ],
+          "activePlaylistId": "default",
+          "episodeStates": {},
+          "views": [],
+          "downloadRules": [],
+          "playbackSettings": {
+            "speed": 1,
+            "skipIntro": 0,
+            "skipOutro": 0,
+            "volumeBoost": false
+          }
+        },
+        "expectedSubscriptions": [
+          {
+            "id": "sci",
+            "feedUrl": "https://example.test/sci",
+            "title": "Science",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": null,
+            "playbackSettings": {}
+          },
+          {
+            "id": "tech",
+            "feedUrl": "https://example.test/tech",
+            "title": "Technology",
+            "author": null,
+            "description": null,
+            "artwork": null,
+            "subscribedAt": 0,
+            "unsubscribedAt": null,
+            "playedThreshold": 0,
+            "playbackSettings": {
+              "speed": 0.5
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

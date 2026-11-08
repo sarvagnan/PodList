@@ -1,5 +1,6 @@
 import { Schema } from "effect"
 import { Operation, PlaybackSettings, Protocol, State, Units } from "../src/index.ts"
+import { contractScenarios } from "./contract-scenarios.ts"
 import { scenarios } from "./scenarios.ts"
 
 const minute = (m: number) => 1_793_750_400_000 + m * 60_000
@@ -31,7 +32,7 @@ const encodeOperation = Schema.encodeSync(Operation.Operation)
 const decodeOperation = Schema.decodeUnknownSync(Operation.Operation)
 
 export const buildVectors = () =>
-  scenarios.map((scenario) => {
+  [...scenarios, ...contractScenarios].map((scenario) => {
     const operations: Array<Operation.Operation> = []
     scenario.changes.forEach((step, index) => {
       if (step.duplicateOf !== undefined) {
@@ -55,12 +56,16 @@ export const buildVectors = () =>
     })
     const initial = initialState()
     const expected = State.applyOperations(initial, operations).state
+    const checkpoints = operations.map((_, index) =>
+      encodeState(State.applyOperations(initial, operations.slice(0, index + 1)).state)
+    )
     return {
       name: scenario.name,
       description: scenario.description,
       protocolVersion: Protocol.version,
       initial: encodeState(initial),
       operations: operations.map((o) => encodeOperation(o)),
-      expected: encodeState(expected)
+      expected: encodeState(expected),
+      ...(contractScenarios.includes(scenario) ? { checkpoints } : {})
     }
   })

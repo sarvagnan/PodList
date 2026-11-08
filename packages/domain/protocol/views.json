@@ -1,0 +1,1134 @@
+{
+  "protocolVersion": 4,
+  "now": 8640000000,
+  "subscriptions": [
+    {
+      "id": "sci",
+      "feedUrl": "https://example.test/sci",
+      "title": "Science",
+      "author": null,
+      "description": null,
+      "artwork": null,
+      "subscribedAt": 0,
+      "unsubscribedAt": null,
+      "playedThreshold": null,
+      "playbackSettings": {}
+    },
+    {
+      "id": "tech",
+      "feedUrl": "https://example.test/tech",
+      "title": "Technology",
+      "author": null,
+      "description": null,
+      "artwork": null,
+      "subscribedAt": 0,
+      "unsubscribedAt": null,
+      "playedThreshold": null,
+      "playbackSettings": {}
+    },
+    {
+      "id": "gone",
+      "feedUrl": "https://example.test/gone",
+      "title": "Removed",
+      "author": null,
+      "description": null,
+      "artwork": null,
+      "subscribedAt": 0,
+      "unsubscribedAt": 1,
+      "playedThreshold": null,
+      "playbackSettings": {}
+    }
+  ],
+  "episodes": [
+    {
+      "id": "a",
+      "subscriptionId": "sci",
+      "guid": "a",
+      "title": "Café AI 100%_\\",
+      "description": "small device",
+      "published": 8553600000,
+      "duration": 60,
+      "audioUrl": "https://example.test/a.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "b",
+      "subscriptionId": "tech",
+      "guid": "b",
+      "title": "CAFÉ ai",
+      "description": "model",
+      "published": 8553600000,
+      "duration": 60,
+      "audioUrl": "https://example.test/b.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "c",
+      "subscriptionId": "sci",
+      "guid": "c",
+      "title": "Cafe AI",
+      "description": "",
+      "published": 8467200000,
+      "duration": 120,
+      "audioUrl": "https://example.test/c.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "d",
+      "subscriptionId": "tech",
+      "guid": "d",
+      "title": "Quiet",
+      "description": "DEVICE small",
+      "published": 8380800000,
+      "duration": null,
+      "audioUrl": "https://example.test/d.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "e",
+      "subscriptionId": "gone",
+      "guid": "e",
+      "title": "Orphan Star",
+      "description": "",
+      "published": 8640000000,
+      "duration": 30,
+      "audioUrl": "https://example.test/e.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "f",
+      "subscriptionId": "gone",
+      "guid": "f",
+      "title": "Orphan Entry",
+      "description": "",
+      "published": 8640000000,
+      "duration": 30,
+      "audioUrl": "https://example.test/f.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "g",
+      "subscriptionId": "gone",
+      "guid": "g",
+      "title": "Removed",
+      "description": "",
+      "published": 8640000000,
+      "duration": 10,
+      "audioUrl": "https://example.test/g.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    },
+    {
+      "id": "h",
+      "subscriptionId": "tech",
+      "guid": "h",
+      "title": "café",
+      "description": "",
+      "published": 8726400000,
+      "duration": 0,
+      "audioUrl": "https://example.test/h.mp3",
+      "artwork": null,
+      "chapters": [],
+      "audioUpdatedAt": null
+    }
+  ],
+  "state": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "c",
+            "position": 0,
+            "positionAt": 1
+          }
+        ],
+        "cursor": "c",
+        "history": [],
+        "timeline": [],
+        "edits": [
+          {
+            "at": 1,
+            "kind": "added",
+            "episodeId": "c"
+          }
+        ]
+      },
+      {
+        "id": "other",
+        "name": "Other",
+        "isDefault": false,
+        "clearOnPlayed": false,
+        "entries": [
+          {
+            "episodeId": "a",
+            "position": 5,
+            "positionAt": 1
+          },
+          {
+            "episodeId": "b",
+            "position": 5,
+            "positionAt": 1
+          },
+          {
+            "episodeId": "f",
+            "position": 0,
+            "positionAt": 1
+          }
+        ],
+        "cursor": "a",
+        "history": [],
+        "timeline": [
+          {
+            "at": 1,
+            "episodeId": "a",
+            "position": 5
+          },
+          {
+            "at": 1,
+            "episodeId": "b",
+            "position": 5
+          }
+        ],
+        "edits": [
+          {
+            "at": 1,
+            "kind": "added",
+            "episodeId": "a"
+          },
+          {
+            "at": 1,
+            "kind": "added",
+            "episodeId": "b"
+          },
+          {
+            "at": 1,
+            "kind": "added",
+            "episodeId": "f"
+          },
+          {
+            "at": 1,
+            "kind": "markedPlayed",
+            "episodeId": "b"
+          }
+        ]
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {
+      "b": {
+        "episodeId": "b",
+        "played": {
+          "at": 1,
+          "source": {
+            "_tag": "User"
+          }
+        },
+        "starred": false
+      },
+      "a": {
+        "episodeId": "a",
+        "played": null,
+        "starred": true
+      },
+      "e": {
+        "episodeId": "e",
+        "played": null,
+        "starred": true
+      }
+    },
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "cases": [
+    {
+      "name": "Library includes only retained Orphaned Episodes; Published ties use binary Episode id",
+      "view": {
+        "id": "v",
+        "name": "Library includes only retained Orphaned Episodes; Published ties use binary Episode id",
+        "filter": {},
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "b", "c", "d"]
+    },
+    {
+      "name": "Published oldest first with identical-date ties",
+      "view": {
+        "id": "v",
+        "name": "Published oldest first with identical-date ties",
+        "filter": {},
+        "sort": "publishedAsc",
+        "limit": null
+      },
+      "expected": ["d", "c", "a", "b", "e", "f", "h"]
+    },
+    {
+      "name": "Length ascending includes zero; unknown Length last",
+      "view": {
+        "id": "v",
+        "name": "Length ascending includes zero; unknown Length last",
+        "filter": {},
+        "sort": "durationAsc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "b", "c", "d"]
+    },
+    {
+      "name": "Length descending keeps unknown last and id ascending on ties",
+      "view": {
+        "id": "v",
+        "name": "Length descending keeps unknown last and id ascending on ties",
+        "filter": {},
+        "sort": "durationDesc",
+        "limit": null
+      },
+      "expected": ["c", "a", "b", "e", "f", "h", "d"]
+    },
+    {
+      "name": "Show limit applies after filtering and sorting",
+      "view": {
+        "id": "v",
+        "name": "Show limit applies after filtering and sorting",
+        "filter": {
+          "played": "unplayed"
+        },
+        "sort": "publishedDesc",
+        "limit": 2
+      },
+      "expected": ["h", "e"]
+    },
+    {
+      "name": "Show limit larger than matches",
+      "view": {
+        "id": "v",
+        "name": "Show limit larger than matches",
+        "filter": {
+          "starred": true
+        },
+        "sort": "publishedDesc",
+        "limit": 20
+      },
+      "expected": ["e", "a"]
+    },
+    {
+      "name": "LastDays lower boundary inclusive; future Published also matches",
+      "view": {
+        "id": "v",
+        "name": "LastDays lower boundary inclusive; future Published also matches",
+        "filter": {
+          "published": {
+            "_tag": "LastDays",
+            "days": 2
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "b", "c"]
+    },
+    {
+      "name": "Between endpoints inclusive, millisecond precision",
+      "view": {
+        "id": "v",
+        "name": "Between endpoints inclusive, millisecond precision",
+        "filter": {
+          "published": {
+            "_tag": "Between",
+            "from": 8467200000,
+            "to": 8553600000
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a", "b", "c"]
+    },
+    {
+      "name": "Between one millisecond inside boundaries excludes both dates",
+      "view": {
+        "id": "v",
+        "name": "Between one millisecond inside boundaries excludes both dates",
+        "filter": {
+          "published": {
+            "_tag": "Between",
+            "from": 8467200001,
+            "to": 8553599999
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": []
+    },
+    {
+      "name": "Between open start",
+      "view": {
+        "id": "v",
+        "name": "Between open start",
+        "filter": {
+          "published": {
+            "_tag": "Between",
+            "from": null,
+            "to": 8467200000
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["c", "d"]
+    },
+    {
+      "name": "Between open end",
+      "view": {
+        "id": "v",
+        "name": "Between open end",
+        "filter": {
+          "published": {
+            "_tag": "Between",
+            "from": 8640000000,
+            "to": null
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f"]
+    },
+    {
+      "name": "Between both endpoints open",
+      "view": {
+        "id": "v",
+        "name": "Between both endpoints open",
+        "filter": {
+          "published": {
+            "_tag": "Between",
+            "from": null,
+            "to": null
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "b", "c", "d"]
+    },
+    {
+      "name": "Between reversed bounds matches nothing",
+      "view": {
+        "id": "v",
+        "name": "Between reversed bounds matches nothing",
+        "filter": {
+          "published": {
+            "_tag": "Between",
+            "from": 8640000000,
+            "to": 8553600000
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": []
+    },
+    {
+      "name": "Podcasts include",
+      "view": {
+        "id": "v",
+        "name": "Podcasts include",
+        "filter": {
+          "podcasts": {
+            "mode": "include",
+            "subscriptionIds": ["sci"]
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a", "c"]
+    },
+    {
+      "name": "Podcasts exclude several",
+      "view": {
+        "id": "v",
+        "name": "Podcasts exclude several",
+        "filter": {
+          "podcasts": {
+            "mode": "exclude",
+            "subscriptionIds": ["sci", "gone"]
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "b", "d"]
+    },
+    {
+      "name": "Podcasts unknown id",
+      "view": {
+        "id": "v",
+        "name": "Podcasts unknown id",
+        "filter": {
+          "podcasts": {
+            "mode": "include",
+            "subscriptionIds": ["missing"]
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": []
+    },
+    {
+      "name": "Mentions ASCII case insensitive substring",
+      "view": {
+        "id": "v",
+        "name": "Mentions ASCII case insensitive substring",
+        "filter": {
+          "text": "aI"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a", "b", "c"]
+    },
+    {
+      "name": "Mentions words may match different fields",
+      "view": {
+        "id": "v",
+        "name": "Mentions words may match different fields",
+        "filter": {
+          "text": "  SCIence\tdevice\n"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a"]
+    },
+    {
+      "name": "Mentions every word required, any order",
+      "view": {
+        "id": "v",
+        "name": "Mentions every word required, any order",
+        "filter": {
+          "text": "device small"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a", "d"]
+    },
+    {
+      "name": "Mentions diacritics preserved, Unicode case not folded",
+      "view": {
+        "id": "v",
+        "name": "Mentions diacritics preserved, Unicode case not folded",
+        "filter": {
+          "text": "café"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "a"]
+    },
+    {
+      "name": "Mentions uppercase accented letter is distinct",
+      "view": {
+        "id": "v",
+        "name": "Mentions uppercase accented letter is distinct",
+        "filter": {
+          "text": "CAFÉ"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["b"]
+    },
+    {
+      "name": "Mentions no accent folding",
+      "view": {
+        "id": "v",
+        "name": "Mentions no accent folding",
+        "filter": {
+          "text": "cafe"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["c"]
+    },
+    {
+      "name": "Mentions percent literal",
+      "view": {
+        "id": "v",
+        "name": "Mentions percent literal",
+        "filter": {
+          "text": "%"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a"]
+    },
+    {
+      "name": "Mentions underscore literal",
+      "view": {
+        "id": "v",
+        "name": "Mentions underscore literal",
+        "filter": {
+          "text": "_"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a"]
+    },
+    {
+      "name": "Mentions backslash literal",
+      "view": {
+        "id": "v",
+        "name": "Mentions backslash literal",
+        "filter": {
+          "text": "\\"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a"]
+    },
+    {
+      "name": "Mentions whitespace only currently matches everything",
+      "view": {
+        "id": "v",
+        "name": "Mentions whitespace only currently matches everything",
+        "filter": {
+          "text": " \t "
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "b", "c", "d"]
+    },
+    {
+      "name": "Played",
+      "view": {
+        "id": "v",
+        "name": "Played",
+        "filter": {
+          "played": "played"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["b"]
+    },
+    {
+      "name": "Unplayed includes Entries in progress",
+      "view": {
+        "id": "v",
+        "name": "Unplayed includes Entries in progress",
+        "filter": {
+          "played": "unplayed"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "c", "d"]
+    },
+    {
+      "name": "In progress means positive Position in any Playlist and Unplayed",
+      "view": {
+        "id": "v",
+        "name": "In progress means positive Position in any Playlist and Unplayed",
+        "filter": {
+          "played": "inProgress"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a"]
+    },
+    {
+      "name": "Starred",
+      "view": {
+        "id": "v",
+        "name": "Starred",
+        "filter": {
+          "starred": true
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["e", "a"]
+    },
+    {
+      "name": "Not Starred",
+      "view": {
+        "id": "v",
+        "name": "Not Starred",
+        "filter": {
+          "starred": false
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "f", "b", "c", "d"]
+    },
+    {
+      "name": "Not in a Playlist checks all Playlists",
+      "view": {
+        "id": "v",
+        "name": "Not in a Playlist checks all Playlists",
+        "filter": {
+          "notInAnyPlaylist": true
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "d"]
+    },
+    {
+      "name": "Minimum Length inclusive, unknown excluded",
+      "view": {
+        "id": "v",
+        "name": "Minimum Length inclusive, unknown excluded",
+        "filter": {
+          "minDuration": 60
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a", "b", "c"]
+    },
+    {
+      "name": "Maximum Length inclusive, unknown excluded",
+      "view": {
+        "id": "v",
+        "name": "Maximum Length inclusive, unknown excluded",
+        "filter": {
+          "maxDuration": 60
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["h", "e", "f", "a", "b"]
+    },
+    {
+      "name": "Exact Length combines both bounds",
+      "view": {
+        "id": "v",
+        "name": "Exact Length combines both bounds",
+        "filter": {
+          "minDuration": 60,
+          "maxDuration": 60
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["a", "b"]
+    },
+    {
+      "name": "All conditions AND together",
+      "view": {
+        "id": "v",
+        "name": "All conditions AND together",
+        "filter": {
+          "published": {
+            "_tag": "LastDays",
+            "days": 3
+          },
+          "podcasts": {
+            "mode": "include",
+            "subscriptionIds": ["tech"]
+          },
+          "text": "device",
+          "played": "unplayed",
+          "starred": false,
+          "notInAnyPlaylist": true
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": ["d"]
+    },
+    {
+      "name": "LastDays boundary excludes one millisecond earlier than rolling cutoff",
+      "view": {
+        "id": "v",
+        "name": "Rolling cutoff",
+        "filter": {
+          "published": {
+            "_tag": "LastDays",
+            "days": 2
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "now": 8640000001,
+      "expected": ["h", "e", "f", "a", "b"]
+    },
+    {
+      "name": "LastDays uses rolling 24-hour days rather than calendar dates",
+      "view": {
+        "id": "v",
+        "name": "Rolling day",
+        "filter": {
+          "published": {
+            "_tag": "LastDays",
+            "days": 2
+          }
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "now": 8683200000,
+      "expected": ["h", "e", "f", "a", "b"]
+    },
+    {
+      "name": "Mentions does not normalize composed and decomposed accents",
+      "view": {
+        "id": "v",
+        "name": "Mentions does not normalize composed and decomposed accents",
+        "filter": {
+          "text": "Café"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "expected": []
+    },
+    {
+      "name": "Binary Episode id tie-break for publishedAsc, independent of input order and locale",
+      "view": {
+        "id": "v",
+        "name": "Binary tie",
+        "filter": {},
+        "sort": "publishedAsc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "é",
+          "subscriptionId": "tech",
+          "guid": "é",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/é.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e2",
+          "subscriptionId": "tech",
+          "guid": "e2",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e2.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "a",
+          "subscriptionId": "tech",
+          "guid": "a",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/a.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "Z",
+          "subscriptionId": "tech",
+          "guid": "Z",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/Z.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e10",
+          "subscriptionId": "tech",
+          "guid": "e10",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e10.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["Z", "a", "e10", "e2", "é"]
+    },
+    {
+      "name": "Binary Episode id tie-break for publishedDesc, independent of input order and locale",
+      "view": {
+        "id": "v",
+        "name": "Binary tie",
+        "filter": {},
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "é",
+          "subscriptionId": "tech",
+          "guid": "é",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/é.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e2",
+          "subscriptionId": "tech",
+          "guid": "e2",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e2.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "a",
+          "subscriptionId": "tech",
+          "guid": "a",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/a.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "Z",
+          "subscriptionId": "tech",
+          "guid": "Z",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/Z.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e10",
+          "subscriptionId": "tech",
+          "guid": "e10",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e10.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["Z", "a", "e10", "e2", "é"]
+    },
+    {
+      "name": "Binary Episode id tie-break for durationAsc, independent of input order and locale",
+      "view": {
+        "id": "v",
+        "name": "Binary tie",
+        "filter": {},
+        "sort": "durationAsc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "é",
+          "subscriptionId": "tech",
+          "guid": "é",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/é.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e2",
+          "subscriptionId": "tech",
+          "guid": "e2",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e2.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "a",
+          "subscriptionId": "tech",
+          "guid": "a",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/a.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "Z",
+          "subscriptionId": "tech",
+          "guid": "Z",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/Z.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e10",
+          "subscriptionId": "tech",
+          "guid": "e10",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e10.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["Z", "a", "e10", "e2", "é"]
+    },
+    {
+      "name": "Binary Episode id tie-break for durationDesc, independent of input order and locale",
+      "view": {
+        "id": "v",
+        "name": "Binary tie",
+        "filter": {},
+        "sort": "durationDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "é",
+          "subscriptionId": "tech",
+          "guid": "é",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/é.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e2",
+          "subscriptionId": "tech",
+          "guid": "e2",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e2.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "a",
+          "subscriptionId": "tech",
+          "guid": "a",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/a.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "Z",
+          "subscriptionId": "tech",
+          "guid": "Z",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/Z.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        },
+        {
+          "id": "e10",
+          "subscriptionId": "tech",
+          "guid": "e10",
+          "title": "Tie",
+          "description": "",
+          "published": 8553600000,
+          "duration": 60,
+          "audioUrl": "https://example.test/e10.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["Z", "a", "e10", "e2", "é"]
+    }
+  ]
+}

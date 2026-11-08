@@ -1,3 +1,4 @@
+import { Media as MediaContract } from "@podlist/api"
 import { Context, Effect } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { SqlClient } from "effect/sql"
@@ -12,22 +13,11 @@ export const Upstream = Context.Reference<(request: Request) => Promise<Response
   { defaultValue: () => (request) => fetch(request) }
 )
 
-const forwardedRequestHeaders = ["range", "if-range", "if-none-match", "if-modified-since"]
-const forwardedResponseHeaders = [
-  "content-type",
-  "content-length",
-  "content-range",
-  "accept-ranges",
-  "etag",
-  "last-modified",
-  "cache-control"
-]
-
 export const AudioRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const upstream = yield* Upstream
-    yield* router.add("GET", "/api/episodes/:id/audio", serveAudio(sql, upstream))
+    yield* router.add("GET", MediaContract.audioPath, serveAudio(sql, upstream))
   })
 )
 
@@ -40,7 +30,7 @@ const serveAudio = (sql: SqlClient.SqlClient, upstream: (request: Request) => Pr
     if (episode === undefined) return HttpServerResponse.text("No such Episode", { status: 404 })
 
     const headers = new Headers()
-    for (const name of forwardedRequestHeaders) {
+    for (const name of MediaContract.forwardedRequestHeaders) {
       const value = request.headers[name]
       if (value !== undefined) headers.set(name, value)
     }
@@ -49,7 +39,7 @@ const serveAudio = (sql: SqlClient.SqlClient, upstream: (request: Request) => Pr
     ).pipe(Effect.orElseSucceed(() => new Response("Upstream unreachable", { status: 502 })))
 
     const outHeaders = new Headers()
-    for (const name of forwardedResponseHeaders) {
+    for (const name of MediaContract.forwardedResponseHeaders) {
       const value = response.headers.get(name)
       if (value !== null) outHeaders.set(name, value)
     }
