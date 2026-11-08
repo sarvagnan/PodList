@@ -53,7 +53,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     }
     LaunchedEffect(now?.metadata?.episodeId) { if (now == null) { pages = emptyList(); sheet.bottomSheetState.partialExpand() } }
     // Registered after destination navigation so it receives Back before the normal stack.
-    CompositionLocalProvider(LocalAppModel provides model, LocalAddEpisode provides { addEpisode = it }, LocalPlaybackStarted provides { pages = emptyList(); scope.launch { sheet.bottomSheetState.expand() } }) {
+    CompositionLocalProvider(LocalAppModel provides model, LocalAddEpisode provides { addEpisode = it }, LocalPlaybackStarted provides { pages = emptyList() }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val height = (maxHeight - 8.dp).coerceAtLeast(72.dp)
             BottomSheetScaffold(
@@ -63,7 +63,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                 sheetDragHandle = null,
                 sheetContent = {
                     now?.let { current ->
-                        Column(Modifier.fillMaxWidth().height(height).graphicsLayer { translationY = predictiveProgress * 24.dp.toPx() }) {
+                        Column(Modifier.fillMaxWidth().height(height).then(if (expanded) Modifier.statusBarsPadding() else Modifier).graphicsLayer { translationY = predictiveProgress * 24.dp.toPx() }) {
                             if (!expanded) MiniPlayer(current, session, model, expand = { pages = emptyList(); scope.launch { sheet.bottomSheetState.expand() } }, openPlaylist = {
                                 scope.launch { sheet.bottomSheetState.partialExpand(); val active = withContext(Dispatchers.IO) { session.db.loadState().activePlaylistId }; openPlaylist(active) }
                             })
