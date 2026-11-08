@@ -7,7 +7,7 @@ import kotlinx.serialization.encodeToString
 import java.util.UUID
 
 /** Native bundled SQLite on both Android and JVM. A connection is serialized by this owner.
- * Network and platform lifecycle work belong to the next milestone.
+ * HTTP runs outside transactions; readers and durable commits share this lock.
  */
 class LocalDatabase(path: String) : AutoCloseable {
     private val connection: SQLiteConnection = BundledSQLiteDriver().open(path)
@@ -159,14 +159,19 @@ class LocalDatabase(path: String) : AutoCloseable {
 
     /** One durable edit: stable id, increasing sequence, outbox, optimistic State and indexes. */
     @Synchronized
-    fun record(change: Change, recordedAt: Long, id: String = UUID.randomUUID().toString()): Operation = transaction {
-        val deviceId = getMeta("deviceId") ?: UUID.randomUUID().toString().also { setMeta("deviceId", it) }
-        val sequence = getMeta("sequence")?.toLong() ?: 0L
-        val operation = Operation(id, deviceId, sequence, recordedAt, change)
-        execute("INSERT INTO outbox (id, operation) VALUES (?, ?)", listOf(id, operation.encode()))
-        setMeta("sequence", (sequence + 1).toString())
-        replaceState(StateRules.apply(loadState(), change, recordedAt))
-        operation
+    fun record(change: Change, recordedAt: Long, id: String = UUID.randomUUID().toString()): Operation {
+        val result = transaction {
+            val deviceId = getMeta("deviceId") ?: UUID.randomUUID().toString().also { setMeta("deviceId", it) }
+            val sequence = getMeta("sequence")?.toLong() ?: 0L
+            val operation = Operation(id, deviceId, sequence, recordedAt, change)
+            execute("INSERT INTO outbox (id, operation) VALUES (?, ?)", listOf(id, operation.encode()))
+            setMeta("sequence", (sequence + 1).toString())
+            replaceState(StateRules.apply(loadState(), change, recordedAt))
+            operation
+        }
+        notifyChanged()
+        onEdit?.invoke()
+        return result
     }
 
     @Synchronized
@@ -180,6 +185,35 @@ class LocalDatabase(path: String) : AutoCloseable {
     fun saveConfirmed(state: State, cursor: Long) = transaction {
         setMeta("confirmedState", state.encode())
         setMeta("userCursor", cursor.toString())
+    }
+
+    // A single repository observer wakes both UI readers and the lifecycle scheduler.
+    @Volatile var onChanged: (() -> Unit)? = null
+    @Volatile var onEdit: (() -> Unit)? = null
+    fun notifyChanged() { onChanged?.invoke() }
+
+    @Synchronized
+    fun installation(): Device = transaction {
+        val id = getMeta("deviceId") ?: UUID.randomUUID().toString().also { setMeta("deviceId", it) }
+        val at = getMeta("registeredAt")?.toLong() ?: System.currentTimeMillis().also { setMeta("registeredAt", it.toString()) }
+        Device(id, "PodList Android", DeviceKind.Android, at)
+    }
+
+    /** Acknowledgement, confirmed State, deduplication, cursor and optimistic rebuild commit together. */
+    @Synchronized
+    fun commitPull(page: PullPage, sent: List<Operation>) {
+        transaction {
+            val seen = if (page.snapshot != null) emptySet() else getMeta("seenOperations")?.let {
+                ProtocolJson.decodeFromString<Set<String>>(it)
+            }.orEmpty()
+            val replayed = StateRules.replay(page.snapshot ?: confirmedState() ?: State.initial(), page.operations, seen)
+            for (operation in sent) execute("DELETE FROM outbox WHERE id = ?", listOf(operation.id))
+            setMeta("confirmedState", replayed.state.encode())
+            setMeta("seenOperations", ProtocolJson.encodeToString(replayed.applied))
+            setMeta("userCursor", page.cursor.toString())
+            replaceState(StateRules.replay(replayed.state, outbox()).state)
+        }
+        notifyChanged()
     }
 
     @Synchronized

@@ -37,7 +37,7 @@ typealias ListeningLog = Map<String, Map<String, Double>>
 @Serializable data class TrashedPlaylist(val playlist: Playlist, val deletedAt: Long)
 @Serializable data class DownloadRule(val subscriptionId: String, val deviceId: String, val mode: DownloadMode, val keepAtMost: Long?, val since: Long? = null)
 @Serializable enum class DownloadMode { @SerialName("never") Never, @SerialName("onEntry") OnEntry, @SerialName("allNew") AllNew }
-@Serializable enum class DeviceKind { @SerialName("pwa") Pwa, @SerialName("desktop") Desktop }
+@Serializable enum class DeviceKind { @SerialName("pwa") Pwa, @SerialName("desktop") Desktop, @SerialName("android") Android }
 @Serializable data class Device(val id: String, val name: String, val kind: DeviceKind, val registeredAt: Long)
 @Serializable data class Artwork(val url: String)
 @Serializable data class Chapter(val start: Double, val title: String, val artwork: Artwork?, val url: String?)
