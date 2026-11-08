@@ -1,6 +1,6 @@
 import { View } from "@podlist/domain"
 import { Schema } from "effect"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { ViewData } from "./viewEdit.ts"
 
 export type DialogDraft =
@@ -63,12 +63,14 @@ export const readDialogDraft = (): DialogDraft | null => {
   }
 }
 
-const write = (draft: DialogDraft | null) => {
+export const storeDialogDraft = (draft: DialogDraft | null): boolean => {
   try {
     if (draft === null) localStorage.removeItem(key)
     else localStorage.setItem(key, JSON.stringify(draft))
+    return true
   } catch {
-    // Storage refused: the dialog still works for this visit (WDATA-01).
+    // A refused write leaves the previous durable copy intact (DATA-01).
+    return false
   }
 }
 
@@ -84,12 +86,37 @@ export function useDialogDraft<K extends DialogDraft["kind"]>(
     return saved?.kind === initial.kind ? (saved as D) : initial
   })
   const latest = useRef(draft)
-  useEffect(() => write(latest.current), [])
+  const stored = useRef(false)
+  const unsafe = useRef(false)
+  const [unsaved, setUnsaved] = useState(false)
+  const persist = useCallback((next: D) => {
+    stored.current =
+      storeDialogDraft(next) || JSON.stringify(readDialogDraft()) === JSON.stringify(next)
+    unsafe.current = !stored.current
+    setUnsaved(unsafe.current)
+  }, [])
+  useEffect(() => {
+    persist(latest.current)
+    // Warn only for the latest value without a durable copy (DATA-01, WDATA-02).
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!unsafe.current) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", beforeUnload)
+    return () => window.removeEventListener("beforeunload", beforeUnload)
+  }, [persist])
   const update = (patch: Partial<D>) => {
     const next = { ...latest.current, ...patch }
     latest.current = next
-    write(next)
+    persist(next)
     setDraft(next)
   }
-  return { draft, update, clear: () => write(null) }
+  const clear = () => {
+    // Never erase the last saved copy after a newer write was refused (DATA-01).
+    if (stored.current) storeDialogDraft(null)
+    unsafe.current = false
+    setUnsaved(false)
+  }
+  return { draft, update, clear, unsaved, retry: () => persist(latest.current) }
 }

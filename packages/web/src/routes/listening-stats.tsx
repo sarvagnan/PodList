@@ -7,6 +7,7 @@ import { statsCatalogueAtom } from "../app/data.ts"
 import { useAppState, useLibraryReady } from "../app/hooks.ts"
 import { EmptyState, LoadingRows } from "../components/lists/ListRow.tsx"
 import { PageHeader } from "../components/shell/PageHeader.tsx"
+import { statsAboutOpen, statsTableOpen } from "../lib/remembered.ts"
 
 export const Route = createFileRoute("/listening-stats")({ component: ListeningStats })
 
@@ -24,6 +25,8 @@ function ListeningStats() {
   const state = useAppState()
   const ready = useLibraryReady()
   const catalogue = useAtomValue(statsCatalogueAtom)
+  const [tableOpen, setTableOpen] = useState(() => statsTableOpen.get() ?? false)
+  const [aboutOpen, setAboutOpen] = useState(() => statsAboutOpen.get() ?? false)
   const [now, setNow] = useState(() => new Date())
   // Refresh calendar periods across midnight, including while this screen stays open.
   useEffect(() => {
@@ -53,6 +56,12 @@ function ListeningStats() {
   const stats = Listening.stats(state.listeningLog ?? {}, played, now)
   const empty = stats.totals.every((p) => p.seconds === 0 && p.finished === 0)
   const maximum = Math.max(60, ...stats.days.map((d) => d.seconds))
+  // Equal periods add no comparison: say their shared scope once (TYPE-02, COPY-03).
+  const sameTotals = stats.totals.every(
+    (p) =>
+      duration(p.seconds) === duration(stats.totals[0]?.seconds ?? 0) &&
+      p.finished === stats.totals[0]?.finished
+  )
   return (
     <>
       <PageHeader
@@ -75,30 +84,38 @@ function ListeningStats() {
               >
                 Time listened and Episodes finished
               </h2>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {stats.totals.map((period, i) => (
-                  <section
-                    key={["This week", "This month", "All time"][i]}
-                    aria-label={["This week", "This month", "All time"][i]}
-                    className="min-w-0 rounded-xl border p-4"
-                  >
-                    <h3 className="text-row font-medium">
-                      {["This week", "This month", "All time"][i]}
-                    </h3>
-                    <dl className="mt-3 space-y-3">
-                      <div>
-                        <dt className="text-small text-muted-foreground">Time listened</dt>
-                        <dd className="text-title font-semibold tabular-nums">
-                          {duration(period.seconds)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-small text-muted-foreground">Episodes finished</dt>
-                        <dd className="text-title font-semibold tabular-nums">{period.finished}</dd>
-                      </div>
-                    </dl>
-                  </section>
-                ))}
+              <div className={`grid gap-3 ${sameTotals ? "" : "sm:grid-cols-3"}`}>
+                {stats.totals.flatMap((period, i) =>
+                  sameTotals && i !== 2 ? (
+                    []
+                  ) : (
+                    <section
+                      key={["This week", "This month", "All time"][i]}
+                      aria-label={["This week", "This month", "All time"][i]}
+                      className="min-w-0 rounded-xl border p-4"
+                    >
+                      <h3 className="text-row font-medium">
+                        {sameTotals
+                          ? "This week, this month and all time"
+                          : ["This week", "This month", "All time"][i]}
+                      </h3>
+                      <dl className="mt-3 space-y-3">
+                        <div>
+                          <dt className="text-small text-muted-foreground">Time listened</dt>
+                          <dd className="text-title font-semibold tabular-nums">
+                            {duration(period.seconds)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-small text-muted-foreground">Episodes finished</dt>
+                          <dd className="text-title font-semibold tabular-nums">
+                            {period.finished}
+                          </dd>
+                        </div>
+                      </dl>
+                    </section>
+                  )
+                )}
               </div>
             </section>
             <section aria-labelledby="stats-days">
@@ -117,16 +134,20 @@ function ListeningStats() {
               <p className="mt-1 text-small text-muted-foreground">
                 Consecutive days with listening, ending today or yesterday.
               </p>
+              <p className="mt-4 text-small text-muted-foreground">
+                Minutes listened · scale: 0–{minutes(maximum)} min
+              </p>
               {/* Static bars have a complete table alternative and a visible border in forced colours. */}
               <div aria-hidden="true" className="mt-4 flex h-32 items-end gap-0.5 border-b">
                 {stats.days.map((d) => (
                   <div
                     key={d.day}
-                    className="min-w-0 flex-1 border border-current bg-primary forced-colors:bg-[Highlight]"
+                    className="min-w-0 flex-1 bg-primary forced-colors:border forced-colors:border-current forced-colors:bg-[Highlight]"
                     style={{
                       height: `${(d.seconds / maximum) * 100}%`,
                       minHeight: d.seconds > 0 ? 2 : 0,
-                      borderWidth: d.seconds > 0 ? 1 : 0
+                      // Zero days must stay empty in forced colours too (AX-02).
+                      borderWidth: d.seconds > 0 ? undefined : 0
                     }}
                   />
                 ))}
@@ -138,8 +159,17 @@ function ListeningStats() {
                 <span>{dateLabel(stats.days[0]?.day ?? "")}</span>
                 <span>{dateLabel(stats.days.at(-1)?.day ?? "")}</span>
               </div>
-              <details className="mt-3">
-                <summary className="cursor-pointer rounded px-1 py-2 font-medium">
+              <details className="mt-3" open={tableOpen}>
+                {/* Store before navigation can outrun the asynchronous toggle event (DATA-06). */}
+                {/* biome-ignore lint/a11y/noStaticElementInteractions: summary has native keyboard activation. */}
+                <summary
+                  onClick={(event) => {
+                    event.preventDefault()
+                    statsTableOpen.set(!tableOpen)
+                    setTableOpen(!tableOpen)
+                  }}
+                  className="cursor-pointer rounded px-1 py-2 font-medium"
+                >
                   Daily listening table
                 </summary>
                 <table className="mt-2 w-full max-w-lg text-small">
@@ -194,8 +224,16 @@ function ListeningStats() {
                 </ol>
               )}
             </section>
-            <details className="text-small text-muted-foreground">
-              <summary className="cursor-pointer rounded px-1 py-2 font-medium">
+            <details className="text-small text-muted-foreground" open={aboutOpen}>
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: summary has native keyboard activation. */}
+              <summary
+                onClick={(event) => {
+                  event.preventDefault()
+                  statsAboutOpen.set(!aboutOpen)
+                  setAboutOpen(!aboutOpen)
+                }}
+                className="cursor-pointer rounded px-1 py-2 font-medium"
+              >
                 About your stats
               </summary>
               <p className="mt-2 max-w-prose">

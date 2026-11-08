@@ -203,7 +203,8 @@ export function LibraryTable({
                   onChange={(event) =>
                     setTicked(new Set(event.target.checked ? subscriptions.map((s) => s.id) : []))
                   }
-                  className="size-4 accent-primary"
+                  // Native inputs otherwise sit on the text baseline above the row centre (WTYPE-04).
+                  className="size-4 align-middle accent-primary"
                 />
               </th>
               {header("title", "Podcast", "py-2")}
@@ -245,7 +246,8 @@ export function LibraryTable({
                       aria-label={`Select ${s.title}`}
                       checked={on}
                       onChange={(event) => tick(s.id, event.target.checked)}
-                      className="size-4 accent-primary"
+                      // Native inputs otherwise sit on the text baseline above the row centre (WTYPE-04).
+                      className="size-4 align-middle accent-primary"
                     />
                   </td>
                   <td className="py-2">

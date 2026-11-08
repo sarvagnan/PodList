@@ -8,6 +8,7 @@ import { stateAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
+import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
 import { useEpisodeActions } from "./useEpisodeActions.ts"
 
@@ -30,7 +31,7 @@ export function AddToPlaylist({
 }) {
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const act = useEpisodeActions()
-  const { draft, update, clear } = useDialogDraft({
+  const { draft, update, clear, unsaved, retry } = useDialogDraft({
     kind: "add",
     name: "",
     chosen: startNew ? "new" : null,
@@ -110,7 +111,7 @@ export function AddToPlaylist({
             nameField.current ??
             document.querySelector<HTMLElement>('[data-sheet] input[name="playlist"]:checked')
           }
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(24rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[90dvh] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-1/2 md:left-1/2 md:w-[min(24rem,calc(100vw-32px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-[-45%] md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-[-45%] md:data-[starting-style]:opacity-0"
         >
           <div className="flex items-start justify-between gap-4">
             <Dialog.Title className="font-heading text-xl font-semibold">
@@ -195,6 +196,7 @@ export function AddToPlaylist({
               )}
             </div>
           )}
+          <DraftNotice unsaved={unsaved} retry={retry} />
           <div className="mt-5 grid grid-cols-2 gap-3">
             {/* The filled primary on the right, as in every other dialog (FLOW-07). */}
             <button

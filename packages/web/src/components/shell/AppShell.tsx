@@ -792,9 +792,17 @@ function usePlayPauseKey() {
       )
         return
       const target = event.target as HTMLElement
-      if (target.closest("input, textarea, select, button, a, [contenteditable], [role=dialog]")) {
+      if (
+        target.closest(
+          "input, textarea, select, button, a, [contenteditable], [role=menu], [role=alertdialog]"
+        )
+      ) {
         return
       }
+      // The player drawer accepts Space on its background; form dialogs keep it (WCOPY-01).
+      const dialog = target.closest("[role=dialog]")
+      if (dialog && !dialog.matches('[data-sheet="drawer"]')) return
+      if (event.defaultPrevented) return
       event.preventDefault()
       control({ _tag: "toggle" })
     }

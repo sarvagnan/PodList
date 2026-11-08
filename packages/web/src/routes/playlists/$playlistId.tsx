@@ -68,6 +68,11 @@ function PlaylistDetail() {
     count: entries.length,
     scrollToIndex: (index) => scroller.current?.scrollToIndex(index),
     titleAt: (index) => episodes.get(entries[index]?.episodeId ?? "")?.title ?? "",
+    onRemove: (index) => {
+      const entry = entries[index]
+      if (entry && playlist)
+        void act({ _tag: "Remove", episodeId: entry.episodeId, playlistId: playlist.id })
+    },
     onCopy: (index) => {
       const id = entries[index]?.episodeId
       if (id !== undefined) void copyLink(id)

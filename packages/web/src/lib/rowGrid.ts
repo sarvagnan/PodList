@@ -28,8 +28,10 @@ export interface RowGrid {
   /** For type-ahead. */
   readonly titleAt: (index: number) => string
   readonly onSelectAll?: () => void
-  /** Cmd/Ctrl-C on a row with no text selected: copy that row's link. */
+  /** Cmd/Ctrl-C on a row with no text selected: copy the selection, or that row’s link. */
   readonly onCopy?: (index: number) => void
+  /** Delete/Backspace removes an Entry with the same Undo as its row action (EDIT-02). */
+  readonly onRemove?: (index: number) => void
   /** The keyboard moved to another row (an open Episode follows it, as in Mail). */
   readonly onRowMove?: (index: number) => void
 }
@@ -137,9 +139,16 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.defaultPrevented) return
     const target = event.target as HTMLElement
     // Menus and dialogs opened from a row render elsewhere; their keys are their own.
     if (!container.current?.contains(target)) return
+    if (
+      target.closest(
+        "textarea, select, [contenteditable], input:not([type=checkbox], [type=radio])"
+      )
+    )
+      return
     // A row being moved with the keyboard (components/lists/SortableRow.tsx) takes the arrows.
     if (container.current.querySelector('[aria-roledescription="sortable"][aria-pressed="true"]'))
       return
@@ -180,6 +189,11 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     }
     if (event.key !== "Shift" && !event.shiftKey) anchor.current = null
     switch (event.key) {
+      case "Delete":
+      case "Backspace":
+        if (mod || event.altKey || event.shiftKey || !grid.onRemove) return
+        grid.onRemove(r)
+        break
       case "Enter":
         // Enter opens the Episode from any cell that has no Enter of its own (the tick box).
         if (!(target instanceof HTMLInputElement)) return
@@ -218,7 +232,7 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
           break
         }
         // Buttons and the tick box handle Space themselves; on the title it ticks the row.
-        if (cell.dataset.cell !== "title") return
+        if (cell.dataset.cell !== "title" || target.closest("button")) return
         row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click()
         break
       default: {

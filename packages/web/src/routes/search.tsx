@@ -11,6 +11,7 @@ import { EmptyState } from "../components/lists/ListRow.tsx"
 import { PageHeader } from "../components/shell/PageHeader.tsx"
 import { SaveSearchDialog } from "../components/views/SaveSearchDialog.tsx"
 import { ViewFormFields } from "../components/views/ViewForm.tsx"
+import { searchRefineOpen } from "../lib/remembered.ts"
 import { isReturn } from "../lib/returnFocus.ts"
 import { useMinWidth } from "../lib/useWide.ts"
 import type { Filter, ViewData } from "../lib/viewEdit.ts"
@@ -188,7 +189,9 @@ function SearchPage() {
   const [saving, setSaving] = useState(false)
   // Open when the search is already narrowed (a reload, a shared link).
   const [refining, setRefining] = useState(
-    () => Object.keys(fromParams(search as Record<string, unknown>).filter).length > 0
+    () =>
+      searchRefineOpen.get() ??
+      Object.keys(fromParams(search as Record<string, unknown>).filter).length > 0
   )
   const [checked, setCheckedState] = useState<ReadonlySet<string>>(new Set())
   const input = useRef<HTMLInputElement>(null)
@@ -250,20 +253,25 @@ function SearchPage() {
     <>
       <PageHeader
         title="Search"
-        stableActions
         back={{ to: "/views", label: "Views" }}
         actions={
-          checked.size > 0 ? (
-            <BulkBar selected={[...checked]} onClear={() => setCheckedState(new Set())} />
-          ) : active ? (
-            <button
-              type="button"
-              onClick={() => setSaving(true)}
-              className="inline-flex min-h-10 shrink-0 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
-            >
-              Save as View
-            </button>
-          ) : undefined
+          // Keep the title and toolbar in one row without moving results on selection (APPEAR-11).
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <div className="flex min-h-[max(48px,2.75rem)] min-w-full w-max items-center justify-end">
+              {checked.size > 0 ? (
+                <BulkBar selected={[...checked]} onClear={() => setCheckedState(new Set())} />
+              ) : (
+                <button
+                  type="button"
+                  disabled={!active}
+                  onClick={() => setSaving(true)}
+                  className="inline-flex min-h-[max(48px,2.75rem)] shrink-0 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70 disabled:opacity-50"
+                >
+                  Save as View
+                </button>
+              )}
+            </div>
+          </div>
         }
       />
       <div className="px-5 pb-3 md:px-8">
@@ -299,7 +307,10 @@ function SearchPage() {
               type="button"
               aria-expanded={refining}
               aria-controls={`${id}-refine`}
-              onClick={() => setRefining(!refining)}
+              onClick={() => {
+                searchRefineOpen.set(!refining)
+                setRefining(!refining)
+              }}
               className="-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-row font-medium text-primary hover:bg-secondary/60"
             >
               <ChevronRight

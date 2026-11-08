@@ -398,11 +398,15 @@ const createWindow = () => {
   win.webContents.on("context-menu", (_event, params) => {
     void (async () => {
       // On a row (an Episode, an Entry, a Subscription), its commands as a native menu.
-      const row = (await win.webContents
-        .executeJavaScript(
-          `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
-        )
-        .catch(() => null)) as RowMenu | null
+      // Native editing, selection and links take precedence over row commands (BROWSER-06).
+      const native = params.isEditable || params.selectionText !== "" || params.linkURL !== ""
+      const row = native
+        ? null
+        : ((await win.webContents
+            .executeJavaScript(
+              `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
+            )
+            .catch(() => null)) as RowMenu | null)
       const items = row ? rowMenu(win, row) : contextMenu(win, params)
       Menu.buildFromTemplate(items).popup({ window: win })
     })()
