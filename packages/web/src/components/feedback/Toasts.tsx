@@ -28,8 +28,19 @@ export function Toasts() {
     return () => cancelAnimationFrame(frame)
   }, [drawerOpen])
   const inDrawer = drawer !== null
+  // A sheet or dialog open over the page (Add to a Playlist, Add podcasts, a confirmation):
+  // toasts wait behind it rather than cover its controls (WKEY-04), and return when it
+  // closes. The modal says its own outcome inside itself.
+  const [modal, setModal] = useState(false)
+  useEffect(() => {
+    const check = () => setModal(document.querySelector('[data-sheet="dialog"]') !== null)
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
   // While a toast shows, focused rows scroll clear of it too, not just of the player.
-  const showing = toasts.some((toast) => !toast.limited)
+  const showing = !modal && toasts.some((toast) => !toast.limited)
   useEffect(() => {
     document.documentElement.style.setProperty("--toast-space", showing ? "5rem" : "0px")
   }, [showing])
@@ -37,6 +48,7 @@ export function Toasts() {
     // Only a real container: null would put the toasts nowhere, not on the page.
     <Toast.Portal {...(drawer ? { container: drawer } : {})}>
       <Toast.Viewport
+        hidden={modal}
         className={
           inDrawer
             ? "absolute inset-x-3 bottom-[max(env(safe-area-inset-bottom),0.75rem)] z-10 mx-auto max-w-md"

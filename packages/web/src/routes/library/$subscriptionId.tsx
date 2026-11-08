@@ -19,6 +19,7 @@ import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { ruleNames } from "../../lib/downloadRules.ts"
 import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 
@@ -183,11 +184,7 @@ function SubscriptionScreen() {
                 />
                 <span className="text-row font-medium">Settings for this podcast</span>
                 <span className="ml-auto text-small text-muted-foreground">
-                  {rule.mode === "never"
-                    ? "Streams"
-                    : rule.mode === "onEntry"
-                      ? "Downloads Entries"
-                      : "Downloads every new Episode"}
+                  {ruleNames[rule.mode]}
                 </span>
               </button>
             </h2>
@@ -217,9 +214,9 @@ function SubscriptionScreen() {
                 }
                 className={fieldControl}
               >
-                <option value="never">Stream</option>
-                <option value="onEntry">Entries</option>
-                <option value="allNew">Every new Episode</option>
+                <option value="never">{ruleNames.never}</option>
+                <option value="onEntry">{ruleNames.onEntry}</option>
+                <option value="allNew">{ruleNames.allNew}</option>
               </select>
               {rule.mode === "allNew" && (
                 <select

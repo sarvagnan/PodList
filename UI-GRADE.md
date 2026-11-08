@@ -14,18 +14,18 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 ## Rounds
 
-| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) | Round 15 (7 Nov, Opus) | Round 16 (8 Nov, Opus) | Round 17 (8 Nov, Opus) | Round 18 (8 Nov, Opus) | Round 19 (8 Nov, Opus) | Round 20 (8 Nov, Opus) | Round 21 (8 Nov, Opus) | Round 22 (8 Nov, Opus) | Round 23 (8 Nov, Opus) | Round 24 (8 Nov, Opus) | Round 25 (8 Nov, Opus) | Round 26 (8 Nov, Opus) | Round 27 (8 Nov, Opus) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 | 6.9 | 8.6 | 8.6 | 8.6 | 8.6 | 8.7 | 8.6 | 8.7 | 8.6 | 8.7 | 8.7 | 8.8 | 8.6 |
-| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.6 | 8.5 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.5 |
-| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 | 8.2 | 8.3 | 8.4 | 8.3 | 8.4 | 8.5 | 8.3 | 8.4 | 8.4 | 8.3 | 8.1 | 8.4 | 8.3 |
-| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 | 8.6 | 8.8 | 8.6 | 8.8 | 6.9 | 8.9 | 8.7 | 8.8 | 8.8 | 8.8 | 8.8 | 9.0 | 8.8 |
-| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 | 8.4 | 8.7 | 8.4 | 8.5 | 8.7 | 8.6 | 8.6 | 8.6 | 8.6 | 8.6 | 8.8 | 8.5 | 8.7 |
-| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) | 8.5 (stability 9.2) | 8.3 (stability 8.6) | 8.4 (stability 8.7) | 8.3 (stability 8.8) | 8.4 (stability 8.8) | 8.4 (stability 8.8) | 8.3 (stability 8.4) | 8.4 (stability 8.9) | 8.4 (stability 9.2) | 8.5 (stability 8.8) | 8.3 (stability 8.6) | 8.6 (stability 8.6) | 8.4 (stability 8.8) |
-| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.6 | 8.8 | 8.5 | 8.7 | 8.4 | 8.8 | 8.9 | 8.8 | 6.9 |
-| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 | 8.9 | 8.8 | 8.7 | 8.8 | 8.8 | 8.8 | 6.9 | 8.7 | 8.7 | 8.8 | 8.7 | 8.8 | 9.0 |
-| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 | 4.9 | 6.9 | 8.8 | 8.7 | 8.8 | 6.9 | 8.8 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 8.8 |
-| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** | **6.9** | **8.4** | **8.6** | **8.6** | **8.5** | **8.4** | **8.3** | **8.4** | **8.5** | **8.5** | **8.4** | **8.5** | **8.4** |
+| Category | Round 1 (7 Nov, Opus) | Round 2 (7 Nov, Opus) | Round 3 (7 Nov, Opus) | Round 4 (7 Nov, Opus) | Round 5 (7 Nov, Opus) | Round 6 (7 Nov, Opus) | Round 7 (7 Nov, Opus) | Round 8 (7 Nov, Opus) | Round 9 (7 Nov, Opus) | Round 10 (7 Nov, Opus) | Round 11 (7 Nov, Opus) | Round 12 (7 Nov, Opus) | Round 13 (7 Nov, Opus) | Round 14 (7 Nov, Opus) | Round 15 (7 Nov, Opus) | Round 16 (8 Nov, Opus) | Round 17 (8 Nov, Opus) | Round 18 (8 Nov, Opus) | Round 19 (8 Nov, Opus) | Round 20 (8 Nov, Opus) | Round 21 (8 Nov, Opus) | Round 22 (8 Nov, Opus) | Round 23 (8 Nov, Opus) | Round 24 (8 Nov, Opus) | Round 25 (8 Nov, Opus) | Round 26 (8 Nov, Opus) | Round 27 (8 Nov, Opus) | Round 28 (8 Nov, Opus) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Typography | 5.8 | 6.9 | 6.9 | 7.5 | 6.9 | 6.9 | 8.2 | 8.5 | 6.9 | 8.5 | 6.9 | 8.4 | 6.9 | 8.7 | 6.9 | 8.6 | 8.6 | 8.6 | 8.6 | 8.7 | 8.6 | 8.7 | 8.6 | 8.7 | 8.7 | 8.8 | 8.6 | 8.7 |
+| Hierarchy | 6.4 | 7.2 | 7.8 | 7.6 | 7.4 | 8.2 | 7.8 | 8.5 | 8.5 | 8.4 | 8.3 | 8.2 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.6 | 8.5 | 8.6 | 8.5 | 8.5 | 8.6 | 8.6 | 8.5 | 8.5 |
+| Spacing & density | 5.9 | 7.6 | 6.9 | 6.9 | 6.5 | 7.4 | 7.6 | 8.0 | 8.2 | 8.1 | 8.0 | 8.0 | 8.3 | 8.2 | 8.2 | 8.3 | 8.4 | 8.3 | 8.4 | 8.5 | 8.3 | 8.4 | 8.4 | 8.3 | 8.1 | 8.4 | 8.3 | 8.4 |
+| Color & contrast | 6.2 | 6.9 | 8.2 | 6.9 | 6.9 | 6.9 | 8.3 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.7 | 8.6 | 8.6 | 8.8 | 8.6 | 8.8 | 6.9 | 8.9 | 8.7 | 8.8 | 8.8 | 8.8 | 8.8 | 9.0 | 8.8 | 8.8 |
+| Iconography | 5.4 | 6.6 | 8.0 | 7.2 | 7.6 | 8.0 | 8.4 | 8.5 | 8.6 | 8.4 | 8.5 | 8.3 | 8.4 | 8.5 | 8.4 | 8.7 | 8.4 | 8.5 | 8.7 | 8.6 | 8.6 | 8.6 | 8.6 | 8.6 | 8.8 | 8.5 | 8.7 | 8.6 |
+| Consistency & polish | 5.3 (stability 6.0) | 7.6 (stability 8.0) | 7.6 (stability 8.6) | 6.8 (stability 6.4) | 6.8 (stability 7.8) | 7.6 (stability 8.0) | 7.6 (stability 8.4) | 7.7 (stability 8.4) | 8.2 (stability 8.6) | 7.9 (stability 8.2) | 7.8 (stability 8.4) | 6.9 (stability 8.3) | 8.4 (stability 9.0) | 8.0 (stability 9.0) | 8.5 (stability 9.2) | 8.3 (stability 8.6) | 8.4 (stability 8.7) | 8.3 (stability 8.8) | 8.4 (stability 8.8) | 8.4 (stability 8.8) | 8.3 (stability 8.4) | 8.4 (stability 8.9) | 8.4 (stability 9.2) | 8.5 (stability 8.8) | 8.3 (stability 8.6) | 8.6 (stability 8.6) | 8.4 (stability 8.8) | 8.4 (stability 9.0) |
+| Clarity | 4.9 | 7.4 | 7.8 | 7.5 | 7.2 | 6.9 | 7.9 | 8.3 | 8.5 | 8.3 | 6.9 | 8.6 | 8.4 | 8.8 | 8.8 | 8.7 | 8.6 | 8.5 | 8.6 | 8.8 | 8.5 | 8.7 | 8.4 | 8.8 | 8.9 | 8.8 | 6.9 | 8.6 |
+| Platform fit | 6.8 | 6.7 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 6.9 | 8.8 | 8.7 | 8.9 | 8.8 | 8.7 | 8.8 | 8.8 | 8.8 | 6.9 | 8.7 | 8.7 | 8.8 | 8.7 | 8.8 | 9.0 | 9.0 |
+| Interaction & feedback | 5.6 | 6.5 | 6.9 | 6.9 | 6.9 | 4.9 | 6.9 | 6.9 | 6.9 | 6.9 | 6.9 | 8.4 | 8.8 | 6.9 | 4.9 | 6.9 | 8.8 | 8.7 | 8.8 | 6.9 | 8.8 | 6.9 | 8.7 | 6.9 | 6.9 | 6.9 | 8.8 | 6.9 |
+| **Overall** | **5.4** | **7.0** | **7.2** | **7.1** | **6.9** | **6.9** | **7.6** | **8.2** | **7.7** | **7.7** | **7.6** | **7.9** | **8.3** | **8.3** | **6.9** | **8.4** | **8.6** | **8.6** | **8.5** | **8.4** | **8.3** | **8.4** | **8.5** | **8.5** | **8.4** | **8.5** | **8.4** | **8.4** |
 
 Round 1: coverage 95.4%; 19 failures (10 major, 9 minor, no blockers). Report: [docs/ui-grade/round-1-baseline.md](docs/ui-grade/round-1-baseline.md); flow summary: [round-1-flow-summary.md](docs/ui-grade/round-1-flow-summary.md). No core element moved unprompted in 51 measured steps; open a Playlist p75 132 ms, Play from here 107 ms.
 
@@ -84,6 +84,14 @@ Round 26: coverage 93.8%; 2 failures (major DATA-04: View edits have no visible 
 Round 27: coverage 96.9%; 2 failures (major COPY-02: offline, an Episode that isn't downloaded says only "Couldn't play"; minor TYPE-08: nested quotes in the Mac Undo item). Report: [docs/ui-grade/round-27.md](docs/ui-grade/round-27.md). Graded build d68aaff. Clarity capped at 6.9 (8.6 uncapped); Platform fit 9.0, Interaction 8.8.
 
 Graders now pull in opposite directions on two points: list width (rounds 21–24: fill the window; round 27: cap near 800 px) and Rewind to here (round 24: hide until hover; round 26: show at rest; round 27: hide again). Both stay as they are.
+
+Round 28: coverage 93.9%; 2 failures (major WKEY-04: on the phone an Undo toast covers the focused choice in a sheet; minor COPY-01: three names for each Download Rule). Report: [docs/ui-grade/round-28.md](docs/ui-grade/round-28.md). Graded build 528aab5. Interaction capped at 6.9 (about 8.9 uncapped); Platform fit 9.0, stability 9.0.
+
+## Work list (round 28)
+
+Fixed on 8 Nov:
+
+- [x] WKEY-04: while a sheet or dialog is open, toasts wait behind it (hidden, and not counted in the scroll padding) and come back when it closes; the drawer keeps its own strip · COPY-01: the Download Rule's choices are "Stream", "Download Entries" and "Download every new Episode" everywhere (selects, row menu, phone group headings, a podcast's settings).
 
 ## Work list (round 27)
 

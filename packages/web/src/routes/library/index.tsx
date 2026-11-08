@@ -23,6 +23,7 @@ import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { ruleNames } from "../../lib/downloadRules.ts"
 import { librarySort } from "../../lib/remembered.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
 
@@ -32,9 +33,9 @@ import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
 
 /** The Download Rules, as a row's menu offers them. */
 const rules: ReadonlyArray<readonly [Mode, string]> = [
-  ["allNew", "Download Every New Episode"],
-  ["onEntry", "Download Entries"],
-  ["never", "Stream"]
+  ["allNew", ruleNames.allNew],
+  ["onEntry", ruleNames.onEntry],
+  ["never", ruleNames.never]
 ]
 const decodeChange = Schema.decodeUnknownSync(Operation.Change)
 /** A plain left click; modified clicks keep their browser meaning. */
@@ -162,9 +163,9 @@ function LibraryScreen() {
   ]
   const groups = (
     [
-      ["allNew", "Downloads every new Episode"],
-      ["onEntry", "Downloads Entries"],
-      ["never", "Streams"]
+      ["allNew", ruleNames.allNew],
+      ["onEntry", ruleNames.onEntry],
+      ["never", ruleNames.never]
     ] as const
   ).map(([mode, title]) => ({
     mode,

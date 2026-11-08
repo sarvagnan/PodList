@@ -190,3 +190,25 @@ test("a View edit shows an Undo you can tap; changes made together are one step"
   await expect(played).toHaveValue(playedBefore)
   await expect(sort).toHaveValue(sortBefore)
 })
+
+test("an Undo toast waits behind an open sheet instead of covering it", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/views/short`)
+  await page.locator('[data-row="0"] [data-cell="title"]').waitFor()
+  await page
+    .getByRole("button", { name: /^Add .* to a Playlist/ })
+    .first()
+    .click()
+  const sheet = page.getByRole("dialog", { name: "Add to a Playlist" })
+  await sheet.getByRole("button", { name: "Play Next" }).click()
+  const toast = page.getByRole("dialog", { name: /^Playing next in/ })
+  await expect(toast).toBeVisible()
+  await page
+    .getByRole("button", { name: /^Add .* to a Playlist/ })
+    .nth(1)
+    .click()
+  await expect(sheet).toBeVisible()
+  await expect(toast).toBeHidden()
+  await sheet.getByRole("button", { name: "Close" }).click()
+  await expect(toast).toBeVisible()
+})

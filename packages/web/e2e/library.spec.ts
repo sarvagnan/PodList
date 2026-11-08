@@ -165,7 +165,7 @@ test("on desktop, selected podcasts change Download Rule together, with Undo", a
 test("on the phone, the Library is grouped by Download Rule", async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 915 })
   await page.goto(`${demo.base}/library`)
-  await expect(page.getByRole("heading", { name: "Streams · 3" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Stream · 3" })).toBeVisible()
 })
 
 test("Unsubscribe that fails says so in its dialog, with Try again", async ({ page, context }) => {

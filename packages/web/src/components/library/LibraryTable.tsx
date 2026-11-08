@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router"
 import { ArrowDown, ArrowUp, Settings, X } from "lucide-react"
 import { useId, useState } from "react"
 import type { SubscriptionSummary } from "../../app/data.ts"
+import { ruleNames } from "../../lib/downloadRules.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { type RowCommand, RowMenu } from "../lists/RowMenu.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
@@ -31,9 +32,9 @@ const byName = (a: SubscriptionSummary, b: SubscriptionSummary) =>
 
 /** The Download Rules as a select offers them. */
 export const ruleOptions: ReadonlyArray<readonly [Mode, string]> = [
-  ["never", "Stream"],
-  ["onEntry", "Entries"],
-  ["allNew", "Every new Episode"]
+  ["never", ruleNames.never],
+  ["onEntry", ruleNames.onEntry],
+  ["allNew", ruleNames.allNew]
 ]
 
 const select =
