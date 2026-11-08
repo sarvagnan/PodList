@@ -155,6 +155,11 @@ select:not([multiple]) {
   background-size: 1rem;
 }
 
+/* The browser's own clear button: unstyled, and Esc clears the field anyway. */
+input[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
+}
+
 @media (forced-colors: active) {
   /* The system's own arrow, which forced colours draw. */
   select:not([multiple]) {

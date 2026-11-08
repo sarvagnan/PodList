@@ -32,6 +32,7 @@ import { EpisodeDetail } from "../episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../episodes/useEpisodeActions.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
+import { MoreMenu } from "../lists/MoreMenu.tsx"
 import { SortableList, SortableRow } from "../lists/SortableRow.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { PlayerMenus } from "./PlayerMenus.tsx"
@@ -341,6 +342,49 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
             </span>
           </span>
         </button>
+        {/* Below desktop: moves (no drag needed, AX-04) and Remove, behind ⋯. */}
+        {!isCurrent && (
+          <span className="lg:hidden">
+            <MoreMenu
+              label={episode?.title ?? "Entry"}
+              className="text-player-muted hover:bg-player-track hover:text-player-foreground"
+              commands={(() => {
+                const index = after.findIndex((e) => e.episodeId === entry.episodeId)
+                const last = after.at(-1)?.episodeId ?? null
+                return [
+                  ...(index > 0
+                    ? [
+                        { label: "Move to Top", run: () => moveEntry(entry.episodeId, null) },
+                        {
+                          label: "Move Up",
+                          run: () => moveEntry(entry.episodeId, after[index - 2]?.episodeId ?? null)
+                        }
+                      ]
+                    : []),
+                  ...(index < after.length - 1
+                    ? [
+                        {
+                          label: "Move Down",
+                          run: () => moveEntry(entry.episodeId, after[index + 1]?.episodeId ?? null)
+                        },
+                        { label: "Move to Bottom", run: () => moveEntry(entry.episodeId, last) }
+                      ]
+                    : []),
+                  ...(after.length > 1 ? [{ separator: true as const }] : []),
+                  {
+                    label: `Remove from ${playlist.name}`,
+                    run: () =>
+                      void act({
+                        _tag: "Remove",
+                        episodeId: entry.episodeId,
+                        playlistId: playlist.id
+                      })
+                  }
+                ]
+              })()}
+            />
+          </span>
+        )}
         {!isCurrent && (
           <Tip label={`Remove from ${playlist.name}`}>
             <button
@@ -351,7 +395,7 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                 focusAfterRemoval(event.currentTarget, "[data-upnext-remove]")
                 void act({ _tag: "Remove", episodeId: entry.episodeId, playlistId: playlist.id })
               }}
-              className="grid size-11 shrink-0 place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground"
+              className="grid size-11 shrink-0 place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground max-lg:hidden"
             >
               <X aria-hidden="true" className="size-5" />
             </button>

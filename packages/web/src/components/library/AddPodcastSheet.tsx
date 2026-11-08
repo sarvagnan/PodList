@@ -1,5 +1,4 @@
 import { Dialog } from "@base-ui/react/dialog"
-import { Toast } from "@base-ui/react/toast"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import type { Directory } from "@podlist/api"
 import { Cause, Exit } from "effect"
@@ -19,7 +18,8 @@ type Tab = "search" | "address" | "opml"
 
 const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
   Exit.isFailure(exit)
-    ? (Cause.squash(exit.cause) as Error | undefined)?.message || "Something went wrong."
+    ? (Cause.squash(exit.cause) as Error | undefined)?.message ||
+      "Couldn’t reach your PodList server. Check that you’re online, then try again."
     : null
 
 const looksLikeFeed = (text: string) => /^https?:\/\/\S+\.\S+/.test(text.trim())
@@ -38,7 +38,6 @@ function SubscribeButton({
     (s) => s.feedUrl === feedUrl
   )
   const subscribe = useAtomSet(subscribeAtom, { mode: "promiseExit" })
-  const toasts = Toast.useToastManager()
   const [busy, setBusy] = useState(false)
   // The button gives way to "Subscribed"; focus goes with it rather than to the page.
   const focusNext = useRef(false)
@@ -76,8 +75,7 @@ function SubscribeButton({
         if (problem === null) {
           focusNext.current = true
           // Named as the feed calls itself, not by the address typed (a URL).
-          const name = Exit.isSuccess(exit) ? exit.value.title : title
-          toasts.add({ description: `Subscribed to ${name}`, timeout: 4000 })
+          // Said once, where it happened: the button becomes "Subscribed" and takes focus.
         } else onProblem(problem)
       }}
       className="h-10 shrink-0 rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 aria-disabled:opacity-60"

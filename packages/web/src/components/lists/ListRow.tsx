@@ -39,7 +39,11 @@ export function ListRow({
       {trailing !== undefined && (
         <span className="text-small text-muted-foreground">{trailing}</span>
       )}
-      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+      {/* Phone: it says the row opens; on a wide screen it would sit far from its title. */}
+      <ChevronRight
+        aria-hidden="true"
+        className="size-4 shrink-0 text-muted-foreground md:hidden"
+      />
     </Link>
   )
 }
@@ -83,9 +87,8 @@ export function EmptyState({
   readonly inPanel?: boolean
 }) {
   return (
-    // Ends where the screen's 960 px content does, not at the window's edge.
     <div
-      className={`h-fit self-start rounded-2xl border border-dashed px-5 text-center ${inPanel ? "py-6" : "mx-5 py-8 md:mx-8 md:max-w-[calc(960px-4rem)]"}`}
+      className={`h-fit self-start rounded-2xl border border-dashed px-5 text-center ${inPanel ? "py-6" : "mx-5 py-8 md:mx-8"}`}
     >
       <p className="font-medium">{title}</p>
       <p className="mt-1.5 text-row text-muted-foreground">{children}</p>

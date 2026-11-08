@@ -47,7 +47,9 @@ test("the toast's Undo takes back its own step", async ({ page }) => {
   // Titles arrive with the catalogue; until then rows show placeholders.
   await page.locator("main [role=row] [data-cell=title]").first().waitFor()
   const before = await titles(page)
-  await page.getByRole("button", { name: `Remove ${before[0]} from Commute` }).click()
+  // On the phone, Remove is in the row's More menu.
+  await page.getByRole("button", { name: `More actions for ${before[0]}` }).click()
+  await page.getByRole("menuitem", { name: "Remove from Commute" }).click()
   await page.getByRole("button", { name: "Undo" }).click()
   await expect.poll(() => titles(page)).toEqual(before)
 })

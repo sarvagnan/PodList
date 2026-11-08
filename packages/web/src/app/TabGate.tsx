@@ -23,7 +23,15 @@ export function TabGate({ children }: { readonly children: ReactNode }) {
   useEffect(() => {
     void claim(false).then(setOwner)
   }, [])
-  const useHere = useCallback(() => void claim(true).then(setOwner), [])
+  // Taking over waits for the other tab to let go (about a second): said, not silent.
+  const [taking, setTaking] = useState(false)
+  const takeOver = useCallback(() => {
+    setTaking(true)
+    void claim(true).then((got) => {
+      setTaking(false)
+      setOwner(got)
+    })
+  }, [])
 
   if (owner === null) return null
   if (owner) return <>{children}</>
@@ -37,11 +45,17 @@ export function TabGate({ children }: { readonly children: ReactNode }) {
         </p>
         <button
           type="button"
-          onClick={useHere}
-          className="mt-6 h-11 rounded-full bg-primary px-6 font-semibold text-primary-foreground"
+          aria-disabled={taking}
+          onClick={() => {
+            if (!taking) takeOver()
+          }}
+          className="mt-6 h-11 rounded-full bg-primary px-6 font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80 aria-disabled:opacity-70"
         >
-          Use here
+          {taking ? "Opening here…" : "Use here"}
         </button>
+        <p aria-live="polite" className="sr-only">
+          {taking ? "Closing PodList in the other tab" : ""}
+        </p>
       </div>
     </main>
   )

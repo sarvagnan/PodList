@@ -16,6 +16,7 @@ import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { useCopyEpisodeLink } from "../../components/feedback/useCopyLink.ts"
 import { GridCell } from "../../components/lists/Grid.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { MoreMenu } from "../../components/lists/MoreMenu.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { SortableList, SortableRow } from "../../components/lists/SortableRow.tsx"
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
@@ -286,11 +287,26 @@ function PlaylistDetail() {
                                 }
                           )
                       },
+                  // Every move a drag makes, without a drag (AX-04).
                   ...(index > 0
-                    ? [{ label: "Move to Top", run: () => moveEntry(entry.episodeId, null) }]
+                    ? [
+                        { label: "Move to Top", run: () => moveEntry(entry.episodeId, null) },
+                        {
+                          label: "Move Up",
+                          run: () =>
+                            moveEntry(entry.episodeId, entries[index - 2]?.episodeId ?? null)
+                        }
+                      ]
                     : []),
                   ...(index < entries.length - 1
-                    ? [{ label: "Move to Bottom", run: () => moveEntry(entry.episodeId, last) }]
+                    ? [
+                        {
+                          label: "Move Down",
+                          run: () =>
+                            moveEntry(entry.episodeId, entries[index + 1]?.episodeId ?? null)
+                        },
+                        { label: "Move to Bottom", run: () => moveEntry(entry.episodeId, last) }
+                      ]
                     : []),
                   { separator: true },
                   {
@@ -503,7 +519,16 @@ function PlaylistDetail() {
                               </button>
                             </Tip>
                           </GridCell>
-                          <GridCell>
+                          {/* Below desktop (no right-click, no keyboard grid): the row's commands,
+                              moves among them, behind ⋯; Remove is one of them. */}
+                          <GridCell className="lg:hidden">
+                            <MoreMenu
+                              commands={commands}
+                              label={title ?? "Entry"}
+                              link={`/episodes/${entry.episodeId}`}
+                            />
+                          </GridCell>
+                          <GridCell className="max-lg:hidden">
                             <Tip label={`Remove from ${playlist.name}`}>
                               <button
                                 type="button"

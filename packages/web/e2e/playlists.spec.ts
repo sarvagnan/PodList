@@ -120,3 +120,35 @@ test("right-click on an Entry moves it to the bottom, with Undo", async ({ page 
   await page.getByRole("button", { name: "Undo" }).click()
   await expect.poll(() => titles(page)).toEqual(before)
 })
+
+test("on the phone, Entries move without a drag, from their More menu (AX-04)", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/playlists/commute`)
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
+  const before = await titles(page)
+  const second = before[1] ?? ""
+  await page.getByRole("button", { name: `More actions for ${second}` }).click()
+  await page.getByRole("menuitem", { name: "Move Up" }).click()
+  await expect.poll(async () => (await titles(page))[0]).toBe(second)
+  // Remove is there too.
+  await page.getByRole("button", { name: `More actions for ${second}` }).click()
+  await expect(page.getByRole("menuitem", { name: "Remove from Commute" })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  // Up next in the drawer: the same menu.
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+  const drawer = page.getByRole("dialog")
+  await drawer.getByRole("button", { name: /^Up next/ }).click()
+  const more = drawer.getByRole("button", { name: /^More actions for / })
+  await expect(more.first()).toBeVisible()
+  const lastName = ((await more.last().getAttribute("aria-label")) ?? "").replace(
+    "More actions for ",
+    ""
+  )
+  await more.last().click()
+  await page.getByRole("menuitem", { name: "Move to Top" }).click()
+  await expect(more.first()).toHaveAttribute("aria-label", `More actions for ${lastName}`)
+})
