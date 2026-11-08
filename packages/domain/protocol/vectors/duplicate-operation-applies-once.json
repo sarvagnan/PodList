@@ -1,7 +1,7 @@
 {
   "name": "duplicate-operation-applies-once",
   "description": "An operation delivered twice takes effect once.",
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "initial": {
     "playlists": [
       {

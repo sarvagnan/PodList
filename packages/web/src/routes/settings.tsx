@@ -1,6 +1,6 @@
 import { useAtomSet } from "@effect/atom-react"
 import { Operation, PlaybackSettings, State } from "@podlist/domain"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { useId, useState } from "react"
 import { useAppState } from "../app/hooks.ts"
@@ -45,6 +45,12 @@ function SettingsScreen() {
       {/* On the phone Settings opens from the Library's header, so it leads back there. */}
       <PageHeader title="Settings" back={{ to: "/library", label: "Library" }} />
       <div className="max-w-[704px] space-y-6 px-5 pb-10 md:px-8">
+        <Link
+          to="/listening-stats"
+          className="flex min-h-14 items-center rounded-xl border bg-card px-4 py-3 font-medium hover:bg-secondary"
+        >
+          Listening stats
+        </Link>
         <section aria-labelledby={`${id}-playback`}>
           <h2 id={`${id}-playback`} className={heading}>
             Playback

@@ -21,6 +21,7 @@ export interface Track extends TrackInfo {
 
 type NoFields = Record<never, never>
 export type PlayerEvent = Data.TaggedEnum<{
+  Discontinuity: NoFields
   Playing: NoFields
   Paused: NoFields
   Position: { readonly seconds: number; readonly duration: number | null }
@@ -131,6 +132,10 @@ export class Player extends Context.Service<
               }
             ],
             ["pause", () => offer(PlayerEvent.Paused())],
+            // Native seeks and buffering break the measurement boundary too.
+            ["seeking", () => offer(PlayerEvent.Discontinuity())],
+            ["waiting", () => offer(PlayerEvent.Discontinuity())],
+            ["ratechange", () => offer(PlayerEvent.Discontinuity())],
             [
               "ended",
               () => {

@@ -2,6 +2,7 @@ import { Schema } from "effect"
 import { DownloadRule } from "./Device.ts"
 import { DeviceId, EpisodeId, OperationId, PlaylistId, SubscriptionId, ViewId } from "./Ids.ts"
 import { PlayedSource } from "./Library.ts"
+import * as Listening from "./Listening.ts"
 import { PlaybackSettings, PlaybackSettingsOverride } from "./PlaybackSettings.ts"
 import { EpochMillis, PositiveInt, Seconds } from "./Units.ts"
 import { View } from "./View.ts"
@@ -39,7 +40,14 @@ export const ReportPosition = Schema.TaggedStruct("ReportPosition", {
   playlistId: PlaylistId,
   episodeId: EpisodeId,
   position: Seconds,
-  listenedAt: EpochMillis
+  listenedAt: EpochMillis,
+  /** Measured forward listening since the last report; absent for seeks and older clients. */
+  listening: Schema.optionalKey(Schema.Array(Listening.Amount))
+})
+
+/** Listening after an Episode became Played still counts, without moving its reset Entry. */
+export const RecordListening = Schema.TaggedStruct("RecordListening", {
+  amounts: Schema.Array(Listening.Amount)
 })
 
 export const MarkPlayed = Schema.TaggedStruct("MarkPlayed", {
@@ -117,6 +125,7 @@ export const Change = Schema.Union([
   RemoveEntry,
   SetCursor,
   ReportPosition,
+  RecordListening,
   MarkPlayed,
   MarkUnplayed,
   MarkSubscriptionPlayed,

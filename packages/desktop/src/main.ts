@@ -511,6 +511,8 @@ const menu = (): MenuItemConstructorOptions[] => [
   {
     label: "View",
     submenu: [
+      { label: "Listening Stats", click: () => goTo("/listening-stats") },
+      { type: "separator" },
       { role: "resetZoom" },
       { role: "zoomIn" },
       { role: "zoomOut" },

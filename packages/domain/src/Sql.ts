@@ -2,6 +2,7 @@ import { Effect, Schema } from "effect"
 import { Migrator, SqlClient } from "effect/sql"
 import { DownloadRule } from "./Device.ts"
 import { EpisodeState } from "./Library.ts"
+import * as Listening from "./Listening.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
 import { Playlist } from "./Playlist.ts"
 import { State, TrashedPlaylist } from "./State.ts"
@@ -153,6 +154,7 @@ export interface StateRows {
 const PlaylistJson = Schema.fromJsonString(Playlist)
 const ViewJson = Schema.fromJsonString(View)
 const SettingsJson = Schema.fromJsonString(PlaybackSettings)
+const ListeningJson = Schema.fromJsonString(Listening.Log)
 const TrashJson = Schema.fromJsonString(Schema.Array(TrashedPlaylist))
 const PlayedJson = Schema.fromJsonString(EpisodeState.fields.played)
 
@@ -189,6 +191,9 @@ export const stateToRows = (state: State): StateRows => ({
     keep_at_most: r.keepAtMost
   })),
   setting: [
+    ...(state.listeningLog === undefined
+      ? []
+      : [{ key: "listeningLog", value: Schema.encodeSync(ListeningJson)(state.listeningLog) }]),
     { key: "activePlaylistId", value: JSON.stringify(state.activePlaylistId) },
     { key: "playbackSettings", value: Schema.encodeSync(SettingsJson)(state.playbackSettings) },
     ...(state.trash === undefined
@@ -234,6 +239,9 @@ export const rowsToState = (
         keepAtMost: r.keep_at_most
       })
     ),
+    ...(optional("listeningLog") === undefined
+      ? {}
+      : { listeningLog: Schema.decodeSync(ListeningJson)(optional("listeningLog") ?? "{}") }),
     activePlaylistId: JSON.parse(setting("activePlaylistId")),
     playbackSettings: Schema.decodeSync(SettingsJson)(setting("playbackSettings")),
     ...(optional("trash") === undefined

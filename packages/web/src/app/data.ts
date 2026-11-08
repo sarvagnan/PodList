@@ -330,3 +330,21 @@ export const episodeDetailAtom = Atom.family((episodeId: string) =>
     )
     .pipe(Atom.withReactivity([catalogueKey]))
 )
+
+/** Stats include Played facts across the Library, and names of former Subscriptions. */
+export const statsCatalogueAtom = runtime
+  .atom(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const subscriptions = yield* sql<{
+        id: string
+        title: string
+      }>`SELECT id, title FROM subscription`
+      const episodes = yield* sql<{ id: string }>`SELECT id FROM episode`
+      return {
+        podcasts: new Map(subscriptions.map((s) => [s.id, s.title])),
+        episodes: new Set(episodes.map((e) => e.id))
+      }
+    })
+  )
+  .pipe(Atom.withReactivity([catalogueKey]))

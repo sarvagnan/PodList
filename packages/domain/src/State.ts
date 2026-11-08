@@ -2,6 +2,7 @@ import { Schema } from "effect"
 import { DownloadRule } from "./Device.ts"
 import type { EpisodeId, PlaylistId } from "./Ids.ts"
 import { EpisodeState, Played } from "./Library.ts"
+import * as Listening from "./Listening.ts"
 import type { Change, Operation } from "./Operation.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
 import * as PlayedRules from "./PlayedRules.ts"
@@ -31,7 +32,9 @@ export class State extends Schema.Class<State>("@podlist/domain/State")({
   /** Deleted Playlists, oldest first; absent when empty (states from before the Trash). */
   trash: Schema.optionalKey(Schema.Array(TrashedPlaylist)),
   /** How many days the Trash keeps a Playlist; absent means 30. */
-  trashDays: Schema.optionalKey(PositiveInt)
+  trashDays: Schema.optionalKey(PositiveInt),
+  /** Permanent daily listening totals; absent in older saved States. */
+  listeningLog: Schema.optionalKey(Listening.Log)
 }) {}
 
 export const defaultTrashDays = 30
@@ -259,27 +262,39 @@ const applyChange = (state: State, change: Change, context: Context): State => {
     }
     case "SetPlaybackSettings":
       return replace(state, { playbackSettings: change.settings })
+    case "RecordListening":
+      return change.amounts.length === 0
+        ? state
+        : replace(state, { listeningLog: Listening.add(state.listeningLog ?? {}, change.amounts) })
     case "ReportPosition":
-      return withPlaylist(state, change.playlistId, (p) => {
-        const entry = p.entries.find((e) => e.episodeId === change.episodeId)
-        // The latest listen wins: a report older than what we have is stale (ADR 0003).
-        if (entry === undefined) return p
-        const recorded = TimelineRules.record(
-          p,
-          change.episodeId,
-          change.position,
-          change.listenedAt
-        )
-        if (change.listenedAt < entry.positionAt) return recorded
-        return new Playlist({
-          ...recorded,
-          entries: recorded.entries.map((e) =>
-            e === entry
-              ? new Entry({ ...e, position: change.position, positionAt: change.listenedAt })
-              : e
+      return withPlaylist(
+        change.listening?.length
+          ? replace(state, {
+              listeningLog: Listening.add(state.listeningLog ?? {}, change.listening)
+            })
+          : state,
+        change.playlistId,
+        (p) => {
+          const entry = p.entries.find((e) => e.episodeId === change.episodeId)
+          // The latest listen wins: a report older than what we have is stale (ADR 0003).
+          if (entry === undefined) return p
+          const recorded = TimelineRules.record(
+            p,
+            change.episodeId,
+            change.position,
+            change.listenedAt
           )
-        })
-      })
+          if (change.listenedAt < entry.positionAt) return recorded
+          return new Playlist({
+            ...recorded,
+            entries: recorded.entries.map((e) =>
+              e === entry
+                ? new Entry({ ...e, position: change.position, positionAt: change.listenedAt })
+                : e
+            )
+          })
+        }
+      )
     case "Rewind":
       return rewind(state, change.playlistId, change.to, context.at)
     // Both need the Library catalogue (which Episodes a Subscription has, and the

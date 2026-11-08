@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ListeningStatsRouteImport } from './routes/listening-stats'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as EpisodesEpisodeIdRouteImport } from './routes/episodes/$episodeId'
@@ -25,6 +26,11 @@ import { Route as PlaylistsPlaylistIdSettingsRouteImport } from './routes/playli
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ListeningStatsRoute = ListeningStatsRouteImport.update({
+  id: '/listening-stats',
+  path: '/listening-stats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -86,6 +92,7 @@ const PlaylistsPlaylistIdSettingsRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/listening-stats': typeof ListeningStatsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/listening-stats': typeof ListeningStatsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/listening-stats': typeof ListeningStatsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/episodes/$episodeId': typeof EpisodesEpisodeIdRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/listening-stats'
     | '/search'
     | '/settings'
     | '/episodes/$episodeId'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/listening-stats'
     | '/search'
     | '/settings'
     | '/episodes/$episodeId'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/listening-stats'
     | '/search'
     | '/settings'
     | '/episodes/$episodeId'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ListeningStatsRoute: typeof ListeningStatsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   EpisodesEpisodeIdRoute: typeof EpisodesEpisodeIdRoute
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/listening-stats': {
+      id: '/listening-stats'
+      path: '/listening-stats'
+      fullPath: '/listening-stats'
+      preLoaderRoute: typeof ListeningStatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -278,6 +298,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ListeningStatsRoute: ListeningStatsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   EpisodesEpisodeIdRoute: EpisodesEpisodeIdRoute,

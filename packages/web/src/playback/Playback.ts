@@ -1,4 +1,11 @@
-import { Operation, type PlaybackSettings, PlayedRules, type State, Units } from "@podlist/domain"
+import {
+  Listening,
+  Operation,
+  type PlaybackSettings,
+  PlayedRules,
+  type State,
+  Units
+} from "@podlist/domain"
 import {
   Clock,
   Context,
@@ -108,6 +115,8 @@ export class Playback extends Context.Service<
         const scope = yield* Effect.scope
         const lockScreenArt = (url: string | null) =>
           url === null ? null : (options.artworkUrl?.(url) ?? url)
+        let sample: Listening.Sample | null = null
+        let pending: Array<Listening.Amount> = []
         let lastReport = { at: 0, position: -1 }
         // The loaded Entry's Played threshold, and whether it has been finished (marked
         // Played) and has reached the end of its audio.
@@ -196,6 +205,7 @@ export class Playback extends Context.Service<
             }
             // Leaving an Entry: keep where it got to.
             if (current !== null) yield* report(current.position)
+            sample = null
             const { threshold, subscriptionId, override, audioUrl, ...info } = yield* lookup(
               next.entry.episodeId
             )
@@ -265,17 +275,24 @@ export class Playback extends Context.Service<
           Effect.gen(function* () {
             const current = yield* SubscriptionRef.get(now)
             // A finished Entry has been reset or removed; later Positions would undo that.
-            if (current === null || loaded.finished) return
-            if (Math.abs(position - lastReport.position) < 1) return
+            if (current === null || (loaded.finished && pending.length === 0)) return
+            if (Math.abs(position - lastReport.position) < 1 && pending.length === 0) return
             const at = yield* Clock.currentTimeMillis
             lastReport = { at, position }
+            const listening = pending
+            pending = []
+            if (loaded.finished) {
+              yield* engine.record(decodeChange({ _tag: "RecordListening", amounts: listening }))
+              return
+            }
             yield* engine.record(
               decodeChange({
                 _tag: "ReportPosition",
                 playlistId: current.playlistId,
                 episodeId: current.episodeId,
                 position: Units.Seconds.make(Math.max(0, position)),
-                listenedAt: at
+                listenedAt: at,
+                ...(listening.length === 0 ? {} : { listening })
               })
             )
           })
@@ -333,6 +350,8 @@ export class Playback extends Context.Service<
             const current = yield* SubscriptionRef.get(now)
             if (current === null) return
             const position = Math.max(0, Math.min(seconds, current.duration ?? seconds))
+            yield* report(current.position)
+            sample = null
             yield* player.seek(position)
             yield* update((n) => ({ ...n, position }))
             yield* report(position)
@@ -364,6 +383,8 @@ export class Playback extends Context.Service<
         /** The Episode is over (its audio ended, or skip outro reached): finish it, then go on
          * to the Playlist's next Entry, unless the sleep timer said to stop here. */
         const endOfEpisode: Effect.Effect<void> = Effect.gen(function* () {
+          const current = yield* SubscriptionRef.get(now)
+          if (current !== null) yield* report(current.position)
           yield* finish
           loaded = { ...loaded, ended: true }
           const ended = yield* SubscriptionRef.get(now)
@@ -379,15 +400,48 @@ export class Playback extends Context.Service<
           Stream.runForEach((event) =>
             Effect.gen(function* () {
               switch (event._tag) {
-                case "Playing":
+                case "Discontinuity":
+                  sample = null
+                  return
+                case "Playing": {
+                  const current = yield* SubscriptionRef.get(now)
+                  sample =
+                    current === null
+                      ? null
+                      : { at: yield* Clock.currentTimeMillis, position: current.position }
                   return yield* update((n) => ({ ...n, playing: true, error: null }))
+                }
                 case "Paused": {
+                  sample = null
                   yield* update((n) => ({ ...n, playing: false }))
                   const current = yield* SubscriptionRef.get(now)
                   if (current !== null) yield* report(current.position)
                   return
                 }
                 case "Position": {
+                  const previous = yield* SubscriptionRef.get(now)
+                  const point = { at: yield* Clock.currentTimeMillis, position: event.seconds }
+                  if (previous?.playing && loaded.subscriptionId !== null) {
+                    for (const amount of Listening.sample(
+                      sample,
+                      point,
+                      previous.speed,
+                      new Date(point.at).getTimezoneOffset()
+                    )) {
+                      const index = pending.findIndex(
+                        (a) => a.day === amount.day && a.subscriptionId === loaded.subscriptionId
+                      )
+                      const value = {
+                        ...amount,
+                        subscriptionId: loaded.subscriptionId,
+                        seconds: amount.seconds + (index < 0 ? 0 : (pending[index]?.seconds ?? 0))
+                      }
+                      const decoded = Schema.decodeUnknownSync(Listening.Amount)(value)
+                      if (index < 0) pending.push(decoded)
+                      else pending[index] = decoded
+                    }
+                  }
+                  sample = previous?.playing ? point : null
                   yield* update((n) => ({
                     ...n,
                     position: event.seconds,
@@ -437,6 +491,7 @@ export class Playback extends Context.Service<
                 case "Notice":
                   return yield* update((n) => ({ ...n, note: event.message }))
                 case "Failed":
+                  sample = null
                   return yield* update((n) => ({ ...n, playing: false, error: event.message }))
               }
             })
@@ -534,7 +589,7 @@ export class Playback extends Context.Service<
                 yield* player.setRate(current.speed)
                 if (current.playing) yield* start
               }
-              loaded = { ...loaded, threshold }
+              loaded = { ...loaded, threshold, subscriptionId: info.subscriptionId }
               if (
                 info.title === current.title &&
                 info.artworkUrl === current.artworkUrl &&
@@ -567,6 +622,9 @@ export class Playback extends Context.Service<
         const setSpeed = (speed: number) =>
           Effect.gen(function* () {
             if ((yield* SubscriptionRef.get(now)) === null) return
+            const current = yield* SubscriptionRef.get(now)
+            if (current !== null) yield* report(current.position)
+            sample = null
             yield* player.setRate(speed)
             yield* update((n) => ({ ...n, speed }))
           })

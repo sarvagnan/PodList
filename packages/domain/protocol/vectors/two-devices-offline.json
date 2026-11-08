@@ -1,7 +1,7 @@
 {
   "name": "two-devices-offline",
   "description": "Offline reorder on one Device merges with adds and removes from another.",
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "initial": {
     "playlists": [
       {

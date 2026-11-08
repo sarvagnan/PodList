@@ -1,7 +1,7 @@
 {
   "name": "add-moves-existing-entry",
   "description": "Adding an Episode that is already an Entry moves it and keeps its Position.",
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "initial": {
     "playlists": [
       {

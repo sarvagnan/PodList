@@ -30,6 +30,43 @@ const report = (episodeId: string, position: number, minute: number, playlistId 
 
 export const scenarios: ReadonlyArray<Scenario> = [
   {
+    name: "permanent-listening-log",
+    description:
+      "Daily listening from offline Devices adds once, survives Entry removal, and keeps each Device’s local calendar day.",
+    changes: [
+      add("A"),
+      {
+        change: {
+          _tag: "ReportPosition",
+          playlistId: "default",
+          episodeId: "A",
+          position: 15,
+          listenedAt: 1,
+          listening: [{ day: "2026-11-03", subscriptionId: "science", seconds: 15 }]
+        }
+      },
+      { change: { _tag: "RemoveEntry", playlistId: "default", episodeId: "A" } },
+      {
+        device: "mac",
+        change: {
+          _tag: "ReportPosition",
+          playlistId: "default",
+          episodeId: "A",
+          position: 10,
+          listenedAt: 0,
+          listening: [{ day: "2026-11-02", subscriptionId: "science", seconds: 10 }]
+        }
+      },
+      { change: {}, duplicateOf: 1 },
+      {
+        change: {
+          _tag: "RecordListening",
+          amounts: [{ day: "2026-11-03", subscriptionId: "science", seconds: 5 }]
+        }
+      }
+    ]
+  },
+  {
     name: "play-now-next-last",
     description:
       "Play Now goes before the current Entry and starts; Next after it; Last at the end.",

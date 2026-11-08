@@ -1,7 +1,7 @@
 {
   "name": "clear-on-played-everywhere",
   "description": "Played in Replay clears it from Default; Replay keeps it at 0:00 and moves on.",
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "initial": {
     "playlists": [
       {

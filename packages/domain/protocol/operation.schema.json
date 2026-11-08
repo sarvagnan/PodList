@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://podlist.local/protocol/v3/operation.schema.json",
-  "$comment": "PodList sync protocol v3. Generated from packages/domain/src/Operation.ts; do not edit.",
+  "$id": "https://podlist.local/protocol/v4/operation.schema.json",
+  "$comment": "PodList sync protocol v4. Generated from packages/domain/src/Operation.ts; do not edit.",
   "$ref": "#/$defs/@podlist~1domain~1OperationEncoded",
   "$defs": {
     "@podlist/domain/ViewEncoded": {
@@ -342,9 +342,62 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "listening": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "day": {
+                        "type": "string"
+                      },
+                      "subscriptionId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "seconds": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": ["day", "subscriptionId", "seconds"],
+                    "additionalProperties": true
+                  }
                 }
               },
               "required": ["_tag", "playlistId", "episodeId", "position", "listenedAt"],
+              "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "properties": {
+                "_tag": {
+                  "type": "string",
+                  "enum": ["RecordListening"]
+                },
+                "amounts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "day": {
+                        "type": "string"
+                      },
+                      "subscriptionId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "seconds": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": ["day", "subscriptionId", "seconds"],
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "required": ["_tag", "amounts"],
               "additionalProperties": true
             },
             {

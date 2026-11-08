@@ -162,6 +162,72 @@ const state = Effect.gen(function* () {
 })
 
 describe("Playback", () => {
+  it.live("logs forward listening but excludes seeks and paused time", () =>
+    withDevice((fake) =>
+      Effect.gen(function* () {
+        const playback = yield* Playback
+        yield* eventually(now, (n) => n?.episodeId === "e2")
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        yield* Effect.sleep("120 millis")
+        fake.emit(PlayerEvent.Position({ seconds: 20.18, duration: 60 }))
+        const seconds = (s: State.State) =>
+          Object.values(s.listeningLog ?? {})
+            .flatMap(Object.values)
+            .reduce((a, b) => a + b, 0)
+        const logged = seconds(yield* eventually(state, (s) => seconds(s) > 0))
+        expect(logged).toBeLessThanOrEqual(0.12)
+        yield* playback.seek(5)
+        fake.emit(PlayerEvent.Position({ seconds: 5, duration: 60 }))
+        yield* eventually(now, (n) => n?.position === 5)
+        yield* playback.pause
+        yield* eventually(now, (n) => n?.playing === false)
+        fake.emit(PlayerEvent.Position({ seconds: 6, duration: 60 }))
+        yield* eventually(now, (n) => n?.position === 6)
+        expect(seconds(yield* state)).toBe(logged)
+        yield* playback.play
+        yield* eventually(now, (n) => n?.playing === true)
+        fake.emit(PlayerEvent.Discontinuity())
+        fake.emit(PlayerEvent.Position({ seconds: 25, duration: 60 }))
+        yield* eventually(now, (n) => n?.position === 25)
+        expect(seconds(yield* state)).toBe(logged)
+      })
+    )
+  )
+
+  it.live("logs audio after the Played threshold without moving a reset Entry", () =>
+    withDevice(
+      (fake) =>
+        Effect.gen(function* () {
+          const engine = yield* SyncEngine
+          const playback = yield* Playback
+          yield* engine.record(
+            change({ _tag: "SetClearOnPlayed", playlistId: "default", clearOnPlayed: false })
+          )
+          yield* eventually(now, (n) => n?.episodeId === "e2")
+          yield* playback.play
+          yield* eventually(now, (n) => n?.playing === true)
+          yield* Effect.sleep("120 millis")
+          fake.emit(PlayerEvent.Position({ seconds: 20.18, duration: 31 }))
+          yield* eventually(state, (s) => s.episodeStates.e2?.played !== undefined)
+          const total = (s: State.State) =>
+            Object.values(s.listeningLog ?? {})
+              .flatMap(Object.values)
+              .reduce((a, b) => a + b, 0)
+          const before = total(yield* state)
+          yield* Effect.sleep("120 millis")
+          fake.emit(PlayerEvent.Position({ seconds: 20.36, duration: 31 }))
+          yield* eventually(now, (n) => n?.position === 20.36)
+          // The final, unfinished reporting interval must flush even on the last Entry.
+          fake.emit(PlayerEvent.Ended())
+          const after = yield* eventually(state, (s) => total(s) > before)
+          expect(entry(after, "default", "e2")?.position).toBe(0)
+          expect(total(after)).toBeGreaterThan(before)
+        }),
+      { reportEveryMillis: 15_000 }
+    )
+  )
+
   it.live("loads the Active Playlist's Cursor Entry at its Position", () =>
     withDevice((fake) =>
       Effect.gen(function* () {

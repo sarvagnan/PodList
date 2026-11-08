@@ -248,3 +248,30 @@ test("downloads host audio without CORS while the server is unreachable", async 
     demo.stop()
   }
 })
+
+test("the View menu opens Listening stats at its own address", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
+  try {
+    const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+    try {
+      const page = await app.firstWindow()
+      await expect(page.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
+      await app.evaluate(({ Menu }) => {
+        const view = Menu.getApplicationMenu()?.items.find((item) => item.label === "View")
+        const stats = view?.submenu?.items.find((item) => item.label === "Listening Stats")
+        if (!stats) throw new Error("Listening Stats is missing from View")
+        stats.click()
+      })
+      await expect(page).toHaveURL(/\/listening-stats$/)
+      await expect(page.getByRole("heading", { name: "Listening stats", level: 1 })).toBeVisible()
+      await page.getByRole("link", { name: "Settings", exact: true }).last().click()
+      await page.getByRole("link", { name: "Listening stats", exact: true }).click()
+      await expect(page).toHaveURL(/\/listening-stats$/)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    demo.stop()
+  }
+})

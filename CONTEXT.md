@@ -98,6 +98,18 @@ _Avoid_: Log, played list
 A Playlist's continuous record of what it was playing and when (clock time, Entry, Position), kept for 30 days. Unlike History, it covers partial listening, not just finished Entries.
 _Avoid_: Log, playback history, undo stack
 
+**Listening log**:
+The permanent record of time spent listening each calendar day, per Subscription, across all Devices. It includes partial listens and stays after an Episode or Playlist is removed.
+_Avoid_: History, Listening Timeline, playback history
+
+**Listening stats**:
+A summary of the Listening log and Episodes finished through listening: time listened, Episodes finished, top podcasts, daily listening and the current streak.
+_Avoid_: Analytics, dashboard
+
+**Listening streak**:
+Consecutive calendar days with listening, ending today or yesterday.
+_Avoid_: Run, score
+
 **Rewind**:
 Returning a Playlist to a moment on its Listening Timeline: the Cursor and Position go back to that moment, and every Episode that became Played through that Playlist's playback since then becomes unplayed again, with its Entry restored where it was then (between its old neighbours, as near as later edits allow). Episodes started since then lose the Position they gained. Deliberate edits made since — adds, reorders, Episodes marked Played by hand — are kept. A Rewind can itself be undone.
 _Avoid_: Undo, time travel, restore
