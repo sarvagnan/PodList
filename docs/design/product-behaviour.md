@@ -54,7 +54,7 @@ Rewind and marking Unplayed do not subtract time from the permanent Listening lo
 
 Provide Artwork, Play/Pause, back 15 seconds, forward 30 seconds and Position feedback while navigating elsewhere. Show the number of Entries after the current one and provide access to the Active Playlist's upcoming Entries. Stopping or dismissing the expanded presentation does not itself pause playback.
 
-Now Playing provides the resolved Artwork, current Chapter title, previous/next Chapter, Episode title, seeking with Chapter boundaries, elapsed/remaining time, back 15, Play/Pause, forward 30, speed and sleep timer. Sleep supports a duration, end of Chapter or end of Episode, and cancellation. Player speed changes affect only the Episode playing now; saved Playback Settings change only in settings.
+Now Playing provides the resolved Artwork, current Chapter title, previous/next Chapter, Episode title (or a direct route to it, as on Android, where the Artwork identifies what's playing), seeking with Chapter boundaries, elapsed/remaining time, back 15, Play/Pause, forward 30, speed and sleep timer. Sleep supports a duration, end of Chapter or end of Episode, and cancellation. Player speed changes affect only the Episode playing now; saved Playback Settings change only in settings.
 
 From Now Playing, open Chapters, Episode detail and the Active Playlist's Entries, including Play from here, reorder and Switch Playlist. Adding from Episode detail works without losing the listening context. Starting playback from one of these returns to the main Now Playing presentation. The platform decides the navigation and dismissal mechanism; the web's nested drawer is specified in web-layout.md.
 
