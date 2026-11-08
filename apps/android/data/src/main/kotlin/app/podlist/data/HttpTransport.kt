@@ -30,8 +30,8 @@ class HttpTransport(private val address: ServerAddress) : SyncTransport {
         val connection = URI(address.origin + path).toURL().openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 20_000
+            connection.connectTimeout = 2_000
+            connection.readTimeout = 2_000
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("User-Agent", "PodList Android")
             connection.setRequestProperty("Accept", "application/json")

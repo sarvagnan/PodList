@@ -55,21 +55,25 @@ fun PodListShell(model: AppModel) {
 private fun ConnectedShell(model: AppModel, session: Session) {
     var destination by rememberSaveable { mutableStateOf(Destination.Views) }
     val tabs = rememberSaveableStateHolder()
+    var requestedPlaylist by rememberSaveable { mutableStateOf<String?>(null) }
+    var collapseNavigation by remember { mutableIntStateOf(0) }
     NavigationSuiteScaffold(navigationSuiteItems = {
         Destination.entries.forEach { target ->
-            item(selected = destination == target, onClick = { destination = target },
+            item(selected = destination == target, onClick = { destination = target; collapseNavigation++ },
                 icon = { Icon(painterResource(target.icon), contentDescription = null) },
                 label = { Text(stringResource(target.title)) })
         }
     }) {
-        tabs.SaveableStateProvider(destination.name) {
-            DestinationStack(destination, model, session)
+        PlayerContainer(model, session, openPlaylist = { requestedPlaylist = it; destination = Destination.Playlists }, collapseNavigation = collapseNavigation) {
+            tabs.SaveableStateProvider(destination.name) {
+                DestinationStack(destination, model, session, requestedPlaylist.takeIf { destination == Destination.Playlists }) { requestedPlaylist = null }
+            }
         }
     }
 }
 
 @Composable
-private fun DestinationStack(destination: Destination, model: AppModel, session: Session) {
+private fun DestinationStack(destination: Destination, model: AppModel, session: Session, requestedPlaylist: String?, consumed: () -> Unit) {
     val navigator = rememberListDetailPaneScaffoldNavigator<String>()
     val scope = rememberCoroutineScope()
     val route = navigator.currentDestination?.contentKey
@@ -82,6 +86,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
     val pages = rememberSaveableStateHolder()
     val open: (String) -> Unit = { next -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, next) } }
     val back: () -> Unit = { scope.launch { navigator.navigateBack(BackNavigationBehavior.PopLatest) } }
+    LaunchedEffect(requestedPlaylist) { requestedPlaylist?.let { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "playlist:$it"); consumed() } }
     // This wraps ListDetailPaneScaffold and provides gesture-driven predictive back transitions.
     NavigableListDetailPaneScaffold(
         navigator = navigator,
@@ -193,6 +198,8 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
     val id = route?.substringAfter(':')
     when {
         route == "settings" -> LazyColumn {
+            item { Section(stringResource(R.string.playback_settings)) }
+            item { PlaybackSettingsEditor(data.state.playbackSettings) }
             item { Section(stringResource(R.string.this_device)) }
             item { NameRow(stringResource(R.string.server), session.address.origin) { open("server") } }
         }
@@ -212,36 +219,14 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         }
         route?.startsWith("subscription:") == true -> {
             if (data.subscriptions.none { it["id"] == id }) EmptyMessage(R.string.missing_subscription)
-            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes)
+            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes, summary = { DownloadRuleEditor(id!!, data.state, session) })
         }
         route?.startsWith("playlist:") == true -> {
             val playlist = data.state.playlists.find { it.id == id }
             if (playlist == null) EmptyMessage(R.string.missing_playlist)
-            else LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
-                item {
-                    Hint(listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
-                        stringResource(R.string.entry_count, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
-                    Section(stringResource(R.string.entries))
-                    if (playlist.cursor == null) Hint(stringResource(R.string.no_cursor))
-                }
-                if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries) }
-                val byId = data.episodes.associateBy { it["id"] }
-                items(playlist.entries, key = { it.episodeId }) { entry ->
-                    val row = byId[entry.episodeId]
-                    val cursor = playlist.cursor == entry.episodeId
-                    Column(Modifier.fillMaxWidth().background(if (cursor) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface)) {
-                        if (cursor) Text(stringResource(when {
-                            playlist.id == data.state.activePlaylistId -> R.string.cursor_now
-                            entry.position > 0 -> R.string.cursor_resume
-                            else -> R.string.cursor_here
-                        }),
-                            Modifier.padding(start = 68.dp, top = 12.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                        if (row == null) Hint(stringResource(R.string.metadata_pending))
-                        else EpisodeRow(row, data, session, entry.position, true) { open("episode:${entry.episodeId}") }
-                    }
-                }
-            }
+            else PlaylistPage(playlist, data, session, open)
         }
+
         route?.startsWith("episode:") == true -> EpisodeDetail(data, session)
     }
 }
@@ -256,11 +241,14 @@ private fun EpisodeList(rows: List<Row>, data: ScreenData, session: Session, ope
 }
 
 @Composable
-private fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entry: Boolean = false, onClick: (() -> Unit)? = null) {
+internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, onClick: (() -> Unit)? = null) {
+    val model = LocalAppModel.current
+    val add = LocalAddEpisode.current
+    val started = LocalPlaybackStarted.current
     val progress = position ?: data.state.playlists.flatMap { it.entries }.filter { it.episodeId == row["id"] }.maxOfOrNull { it.position } ?: 0.0
     val duration = (row["duration"] as? Number)?.toDouble()
     Column {
-        Row(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(row["title"] as String, style = MaterialTheme.typography.titleMedium)
@@ -276,20 +264,61 @@ private fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: D
                 Text(if (starred) "$state · ${stringResource(R.string.starred)}" else state, style = MaterialTheme.typography.bodySmall, color = if (played) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (progress > 0 && duration != null && duration > 0) LinearProgressIndicator(progress = { (progress / duration).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
+            Row {
+                IconButton(onClick = { add(row["id"] as String) }, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_add), stringResource(R.string.add_to_playlist)) }
+                IconButton(onClick = {
+                    if (entryPlaylist == null) model.playNow(row["id"] as String) else model.playEntry(entryPlaylist, row["id"] as String)
+                    started()
+                }, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_play), stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here)) }
+                if (entryPlaylist != null) EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, row["id"] as String)
+            }
         }
         HorizontalDivider()
     }
 }
 
 @Composable
-private fun EpisodeDetail(data: ScreenData, session: Session) {
+internal fun EpisodeDetail(data: ScreenData, session: Session) {
     val row = data.episodes.firstOrNull()
     if (row == null) { EmptyMessage(R.string.metadata_pending); return }
+    val model = LocalAppModel.current
+    val add = LocalAddEpisode.current
+    val started = LocalPlaybackStarted.current
+    val id = row["id"] as String
+    val chapters = (row["chapters"] as? String)?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty()
     LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
-        item { EpisodeRow(row, data, session) }
-        val entries = data.state.playlists.mapNotNull { playlist -> playlist.entries.find { it.episodeId == row["id"] }?.let { playlist.name to it.position } }
-        if (entries.isNotEmpty()) item { Section(stringResource(R.string.in_playlists)) }
-        items(entries) { (name, position) -> Hint(stringResource(R.string.playlist_position, name, duration(position))) }
+        item {
+            Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 192.dp)
+            }
+            EpisodeRow(row, data, session)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TextButton(onClick = { model.playNow(id); started() }) { Text(stringResource(R.string.play_now)) }
+                TextButton(onClick = { add(id) }) { Text(stringResource(R.string.add_to_playlist)) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                val played = data.state.episodeStates[id]?.played != null
+                TextButton(onClick = { model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User)) }) { Text(stringResource(if (played) R.string.mark_unplayed else R.string.mark_played)) }
+                val starred = data.state.episodeStates[id]?.starred == true
+                TextButton(onClick = { model.edit(Change.SetStar(id, !starred)) }) { Text(stringResource(if (starred) R.string.unstar else R.string.star)) }
+            }
+            DownloadAction(id, session)
+        }
+        val entries = data.state.playlists.mapNotNull { playlist -> playlist.entries.find { it.episodeId == id }?.let { playlist to it } }
+        item { Section(stringResource(R.string.in_playlists)) }
+        if (entries.isEmpty()) item { Hint(stringResource(R.string.not_in_playlist)) }
+        items(entries, key = { it.first.id }) { (playlist, entry) ->
+            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text(stringResource(R.string.playlist_position, playlist.name, duration(entry.position))) }, trailingContent = {
+                TextButton(onClick = { model.playEntry(playlist.id, id); started() }) { Text(stringResource(R.string.resume)) }
+            })
+        }
+        item { Section(stringResource(R.string.chapters)) }
+        if (chapters.isEmpty()) item { Hint(stringResource(R.string.no_chapters)) }
+        items(chapters, key = { it.start }) { chapter ->
+            ListItem(headlineContent = { Text(chapter.title) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String) }, trailingContent = {
+                TextButton(onClick = { model.playNow(id); model.seek(chapter.start); started() }) { Text(stringResource(R.string.play)) }
+            })
+        }
         item { Section(stringResource(R.string.show_notes)) }
         item { Text(android.text.Html.fromHtml(row["description"] as? String ?: "", android.text.Html.FROM_HTML_MODE_COMPACT).toString(), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
     }
@@ -302,12 +331,12 @@ private fun NameRow(title: String, subtitle: String, artwork: String? = null, se
     HorizontalDivider()
 }
 
-@Composable private fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-@Composable private fun Section(text: String) { Text(text, Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall) }
-@Composable private fun EmptyMessage(resource: Int) { Text(stringResource(resource), Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge) }
+@Composable internal fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+@Composable internal fun Section(text: String) { Text(text, Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall) }
+@Composable internal fun EmptyMessage(resource: Int) { Text(stringResource(resource), Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge) }
 @Composable private fun Loading() { Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(); Text(stringResource(R.string.loading)) } }
 
-private fun date(millis: Long): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
+internal fun date(millis: Long): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
 @Composable private fun lengthLabel(seconds: Double): String {
     val minutes = ((seconds + 30) / 60).toLong()
     return if (minutes >= 60) stringResource(R.string.length_hours, minutes / 60, minutes % 60) else stringResource(R.string.length_minutes, minutes)
@@ -321,7 +350,7 @@ private fun shortDate(millis: Long): String {
     return DateTimeFormatter.ofPattern(pattern).format(at)
 }
 
-private fun duration(seconds: Double): String { val s = seconds.toLong(); return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60) }
+internal fun duration(seconds: Double): String { val s = seconds.toLong(); return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60) }
 
 @Composable private fun sortLabel(sort: ViewSort): String = stringResource(when (sort) {
     ViewSort.PublishedDesc -> R.string.newest_first; ViewSort.PublishedAsc -> R.string.oldest_first

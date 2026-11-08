@@ -8,11 +8,11 @@ import kotlin.math.abs
 class ListeningSession(
     private val playlistId: String,
     private val episodeId: String,
-    private val subscriptionId: String?,
+    private var subscriptionId: String?,
     initialPosition: Double,
     initialSpeed: Double,
     initialDuration: Double?,
-    private val threshold: Double? = null,
+    private var threshold: Double? = null,
     private val reportEveryMillis: Long = 15_000,
     initialAt: Long = 0
 ) {
@@ -21,9 +21,12 @@ class ListeningSession(
         data object Pause : Event
         data class Position(val seconds: Double, val duration: Double?) : Event
         data class Seek(val seconds: Double) : Event
+        data class Metadata(val subscriptionId: String?, val threshold: Double?) : Event
+        data class RemotePosition(val seconds: Double, val listenedAt: Long) : Event
         data class Speed(val value: Double) : Event
         data object Discontinuity : Event
         data object Failure : Event
+        data object ExternalPlayed : Event
         data object Ended : Event
         data object Flush : Event
     }
@@ -32,7 +35,8 @@ class ListeningSession(
     private var speed = initialSpeed
     private var duration = initialDuration
     private var playing = false
-    private var finished = false
+    var finished = false
+        private set
     private var before: Listening.Sample? = null
     private var pending = emptyList<ListeningAmount>()
     private var lastReportAt = initialAt
@@ -60,12 +64,13 @@ class ListeningSession(
             Event.Play -> { playing = true; before = Listening.Sample(at.toDouble(), position) }
             Event.Pause -> { playing = false; before = null; report() }
             Event.Discontinuity -> before = null
-            Event.Failure -> { playing = false; before = null }
+            Event.Failure -> { playing = false; before = null; report() }
             is Event.Position -> {
                 val after = Listening.Sample(at.toDouble(), event.seconds)
-                if (playing && subscriptionId != null) {
+                val subscription = subscriptionId
+                if (playing && subscription != null) {
                     pending = pending + Listening.sample(before, after, speed, offsetMinutes).map {
-                        ListeningAmount(it.day, subscriptionId, it.seconds)
+                        ListeningAmount(it.day, subscription, it.seconds)
                     }
                 }
                 before = if (playing) after else null
@@ -80,7 +85,19 @@ class ListeningSession(
                 position = maxOf(0.0, minOf(event.seconds, duration ?: event.seconds))
                 report()
             }
+            is Event.Metadata -> {
+                if (subscriptionId != event.subscriptionId) before = null
+                subscriptionId = event.subscriptionId
+                threshold = event.threshold
+            }
+            is Event.RemotePosition -> {
+                before = null
+                position = event.seconds
+                lastReportPosition = event.seconds
+                lastReportAt = event.listenedAt
+            }
             is Event.Speed -> { report(); before = null; speed = event.value }
+            Event.ExternalPlayed -> { finished = true; report() }
             Event.Ended -> { report(); finish(); playing = false; before = null }
             Event.Flush -> report()
         }

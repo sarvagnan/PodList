@@ -14,7 +14,8 @@ internal fun readScreen(db: LocalDatabase, route: String?): ScreenData = db.tran
         route?.startsWith("view:") == true -> state.views.find { it.id == id }?.let { evaluate(it, System.currentTimeMillis()) }.orEmpty()
         route?.startsWith("subscription:") == true -> evaluate(View("subscription", "", ViewFilter(podcasts = PodcastFilter(PodcastMode.Include, listOf(id!!))), ViewSort.PublishedDesc, null), System.currentTimeMillis())
         route?.startsWith("playlist:") == true -> {
-            val ids = state.playlists.find { it.id == id }?.entries.orEmpty().map { it.episodeId }
+            val playlist = state.playlists.find { it.id == id }
+            val ids = (playlist?.entries.orEmpty().map { it.episodeId } + playlist?.history.orEmpty().map { it.episodeId } + playlist?.timeline.orEmpty().map { it.episodeId }).distinct()
             ids.chunked(500).flatMap { chunk -> episodeRows(chunk) }
         }
         route?.startsWith("episode:") == true -> episodeRows(listOf(id!!))

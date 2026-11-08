@@ -159,15 +159,27 @@ class LocalDatabase(path: String) : AutoCloseable {
 
     /** One durable edit: stable id, increasing sequence, outbox, optimistic State and indexes. */
     @Synchronized
-    fun record(change: Change, recordedAt: Long, id: String = UUID.randomUUID().toString()): Operation {
+    fun record(change: Change, recordedAt: Long, id: String = UUID.randomUUID().toString()): Operation =
+        recordAll(listOf(change), recordedAt, listOf(id)).single()
+
+    /** Related changes (such as New Playlist + Add) either all commit or all roll back. */
+    @Synchronized
+    fun recordAll(changes: List<Change>, recordedAt: Long, ids: List<String> = changes.map { UUID.randomUUID().toString() }): List<Operation> {
+        require(ids.size == changes.size)
+        if (changes.isEmpty()) return emptyList()
         val result = transaction {
             val deviceId = getMeta("deviceId") ?: UUID.randomUUID().toString().also { setMeta("deviceId", it) }
             val sequence = getMeta("sequence")?.toLong() ?: 0L
-            val operation = Operation(id, deviceId, sequence, recordedAt, change)
-            execute("INSERT INTO outbox (id, operation) VALUES (?, ?)", listOf(id, operation.encode()))
-            setMeta("sequence", (sequence + 1).toString())
-            replaceState(StateRules.apply(loadState(), change, recordedAt))
-            operation
+            var state = loadState()
+            val operations = changes.mapIndexed { index, change ->
+                val operation = Operation(ids[index], deviceId, sequence + index, recordedAt, change)
+                execute("INSERT INTO outbox (id, operation) VALUES (?, ?)", listOf(operation.id, operation.encode()))
+                state = StateRules.apply(state, change, recordedAt)
+                operation
+            }
+            setMeta("sequence", (sequence + changes.size).toString())
+            replaceState(state)
+            operations
         }
         notifyChanged()
         onEdit?.invoke()

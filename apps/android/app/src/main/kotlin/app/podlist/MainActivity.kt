@@ -16,13 +16,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val model = androidx.lifecycle.ViewModelProvider(this)[AppModel::class.java]
+        val model = (application as PodListApplication).model
         setContent { PodListTheme { PodListShell(model) } }
+    }
+
+    override fun onStop() {
+        (application as PodListApplication).model.flushPlayback()
+        super.onStop()
     }
 
     override fun onStart() {
         super.onStart()
-        androidx.lifecycle.ViewModelProvider(this)[AppModel::class.java].requestSync()
+        (application as PodListApplication).model.requestSync()
     }
 }
 
