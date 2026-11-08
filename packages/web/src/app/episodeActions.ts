@@ -30,8 +30,8 @@ export const episodeActionAtom = runtime.fn(
       // Adding what was already there changes nothing: say so rather than offer an Undo.
       const message =
         action._tag === "Add" && undo.length === 0
-          ? confirmation(action, before).replace(/^(Playing next|Added last)/, (m) =>
-              m === "Playing next" ? "Already next" : "Already last"
+          ? confirmation(action, before).replace(/^Plays (next|last)/, (m) =>
+              m === "Plays next" ? "Already next" : "Already last"
             )
           : confirmation(action, before)
       // A removal names what went, as a move does (one message form).

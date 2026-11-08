@@ -159,7 +159,7 @@ function LibraryScreen() {
       run: () => setRules([s.id], ruleMode)
     })),
     { separator: true },
-    { label: "Copy Feed Address", run: () => void copy(() => s.feedUrl, "Feed address") }
+    { label: "Copy feed address", run: () => void copy(() => s.feedUrl, "Feed address") }
   ]
   const groups = (
     [

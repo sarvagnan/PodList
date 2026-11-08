@@ -201,7 +201,7 @@ test("an Undo toast waits behind an open sheet instead of covering it", async ({
     .click()
   const sheet = page.getByRole("dialog", { name: "Add to a Playlist" })
   await sheet.getByRole("button", { name: "Play Next" }).click()
-  const toast = page.getByRole("dialog", { name: /^Playing next in/ })
+  const toast = page.getByRole("dialog", { name: /^Plays next in/ })
   await expect(toast).toBeVisible()
   await page
     .getByRole("button", { name: /^Add .* to a Playlist/ })
@@ -211,4 +211,22 @@ test("an Undo toast waits behind an open sheet instead of covering it", async ({
   await expect(toast).toBeHidden()
   await sheet.getByRole("button", { name: "Close" }).click()
   await expect(toast).toBeVisible()
+})
+
+test("a long Playlist name doesn't widen a View's header past a 720 px window", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/commute/settings`)
+  const name = page.getByRole("textbox", { name: "Name" })
+  await name.fill("Saturday long-run listening for the weekend")
+  await name.blur()
+  await page.setViewportSize({ width: 720, height: 450 })
+  await page.goto(`${demo.base}/views/short`)
+  await page.locator('[data-row="0"]').waitFor()
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+  await expect(page.getByRole("button", { name: "Edit View" })).toBeInViewport()
 })

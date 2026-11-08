@@ -202,6 +202,16 @@ interface RowMenu {
   readonly link?: string
 }
 
+/** The page's commands are in sentence case; a Mac menu's are in title case. */
+const small = new Set(["a", "an", "the", "to", "from", "in", "of", "on", "for", "and", "or"])
+const titleCase = (label: string) =>
+  label
+    .split(" ")
+    .map((word, i) =>
+      i > 0 && small.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(" ")
+
 const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[] => {
   const send = (label: string) => () =>
     void win.webContents.executeJavaScript(
@@ -216,9 +226,9 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
         item === null
           ? { type: "separator" }
           : item.checked === undefined
-            ? { label: item.label, click: send(item.label) }
+            ? { label: titleCase(item.label), click: send(item.label) }
             : {
-                label: item.label,
+                label: titleCase(item.label),
                 type: "checkbox",
                 checked: item.checked,
                 click: send(item.label)

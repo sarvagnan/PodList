@@ -78,7 +78,7 @@ export function BulkBar({
     const ordered = placement === "next" ? [...selected].reverse() : selected
     void act(
       ordered.map((episodeId) => ({ _tag: "Add", episodeId, playlistId: target.id, placement })),
-      `${episodes(n)} ${placement === "next" ? "playing next" : "added last"} in ${target.name}`
+      `${episodes(n)} ${placement === "next" ? "play next" : "play last"} in ${target.name}`
     )
   }
 
@@ -93,13 +93,14 @@ export function BulkBar({
         onClick={() => add("next")}
         icon={<ListStart aria-hidden="true" className="size-4" />}
       >
-        Play Next
+        {/* Which Playlist: the toolbar's picker is gone while rows are ticked. */}
+        Play Next <span className="max-w-[8rem] truncate">in {target?.name ?? "a Playlist"}</span>
       </BulkButton>
       <BulkButton
         onClick={() => add("last")}
         icon={<ListEnd aria-hidden="true" className="size-4" />}
       >
-        Play Last
+        Play Last <span className="max-w-[8rem] truncate">in {target?.name ?? "a Playlist"}</span>
       </BulkButton>
       <BulkButton
         onClick={() =>

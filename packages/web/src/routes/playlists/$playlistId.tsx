@@ -231,7 +231,12 @@ function PlaylistDetail() {
         <PlaylistTimeline playlist={playlist} />
       ) : playlist.entries.length === 0 ? (
         <EmptyState title="Nothing here yet">
-          In a View, use Play Next or Play Last to add Episodes here.
+          {/* A way on, as every empty state has (COPY-03). */}
+          In a{" "}
+          <Link to="/views" className="font-medium text-primary underline underline-offset-2">
+            View
+          </Link>
+          , use Play Next or Play Last to add Episodes here.
         </EmptyState>
       ) : (
         <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : ""}>
@@ -275,7 +280,7 @@ function PlaylistDetail() {
                   live && playing.playing
                     ? { label: "Pause", run: () => control({ _tag: "toggle" }) }
                     : {
-                        label: "Play from Here",
+                        label: "Play from here",
                         run: () =>
                           control(
                             live
@@ -290,9 +295,9 @@ function PlaylistDetail() {
                   // Every move a drag makes, without a drag (AX-04).
                   ...(index > 0
                     ? [
-                        { label: "Move to Top", run: () => moveEntry(entry.episodeId, null) },
+                        { label: "Move to top", run: () => moveEntry(entry.episodeId, null) },
                         {
-                          label: "Move Up",
+                          label: "Move up",
                           run: () =>
                             moveEntry(entry.episodeId, entries[index - 2]?.episodeId ?? null)
                         }
@@ -301,11 +306,11 @@ function PlaylistDetail() {
                   ...(index < entries.length - 1
                     ? [
                         {
-                          label: "Move Down",
+                          label: "Move down",
                           run: () =>
                             moveEntry(entry.episodeId, entries[index + 1]?.episodeId ?? null)
                         },
-                        { label: "Move to Bottom", run: () => moveEntry(entry.episodeId, last) }
+                        { label: "Move to bottom", run: () => moveEntry(entry.episodeId, last) }
                       ]
                     : []),
                   { separator: true },

@@ -204,7 +204,7 @@ test("a click on a row puts focus in it, and the arrows carry the open Episode",
     button: "right"
   })
   const menu = page.getByRole("menu")
-  await expect(menu.getByRole("menuitem", { name: "Copy Link" })).toBeVisible()
+  await expect(menu.getByRole("menuitem", { name: "Copy link" })).toBeVisible()
   await expect(menu.getByRole("menuitem", { name: "Open in New Tab" })).toHaveCount(0)
 })
 

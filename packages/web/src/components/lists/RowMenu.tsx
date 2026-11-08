@@ -54,7 +54,7 @@ export function RowMenuItems({
   const all: ReadonlyArray<RowCommand> =
     link === undefined
       ? commands
-      : [...commands, { separator: true }, { label: "Copy Link", run: () => void copy(link) }]
+      : [...commands, { separator: true }, { label: "Copy link", run: () => void copy(link) }]
   return all.map((command, index) =>
     "separator" in command ? (
       // biome-ignore lint/suspicious/noArrayIndexKey: separators have no identity of their own.

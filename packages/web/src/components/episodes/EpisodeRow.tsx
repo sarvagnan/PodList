@@ -403,7 +403,7 @@ export function NextLastTarget() {
   if (state === null) return null
   const value = state.playlists.some((p) => p.id === chosen) ? chosen : state.activePlaylistId
   return (
-    <label className="hidden items-center gap-2 text-small text-muted-foreground md:flex">
+    <label className="hidden min-w-0 items-center gap-2 text-small text-muted-foreground md:flex">
       {/* One name for it everywhere, as the panel beside a View has it. */}
       <span className="whitespace-nowrap">Next and Last go to</span>
       <select
@@ -412,7 +412,9 @@ export function NextLastTarget() {
           set(event.target.value)
           nextLastTarget.set(event.target.value)
         }}
-        className="min-h-9 rounded-lg border border-field bg-card px-2 py-1 text-row font-medium text-foreground"
+        // A long Playlist name is cut, not allowed to widen the header past the window
+        // (WTYPE-05); the open list shows it whole.
+        className="min-h-9 max-w-[min(14rem,30vw)] min-w-0 truncate rounded-lg border border-field bg-card px-2 py-1 text-row font-medium text-foreground"
       >
         {state.playlists.map((p) => (
           <option key={p.id} value={p.id}>

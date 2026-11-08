@@ -1,4 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Check, ListEnd, ListStart, Pause, Play, Plus, Share, Star } from "lucide-react"
 import type * as React from "react"
@@ -132,6 +133,13 @@ export function EpisodeDetail({
           This Episode isn’t in your Library: its podcast may have been unsubscribed, or the link is
           wrong.
         </p>
+        {/* A way on (COPY-03). */}
+        <Link
+          to="/views"
+          className="mt-3 inline-block font-medium text-primary underline underline-offset-2"
+        >
+          See your Views
+        </Link>
       </div>
     )
   }

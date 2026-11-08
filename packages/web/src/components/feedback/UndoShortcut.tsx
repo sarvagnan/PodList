@@ -74,10 +74,12 @@ export function UndoShortcut() {
         const own = toastOfStep.get(step.id)
         if (own !== undefined) toasts.close(own)
         toasts.add({ description: `Undone: ${step.message}`, timeout: 4000 })
-        // Focus that was lost with the step (rows taken out) goes to what comes back.
+        // Focus goes to what comes back (a restored row), as the toast's Undo does; with
+        // nothing to find, only lost focus is helped back.
+        const find = focusOfStep.get(step.id)
         const active = document.activeElement
-        if (active === null || active === document.body || !active.isConnected)
-          refocus(focusOfStep.get(step.id), null)
+        if (find || active === null || active === document.body || !active.isConnected)
+          refocus(find, null)
         return
       }
       const step = undone.at(-1)

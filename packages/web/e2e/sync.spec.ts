@@ -54,7 +54,7 @@ const addLast = async (page: Page, title: string) => {
   await page.getByRole("combobox").selectOption({ label: "Commute" })
   const row = page.getByRole("row").filter({ hasText: title })
   await row.getByRole("button", { name: "Play Last in Commute" }).click()
-  await expect(page.getByText("Added last in Commute")).toBeVisible()
+  await expect(page.getByText("Plays last in Commute")).toBeVisible()
 }
 
 test("an edit on one Device reaches the other", async ({ browser }) => {

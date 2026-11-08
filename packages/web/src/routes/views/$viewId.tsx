@@ -166,7 +166,7 @@ function ViewDetail() {
           checked.size > 0 ? (
             <BulkBar selected={[...checked]} onClear={() => setChecked(() => new Set())} />
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
               <NextLastTarget />
               {!editing && (
                 <button

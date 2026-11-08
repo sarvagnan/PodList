@@ -113,9 +113,9 @@ test("right-click on an Entry moves it to the bottom, with Undo", async ({ page 
   const before = await titles(page)
   await page.locator('main [data-row="0"]').click({ button: "right" })
   const menu = page.getByRole("menu")
-  await expect(menu.getByRole("menuitem", { name: "Move to Top" })).toHaveCount(0)
-  await expect(menu.getByRole("menuitem", { name: "Copy Link" })).toBeVisible()
-  await menu.getByRole("menuitem", { name: "Move to Bottom" }).click()
+  await expect(menu.getByRole("menuitem", { name: "Move to top" })).toHaveCount(0)
+  await expect(menu.getByRole("menuitem", { name: "Copy link" })).toBeVisible()
+  await menu.getByRole("menuitem", { name: "Move to bottom" }).click()
   await expect.poll(() => titles(page)).toEqual([...before.slice(1), before[0]])
   await page.getByRole("button", { name: "Undo" }).click()
   await expect.poll(() => titles(page)).toEqual(before)
@@ -130,7 +130,7 @@ test("on the phone, Entries move without a drag, from their More menu (AX-04)", 
   const before = await titles(page)
   const second = before[1] ?? ""
   await page.getByRole("button", { name: `More actions for ${second}` }).click()
-  await page.getByRole("menuitem", { name: "Move Up" }).click()
+  await page.getByRole("menuitem", { name: "Move up" }).click()
   await expect.poll(async () => (await titles(page))[0]).toBe(second)
   // Remove is there too.
   await page.getByRole("button", { name: `More actions for ${second}` }).click()
@@ -149,7 +149,7 @@ test("on the phone, Entries move without a drag, from their More menu (AX-04)", 
     ""
   )
   await more.last().click()
-  await page.getByRole("menuitem", { name: "Move to Top" }).click()
+  await page.getByRole("menuitem", { name: "Move to top" }).click()
   await expect(more.first()).toHaveAttribute("aria-label", `More actions for ${lastName}`)
 })
 

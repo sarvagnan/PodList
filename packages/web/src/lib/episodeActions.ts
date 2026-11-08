@@ -111,7 +111,7 @@ export const confirmation = (action: EpisodeAction, state: State.State) => {
   const name = (id: string) => state.playlists.find((p) => p.id === id)?.name ?? "Playlist"
   switch (action._tag) {
     case "Add":
-      return `${action.placement === "next" ? "Playing next" : "Added last"} in ${name(action.playlistId)}`
+      return `${action.placement === "next" ? "Plays next" : "Plays last"} in ${name(action.playlistId)}`
     case "PlayNow":
       return `Playing in ${name(state.activePlaylistId)}`
     case "Star":

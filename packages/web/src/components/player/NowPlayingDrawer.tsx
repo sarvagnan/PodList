@@ -358,9 +358,9 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                 return [
                   ...(index > 0
                     ? [
-                        { label: "Move to Top", run: () => moveEntry(entry.episodeId, null) },
+                        { label: "Move to top", run: () => moveEntry(entry.episodeId, null) },
                         {
-                          label: "Move Up",
+                          label: "Move up",
                           run: () => moveEntry(entry.episodeId, after[index - 2]?.episodeId ?? null)
                         }
                       ]
@@ -368,10 +368,10 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                   ...(index < after.length - 1
                     ? [
                         {
-                          label: "Move Down",
+                          label: "Move down",
                           run: () => moveEntry(entry.episodeId, after[index + 1]?.episodeId ?? null)
                         },
-                        { label: "Move to Bottom", run: () => moveEntry(entry.episodeId, last) }
+                        { label: "Move to bottom", run: () => moveEntry(entry.episodeId, last) }
                       ]
                     : []),
                   ...(after.length > 1 ? [{ separator: true as const }] : []),
