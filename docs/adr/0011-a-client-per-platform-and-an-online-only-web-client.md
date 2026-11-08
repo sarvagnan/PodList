@@ -6,7 +6,7 @@ PodList was one React build shipped as an installable PWA and an Electron app, w
 - **Android:** a fully native Kotlin app. **macOS, iOS and iPadOS:** one fully native SwiftUI codebase. All of them keep a local database, listen offline and keep working when the server can't be reached.
 - **Electron:** stays, as the client for Windows, Linux and any desktop without its own native app, keeping its local database and offline use.
 
-Every client can be driven on its own over MCP, and the Apple apps also expose App Intents, for Shortcuts and Siri. Native clients make these possible; how each platform hosts MCP is settled in the platform plan.
+Agents and automation drive each client through what its platform offers: the Mac and Electron apps run an MCP server, the Apple apps expose App Intents (Shortcuts, Siri, Spotlight), and the Android app exposes the Android equivalent, settled in the platform plan. The web client has none.
 
 The PWA is retired once the Android app replaces it. Until then it keeps working: moving the web build online-only before then would take offline listening away from the phone.
 
