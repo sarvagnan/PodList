@@ -28,3 +28,10 @@ packages/desktop/out/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Native Android tooling and signing material
+.gradle/
+.kotlin/
+local.properties
+*.jks
+*.keystore

@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "dev:web": "pnpm --filter @podlist/web dev",
     "dev:server": "pnpm --filter @podlist/server dev",
-    "desktop:install": "git pull --ff-only && pnpm install --frozen-lockfile && pnpm --filter @podlist/desktop install:app"
+    "desktop:install": "git pull --ff-only && pnpm install --frozen-lockfile && pnpm --filter @podlist/desktop install:app",
+    "check:android": "cd apps/android && ./gradlew :domain:test :data:test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",
