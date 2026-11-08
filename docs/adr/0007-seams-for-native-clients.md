@@ -1,5 +1,7 @@
 # Keep three seams so native clients stay possible
 
+> Updated by ADR 0011: native Kotlin and Swift clients replace the planned Capacitor step; the conformance vectors stay their definition of correct behaviour.
+
 v1 ships as a PWA and an Electron app, but a native client is likely later — for Android Auto/CarPlay and dependable background playback, which a PWA can never provide. To keep every route open (a Capacitor shell around the web UI, native UI over the shared TypeScript domain running in an embedded JS engine, or a fully native rewrite), we hold three seams from day one:
 
 1. **The `domain` package is platform-free**: pure functions and Effect Schemas only — no DOM, browser storage, `fetch` or Node APIs — so it can run in JavaScriptCore/Hermes/QuickJS or serve as the reference for a rewrite.
