@@ -40,6 +40,7 @@ export interface NowPlaying {
   readonly position: number
   readonly duration: number | null
   readonly error: string | null
+  readonly note?: string | null
   /** The Episode's Chapters, in order; empty when it has none (or they aren't known yet). */
   readonly chapters: ReadonlyArray<PlayerChapter>
   /** The speed it plays at: the podcast's own, or the global default. */
@@ -87,6 +88,7 @@ export class Playback extends Context.Service<
   }
 >()("@podlist/web/Playback") {
   static readonly layer = (options: {
+    /** The server proxy: fallback, or first when Volume Boost needs CORS (ADR 0009). */
     readonly audioUrl: (episodeId: string) => string
     /** The Episode's audio stored on this Device, if any: played instead of streaming. */
     readonly localAudio?: (episodeId: string) => Effect.Effect<string | null>
@@ -115,7 +117,8 @@ export class Playback extends Context.Service<
           ended: false,
           subscriptionId: null as string | null,
           override: {} as PlaybackSettings.PlaybackSettingsOverride,
-          skipOutro: 0
+          skipOutro: 0,
+          audioUrl: null as string | null
         }
 
         /** The Episode's details from the local catalogue, which may not have synced yet. */
@@ -123,6 +126,7 @@ export class Playback extends Context.Service<
           Effect.gen(function* () {
             const [row] = yield* sql<{
               title: string
+              audio_url: string
               podcast: string
               duration: number | null
               artwork_url: string | null
@@ -131,13 +135,14 @@ export class Playback extends Context.Service<
               chapters: string
               subscription_id: string
               playback_settings: string | null
-            }>`SELECT e.title, s.title AS podcast, e.duration, e.artwork_url,
+            }>`SELECT e.title, e.audio_url, s.title AS podcast, e.duration, e.artwork_url,
                  s.artwork_url AS podcast_artwork_url, s.played_threshold, e.chapters,
                  s.id AS subscription_id, s.playback_settings
                FROM episode e JOIN subscription s ON s.id = e.subscription_id
                WHERE e.id = ${episodeId}`.pipe(Effect.orDie)
             return {
               title: row?.title ?? "",
+              audioUrl: row?.audio_url ?? null,
               podcast: row?.podcast ?? "",
               artworkUrl: row?.artwork_url ?? row?.podcast_artwork_url ?? null,
               duration: row?.duration ?? null,
@@ -191,7 +196,7 @@ export class Playback extends Context.Service<
             }
             // Leaving an Entry: keep where it got to.
             if (current !== null) yield* report(current.position)
-            const { threshold, subscriptionId, override, ...info } = yield* lookup(
+            const { threshold, subscriptionId, override, audioUrl, ...info } = yield* lookup(
               next.entry.episodeId
             )
             const settings = effectiveSettings(state.playbackSettings, override)
@@ -201,7 +206,8 @@ export class Playback extends Context.Service<
               ended: false,
               subscriptionId,
               override,
-              skipOutro: settings.skipOutro
+              skipOutro: settings.skipOutro,
+              audioUrl
             }
             // Skip intro: an Episode started from (near) the beginning starts after it.
             const startAt =
@@ -218,15 +224,20 @@ export class Playback extends Context.Service<
               playing: false,
               position: startAt,
               error: null,
+              note: null,
               speed: settings.speed,
               // A timer in minutes carries on to the next Episode; the others were for this one.
               sleep: previousSleep?._tag === "At" ? previousSleep : null
             }
             lastReport = { at: yield* Clock.currentTimeMillis, position: next.entry.position }
+            yield* SubscriptionRef.set(now, track)
             yield* player.load({
               url:
                 (options.localAudio ? yield* options.localAudio(track.episodeId) : null) ??
+                audioUrl ??
                 options.audioUrl(track.episodeId),
+              proxyUrl: options.audioUrl(track.episodeId),
+              volumeBoost: settings.volumeBoost,
               title: track.title,
               podcast: track.podcast,
               artworkUrl: lockScreenArt(track.artworkUrl),
@@ -234,7 +245,6 @@ export class Playback extends Context.Service<
             })
             yield* player.setRate(settings.speed)
             yield* player.setVolumeBoost(settings.volumeBoost)
-            yield* SubscriptionRef.set(now, track)
             // Ask the server too: it finds Chapters the first time anyone asks.
             yield* transport.chapters(track.episodeId).pipe(
               Effect.flatMap((chapters) =>
@@ -424,6 +434,8 @@ export class Playback extends Context.Service<
                 case "Ended":
                   if (loaded.ended) return
                   return yield* endOfEpisode
+                case "Notice":
+                  return yield* update((n) => ({ ...n, note: event.message }))
                 case "Failed":
                   return yield* update((n) => ({ ...n, playing: false, error: event.message }))
               }
@@ -501,7 +513,27 @@ export class Playback extends Context.Service<
             Effect.gen(function* () {
               const current = yield* SubscriptionRef.get(now)
               if (current === null) return
-              const { threshold, ...info } = yield* lookup(current.episodeId)
+              const { threshold, audioUrl, ...info } = yield* lookup(current.episodeId)
+              if (audioUrl !== null && loaded.audioUrl !== audioUrl) {
+                loaded = { ...loaded, audioUrl }
+                const settings = effectiveSettings(
+                  (yield* SubscriptionRef.get(engine.state)).playbackSettings,
+                  info.override
+                )
+                yield* player.load({
+                  url:
+                    (options.localAudio ? yield* options.localAudio(current.episodeId) : null) ??
+                    audioUrl,
+                  proxyUrl: options.audioUrl(current.episodeId),
+                  volumeBoost: settings.volumeBoost,
+                  title: info.title,
+                  podcast: info.podcast,
+                  artworkUrl: lockScreenArt(info.artworkUrl),
+                  startAt: current.position
+                })
+                yield* player.setRate(current.speed)
+                if (current.playing) yield* start
+              }
               loaded = { ...loaded, threshold }
               if (
                 info.title === current.title &&
@@ -521,7 +553,7 @@ export class Playback extends Context.Service<
                   : n
               )
               yield* player.describe({ ...info, artworkUrl: lockScreenArt(info.artworkUrl) })
-            })
+            }).pipe(loading.withPermits(1))
           )
           .pipe(Stream.runDrain, Effect.forkScoped)
 

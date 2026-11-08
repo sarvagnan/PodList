@@ -65,7 +65,11 @@ export class DownloadStore extends Context.Service<
       ) =>
         Effect.tryPromise({
           try: async (signal) => {
-            const response = await fetch(url, { signal })
+            const source =
+              location.protocol === "app:" && /^https?:/.test(url)
+                ? `app://podlist/audio-download?url=${encodeURIComponent(url)}`
+                : url
+            const response = await fetch(source, { signal, credentials: "omit" })
             if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status}`)
             const total = Number(response.headers.get("content-length")) || null
             const type = response.headers.get("content-type")?.split(";")[0]?.trim() || "audio/mpeg"

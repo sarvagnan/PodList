@@ -86,7 +86,20 @@ export class Downloads extends Context.Service<
               lastShown = at
               Effect.runFork(set(episodeId, DownloadStatus.Downloading({ received, total })))
             }
-            const fiber = yield* store.save(episodeId, options.audioUrl(episodeId), progress).pipe(
+            const [episode] = yield* sql<{
+              audio_url: string
+            }>`SELECT audio_url FROM episode WHERE id = ${episodeId}`.pipe(Effect.orDie)
+            const host = episode?.audio_url ?? options.audioUrl(episodeId)
+            const transfer = store
+              .save(episodeId, host, progress)
+              .pipe(
+                Effect.catch((error) =>
+                  host === options.audioUrl(episodeId)
+                    ? Effect.fail(error)
+                    : store.save(episodeId, options.audioUrl(episodeId), progress)
+                )
+              )
+            const fiber = yield* transfer.pipe(
               Effect.flatMap((saved) =>
                 Effect.gen(function* () {
                   const at = yield* Clock.currentTimeMillis

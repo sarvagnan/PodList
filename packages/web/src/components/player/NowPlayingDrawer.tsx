@@ -162,6 +162,11 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
           onSeek={(seconds) => control({ _tag: "seek", seconds })}
         />
       </div>
+      {current.note && (
+        <p role="status" className="mt-3 text-center text-small text-player-muted">
+          {current.note}
+        </p>
+      )}
       {problem && (
         <p role="alert" className="text-center text-small text-player-danger">
           {problem.long}{" "}

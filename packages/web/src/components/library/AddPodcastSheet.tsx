@@ -8,6 +8,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { directorySearchAtom, importOpmlAtom, subscribeAtom } from "../../app/library.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
+import { serverNeeded } from "../../lib/connectionMessage.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 
@@ -18,8 +19,7 @@ type Tab = "search" | "address" | "opml"
 
 const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
   Exit.isFailure(exit)
-    ? (Cause.squash(exit.cause) as Error | undefined)?.message ||
-      "Couldn’t reach your PodList server. Check that you’re online, then try again."
+    ? (Cause.squash(exit.cause) as Error | undefined)?.message || serverNeeded
     : null
 
 const looksLikeFeed = (text: string) => /^https?:\/\/\S+\.\S+/.test(text.trim())
@@ -222,7 +222,7 @@ function FeedPreview({
   const current = found?.url === url ? found.result : undefined
   const problem =
     current === "offline"
-      ? "Couldn’t check the address. Check that you’re online."
+      ? serverNeeded
       : current === null
         ? "This address didn’t give a podcast feed. Check it, or find the podcast by name with Search."
         : null

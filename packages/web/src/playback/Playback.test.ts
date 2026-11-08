@@ -167,7 +167,7 @@ describe("Playback", () => {
       Effect.gen(function* () {
         const loaded = yield* eventually(now, (n) => n?.episodeId === "e2" && n.position === 20)
         expect(loaded).toMatchObject({ title: "Episode e2", podcast: "Deep Field", playing: false })
-        expect(fake.loads.at(-1)).toMatchObject({ url: "/audio/e2", startAt: 20 })
+        expect(fake.loads.at(-1)).toMatchObject({ url: "https://cdn.test/e2.mp3", startAt: 20 })
         expect(fake.loads.at(-1)?.artworkUrl).toBe("https://img.test/s.jpg")
         expect(fake.rates.at(-1)).toBe(1.5)
       })
@@ -185,7 +185,8 @@ describe("Playback", () => {
           const filled = yield* eventually(now, (n) => n?.title === "Episode e2")
           expect(filled).toMatchObject({ podcast: "Deep Field", duration: 60 })
           expect(fake.described.at(-1)?.title).toBe("Episode e2")
-          expect(fake.loads).toHaveLength(1)
+          expect(fake.loads).toHaveLength(2)
+          expect(fake.loads.at(-1)).toMatchObject({ url: "https://cdn.test/e2.mp3", startAt: 20 })
         }),
       { catalogue: false }
     )
@@ -226,7 +227,10 @@ describe("Playback", () => {
         expect(s.activePlaylistId).toBe("p2")
         expect(s.playlists.find((p) => p.id === "p2")?.cursor).toBe("e3")
         // Loaded once: a second load would interrupt the play that just started.
-        expect(fake.loads.map((t) => t.url)).toEqual(["/audio/e2", "/audio/e3"])
+        expect(fake.loads.map((t) => t.url)).toEqual([
+          "https://cdn.test/e2.mp3",
+          "https://cdn.test/e3.mp3"
+        ])
       })
     )
   )
@@ -242,8 +246,8 @@ describe("Playback", () => {
         const again = yield* eventually(now, (n) => n?.playing === true)
         expect(again?.error).toBeNull()
         expect(fake.loads.map((t) => [t.url, t.startAt])).toEqual([
-          ["/audio/e2", 20],
-          ["/audio/e2", 20]
+          ["https://cdn.test/e2.mp3", 20],
+          ["https://cdn.test/e2.mp3", 20]
         ])
       })
     )
@@ -348,7 +352,10 @@ describe("Playback", () => {
         yield* engine.record(change({ _tag: "SetCursor", playlistId: "default", episodeId: "e2" }))
         yield* Effect.sleep("50 millis")
         expect((yield* now)?.episodeId).toBe("e1")
-        expect(fake.loads.map((t) => t.url)).toEqual(["/audio/e2", "/audio/e1"])
+        expect(fake.loads.map((t) => t.url)).toEqual([
+          "https://cdn.test/e2.mp3",
+          "https://cdn.test/e1.mp3"
+        ])
       })
     )
   )
@@ -376,7 +383,7 @@ describe("Playback", () => {
         fake.emit(PlayerEvent.Position({ seconds: 55, duration: 60 }))
         fake.emit(PlayerEvent.Ended())
         yield* eventually(now, (n) => n?.episodeId === "e2" && n.playing)
-        expect(fake.loads.at(-1)).toMatchObject({ url: "/audio/e2", startAt: 20 })
+        expect(fake.loads.at(-1)).toMatchObject({ url: "https://cdn.test/e2.mp3", startAt: 20 })
       })
     )
   )

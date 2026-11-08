@@ -201,7 +201,9 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
                 <span className="sr-only">. {problem.long}</span>
               </span>
             ) : (
-              <span className="block truncate text-small text-player-muted">{label}</span>
+              <span className="block truncate text-small text-player-muted">
+                {current.note ?? label}
+              </span>
             )}
           </span>
         </button>
@@ -282,7 +284,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
             {!current.error && (
               <span className="block truncate text-small text-player-muted">
                 {/* Nothing until the title arrives: no half-filled line (APPEAR-11). */}
-                {chapter && current.title ? `${chapter.title} · ${label}` : label}
+                {current.note ?? (chapter && current.title ? `${chapter.title} · ${label}` : label)}
               </span>
             )}
           </span>

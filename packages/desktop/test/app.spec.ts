@@ -29,7 +29,7 @@ test("runs its own copy of the web app, with a local database, and opens offline
     // Synced through the app's pass-through into SQLite on OPFS inside Electron.
     await expect(sidebar.getByRole("link", { name: /^Commute/ })).toBeVisible()
 
-    // Audio streams from the server through the same pass-through.
+    // Audio streams directly from the podcast host.
     await sidebar.getByRole("link", { name: /^Default/ }).click()
     const player = page.getByRole("region", { name: "Now playing" })
     await page
@@ -55,7 +55,9 @@ test("runs its own copy of the web app, with a local database, and opens offline
         .getByRole("navigation", { name: "Library and lists" })
         .getByRole("link", { name: /^Commute/ })
     ).toBeVisible()
-    await expect(again.getByRole("status").filter({ hasText: "Offline" })).toBeVisible()
+    await expect(
+      again.getByRole("status").filter({ hasText: "Can’t reach your PodList server" })
+    ).toBeVisible()
     await offline.close()
   } finally {
     demo.stop()
@@ -78,7 +80,9 @@ test("each server gets its own local database", async () => {
     second.stop()
     const other = await launch({ PODLIST_URL: second.base, PODLIST_USER_DATA: profile })
     const page = await other.firstWindow()
-    await expect(page.getByRole("status").filter({ hasText: "Offline" })).toBeVisible()
+    await expect(
+      page.getByRole("status").filter({ hasText: "Can’t reach your PodList server" })
+    ).toBeVisible()
     await expect(commuteLink(page)).toHaveCount(0)
     await other.close()
   } finally {
@@ -207,6 +211,40 @@ test("right-click on a row shows its commands as a native menu", async () => {
     await expect.poll(titles).toEqual([...before.slice(1), before[0]])
     await app.close()
   } finally {
+    demo.stop()
+  }
+})
+
+test("downloads host audio without CORS while the server is unreachable", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-direct-download-"))
+  const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1600, height: 1000 })
+    const row = page.getByRole("row").filter({ hasText: "Joinery without screws" })
+    await expect(row.getByRole("button", { name: "Download", exact: true })).toBeVisible()
+    await page.route("app://podlist/api/**", (route) => route.abort())
+    await row.getByRole("button", { name: "Download", exact: true }).click()
+    await expect(row.getByRole("button", { name: "Downloaded", exact: true })).toBeVisible()
+    // A web renderer still rejects CORS-less host fetches; only our private route bypasses CORS.
+    const result = await page.evaluate(async (fixtures) => {
+      try {
+        await fetch(`${fixtures}/audio/slow-build/0.mp3`)
+        return true
+      } catch {
+        return false
+      }
+    }, demo.fixtures)
+    expect(result).toBe(false)
+    expect(
+      await page.evaluate(
+        async () =>
+          (await fetch("app://podlist/audio-download?url=file%3A%2F%2F%2Fetc%2Fhosts")).status
+      )
+    ).toBe(400)
+  } finally {
+    await app.close()
     demo.stop()
   }
 })

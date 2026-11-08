@@ -31,6 +31,7 @@ const deviceName = () => {
   return "Browser"
 }
 
+// Kept for fallback and Volume Boost; Playback reads the host URL locally (ADR 0009).
 const audioUrl = (id: string) => `/api/episodes/${id}/audio`
 
 /** Playback plays a stored download when this Device has one. */

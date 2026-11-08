@@ -96,6 +96,20 @@ const serveFile = async (pathname: string) => {
   })
 }
 
+/** net.fetch decodes compressed bodies, so a streamed response must not decode twice. */
+const decodedResponse = (upstream: Response) => {
+  const headers = new Headers(upstream.headers)
+  if (headers.has("content-encoding")) {
+    headers.delete("content-encoding")
+    headers.delete("content-length")
+  }
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers
+  })
+}
+
 /** Passes an API request to the server. Unreachable, it fails like a network error. */
 const forward = async (request: Request, server: string) => {
   const url = new URL(request.url)
@@ -110,17 +124,7 @@ const forward = async (request: Request, server: string) => {
   } catch {
     return Response.error()
   }
-  // net.fetch has already decoded the body.
-  const headers = new Headers(upstream.headers)
-  if (headers.has("content-encoding")) {
-    headers.delete("content-encoding")
-    headers.delete("content-length")
-  }
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers
-  })
+  return decodedResponse(upstream)
 }
 
 /** One browser profile per server, so each server's Library has its own local database. */
@@ -128,9 +132,24 @@ const profileFor = (server: string) => {
   const partition = `persist:${createHash("sha256").update(new URL(server).origin).digest("hex").slice(0, 16)}`
   const profile = session.fromPartition(partition)
   if (!profile.protocol.isProtocolHandled(scheme)) {
-    profile.protocol.handle(scheme, (request) => {
-      const { pathname } = new URL(request.url)
-      return pathname.startsWith("/api/") ? forward(request, server) : serveFile(pathname)
+    profile.protocol.handle(scheme, async (request) => {
+      const url = new URL(request.url)
+      if (`${url.protocol}//${url.host}` !== appOrigin) return new Response(null, { status: 403 })
+      // Only the bundled app can read this same-origin stream. Fetching in main avoids
+      // host CORS without relaxing the renderer’s web security (pod-13u).
+      if (url.pathname === "/audio-download") {
+        try {
+          const source = new URL(url.searchParams.get("url") ?? "", appOrigin)
+          if (!["http:", "https:"].includes(source.protocol) || source.username || source.password)
+            return new Response(null, { status: 400 })
+          return decodedResponse(
+            await net.fetch(source.href, { credentials: "omit", signal: request.signal })
+          )
+        } catch {
+          return Response.error()
+        }
+      }
+      return url.pathname.startsWith("/api/") ? forward(request, server) : serveFile(url.pathname)
     })
   }
   return partition

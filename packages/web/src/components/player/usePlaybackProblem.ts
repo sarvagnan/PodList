@@ -1,6 +1,7 @@
-import { useAtomSet } from "@effect/atom-react"
+import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { AsyncResult } from "effect/reactivity"
 import { useEffect } from "react"
-import { playbackAtom } from "../../app/runtime.ts"
+import { playbackAtom, syncStatusAtom } from "../../app/runtime.ts"
 import { useOnline } from "../../lib/useOnline.ts"
 import { useDownloadStatus } from "../episodes/DownloadButton.tsx"
 
@@ -13,6 +14,7 @@ export function usePlaybackProblem(
   current: { readonly episodeId: string; readonly error: string | null } | null
 ) {
   const online = useOnline()
+  const sync = AsyncResult.getOrElse(useAtomValue(syncStatusAtom), () => null)
   const stored = useDownloadStatus(current?.episodeId ?? "")?._tag === "Stored"
   const control = useAtomSet(playbackAtom)
   const error = current?.error ?? null
@@ -33,7 +35,9 @@ export function usePlaybackProblem(
       }
     : {
         short: "Couldn’t play",
-        long: "Couldn’t play this Episode: its audio didn’t load.",
+        long: sync?.error
+          ? "This Episode’s host didn’t load its audio, and your PodList server can’t be reached for a fallback. Downloaded Episodes still play; edits are kept and sync later."
+          : "Couldn’t play this Episode: neither its host nor your PodList server loaded its audio.",
         retry: () => control({ _tag: "retry" })
       }
 }

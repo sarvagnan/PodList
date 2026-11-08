@@ -3,6 +3,7 @@ import type { Library } from "@podlist/domain"
 import { Context, Effect, Layer } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
+import { serverNeeded } from "../lib/connectionMessage.ts"
 
 // The Library's server calls that aren't sync operations: finding podcasts, following
 // and unfollowing them, and OPML. Each needs the server, so each can fail offline.
@@ -35,7 +36,7 @@ export class LibraryClient extends Context.Service<
               ? "That address didn’t give a podcast feed."
               : message
           )
-        const offline = "PodList couldn’t reach your server. Check that you’re online."
+        const offline = serverNeeded
         return LibraryClient.of({
           search: (q) =>
             client.directory.search({ query: { q } }).pipe(Effect.mapError(fail(offline))),
