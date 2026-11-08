@@ -11,7 +11,7 @@ Prototype (throwaway, not production code): https://generatedpages.burmese-mount
 - Bottom tabs: **Views · Playlists · Library**. Each tab opens on a list; tapping drills in, with a back button.
 - **Episode row** (in a View): tap the row → Episode detail. Trailing buttons: **Add (+)** then **Play**. Play = Play Now in the Active Playlist. Add opens a sheet: choose a Playlist (list, Active preselected), then **Play Next** or **Play Last**.
 - **Episode detail**: Artwork, podcast, title, facts (Published, duration, Played, downloaded on this Device). One action row with Play centred: *Played · Download · **Play** · Add · Star*. Then **In your Playlists** (each Entry's own Position, with Resume), Chapters (with Chapter Artwork), Show notes.
-- **Playlist detail**: Entries with the Cursor marked (NOW when Active, HERE when paused), per-Entry progress, reorder handle, "Play this" when not Active; History and Listening Timeline below.
+- **Playlist detail**: Entries with the Cursor marked (NOW on the Active Playlist, even while paused; otherwise RESUME if it has a Position, or HERE), per-Entry progress, reorder handle, "Play this" when not Active; History and Listening Timeline below.
 
 ## Desktop
 
