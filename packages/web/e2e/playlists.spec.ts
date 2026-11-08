@@ -152,3 +152,22 @@ test("on the phone, Entries move without a drag, from their More menu (AX-04)", 
   await page.getByRole("menuitem", { name: "Move to Top" }).click()
   await expect(more.first()).toHaveAttribute("aria-label", `More actions for ${lastName}`)
 })
+
+test("a Playlist's name field keeps what's typed, an empty field included (WDATA-03)", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/playlists/commute/settings`)
+  const name = page.getByRole("textbox", { name: "Name" })
+  await expect(name).toHaveValue("Commute")
+  await name.fill("")
+  await page.waitForTimeout(400)
+  await expect(name).toHaveValue("")
+  await name.pressSequentially("Bus")
+  await expect(name).toHaveValue("Bus")
+  await name.blur()
+  await expect(page.getByRole("heading", { name: /Playlist settings/, level: 1 })).toBeVisible()
+  await expect(
+    page.getByRole("navigation", { name: "Library and lists" }).getByRole("link", { name: /^Bus/ })
+  ).toBeVisible()
+})

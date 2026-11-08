@@ -35,7 +35,7 @@ const groups: ReadonlyArray<{
     keys: [
       ["↑ ↓", "Previous or next Episode"],
       ["← →", "Move between an Episode’s actions"],
-      ["Home End", `First or last action; with ${cmd} the first or last Episode`],
+      ["Home End", `First or last action (${cmd}Home, ${cmd}End: first or last Episode)`],
       ["PgUp PgDn", "Ten Episodes up or down"],
       ["Enter", "Open the Episode"],
       ["Space", "Select the Episode for bulk actions"],

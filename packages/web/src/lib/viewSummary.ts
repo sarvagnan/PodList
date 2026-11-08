@@ -29,8 +29,9 @@ export const describeView = (view: View.View) => {
   if (f.notInAnyPlaylist) parts.push("Not in a Playlist")
   if (f.minDuration !== undefined && f.maxDuration !== undefined) {
     parts.push(`${minutes(f.minDuration)}–${minutes(f.maxDuration)}`)
-  } else if (f.minDuration !== undefined) parts.push(`Over ${minutes(f.minDuration)}`)
-  else if (f.maxDuration !== undefined) parts.push(`Under ${minutes(f.maxDuration)}`)
+    // The form's own words for the condition (At least, At most).
+  } else if (f.minDuration !== undefined) parts.push(`At least ${minutes(f.minDuration)}`)
+  else if (f.maxDuration !== undefined) parts.push(`At most ${minutes(f.maxDuration)}`)
   if (parts.length === 0) parts.push("Everything")
   parts.push(sorts[view.sort])
   return parts.join(" · ")

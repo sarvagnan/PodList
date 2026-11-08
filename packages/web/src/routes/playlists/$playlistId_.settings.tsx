@@ -3,7 +3,7 @@ import { Operation, State } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { Trash2 } from "lucide-react"
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { useAppState } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
@@ -49,9 +49,15 @@ function PlaylistSettings() {
     }
   }
   const renameLater = useDebounced(rename)
+  // The field starts from the saved name once the Playlist has loaded, once per Playlist.
+  // After that it holds what's typed, an empty field included (with its error), never the
+  // old name put back under the cursor (WDATA-03).
+  const filledFor = useRef<string | null>(null)
   useEffect(() => {
-    if (playlist !== undefined && name === "" && !error) setName(playlist.name)
-  }, [playlist, name, error])
+    if (playlist === undefined || filledFor.current === playlist.id) return
+    filledFor.current = playlist.id
+    setName(playlist.name)
+  }, [playlist])
 
   if (state === null) return <LoadingRows label="Loading Playlist" />
   if (playlist === undefined) {

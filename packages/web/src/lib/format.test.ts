@@ -28,7 +28,7 @@ describe("list formatting", () => {
       describeView(view({ published: { _tag: "LastDays", days: 7 }, played: "unplayed" }))
     ).toBe("Last 7 days · Unplayed · Newest first")
     expect(describeView(view({ maxDuration: 1800 }, "durationAsc"))).toBe(
-      "Under 30 min · Shortest first"
+      "At most 30 min · Shortest first"
     )
     expect(describeView(view({}))).toBe("Everything · Newest first")
   })

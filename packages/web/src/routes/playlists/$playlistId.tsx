@@ -389,7 +389,8 @@ function PlaylistDetail() {
                             </button>
                           </Tip>
                         </GridCell>
-                        <span
+                        {/* Every child of a grid row is a cell (its number, its artwork). */}
+                        <GridCell
                           className={`hidden w-15 shrink-0 text-center text-xs font-semibold tracking-wider @min-[30rem]:block ${current ? "text-primary" : "text-muted-foreground"}`}
                         >
                           {current
@@ -399,17 +400,19 @@ function PlaylistDetail() {
                                 ? "RESUME"
                                 : "HERE"
                             : index + 1}
-                        </span>
-                        {episode === undefined ? (
-                          // A neutral tile while the details arrive: it shows on the NOW row's
-                          // tint too (APPEAR-11).
-                          <span
-                            aria-hidden="true"
-                            className="size-11 shrink-0 rounded-lg bg-secondary"
-                          />
-                        ) : (
-                          <Artwork url={episode.artworkUrl} name={episode.podcast} size={44} />
-                        )}
+                        </GridCell>
+                        <GridCell className="shrink-0">
+                          {episode === undefined ? (
+                            // A neutral tile while the details arrive: it shows on the NOW
+                            // row's tint too (APPEAR-11).
+                            <span
+                              aria-hidden="true"
+                              className="block size-11 rounded-lg bg-secondary"
+                            />
+                          ) : (
+                            <Artwork url={episode.artworkUrl} name={episode.podcast} size={44} />
+                          )}
+                        </GridCell>
                         <GridCell block className="min-w-0 flex-1">
                           {current && (
                             <span className="block text-xs font-semibold tracking-wider text-primary @min-[30rem]:hidden">
