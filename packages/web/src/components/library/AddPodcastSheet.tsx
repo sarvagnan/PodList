@@ -4,11 +4,20 @@ import type { Directory } from "@podlist/api"
 import { Cause, Exit } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { Check, X } from "lucide-react"
-import { type ReactNode, useEffect, useId, useRef, useState } from "react"
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState
+} from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { directorySearchAtom, importOpmlAtom, subscribeAtom } from "../../app/library.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { serverNeeded } from "../../lib/connectionMessage.ts"
+import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 
@@ -16,6 +25,7 @@ import { Artwork } from "../shell/Artwork.tsx"
 // address resolved directly, or an OPML file from another app.
 
 type Tab = "search" | "address" | "opml"
+const DraftSaved = createContext(() => {})
 
 const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
   Exit.isFailure(exit)
@@ -37,6 +47,7 @@ function SubscribeButton({
   const subscribed = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => []).some(
     (s) => s.feedUrl === feedUrl
   )
+  const saved = useContext(DraftSaved)
   const subscribe = useAtomSet(subscribeAtom, { mode: "promiseExit" })
   const [busy, setBusy] = useState(false)
   // The button gives way to "Subscribed"; focus goes with it rather than to the page.
@@ -73,6 +84,7 @@ function SubscribeButton({
         const problem = messageOf(exit)
         setBusy(false)
         if (problem === null) {
+          saved()
           focusNext.current = true
           // Named as the feed calls itself, not by the address typed (a URL).
           // Said once, where it happened: the button becomes "Subscribed" and takes focus.
@@ -85,33 +97,50 @@ function SubscribeButton({
   )
 }
 
-function SearchTab() {
+function SearchTab({
+  text,
+  setText
+}: {
+  readonly text: string
+  readonly setText: (text: string) => void
+}) {
   const id = useId()
-  const [text, setText] = useState("")
   const [results, setResults] = useState<ReadonlyArray<Directory.DirectoryResult> | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  const [settled, setSettled] = useState("")
   const search = useAtomSet(directorySearchAtom, { mode: "promiseExit" })
   useEffect(() => {
     const words = text.trim()
+    setSettled("")
+    setProblem(null)
     if (words.length < 2 || looksLikeFeed(words)) {
       setResults(null)
       return
     }
+    let cancelled = false
     const timer = setTimeout(async () => {
       const exit = await search(words)
+      if (cancelled) return
       setProblem(messageOf(exit))
       setResults(Exit.isSuccess(exit) ? exit.value : [])
+      setSettled(text)
     }, 400)
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [text, search])
   // A pasted feed address that isn't one, said where every error in this sheet goes: under
   // the field, in place of its hint.
   const [feedProblem, setFeedProblem] = useState<string | null>(null)
+  const searching = text.trim().length >= 2 && !looksLikeFeed(text) && settled !== text
   const error = looksLikeFeed(text)
     ? // Already in Search: the way out is a name, typed here.
       (feedProblem?.replace("find the podcast by name with Search", "type the podcast’s name") ??
       null)
-    : problem
+    : searching
+      ? null
+      : problem
   return (
     <div>
       <label htmlFor={`${id}-q`} className="text-row font-medium">
@@ -136,6 +165,10 @@ function SearchTab() {
         ) : (
           "Finds it in the podcast directory. A feed address works here too."
         )}
+      </p>
+      {/* The status occupies a reserved line, so waiting never moves the results (CTRL-08). */}
+      <p role="status" className="mt-2 min-h-[1.5rem] text-row text-muted-foreground">
+        {searching ? "Searching…" : ""}
       </p>
       <div aria-live="polite" className="mt-3 max-h-[50dvh] min-h-24 overflow-y-auto">
         {looksLikeFeed(text) ? (
@@ -243,9 +276,14 @@ function FeedPreview({
   )
 }
 
-function AddressTab() {
+function AddressTab({
+  text,
+  setText
+}: {
+  readonly text: string
+  readonly setText: (text: string) => void
+}) {
   const id = useId()
-  const [text, setText] = useState("")
   // Choosing this tab puts you in its field, as opening the sheet does in Search's.
   const field = useRef<HTMLInputElement>(null)
   useEffect(() => field.current?.focus(), [])
@@ -309,6 +347,7 @@ function AddressTab() {
 
 function OpmlTab() {
   const id = useId()
+  const saved = useContext(DraftSaved)
   const importOpml = useAtomSet(importOpmlAtom, { mode: "promiseExit" })
   const [summary, setSummary] = useState<ReactNode>(null)
   const [busy, setBusy] = useState(false)
@@ -323,6 +362,7 @@ function OpmlTab() {
       setSummary(<span className="text-destructive">{messageOf(exit)}</span>)
       return
     }
+    saved()
     const { added, alreadySubscribed, failed } = exit.value
     setSummary(
       <>
@@ -402,8 +442,18 @@ export function AddPodcastSheet({
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
-  const [tab, setTab] = useState<Tab>("search")
-  useBackLayers(open ? 1 : 0, () => onOpenChange(false))
+  const { draft, update, clear } = useDialogDraft({
+    kind: "podcasts",
+    tab: "search",
+    search: "",
+    address: ""
+  })
+  const { tab } = draft
+  const close = (next: boolean) => {
+    if (!next) clear()
+    onOpenChange(next)
+  }
+  useBackLayers(open ? 1 : 0, () => close(false))
   // Closing returns focus to what opened the sheet, or to the heading if that is gone
   // (the first-run card goes once there is a Subscription).
   const opener = useRef<Element | null>(null)
@@ -414,52 +464,62 @@ export function AddPodcastSheet({
     ["opml", "OPML file"]
   ]
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Popup
-          data-sheet="dialog"
-          onKeyDown={wrapTab}
-          // Opens on the search field, not the close button (KEY-04).
-          initialFocus={() => document.querySelector<HTMLElement>("[data-add-field]")}
-          finalFocus={() => {
-            const back = opener.current
-            return back instanceof HTMLElement && back.isConnected && back !== document.body
-              ? back
-              : document.querySelector<HTMLElement>("main h1")
-          }}
-          // Its height doesn't follow the results, so the field stays put as you type: a tall
-          // sheet on the phone, hung from the top on wider screens.
-          className="fixed inset-x-0 bottom-0 z-50 h-[min(44rem,85dvh)] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-[max(2rem,12dvh)] md:h-auto md:left-1/2 md:max-h-[calc(100dvh-max(2rem,12dvh)-2rem)] md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-2 md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-2 md:data-[starting-style]:opacity-0"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <Dialog.Title className="font-heading text-xl font-semibold">Add podcasts</Dialog.Title>
-            <Dialog.Close
-              aria-label="Close"
-              className="-mt-1 -mr-2 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-            >
-              <X aria-hidden="true" className="size-5" />
-            </Dialog.Close>
-          </div>
-          <fieldset className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-secondary p-1">
-            <legend className="sr-only">How to add</legend>
-            {tabs.map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={tab === value}
-                onClick={() => setTab(value)}
-                className="h-9 rounded-full text-small font-medium text-muted-foreground aria-pressed:bg-card aria-pressed:font-semibold aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:ring-1 aria-pressed:ring-field/40"
+    <DraftSaved value={clear}>
+      <Dialog.Root open={open} onOpenChange={close}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+          <Dialog.Popup
+            data-sheet="dialog"
+            onKeyDown={wrapTab}
+            // Opens on the search field, not the close button (KEY-04).
+            initialFocus={() => document.querySelector<HTMLElement>("[data-add-field]")}
+            finalFocus={() => {
+              const back = opener.current
+              return back instanceof HTMLElement && back.isConnected && back !== document.body
+                ? back
+                : document.querySelector<HTMLElement>("main h1")
+            }}
+            // Its height doesn't follow the results, so the field stays put as you type: a tall
+            // sheet on the phone, hung from the top on wider screens.
+            className="fixed inset-x-0 bottom-0 z-50 h-[min(44rem,85dvh)] overflow-y-auto rounded-t-2xl bg-card px-5 pt-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-xl transition-transform data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full md:inset-auto md:top-[max(2rem,12dvh)] md:h-auto md:left-1/2 md:max-h-[calc(100dvh-max(2rem,12dvh)-2rem)] md:w-[min(32rem,calc(100vw-32px))] md:-translate-x-1/2 md:rounded-2xl md:data-[ending-style]:translate-y-2 md:data-[ending-style]:opacity-0 md:data-[starting-style]:translate-y-2 md:data-[starting-style]:opacity-0"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <Dialog.Title className="font-heading text-xl font-semibold">
+                Add podcasts
+              </Dialog.Title>
+              <Dialog.Close
+                aria-label="Close"
+                className="-mt-1 -mr-2 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
               >
-                {label}
-              </button>
-            ))}
-          </fieldset>
-          <div className="mt-4">
-            {tab === "search" ? <SearchTab /> : tab === "address" ? <AddressTab /> : <OpmlTab />}
-          </div>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+                <X aria-hidden="true" className="size-5" />
+              </Dialog.Close>
+            </div>
+            <fieldset className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-secondary p-1">
+              <legend className="sr-only">How to add</legend>
+              {tabs.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={tab === value}
+                  onClick={() => update({ tab: value })}
+                  className="h-9 rounded-full text-small font-medium text-muted-foreground aria-pressed:bg-card aria-pressed:font-semibold aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:ring-1 aria-pressed:ring-field/40"
+                >
+                  {label}
+                </button>
+              ))}
+            </fieldset>
+            <div className="mt-4">
+              {tab === "search" ? (
+                <SearchTab text={draft.search} setText={(search) => update({ search })} />
+              ) : tab === "address" ? (
+                <AddressTab text={draft.address} setText={(address) => update({ address })} />
+              ) : (
+                <OpmlTab />
+              )}
+            </div>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </DraftSaved>
   )
 }

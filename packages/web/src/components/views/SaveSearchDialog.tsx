@@ -5,6 +5,7 @@ import { X } from "lucide-react"
 import { useId, useRef, useState } from "react"
 import { recordAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
+import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { saveViewChange, type ViewData } from "../../lib/viewEdit.ts"
 
@@ -20,12 +21,17 @@ export function SaveSearchDialog({
   readonly onOpenChange: (open: boolean) => void
 }) {
   const id = useId()
-  const [name, setName] = useState("")
+  const { draft: saved, update, clear } = useDialogDraft({ kind: "view", name: "", view: draft })
+  const { name } = saved
+  const close = (next: boolean) => {
+    if (!next) clear()
+    onOpenChange(next)
+  }
   const nameField = useRef<HTMLInputElement>(null)
   const [error, setError] = useState(false)
   const record = useAtomSet(recordAtom, { mode: "promise" })
   const navigate = useNavigate()
-  useBackLayers(open ? 1 : 0, () => onOpenChange(false))
+  useBackLayers(open ? 1 : 0, () => close(false))
   const save = async () => {
     const trimmed = name.trim()
     if (trimmed === "") {
@@ -34,11 +40,11 @@ export function SaveSearchDialog({
     }
     const view: ViewData = { ...draft, id: crypto.randomUUID(), name: trimmed }
     await record(saveViewChange(view))
-    onOpenChange(false)
+    close(false)
     await navigate({ to: "/views/$viewId", params: { viewId: view.id } })
   }
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={close}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
@@ -74,7 +80,7 @@ export function SaveSearchDialog({
             aria-invalid={error}
             aria-describedby={error ? `${id}-error` : undefined}
             onChange={(event) => {
-              setName(event.target.value)
+              update({ name: event.target.value })
               setError(false)
             }}
             onKeyDown={(event) => {

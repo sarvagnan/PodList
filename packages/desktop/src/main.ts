@@ -299,6 +299,27 @@ const contextMenu = (
   if (params.isEditable) {
     items.push(
       ...(items.length > 0 ? [{ type: "separator" } as const] : []),
+      // Suggestions precede dictionary and editing commands in Mac text menus (BROWSER-07).
+      ...(params.misspelledWord
+        ? [
+            ...(params.dictionarySuggestions.length > 0
+              ? params.dictionarySuggestions.map((suggestion) => ({
+                  label: suggestion,
+                  click: () => win.webContents.replaceMisspelling(suggestion)
+                }))
+              : [{ label: "No Guesses Found", enabled: false }]),
+            { type: "separator" } as const,
+            {
+              label: "Add to Dictionary",
+              click: () =>
+                win.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+            },
+            { type: "separator" } as const
+          ]
+        : []),
+      { role: "undo", enabled: params.editFlags.canUndo },
+      { role: "redo", enabled: params.editFlags.canRedo },
+      { type: "separator" },
       { role: "cut", enabled: params.editFlags.canCut },
       { role: "copy", enabled: params.editFlags.canCopy },
       { role: "paste", enabled: params.editFlags.canPaste },
