@@ -575,6 +575,35 @@ function useFocusOnNavigation() {
       const selector = selectorFor(document.activeElement)
       if (selector) leftFrom.set(keyOf(event.fromLocation), selector)
     })
+    // Same screen, a panel opened or closed (Back and Forward over ?episode= or ?edit=):
+    // if focus fell to the page with what it was on, it goes to the panel's heading, or
+    // back to the row the panel showed (WKEY-03).
+    const panelMoved = router.subscribe("onResolved", (event) => {
+      if (event.fromLocation === undefined || event.pathChanged) return
+      const before = event.fromLocation.search as { episode?: unknown; edit?: unknown }
+      const after = event.toLocation.search as { episode?: unknown; edit?: unknown }
+      if (before.episode === after.episode && before.edit === after.edit) return
+      let tries = 30
+      const settle = () => {
+        const active = document.activeElement
+        const lost = active === null || active === document.body || !active.isConnected
+        if (!lost) return
+        const shown = typeof before.episode === "string" ? before.episode : null
+        const target =
+          after.edit === true
+            ? document.querySelector<HTMLElement>("[data-edit-heading]")
+            : typeof after.episode === "string"
+              ? document.querySelector<HTMLElement>("main aside h2[tabindex]")
+              : ((shown
+                  ? document.querySelector<HTMLElement>(
+                      `main [data-episode-title="${CSS.escape(shown)}"]`
+                    )
+                  : null) ?? document.querySelector<HTMLElement>("[data-edit-view], main h1"))
+        if (target) target.focus({ preventScroll: true })
+        else if (--tries > 0) requestAnimationFrame(settle)
+      }
+      requestAnimationFrame(() => requestAnimationFrame(settle))
+    })
     const arrived = router.subscribe("onResolved", (event) => {
       if (event.fromLocation === undefined || !event.pathChanged) return
       const back = leftFrom.get(keyOf(event.toLocation))
@@ -604,6 +633,7 @@ function useFocusOnNavigation() {
     return () => {
       leaving()
       arrived()
+      panelMoved()
     }
   }, [router])
 }

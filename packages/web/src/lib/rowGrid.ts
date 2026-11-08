@@ -143,6 +143,20 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
         focusCell(to, c, () => tick(Math.max(0, Math.min(grid.count - 1, to))))
       } else focusCell(to, c)
     }
+    // Type-ahead: jump to the next title starting with what was typed.
+    const typeAhead = (key: string) => {
+      const now = Date.now()
+      const text = (now - typed.current.at < 700 ? typed.current.text : "") + key
+      typed.current = { text: text.toLowerCase(), at: now }
+      const start = text.length > 1 ? r : r + 1
+      for (let step = 0; step < grid.count; step++) {
+        const i = (start + step) % grid.count
+        if (grid.titleAt(i).toLowerCase().startsWith(typed.current.text)) {
+          focusCell(i, c)
+          break
+        }
+      }
+    }
     switch (event.key) {
       case "ArrowDown":
         vertical(r + 1)
@@ -171,6 +185,11 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
         else focusCell(r, cells.length - 1)
         break
       case " ":
+        // Mid type-ahead ("the w"), a space is part of what's typed: fall through to it.
+        if (Date.now() - typed.current.at < 700 && typed.current.text !== "") {
+          typeAhead(" ")
+          break
+        }
         // Buttons and the tick box handle Space themselves; on the title it ticks the row.
         if (cell.dataset.cell !== "title") return
         row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click()
@@ -187,18 +206,7 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
           break
         }
         if (mod || event.altKey || event.key.length !== 1) return
-        // Type-ahead: jump to the next title starting with what was typed.
-        const now = Date.now()
-        const text = (now - typed.current.at < 700 ? typed.current.text : "") + event.key
-        typed.current = { text: text.toLowerCase(), at: now }
-        const start = text.length > 1 ? r : r + 1
-        for (let step = 0; step < grid.count; step++) {
-          const i = (start + step) % grid.count
-          if (grid.titleAt(i).toLowerCase().startsWith(typed.current.text)) {
-            focusCell(i, c)
-            break
-          }
-        }
+        typeAhead(event.key)
       }
     }
     event.preventDefault()

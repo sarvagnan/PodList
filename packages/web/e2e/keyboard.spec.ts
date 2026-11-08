@@ -281,3 +281,32 @@ test("with a toast showing, the drawer keeps focus and the toast covers none of 
     expect(inside, `Tab ${i + 1} stays in the drawer`).toBe(true)
   }
 })
+
+test("Back and Forward over the Episode panel keep focus on the page (WKEY-03)", async ({
+  page
+}) => {
+  await desktop(page, "/views/short")
+  const title = page.locator('[data-row="1"] [data-cell="title"]')
+  await title.click()
+  await expect(page).toHaveURL(/episode=/)
+  const onPage = () =>
+    page.evaluate(() => document.activeElement !== null && document.activeElement !== document.body)
+  await page.goBack()
+  await expect(page).not.toHaveURL(/episode=/)
+  await expect.poll(onPage).toBe(true)
+  await expect(title).toBeFocused()
+  await page.goForward()
+  await expect(page).toHaveURL(/episode=/)
+  // Focus stays on the row it was on, which is still there; never the page.
+  await expect.poll(onPage).toBe(true)
+})
+
+test("type-ahead takes a space as part of what's typed", async ({ page }) => {
+  await desktop(page, "/views/short")
+  const first = page.locator('[data-row="0"] [data-cell="title"]')
+  await first.focus()
+  // "Who sets the price of rice?": "who s" reaches it past the space; no row is ticked.
+  await page.keyboard.type("who s", { delay: 50 })
+  await expect(page.locator(":focus")).toContainText("Who sets the price of rice?")
+  await expect(page.locator("main [data-row] input[type=checkbox]:checked")).toHaveCount(0)
+})
