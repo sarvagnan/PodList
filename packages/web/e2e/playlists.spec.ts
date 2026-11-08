@@ -136,6 +136,9 @@ test("on the phone, Entries move without a drag, from their More menu (AX-04)", 
   await page.getByRole("button", { name: `More actions for ${second}` }).click()
   await expect(page.getByRole("menuitem", { name: "Remove from Commute" })).toBeVisible()
   await page.keyboard.press("Escape")
+  // Closing the menu takes its Back step off the history; let that land before leaving.
+  await expect(page.getByRole("menu")).toBeHidden()
+  await page.waitForTimeout(150)
 
   // Up next in the drawer: the same menu.
   await page.goto(`${demo.base}/playlists/default`)

@@ -20,6 +20,7 @@ import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { useReplayJournal } from "../../app/journal.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
+import { useBackLayers } from "../../lib/backLayers.ts"
 import { cameFrom, sectionOf } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
 import { singleKeyShortcuts } from "../../lib/remembered.ts"
@@ -545,6 +546,31 @@ function BottomTabs() {
  * After moving to another screen, focus its heading, as a page load would; coming back
  * (Back or Forward), focus the control that took you away, so the place is kept (WKEY-03).
  */
+/**
+ * An open popup menu (a row's ⋯, Speed, Sleep, a right-click menu) is a layer too: Back
+ * closes it, as Esc does, rather than leaving the screen or closing the drawer under it
+ * (BROWSER-01).
+ */
+function useMenuBackLayer() {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const check = () => setOpen(document.querySelector('[role="menu"]') !== null)
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+  useBackLayers(open ? 1 : 0, () => {
+    const menu = document.querySelector<HTMLElement>('[role="menu"]')
+    const target = menu?.contains(document.activeElement)
+      ? (document.activeElement as HTMLElement)
+      : menu
+    target?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    )
+  })
+}
+
 /** A file dropped anywhere but a drop area must not open in place of the app (DRAG-01). */
 function useStrayDropGuard() {
   useEffect(() => {
@@ -756,6 +782,7 @@ export function AppShell() {
   useFocusOnNavigation()
   useReplayJournal()
   useStrayDropGuard()
+  useMenuBackLayer()
   usePlayPauseKey()
   useSearchKey()
   useMenuControls()

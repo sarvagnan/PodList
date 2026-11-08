@@ -332,7 +332,7 @@ function SearchPage() {
               })
             }
             checked={checked}
-            setChecked={(update) => setCheckedState(update(checked))}
+            setChecked={(update) => setCheckedState((previous) => update(previous))}
           />
         )}
         <aside

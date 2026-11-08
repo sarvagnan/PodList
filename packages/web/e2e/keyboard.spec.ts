@@ -310,3 +310,21 @@ test("type-ahead takes a space as part of what's typed", async ({ page }) => {
   await expect(page.locator(":focus")).toContainText("Who sets the price of rice?")
   await expect(page.locator("main [data-row] input[type=checkbox]:checked")).toHaveCount(0)
 })
+
+test("Shift+arrows tick a run from its start and untick on the way back; Enter on a tick box opens the Episode", async ({
+  page
+}) => {
+  await desktop(page, "/views/short")
+  const ticked = page.locator("main [data-row] input[type=checkbox]:checked")
+  await page.locator('[data-row="0"] [data-cell="title"]').focus()
+  await page.keyboard.press("Shift+ArrowDown")
+  await page.keyboard.press("Shift+ArrowDown")
+  await expect(ticked).toHaveCount(3)
+  await page.keyboard.press("Shift+ArrowUp")
+  await expect(ticked).toHaveCount(2)
+  await page.keyboard.press("Escape")
+  await expect(ticked).toHaveCount(0)
+  await page.locator('[data-row="1"] input[type=checkbox]').focus()
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/episode=/)
+})

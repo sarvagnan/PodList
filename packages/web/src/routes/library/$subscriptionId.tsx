@@ -386,7 +386,7 @@ function SubscriptionScreen() {
                   void navigate({ to: "/episodes/$episodeId", params: { episodeId } })
                 }
                 checked={checked}
-                setChecked={(update) => setChecked(update(checked))}
+                setChecked={(update) => setChecked((previous) => update(previous))}
                 showPodcast={false}
               />
             </div>

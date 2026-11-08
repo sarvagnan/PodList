@@ -197,3 +197,36 @@ test("New View starts in its Name field", async ({ page }) => {
   await expect(page).toHaveURL(/edit=true/)
   await expect(page.getByRole("textbox", { name: "Name" })).toBeFocused()
 })
+
+test("on the phone, Back closes an open menu first (BROWSER-01)", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/playlists`)
+  await page.goto(`${demo.base}/playlists/commute`)
+  await page.locator("main [role=row] [data-cell=title]").first().waitFor()
+  const more = page.getByRole("button", { name: /^More actions for / }).first()
+  await more.click()
+  await expect(page.getByRole("menu")).toBeVisible()
+  await page.goBack()
+  await expect(page.getByRole("menu")).toBeHidden()
+  await expect(page).toHaveURL(/\/playlists\/commute$/)
+  await expect(more).toBeFocused()
+
+  // In the drawer: Back closes the Speed menu, and the drawer stays.
+  await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+  const drawer = page.getByRole("dialog")
+  await drawer.getByRole("button", { name: /^Speed/ }).click()
+  await expect(page.getByRole("menu")).toBeVisible()
+  await page.goBack()
+  await expect(page.getByRole("menu")).toBeHidden()
+  await expect(drawer).toBeVisible()
+
+  // A menu choice that goes somewhere still goes there.
+  await page.goBack()
+  await expect(drawer).toBeHidden()
+  await page
+    .getByRole("button", { name: /^More actions for / })
+    .first()
+    .click()
+  await page.getByRole("menuitem", { name: "Open Episode" }).click()
+  await expect(page).toHaveURL(/\/episodes\//)
+})

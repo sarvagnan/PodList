@@ -89,10 +89,12 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     }
   }
 
-  const tick = (index: number) => {
+  const tick = (index: number, on = true) => {
     const box = rowAt(index)?.querySelector<HTMLInputElement>('input[type="checkbox"]')
-    if (box && !box.checked) box.click()
+    if (box && box.checked !== on) box.click()
   }
+  // Where a Shift+arrow run started: moving away from it ticks, moving back unticks.
+  const anchor = useRef<number | null>(null)
 
   const onFocus = (event: FocusEvent<HTMLElement>) => {
     const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-cell]")
@@ -139,9 +141,17 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     const mod = event.metaKey || event.ctrlKey
     const vertical = (to: number) => {
       if (event.shiftKey) {
-        tick(r)
-        focusCell(to, c, () => tick(Math.max(0, Math.min(grid.count - 1, to))))
-      } else focusCell(to, c)
+        const from = anchor.current ?? r
+        anchor.current = from
+        const next = Math.max(0, Math.min(grid.count - 1, to))
+        // Back towards the start: the row left goes out of the run.
+        if (Math.abs(next - from) < Math.abs(r - from)) tick(r, false)
+        else tick(r)
+        focusCell(to, c, () => tick(next))
+      } else {
+        anchor.current = null
+        focusCell(to, c)
+      }
     }
     // Type-ahead: jump to the next title starting with what was typed.
     const typeAhead = (key: string) => {
@@ -157,7 +167,13 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
         }
       }
     }
+    if (event.key !== "Shift" && !event.shiftKey) anchor.current = null
     switch (event.key) {
+      case "Enter":
+        // Enter opens the Episode from any cell that has no Enter of its own (the tick box).
+        if (!(target instanceof HTMLInputElement)) return
+        row.querySelector<HTMLElement>('[data-cell="title"]')?.click()
+        break
       case "ArrowDown":
         vertical(r + 1)
         break

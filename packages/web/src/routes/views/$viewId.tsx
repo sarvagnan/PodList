@@ -47,8 +47,15 @@ function ViewDetail() {
     selection.viewId === viewId
       ? new Set(episodes.filter((e) => selection.ids.has(e.id)).map((e) => e.id))
       : new Set()
+  // From the latest selection, so ticks made in one keystroke (Shift+↓) build on each other.
   const setChecked = (update: (current: ReadonlySet<string>) => ReadonlySet<string>) =>
-    setSelection({ viewId, ids: update(checked) })
+    setSelection((previous) => {
+      const current =
+        previous.viewId === viewId
+          ? new Set(episodes.filter((e) => previous.ids.has(e.id)).map((e) => e.id))
+          : new Set<string>()
+      return { viewId, ids: update(current) }
+    })
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const view = state?.views.find((v) => v.id === viewId)
   // A new View left as New View made it (no name, no condition) goes when it's left. Each
