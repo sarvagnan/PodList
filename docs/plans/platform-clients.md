@@ -45,7 +45,7 @@ The usual costs of one repository are handled by each client having its own buil
 - **The sync contract:** clients push operations and pull everyone else's (`/sync/push`, `/sync/pull`), and pull catalogue changes (`/library/changes`).
 - **The rules a native client must reimplement:** about 840 lines of TypeScript (`State`, `PlaylistRules`, `PlayedRules`, `TimelineRules`, `ViewQuery`, `Listening`).
 - **11 conformance vectors** define correct merge behaviour in any language (ADR 0007). They don't yet cover every change or View filtering.
-- **The product design:** about 10,000 lines of React and `docs/design/ui-layout.md`. These describe what the product does. They are not a layout for the native apps to copy.
+- **The product design:** about 10,000 lines of React and `docs/design/product-behaviour.md`. These describe what the product does. They are not a layout for the native apps to copy.
 - **Toolchains on this Mac:** Xcode 27.2 with an iPhone Duo simulator, and the Android SDK with API 37 and emulator profiles for phones, foldables, tablets and resizable desktop windows.
 
 ## Platform conventions
@@ -65,7 +65,7 @@ Native apps are only worth their cost if they feel native, so each one follows i
 | Sheets and panels | Bottom sheets, side sheets | Sheets with detents | Popovers and sheets | Popovers, separate Settings window |
 | System integration | Edge to edge, media notification, Android Auto | Dynamic Type, lock screen, CarPlay | Stage Manager, external keyboard | Media keys, multiple windows |
 
-`docs/design/ui-layout.md` is split before Android's milestone 2: a shared behaviour document, then one layout document per platform, starting with Android. Each platform's first screens are mocked and chosen the same way the web layout was.
+Shared behaviour lives in `docs/design/product-behaviour.md`, and each platform has its own layout document, starting with `web-layout.md`. Each platform's first screens are mocked and chosen the same way the web layout was.
 
 **Look (owner, 8 Nov 2026):** native apps use platform components and system fonts (Roboto, San Francisco), keep PodList's blue as the accent, and have dark mode from the start. Inter, Space Grotesk and light-only remain web decisions.
 
