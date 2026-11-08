@@ -5,26 +5,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { PodListTheme { PodListShell() } }
+        val model = androidx.lifecycle.ViewModelProvider(this)[AppModel::class.java]
+        setContent { PodListTheme { PodListShell(model) } }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        androidx.lifecycle.ViewModelProvider(this)[AppModel::class.java].requestSync()
     }
 }
 
@@ -61,21 +59,4 @@ fun PodListTheme(content: @Composable () -> Unit) {
         typography = Typography(),
         content = content
     )
-}
-
-@Composable
-fun PodListShell() {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        // Window constraints are the shell boundary for later size classes and adaptive panes.
-        BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
-            Placeholder(Modifier.fillMaxSize())
-        }
-    }
-}
-
-@Composable
-private fun Placeholder(modifier: Modifier = Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Text("PodList", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineMedium)
-    }
 }

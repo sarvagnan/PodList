@@ -1,6 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-plugins { `java-library`; kotlin("jvm") }
+plugins { `java-library`; kotlin("jvm"); kotlin("plugin.serialization") }
 kotlin {
     jvmToolchain(25)
     compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }

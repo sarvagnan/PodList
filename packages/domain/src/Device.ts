@@ -6,7 +6,7 @@ import { EpochMillis, PositiveInt } from "./Units.ts"
 export class Device extends Schema.Class<Device>("@podlist/domain/Device")({
   id: DeviceId,
   name: Schema.NonEmptyString,
-  kind: Schema.Literals(["pwa", "desktop"]),
+  kind: Schema.Literals(["pwa", "desktop", "android"]),
   registeredAt: EpochMillis
 }) {}
 

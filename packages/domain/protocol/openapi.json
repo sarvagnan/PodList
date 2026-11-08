@@ -2431,7 +2431,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["pwa", "desktop"]
+            "enum": ["pwa", "desktop", "android"]
           },
           "registeredAt": {
             "type": "integer",
