@@ -112,7 +112,12 @@ Round 36, two graders on 48b698d:
 
 ## Work list (round 36)
 
-- [ ] Refused draft writes warn and offer Try again · Mac row menu yields to selected text, links and fields · disclosures survive reload (Search Refine, Stats) · ⌘C copies every ticked row; Delete removes a focused Entry · shortcut reference · Stats and Search craft · on-screen keyboard over sheets (check on Android).
+Fixed on 8 Nov by Codex (gpt-6.1-sol, high), reviewed and merged:
+
+- [x] A refused draft write says so with Try again · Mac row menus yield to selected text, links and fields · Search Refine and the Stats disclosures survive a reload · ⌘C copies every ticked row, Delete removes a focused Entry · Space works in the drawer and the shortcut reference is accurate · Stats, Search and checkbox craft.
+- Left out: BROWSER-04 (replaced under ADR 0011) and the Android on-screen keyboard (the PWA is being retired).
+
+**Grading is paused here (owner decision, 8 Nov)** until the new clients exist (ADR 0011); each is then graded as its own target.
 
 ## Work list (round 35)
 
