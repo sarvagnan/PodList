@@ -248,3 +248,97 @@ test("downloads host audio without CORS while the server is unreachable", async 
     demo.stop()
   }
 })
+
+test("misspelled text offers dictionary suggestions, replacement and learning (BROWSER-07)", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-spelling-"))
+  const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+  try {
+    const page = await app.firstWindow()
+    await page.getByRole("heading", { name: "New this week", level: 1 }).waitFor()
+    await page.getByRole("button", { name: "New Playlist", exact: true }).click()
+    const name = page.getByRole("textbox", { name: "Name", exact: true })
+    await name.fill("recieve")
+    // Supply Chromium's spellcheck event deterministically: the OS dictionary varies by Mac.
+    await app.evaluate(({ Menu, BrowserWindow }) => {
+      Menu.prototype.popup = function (this: Electron.Menu) {
+        ;(globalThis as { shown?: Electron.Menu }).shown = this
+      }
+      const contents = BrowserWindow.getAllWindows()[0]?.webContents
+      if (!contents) throw new Error("No app window")
+      const calls = { replacement: "", learned: "" }
+      ;(globalThis as { spelling?: typeof calls }).spelling = calls
+      contents.replaceMisspelling = (text) => {
+        calls.replacement = text
+      }
+      contents.session.addWordToSpellCheckerDictionary = (word) => {
+        calls.learned = word
+        return true
+      }
+      contents.emit(
+        "context-menu",
+        {},
+        {
+          x: 0,
+          y: 0,
+          linkURL: "",
+          selectionText: "recieve",
+          isEditable: true,
+          misspelledWord: "recieve",
+          dictionarySuggestions: ["receive", "receiver"],
+          editFlags: { canCut: true, canCopy: true, canPaste: true, canUndo: true, canRedo: false }
+        }
+      )
+    })
+    const shown = () =>
+      app.evaluate(() =>
+        (globalThis as { shown?: Electron.Menu }).shown?.items.map((item) => item.label)
+      )
+    await expect.poll(shown).toContain("Add to Dictionary")
+    expect((await shown())?.slice(0, 5)).toEqual([
+      "receive",
+      "receiver",
+      "",
+      "Add to Dictionary",
+      ""
+    ])
+    await app.evaluate(() => {
+      const menu = (globalThis as { shown?: Electron.Menu }).shown
+      menu?.items.find((item) => item.label === "receive")?.click()
+      menu?.items.find((item) => item.label === "Add to Dictionary")?.click()
+    })
+    expect(await app.evaluate(() => (globalThis as { spelling?: unknown }).spelling)).toEqual({
+      replacement: "receive",
+      learned: "recieve"
+    })
+    // A normally spelled field keeps its edit commands, with no dictionary actions.
+    await app.evaluate(({ BrowserWindow }) => {
+      delete (globalThis as { shown?: Electron.Menu }).shown
+      BrowserWindow.getAllWindows()[0]?.webContents.emit(
+        "context-menu",
+        {},
+        {
+          x: 0,
+          y: 0,
+          linkURL: "",
+          selectionText: "",
+          isEditable: true,
+          misspelledWord: "",
+          dictionarySuggestions: [],
+          editFlags: {
+            canCut: false,
+            canCopy: false,
+            canPaste: true,
+            canUndo: true,
+            canRedo: false
+          }
+        }
+      )
+    })
+    await expect.poll(shown).toContain("Paste")
+    expect(await shown()).not.toContain("Add to Dictionary")
+  } finally {
+    await app.close()
+    demo.stop()
+  }
+})

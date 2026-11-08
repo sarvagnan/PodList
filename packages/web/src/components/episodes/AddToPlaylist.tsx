@@ -6,6 +6,7 @@ import { useRef, useState } from "react"
 import { bulkActionAtom, createAndAddAtom } from "../../app/episodeActions.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
+import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { useConfirm } from "../feedback/useConfirm.ts"
 import { useEpisodeActions } from "./useEpisodeActions.ts"
@@ -29,8 +30,18 @@ export function AddToPlaylist({
 }) {
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const act = useEpisodeActions()
-  const [chosen, setChosen] = useState<string | null>(startNew ? "new" : null)
-  const [name, setName] = useState("")
+  const { draft, update, clear } = useDialogDraft({
+    kind: "add",
+    name: "",
+    chosen: startNew ? "new" : null,
+    episode,
+    ...(episodeIds === undefined ? {} : { episodeIds })
+  })
+  const { chosen, name } = draft
+  const close = (next: boolean) => {
+    if (!next) clear()
+    onOpenChange(next)
+  }
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const nameField = useRef<HTMLInputElement>(null)
@@ -38,10 +49,7 @@ export function AddToPlaylist({
   const bulk = useAtomSet(bulkActionAtom, { mode: "promise" })
   const confirm = useConfirm()
   const ids = episodeIds ?? [episode.id]
-  useBackLayers(open ? 1 : 0, () => {
-    setChosen(null)
-    onOpenChange(false)
-  })
+  useBackLayers(open ? 1 : 0, () => close(false))
   const playlists = state
     ? [...state.playlists].sort(
         (a, b) => Number(b.id === state.activePlaylistId) - Number(a.id === state.activePlaylistId)
@@ -68,7 +76,7 @@ export function AddToPlaylist({
           return
         }
         confirm(outcome, again)
-        onOpenChange(false)
+        close(false)
       } finally {
         setBusy(false)
       }
@@ -88,20 +96,10 @@ export function AddToPlaylist({
         })
       confirm(await again(), again)
     } else await act({ _tag: "Add", episodeId: episode.id, playlistId: target, placement })
-    onOpenChange(false)
+    close(false)
   }
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          setChosen(null)
-          setName("")
-          setError(null)
-        }
-        onOpenChange(next)
-      }}
-    >
+    <Dialog.Root open={open} onOpenChange={close}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
@@ -140,7 +138,7 @@ export function AddToPlaylist({
                   name="playlist"
                   value={p.id}
                   checked={target === p.id}
-                  onChange={() => setChosen(p.id)}
+                  onChange={() => update({ chosen: p.id })}
                   className="size-4 accent-primary"
                 />
                 <span className="flex-1 text-row font-medium">{p.name}</span>
@@ -157,7 +155,7 @@ export function AddToPlaylist({
                 value="new"
                 checked={target === "new"}
                 onChange={() => {
-                  setChosen("new")
+                  update({ chosen: "new" })
                   requestAnimationFrame(() => nameField.current?.focus())
                 }}
                 className="size-4 accent-primary"
@@ -177,7 +175,7 @@ export function AddToPlaylist({
                   aria-invalid={error !== null}
                   aria-describedby={error ? "new-playlist-error" : undefined}
                   onChange={(event) => {
-                    setName(event.target.value)
+                    update({ name: event.target.value })
                     setError(null)
                   }}
                   onKeyDown={(event) => {

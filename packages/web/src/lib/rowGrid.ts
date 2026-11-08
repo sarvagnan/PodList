@@ -58,8 +58,16 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
   useEffect(() => {
     sync()
     const lost = document.activeElement === null || document.activeElement === document.body
-    if (focused.current === null || focused.current.isConnected || !lost || grid.count === 0) return
+    if (focused.current === null || focused.current.isConnected || !lost) return
     focused.current = null
+    // An empty state can replace the grid without unmounting this hook (WKEY-03).
+    if (grid.count === 0) {
+      const heading =
+        document.querySelector<HTMLElement>("[data-sheet] h2") ??
+        document.querySelector<HTMLElement>("main h1")
+      heading?.focus({ preventScroll: true })
+      return
+    }
     const index = Math.min(active.current.row, grid.count - 1)
     const row = rowAt(index)
     if (row === null) return

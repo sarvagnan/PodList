@@ -148,7 +148,8 @@ function MainPage({ current }: { readonly current: NowPlaying }) {
         </div>
       )}
       <div className="w-full text-center">
-        <Drawer.Title className="line-clamp-2 font-heading text-xl font-semibold">
+        {/* The main page also receives focus when its last upcoming Entry leaves (WKEY-03). */}
+        <Drawer.Title tabIndex={-1} className="line-clamp-2 font-heading text-xl font-semibold">
           {current.title || "Episode unavailable"}
         </Drawer.Title>
         <Drawer.Description className="mt-1 truncate text-small text-player-muted">
@@ -383,12 +384,17 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                   ...(after.length > 1 ? [{ separator: true as const }] : []),
                   {
                     label: `Remove from ${playlist.name}`,
-                    run: () =>
-                      void act({
+                    run: async () => {
+                      // Wait for the row as well as its closing menu to leave (WKEY-03).
+                      const control = document.activeElement
+                      await act({
                         _tag: "Remove",
                         episodeId: entry.episodeId,
                         playlistId: playlist.id
                       })
+                      if (after.length === 1 && control instanceof HTMLElement)
+                        focusAfterRemoval(control)
+                    }
                   }
                 ]
               })()}
@@ -401,9 +407,12 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
               type="button"
               aria-label={`Remove ${episode?.title ?? "Entry"} from ${playlist.name}`}
               data-upnext-remove=""
-              onClick={(event) => {
-                focusAfterRemoval(event.currentTarget, "[data-upnext-remove]")
-                void act({ _tag: "Remove", episodeId: entry.episodeId, playlistId: playlist.id })
+              onClick={async (event) => {
+                const control = event.currentTarget
+                // Capture a peer before it moves; wait for the last Entry to leave (WKEY-03).
+                if (after.length > 1) focusAfterRemoval(control, "[data-upnext-remove]")
+                await act({ _tag: "Remove", episodeId: entry.episodeId, playlistId: playlist.id })
+                if (after.length === 1) focusAfterRemoval(control)
               }}
               className="grid size-11 shrink-0 place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground max-lg:hidden"
             >

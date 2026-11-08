@@ -26,6 +26,7 @@ import {
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { useRowGrid } from "../../lib/rowGrid.ts"
 import { useScrollMemory } from "../../lib/scrollMemory.ts"
 import { formatLength, formatTime } from "../../lib/time.ts"
@@ -361,12 +362,18 @@ function PlaylistDetail() {
                   },
                   {
                     label: `Remove from ${playlist.name}`,
-                    run: () =>
+                    run: () => {
+                      // The last row's menu loses its trigger along with the row (WKEY-03).
+                      const control = document.activeElement
+                      if (playlist.entries.length === 1 && control instanceof HTMLElement) {
+                        focusAfterRemoval(control)
+                      }
                       void act({
                         _tag: "Remove",
                         episodeId: entry.episodeId,
                         playlistId: playlist.id
                       })
+                    }
                   }
                 ]
                 return (

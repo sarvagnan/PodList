@@ -40,6 +40,7 @@ import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
 import { FirstRun, showGettingStarted } from "./FirstRun.tsx"
+import { RestoreDialog } from "./RestoreDialog.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
 import { VersionNotice } from "./VersionNotice.tsx"
 
@@ -824,6 +825,7 @@ export function AppShell() {
       <Toasts />
       <UndoShortcut />
       <Shortcuts />
+      <RestoreDialog />
     </div>
   )
 }

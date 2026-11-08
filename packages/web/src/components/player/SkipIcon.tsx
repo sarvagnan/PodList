@@ -13,11 +13,9 @@ export function SkipIcon({
   const Arrow = direction === "back" ? RotateCcw : RotateCw
   return (
     <span aria-hidden="true" className="relative grid place-items-center">
-      <Arrow className={large ? "size-10" : "size-8"} strokeWidth={large ? 1.5 : 1.75} />
-      {/* Part of the glyph, sized with it in px; 11 px at least (WTYPE-01). */}
-      <span
-        className={`absolute pt-px leading-none font-bold tabular-nums ${large ? "text-[12px]" : "text-[11px]"}`}
-      >
+      <Arrow className={large ? "size-[2.5rem]" : "size-[2rem]"} strokeWidth={large ? 1.5 : 1.75} />
+      {/* The numerals and arrow scale with text, with a 12 px minimum at default size (WTYPE-01). */}
+      <span className="absolute pt-px text-[0.75rem] leading-none font-bold tabular-nums">
         {seconds}
       </span>
     </span>

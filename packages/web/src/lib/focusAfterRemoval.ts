@@ -2,7 +2,10 @@
 // control in the next row, else in the previous row, else the screen's heading, so focus
 // never falls to the page. Call it before the row is removed.
 
-const heading = () => document.querySelector<HTMLElement>("[data-sheet] h2, main h1")
+const heading = () =>
+  // Prefer the modal's heading explicitly; a selector list still uses document order (WKEY-03).
+  document.querySelector<HTMLElement>("[data-sheet] h2") ??
+  document.querySelector<HTMLElement>("main h1")
 
 export const focusAfterRemoval = (
   control: HTMLElement,
@@ -13,21 +16,30 @@ export const focusAfterRemoval = (
   const peers = sameControl ? [...document.querySelectorAll<HTMLElement>(sameControl)] : []
   const index = peers.indexOf(control)
   const next = index >= 0 ? (peers[index + 1] ?? peers[index - 1]) : undefined
-  // After the removal has rendered: the next row may now sit where this one was.
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      if (document.activeElement !== null && document.activeElement !== document.body) {
-        if (document.activeElement.isConnected && document.activeElement !== control) return
-      }
-      const target =
-        next?.isConnected === true
-          ? next
-          : ((sameControl ? document.querySelector<HTMLElement>(sameControl) : null) ??
-            fallback?.() ??
-            heading())
-      target?.focus({ preventScroll: true })
-    })
-  )
+  // Recording can outlast two frames; the modal may catch focus as its row leaves (WKEY-03).
+  let frames = 60
+  const land = () => {
+    const active = document.activeElement
+    if (
+      active !== null &&
+      active !== document.body &&
+      active !== control &&
+      !active.matches("[data-sheet]")
+    )
+      return
+    if (control.isConnected) {
+      if (--frames > 0) requestAnimationFrame(land)
+      return
+    }
+    const target =
+      next?.isConnected === true
+        ? next
+        : ((sameControl ? document.querySelector<HTMLElement>(sameControl) : null) ??
+          fallback?.() ??
+          heading())
+    target?.focus({ preventScroll: true })
+  }
+  requestAnimationFrame(land)
 }
 
 /**

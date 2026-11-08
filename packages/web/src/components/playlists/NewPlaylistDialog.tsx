@@ -3,6 +3,7 @@ import { X } from "lucide-react"
 import { useId, useRef, useState } from "react"
 import { useAppState } from "../../app/hooks.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
+import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { usePlaylistActions } from "./usePlaylistActions.ts"
 
@@ -15,13 +16,22 @@ export function NewPlaylistDialog({
   readonly onOpenChange: (open: boolean) => void
 }) {
   const id = useId()
-  const [name, setName] = useState("")
+  const {
+    draft: saved,
+    update,
+    clear
+  } = useDialogDraft({ kind: "playlist", name: "", clearOnPlayed: false })
+  const { name } = saved
+  const close = (next: boolean) => {
+    if (!next) clear()
+    onOpenChange(next)
+  }
   const nameField = useRef<HTMLInputElement>(null)
-  const [clearOnPlayed, setClearOnPlayed] = useState(false)
+  const { clearOnPlayed } = saved
   const [error, setError] = useState<string | null>(null)
   const { create } = usePlaylistActions()
   const state = useAppState()
-  useBackLayers(open ? 1 : 0, () => onOpenChange(false))
+  useBackLayers(open ? 1 : 0, () => close(false))
   const save = async () => {
     const trimmed = name.trim()
     if (trimmed === "") {
@@ -33,11 +43,11 @@ export function NewPlaylistDialog({
       setError(`There’s already a Playlist called “${trimmed}”.`)
       return
     }
-    onOpenChange(false)
     await create(name.trim(), clearOnPlayed)
+    close(false)
   }
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={close}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
@@ -67,7 +77,7 @@ export function NewPlaylistDialog({
             aria-invalid={error !== null}
             aria-describedby={error ? `${id}-error` : undefined}
             onChange={(event) => {
-              setName(event.target.value)
+              update({ name: event.target.value })
               setError(null)
             }}
             onKeyDown={(event) => {
@@ -84,7 +94,7 @@ export function NewPlaylistDialog({
             <input
               type="checkbox"
               checked={clearOnPlayed}
-              onChange={(event) => setClearOnPlayed(event.target.checked)}
+              onChange={(event) => update({ clearOnPlayed: event.target.checked })}
               className="mt-1 size-4 accent-primary"
             />
             <span>

@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react"
 import type { View } from "@podlist/domain"
 import { AsyncResult } from "effect/reactivity"
 import { Trash2 } from "lucide-react"
-import { type ReactNode, useId, useState } from "react"
+import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useJournaledRecord } from "../../app/journal.ts"
 import { useDebounced } from "../../lib/useDebounced.ts"
@@ -114,6 +114,16 @@ export function ViewFormFields({
   const [name, setName] = useState(current.name)
   const [text, setText] = useState(current.filter.text ?? "")
   const [nameError, setNameError] = useState(false)
+  // Replayed and remote edits follow the saved value until typing starts (WDATA-01).
+  const typingName = useRef(false)
+  const typingText = useRef(false)
+  const savedText = current.filter.text ?? ""
+  useEffect(() => {
+    if (!typingName.current) setName(current.name)
+  }, [current.name])
+  useEffect(() => {
+    if (!typingText.current) setText(savedText)
+  }, [savedText])
   // "Only these" or "All except" chosen before any podcast is ticked.
   const [podcastMode, setPodcastMode] = useState<"all" | "include" | "exclude">(
     current.filter.podcasts?.mode ?? "all"
@@ -191,10 +201,14 @@ export function ViewFormFields({
               aria-invalid={nameError}
               aria-describedby={nameError ? `${id}-name-error` : undefined}
               onChange={(event) => {
+                typingName.current = true
                 setName(event.target.value)
                 nameCommit.schedule(event.target.value)
               }}
-              onBlur={(event) => nameCommit.now(event.target.value)}
+              onBlur={(event) => {
+                nameCommit.now(event.target.value)
+                typingName.current = false
+              }}
               className={control}
             />
             {nameError && (
@@ -292,10 +306,14 @@ export function ViewFormFields({
                 placeholder="Any words"
                 aria-describedby={`${id}-text-help`}
                 onChange={(event) => {
+                  typingText.current = true
                   setText(event.target.value)
                   textCommit.schedule(event.target.value)
                 }}
-                onBlur={(event) => textCommit.now(event.target.value)}
+                onBlur={(event) => {
+                  textCommit.now(event.target.value)
+                  typingText.current = false
+                }}
                 className={control}
               />
               <p id={`${id}-text-help`} className="mt-1 text-small text-muted-foreground">

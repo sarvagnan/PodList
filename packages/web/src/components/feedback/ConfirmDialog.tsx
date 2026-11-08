@@ -63,11 +63,11 @@ export function ConfirmDialog({
               {problem}
             </p>
           )}
-          {/* The same full-width pair as every other dialog's footer. */}
+          {/* Shared hover and pressed feedback for both answers (CTRL-05). */}
           <div className="mt-5 grid grid-cols-2 gap-3">
             <AlertDialog.Close
               data-confirm-cancel=""
-              className="h-11 rounded-full bg-secondary px-5 font-semibold text-secondary-foreground hover:bg-input"
+              className="h-11 rounded-full bg-secondary px-5 font-semibold text-secondary-foreground hover:bg-input active:bg-input/70"
             >
               Cancel
             </AlertDialog.Close>
@@ -85,7 +85,7 @@ export function ConfirmDialog({
                 if (typeof failed === "string") setProblem(failed)
                 else close(false)
               }}
-              className={`h-11 rounded-full px-5 font-semibold text-primary-foreground aria-disabled:opacity-60 ${destructive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}`}
+              className={`h-11 rounded-full px-5 font-semibold text-primary-foreground aria-disabled:opacity-60 ${destructive ? "bg-destructive hover:bg-destructive/90 active:bg-destructive/80" : "bg-primary hover:bg-primary/90 active:bg-primary/80"}`}
             >
               {busy ? "Working…" : problem ? "Try again" : confirm}
             </button>

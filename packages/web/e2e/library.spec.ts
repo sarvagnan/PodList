@@ -209,8 +209,8 @@ test("a feed address shows its podcast before Subscribe, or says it isn't one", 
   const target = deep.find((s) => s.title === "Deep Field")
   await fetch(`${demo.base}/api/subscriptions/${target?.id}`, { method: "DELETE" })
   await page.reload()
-  await page.getByRole("button", { name: "Add podcasts" }).click()
-  await sheet.getByRole("button", { name: "Feed address" }).click()
+  // Reload restores the open sheet and its selected tab (WDATA-01).
+  await expect(sheet).toBeVisible()
   await field.fill(target?.feedUrl ?? "")
   const subscribe = sheet.getByRole("button", { name: "Subscribe to Deep Field" })
   await expect(subscribe).toBeVisible()
