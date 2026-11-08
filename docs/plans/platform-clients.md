@@ -1,8 +1,10 @@
 # Platform clients plan
 
-Status: agreed with the owner on 8 Nov 2026, apart from the open questions at the end. Decision record: [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md). Work is tracked under bead `pod-apx`.
+Status: agreed with the owner on 8 Nov 2026. Decision record: [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md). Work is tracked under bead `pod-apx`.
 
 ## What we're building
+
+This is the full set of clients. **The Android phone app comes first, then the Mac app, and only then the other screen sizes** (see Phases).
 
 | Client | Stack | Screens | Local data, offline | Automation |
 |---|---|---|---|---|
@@ -65,11 +67,13 @@ Native apps are only worth their cost if they feel native, so each one follows i
 
 `docs/design/ui-layout.md` is split before Android's milestone 2: a shared behaviour document, then one layout document per platform, starting with Android. Each platform's first screens are mocked and chosen the same way the web layout was.
 
+**Look (owner, 8 Nov 2026):** native apps use platform components and system fonts (Roboto, San Francisco), keep PodList's blue as the accent, and have dark mode from the start. Inter, Space Grotesk and light-only remain web decisions.
+
 Each client gets its own UI grading, as its own target. The brief names that platform's guidelines, so Platform fit means fit with Material or the HIG, and the flow runs cover every screen size below.
 
 ## Screen sizes
 
-Every client adapts to its window from its first screen, because retrofitting is the expensive way round. Layouts respond to the window and not to the device type.
+This is where each native app ends up. The Android phone and Mac layouts come first. They are built on the adaptive structures below from the first screen, so later sizes extend them without a rewrite, but only the current target is designed and checked until the others' turn. Layouts respond to the window and not to the device type.
 
 **Android** is one adaptive app:
 
@@ -79,7 +83,7 @@ Every client adapts to its window from its first screen, because retrofitting is
 - **Split screen and desktop windows:** any size, with keyboard, mouse and right-click.
 - **Android Auto:** through Media3.
 
-Android 17 ignores orientation and resizing locks on large screens, so this is required anyway when targeting API 37. Each milestone is checked on the phone, foldable, tablet and resizable emulator profiles.
+Android 17 ignores orientation and resizing locks on large screens, so this is required anyway when targeting API 37. Phase 1 is checked on phone profiles; phase 3 adds the foldable, tablet and resizable ones.
 
 **Apple** is one SwiftUI codebase:
 
@@ -89,7 +93,7 @@ Android 17 ignores orientation and resizing locks on large screens, so this is r
 - **Mac:** resizable windows.
 - **CarPlay:** added once the entitlement is granted.
 
-Layouts collapse through `NavigationSplitView` and size classes. Each milestone is checked on the small iPhone, Duo, iPad and Mac targets.
+Layouts collapse through `NavigationSplitView` and size classes. Phase 2 is checked on Mac windows; phase 3 adds the small iPhone, Duo and iPad targets.
 
 ## Phases
 
@@ -102,21 +106,36 @@ Native clients are only as correct as this contract.
 - Publish the HTTP API as a generated OpenAPI file next to the JSON Schema.
 - Write down the client's duties: Device registration, sync triggers, Position reporting, the Played threshold, and direct streaming with server fallback (ADR 0009).
 
-### 1. Android
+### 1. Android phone
 
-Each milestone is usable on its own and works on every Android screen size.
+Each milestone is usable on its own.
 
 1. Project in `apps/android`, native SQLite with the shared schema, the rules passing every vector.
 2. Android layout document and chosen mock-ups; sync and read-only Library, Views and Playlists.
 3. Playback (Media3: background, lock screen, Android Auto), downloads and Download Rules.
 4. Every remaining screen, including Rewind and Listening stats; app shortcuts.
-5. Parity check and regrade as an Android target. Exported intents follow; AppFunctions once out of preview.
+5. Parity check and regrade as an Android phone target. Exported intents follow; AppFunctions once out of preview.
 
-### 2. Apple apps
+### 2. Mac desktop
 
-The same milestones in SwiftUI, in `apps/apple`. iPhone comes first, with the Duo, iPad and Mac layouts designed alongside it from milestone 2. App Intents arrive with milestone 4. The Mac's native menus, media keys and MCP server come with its layout. CarPlay follows the entitlement.
+The same milestones in SwiftUI, in `apps/apple`. The project is set up as one multiplatform codebase, but only macOS is built out here.
 
-### 3. Web client goes online-only
+1. Project, native SQLite, the rules passing every vector.
+2. Mac layout document and chosen mock-ups; sync and read-only Library, Views and Playlists in resizable windows.
+3. Playback (background, media keys, Now Playing), downloads and Download Rules.
+4. Every remaining screen; native menus and keyboard shortcuts; App Intents; the MCP server.
+5. Parity check and regrade as a Mac target.
+
+### 3. The other screen sizes
+
+Extends the two apps above. The order is chosen when phase 2 finishes.
+
+- **Android:** foldables, tablets, split screen and desktop windows.
+- **Apple:** iPhone, iPhone Duo and iPad, then CarPlay once the entitlement is granted.
+
+Each new size gets its layout document, mock-ups and regrade.
+
+### 4. Web client goes online-only
 
 - A data-layer seam in `packages/web`: today's local SQLite for Electron, server-backed for web. Everything in `app/data.ts` and `SyncEngine` moves behind it.
 - New server read APIs. The server can run the same View compiler, so these are small: Views, filters, counts, Episode detail, stats, State.
@@ -124,9 +143,9 @@ The same milestones in SwiftUI, in `apps/apple`. iPhone comes first, with the Du
 - Many tabs, with Play in one stopping the others (`BroadcastChannel`).
 - Remove the service worker, install manifest and tab lock from the web build.
 
-This can be built alongside phase 1. See open question 3 for when it ships.
+This doesn't wait for the native apps. It can be built alongside phase 1 and ships when it's ready, and the PWA retires with it (owner, 8 Nov 2026).
 
-### 4. Electron for other desktops
+### 5. Electron for other desktops
 
 Windows and Linux packaging, and the MCP server. The local data layer stays, and the macOS build carries on.
 
@@ -137,9 +156,6 @@ Windows and Linux packaging, and the MCP server. The local data layer stays, and
 - **Scale.** Two full native apps, each across many screen sizes, are far more work than anything done so far on this project.
 - **The tailnet.** Native apps reach the server over Tailscale as the PWA does (ADR 0004), so Tailscale is needed on each device for sync.
 
-## Open questions for the owner
+## Not on the roadmap
 
-1. **One repository:** recommended as above. Agreed?
-2. **Native look:** recommended: platform components and system fonts (Roboto, San Francisco), keeping PodList's blue as the accent, with dark mode from the start because both platforms expect it. Inter, Space Grotesk and light-only remain web decisions.
-3. **When the web client switches:** it was to wait for Android so the phone kept offline listening, but nobody depends on that yet. Recommended: ship it when it's ready and retire the PWA with it, unless you want to use the PWA on your phone before the Android app exists.
-4. **Watches, TVs and Vision Pro:** left out for now as separate products. Recommended: revisit once the phone, tablet and desktop apps are done.
+Watches, TVs and Vision Pro (owner, 8 Nov 2026: not at the moment).
