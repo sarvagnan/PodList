@@ -1,8 +1,8 @@
 import { foldData } from "./MentionsFoldData.ts"
 
-// Unicode 17.0.0: NFD → full default (non-Turkic) case fold → NFD → remove
-// General_Category Mn/Mc/Me. Generated per-scalar mappings also avoid host Unicode
-// version differences. Canonical mark ordering is immaterial once marks are removed.
+// Unicode 17.0.0: NFD → full default (non-Turkic) case fold → NFD → remove accent marks →
+// replace undecomposable accented letters (mentions-fold.py lists both). Vowel signs and
+// kana voicing are not accents and stay. Per-scalar mappings avoid host Unicode differences.
 const mappings = new Map<number, string>()
 for (const chunk of foldData) {
   for (const row of chunk.split(";")) {

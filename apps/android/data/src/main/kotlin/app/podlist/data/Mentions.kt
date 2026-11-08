@@ -1,6 +1,7 @@
 package app.podlist.data
 
-/** Unicode 17: NFD, full default non-Turkic case fold, NFD, remove Mn/Mc/Me.
+/** Unicode 17: NFD, full default non-Turkic case fold, NFD, remove accent marks, replace
+ * undecomposable accented letters (mentions-fold.py lists both). Vowel signs and kana voicing stay.
  * Generated scalar mappings keep Android/JVM Unicode versions out of the contract.
  */
 object Mentions {

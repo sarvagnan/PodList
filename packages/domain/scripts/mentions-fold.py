@@ -1,6 +1,9 @@
 """Generate the identical, pinned Mentions fold table for TypeScript and Kotlin.
 Requires Python with Unicode 17.0.0. No host Unicode APIs are used at runtime.
-Algorithm: NFD, full default case fold (non-Turkic), NFD, remove Mn/Mc/Me.
+Algorithm: NFD, full default case fold (non-Turkic), NFD, remove accent marks, then
+replace accented letters that have no decomposition.
+Only optional marks count as accents. Marks that spell a different sound stay:
+Indic and Thai vowel signs and viramas, and kana voicing marks.
 Hangul's algorithmic canonical decomposition is implemented by both runtimes.
 Source: https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-3/
 """
@@ -9,12 +12,30 @@ import unicodedata as u
 
 assert u.unidata_version == "17.0.0", u.unidata_version
 root = Path(__file__).resolve().parents[3]
+
+ACCENT_MARKS = [
+    (0x0300, 0x036F),  # Combining Diacritical Marks
+    (0x0483, 0x0489),  # Cyrillic
+    (0x0591, 0x05BD), (0x05BF, 0x05BF), (0x05C1, 0x05C2), (0x05C4, 0x05C5), (0x05C7, 0x05C7),  # Hebrew points
+    (0x0610, 0x061A), (0x064B, 0x065F), (0x0670, 0x0670),  # Arabic harakat
+    (0x1AB0, 0x1AFF), (0x1DC0, 0x1DFF), (0x20D0, 0x20FF),  # Extended, Supplement, for Symbols
+    (0xA66F, 0xA672), (0xA674, 0xA67D),  # Cyrillic Extended-B
+    (0xFE20, 0xFE2F),  # Half marks
+]
+# Case-folded letters people type without the stroke or join; Unicode gives them no decomposition.
+UNDECOMPOSED = {"ı": "i", "ł": "l", "ø": "o", "đ": "d", "ħ": "h", "ŧ": "t", "æ": "ae", "œ": "oe"}
+
+
+def is_accent(ch):
+    return u.category(ch).startswith("M") and any(a <= ord(ch) <= b for a, b in ACCENT_MARKS)
+
+
 rows = []
 for cp in range(0x110000):
     if 0xD800 <= cp <= 0xDFFF or 0xAC00 <= cp <= 0xD7A3:
         continue
     c = chr(cp)
-    folded = "".join(x for x in u.normalize("NFD", u.normalize("NFD", c).casefold()) if not u.category(x).startswith("M"))
+    folded = "".join(UNDECOMPOSED.get(x, x) for x in u.normalize("NFD", u.normalize("NFD", c).casefold()) if not is_accent(x))
     if folded != c:
         rows.append(f'{cp:x}:' + ','.join(f'{ord(x):x}' for x in folded))
 chunks = [';'.join(rows[i:i + 200]) for i in range(0, len(rows), 200)]

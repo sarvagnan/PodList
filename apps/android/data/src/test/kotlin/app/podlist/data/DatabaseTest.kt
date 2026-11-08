@@ -146,7 +146,7 @@ class DatabaseTest {
                 assertEquals(listOf(first, second), db.outbox())
                 assertTrue(db.loadState().episodeStates.getValue("a").starred)
                 assertTrue(db.confirmedState()!!.episodeStates.isEmpty())
-                assertEquals(5L, db.query("SELECT count(*) AS n FROM android_migration").single()["n"])
+                assertEquals(6L, db.query("SELECT count(*) AS n FROM android_migration").single()["n"])
                 assertTrue(db.query("PRAGMA table_info(episode)").any { it["name"] == "chapters_url" })
                 assertTrue(db.query("PRAGMA table_info(episode)").any { it["name"] == "chapters_fetched_at" })
             }

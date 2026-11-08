@@ -1015,12 +1015,12 @@
       "expected": ["unicode"]
     },
     {
-      "name": "Mentions Unicode: \"ı\" searched with \"i\"",
+      "name": "Mentions Unicode: \"ışık\" searched with \"isik\"",
       "view": {
         "id": "v",
         "name": "Unicode",
         "filter": {
-          "text": "i"
+          "text": "isik"
         },
         "sort": "publishedDesc",
         "limit": null
@@ -1030,7 +1030,7 @@
           "id": "unicode",
           "subscriptionId": "tech",
           "guid": "unicode",
-          "title": "ı",
+          "title": "ışık",
           "description": "",
           "published": 8640000000,
           "duration": 60,
@@ -1040,7 +1040,7 @@
           "audioUpdatedAt": null
         }
       ],
-      "expected": []
+      "expected": ["unicode"]
     },
     {
       "name": "Mentions Unicode: \"i\" searched with \"ı\"",
@@ -1068,7 +1068,259 @@
           "audioUpdatedAt": null
         }
       ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"Łódź\" searched with \"lodz\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "lodz"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "Łódź",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"Søren\" searched with \"soren\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "soren"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "Søren",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"Encyclopædia\" searched with \"encyclopaedia\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "encyclopaedia"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "Encyclopædia",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"עִבְרִית\" searched with \"עברית\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "עברית"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "עִבְרִית",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"مُحَمَّد\" searched with \"محمد\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "محمد"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "مُحَمَّد",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
+    },
+    {
+      "name": "Mentions Unicode: \"काम\" searched with \"कम\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "कम"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "काम",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
       "expected": []
+    },
+    {
+      "name": "Mentions Unicode: \"பாடம்\" searched with \"படம்\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "படம்"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "பாடம்",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "Mentions Unicode: \"がき\" searched with \"かき\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "かき"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "がき",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "Mentions Unicode: \"がき\" searched with \"がき\"",
+      "view": {
+        "id": "v",
+        "name": "Unicode",
+        "filter": {
+          "text": "がき"
+        },
+        "sort": "publishedDesc",
+        "limit": null
+      },
+      "episodes": [
+        {
+          "id": "unicode",
+          "subscriptionId": "tech",
+          "guid": "unicode",
+          "title": "がき",
+          "description": "",
+          "published": 8640000000,
+          "duration": 60,
+          "audioUrl": "https://example.test/unicode.mp3",
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "expected": ["unicode"]
     },
     {
       "name": "Mentions Unicode: \"ПРИВЕТ\" searched with \"привет\"",
