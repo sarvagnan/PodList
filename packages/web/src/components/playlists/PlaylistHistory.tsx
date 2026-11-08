@@ -63,7 +63,7 @@ function ByDay<T>({
   }
   return (
     // Plain rows under day headings, like the Library's groups.
-    <div className="max-w-[960px] px-3 pb-8 md:px-6">
+    <div className="px-3 pb-8 md:px-6">
       {days.map(({ day, items }) => (
         <section key={day} aria-label={day} className="mt-4 first:mt-0">
           <h2 className="px-2 pb-1.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
@@ -165,7 +165,7 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
         {(event) => (
           <li
             key={`${event._tag}-${event._tag === "Edited" ? event.kind : ""}-${event.episodeId}-${momentOf(event)}`}
-            className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-2 py-2 last:border-b-0"
+            className="group flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b px-2 py-2 last:border-b-0"
           >
             <span className="w-12 shrink-0 text-small text-muted-foreground tabular-nums">
               {clock(momentOf(event))}
@@ -207,7 +207,11 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
             <button
               type="button"
               onClick={() => setAsking(event)}
-              className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3 text-small font-medium hover:bg-input active:bg-input/70"
+              // The visible words first (label in name), then which moment.
+              aria-label={`Rewind to here: ${clock(momentOf(event))}, ${title(event.episodeId)}`}
+              // Quiet until the row is in hand, so the events lead, not nine equal buttons;
+              // always shown on touch.
+              className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3 text-small font-medium transition-opacity hover:bg-input active:bg-input/70 [@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
             >
               <RotateCcw aria-hidden="true" className="size-4" />
               Rewind to here

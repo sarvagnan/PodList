@@ -60,3 +60,9 @@ export const subscriptionSettingsOpen = {
   get: () => read("subscription-settings") === "open",
   set: (open: boolean) => write("subscription-settings", open ? "open" : null)
 }
+
+/** The Library's sort, as the address writes it ("unplayed-desc"); A–Z when unset (DATA-06). */
+export const librarySort = {
+  get: () => read("library-sort"),
+  set: (sort: string | null) => write("library-sort", sort)
+}

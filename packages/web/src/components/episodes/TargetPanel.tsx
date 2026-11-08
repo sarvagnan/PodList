@@ -25,7 +25,8 @@ export function TargetPanel({ onOpen }: { readonly onOpen: (episodeId: string) =
   return (
     <section aria-labelledby="target-heading" className="px-5 pt-4">
       <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-        Next and Last go to
+        {/* What it shows: the header's picker already says Next and Last go here. */}
+        Up next in
       </p>
       <h2 id="target-heading" className="mt-1 font-heading text-xl font-semibold">
         <Link

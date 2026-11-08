@@ -65,6 +65,7 @@ function Action({
   return (
     <button
       type="button"
+      data-action=""
       {...buttonProps}
       aria-pressed={buttonProps ? undefined : pressed}
       onClick={onClick ?? buttonProps?.onClick}
@@ -150,7 +151,8 @@ export function EpisodeDetail({
     ...(detail.duration ? [formatLength(detail.duration)] : []),
     ...(played ? ["Played"] : [])
   ].join(" · ")
-  const iconCircle = `grid size-12 place-items-center rounded-full ${t.action}`
+  // A transparent edge that forced colours draw, round like the circle.
+  const iconCircle = `grid size-12 place-items-center rounded-full border border-transparent ${t.action}`
 
   return (
     // As wide as its header and actions, so Resume sits by its Playlist on a wide screen.

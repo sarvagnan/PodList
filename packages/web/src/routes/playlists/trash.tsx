@@ -24,7 +24,6 @@ function Trash() {
     <>
       <PageHeader
         backOnDesktop
-        narrow
         title="Trash"
         subtitle={`Deleted Playlists are kept for ${days} days.`}
         back={{ to: "/playlists", label: "Playlists" }}
@@ -34,7 +33,7 @@ function Trash() {
           A deleted Playlist waits here, with its History, until you restore it or its time is up.
         </EmptyState>
       ) : (
-        <ul className="max-w-[960px] px-3 md:px-6">
+        <ul className="px-3 md:px-6">
           {trash.map((t) => (
             <li
               key={t.playlist.id}

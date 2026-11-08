@@ -366,8 +366,10 @@ function Sidebar() {
     from !== null && (from === to || from.startsWith(`${to}/`)) ? " active" : ""
   const link =
     "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold [&.active]:shadow-[inset_3px_0_0_var(--color-primary)]"
+  // The section headings lead to their overviews (all Views, all Playlists), and show
+  // as selected there.
   const heading =
-    "px-2.5 pt-5 pb-1 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+    "mt-4 flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase hover:text-foreground [&.active]:bg-accent [&.active]:text-foreground"
   return (
     <nav
       aria-label="Library and lists"
@@ -385,7 +387,9 @@ function Sidebar() {
         )}
       </Link>
       <div className="flex items-center justify-between">
-        <p className={heading}>Views</p>
+        <Link to="/views" activeOptions={{ exact: true }} className={heading}>
+          Views
+        </Link>
         <Tip label="New View">
           <button
             type="button"
@@ -412,7 +416,9 @@ function Sidebar() {
         </Link>
       ))}
       <div className="flex items-center justify-between">
-        <p className={heading}>Playlists</p>
+        <Link to="/playlists" activeOptions={{ exact: true }} className={heading}>
+          Playlists
+        </Link>
         <Tip label="New Playlist">
           <button
             type="button"

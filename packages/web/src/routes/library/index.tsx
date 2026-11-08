@@ -23,6 +23,7 @@ import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { librarySort } from "../../lib/remembered.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
 
 // The Library (docs/design/ui-layout.md › Library and Subscriptions): every Subscription,
@@ -62,6 +63,20 @@ function LibraryScreen() {
   const { add: addFromUrl, sort: sortFromUrl } = Route.useSearch()
   const sort = sortParam.parse(sortFromUrl) ?? { key: "title" as const, ascending: true }
   const navigate = Route.useNavigate()
+  // The sort is remembered on this Device (DATA-06): coming back without one in the address
+  // (the sidebar, a tab, ⌘3) puts the last one back, in the address too.
+  useEffect(() => {
+    if (sortFromUrl !== undefined) {
+      librarySort.set(sortFromUrl)
+      return
+    }
+    const last = sortParam.parse(librarySort.get() ?? undefined)
+    if (last)
+      void navigate({
+        search: (rest) => ({ ...rest, sort: sortParam.format(last) }),
+        replace: true
+      })
+  }, [sortFromUrl, navigate])
   useEffect(() => {
     if (!addFromUrl) return
     // Clean the URL first: the sheet's Back step must not lead back to ?add=true.
@@ -167,10 +182,9 @@ function LibraryScreen() {
     </button>
   )
   return (
-    // Measured for the table-or-list choice; the screen's content stops at 960 px anyway.
-    <div ref={contentRef} className="max-w-[960px]">
+    // Measured for the table-or-list choice (and the table's extra columns).
+    <div ref={contentRef}>
       <PageHeader
-        narrow
         title="Library"
         {...(subscriptions.length > 0
           ? {
@@ -219,17 +233,19 @@ function LibraryScreen() {
           sort={sort}
           setSort={(next) =>
             void navigate({
-              search: ({ sort: _, ...rest }) =>
-                next.key === "title" && next.ascending
-                  ? rest
-                  : { ...rest, sort: sortParam.format(next) },
+              search: ({ sort: _, ...rest }) => {
+                const plain = next.key === "title" && next.ascending
+                // A–Z is the default: forgotten, so it stays the default next time.
+                if (plain) librarySort.set(null)
+                return plain ? rest : { ...rest, sort: sortParam.format(next) }
+              },
               replace: true
             })
           }
         />
       ) : (
         // Grouped by what this Device stores for each podcast (design C).
-        <div className="max-w-[960px] space-y-5 px-3 md:px-6">
+        <div className="space-y-5 px-3 md:px-6">
           {groups.map(({ mode, title, items }) =>
             items.length === 0 ? null : (
               <section key={mode} aria-labelledby={`group-${mode}`}>

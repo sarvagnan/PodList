@@ -578,7 +578,7 @@ export function NowPlayingDrawer() {
             {page === undefined && (
               // Desktop: the player and Up next side by side in one centred column, not at
               // the sheet's far edges.
-              <div className="md:mx-auto md:grid md:max-w-[64rem] md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:gap-8 md:px-6">
+              <div className="md:mx-auto md:grid md:max-w-[64rem] md:grid-cols-[minmax(0,28rem)_minmax(0,28rem)] md:justify-center md:gap-12 md:px-6">
                 <MainPage current={current} />
                 {/* Desktop: Chapters and Up next beside the player. */}
                 <aside className="hidden space-y-6 md:block">

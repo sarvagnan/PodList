@@ -174,7 +174,7 @@ export function LibraryTable({
     setTicked(next)
   }
   return (
-    <div className="max-w-[960px] px-3 pb-8 md:px-6">
+    <div className="px-3 pb-8 md:px-6">
       {/* At very large text the table scrolls sideways in its own box, not the page. */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] table-fixed border-collapse text-row">

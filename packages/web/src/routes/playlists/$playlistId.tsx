@@ -148,7 +148,6 @@ function PlaylistDetail() {
   return (
     <>
       <PageHeader
-        narrow={!selected}
         title={playlist.name}
         // Each section has its own address, so its own tab name too (BROWSER-03).
         tabTitle={
@@ -234,7 +233,7 @@ function PlaylistDetail() {
           In a View, use Play Next or Play Last to add Episodes here.
         </EmptyState>
       ) : (
-        <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : "max-w-[960px]"}>
+        <div className={selected ? "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]" : ""}>
           {/* biome-ignore lint/a11y/useSemanticElements: a grid of flex rows (components/lists/Grid.tsx). */}
           <div
             ref={listRef}

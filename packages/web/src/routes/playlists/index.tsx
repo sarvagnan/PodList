@@ -24,7 +24,6 @@ function PlaylistsList() {
   return (
     <>
       <PageHeader
-        narrow
         title="Playlists"
         actions={
           <button
@@ -40,7 +39,7 @@ function PlaylistsList() {
       {state === null ? (
         <LoadingRows label="Loading Playlists" />
       ) : (
-        <div className="max-w-[960px] px-3 md:px-6">
+        <div className="px-3 md:px-6">
           {state.playlists.map((p) => {
             const active = p.id === state.activePlaylistId
             const current = p.cursor === null ? undefined : episodes.get(p.cursor)

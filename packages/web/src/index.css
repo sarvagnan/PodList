@@ -197,6 +197,22 @@ select:not([multiple]) {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
+  /* Episode actions: the round icon carries the edge, not the whole column, so the row
+     reads as round buttons as it does in colour, not touching boxes. */
+  button[data-action] {
+    border: 0;
+  }
+  button[data-action][aria-pressed="true"] {
+    outline: none;
+  }
+  button[data-action][aria-pressed="true"] > span:first-child {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  /* The selected tab: its pill's outline only, not a second one round the whole tab. */
+  nav[aria-label="Sections"] a[aria-current="page"] {
+    outline: none;
+  }
 }
 
 @media (min-width: 44rem) {

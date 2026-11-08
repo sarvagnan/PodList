@@ -52,7 +52,7 @@ function SubscribeButton({
             el.focus()
           }
         }}
-        className="inline-flex h-9 shrink-0 items-center gap-1 px-2 text-small font-medium text-muted-foreground outline-offset-2"
+        className="inline-flex h-10 shrink-0 items-center gap-1 px-2 text-small font-medium text-muted-foreground outline-offset-2"
       >
         <Check aria-hidden="true" className="size-4" />
         Subscribed
@@ -80,7 +80,7 @@ function SubscribeButton({
           toasts.add({ description: `Subscribed to ${name}`, timeout: 4000 })
         } else onProblem(problem)
       }}
-      className="h-9 shrink-0 rounded-full bg-primary px-4 text-small font-semibold text-primary-foreground hover:bg-primary/90 aria-disabled:opacity-60"
+      className="h-10 shrink-0 rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 aria-disabled:opacity-60"
     >
       {busy ? "Subscribing…" : "Subscribe"}
     </button>

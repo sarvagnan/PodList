@@ -244,6 +244,14 @@ test("the Library table sorts by its columns", async ({ page }) => {
   await expect.poll(names).toEqual(["Deep Field", "Market Hours", "Slow Build"])
   await page.getByRole("button", { name: "Podcast", exact: true }).click()
   await expect.poll(names).toEqual(["Slow Build", "Market Hours", "Deep Field"])
+  // Remembered on this Device: back through the sidebar's plain /library link, it's kept.
+  await page.goto(`${demo.base}/views/short`)
+  await page
+    .getByRole("navigation", { name: "Library and lists" })
+    .getByRole("link", { name: "Library", exact: true })
+    .click()
+  await expect.poll(names).toEqual(["Slow Build", "Market Hours", "Deep Field"])
+  await expect(page).toHaveURL(/sort=title-desc/)
 })
 
 test("on the phone, a Subscription's settings stay open after a reload", async ({ page }) => {
@@ -292,7 +300,8 @@ test("with larger text, the Library gives way to its list", async ({ page }) => 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await expect(page.getByRole("table")).toBeVisible()
-  await page.addStyleTag({ content: "html { font-size: 24px !important }" })
+  // 200% text: the table's columns no longer fit the main column.
+  await page.addStyleTag({ content: "html { font-size: 32px !important }" })
   await expect(page.getByRole("table")).toHaveCount(0)
   await expect(page.getByRole("link", { name: "Deep Field", exact: true })).toBeVisible()
 })
