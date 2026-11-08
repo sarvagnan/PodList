@@ -121,6 +121,13 @@ describe("Listening Timeline", () => {
     expect(def(s).timeline.map((t) => t.position)).toEqual([10, 70])
   })
 
+  it("does not reintroduce expired points through late reports", () => {
+    const day = 24 * 60
+    const s = replay(add(0, "A"), report(31 * day, "A", 20), report(0, "A", 10))
+    expect(def(s).timeline.map((t) => t.position)).toEqual([20])
+    expect(def(s).entries[0]?.position).toBe(20)
+  })
+
   it("drops points older than 30 days", () => {
     const day = 24 * 60
     const s = replay(add(0, "A"), report(0, "A", 10), report(31 * day, "A", 20))

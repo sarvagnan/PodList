@@ -1,0 +1,2476 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PodList HTTP API",
+    "version": "4",
+    "description": "Single-user API. Authentication and authorization are provided by reachability over the user's Tailscale tailnet (ADR 0004). There is no application login, bearer token, API key or cookie requirement. Keep the server private to the tailnet. Protocol version is also returned by GET /api/health. Paths include /api; use the server origin as the base URL. JSON endpoints return an empty 400 response for malformed input (HttpApiSchemaError); infrastructure failures may return 5xx. The two streaming endpoints are implemented with raw HttpRouter handlers."
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["system"],
+        "operationId": "system.health",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/Health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_HealthEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices": {
+      "post": {
+        "tags": ["sync"],
+        "operationId": "sync.registerDevice",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/domain/Device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_domain_DeviceEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_domain_DeviceEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/sync/push": {
+      "post": {
+        "tags": ["sync"],
+        "operationId": "sync.push",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/PushResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_PushResponseEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_api_PushRequestEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/sync/pull": {
+      "get": {
+        "tags": ["sync"],
+        "operationId": "sync.pull",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/PullResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_PullResponseEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          }
+        }
+      }
+    },
+    "/api/episodes/{id}/chapters": {
+      "get": {
+        "tags": ["library"],
+        "operationId": "library.chapters",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/_podlist_domain_ChapterEncoded"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          },
+          "404": {
+            "description": "EpisodeNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeNotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/changes": {
+      "get": {
+        "tags": ["library"],
+        "operationId": "library.changes",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/CatalogueChanges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_CatalogueChangesEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          }
+        }
+      }
+    },
+    "/api/library/refresh": {
+      "post": {
+        "tags": ["library"],
+        "operationId": "library.refreshAll",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/RefreshSummary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_RefreshSummaryEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/{id}/refresh": {
+      "post": {
+        "tags": ["library"],
+        "operationId": "library.refreshSubscription",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "_tag": {
+                          "type": "string",
+                          "enum": ["NotModified"]
+                        }
+                      },
+                      "required": ["_tag"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "_tag": {
+                          "type": "string",
+                          "enum": ["Updated"]
+                        },
+                        "added": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "changed": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["_tag", "added", "changed"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          },
+          "404": {
+            "description": "SubscriptionNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionNotFoundEncoded"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "FeedFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedFailedEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions": {
+      "get": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.list",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/_podlist_domain_SubscriptionEncoded"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.subscribe",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/domain/Subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_domain_SubscriptionEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          },
+          "502": {
+            "description": "FeedFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedFailedEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_api_SubscribeRequestEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/subscriptions/{id}": {
+      "delete": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.unsubscribe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/domain/Subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_domain_SubscriptionEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          },
+          "404": {
+            "description": "SubscriptionNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionNotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/import": {
+      "post": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.importOpml",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/ImportSummary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_ImportSummaryEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_api_ImportRequestEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/subscriptions/export": {
+      "get": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.exportOpml",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/x-opml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/directory/search": {
+      "get": {
+        "tags": ["directory"],
+        "operationId": "directory.search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/_podlist_api_DirectoryResultEncoded"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          }
+        }
+      }
+    },
+    "/api/episodes/{id}/audio": {
+      "get": {
+        "tags": ["media"],
+        "operationId": "media.audio",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-none-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-modified-since",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "content-length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "content-range": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "accept-ranges": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "cache-control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Success",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "content-length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "content-range": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "accept-ranges": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "cache-control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "<No Content>",
+            "headers": {
+              "content-length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "content-range": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "accept-ranges": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "cache-control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "content-length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "content-range": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "accept-ranges": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "cache-control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "content-length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "content-range": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "accept-ranges": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "cache-control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "content-length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "content-range": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "accept-ranges": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "cache-control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Other upstream status; body and Content-Type pass through unchanged.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "description": "Streams only the Episode audio URL in the Library. Follows upstream redirects; upstream status/body pass through, including errors beyond those listed. No transcoding. Range, If-Range, If-None-Match and If-Modified-Since are forwarded. Response Content-Type, Content-Length, Content-Range, Accept-Ranges, ETag, Last-Modified and Cache-Control pass through."
+      }
+    },
+    "/api/artwork": {
+      "get": {
+        "tags": ["media"],
+        "operationId": "media.artwork",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "HTTP(S) Artwork named in the Library only (or already cached). Size defaults to 512 and rounds up to 64, 128, 256 or 512; values above 512 use 512. Returns square WebP, Cache-Control: public, max-age=604800."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "_podlist_api_DirectoryResultEncoded": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feedUrl": {
+            "type": "string"
+          },
+          "artworkUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": ["podcastindex", "itunes", "feed"]
+          }
+        },
+        "required": ["title", "author", "feedUrl", "artworkUrl", "source"],
+        "additionalProperties": false
+      },
+      "_podlist_api_ImportSummaryEncoded": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "alreadySubscribed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "feedUrl": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["feedUrl", "message"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["added", "alreadySubscribed", "failed"],
+        "additionalProperties": false
+      },
+      "_podlist_api_ImportRequestEncoded": {
+        "type": "object",
+        "properties": {
+          "opml": {
+            "type": "string"
+          }
+        },
+        "required": ["opml"],
+        "additionalProperties": false
+      },
+      "SubscriptionNotFoundEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["SubscriptionNotFound"]
+          }
+        },
+        "required": ["_tag"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_SubscriptionEncoded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "feedUrl": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artwork": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/_podlist_domain_ArtworkEncoded"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subscribedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "unsubscribedAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "playedThreshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "playbackSettings": {
+            "type": "object",
+            "properties": {
+              "speed": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 3
+              },
+              "skipIntro": {
+                "type": "number",
+                "minimum": 0
+              },
+              "skipOutro": {
+                "type": "number",
+                "minimum": 0
+              },
+              "volumeBoost": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "feedUrl",
+          "title",
+          "author",
+          "description",
+          "artwork",
+          "subscribedAt",
+          "unsubscribedAt",
+          "playedThreshold",
+          "playbackSettings"
+        ],
+        "additionalProperties": false
+      },
+      "_podlist_domain_ArtworkEncoded": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": ["url"],
+        "additionalProperties": false
+      },
+      "FeedFailedEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["FeedFailed"]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["_tag", "message"],
+        "additionalProperties": false
+      },
+      "_podlist_api_SubscribeRequestEncoded": {
+        "type": "object",
+        "properties": {
+          "feedUrl": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["feedUrl"],
+        "additionalProperties": false
+      },
+      "_podlist_api_RefreshSummaryEncoded": {
+        "type": "object",
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "updated": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "notModified": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["checked", "updated", "notModified", "failed"],
+        "additionalProperties": false
+      },
+      "_podlist_api_CatalogueChangesEncoded": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_SubscriptionEncoded"
+            }
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_EpisodeEncoded"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["cursor", "subscriptions", "episodes", "more"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_EpisodeEncoded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subscriptionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "guid": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "published": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audioUrl": {
+            "type": "string"
+          },
+          "artwork": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/_podlist_domain_ArtworkEncoded"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_ChapterEncoded"
+            }
+          },
+          "audioUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subscriptionId",
+          "guid",
+          "title",
+          "description",
+          "published",
+          "duration",
+          "audioUrl",
+          "artwork",
+          "chapters",
+          "audioUpdatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "_podlist_domain_ChapterEncoded": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "artwork": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/_podlist_domain_ArtworkEncoded"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["start", "title", "artwork", "url"],
+        "additionalProperties": false
+      },
+      "EpisodeNotFoundEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["EpisodeNotFound"]
+          }
+        },
+        "required": ["_tag"],
+        "additionalProperties": false
+      },
+      "_podlist_api_PullResponseEncoded": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/_podlist_domain_StateEncoded"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_OperationEncoded"
+            }
+          }
+        },
+        "required": ["cursor", "snapshot", "operations"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_OperationEncoded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "recordedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["AddEntry"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "placement": {
+                    "type": "string",
+                    "enum": ["now", "next", "last"]
+                  }
+                },
+                "required": ["_tag", "playlistId", "episodeId", "placement"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["MoveEntry"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "after": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["_tag", "playlistId", "episodeId", "after"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["RemoveEntry"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "playlistId", "episodeId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetCursor"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "episodeId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["_tag", "playlistId", "episodeId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["ReportPosition"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "position": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "listenedAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "listening": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "day": {
+                          "type": "string"
+                        },
+                        "subscriptionId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": ["day", "subscriptionId", "seconds"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["_tag", "playlistId", "episodeId", "position", "listenedAt"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["RecordListening"]
+                  },
+                  "amounts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "day": {
+                          "type": "string"
+                        },
+                        "subscriptionId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": ["day", "subscriptionId", "seconds"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["_tag", "amounts"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["MarkPlayed"]
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "_tag": {
+                            "type": "string",
+                            "enum": ["Playback"]
+                          },
+                          "playlistId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": ["_tag", "playlistId"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "_tag": {
+                            "type": "string",
+                            "enum": ["User"]
+                          }
+                        },
+                        "required": ["_tag"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["_tag", "episodeId", "source"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["MarkUnplayed"]
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "episodeId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["MarkSubscriptionPlayed"]
+                  },
+                  "subscriptionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "subscriptionId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetStar"]
+                  },
+                  "episodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "starred": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["_tag", "episodeId", "starred"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["CreatePlaylist"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clearOnPlayed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["_tag", "playlistId", "name", "clearOnPlayed"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["RenamePlaylist"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "playlistId", "name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetClearOnPlayed"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clearOnPlayed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["_tag", "playlistId", "clearOnPlayed"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["DeletePlaylist"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "playlistId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["RestorePlaylist"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "playlistId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetTrashDays"]
+                  },
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["_tag", "days"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetActivePlaylist"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "playlistId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Rewind"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "to": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["_tag", "playlistId", "to"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SaveView"]
+                  },
+                  "view": {
+                    "$ref": "#/components/schemas/_podlist_domain_ViewEncoded"
+                  }
+                },
+                "required": ["_tag", "view"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["DeleteView"]
+                  },
+                  "viewId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "viewId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetDownloadRule"]
+                  },
+                  "rule": {
+                    "$ref": "#/components/schemas/_podlist_domain_DownloadRuleEncoded"
+                  }
+                },
+                "required": ["_tag", "rule"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetPlaybackSettings"]
+                  },
+                  "settings": {
+                    "$ref": "#/components/schemas/_podlist_domain_PlaybackSettingsEncoded"
+                  }
+                },
+                "required": ["_tag", "settings"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["SetSubscriptionOverrides"]
+                  },
+                  "subscriptionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "playbackSettings": {
+                    "type": "object",
+                    "properties": {
+                      "speed": {
+                        "type": "number",
+                        "minimum": 0.5,
+                        "maximum": 3
+                      },
+                      "skipIntro": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "skipOutro": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "volumeBoost": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "playedThreshold": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["_tag", "subscriptionId", "playbackSettings", "playedThreshold"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["id", "deviceId", "sequence", "recordedAt", "change"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_PlaybackSettingsEncoded": {
+        "type": "object",
+        "properties": {
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3
+          },
+          "skipIntro": {
+            "type": "number",
+            "minimum": 0
+          },
+          "skipOutro": {
+            "type": "number",
+            "minimum": 0
+          },
+          "volumeBoost": {
+            "type": "boolean"
+          }
+        },
+        "required": ["speed", "skipIntro", "skipOutro", "volumeBoost"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_DownloadRuleEncoded": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["never", "onEntry", "allNew"]
+          },
+          "keepAtMost": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["subscriptionId", "deviceId", "mode", "keepAtMost"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_ViewEncoded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "published": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["LastDays"]
+                      },
+                      "days": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["_tag", "days"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["Between"]
+                      },
+                      "from": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "to": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["_tag", "from", "to"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "podcasts": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": ["include", "exclude"]
+                  },
+                  "subscriptionIds": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    ],
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": ["mode", "subscriptionIds"],
+                "additionalProperties": false
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "played": {
+                "type": "string",
+                "enum": ["unplayed", "inProgress", "played"]
+              },
+              "starred": {
+                "type": "boolean"
+              },
+              "notInAnyPlaylist": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "minDuration": {
+                "type": "number",
+                "minimum": 0
+              },
+              "maxDuration": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["publishedDesc", "publishedAsc", "durationAsc", "durationDesc"]
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "name", "filter", "sort", "limit"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_StateEncoded": {
+        "type": "object",
+        "properties": {
+          "playlists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_PlaylistEncoded"
+            }
+          },
+          "activePlaylistId": {
+            "type": "string"
+          },
+          "episodeStates": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/_podlist_domain_EpisodeStateEncoded"
+            }
+          },
+          "views": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_ViewEncoded"
+            }
+          },
+          "downloadRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_DownloadRuleEncoded"
+            }
+          },
+          "playbackSettings": {
+            "$ref": "#/components/schemas/_podlist_domain_PlaybackSettingsEncoded"
+          },
+          "trash": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_TrashedPlaylistEncoded"
+            }
+          },
+          "trashDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "listeningLog": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "required": [
+          "playlists",
+          "activePlaylistId",
+          "episodeStates",
+          "views",
+          "downloadRules",
+          "playbackSettings"
+        ],
+        "additionalProperties": false
+      },
+      "_podlist_domain_TrashedPlaylistEncoded": {
+        "type": "object",
+        "properties": {
+          "playlist": {
+            "$ref": "#/components/schemas/_podlist_domain_PlaylistEncoded"
+          },
+          "deletedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["playlist", "deletedAt"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_PlaylistEncoded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "clearOnPlayed": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_EntryEncoded"
+            }
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_HistoryItemEncoded"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_TimelinePointEncoded"
+            }
+          },
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_PlaylistEditEncoded"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isDefault",
+          "clearOnPlayed",
+          "entries",
+          "cursor",
+          "history",
+          "timeline"
+        ],
+        "additionalProperties": false
+      },
+      "_podlist_domain_PlaylistEditEncoded": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["added", "moved", "removed", "markedPlayed"]
+          },
+          "episodeId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["at", "kind", "episodeId"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_TimelinePointEncoded": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "episodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["at", "episodeId", "position"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_HistoryItemEncoded": {
+        "type": "object",
+        "properties": {
+          "episodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "finishedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "followedBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["episodeId", "finishedAt"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_EntryEncoded": {
+        "type": "object",
+        "properties": {
+          "episodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0
+          },
+          "positionAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["episodeId", "position", "positionAt"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_EpisodeStateEncoded": {
+        "type": "object",
+        "properties": {
+          "episodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "played": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/_podlist_domain_PlayedEncoded"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": ["episodeId", "played", "starred"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_PlayedEncoded": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Playback"]
+                  },
+                  "playlistId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["_tag", "playlistId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["User"]
+                  }
+                },
+                "required": ["_tag"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["at", "source"],
+        "additionalProperties": false
+      },
+      "_podlist_api_PushResponseEncoded": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["cursor", "accepted"],
+        "additionalProperties": false
+      },
+      "_podlist_api_PushRequestEncoded": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_OperationEncoded"
+            }
+          }
+        },
+        "required": ["operations"],
+        "additionalProperties": false
+      },
+      "_podlist_domain_DeviceEncoded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["pwa", "desktop"]
+          },
+          "registeredAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["id", "name", "kind", "registeredAt"],
+        "additionalProperties": false
+      },
+      "_podlist_api_HealthEncoded": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok"]
+          },
+          "protocolVersion": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "release": {
+            "type": "string"
+          }
+        },
+        "required": ["status", "protocolVersion"],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {}
+  },
+  "security": [],
+  "tags": [
+    {
+      "name": "system"
+    },
+    {
+      "name": "sync"
+    },
+    {
+      "name": "library"
+    },
+    {
+      "name": "subscriptions"
+    },
+    {
+      "name": "directory"
+    },
+    {
+      "name": "media"
+    }
+  ]
+}

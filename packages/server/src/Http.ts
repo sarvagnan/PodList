@@ -6,9 +6,10 @@ import {
   Sync,
   System
 } from "@podlist/api"
+import { openApiDocument } from "@podlist/api/openapi"
 import { Protocol } from "@podlist/domain"
 import { Config, Effect, Layer, Option } from "effect"
-import { HttpApiBuilder } from "effect/http-api"
+import { HttpApiBuilder, OpenApi } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
 import { Chapters } from "./Chapters.ts"
 import { Directory } from "./Directory.ts"
@@ -121,9 +122,12 @@ export const DirectoryHandlers = HttpApiBuilder.group(
   })
 )
 
-export const ApiRoutes = HttpApiBuilder.layer(PodListApi, {
-  openapiPath: "/api/openapi.json"
-}).pipe(
+export const ApiRoutes = HttpApiBuilder.layer(
+  PodListApi.annotate(OpenApi.Transform, () => openApiDocument()),
+  {
+    openapiPath: "/api/openapi.json"
+  }
+).pipe(
   Layer.provide([
     SystemHandlers,
     SyncHandlers,

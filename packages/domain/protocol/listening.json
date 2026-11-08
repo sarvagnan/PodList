@@ -1,0 +1,701 @@
+{
+  "protocolVersion": 4,
+  "samples": [
+    {
+      "name": "Normal playback",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 115
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "science",
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "name": "Double speed counts wall seconds",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 130
+      },
+      "speed": 2,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "science",
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "name": "Slow playback counts wall seconds",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 111.25
+      },
+      "speed": 0.75,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "science",
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "name": "Progress shorter than wall time",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 110
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "science",
+          "seconds": 10
+        }
+      ]
+    },
+    {
+      "name": "One second jitter accepted but capped",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 116
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "science",
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "name": "Beyond jitter is a forward seek",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 116.001
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Backward seek",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 80
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Stationary Position",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 100
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Gap exactly 30 seconds counts",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 30000,
+        "position": 130
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "science",
+          "seconds": 30
+        }
+      ]
+    },
+    {
+      "name": "Gap over 30 seconds counts nothing",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 30001,
+        "position": 130
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Same clock instant",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 0,
+        "position": 115
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Clock moved backwards",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": -1000,
+        "position": 115
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Zero speed",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 115
+      },
+      "speed": 0,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Negative speed",
+      "before": {
+        "at": 0,
+        "position": 100
+      },
+      "after": {
+        "at": 15000,
+        "position": 115
+      },
+      "speed": -1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "First event has no preceding sample",
+      "before": null,
+      "after": {
+        "at": 15000,
+        "position": 115
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Pause clears the preceding sample; paused Position cannot count",
+      "before": null,
+      "after": {
+        "at": 15000,
+        "position": 200
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Seek or Player Discontinuity resets the boundary",
+      "before": null,
+      "after": {
+        "at": 15000,
+        "position": 200
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "Changing speed resets the boundary",
+      "before": null,
+      "after": {
+        "at": 15000,
+        "position": 200
+      },
+      "speed": 2,
+      "offsetMinutes": 0,
+      "subscriptionId": "science",
+      "expected": []
+    },
+    {
+      "name": "UTC midnight",
+      "before": {
+        "at": 1794182390000,
+        "position": 0
+      },
+      "after": {
+        "at": 1794182405000,
+        "position": 15
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "night",
+      "expected": [
+        {
+          "day": "2026-11-08",
+          "subscriptionId": "night",
+          "seconds": 10
+        },
+        {
+          "day": "2026-11-09",
+          "subscriptionId": "night",
+          "seconds": 5
+        }
+      ]
+    },
+    {
+      "name": "UTC plus 05:30 midnight",
+      "before": {
+        "at": 1794162590000,
+        "position": 0
+      },
+      "after": {
+        "at": 1794162605000,
+        "position": 15
+      },
+      "speed": 1,
+      "offsetMinutes": -330,
+      "subscriptionId": "night",
+      "expected": [
+        {
+          "day": "2026-11-08",
+          "subscriptionId": "night",
+          "seconds": 10
+        },
+        {
+          "day": "2026-11-09",
+          "subscriptionId": "night",
+          "seconds": 5
+        }
+      ]
+    },
+    {
+      "name": "UTC minus 08:00 midnight",
+      "before": {
+        "at": 1794211190000,
+        "position": 0
+      },
+      "after": {
+        "at": 1794211205000,
+        "position": 15
+      },
+      "speed": 1,
+      "offsetMinutes": 480,
+      "subscriptionId": "night",
+      "expected": [
+        {
+          "day": "2026-11-08",
+          "subscriptionId": "night",
+          "seconds": 10
+        },
+        {
+          "day": "2026-11-09",
+          "subscriptionId": "night",
+          "seconds": 5
+        }
+      ]
+    },
+    {
+      "name": "Exact midnight belongs entirely to preceding day",
+      "before": {
+        "at": 86385000,
+        "position": 0
+      },
+      "after": {
+        "at": 86400000,
+        "position": 15
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "night",
+      "expected": [
+        {
+          "day": "1970-01-01",
+          "subscriptionId": "night",
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "name": "Partial progress is attributed to the end of the interval",
+      "before": {
+        "at": 86390000,
+        "position": 0
+      },
+      "after": {
+        "at": 86405000,
+        "position": 5
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "night",
+      "expected": [
+        {
+          "day": "1970-01-02",
+          "subscriptionId": "night",
+          "seconds": 5
+        }
+      ]
+    },
+    {
+      "name": "Ending offset applies to the entire sample after a timezone change",
+      "before": {
+        "at": 1794182390000,
+        "position": 0
+      },
+      "after": {
+        "at": 1794182405000,
+        "position": 15
+      },
+      "speed": 1,
+      "offsetMinutes": -60,
+      "subscriptionId": "travel",
+      "expected": [
+        {
+          "day": "2026-11-09",
+          "subscriptionId": "travel",
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "name": "Year boundary splits by Device calendar",
+      "before": {
+        "at": 1798761590000,
+        "position": 0
+      },
+      "after": {
+        "at": 1798761605000,
+        "position": 15
+      },
+      "speed": 1,
+      "offsetMinutes": 0,
+      "subscriptionId": "night",
+      "expected": [
+        {
+          "day": "2026-12-31",
+          "subscriptionId": "night",
+          "seconds": 10
+        },
+        {
+          "day": "2027-01-01",
+          "subscriptionId": "night",
+          "seconds": 5
+        }
+      ]
+    }
+  ],
+  "thresholds": [
+    {
+      "name": "Default just before threshold",
+      "position": 569.999,
+      "duration": 600,
+      "threshold": null,
+      "expected": false
+    },
+    {
+      "name": "Default exact threshold",
+      "position": 570,
+      "duration": 600,
+      "threshold": null,
+      "expected": true
+    },
+    {
+      "name": "Subscription override before",
+      "position": 589.999,
+      "duration": 600,
+      "threshold": 10,
+      "expected": false
+    },
+    {
+      "name": "Subscription override exact",
+      "position": 590,
+      "duration": 600,
+      "threshold": 10,
+      "expected": true
+    },
+    {
+      "name": "Zero threshold before end",
+      "position": 599.999,
+      "duration": 600,
+      "threshold": 0,
+      "expected": false
+    },
+    {
+      "name": "Zero threshold at end",
+      "position": 600,
+      "duration": 600,
+      "threshold": 0,
+      "expected": true
+    },
+    {
+      "name": "Beyond duration",
+      "position": 700,
+      "duration": 600,
+      "threshold": 0,
+      "expected": true
+    },
+    {
+      "name": "Shorter than default threshold",
+      "position": 0,
+      "duration": 20,
+      "threshold": null,
+      "expected": true
+    },
+    {
+      "name": "Override longer than Episode",
+      "position": 0,
+      "duration": 60,
+      "threshold": 90,
+      "expected": true
+    },
+    {
+      "name": "Zero duration",
+      "position": 0,
+      "duration": 0,
+      "threshold": null,
+      "expected": true
+    },
+    {
+      "name": "Unknown duration cannot finish by Position",
+      "position": 9999,
+      "duration": null,
+      "threshold": null,
+      "expected": false
+    }
+  ],
+  "sessions": [
+    {
+      "name": "pause-seek-speed-discontinuity",
+      "initial": {
+        "episodeId": "e2",
+        "subscriptionId": "s",
+        "position": 20,
+        "speed": 1.5,
+        "duration": 60,
+        "clearOnPlayed": false
+      },
+      "steps": [
+        {
+          "at": 0,
+          "action": "play",
+          "expectedSeconds": 0
+        },
+        {
+          "at": 10000,
+          "action": "position",
+          "position": 35,
+          "duration": 600,
+          "expectedSeconds": 10
+        },
+        {
+          "at": 10000,
+          "action": "pause",
+          "expectedSeconds": 10
+        },
+        {
+          "at": 20000,
+          "action": "position",
+          "position": 35,
+          "duration": 600,
+          "expectedSeconds": 10
+        },
+        {
+          "at": 20000,
+          "action": "play",
+          "expectedSeconds": 10
+        },
+        {
+          "at": 30000,
+          "action": "position",
+          "position": 50,
+          "duration": 600,
+          "expectedSeconds": 20
+        },
+        {
+          "at": 30000,
+          "action": "seek",
+          "position": 200,
+          "expectedSeconds": 20
+        },
+        {
+          "at": 31000,
+          "action": "position",
+          "position": 201.5,
+          "duration": 600,
+          "expectedSeconds": 20
+        },
+        {
+          "at": 41000,
+          "action": "position",
+          "position": 216.5,
+          "duration": 600,
+          "expectedSeconds": 30
+        },
+        {
+          "at": 41000,
+          "action": "speed",
+          "speed": 2,
+          "expectedSeconds": 30
+        },
+        {
+          "at": 42000,
+          "action": "position",
+          "position": 218.5,
+          "duration": 600,
+          "expectedSeconds": 30
+        },
+        {
+          "at": 52000,
+          "action": "position",
+          "position": 238.5,
+          "duration": 600,
+          "expectedSeconds": 40
+        },
+        {
+          "at": 52000,
+          "action": "discontinuity",
+          "expectedSeconds": 40
+        },
+        {
+          "at": 53000,
+          "action": "position",
+          "position": 300,
+          "duration": 600,
+          "expectedSeconds": 40
+        },
+        {
+          "at": 63000,
+          "action": "position",
+          "position": 320,
+          "duration": 600,
+          "expectedSeconds": 50
+        },
+        {
+          "at": 63000,
+          "action": "pause",
+          "expectedSeconds": 50
+        }
+      ],
+      "expectedPlayed": false,
+      "expectedEntryPosition": 320
+    },
+    {
+      "name": "listening-tail-after-Played",
+      "initial": {
+        "episodeId": "e2",
+        "subscriptionId": "s",
+        "position": 20,
+        "speed": 1.5,
+        "duration": 60,
+        "clearOnPlayed": false
+      },
+      "steps": [
+        {
+          "at": 0,
+          "action": "play",
+          "expectedSeconds": 0
+        },
+        {
+          "at": 15000,
+          "action": "position",
+          "position": 42.5,
+          "duration": 60,
+          "expectedSeconds": 15
+        },
+        {
+          "at": 20000,
+          "action": "position",
+          "position": 50,
+          "duration": 60,
+          "expectedSeconds": 20
+        },
+        {
+          "at": 20000,
+          "action": "pause",
+          "expectedSeconds": 20
+        }
+      ],
+      "expectedPlayed": true,
+      "expectedEntryPosition": 0
+    }
+  ]
+}

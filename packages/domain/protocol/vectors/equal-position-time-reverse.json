@@ -1,0 +1,237 @@
+{
+  "name": "equal-position-time-reverse",
+  "description": "Equal listenedAt uses the last arrival for Position; Timeline sampling retains the first point. Device id and sequence do not break ties.",
+  "protocolVersion": 4,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "equal-position-time-reverse-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "equal-position-time-reverse-1",
+      "deviceId": "mac",
+      "sequence": 1,
+      "recordedAt": 1793750460000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 20,
+        "listenedAt": 1793750460000
+      }
+    },
+    {
+      "id": "equal-position-time-reverse-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750460000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 10,
+        "listenedAt": 1793750460000
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "A",
+            "position": 10,
+            "positionAt": 1793750460000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": [
+          {
+            "at": 1793750460000,
+            "episodeId": "A",
+            "position": 20
+          }
+        ],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          }
+        ]
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "checkpoints": [
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 0,
+              "positionAt": 1793750400000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 20,
+              "positionAt": 1793750460000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [
+            {
+              "at": 1793750460000,
+              "episodeId": "A",
+              "position": 20
+            }
+          ],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 10,
+              "positionAt": 1793750460000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [
+            {
+              "at": 1793750460000,
+              "episodeId": "A",
+              "position": 20
+            }
+          ],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Library, Operation, PlaybackSettings, type State, Units } from "@podlist/domain"
-import { Effect, Layer, Queue, Schema, Stream, SubscriptionRef } from "effect"
+import { Clock, Effect, Layer, Queue, Schema, Stream, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
+import listeningContract from "../../../domain/protocol/listening.json"
 import * as LocalDb from "../platform/LocalDb.ts"
 import {
   Player,
@@ -162,6 +163,92 @@ const state = Effect.gen(function* () {
 })
 
 describe("Playback", () => {
+  for (const session of listeningContract.sessions) {
+    it.live(`Listening lifecycle vector: ${session.name}`, () => {
+      const start = new Date()
+      start.setDate(start.getDate() + 1)
+      start.setHours(12, 0, 0, 0)
+      let at = start.getTime()
+      const base = at
+      return Effect.gen(function* () {
+        const real = yield* Clock.Clock
+        const clock: Clock.Clock = {
+          ...real,
+          sleep: (duration) => real.sleep(duration),
+          currentTimeNanosUnsafe: () => real.currentTimeNanosUnsafe(),
+          monotonicTimeNanosUnsafe: () => real.monotonicTimeNanosUnsafe(),
+          currentTimeMillisUnsafe: () => at,
+          currentTimeMillis: Effect.sync(() => at)
+        }
+        return yield* withDevice((fake) =>
+          Effect.gen(function* () {
+            const playback = yield* Playback
+            const engine = yield* SyncEngine
+            yield* engine.record(
+              change({
+                _tag: "SetClearOnPlayed",
+                playlistId: "default",
+                clearOnPlayed: session.initial.clearOnPlayed
+              })
+            )
+            yield* eventually(now, (n) => n?.episodeId === session.initial.episodeId)
+            for (const step of session.steps) {
+              at = base + step.at
+              switch (step.action) {
+                case "play":
+                  yield* playback.play
+                  yield* eventually(now, (n) => n?.playing === true)
+                  break
+                case "pause":
+                  yield* playback.pause
+                  yield* eventually(now, (n) => n?.playing === false)
+                  break
+                case "position":
+                  if (step.position === undefined || step.duration === undefined)
+                    throw new Error("Position needs seconds and duration")
+                  fake.emit(
+                    PlayerEvent.Position({ seconds: step.position, duration: step.duration })
+                  )
+                  yield* eventually(now, (n) => n?.position === step.position)
+                  break
+                case "seek":
+                  if (step.position === undefined) throw new Error("Seek needs seconds")
+                  yield* playback.seek(step.position)
+                  break
+                case "speed":
+                  if (step.speed === undefined) throw new Error("Speed needs rate")
+                  yield* playback.setSpeed(step.speed)
+                  break
+                case "discontinuity":
+                  fake.emit(PlayerEvent.Discontinuity())
+                  break
+                default:
+                  throw new Error(`Unknown lifecycle action: ${step.action}`)
+              }
+              // Let the event/report fiber finish before advancing the controlled clock.
+              yield* Effect.sleep("10 millis")
+              const current = yield* state
+              const seconds = Object.values(current.listeningLog ?? {}).reduce(
+                (sum, amounts) => sum + (amounts[session.initial.subscriptionId] ?? 0),
+                0
+              )
+              expect(seconds, `${session.name}: ${step.action} at ${step.at}`).toBe(
+                step.expectedSeconds
+              )
+            }
+            const current = yield* state
+            expect(current.episodeStates[session.initial.episodeId]?.played != null).toBe(
+              session.expectedPlayed
+            )
+            expect(entry(current, "default", session.initial.episodeId)?.position).toBe(
+              session.expectedEntryPosition
+            )
+          })
+        ).pipe(Effect.provideService(Clock.Clock, clock))
+      })
+    })
+  }
+
   it.live("logs forward listening but excludes seeks and paused time", () =>
     withDevice((fake) =>
       Effect.gen(function* () {

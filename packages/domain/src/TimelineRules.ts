@@ -14,11 +14,12 @@ export const record = (
   position: Seconds,
   at: EpochMillis
 ): Playlist => {
+  const newest = Math.max(at, ...playlist.timeline.map((t) => t.at))
+  if (at < newest - retentionMillis) return playlist
   const tooClose = playlist.timeline.some(
     (t) => t.episodeId === episodeId && Math.abs(t.at - at) < spacingMillis
   )
   if (tooClose) return playlist
-  const newest = Math.max(at, ...playlist.timeline.map((t) => t.at))
   const timeline = [
     ...playlist.timeline.filter((t) => t.at >= newest - retentionMillis),
     new TimelinePoint({ at, episodeId, position })

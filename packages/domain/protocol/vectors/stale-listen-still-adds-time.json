@@ -1,0 +1,337 @@
+{
+  "name": "stale-listen-still-adds-time",
+  "description": "A stale Position can add Listening log amounts, and an older Timeline point; a retry of that operation adds nothing.",
+  "protocolVersion": 4,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "stale-listen-still-adds-time-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "default",
+        "episodeId": "A",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "stale-listen-still-adds-time-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750700000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 200,
+        "listenedAt": 1793750700000
+      }
+    },
+    {
+      "id": "stale-listen-still-adds-time-2",
+      "deviceId": "mac",
+      "sequence": 2,
+      "recordedAt": 1793750520000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 100,
+        "listenedAt": 1793750520000,
+        "listening": [
+          {
+            "day": "2026-11-01",
+            "subscriptionId": "s",
+            "seconds": 12
+          }
+        ]
+      }
+    },
+    {
+      "id": "stale-listen-still-adds-time-2",
+      "deviceId": "mac",
+      "sequence": 2,
+      "recordedAt": 1793750520000,
+      "change": {
+        "_tag": "ReportPosition",
+        "playlistId": "default",
+        "episodeId": "A",
+        "position": 100,
+        "listenedAt": 1793750520000,
+        "listening": [
+          {
+            "day": "2026-11-01",
+            "subscriptionId": "s",
+            "seconds": 12
+          }
+        ]
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [
+          {
+            "episodeId": "A",
+            "position": 200,
+            "positionAt": 1793750700000
+          }
+        ],
+        "cursor": "A",
+        "history": [],
+        "timeline": [
+          {
+            "at": 1793750520000,
+            "episodeId": "A",
+            "position": 100
+          },
+          {
+            "at": 1793750700000,
+            "episodeId": "A",
+            "position": 200
+          }
+        ],
+        "edits": [
+          {
+            "at": 1793750400000,
+            "kind": "added",
+            "episodeId": "A"
+          }
+        ]
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    },
+    "listeningLog": {
+      "2026-11-01": {
+        "s": 12
+      }
+    }
+  },
+  "checkpoints": [
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 0,
+              "positionAt": 1793750400000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 200,
+              "positionAt": 1793750700000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [
+            {
+              "at": 1793750700000,
+              "episodeId": "A",
+              "position": 200
+            }
+          ],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 200,
+              "positionAt": 1793750700000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [
+            {
+              "at": 1793750520000,
+              "episodeId": "A",
+              "position": 100
+            },
+            {
+              "at": 1793750700000,
+              "episodeId": "A",
+              "position": 200
+            }
+          ],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      },
+      "listeningLog": {
+        "2026-11-01": {
+          "s": 12
+        }
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [
+            {
+              "episodeId": "A",
+              "position": 200,
+              "positionAt": 1793750700000
+            }
+          ],
+          "cursor": "A",
+          "history": [],
+          "timeline": [
+            {
+              "at": 1793750520000,
+              "episodeId": "A",
+              "position": 100
+            },
+            {
+              "at": 1793750700000,
+              "episodeId": "A",
+              "position": 200
+            }
+          ],
+          "edits": [
+            {
+              "at": 1793750400000,
+              "kind": "added",
+              "episodeId": "A"
+            }
+          ]
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      },
+      "listeningLog": {
+        "2026-11-01": {
+          "s": 12
+        }
+      }
+    }
+  ]
+}
