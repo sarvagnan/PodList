@@ -256,8 +256,21 @@ const applyChange = (state: State, change: Change, context: Context): State => {
     case "SetDownloadRule": {
       const same = (r: DownloadRule) =>
         r.subscriptionId === change.rule.subscriptionId && r.deviceId === change.rule.deviceId
+      const previous = state.downloadRules.find(same)
+      // The operation time belongs to the activation, not to cap edits or sync arrival.
+      // Ignore any supplied since: callers cannot carry an old activation through Stream.
+      const since =
+        change.rule.mode === "allNew"
+          ? previous?.mode === "allNew"
+            ? previous.since
+            : context.at
+          : undefined
+      const { since: _ignored, ...rule } = change.rule
       return replace(state, {
-        downloadRules: [...state.downloadRules.filter((r) => !same(r)), change.rule]
+        downloadRules: [
+          ...state.downloadRules.filter((r) => !same(r)),
+          new DownloadRule({ ...rule, ...(since === undefined ? {} : { since }) })
+        ]
       })
     }
     case "SetPlaybackSettings":

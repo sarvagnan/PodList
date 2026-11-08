@@ -29,6 +29,26 @@ const rule = (deviceId: string, mode: string) => ({
 
 export const contractScenarios: ReadonlyArray<Scenario> = [
   {
+    name: "all-new-activation-per-device",
+    description:
+      "All New keeps its activation time for cap edits, clears it on Stream or Entries, and starts again on re-entry. Arrival order wins over recording time, Devices are independent and duplicate delivery does nothing.",
+    changes: [
+      step({ _tag: "SetDownloadRule", rule: rule("phone", "allNew") }, 1),
+      step(
+        { _tag: "SetDownloadRule", rule: { ...rule("phone", "allNew"), keepAtMost: 8 } },
+        2,
+        "mac"
+      ),
+      step({ _tag: "SetDownloadRule", rule: rule("mac", "allNew") }, 3),
+      step({ _tag: "SetDownloadRule", rule: rule("phone", "never") }, 4),
+      step({ _tag: "SetDownloadRule", rule: rule("phone", "allNew") }, 5, "mac"),
+      { duplicateOf: 4, change: {} },
+      step({ _tag: "SetDownloadRule", rule: rule("phone", "onEntry") }, 6),
+      step({ _tag: "SetDownloadRule", rule: rule("phone", "allNew") }, 2),
+      step({ _tag: "SetDownloadRule", rule: { ...rule("phone", "allNew"), since: 0 } }, 7)
+    ]
+  },
+  {
     name: "settings-and-views-last-arrival",
     description:
       "View updates replace in place; deletion is idempotent; Download Rules replace only the same Subscription/Device pair; Playback Settings replace wholesale. Arrival order wins, even for older recording times.",

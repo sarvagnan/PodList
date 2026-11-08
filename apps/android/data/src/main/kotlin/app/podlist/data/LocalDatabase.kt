@@ -20,11 +20,28 @@ class LocalDatabase(path: String) : AutoCloseable {
                 for (migration in migrations) transaction {
                     if (query("SELECT id FROM android_migration WHERE scope = ? AND id = ?", listOf(scope, migration.id)).isEmpty()) {
                         for (statement in migration.statements) execute(statement)
+                        if (scope == "shared" && migration.id == 4) backfillMentions()
                         execute("INSERT INTO android_migration (scope, id, name) VALUES (?, ?, ?)", listOf(scope, migration.id, migration.name))
                     }
                 }
             }
         } catch (error: Throwable) { connection.close(); throw error }
+    }
+
+    private fun backfillMentions() {
+        for (table in listOf("subscription", "episode")) {
+            var after: String? = null
+            while (true) {
+                val rows = query("SELECT id, title${if (table == "episode") ", description" else ""} FROM $table ${if (after == null) "" else "WHERE id > ?"} ORDER BY id LIMIT 128", if (after == null) emptyList() else listOf(after))
+                if (rows.isEmpty()) break
+                for (row in rows) {
+                    val title = Mentions.fold(row.getValue("title") as String)
+                    if (table == "episode") execute("UPDATE episode SET title_folded = ?, description_folded = ? WHERE id = ?", listOf(title, Mentions.fold(row.getValue("description") as String), row["id"]))
+                    else execute("UPDATE subscription SET title_folded = ? WHERE id = ?", listOf(title, row["id"]))
+                    after = row.getValue("id") as String
+                }
+            }
+        }
     }
 
     @Synchronized
@@ -112,13 +129,14 @@ class LocalDatabase(path: String) : AutoCloseable {
     @Synchronized
     fun upsertLibrary(subscriptions: List<Subscription>, episodes: List<Episode>, cursor: Long? = null) = transaction {
         for (s in subscriptions) upsert("subscription", linkedMapOf(
-            "id" to s.id, "feed_url" to s.feedUrl, "title" to s.title, "author" to s.author,
+            "id" to s.id, "feed_url" to s.feedUrl, "title" to s.title, "title_folded" to Mentions.fold(s.title), "author" to s.author,
             "description" to s.description, "artwork_url" to s.artwork?.url, "subscribed_at" to s.subscribedAt,
             "unsubscribed_at" to s.unsubscribedAt, "played_threshold" to s.playedThreshold,
             "playback_settings" to ProtocolJson.encodeToString(s.playbackSettings)
         ))
         for (e in episodes) upsert("episode", linkedMapOf(
             "id" to e.id, "subscription_id" to e.subscriptionId, "guid" to e.guid, "title" to e.title,
+            "title_folded" to Mentions.fold(e.title), "description_folded" to Mentions.fold(e.description),
             "description" to e.description, "published" to e.published, "duration" to e.duration,
             "audio_url" to e.audioUrl, "artwork_url" to e.artwork?.url,
             "chapters" to ProtocolJson.encodeToString(e.chapters), "audio_updated_at" to e.audioUpdatedAt

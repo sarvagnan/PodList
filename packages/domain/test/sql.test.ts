@@ -94,8 +94,9 @@ describe("SQLite schema", () => {
 
   it("gives existing Playlists an order when upgrading, Default first", () => {
     const db = new DatabaseSync(":memory:")
-    const [upgrade, ...earlier] = [...Sql.migrations].reverse()
-    for (const m of earlier.reverse()) for (const statement of m.statements) db.exec(statement)
+    const upgrade = Sql.migrations.find((m) => m.id === 3)
+    const earlier = Sql.migrations.filter((m) => m.id < 3)
+    for (const m of earlier) for (const statement of m.statements) db.exec(statement)
     for (const id of ["workshop", "default", "commute"]) {
       db.prepare("INSERT INTO playlist (id, doc) VALUES (?, '{}')").run(id)
     }

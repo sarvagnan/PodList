@@ -55,6 +55,36 @@ class DatabaseTest {
     } }
 
     @Test
+    fun `Mentions backfills a populated older schema and survives reopening`() {
+        val path = Files.createTempFile("podlist-mentions-", ".sqlite")
+        try {
+            androidx.sqlite.driver.bundled.BundledSQLiteDriver().open(path.toString()).use { connection ->
+                fun execute(sql: String) = connection.prepare(sql).use { it.step() }
+                execute("CREATE TABLE android_migration (scope TEXT NOT NULL, id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (scope, id))")
+                for ((scope, migrations) in listOf("shared" to SharedSchema.migrations.filter { it.id <= 3 }, "client" to SharedSchema.clientMigrations)) {
+                    for (migration in migrations) {
+                        for (statement in migration.statements) execute(statement)
+                        execute("INSERT INTO android_migration (scope, id, name) VALUES ('$scope', ${migration.id}, '${migration.name}')")
+                    }
+                }
+                execute("INSERT INTO subscription (id, feed_url, title, subscribed_at) VALUES ('s', 'f', 'ПОДКАСТ', 0)")
+                for (i in 0 until 260) execute("INSERT INTO episode (id, subscription_id, guid, title, description, published, audio_url) VALUES ('$i', 's', '$i', 'Café', 'Straße é', 1, 'audio')")
+                execute("INSERT INTO sync_meta (key, value) VALUES ('ruleSince:s', '123')")
+                execute("INSERT INTO download_rule (subscription_id, device_id, mode, keep_at_most) VALUES ('s', 'phone', 'allNew', NULL)")
+            }
+            repeat(2) {
+                LocalDatabase(path.toString()).use { db ->
+                    val compiled = ViewQuery.compile(ViewFilter(text = "CAFE STRASSE ПОДКАСТ É"), ViewSort.PublishedDesc, null, 1L)
+                    assertEquals(260, db.query(compiled.sql, compiled.params).size)
+                    assertEquals("Café", db.query("SELECT title FROM episode WHERE id = '0'").single()["title"])
+                    assertEquals("123", db.getMeta("ruleSince:s"))
+                    assertNull(db.query("SELECT since FROM download_rule").single()["since"])
+                }
+            }
+        } finally { Files.deleteIfExists(path) }
+    }
+
+    @Test
     fun `migrations exactly match shared and web SQL sources`() {
         val repo = Path.of(System.getProperty("podlist.repo"))
         val source = Files.readString(repo.resolve("packages/domain/src/Sql.ts"))
@@ -116,7 +146,7 @@ class DatabaseTest {
                 assertEquals(listOf(first, second), db.outbox())
                 assertTrue(db.loadState().episodeStates.getValue("a").starred)
                 assertTrue(db.confirmedState()!!.episodeStates.isEmpty())
-                assertEquals(5L, db.query("SELECT count(*) AS n FROM android_migration").single()["n"])
+                assertEquals(6L, db.query("SELECT count(*) AS n FROM android_migration").single()["n"])
                 assertTrue(db.query("PRAGMA table_info(episode)").any { it["name"] == "chapters_url" })
                 assertTrue(db.query("PRAGMA table_info(episode)").any { it["name"] == "chapters_fetched_at" })
             }

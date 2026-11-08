@@ -82,9 +82,15 @@ object StateRules {
         is Change.SaveView -> state.copy(views = if (state.views.any { it.id == change.view.id })
             state.views.map { if (it.id == change.view.id) change.view else it } else state.views + change.view)
         is Change.DeleteView -> state.copy(views = state.views.filterNot { it.id == change.viewId })
-        is Change.SetDownloadRule -> state.copy(downloadRules = state.downloadRules.filterNot {
-            it.subscriptionId == change.rule.subscriptionId && it.deviceId == change.rule.deviceId
-        } + change.rule)
+        is Change.SetDownloadRule -> {
+            val previous = state.downloadRules.find { it.subscriptionId == change.rule.subscriptionId && it.deviceId == change.rule.deviceId }
+            val since = if (change.rule.mode == DownloadMode.AllNew) {
+                if (previous?.mode == DownloadMode.AllNew) previous.since else at
+            } else null
+            state.copy(downloadRules = state.downloadRules.filterNot {
+                it.subscriptionId == change.rule.subscriptionId && it.deviceId == change.rule.deviceId
+            } + change.rule.copy(since = since))
+        }
         is Change.SetPlaybackSettings -> state.copy(playbackSettings = change.settings)
         is Change.RecordListening -> if (change.amounts.isEmpty()) state else state.copy(listeningLog = Listening.add(state.listeningLog ?: emptyMap(), change.amounts))
         is Change.ReportPosition -> {

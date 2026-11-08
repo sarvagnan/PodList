@@ -130,9 +130,9 @@ check("Podcasts unknown id", { podcasts: { mode: "include", subscriptionIds: ["m
 check("Mentions ASCII case insensitive substring", { text: "aI" }, ["a", "b", "c"])
 check("Mentions words may match different fields", { text: "  SCIence\tdevice\n" }, ["a"])
 check("Mentions every word required, any order", { text: "device small" }, ["a", "d"])
-check("Mentions diacritics preserved, Unicode case not folded", { text: "café" }, ["h", "a"])
-check("Mentions uppercase accented letter is distinct", { text: "CAFÉ" }, ["b"])
-check("Mentions no accent folding", { text: "cafe" }, ["c"])
+check("Mentions ignores accents and case", { text: "café" }, ["h", "a", "b", "c"])
+check("Mentions uppercase accented letters fold", { text: "CAFÉ" }, ["h", "a", "b", "c"])
+check("Mentions unaccented text matches accents", { text: "cafe" }, ["h", "a", "b", "c"])
 check("Mentions percent literal", { text: "%" }, ["a"])
 check("Mentions underscore literal", { text: "_" }, ["a"])
 check("Mentions backslash literal", { text: "\\" }, ["a"])
@@ -194,7 +194,55 @@ cases.push({
   now: now + day / 2,
   expected: ["h", "e", "f", "a", "b"]
 })
-check("Mentions does not normalize composed and decomposed accents", { text: "Cafe\u0301" }, [])
+check("Mentions normalizes decomposed accents", { text: "Cafe\u0301" }, ["h", "a", "b", "c"])
+
+// Independent expected results, shared by SQLite hosts and native clients.
+for (const [title, text, matches] of [
+  ["Café", "cafe", true],
+  ["e\u0301", "É", true],
+  ["été", "ÉTÉ", true],
+  ["Straße", "STRASSE", true],
+  ["ẞ", "ss", true],
+  ["İSTANBUL", "istanbul", true],
+  ["I", "i", true],
+  ["ışık", "isik", true],
+  ["i", "ı", true],
+  ["Łódź", "lodz", true],
+  ["Søren", "soren", true],
+  ["Encyclopædia", "encyclopaedia", true],
+  ["עִבְרִית", "עברית", true],
+  ["مُحَمَّد", "محمد", true],
+  ["काम", "कम", false],
+  ["பாடம்", "படம்", false],
+  ["がき", "かき", false],
+  ["がき", "がき", true],
+  ["ПРИВЕТ", "привет", true],
+  ["Ёлка", "елка", true],
+  ["ΟΣ ος", "οσ", true],
+  ["𐐀", "𐐨", true],
+  ["한", "한", true],
+  ["cafe\u0301", "CAFÉ", true]
+] as const) {
+  cases.push({
+    name: `Mentions Unicode: ${JSON.stringify(title)} searched with ${JSON.stringify(text)}`,
+    view: { id: "v", name: "Unicode", filter: { text }, sort: "publishedDesc", limit: null },
+    episodes: [ep("unicode", "tech", title, 0, 60)],
+    expected: matches ? ["unicode"] : []
+  })
+}
+
+cases.push({
+  name: "Mentions folds show notes and podcast names as well as titles",
+  view: {
+    id: "v",
+    name: "All fields",
+    filter: { text: "SCIENCE ÉTÉ привет" },
+    sort: "publishedDesc",
+    limit: null
+  },
+  episodes: [ep("unicode-fields", "sci", "ÉTÉ", 0, 60, "ПРИВЕТ")],
+  expected: ["unicode-fields"]
+})
 
 for (const sort of ["publishedAsc", "publishedDesc", "durationAsc", "durationDesc"]) {
   cases.push({
@@ -238,7 +286,7 @@ export const buildViewVectors = () => {
     protocolVersion: Protocol.version,
     now,
     subscriptions: [
-      sub("sci", "Science"),
+      sub("sci", "Sciénce"),
       sub("tech", "Technology"),
       sub("gone", "Removed", 1)
     ].map((value) => Schema.decodeUnknownSync(Library.Subscription)(value)),

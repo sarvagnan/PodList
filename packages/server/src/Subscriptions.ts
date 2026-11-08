@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { Library as Domain } from "@podlist/domain"
+import { Library as Domain, Mentions } from "@podlist/domain"
 import { Context, Data, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql"
 import { XMLParser } from "fast-xml-parser"
@@ -120,6 +120,7 @@ export class Subscriptions extends Context.Service<
             id,
             feed_url: feedUrl,
             title: feedUrl,
+            title_folded: Mentions.fold(feedUrl),
             subscribed_at: Date.now()
           })}`.pipe(Effect.orDie)
           yield* library.refresh(id).pipe(

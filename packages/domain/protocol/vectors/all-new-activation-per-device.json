@@ -1,0 +1,543 @@
+{
+  "name": "all-new-activation-per-device",
+  "description": "All New keeps its activation time for cap edits, clears it on Stream or Entries, and starts again on re-entry. Arrival order wins over recording time, Devices are independent and duplicate delivery does nothing.",
+  "protocolVersion": 4,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "all-new-activation-per-device-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750460000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-1",
+      "deviceId": "mac",
+      "sequence": 1,
+      "recordedAt": 1793750520000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 8
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750580000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750640000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "never",
+          "keepAtMost": null
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-4",
+      "deviceId": "mac",
+      "sequence": 4,
+      "recordedAt": 1793750700000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-4",
+      "deviceId": "mac",
+      "sequence": 4,
+      "recordedAt": 1793750700000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-6",
+      "deviceId": "phone",
+      "sequence": 6,
+      "recordedAt": 1793750760000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "onEntry",
+          "keepAtMost": null
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-7",
+      "deviceId": "phone",
+      "sequence": 7,
+      "recordedAt": 1793750520000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3
+        }
+      }
+    },
+    {
+      "id": "all-new-activation-per-device-8",
+      "deviceId": "phone",
+      "sequence": 8,
+      "recordedAt": 1793750820000,
+      "change": {
+        "_tag": "SetDownloadRule",
+        "rule": {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 0
+        }
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [
+      {
+        "subscriptionId": "s",
+        "deviceId": "mac",
+        "mode": "allNew",
+        "keepAtMost": 3,
+        "since": 1793750580000
+      },
+      {
+        "subscriptionId": "s",
+        "deviceId": "phone",
+        "mode": "allNew",
+        "keepAtMost": 3,
+        "since": 1793750520000
+      }
+    ],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "checkpoints": [
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750460000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 8,
+          "since": 1793750460000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 8,
+          "since": 1793750460000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "never",
+          "keepAtMost": null
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750700000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750700000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "onEntry",
+          "keepAtMost": null
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750520000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    },
+    {
+      "playlists": [
+        {
+          "id": "default",
+          "name": "Default",
+          "isDefault": true,
+          "clearOnPlayed": true,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        }
+      ],
+      "activePlaylistId": "default",
+      "episodeStates": {},
+      "views": [],
+      "downloadRules": [
+        {
+          "subscriptionId": "s",
+          "deviceId": "mac",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750580000
+        },
+        {
+          "subscriptionId": "s",
+          "deviceId": "phone",
+          "mode": "allNew",
+          "keepAtMost": 3,
+          "since": 1793750520000
+        }
+      ],
+      "playbackSettings": {
+        "speed": 1,
+        "skipIntro": 0,
+        "skipOutro": 0,
+        "volumeBoost": false
+      }
+    }
+  ]
+}

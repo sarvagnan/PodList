@@ -13,7 +13,7 @@ export interface RuleFacts {
   readonly subscriptionId: string
   readonly mode: "never" | "onEntry" | "allNew"
   readonly keepAtMost: number | null
-  /** When this Device first saw the rule ("allNew" counts from then). */
+  /** When All New was most recently switched on for this Device. */
   readonly since: number
 }
 

@@ -70,6 +70,12 @@ object SharedSchema {
          ELSE 1 + (SELECT count(*) FROM playlist p WHERE p.id <> 'default' AND p.rowid < playlist.rowid) END""",
             """UPDATE view SET ordinal = (SELECT count(*) FROM view v WHERE v.rowid < view.rowid)""",
         )),
+        Migration(4, "mentions_and_rule_since", listOf(
+            "ALTER TABLE subscription ADD COLUMN title_folded TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE episode ADD COLUMN title_folded TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE episode ADD COLUMN description_folded TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE download_rule ADD COLUMN since INTEGER",
+        )),
     )
     val clientMigrations = listOf(
         Migration(1, "outbox", listOf(

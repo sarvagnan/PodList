@@ -3,6 +3,7 @@ import { Migrator, SqlClient } from "effect/sql"
 import { DownloadRule } from "./Device.ts"
 import { EpisodeState } from "./Library.ts"
 import * as Listening from "./Listening.ts"
+import * as Mentions from "./Mentions.ts"
 import { PlaybackSettings } from "./PlaybackSettings.ts"
 import { Playlist } from "./Playlist.ts"
 import { State, TrashedPlaylist } from "./State.ts"
@@ -101,6 +102,16 @@ export const migrations: ReadonlyArray<Migration> = [
          ELSE 1 + (SELECT count(*) FROM playlist p WHERE p.id <> 'default' AND p.rowid < playlist.rowid) END`,
       "UPDATE view SET ordinal = (SELECT count(*) FROM view v WHERE v.rowid < view.rowid)"
     ]
+  },
+  {
+    id: 4,
+    name: "mentions_and_rule_since",
+    statements: [
+      "ALTER TABLE subscription ADD COLUMN title_folded TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE episode ADD COLUMN title_folded TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE episode ADD COLUMN description_folded TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE download_rule ADD COLUMN since INTEGER"
+    ]
   }
 ]
 
@@ -112,10 +123,36 @@ export const migrationLoader = Migrator.fromRecord(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         for (const statement of m.statements) yield* sql.unsafe(statement)
+        if (m.id === 4) yield* backfillMentions
       })
     ])
   )
 )
+
+// Runs inside migration 4's transaction, before its journal entry is committed.
+// Bounded batches avoid loading a large Library's show notes into memory at once.
+export const backfillMentions = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient
+  for (const table of ["subscription", "episode"] as const) {
+    let after: string | null = null
+    for (;;) {
+      const rows: ReadonlyArray<{ id: string; title: string; description?: string }> =
+        yield* sql.unsafe<{ id: string; title: string; description?: string }>(
+          `SELECT id, title${table === "episode" ? ", description" : ""} FROM ${table} ${after === null ? "" : "WHERE id > ?"} ORDER BY id LIMIT 128`,
+          after === null ? [] : [after]
+        )
+      if (rows.length === 0) break
+      for (const row of rows) {
+        if (table === "episode") {
+          yield* sql`UPDATE episode SET title_folded = ${Mentions.fold(row.title)}, description_folded = ${Mentions.fold(row.description ?? "")} WHERE id = ${row.id}`
+        } else {
+          yield* sql`UPDATE subscription SET title_folded = ${Mentions.fold(row.title)} WHERE id = ${row.id}`
+        }
+        after = row.id
+      }
+    }
+  }
+})
 
 // ---------- State <-> rows ----------
 
@@ -147,6 +184,7 @@ export interface StateRows {
     readonly device_id: string
     readonly mode: string
     readonly keep_at_most: number | null
+    readonly since: number | null
   }>
   readonly setting: ReadonlyArray<{ readonly key: string; readonly value: string }>
 }
@@ -188,7 +226,8 @@ export const stateToRows = (state: State): StateRows => ({
     subscription_id: r.subscriptionId,
     device_id: r.deviceId,
     mode: r.mode,
-    keep_at_most: r.keepAtMost
+    keep_at_most: r.keepAtMost,
+    since: r.mode === "allNew" ? (r.since ?? null) : null
   })),
   setting: [
     ...(state.listeningLog === undefined
@@ -236,7 +275,8 @@ export const rowsToState = (
         subscriptionId: r.subscription_id,
         deviceId: r.device_id,
         mode: r.mode,
-        keepAtMost: r.keep_at_most
+        keepAtMost: r.keep_at_most,
+        ...(r.since == null ? {} : { since: r.since })
       })
     ),
     ...(optional("listeningLog") === undefined
