@@ -91,6 +91,7 @@ export const SubscriptionsHandlers = HttpApiBuilder.group(
     const subscriptions = yield* Subscriptions
     return handlers.handleAll({
       list: () => subscriptions.list,
+      bringOver: ({ payload }) => subscriptions.bringOver(payload),
       subscribe: ({ payload }) =>
         subscriptions
           .subscribe(payload.feedUrl)

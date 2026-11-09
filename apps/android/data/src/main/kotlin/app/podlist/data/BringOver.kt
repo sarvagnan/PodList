@@ -3,13 +3,17 @@ package app.podlist.data
 import app.podlist.domain.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
 import java.util.UUID
 
 @Serializable data class BringOverCounts(
     val subscriptions: Int, val playlists: Int, val entries: Int, val played: Int, val starred: Int,
     val listeningSeconds: Double, val worthMoving: Boolean
 )
-@Serializable data class BringOverEpisode(val id: String, val subscriptionId: String, val guid: String, val title: String)
+@Serializable data class BringOverEpisode(
+    val id: String, val subscriptionId: String, val guid: String, val title: String,
+    val metadata: Episode? = null
+)
 @Serializable data class BringOverDownload(val episodeId: String, val manual: Boolean, val bytes: Long, val savedAt: Long)
 @Serializable data class BringOverIssue(val kind: String, val feedUrl: String, val title: String, val episodeId: String? = null)
 @Serializable data class BringOverSnapshot(
@@ -34,6 +38,13 @@ import java.util.UUID
 private fun LocalDatabase.saveBringOver(job: BringOverJob) = transaction {
     setMeta("bringOver", ProtocolJson.encodeToString(BringOverCheckpoint(job.phase, job.subscribed, job.issues, job.ids, job.queued, job.copied)))
     setMeta("bringOverPending", (!job.complete).toString())
+}
+
+private fun LocalDatabase.bringOverEpisodes(): List<Episode> = query("SELECT * FROM episode").map { e ->
+    Episode(e["id"] as String, e["subscription_id"] as String, e["guid"] as String, e["title"] as String,
+        e["description"] as String, (e["published"] as Number).toLong(), (e["duration"] as? Number)?.toDouble(),
+        e["audio_url"] as String, (e["artwork_url"] as? String)?.let(::Artwork),
+        ProtocolJson.decodeFromString(e["chapters"] as String), (e["audio_updated_at"] as? Number)?.toLong())
 }
 
 /** Explicit mappings for every reference in the protocol. Missing references are never dropped. */
@@ -92,8 +103,8 @@ fun LocalDatabase.bringOverSnapshot(): BringOverSnapshot = transaction {
         is Change.DeleteView -> c.viewId
         else -> null
     } }.toSet()
-    BringOverSnapshot(installation(), subscriptions, query("SELECT id, subscription_id, guid, title FROM episode").map {
-        BringOverEpisode(it["id"] as String, it["subscription_id"] as String, it["guid"] as String, it["title"] as String)
+    BringOverSnapshot(installation(), subscriptions, bringOverEpisodes().map {
+        BringOverEpisode(it.id, it.subscriptionId, it.guid, it.title, it)
     }, operations, state.views, state.views.filter { it.id !in touchedViews }, downloads, BringOverCounts(
         subscriptions.count { it.unsubscribedAt == null }, playlists.size, playlists.sumOf { it.entries.size },
         state.episodeStates.values.count { it.played != null }, state.episodeStates.values.count { it.starred },
@@ -165,8 +176,27 @@ class BringOver(
             SyncClient(destination, transport).sync()
             // Subscribe intentionally doesn't refresh an already-known feed. Retry only the feeds
             // with missing Episodes, using the existing per-Subscription refresh endpoint.
-            val mapped = map(snapshot, destination.loadState())
-            val issues = failures + mapped.second.filterNot { issue -> failures.any { it.feedUrl == issue.feedUrl } }
+            var mapped = map(snapshot, destination.loadState())
+            var issues = failures + mapped.second.filterNot { issue -> failures.any { it.feedUrl == issue.feedUrl } }
+            if (issues.isNotEmpty()) {
+                // Exact identities only. Import never fetches feeds or changes existing server rows.
+                // Persist the same partial explanation on old servers or an interrupted request.
+                // An empty import also lets a new server accept a complete map after a failed
+                // refresh (for example when an earlier metadata response was lost).
+                job = save(job.copy(issues = issues))
+                val imported = try {
+                    transport.request("POST", "/api/subscriptions/bring-over", metadata(snapshot, mapped.second))
+                    true
+                } catch (error: HttpFailure) {
+                    if (error.status != 404) throw error
+                    false
+                }
+                if (imported) {
+                    SyncClient(destination, transport).sync()
+                    mapped = map(snapshot, destination.loadState())
+                    issues = mapped.second
+                }
+            }
             job = save(job.copy(issues = issues))
             if (issues.isNotEmpty()) return job
             val ids = mapped.first
@@ -223,6 +253,28 @@ class BringOver(
         job = save(job.copy(phase = "done"))
         destination.notifyChanged()
         return job
+    }
+
+    private fun metadata(snapshot: BringOverSnapshot, issues: List<BringOverIssue>): String {
+        val missingEpisodes = issues.mapNotNull { it.episodeId }.toSet()
+        val episodes = snapshot.episodes.filter { it.id in missingEpisodes }
+        val feeds = issues.map { it.feedUrl }.toSet()
+        // Checkpoints made by an older app contain only identity/title. Recover full metadata
+        // from the retained source, matching the snapshotted identity before using it.
+        val legacy = if (episodes.any { it.metadata == null }) source.bringOverEpisodes() else emptyList()
+        return buildJsonObject {
+            put("subscriptions", JsonArray(snapshot.subscriptions.filter { it.feedUrl in feeds }.map { sub ->
+                JsonObject(ProtocolJson.encodeToJsonElement(sub).jsonObject - "id")
+            }))
+            put("episodes", JsonArray(episodes.map { episode ->
+                val sub = snapshot.subscriptions.single { it.id == episode.subscriptionId }
+                val full = episode.metadata ?: legacy.single {
+                    it.id == episode.id && it.subscriptionId == episode.subscriptionId && it.guid == episode.guid
+                }
+                JsonObject((ProtocolJson.encodeToJsonElement(full).jsonObject - "id" - "subscriptionId") +
+                    ("feedUrl" to JsonPrimitive(sub.feedUrl)))
+            }))
+        }.toString()
     }
 
     private fun map(snapshot: BringOverSnapshot, state: State): Pair<BringOverIds, List<BringOverIssue>> {

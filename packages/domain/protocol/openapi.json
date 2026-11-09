@@ -420,6 +420,39 @@
         }
       }
     },
+    "/api/subscriptions/bring-over": {
+      "post": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.bringOver",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "400": {
+            "description": "Declared error as JSON, or Malformed request (HttpApiSchemaError); empty response body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSubscriptionEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_api_BringOverRequestEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/subscriptions/import": {
       "post": {
         "tags": ["subscriptions"],
@@ -2459,6 +2492,215 @@
           }
         },
         "required": ["status", "protocolVersion"],
+        "additionalProperties": false
+      },
+      "MissingSubscriptionEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["MissingSubscription"]
+          },
+          "feedUrl": {
+            "type": "string"
+          }
+        },
+        "required": ["_tag", "feedUrl"],
+        "additionalProperties": false
+      },
+      "_podlist_api_BringOverRequestEncoded": {
+        "type": "object",
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "feedUrl": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "author": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "artwork": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/_podlist_domain_ArtworkEncoded"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "subscribedAt": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "unsubscribedAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "playedThreshold": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "playbackSettings": {
+                  "type": "object",
+                  "properties": {
+                    "speed": {
+                      "type": "number",
+                      "minimum": 0.5,
+                      "maximum": 3
+                    },
+                    "skipIntro": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "skipOutro": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "volumeBoost": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "feedUrl",
+                "title",
+                "author",
+                "description",
+                "artwork",
+                "subscribedAt",
+                "unsubscribedAt",
+                "playedThreshold",
+                "playbackSettings"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "feedUrl": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "guid": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "published": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "duration": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "audioUrl": {
+                  "type": "string"
+                },
+                "artwork": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/_podlist_domain_ArtworkEncoded"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "chapters": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/_podlist_domain_ChapterEncoded"
+                  }
+                },
+                "audioUpdatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "feedUrl",
+                "guid",
+                "title",
+                "description",
+                "published",
+                "duration",
+                "audioUrl",
+                "artwork",
+                "chapters",
+                "audioUpdatedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["subscriptions", "episodes"],
         "additionalProperties": false
       }
     },

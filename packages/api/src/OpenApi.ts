@@ -90,8 +90,10 @@ export const openApiDocument = () => {
       if (operation === undefined) continue
       if (operation.tags?.includes("media")) continue
       if (operation.requestBody || operation.parameters?.length) {
+        const declared = operation.responses["400"]
         operation.responses["400"] = {
-          description: "Malformed request (HttpApiSchemaError); empty response body."
+          ...declared,
+          description: `${declared ? "Declared error as JSON, or " : ""}Malformed request (HttpApiSchemaError); empty response body.`
         }
       }
     }

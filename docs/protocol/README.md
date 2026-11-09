@@ -31,6 +31,41 @@ Rewind uses the last Timeline point at or before `to`; no point or missing Playl
 
 SaveView replaces by id in place or appends; DeleteView removes by id. SetDownloadRule replaces only the matching Subscription/Device pair, appending the replacement. When entering All New from any other mode (including no rule), the reducer sets `since` to the operation’s `recordedAt`. Leaving All New removes `since`; consecutive All New writes, including cap edits, preserve the current activation. Any supplied `since` is ignored by the reducer. Arrival order still wins, including an older recorded change that arrives later. The activation is part of synced State, so snapshots and an off/on cycle in one pull preserve it. Legacy All New rules may omit `since`; clients retain their existing local `ruleSince` until a real mode transition, or use first observation when none exists. SetPlaybackSettings replaces all global defaults. SetSubscriptionOverrides replaces the Subscription's whole override document and threshold in the Library; it is not a merge of individual settings. MarkSubscriptionPlayed expands on the server into manual MarkPlayed operations for the Subscription's currently Unplayed Episodes, ordered by Published ascending, observing earlier changes in the push. Generated ids are `intention-id:episode-id`, and Device, sequence and recording time are copied. Both intentions remain in the log. A missing Subscription has no Library effect. [State.ts](../../packages/domain/src/State.ts), [SyncStore.ts](../../packages/server/src/SyncStore.ts).
 
+## Bringing a Standalone Library to a server
+
+After Subscribe and a normal Library pull, clients can repair remaining identities
+with `POST /api/subscriptions/bring-over`. The JSON body has two required arrays:
+
+- `subscriptions`: Subscription metadata without `id`, keyed by exact `feedUrl`.
+  Include `title`, `author`, `description`, `artwork`, `subscribedAt`,
+  `unsubscribedAt`, `playedThreshold` and `playbackSettings`. Explicit null
+  `unsubscribedAt` means active; a timestamp means removed.
+- `episodes`: Episode metadata without `id` or `subscriptionId`, plus `feedUrl`,
+  keyed by exact `(feedUrl, guid)`. Include `title`, `description`, `published`,
+  `duration`, `audioUrl`, `artwork`, `chapters` and `audioUpdatedAt`.
+
+The server inserts only missing identities in one transaction, assigns server ids
+and never updates an existing row, including its removed status, metadata or
+settings. Duplicate identities and repeated requests are safe; the first inserted
+metadata wins. It does not fetch or parse feeds. An Episode's Subscription must
+already exist or be included in the same request; otherwise the whole transaction
+rolls back with HTTP 400 JSON `{ "_tag": "MissingSubscription", "feedUrl": "..." }`.
+Malformed input returns the usual empty HTTP 400.
+
+Success is HTTP 204 with no body. Obtain the resulting ids and authoritative rows
+through paged `GET /api/library/changes?since=...`, then match by feed address and
+guid again. Unchanged rows produce no new Catalogue change; clients must retain
+their existing mirror. Removed Subscriptions are not polled or exported as active.
+Their stored Episodes follow the existing Orphaned visibility rule: only Entries
+and Stars remain visible. A Listening log reference alone does not make an Episode
+visible. Imported active Subscriptions participate in ordinary polling.
+
+Queue the ordered State replay only after every needed reference has a mapping.
+Keep stable operation ids and use ordinary push/pull; this request never imports
+State or audio. On HTTP 404, Android preserves its previous partial-transfer
+behaviour and explanation for older servers. Other failures are retryable without
+discarding references. This is an additive version-4 endpoint with no migration.
+
 ## Feed parsing on a Standalone Device
 
 [Feed vectors](../../packages/domain/protocol/feeds.json) are generated from the

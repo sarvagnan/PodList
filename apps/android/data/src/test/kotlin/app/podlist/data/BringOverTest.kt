@@ -14,9 +14,7 @@ class BringOverTest {
     private fun episode(id: String = "local-ep", subscription: String = "local-sub", guid: String = "guid") =
         Episode(id, subscription, guid, "Episode $guid", "", 10, 300.0, "https://test/audio/$guid", null, emptyList(), null)
 
-    /** Models the existing Subscribe uniqueness, Library pages, stable-id push dedup and pull cursor.
-     * No extra migration endpoint; the fake only accepts today's wire paths.
-     */
+    /** Models Subscribe uniqueness, Library pages, stable-id push dedup and optional metadata import. */
     private class Server(var state: State = State.initial()) : SyncTransport {
         val subscriptions = mutableListOf<Subscription>()
         val episodes = mutableListOf<Episode>()
@@ -31,10 +29,38 @@ class BringOverTest {
         var libraryCursor = 10L
         var pagedLibrary = false
         var offerEpisode = true
+        var metadataEndpoint = false
+        var loseMetadata = false
+        var metadataFailure: Int? = null
+        val metadataRequests = mutableListOf<JsonObject>()
         override fun request(method: String, path: String, body: String?): String {
             calls += "$method $path"
             return when {
                 path == "/api/devices" -> body!!
+                path == "/api/subscriptions/bring-over" -> {
+                    if (!metadataEndpoint) throw HttpFailure(404)
+                    metadataFailure?.let { throw HttpFailure(it) }
+                    val metadata = ProtocolJson.parseToJsonElement(body!!).jsonObject
+                    metadataRequests += metadata
+                    for (item in metadata.getValue("subscriptions").jsonArray) {
+                        val fields = item.jsonObject
+                        val feed = fields.getValue("feedUrl").jsonPrimitive.content
+                        if (subscriptions.none { it.feedUrl == feed }) subscriptions += ProtocolJson.decodeFromJsonElement<Subscription>(
+                            JsonObject(fields + ("id" to JsonPrimitive("import-sub-${subscriptions.size}")))
+                        )
+                    }
+                    for (item in metadata.getValue("episodes").jsonArray) {
+                        val fields = item.jsonObject
+                        val sub = subscriptions.single { it.feedUrl == fields.getValue("feedUrl").jsonPrimitive.content }
+                        val guid = fields.getValue("guid").jsonPrimitive.content
+                        if (episodes.none { it.subscriptionId == sub.id && it.guid == guid }) episodes += ProtocolJson.decodeFromJsonElement<Episode>(
+                            JsonObject((fields - "feedUrl") + mapOf("id" to JsonPrimitive("import-ep-${episodes.size}"), "subscriptionId" to JsonPrimitive(sub.id)))
+                        )
+                    }
+                    libraryCursor++
+                    if (loseMetadata) { loseMetadata = false; throw IOException("lost metadata response") }
+                    ""
+                }
                 path == "/api/subscriptions" -> {
                     val feed = ProtocolJson.parseToJsonElement(body!!).jsonObject.getValue("feedUrl").jsonPrimitive.content
                     if (feed in failedFeeds) throw IOException("unreachable feed")
@@ -221,6 +247,7 @@ class BringOverTest {
         assertEquals("local-ep", job.issues.single().episodeId)
         assertEquals("https://test/feed", job.issues.single().feedUrl)
         assertEquals("episode", job.issues.single().kind)
+        assertEquals(1, server.calls.count { it == "POST /api/subscriptions/bring-over" })
         assertTrue(server.operations.isEmpty()); assertTrue(f.target.outbox().isEmpty())
         server.episodes += episode("matched", "server-sub-0", "retired")
         assertTrue(engine.resume().complete)
@@ -437,5 +464,109 @@ class BringOverTest {
         assertTrue(server.calls.isEmpty())
         assertNull(f.target.bringOverJob())
         assertFalse(f.target.bringOverPending())
+    }
+
+    @Test fun `metadata imports a retired Episode and resumes ordered State replay and download copying`(): Unit = Fixture().use { f ->
+        val retired = episode(guid = "retired").copy(description = "Retained notes", artwork = Artwork("https://test/art"),
+            chapters = listOf(Chapter(0.0, "Start", null, null)), audioUpdatedAt = 50)
+        f.source.upsertLibrary(listOf(sub()), listOf(retired))
+        f.source.record(Change.AddEntry(DefaultPlaylistId, retired.id, Placement.Last), 100)
+        f.source.record(Change.ReportPosition(DefaultPlaylistId, retired.id, 42.0, 101,
+            listOf(ListeningAmount("2026-11-09", "local-sub", 60.0))), 101)
+        f.source.record(Change.SetStar(retired.id, true), 102)
+        f.sourceFiles.save(retired.id, listOf("fake")) { _, output -> output.write(1); 1 }
+        f.source.execute("INSERT INTO download VALUES (?, ?, ?, ?)", listOf(retired.id, 1, 1, 100))
+        val server = Server().also { it.metadataEndpoint = true }
+        f.engine(server).let { it.begin(); assertTrue(it.resume().complete) }
+        val imported = server.episodes.single { it.guid == "retired" }
+        assertEquals(retired.copy(id = imported.id, subscriptionId = "server-sub-0"), imported)
+        assertEquals(42.0, server.state.playlists.single().entries.single().position)
+        assertEquals(60.0, server.state.listeningLog!!["2026-11-09"]!!["server-sub-0"])
+        assertContentEquals(byteArrayOf(1), f.targetFiles.stored(imported.id)!!.readBytes())
+        assertContentEquals(byteArrayOf(1), f.sourceFiles.stored(retired.id)!!.readBytes())
+        val request = server.metadataRequests.single()
+        assertEquals(1, request.getValue("episodes").jsonArray.size)
+        assertFalse(request.getValue("episodes").jsonArray.single().jsonObject.containsKey("id"))
+        assertTrue(server.calls.indexOf("POST /api/subscriptions/bring-over") < server.calls.indexOf("POST /api/sync/push"))
+    }
+
+    @Test fun `removed Subscription metadata preserves Listening log without Subscribe or active visibility`(): Unit = Fixture().use { f ->
+        f.source.upsertLibrary(listOf(sub(removed = true)), listOf(episode()))
+        f.source.record(Change.RecordListening(listOf(ListeningAmount("2026-11-09", "local-sub", 60.0))), 100)
+        val server = Server().also { it.metadataEndpoint = true }
+        f.engine(server).let { it.begin(); assertTrue(it.resume().complete) }
+        val imported = server.subscriptions.single()
+        assertEquals(20L, imported.unsubscribedAt)
+        assertFalse(server.calls.any { it == "POST /api/subscriptions" })
+        assertTrue(server.episodes.isEmpty())
+        assertEquals(60.0, server.state.listeningLog!!["2026-11-09"]!![imported.id])
+        assertTrue(f.target.evaluate(View("v", "", ViewFilter(), ViewSort.PublishedDesc, null), 200).isEmpty())
+    }
+
+    @Test fun `missing removed Subscription and Episodes import together and retain only Orphaned visibility`(): Unit = Fixture().use { f ->
+        f.source.upsertLibrary(listOf(sub(removed = true)), listOf(
+            episode("entry", guid = "entry"), episode("star", guid = "star"), episode("played", guid = "played")))
+        f.source.record(Change.AddEntry(DefaultPlaylistId, "entry", Placement.Last), 100)
+        f.source.record(Change.SetStar("star", true), 101)
+        f.source.record(Change.MarkPlayed("played", PlayedSource.User), 102)
+        val server = Server().also { it.metadataEndpoint = true }
+        f.engine(server).let { it.begin(); assertTrue(it.resume().complete) }
+        assertEquals(20L, server.subscriptions.single().unsubscribedAt)
+        assertFalse(server.calls.any { it == "POST /api/subscriptions" })
+        assertEquals(3, server.metadataRequests.single().getValue("episodes").jsonArray.size)
+        val visible = f.target.evaluate(View("v", "", ViewFilter(), ViewSort.PublishedDesc, null), 200)
+        val expected = server.episodes.filter { it.guid != "played" }.map { it.id }.toSet()
+        assertEquals(expected, visible.map { it["id"] }.toSet())
+    }
+
+    @Test fun `untouched retired Back Catalogue and unavailable active feeds can be imported`(): Unit = Fixture().use { f ->
+        f.source.upsertLibrary(listOf(sub()), listOf(episode(guid = "retired")))
+        val server = Server().also { it.metadataEndpoint = true; it.failedFeeds += "https://test/feed" }
+        f.engine(server).let { it.begin(); assertTrue(it.resume().complete) }
+        assertEquals("retired", server.episodes.single().guid)
+        assertNull(server.subscriptions.single().unsubscribedAt)
+        assertEquals(1, f.target.evaluate(View("v", "", ViewFilter(), ViewSort.PublishedDesc, null), 200).size)
+    }
+
+    @Test fun `metadata response lost after acceptance resumes after process death without duplicate listening`(): Unit = Fixture().use { f ->
+        f.source.upsertLibrary(listOf(sub()), listOf(episode(guid = "retired")))
+        f.source.record(Change.RecordListening(listOf(ListeningAmount("2026-11-09", "local-sub", 60.0))), 100)
+        val server = Server().also { it.metadataEndpoint = true; it.loseMetadata = true }
+        f.engine(server).let { it.begin(); assertFailsWith<IOException> { it.resume() } }
+        assertFalse(f.target.bringOverJob()!!.queued)
+        assertTrue(f.target.outbox().isEmpty())
+        assertTrue(server.operations.isEmpty())
+        f.reopen()
+        server.failedRefreshes += "server-sub-0"
+        f.engine(server).let { assertTrue(it.resume().complete); assertTrue(it.resume().complete) }
+        assertEquals(2, server.metadataRequests.size)
+        assertTrue(server.metadataRequests.last().values.all { it.jsonArray.isEmpty() })
+        assertEquals(1, server.episodes.count { it.guid == "retired" })
+        assertEquals(60.0, server.state.listeningLog!!["2026-11-09"]!!["server-sub-0"])
+    }
+
+    @Test fun `metadata errors other than unsupported 404 do not queue State and can be retried`(): Unit = Fixture().use { f ->
+        f.source.upsertLibrary(listOf(sub()), listOf(episode(guid = "retired")))
+        f.source.record(Change.AddEntry(DefaultPlaylistId, "local-ep", Placement.Last), 100)
+        val server = Server().also { it.metadataEndpoint = true; it.metadataFailure = 503 }
+        val engine = f.engine(server); engine.begin()
+        assertEquals(503, assertFailsWith<HttpFailure> { engine.resume() }.status)
+        assertFalse(f.target.bringOverJob()!!.queued)
+        assertEquals("episode", f.target.bringOverJob()!!.issues.single().kind)
+        assertTrue(server.operations.isEmpty())
+        server.metadataFailure = null
+        assertTrue(engine.resume().complete)
+    }
+
+    @Test fun `snapshot retains complete Episode metadata and older pending snapshots recover retained source metadata`(): Unit = Fixture().use { f ->
+        f.source.upsertLibrary(listOf(sub()), listOf(episode(guid = "retired")))
+        val server = Server().also { it.metadataEndpoint = true }
+        val engine = f.engine(server); val snapshot = engine.begin().snapshot
+        assertEquals(episode(guid = "retired"), snapshot.episodes.single().metadata)
+        // Simulate the immutable snapshot written by an older Android build.
+        f.target.setMeta("bringOverSnapshot", ProtocolJson.encodeToString(snapshot.copy(episodes = snapshot.episodes.map { it.copy(metadata = null) })))
+        f.reopen()
+        assertTrue(f.engine(server).resume().complete)
+        assertEquals("https://test/audio/retired", server.episodes.single { it.guid == "retired" }.audioUrl)
     }
 }
