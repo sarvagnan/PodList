@@ -61,15 +61,11 @@ Predictive back in this order: close any Add sheet, then nested player pages (Ep
 
 ## Settings
 
-A full screen reached from the gear. Sections: **Playback** (Speed, Skip intro, Skip outro, Volume boost), **Your listening** (Listening stats), **Playlists** (Keep deleted Playlists), **This Device** (Server), **Help** (Getting started). Keyboard shortcuts stay web only.
-
-## Not yet designed
-
-First-run setup and where OPML appears in Settings, which change with [ADR 0012](../adr/0012-a-device-can-work-without-a-server.md).
+A full screen reached from the gear. Sections: **Playback** (Speed, Skip intro, Skip outro, Volume boost), **Your listening** (Listening stats), **Your podcasts** (Import OPML, Export OPML), **Playlists** (Keep deleted Playlists), **This Device** (Server), **Help** (Getting started). Keyboard shortcuts stay web only.
 
 ## Agreed for milestone 4
 
-Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): https://generatedpages.burmese-mountain.ts.net/podlist-android-phone-round-2/
+Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): https://generatedpages.burmese-mountain.ts.net/podlist-android-phone-round-2/ Source: branch `prototype/android-phone-round-2`.
 
 - **Add podcasts:** one field that takes a podcast name or a pasted feed address. OPML isn't here; import and export belong in Settings.
 - **View editor:** one list with every condition as a row showing its value, each opening a small sheet. A live count and Undo stay pinned above the player.
@@ -77,3 +73,5 @@ Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): h
 - **Playlist settings:** name, Clear on Played and Delete on one page, opened with the pencil.
 - **Subscription settings:** opened with a pencil on the Subscription page. Unchanged values read Default and name what they inherit.
 - **Listening stats:** one scrolling page reached from Settings, with all three periods visible at once, a 30-day chart that can be tapped and a table view.
+- **First run** ([ADR 0012](../adr/0012-a-device-can-work-without-a-server.md)): a Welcome screen offers **Start on this phone** or **Connect to a server**. Either leads to the Getting started card above the starter Views on Views. Connecting a Standalone Device shows what will move before offering **Bring it over** or **Not now**, and the offer stays in Settings.
+- **OPML:** a **Your podcasts** section in Settings, after Your listening, holds **Import OPML** (arrow into a tray) and **Export OPML** (arrow out of a tray). Both use Android's file picker.
