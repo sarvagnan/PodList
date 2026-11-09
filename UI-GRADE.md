@@ -6,6 +6,16 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 **Owner decisions (graded, not targeted):** Light appearance only until a dark theme is designed. Layout variant A (Views and Playlists as equal halves; lists, never capsules). Inter and Space Grotesk; blue primary #2b50c8; dark player bar. Unsubscribe asks for confirmation first, and can still be undone afterwards (8 Nov). A Playlist's Entries have a side panel like a View's (the open Episode, else the current one); Library, Trash and the other list pages stop at a reading width (8 Nov). "Rewind to here" shows on hover or focus, and always on touch (8 Nov).
 
+## Android phone
+
+Graded as its own target against the guide's Android phone signals, with two fresh independent graders on one brief. Evidence: every screen on the emulator in light, dark and 200% text.
+
+| Round | Date | Commit | Opus | Codex | Reports |
+|---|---|---|---|---|---|
+| 1 | 9 Nov 2026 | 456f192 | 6.5 | 6.4 | `docs/ui-grade/android-round-1.md`, `docs/ui-grade/android-round-1-codex.md` |
+
+Round 1's blockers (AX-01, DATA-01), majors and minors were fixed in pod-apx.4.15, except DLG-01 (the confirmation before Delete Playlist), which waits on the owner because the approved mock-up asks first, and multistep Undo/Redo in DATA-04, which was left out.
+
 ## Method
 
 - Flow runs: `pnpm --filter @podlist/web ui:flows [outDir]` runs the main tasks on fixed demo data at phone 412×915, zoomed-desktop 720×450 and desktop 1440×900, and writes measurements, screenshot strips, contact sheets and timed runs (`packages/web/ui-flows/README.md`).
