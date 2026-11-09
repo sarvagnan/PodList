@@ -360,6 +360,6 @@
     <plurals name="bring_over_subscriptions"><item quantity="one">%1$d Subscription</item><item quantity="other">%1$d Subscriptions</item></plurals>
     <plurals name="bring_over_played"><item quantity="one">%1$d Played mark</item><item quantity="other">%1$d Played marks</item></plurals>
     <plurals name="bring_over_starred"><item quantity="one">%1$d Starred mark</item><item quantity="other">%1$d Starred marks</item></plurals>
-    <plurals name="bring_over_hours"><item quantity="one">%1$s hour, kept in Listening stats</item><item quantity="other">%1$s hours, kept in Listening stats</item></plurals>
     <plurals name="bring_over_retry_feeds"><item quantity="one">Retry %1$d feed</item><item quantity="other">Retry these %1$d feeds</item></plurals>
+    <string name="bring_over_time">%1$s, kept in Listening stats</string>
 </resources>

@@ -79,10 +79,8 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
                         pluralStringResource(R.plurals.bring_over_played, counts.played, counts.played),
                         pluralStringResource(R.plurals.bring_over_starred, counts.starred, counts.starred)))
                 })
-                val hours = counts.listeningSeconds / 3600
-                val formatted = NumberFormat.getNumberInstance().apply { maximumFractionDigits = 3 }.format(hours)
                 ListItem(headlineContent = { Text(stringResource(R.string.bring_over_listening_log)) },
-                    supportingContent = { Text(pluralStringResource(R.plurals.bring_over_hours, if (hours == 1.0) 1 else 2, formatted)) })
+                    supportingContent = { Text(stringResource(R.string.bring_over_time, listened(counts.listeningSeconds.toDouble()))) })
             }
             if (job != null && job.issues.isNotEmpty()) {
                 item { Section(stringResource(R.string.bring_over_waiting)); Hint(stringResource(R.string.bring_over_waiting_help)) }

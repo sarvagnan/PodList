@@ -22,7 +22,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-@Composable private fun listened(seconds: Double): String {
+@Composable internal fun listened(seconds: Double): String {
     val minutes = (seconds / 60).toLong()
     return when {
         minutes >= 60 -> stringResource(R.string.m4_hours_minutes, minutes / 60, minutes % 60)
