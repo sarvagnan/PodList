@@ -77,7 +77,7 @@ private fun AppModel.traverseHistory(redo: Boolean) {
     else playbackEdit(if (expected.reloadActive) null else expected.playbackPlaylist, action)
 }
 
-internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, subscribe: Boolean): ReversibleEdit {
+internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, subscribe: Boolean, reveal: Boolean = true): ReversibleEdit {
     val remaining = feeds.toMutableList()
     return ReversibleEdit {
         withContext(Dispatchers.IO) {
@@ -85,7 +85,7 @@ internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, su
                 val feed = remaining.first()
                 if (subscribe) {
                     val id = current.source.subscribe(feed).id
-                    requestReveal(Reveal("subscription:$id"))
+                    if (reveal) requestReveal(Reveal("subscription:$id"))
                 } else {
                     val id = current.db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feed)).single()["id"] as String
                     current.source.unsubscribe(id)
@@ -94,12 +94,12 @@ internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, su
             }
         }
         requestSync()
-        subscriptionStep(current, feeds, !subscribe)
+        subscriptionStep(current, feeds, !subscribe, reveal)
     }
 }
 
-internal fun AppModel.offerSubscriptionHistory(current: Session, feeds: List<String>, subscribe: Boolean, message: AppMessage) {
-    viewModelScope.launch { editLock.withLock { recordHistory(current, message, subscriptionStep(current, feeds, subscribe)) } }
+internal fun AppModel.offerSubscriptionHistory(current: Session, feeds: List<String>, subscribe: Boolean, message: AppMessage, reveal: Boolean = true) {
+    viewModelScope.launch { editLock.withLock { recordHistory(current, message, subscriptionStep(current, feeds, subscribe, reveal)) } }
 }
 
 internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onKeyEvent { event ->

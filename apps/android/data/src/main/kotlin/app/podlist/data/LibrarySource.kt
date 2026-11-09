@@ -12,6 +12,8 @@ interface LibrarySource {
     val server: ServerAddress?
     fun refresh()
     fun search(query: String): List<DirectoryResult>
+    fun readPodcast(feedUrl: String): ParsedFeed
+    fun bringEpisode(feedUrl: String, guid: String): String
     fun subscribe(feedUrl: String): Subscription
     fun unsubscribe(id: String)
     fun chapters(episodeId: String): List<Chapter>
@@ -25,6 +27,14 @@ class ServerLibrary(private val db: LocalDatabase, override val server: ServerAd
     override val key = server.origin
     override fun refresh() = sync.sync()
     override fun search(query: String): List<DirectoryResult> = ProtocolJson.decodeFromString(http.request("GET", "/api/directory/search?q=${URLEncoder.encode(query, "UTF-8")}", null))
+    override fun readPodcast(feedUrl: String): ParsedFeed = ProtocolJson.decodeFromString(http.request("POST", "/api/podcasts/read", ProtocolJson.encodeToString(mapOf("feedUrl" to feedUrl))))
+    override fun bringEpisode(feedUrl: String, guid: String): String {
+        val result = ProtocolJson.decodeFromString<BroughtEpisode>(http.request("POST", "/api/podcasts/episodes", ProtocolJson.encodeToString(mapOf("feedUrl" to feedUrl, "guid" to guid))))
+        // Use the ordinary catalogue path before any Entry operation can refer to this id.
+        sync.sync()
+        check(db.query("SELECT id FROM episode WHERE id = ?", listOf(result.episodeId)).isNotEmpty())
+        return result.episodeId
+    }
     override fun subscribe(feedUrl: String): Subscription = ProtocolJson.decodeFromString<Subscription>(http.request("POST", "/api/subscriptions", ProtocolJson.encodeToString(mapOf("feedUrl" to feedUrl)))).also {
         db.upsertLibrary(listOf(it), emptyList()); db.notifyChanged()
     }
@@ -57,9 +67,37 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
             (s["artwork_url"] as? String)?.let(::Artwork), (s["subscribed_at"] as Number).toLong(), (s["unsubscribed_at"] as? Number)?.toLong(),
             (s["played_threshold"] as? Number)?.toDouble(), ProtocolJson.decodeFromString(s["playback_settings"] as String))
     }
+    override fun readPodcast(feedUrl: String): ParsedFeed {
+        val response = http.get(feedUrl, mapOf("Accept" to "application/rss+xml, application/xml, text/xml"))
+        if (response.status !in 200..299) throw HttpFailure(response.status)
+        return readPodcastFeed(response.body)
+    }
+    override fun bringEpisode(feedUrl: String, guid: String): String = synchronized(lock) {
+        db.query("SELECT e.id FROM episode e JOIN subscription s ON s.id = e.subscription_id WHERE s.feed_url = ? AND e.guid = ?", listOf(feedUrl, guid)).firstOrNull()?.let { return@synchronized it["id"] as String }
+        val feed = readPodcast(feedUrl)
+        val episode = feed.episodes.find { it.guid == guid } ?: throw IllegalArgumentException("Episode is no longer in this feed")
+        val id = db.transaction {
+            execute("""INSERT INTO subscription (id, feed_url, title, title_folded, author, description, artwork_url, subscribed_at, unsubscribed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(feed_url) DO NOTHING""",
+                listOf("sub_${UUID.randomUUID()}", feedUrl, feed.title, Mentions.fold(feed.title), feed.author, feed.description, feed.artworkUrl, now(), now()))
+            val subscriptionId = query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feedUrl)).single()["id"] as String
+            // Match only the feed/guid identity. A one-Episode subset cannot decide that a guid changed.
+            execute("""INSERT INTO episode (id, subscription_id, guid, title, title_folded, description, description_folded, published, duration, audio_url, artwork_url, chapters_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(subscription_id, guid) DO NOTHING""",
+                listOf("ep_${UUID.randomUUID()}", subscriptionId, episode.guid, episode.title, Mentions.fold(episode.title), episode.description,
+                    Mentions.fold(episode.description), episode.published, episode.duration, episode.audioUrl, episode.artworkUrl, episode.chaptersUrl))
+            query("SELECT id FROM episode WHERE subscription_id = ? AND guid = ?", listOf(subscriptionId, guid)).single()["id"] as String
+        }
+        db.notifyChanged()
+        id
+    }
     override fun subscribe(feedUrl: String): Subscription = synchronized(lock) {
-        db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feedUrl)).firstOrNull()?.let {
+        db.query("SELECT id, unsubscribed_at FROM subscription WHERE feed_url = ?", listOf(feedUrl)).firstOrNull()?.let {
             val id = it["id"] as String
+            if (it["unsubscribed_at"] != null && db.query("SELECT subscription_id FROM feed_state WHERE subscription_id = ?", listOf(id)).isEmpty()) {
+                val feed = readPodcast(feedUrl)
+                db.transaction { store(id, feed); remember(id, PublisherResponse(200, "")) }
+            }
             db.execute("UPDATE subscription SET unsubscribed_at = NULL WHERE id = ?", listOf(id))
             db.notifyChanged()
             return@synchronized subscription(id)

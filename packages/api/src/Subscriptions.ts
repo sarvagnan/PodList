@@ -9,6 +9,38 @@ export class SubscribeRequest extends Schema.Class<SubscribeRequest>(
   feedUrl: Schema.NonEmptyString
 }) {}
 
+/** Feed metadata is transient until a person subscribes or brings in one Episode. */
+export class PodcastFeed extends Schema.Class<PodcastFeed>("@podlist/api/PodcastFeed")({
+  title: Schema.String,
+  author: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
+  artworkUrl: Schema.NullOr(Schema.String),
+  episodes: Schema.Array(
+    Schema.Struct({
+      guid: Schema.String,
+      title: Schema.String,
+      description: Schema.String,
+      published: Schema.Number,
+      duration: Schema.NullOr(Schema.Number),
+      audioUrl: Schema.String,
+      artworkUrl: Schema.NullOr(Schema.String),
+      chaptersUrl: Schema.NullOr(Schema.String)
+    })
+  )
+}) {}
+
+export class BringEpisodeRequest extends Schema.Class<BringEpisodeRequest>(
+  "@podlist/api/BringEpisodeRequest"
+)({
+  feedUrl: Schema.NonEmptyString,
+  guid: Schema.String
+}) {}
+
+export class BroughtEpisode extends Schema.Class<BroughtEpisode>("@podlist/api/BroughtEpisode")({
+  subscriptionId: Schema.String,
+  episodeId: Schema.String
+}) {}
+
 export class ImportRequest extends Schema.Class<ImportRequest>("@podlist/api/ImportRequest")({
   opml: Schema.String
 }) {}
@@ -59,6 +91,20 @@ export class MissingSubscription extends Schema.TaggedError<MissingSubscription>
 ) {}
 
 export class SubscriptionsApi extends HttpApiGroup.make("subscriptions")
+  .add(
+    HttpApiEndpoint.post("readPodcast", "/podcasts/read", {
+      payload: SubscribeRequest,
+      success: PodcastFeed,
+      error: FeedFailed
+    })
+  )
+  .add(
+    HttpApiEndpoint.post("bringEpisode", "/podcasts/episodes", {
+      payload: BringEpisodeRequest,
+      success: BroughtEpisode,
+      error: FeedFailed
+    })
+  )
   .add(
     HttpApiEndpoint.get("list", "/subscriptions", { success: Schema.Array(Domain.Subscription) })
   )

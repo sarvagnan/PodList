@@ -920,6 +920,92 @@
         },
         "description": "HTTP(S) Artwork named in the Library only (or already cached). Size defaults to 512 and rounds up to 64, 128, 256 or 512; values above 512 use 512. Returns square WebP, Cache-Control: public, max-age=604800."
       }
+    },
+    "/api/podcasts/read": {
+      "post": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.readPodcast",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/PodcastFeed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_PodcastFeedEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          },
+          "502": {
+            "description": "FeedFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedFailedEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_api_SubscribeRequestEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/podcasts/episodes": {
+      "post": {
+        "tags": ["subscriptions"],
+        "operationId": "subscriptions.bringEpisode",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "@podlist/api/BroughtEpisode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_podlist_api_BroughtEpisodeEncoded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (HttpApiSchemaError); empty response body."
+          },
+          "502": {
+            "description": "FeedFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedFailedEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_podlist_api_BringEpisodeRequestEncoded"
+              }
+            }
+          },
+          "required": true
+        }
+      }
     }
   },
   "components": {
@@ -2701,6 +2787,149 @@
           }
         },
         "required": ["subscriptions", "episodes"],
+        "additionalProperties": false
+      },
+      "_podlist_api_BroughtEpisodeEncoded": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "string"
+          },
+          "episodeId": {
+            "type": "string"
+          }
+        },
+        "required": ["subscriptionId", "episodeId"],
+        "additionalProperties": false
+      },
+      "_podlist_api_BringEpisodeRequestEncoded": {
+        "type": "object",
+        "properties": {
+          "feedUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "guid": {
+            "type": "string"
+          }
+        },
+        "required": ["feedUrl", "guid"],
+        "additionalProperties": false
+      },
+      "_podlist_api_PodcastFeedEncoded": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artworkUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "guid": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "published": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                },
+                "duration": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "audioUrl": {
+                  "type": "string"
+                },
+                "artworkUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "chaptersUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "guid",
+                "title",
+                "description",
+                "published",
+                "duration",
+                "audioUrl",
+                "artworkUrl",
+                "chaptersUrl"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["title", "author", "description", "artworkUrl", "episodes"],
         "additionalProperties": false
       }
     },

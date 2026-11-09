@@ -116,6 +116,8 @@ describe("Language-neutral client contract", () => {
         "/api/health",
         "/api/library/changes",
         "/api/library/refresh",
+        "/api/podcasts/read",
+        "/api/podcasts/episodes",
         "/api/subscriptions",
         "/api/subscriptions/bring-over",
         "/api/subscriptions/export",

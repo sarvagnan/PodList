@@ -3,6 +3,7 @@ package app.podlist
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -40,7 +41,7 @@ internal fun WelcomeScreen(model: AppModel) {
 }
 
 @Composable
-internal fun AddPodcastsScreen(model: AppModel, session: Session) {
+internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String) -> Unit) {
     var input by rememberSaveable { mutableStateOf("") }
     val incomingFeed by model.incomingFeed.collectAsState()
     LaunchedEffect(incomingFeed) { incomingFeed?.let { input = it; model.incomingFeed.compareAndSet(it, null) } }
@@ -78,7 +79,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
         error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
         LazyColumn(Modifier.weight(1f)) {
             items(results, key = { it.feedUrl }) { result ->
-                ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
+                ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
                     leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
                     trailingContent = {
                         val done = result.feedUrl in subscribed
@@ -109,43 +110,6 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
             }
         }
     }
-}
-
-@Composable
-internal fun UnsubscribeButton(session: Session, id: String, title: String, unsubscribed: () -> Unit) {
-    val model = LocalAppModel.current
-    val scope = rememberCoroutineScope()
-    var confirming by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf(false) }
-    TextButton(onClick = { confirming = true }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
-        if (busy) {
-            CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(stringResource(if (busy) R.string.unsubscribing else R.string.unsubscribe), color = MaterialTheme.colorScheme.error)
-    }
-    if (error) Text(stringResource(R.string.unsubscribe_failed), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
-    if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.m4_unsubscribe_named, title)) },
-        dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },
-        confirmButton = { TextButton(onClick = {
-            confirming = false
-            scope.launch {
-                busy = true; error = false
-                try {
-                    val feed = withContext(Dispatchers.IO) {
-                        val url = session.db.query("SELECT feed_url FROM subscription WHERE id = ?", listOf(id)).single()["feed_url"] as String
-                        session.source.unsubscribe(id)
-                        url
-                    }
-                    model.requestSync()
-                    model.offerResubscribe(session, feed)
-                    unsubscribed()
-                } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { error = true }
-                finally { busy = false }
-            }
-        }) { Text(stringResource(R.string.unsubscribe)) } })
 }
 
 internal fun lookupErrorResource(error: LookupError): Int = when (error) {

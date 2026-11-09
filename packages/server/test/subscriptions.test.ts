@@ -1,12 +1,17 @@
 import { readFileSync } from "node:fs"
 import { assert, describe, it } from "@effect/vitest"
+import { PodListApi, Subscriptions as Api } from "@podlist/api"
 import { Operation } from "@podlist/domain"
-import { Effect, Layer, Schema } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/http"
+import { Effect, Exit, Layer, Schema } from "effect"
+import { HttpClient, HttpClientResponse, HttpServer } from "effect/http"
+import { HttpApiTest } from "effect/http-api"
 import { SqlClient } from "effect/sql"
 import * as Database from "../src/Database.ts"
+import { SubscriptionsHandlers } from "../src/Http.ts"
 import { Library } from "../src/Library.ts"
 import { feedUrlsFromOpml, Subscriptions } from "../src/Subscriptions.ts"
+import { Catalogue } from "../src/Catalogue.ts"
+import { Poller } from "../src/Poller.ts"
 import { SyncStore } from "../src/SyncStore.ts"
 
 const xml = readFileSync(new URL("fixtures/night-shift.xml", import.meta.url), "utf8")
@@ -23,7 +28,12 @@ const network = Layer.succeed(
     )
   )
 )
-const services = Layer.mergeAll(Subscriptions.layer, SyncStore.layer).pipe(
+const services = Layer.mergeAll(
+  Subscriptions.layer,
+  SyncStore.layer,
+  Catalogue.layer,
+  Poller.layer
+).pipe(
   Layer.provideMerge(Library.layer),
   Layer.provide(network),
   Layer.provideMerge(Database.layer(":memory:"))
@@ -32,6 +42,160 @@ const count = (sql: SqlClient.SqlClient, query: string) =>
   sql.unsafe<{ n: number }>(query).pipe(Effect.map((rows) => rows[0]?.n ?? 0))
 
 describe("Subscriptions", () => {
+  it.effect("reads a Podcast without changing the Library and rejects unsafe addresses", () =>
+    Effect.gen(function* () {
+      const subs = yield* Subscriptions
+      const sql = yield* SqlClient.SqlClient
+      const feed = yield* subs.readPodcast("https://example.test/night.xml")
+      assert.strictEqual(feed.title, "Night Shift Histories")
+      assert.strictEqual(feed.episodes.length, 2)
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM subscription"), 0)
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM episode"), 0)
+      for (const url of [
+        "file:///etc/passwd",
+        "https://person:secret@example.test/feed",
+        "not an address"
+      ]) {
+        assert.include(
+          (yield* subs.readPodcast(url).pipe(Effect.flip)).message,
+          "Invalid feed address"
+        )
+        yield* subs.subscribe(url).pipe(Effect.flip)
+      }
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM subscription"), 0)
+    }).pipe(Effect.provide(services))
+  )
+
+  it.effect(
+    "brings in only one Episode idempotently, syncs it, skips polling and later reveals the same identity",
+    () =>
+      Effect.gen(function* () {
+        const subs = yield* Subscriptions
+        const sql = yield* SqlClient.SqlClient
+        const catalogue = yield* Catalogue
+        const poller = yield* Poller
+        const feedUrl = "https://example.test/night.xml"
+        const first = yield* subs.bringEpisode(feedUrl, "ns-0212")
+        const again = yield* subs.bringEpisode(feedUrl, "ns-0212")
+        assert.deepStrictEqual(first, again)
+        assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM episode"), 1)
+        assert.isNotNull((yield* subs.list)[0]?.unsubscribedAt)
+        const page = yield* catalogue.changes(0)
+        assert.strictEqual(page.episodes[0]?.id, first.episodeId)
+        assert.strictEqual(page.subscriptions[0]?.id, first.subscriptionId)
+        assert.strictEqual((yield* poller.refreshAll({ respectBackoff: false })).checked, 0)
+        const subscribed = yield* subs.subscribe(feedUrl)
+        assert.strictEqual(subscribed.id, first.subscriptionId)
+        assert.isNull(subscribed.unsubscribedAt)
+        assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM episode"), 2)
+        const [episode] = yield* sql<{
+          id: string
+        }>`SELECT id FROM episode WHERE guid = ${"ns-0212"}`
+        assert.strictEqual(episode?.id, first.episodeId)
+        assert.deepStrictEqual(yield* subs.bringEpisode(feedUrl, "ns-0212"), first)
+        assert.isNull((yield* subs.list)[0]?.unsubscribedAt)
+      }).pipe(Effect.provide(services))
+  )
+
+  it.effect("a missing Episode or failed feed leaves no partial imported rows", () =>
+    Effect.gen(function* () {
+      const subs = yield* Subscriptions
+      const sql = yield* SqlClient.SqlClient
+      yield* subs.bringEpisode("https://example.test/night.xml", "missing").pipe(Effect.flip)
+      yield* subs.bringEpisode("https://example.test/broken.xml", "anything").pipe(Effect.flip)
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM subscription"), 0)
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM episode"), 0)
+    }).pipe(Effect.provide(services))
+  )
+
+  it.effect(
+    "serves Podcast page endpoints and ordinary FeedFailed errors over the typed HTTP API",
+    () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiTest.groups(PodListApi, ["subscriptions"])
+        const feedUrl = "https://example.test/night.xml"
+        const feed = yield* client.subscriptions.readPodcast({
+          payload: new Api.SubscribeRequest({ feedUrl })
+        })
+        assert.strictEqual(feed.author, "Night Shift Media")
+        assert.strictEqual(feed.artworkUrl, "https://example.test/podcast.jpg")
+        assert.include(feed.episodes[0]!.description, "1977")
+        assert.strictEqual((yield* client.subscriptions.list()).length, 0)
+        const first = yield* client.subscriptions.bringEpisode({
+          payload: new Api.BringEpisodeRequest({ feedUrl, guid: "ns-0212" })
+        })
+        assert.deepStrictEqual(
+          yield* client.subscriptions.bringEpisode({
+            payload: new Api.BringEpisodeRequest({ feedUrl, guid: "ns-0212" })
+          }),
+          first
+        )
+        const error = yield* client.subscriptions
+          .bringEpisode({ payload: new Api.BringEpisodeRequest({ feedUrl, guid: "missing" }) })
+          .pipe(Effect.flip)
+        assert.strictEqual(error._tag, "FeedFailed")
+        assert.isNotNull((yield* client.subscriptions.list())[0]?.unsubscribedAt)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(SubscriptionsHandlers, HttpServer.layerServices).pipe(
+            Layer.provideMerge(services)
+          )
+        )
+      )
+  )
+
+  it.effect("an insertion failure rolls back both imported identities and catalogue changes", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const subs = yield* Subscriptions
+      yield* sql.unsafe(
+        "CREATE TRIGGER reject_episode BEFORE INSERT ON episode BEGIN SELECT RAISE(ABORT, 'test failure'); END"
+      )
+      assert.isTrue(
+        Exit.isFailure(
+          yield* subs.bringEpisode("https://example.test/night.xml", "ns-0212").pipe(Effect.exit)
+        )
+      )
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM subscription"), 0)
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM episode"), 0)
+      assert.strictEqual(yield* count(sql, "SELECT count(*) AS n FROM catalogue_change"), 0)
+    }).pipe(Effect.provide(services))
+  )
+
+  it.effect(
+    "uses the generic publisher User-Agent and reuses stored identity without re-fetching",
+    () => {
+      let requests = 0
+      const once = Layer.succeed(
+        HttpClient.HttpClient,
+        HttpClient.make((request) => {
+          assert.strictEqual(request.headers["user-agent"], "PodList")
+          requests++
+          return requests === 1
+            ? Effect.succeed(HttpClientResponse.fromWeb(request, new Response(xml)))
+            : Effect.die("Publisher is now unavailable")
+        })
+      )
+      return Effect.gen(function* () {
+        const subs = yield* Subscriptions
+        const first = yield* subs.bringEpisode("https://example.test/night.xml", "ns-0212")
+        assert.deepStrictEqual(
+          yield* subs.bringEpisode("https://example.test/night.xml", "ns-0212"),
+          first
+        )
+        assert.strictEqual(requests, 1)
+      }).pipe(
+        Effect.provide(
+          Subscriptions.layer.pipe(
+            Layer.provide(Library.layer),
+            Layer.provide(once),
+            Layer.provide(Database.layer(":memory:"))
+          )
+        )
+      )
+    }
+  )
+
   it.effect("subscribes by URL, storing the Back Catalogue unplayed", () =>
     Effect.gen(function* () {
       const subs = yield* Subscriptions

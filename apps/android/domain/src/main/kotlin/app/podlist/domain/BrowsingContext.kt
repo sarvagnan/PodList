@@ -22,6 +22,7 @@ data class BrowsingContext(
                 "playlist", "playlist-settings" -> id in playlists
                 "subscription", "subscription-settings" -> id in subscriptions
                 "episode" -> id in episodes
+                "podcast" -> id.isNotBlank()
                 "settings", "search", "listening-stats", "select-subscriptions", "server", "add-podcasts", "trash", "new-playlist" -> true
                 else -> false
             }
