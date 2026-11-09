@@ -132,6 +132,10 @@ _Avoid_: Player preferences, audio settings
 One installation of the client (a browser, the desktop app, a phone). Download decisions are made per Device.
 _Avoid_: Client, machine
 
+**Standalone Device**:
+A Device with no server: it fetches feeds itself and holds its own Library, Playlists and Listening log. Connecting it to a server later offers to bring everything over.
+_Avoid_: Local mode, guest, demo, offline (offline means the server can't be reached right now)
+
 **Download Rule**:
 The per-Subscription, per-Device choice of when Episodes are stored for offline listening: Stream (never stored), when they become an Entry, or as soon as they are published — optionally capped at a maximum number kept. A new Subscription starts at Stream. A download is discarded once its Episode is no longer an Entry anywhere.
 _Avoid_: Auto-download setting, offline policy

@@ -63,7 +63,8 @@ Played uses the Subscription's threshold or 30 seconds before the end by default
 ## Library and Subscriptions
 
 - The Library groups Subscriptions by their Download Rule on this Device. Open a Subscription's Episodes and settings. Support changing multiple Subscriptions' Download Rules together.
-- Add podcasts through Search (Podcast Index), a feed address resolved directly without an index, or OPML import. These are methods of adding Subscriptions, distinct from Search over the Library. Explain invalid addresses, server failures and partial OPML results, with a way to retry.
+- Add podcasts through Search (a podcast directory) or a feed address resolved directly without an index. These are methods of adding Subscriptions, distinct from Search over the Library. Explain invalid addresses and server failures, with a way to retry.
+- OPML import and export live in Settings, because they usually happen once (owner, 9 Nov 2026). Explain partial import results, with a way to retry.
 - A Subscription exposes its Episodes, Mark all Played, Unsubscribe, Download Rule for this Device, Played threshold in seconds and Playback Settings overrides. New Subscriptions start at Stream. Overrides inherit global defaults until changed; they are never per Playlist.
 - Download Rules apply per Subscription and Device: Stream, when Episodes become an Entry, or as they are published, optionally capped. Manual Downloads are independent of rule cleanup. A Starred Episode's stored downloads are never automatically discarded. For exact selection and retention, use client duties; the short Download Rule definition in CONTEXT.md is not an unconditional deletion rule.
 - Distinguish no Subscriptions, no Episodes yet, loading, failed downloads and unavailable server actions. Offline clients retain usable local data, pending edits and downloads when the server cannot be reached and expose synchronization failure without inventing a successful server change.
@@ -76,7 +77,9 @@ The server retains Subscription and Episode ids, settings (Played threshold and 
 
 ## First run
 
-First run is a skippable checklist on Views, with three steps: add podcasts; understand Views; add Episodes to Playlists. For a fresh Library without Views, create the starter Views once: **New this week** (Published in the last seven days, Unplayed), **Under 30 minutes** (Unplayed, up to 30 minutes, shortest first), and **Starred**. The Default Playlist is ready from the start.
+Apps with a local database open without needing a server: people can start as a Standalone Device or connect to a server (ADR 0012). Connecting a Standalone Device later offers to bring its Library over, showing what will move first. Declining keeps the two separate.
+
+First run then continues as a skippable checklist on Views, with three steps: add podcasts; understand Views; add Episodes to Playlists. For a fresh Library without Views, create the starter Views once: **New this week** (Published in the last seven days, Unplayed), **Under 30 minutes** (Unplayed, up to 30 minutes, shortest first), and **Starred**. The Default Playlist is ready from the start.
 
 The checklist tracks steps as they are completed and stays until dismissed. Adding the first Subscription does not dismiss an open Add flow or erase input. Settings can reopen Getting started with completed steps indicated. Never mistake a temporarily loading Library for a fresh one.
 
