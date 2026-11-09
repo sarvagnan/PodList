@@ -72,9 +72,14 @@ internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: S
                 addAll(EpisodeActions.addMany(ids, id, placement, playlist))
             }
             recordAll(changes, System.currentTimeMillis())
-            if (playlist == null) listOf<Change>(Change.DeletePlaylist(id)) else EpisodeActions.undoAdd(playlist, ids)
+            val undo = if (playlist == null) listOf<Change>(Change.DeletePlaylist(id)) else EpisodeActions.undoAdd(playlist, ids)
+            (playlist?.name ?: name!!.trim()) to undo
         } }
-        if (result != null) messages.send(AppMessage(R.string.added_to_playlist) { restoreChanges(current, result) })
+        if (result != null) {
+            val (playlistName, undo) = result
+            val count = ids.distinct().size
+            messages.send(AppMessage(R.plurals.entries_added_to_playlist, formatArgs = listOf(count, playlistName), quantity = count) { restoreChanges(current, undo) })
+        }
         finished(result != null)
     }
 }

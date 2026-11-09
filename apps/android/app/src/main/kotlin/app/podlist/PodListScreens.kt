@@ -304,7 +304,7 @@ internal fun EpisodeList(rows: List<Row>, data: ScreenData, session: Session, op
 }
 
 @Composable
-internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, onClick: (() -> Unit)? = null) {
+internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, onClick: (() -> Unit)? = null) {
     val model = LocalAppModel.current
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
@@ -331,7 +331,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
                 Text(if (starred) "$state · ${stringResource(R.string.starred)}" else state, style = MaterialTheme.typography.bodySmall, color = if (played) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (progress > 0 && duration != null && duration > 0) LinearProgressIndicator(progress = { (progress / duration).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
-            if (!selecting) Row {
+            if (showActions && !selecting) Row {
                 IconButton(onClick = { add(row["id"] as String) }, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_add), stringResource(R.string.add_to_playlist)) }
                 IconButton(onClick = {
                     if (entryPlaylist == null) model.playNow(row["id"] as String) else model.playEntry(entryPlaylist, row["id"] as String)
@@ -359,7 +359,7 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                 ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 192.dp)
             }
-            EpisodeRow(row, data, session)
+            EpisodeRow(row, data, session, showActions = false)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 TextButton(onClick = { model.playNow(id); started() }) { Text(stringResource(R.string.play_now)) }
                 TextButton(onClick = { add(id) }) { Text(stringResource(R.string.add_to_playlist)) }
@@ -376,7 +376,7 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
         item { Section(stringResource(R.string.in_playlists)) }
         if (entries.isEmpty()) item { Hint(stringResource(R.string.not_in_playlist)) }
         items(entries, key = { it.first.id }) { (playlist, entry) ->
-            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text(stringResource(R.string.playlist_position, playlist.name, duration(entry.position))) }, trailingContent = {
+            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text(stringResource(R.string.playlist_position, duration(entry.position))) }, trailingContent = {
                 TextButton(onClick = { model.playEntry(playlist.id, id); started() }) { Text(stringResource(R.string.resume)) }
             })
         }

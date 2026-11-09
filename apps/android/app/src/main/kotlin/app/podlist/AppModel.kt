@@ -25,7 +25,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.SerializationException
 
-data class AppMessage(val resource: Int, val actionResource: Int = R.string.undo, val undo: (() -> Unit)? = null)
+data class AppMessage(
+    val resource: Int,
+    val actionResource: Int = R.string.undo,
+    val formatArgs: List<Any> = emptyList(),
+    val quantity: Int? = null,
+    val undo: (() -> Unit)? = null
+)
 
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
 enum class SyncStatus { Loading, Ready, Offline, Error }
@@ -94,11 +100,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val current = session.value ?: return@launch
             var inverse = emptyList<Change>()
-            val success = withContext(Dispatchers.IO) {
+            val playlistName = withContext(Dispatchers.IO) {
                 val state = current.db.loadState()
                 val clean = name?.trim()
-                if (playlist != null && state.playlists.none { it.id == playlist }) return@withContext false
-                if (playlist == null && (clean.isNullOrEmpty() || state.playlists.any { it.name.equals(clean, ignoreCase = true) })) return@withContext false
+                if (playlist != null && state.playlists.none { it.id == playlist }) return@withContext null
+                if (playlist == null && (clean.isNullOrEmpty() || state.playlists.any { it.name.equals(clean, ignoreCase = true) })) return@withContext null
                 val id = playlist ?: UUID.randomUUID().toString()
                 val before = state.playlists.find { it.id == id }
                 val oldIndex = before?.entries?.indexOfFirst { it.episodeId == episode } ?: -1
@@ -107,10 +113,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                     Change.SetCursor(id, before.cursor)
                 )
                 current.db.recordAll(listOfNotNull(if (playlist == null) Change.CreatePlaylist(id, clean!!, false) else null, Change.AddEntry(id, episode, placement)), System.currentTimeMillis())
-                true
+                before?.name ?: clean!!
             }
-            if (success) messages.trySend(AppMessage(R.string.added_to_playlist) { undo(current, inverse) })
-            result(success)
+            if (playlistName != null) messages.trySend(AppMessage(R.string.added_to_playlist, formatArgs = listOf(playlistName)) { undo(current, inverse) })
+            result(playlistName != null)
         }
     }
 
