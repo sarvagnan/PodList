@@ -12,7 +12,8 @@ fun LocalDatabase.loadBrowsingContext(): BrowsingContext = transaction {
     saved.validated(
         state.views.map { it.id }.toSet(), state.playlists.map { it.id }.toSet(),
         query("SELECT id FROM subscription").map { it["id"] as String }.toSet(),
-        episodes.map { it["id"] as String }.toSet()
+        episodes.map { it["id"] as String }.toSet(),
+        FormDraftStore(this).load().keys.filter { it.startsWith("view:") }.map { it.substringBefore('/').removePrefix("view:") }.toSet()
     )
 }
 

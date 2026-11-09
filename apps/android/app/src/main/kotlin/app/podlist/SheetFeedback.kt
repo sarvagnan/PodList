@@ -32,10 +32,9 @@ internal fun FeedbackSheet(
         onDispose { feedback?.let { it.openSheets-- } }
     }
     ModalBottomSheet(modifier = modifier, onDismissRequest = onDismissRequest, sheetState = sheetState, dragHandle = dragHandle) {
-        val scale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
-        Box(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(bottom = if (feedback == null) 0.dp else 80.dp * scale)) { content() }
-            feedback?.let { FeedbackSnackbarHost(it, Modifier.align(androidx.compose.ui.Alignment.BottomCenter)) }
+        Column(Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f, fill = false)) { content() }
+            feedback?.let { FeedbackSnackbarHost(it) }
         }
     }
 }
@@ -43,10 +42,10 @@ internal fun FeedbackSheet(
 @Composable
 internal fun FeedbackSnackbarHost(feedback: SheetFeedback, modifier: Modifier = Modifier) {
     val undoLabel = androidx.compose.ui.res.stringResource(R.string.undo)
-    SnackbarHost(feedback.snackbar, modifier) { data ->
+    SnackbarHost(feedback.snackbar, modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { data ->
         val label = data.visuals.actionLabel
         Snackbar(action = if (label != null && !(feedback.editorUndo && label == undoLabel)) ({
-            TextButton(onClick = data::performAction, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) { Text(label) }
+            TextButton(contentPadding = PaddingValues.Zero, onClick = data::performAction, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) { Text(label) }
         }) else null) { Text(data.visuals.message) }
     }
 }

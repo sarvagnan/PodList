@@ -112,11 +112,14 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                 },
                 snackbarHost = { if (feedback.openSheets == 0) FeedbackSnackbarHost(feedback, Modifier.imePadding()) }
             ) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) { content() } }
-            PredictiveBackHandler(enabled = addEpisode == null && expanded) { events ->
-                try {
-                    events.collect { predictiveProgress = it.progress }
-                    if (page != null) pages = pages.dropLast(1) else sheet.bottomSheetState.partialExpand()
-                } finally { predictiveProgress = 0f }
+            // Register on expansion, after the current tab’s stack handlers, including restored tabs.
+            key(expanded) {
+                PredictiveBackHandler(enabled = addEpisode == null && expanded) { events ->
+                    try {
+                        events.collect { predictiveProgress = it.progress }
+                        if (page != null) pages = pages.dropLast(1) else sheet.bottomSheetState.partialExpand()
+                    } finally { predictiveProgress = 0f }
+                }
             }
             addEpisode?.let { episode -> AddSheet(episode, session, model, onDismiss = { addEpisode = null }) }
         }
@@ -152,7 +155,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     var speed by rememberSaveable { mutableStateOf(false) }
     var sleep by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val artworkSize = (maxHeight * if (now.metadata.chapters.isEmpty()) .5f else .4f).coerceIn(160.dp, 360.dp).coerceAtMost(maxWidth - 32.dp)
+        val artworkSize = (maxHeight - if (now.metadata.chapters.isEmpty()) 300.dp else 380.dp).coerceAtLeast(160.dp).coerceAtMost(maxWidth - 32.dp)
         val identity = stringResource(R.string.now_playing_identity, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
         LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item { Box(Modifier.semantics { contentDescription = identity }) { ArtworkImage(session, now.artwork, artworkSize) } }
@@ -179,26 +182,26 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
                     SkipButton(true, true) { model.seek(now.position + 30) }
                 }
             }
-            if (now.error) item { Text(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error); TextButton(onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
+            if (now.error) item { Text(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error); TextButton(contentPadding = PaddingValues.Zero, onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
             else if (now.buffering) item { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-                    TextButton(onClick = { speed = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant), modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
-                    TextButton(onClick = { sleep = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
+                    TextButton(contentPadding = PaddingValues.Zero, onClick = { speed = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant), modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
+                    TextButton(contentPadding = PaddingValues.Zero, onClick = { sleep = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
                 }
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
-                    if (now.metadata.chapters.isNotEmpty()) TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
-                    TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
+                    TextButton(contentPadding = PaddingValues.Zero, onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
+                    if (now.metadata.chapters.isNotEmpty()) TextButton(contentPadding = PaddingValues.Zero, onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
+                    TextButton(contentPadding = PaddingValues.Zero, onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
                 }
             }
         }
     }
     if (speed) EditorSheet(stringResource(R.string.episode_speed), { speed = false }) {
-        ChoiceRows(PlaybackSpeeds.map { it to speedSetting(it) }, PlaybackSpeeds.firstOrNull { kotlin.math.abs(it - now.speed) < .001 } ?: now.speed.toDouble()) { model.speed(it.toFloat()); speed = false }
+        ChoiceRows(PlaybackSpeeds.map { it to speedSetting(it) }, PlaybackSpeeds.firstOrNull { kotlin.math.abs(it - now.speed) < .001 } ?: now.speed.toDouble()) { model.speed(it.toFloat()) }
     }
     if (sleep) SleepDialog(now, model) { sleep = false }
 }
@@ -262,9 +265,9 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
             isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.sleep_duration_error), Modifier.errorAnnouncement()) }) else null,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth())
-        TextButton(onClick = { model.sleep(PlaybackPolicy.chapterSleep(now.metadata.chapters, now.position)); close() }) { Text(stringResource(R.string.end_chapter)) }
-        TextButton(onClick = { model.sleep(SleepTimer.EpisodeEnd); close() }) { Text(stringResource(R.string.end_episode)) }
-        if (now.sleep != null) TextButton(onClick = { model.sleep(null); close() }) { Text(stringResource(R.string.cancel_sleep)) }
+        TextButton(contentPadding = PaddingValues.Zero, onClick = { model.sleep(PlaybackPolicy.chapterSleep(now.metadata.chapters, now.position)); close() }) { Text(stringResource(R.string.end_chapter)) }
+        TextButton(contentPadding = PaddingValues.Zero, onClick = { model.sleep(SleepTimer.EpisodeEnd); close() }) { Text(stringResource(R.string.end_episode)) }
+        if (now.sleep != null) TextButton(contentPadding = PaddingValues.Zero, onClick = { model.sleep(null); close() }) { Text(stringResource(R.string.cancel_sleep)) }
     }
 }
 
@@ -285,7 +288,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     EntryList(playlist, loaded, session, openEpisode, header = {
         item { Section(stringResource(R.string.switch_playlist)) }
         items(loaded.state.playlists, key = { "playlist:${it.id}" }) { target ->
-            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(target.name, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(pluralStringResource(R.plurals.entry_count, target.entries.size, target.entries.size)) }, trailingContent = { if (target.id != loaded.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(target.id); started() }) { Text(stringResource(R.string.switch_playlist)) } else Text(stringResource(R.string.active), style = MaterialTheme.typography.bodyMedium) })
+            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(target.name, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(pluralStringResource(R.plurals.entry_count, target.entries.size, target.entries.size)) }, trailingContent = { if (target.id != loaded.state.activePlaylistId) TextButton(contentPadding = PaddingValues.Zero, onClick = { model.switchPlaylist(target.id); started() }) { Text(stringResource(R.string.switch_playlist)) } else Text(stringResource(R.string.active), style = MaterialTheme.typography.bodyMedium) })
         }
         item { Section(stringResource(R.string.entries)) }
     })
@@ -301,18 +304,20 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
 @Composable
 internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, dismiss: () -> Unit, added: () -> Unit) {
     var target by rememberSaveable { mutableStateOf<String?>(state.activePlaylistId) }
-    var name by rememberSaveable { mutableStateOf("") }
+    val drafts = LocalFormDrafts.current
+    val draftPrefix = "add-playlist:${ids.joinToString(":")}/"
+    var name by rememberDraftText(draftPrefix + "name")
+    LaunchedEffect(Unit) { if (name.isNotEmpty()) target = null }
+    val abandon = { drafts.clear(draftPrefix); dismiss() }
     var invalid by rememberSaveable { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
-    FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), dragHandle = {
-        Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) { HorizontalDivider(Modifier.width(32.dp), thickness = 4.dp) }
-    }) {
+    FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = abandon, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         val screen = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
         val density = androidx.compose.ui.platform.LocalDensity.current
         val height = with(density) { screen.toDp() / 2 } - 24.dp - WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         Column(Modifier.fillMaxWidth().heightIn(max = height.coerceAtLeast(200.dp)).padding(horizontal = 16.dp)) {
             Text(stringResource(R.string.add_to_playlist), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-            LazyColumn(Modifier.weight(1f)) {
+            LazyColumn(Modifier.weight(1f, fill = false)) {
                 items(state.playlists, key = { it.id }) { playlist ->
                     ChoiceRows(listOf(playlist.id as String? to if (playlist.id == state.activePlaylistId) stringResource(R.string.m4_active_target, playlist.name) else playlist.name), target) { target = it; invalid = false }
                 }
@@ -323,7 +328,7 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 for ((placement, label) in listOf(Placement.Next to R.string.play_next, Placement.Last to R.string.play_last)) FilledTonalButton(enabled = !submitting, onClick = {
                     submitting = true
-                    model.addSeveral(ids, target, name.takeIf { target == null }, placement) { success -> submitting = false; if (success) added() else invalid = true }
+                    model.addSeveral(ids, target, name.takeIf { target == null }, placement) { success -> submitting = false; if (success) { drafts.clear(draftPrefix); added() } else invalid = true }
                 }) { Text(stringResource(label)) }
             }
         }

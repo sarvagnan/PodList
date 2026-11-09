@@ -34,4 +34,33 @@ class BrowsingStoreTest {
             assertEquals(BrowsingContext(), db.loadBrowsingContext())
         }
     }
+    @Test fun `Podcast filter description and guid anchor survive relaunch after rows reorder`() {
+        val file = directory.resolve("podcast.sqlite").toString()
+        val feed = "https://publisher.example/feed"
+        val saved = BrowsingContext(
+            destination = "Library", stacks = mapOf("Library" to listOf("podcast:encoded-feed")),
+            podcasts = mapOf(feed to PodcastBrowsing("long walk", expanded = true)),
+            scrolls = mapOf("Library/podcast:encoded-feed/podcast:$feed" to ScrollAnchor("guid-200", 201, 37))
+        )
+        LocalDatabase(file).use { db -> db.ensureState(); db.saveBrowsingContext(saved) }
+        LocalDatabase(file).use { db ->
+            val restored = db.loadBrowsingContext()
+            assertEquals(saved, restored)
+            assertEquals(PodcastBrowsing("long walk", true), restored.podcasts[feed])
+            val anchor = restored.scrolls.values.single()
+            assertEquals(3, restoredScrollIndex(anchor, listOf("about", "header", "new-guid", "guid-200")))
+            assertEquals(37, anchor.offset)
+        }
+    }
+
+    @Test fun `uncommitted New View keeps its creation identity on cold launch`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            FormDraftStore(db).put("view:stable-id/name", "My unfinished View")
+            val saved = BrowsingContext(stacks = mapOf("Views" to listOf("new-view:stable-id")))
+            db.saveBrowsingContext(saved)
+            assertEquals(saved, db.loadBrowsingContext())
+        }
+    }
+
 }

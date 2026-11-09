@@ -1,6 +1,7 @@
 package app.podlist
 
 import androidx.lifecycle.viewModelScope
+import app.podlist.data.FormDraftStore
 import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,6 +54,7 @@ internal fun AppModel.createPlaylist(name: String, finished: (String?, PlaylistN
                 if (problem != null) null to problem else {
                     val id = UUID.randomUUID().toString()
                     record(Change.CreatePlaylist(id, name.trim(), false), System.currentTimeMillis())
+                    FormDraftStore(this).clear("new-playlist/")
                     id to null
                 }
             } }
@@ -78,6 +80,7 @@ internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: S
                     addAll(EpisodeActions.addMany(ids, id, placement, playlist))
                 }
                 recordAll(changes, System.currentTimeMillis())
+                FormDraftStore(this).clear("add-playlist:${ids.joinToString(":")}/")
                 val undo = if (playlist == null) listOf<Change>(Change.DeletePlaylist(id)) else EpisodeActions.undoAdd(playlist, ids)
                 (playlist?.name ?: name!!.trim()) to undo
             } }

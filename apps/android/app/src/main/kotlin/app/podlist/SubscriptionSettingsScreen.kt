@@ -36,7 +36,7 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
         item { val value = secondsSetting(overrides.skipIntro ?: global.skipIntro); ValueRow(stringResource(R.string.m4_skip_intro), if (overrides.skipIntro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipIntro != null) { sheet = 3 } }
         item { val value = secondsSetting(overrides.skipOutro ?: global.skipOutro); ValueRow(stringResource(R.string.m4_skip_outro), if (overrides.skipOutro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipOutro != null) { sheet = 4 } }
         item { val value = stringResource(if (overrides.volumeBoost ?: global.volumeBoost) R.string.m4_on else R.string.m4_off); ValueRow(stringResource(R.string.volume_boost), if (overrides.volumeBoost == null) stringResource(R.string.m4_default_value, value) else value, overrides.volumeBoost != null) { sheet = 5 } }
-        item { TextButton(onClick = { model.markSubscriptionPlayed(id) }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
+        item { TextButton(contentPadding = PaddingValues.Zero, onClick = { model.markSubscriptionPlayed(id) }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
     }
     val close = { sheet = null }
     sheet?.let { which -> EditorSheet(stringResource(when(which) { 0 -> R.string.m4_download_rule; 1 -> R.string.m4_played_threshold; 2 -> R.string.speed; 3 -> R.string.m4_skip_intro; 4 -> R.string.m4_skip_outro; else -> R.string.volume_boost }), close) {
@@ -47,10 +47,10 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
                 ChoiceRows(modes.mapIndexed { index, mode -> mode to stringResource(ruleLabels[index]) }, rule.mode, supporting = { explanations.getValue(it) }) { model.edit(Change.SetDownloadRule(rule.copy(mode = it))) }
                 if (rule.mode == DownloadMode.AllNew) NumberField(stringResource(R.string.m4_keep_at_most), rule.keepAtMost?.toDouble(), true, minimum = 1.0) { model.edit(Change.SetDownloadRule(rule.copy(keepAtMost = it?.toLong()))) }
             }
-            1 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_threshold)) + listOf(0.0, 10.0, 30.0, 60.0, 120.0, 300.0).map { it to stringResource(R.string.m4_seconds, it.toLong()) }, threshold) { update(played = it); close() }
-            2 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_value, speedSetting(global.speed))) + PlaybackSpeeds.map { it to speedSetting(it) }, overrides.speed) { update(overrides.copy(speed = it)); close() }
-            3, 4 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_value, secondsSetting(if (which == 3) global.skipIntro else global.skipOutro))) + listOf(0.0, 15.0, 30.0, 45.0, 60.0, 90.0, 120.0).map { it to secondsSetting(it) }, if(which == 3) overrides.skipIntro else overrides.skipOutro) { update(if(which == 3) overrides.copy(skipIntro = it) else overrides.copy(skipOutro = it)); close() }
-            5 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_value, stringResource(if(global.volumeBoost) R.string.m4_on else R.string.m4_off)), false to stringResource(R.string.m4_off), true to stringResource(R.string.m4_on)), overrides.volumeBoost) { update(overrides.copy(volumeBoost = it)); close() }
+            1 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_threshold)) + listOf(0.0, 10.0, 30.0, 60.0, 120.0, 300.0).map { it to stringResource(R.string.m4_seconds, it.toLong()) }, threshold) { update(played = it) }
+            2 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_value, speedSetting(global.speed))) + PlaybackSpeeds.map { it to speedSetting(it) }, overrides.speed) { update(overrides.copy(speed = it)) }
+            3, 4 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_value, secondsSetting(if (which == 3) global.skipIntro else global.skipOutro))) + listOf(0.0, 15.0, 30.0, 45.0, 60.0, 90.0, 120.0).map { it to secondsSetting(it) }, if(which == 3) overrides.skipIntro else overrides.skipOutro) { update(if(which == 3) overrides.copy(skipIntro = it) else overrides.copy(skipOutro = it)) }
+            5 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_value, stringResource(if(global.volumeBoost) R.string.m4_on else R.string.m4_off)), false to stringResource(R.string.m4_off), true to stringResource(R.string.m4_on)), overrides.volumeBoost) { update(overrides.copy(volumeBoost = it)) }
         }
     } }
 }

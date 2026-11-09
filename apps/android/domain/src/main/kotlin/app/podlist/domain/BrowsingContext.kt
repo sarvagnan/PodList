@@ -6,15 +6,19 @@ import kotlinx.serialization.Serializable
 data class ScrollAnchor(val key: String? = null, val index: Int = 0, val offset: Int = 0)
 
 @Serializable
+data class PodcastBrowsing(val query: String = "", val expanded: Boolean = false)
+
+@Serializable
 data class BrowsingContext(
     val destination: String = "Views",
     val stacks: Map<String, List<String>> = emptyMap(),
     val scrolls: Map<String, ScrollAnchor> = emptyMap(),
     val playlistTabs: Map<String, Int> = emptyMap(),
     val searchText: String = "",
-    val statsTable: Boolean = false
+    val statsTable: Boolean = false,
+    val podcasts: Map<String, PodcastBrowsing> = emptyMap()
 ) {
-    fun validated(views: Set<String>, playlists: Set<String>, subscriptions: Set<String>, episodes: Set<String>): BrowsingContext {
+    fun validated(views: Set<String>, playlists: Set<String>, subscriptions: Set<String>, episodes: Set<String>, draftViews: Set<String> = emptySet()): BrowsingContext {
         fun exists(route: String): Boolean {
             val id = route.substringAfter(':')
             return when (route.substringBefore(':')) {
@@ -23,6 +27,7 @@ data class BrowsingContext(
                 "subscription", "subscription-settings" -> id in subscriptions
                 "episode" -> id in episodes
                 "podcast" -> id.isNotBlank()
+                "new-view" -> id in views || id in draftViews
                 "settings", "search", "listening-stats", "select-subscriptions", "server", "add-podcasts", "trash", "new-playlist" -> true
                 else -> false
             }
