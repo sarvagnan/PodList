@@ -443,4 +443,17 @@
         <item quantity="one">%d more condition</item>
         <item quantity="other">%d more conditions</item>
     </plurals>
+    <string name="podcast_search_episodes">Search Episodes</string>
+    <string name="podcast_bringing_episode">Bringing in Episode…</string>
+    <string name="podcast_loading">Loading Episodes</string>
+    <string name="podcast_load_failed">Couldn’t load this podcast’s Episodes.</string>
+    <string name="podcast_invalid_feed">That address isn’t a podcast feed.</string>
+    <string name="podcast_invalid_response">The podcast service returned an unreadable response. Try again.</string>
+    <string name="podcast_try_again">Try again</string>
+    <string name="podcast_show_details">Show or hide podcast details</string>
+    <string name="podcast_subscribed_unsubscribe">Subscribed to %1$s. Activate to Unsubscribe.</string>
+    <plurals name="podcast_filtered_count">
+        <item quantity="one">%1$d of %2$d Episode</item>
+        <item quantity="other">%1$d of %2$d Episodes</item>
+    </plurals>
 </resources>

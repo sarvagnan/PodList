@@ -153,7 +153,8 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
         val available = when (route?.substringBefore(':')) {
             "view", "view-edit" -> loaded.state.views.any { it.id == id }
             "playlist", "playlist-settings" -> loaded.state.playlists.any { it.id == id }
-            "subscription", "subscription-settings" -> loaded.subscriptions.any { it["id"] == id && it["unsubscribed_at"] == null }
+            "subscription" -> loaded.subscriptions.any { it["id"] == id }
+            "subscription-settings" -> loaded.subscriptions.any { it["id"] == id && it["unsubscribed_at"] == null }
             "episode" -> loaded.episodes.isNotEmpty()
             else -> true
         }
@@ -229,14 +230,20 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                             route?.startsWith("subscription:") == true -> loaded?.subscriptions?.find { it["id"] == route.substringAfter(':') }?.get("title") as? String ?: ""
                             else -> stringResource(R.string.episode)
                         }
-                        ScreenFrame(title, status, model::requestSync, back = back, selectionData = loaded, selectionSession = session, route = route, edit = when {
+                        if (route?.startsWith("podcast:") == true || route?.startsWith("subscription:") == true) {
+                            val result = if (route.startsWith("podcast:")) podcastFromRoute(route) else loaded?.subscriptions?.find { it["id"] == route.substringAfter(':') }?.let { row ->
+                                app.podlist.data.DirectoryResult(title = row["title"] as String, author = row["author"] as? String, feedUrl = row["feed_url"] as String, artworkUrl = row["artwork_url"] as? String, source = "library")
+                            }
+                            if (result == null || loaded == null) Loading() else pages.SaveableStateProvider(route) {
+                                PodcastPageScreen(result, loaded, session, fromSearch = route.startsWith("podcast:"), open = open, back = back)
+                            }
+                        } else ScreenFrame(title, status, model::requestSync, back = back, selectionData = loaded, selectionSession = session, route = route, edit = when {
                             route?.startsWith("view:") == true -> ({ open("view-edit:${route.substringAfter(':')}") })
                             route?.startsWith("playlist:") == true -> ({ open("playlist-settings:${route.substringAfter(':')}") })
-                            route?.startsWith("subscription:") == true -> ({ open("subscription-settings:${route.substringAfter(':')}") })
                             else -> null
                         }) {
                             when {
-                                route == "add-podcasts" -> AddPodcastsScreen(model, session)
+                                route == "add-podcasts" -> AddPodcastsScreen(model, session, open)
                                 route == "server" -> ServerScreen(model, session.source.server?.origin, back)
                                 route == "new-playlist" -> NewPlaylistScreen(model) { id -> scope.launch { navigator.navigateBack(BackNavigationBehavior.PopLatest); navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "playlist:$id") } }
                                 loaded == null -> Loading()
@@ -376,7 +383,7 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         }
         route?.startsWith("subscription-settings:") == true -> {
             val subscription = data.subscriptions.find { it["id"] == id }
-            if (subscription == null) EmptyMessage(R.string.missing_subscription) else SubscriptionSettingsScreen(subscription, data, session) { open("directory") }
+            if (subscription == null) EmptyMessage(R.string.missing_subscription) else SubscriptionSettingsScreen(subscription, data, session)
         }
         route?.startsWith("view:") == true -> {
             val view = data.state.views.find { it.id == id }
@@ -386,17 +393,6 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
             else EpisodeList(data.episodes, data, session, open, empty = R.string.no_matches, summary = {
                 Text(pluralStringResource(R.plurals.episode_count, data.episodes.size, data.episodes.size), style = MaterialTheme.typography.titleSmall)
                 Text(viewDescription(view, data, compact = false), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            })
-        }
-        route?.startsWith("subscription:") == true -> {
-            if (data.subscriptions.none { it["id"] == id }) EmptyMessage(R.string.missing_subscription)
-            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes, summary = {
-                Text(pluralStringResource(R.plurals.episode_count, data.episodes.size, data.episodes.size))
-                data.subscriptions.find { it["id"] == id }?.let { SubscriptionRefreshStatus(it, session) }
-                if (data.episodes.isEmpty()) {
-                    val model = LocalAppModel.current
-                    TextButton(onClick = { model.refreshSubscription(id!!) }) { Text(stringResource(R.string.refresh_podcast)) }
-                }
             })
         }
         route?.startsWith("playlist:") == true -> {
@@ -421,7 +417,7 @@ internal fun EpisodeList(rows: List<Row>, data: ScreenData, session: Session, op
 }
 
 @Composable
-internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, showArtwork: Boolean = true, rowModifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, showArtwork: Boolean = true, rowModifier: Modifier = Modifier, addAction: (() -> Unit)? = null, playAction: (() -> Unit)? = null, onClick: (() -> Unit)? = null) {
     val model = LocalAppModel.current
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
@@ -432,16 +428,18 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
     val duration = (row["duration"] as? Number)?.toDouble()
     val stacked = LocalDensity.current.fontScale >= 1.5f
     val actions: @Composable () -> Unit = {
-        if (entryPlaylist == null) ActionIcon(R.drawable.ic_add, stringResource(R.string.add_to_playlist)) { add(id) }
+        if (entryPlaylist == null) ActionIcon(R.drawable.ic_add, stringResource(R.string.add_to_playlist)) { if (addAction != null) addAction() else add(id) }
         ActionIcon(R.drawable.ic_play, stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here)) {
-            if (entryPlaylist == null) model.playNow(id) else model.playEntry(entryPlaylist, id)
-            started()
+            if (playAction != null) playAction() else {
+                if (entryPlaylist == null) model.playNow(id) else model.playEntry(entryPlaylist, id)
+                started()
+            }
         }
         if (entryPlaylist != null) EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, id)
     }
     val progressLabel = stringResource(R.string.playback_position)
     Column {
-        Row(rowModifier.fillMaxWidth().then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection?.toggle(id) }) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(rowModifier.fillMaxWidth().then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null && selection != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection.toggle(id) }) else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             if (selecting) Checkbox(id in selection.ids, null)
             else if (entryPlaylist != null) EntryDragHandle(data.state.playlists.first { it.id == entryPlaylist }, id)
             else if (showArtwork) ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String)

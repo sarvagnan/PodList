@@ -91,6 +91,14 @@ export const SubscriptionsHandlers = HttpApiBuilder.group(
     const subscriptions = yield* Subscriptions
     return handlers.handleAll({
       list: () => subscriptions.list,
+      readPodcast: ({ payload }) =>
+        subscriptions
+          .readPodcast(payload.feedUrl)
+          .pipe(Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))),
+      bringEpisode: ({ payload }) =>
+        subscriptions
+          .bringEpisode(payload.feedUrl, payload.guid)
+          .pipe(Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))),
       bringOver: ({ payload }) => subscriptions.bringOver(payload),
       subscribe: ({ payload }) =>
         subscriptions

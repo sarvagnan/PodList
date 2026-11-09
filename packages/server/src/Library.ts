@@ -29,6 +29,21 @@ export class FeedError extends Data.TaggedError("FeedError")<{
   readonly message: string
 }> {}
 
+/** The same address checks and generic publisher identity for Subscribe and Podcast pages. */
+const feedRequest = (feedUrl: string, subscriptionId: string) =>
+  Effect.try({
+    try: () => {
+      const url = new URL(feedUrl)
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
+        throw new Error("Invalid feed address")
+      return HttpClientRequest.get(feedUrl).pipe(
+        HttpClientRequest.setHeader("accept", "application/rss+xml, application/xml, text/xml"),
+        HttpClientRequest.setHeader("user-agent", "PodList")
+      )
+    },
+    catch: () => new FeedError({ subscriptionId, message: "Invalid feed address" })
+  })
+
 export class SubscriptionNotFound extends Data.TaggedError("SubscriptionNotFound")<{
   readonly subscriptionId: string
 }> {}
@@ -63,6 +78,7 @@ interface StoredEpisode {
 export class Library extends Context.Service<
   Library,
   {
+    readonly readFeed: (feedUrl: string) => Effect.Effect<ParsedFeed, FeedError>
     /** Fetches one Subscription's feed (conditionally) and stores what changed. */
     readonly refresh: (
       subscriptionId: string
@@ -166,6 +182,22 @@ export class Library extends Context.Service<
           return { added, changed }
         }).pipe(sql.withTransaction, Effect.orDie)
 
+      const readFeed = (feedUrl: string) =>
+        Effect.gen(function* () {
+          const fail = (message: string) => new FeedError({ subscriptionId: feedUrl, message })
+          const response = yield* http.execute(yield* feedRequest(feedUrl, feedUrl)).pipe(
+            Effect.timeout(feedTimeout),
+            Effect.mapError((e) => fail(`Fetch failed: ${e.message}`))
+          )
+          if (response.status < 200 || response.status >= 300)
+            return yield* fail(`Feed answered HTTP ${response.status}`)
+          const body = yield* response.text.pipe(Effect.mapError((e) => fail(e.message)))
+          return yield* Effect.try({
+            try: () => parseFeed(body),
+            catch: (e) => fail(e instanceof Error ? e.message : String(e))
+          })
+        })
+
       const refresh = (subscriptionId: string) =>
         Effect.gen(function* () {
           const fail = (message: string) => new FeedError({ subscriptionId, message })
@@ -177,9 +209,7 @@ export class Library extends Context.Service<
             Effect.orDie
           )
 
-          let request = HttpClientRequest.get(subscription.feed_url).pipe(
-            HttpClientRequest.setHeader("accept", "application/rss+xml, application/xml, text/xml")
-          )
+          let request = yield* feedRequest(subscription.feed_url, subscriptionId)
           if (state?.etag)
             request = HttpClientRequest.setHeader(request, "if-none-match", state.etag)
           if (state?.last_modified) {
@@ -236,7 +266,7 @@ export class Library extends Context.Service<
           )
         )
 
-      return Library.of({ refresh, store })
+      return Library.of({ readFeed, refresh, store })
     })
   )
 }

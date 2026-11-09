@@ -13,7 +13,7 @@ import app.podlist.data.Row
 import app.podlist.domain.*
 
 @Composable
-internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, session: Session, unsubscribed: () -> Unit) {
+internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, session: Session) {
     val id = subscription["id"] as String
     val model = LocalAppModel.current
     val overrides = ProtocolJson.decodeFromString<PlaybackSettingsOverride>(subscription["playback_settings"] as String)
@@ -37,7 +37,6 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
         item { val value = secondsSetting(overrides.skipOutro ?: global.skipOutro); ValueRow(stringResource(R.string.m4_skip_outro), if (overrides.skipOutro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipOutro != null) { sheet = 4 } }
         item { val value = stringResource(if (overrides.volumeBoost ?: global.volumeBoost) R.string.m4_on else R.string.m4_off); ValueRow(stringResource(R.string.volume_boost), if (overrides.volumeBoost == null) stringResource(R.string.m4_default_value, value) else value, overrides.volumeBoost != null) { sheet = 5 } }
         item { TextButton(onClick = { model.markSubscriptionPlayed(id) }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
-        item { Column(Modifier.padding(horizontal = 16.dp)) { UnsubscribeButton(session, id, subscription["title"] as String, unsubscribed) } }
     }
     val close = { sheet = null }
     sheet?.let { which -> EditorSheet(stringResource(when(which) { 0 -> R.string.m4_download_rule; 1 -> R.string.m4_played_threshold; 2 -> R.string.speed; 3 -> R.string.m4_skip_intro; 4 -> R.string.m4_skip_outro; else -> R.string.volume_boost }), close) {

@@ -4,7 +4,7 @@ import { Library as Domain, Mentions } from "@podlist/domain"
 import { Context, Data, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql"
 import { XMLParser } from "fast-xml-parser"
-import { type FeedError, Library } from "./Library.ts"
+import { FeedError, Library } from "./Library.ts"
 
 // Following and unfollowing podcasts, and moving subscriptions in and out as OPML.
 // Unsubscribing keeps the Episodes so Starred ones and Entries survive as Orphaned (Q31).
@@ -77,6 +77,11 @@ export class Subscriptions extends Context.Service<
     readonly list: Effect.Effect<ReadonlyArray<Domain.Subscription>>
     /** Follows a feed: fetches it first, and keeps nothing if it cannot be read. */
     readonly subscribe: (feedUrl: string) => Effect.Effect<Domain.Subscription, FeedError>
+    readonly readPodcast: (feedUrl: string) => Effect.Effect<Api.PodcastFeed, FeedError>
+    readonly bringEpisode: (
+      feedUrl: string,
+      guid: string
+    ) => Effect.Effect<Api.BroughtEpisode, FeedError>
     readonly unsubscribe: (id: string) => Effect.Effect<Domain.Subscription, NotFound>
     /** Inserts missing identities without fetching feeds or changing existing rows. Ids sync via Catalogue. */
     readonly bringOver: (
@@ -114,6 +119,21 @@ export class Subscriptions extends Context.Service<
             Effect.orDie
           )
           if (existing !== undefined) {
+            const [state] =
+              yield* sql`SELECT subscription_id FROM feed_state WHERE subscription_id = ${existing.id}`.pipe(
+                Effect.orDie
+              )
+            if (existing.unsubscribed_at !== null && state === undefined) {
+              yield* library.refresh(existing.id).pipe(
+                Effect.catchTag("SubscriptionNotFound", Effect.die),
+                // A failed first Subscribe must still fetch the Back Catalogue on Retry.
+                Effect.tapError(() =>
+                  sql`DELETE FROM feed_state WHERE subscription_id = ${existing.id}`.pipe(
+                    Effect.orDie
+                  )
+                )
+              )
+            }
             // Following again: clear the unsubscribe, keep the Episodes already stored.
             yield* sql`UPDATE subscription SET unsubscribed_at = NULL WHERE id = ${existing.id}`.pipe(
               Effect.orDie
@@ -139,6 +159,64 @@ export class Subscriptions extends Context.Service<
             )
           )
           return yield* byId(id).pipe(Effect.orDie)
+        })
+
+      const readPodcast = (feedUrl: string) =>
+        library.readFeed(feedUrl).pipe(Effect.map((feed) => new Api.PodcastFeed(feed)))
+
+      const bringEpisode = (feedUrl: string, guid: string) =>
+        Effect.gen(function* () {
+          const [existing] = yield* sql<{ subscription_id: string; id: string }>`
+            SELECT e.subscription_id, e.id FROM episode e JOIN subscription s ON s.id = e.subscription_id
+            WHERE s.feed_url = ${feedUrl} AND e.guid = ${guid}`.pipe(Effect.orDie)
+          if (existing !== undefined)
+            return new Api.BroughtEpisode({
+              subscriptionId: existing.subscription_id,
+              episodeId: existing.id
+            })
+          // Fetch outside the transaction. Nothing is persisted for an invalid or missing Episode.
+          const feed = yield* library.readFeed(feedUrl)
+          const episode = feed.episodes.find((e) => e.guid === guid)
+          if (episode === undefined)
+            return yield* new FeedError({
+              subscriptionId: feedUrl,
+              message: "Episode is no longer in this feed"
+            })
+          return yield* Effect.gen(function* () {
+            yield* sql`INSERT INTO subscription ${sql.insert({
+              id: `sub_${randomUUID()}`,
+              feed_url: feedUrl,
+              title: feed.title,
+              title_folded: Mentions.fold(feed.title),
+              author: feed.author,
+              description: feed.description,
+              artwork_url: feed.artworkUrl,
+              subscribed_at: Date.now(),
+              unsubscribed_at: Date.now()
+            })} ON CONFLICT (feed_url) DO NOTHING`
+            const [subscription] = yield* sql<{
+              id: string
+            }>`SELECT id FROM subscription WHERE feed_url = ${feedUrl}`
+            const subscriptionId = subscription!.id
+            yield* sql`INSERT INTO episode ${sql.insert({
+              id: `ep_${randomUUID()}`,
+              subscription_id: subscriptionId,
+              guid: episode.guid,
+              title: episode.title,
+              title_folded: Mentions.fold(episode.title),
+              description: episode.description,
+              description_folded: Mentions.fold(episode.description),
+              published: episode.published,
+              duration: episode.duration,
+              audio_url: episode.audioUrl,
+              artwork_url: episode.artworkUrl,
+              chapters_url: episode.chaptersUrl
+            })} ON CONFLICT (subscription_id, guid) DO NOTHING`
+            const [stored] = yield* sql<{
+              id: string
+            }>`SELECT id FROM episode WHERE subscription_id = ${subscriptionId} AND guid = ${guid}`
+            return new Api.BroughtEpisode({ subscriptionId, episodeId: stored!.id })
+          }).pipe(sql.withTransaction, Effect.orDie)
         })
 
       const unsubscribe = (id: string) =>
@@ -242,7 +320,16 @@ export class Subscriptions extends Context.Service<
         })
       )
 
-      return Subscriptions.of({ list, subscribe, unsubscribe, bringOver, importOpml, exportOpml })
+      return Subscriptions.of({
+        list,
+        subscribe,
+        readPodcast,
+        bringEpisode,
+        unsubscribe,
+        bringOver,
+        importOpml,
+        exportOpml
+      })
     })
   )
 }

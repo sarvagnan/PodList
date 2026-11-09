@@ -34,6 +34,7 @@ class HttpTransport(private val address: ServerAddress, private val subscription
             // An OPML import may fetch many publisher feeds before returning its partial summary.
             connection.readTimeout = when {
                 path == "/api/subscriptions/import" -> 120_000
+                path == "/api/podcasts/read" || path == "/api/podcasts/episodes" -> 30_000
                 path == "/api/subscriptions" || (path.startsWith("/api/subscriptions/") && path.endsWith("/refresh")) -> subscriptionReadTimeoutMillis
                 else -> 2_000
             }
