@@ -63,7 +63,8 @@ Played uses the Subscription's threshold or 30 seconds before the end by default
 ## Library and Subscriptions
 
 - The Library groups Subscriptions by their Download Rule on this Device. Open a Subscription's Episodes and settings. Support changing multiple Subscriptions' Download Rules together.
-- Add podcasts through Search (a podcast directory) or a feed address resolved directly without an index. These are methods of adding Subscriptions, distinct from Search over the Library. Explain invalid addresses and server failures, with a way to retry.
+- Add podcasts through Search (a podcast directory) or a feed address resolved directly without an index. These are methods of adding Subscriptions, distinct from Search over the Library. Explain invalid addresses and server failures, with a way to retry. Opening a result shows its Podcast page; each result can also be subscribed to directly.
+- The Podcast page shows a podcast's Episodes before or after subscribing, with a search within them. Pulling down reveals its artwork and description. Episodes can be played or added before subscribing; each comes in on its own as Orphaned (ADR 0013). A subscribed podcast shows a green check, which is also how to Unsubscribe, and a gear for its settings.
 - OPML import and export live in Settings, because they usually happen once (owner, 9 Nov 2026). Explain partial import results, with a way to retry.
 - A Subscription exposes its Episodes, Mark all Played, Unsubscribe, Download Rule for this Device, Played threshold in seconds and Playback Settings overrides. New Subscriptions start at Stream. Overrides inherit global defaults until changed; they are never per Playlist.
 - Download Rules apply per Subscription and Device: Stream, when Episodes become an Entry, or as they are published, optionally capped. Manual Downloads are independent of rule cleanup. A Starred Episode's stored downloads are never automatically discarded. For exact selection and retention, use client duties; the short Download Rule definition in CONTEXT.md is not an unconditional deletion rule.
@@ -71,7 +72,7 @@ Played uses the Subscription's threshold or 30 seconds before the end by default
 
 ### Unsubscribe
 
-Ask for confirmation first, with a plain "are you sure" dialog and no explanation (owner, 9 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
+Ask for confirmation first, with a plain "are you sure" dialog and no explanation (owner, 9 Nov 2026). Afterwards stay on the Podcast page and let the person navigate back (owner, 10 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
 
 The server retains Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices' Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals those retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Do not silently queue Subscribe or Unsubscribe as an offline State edit.
 

@@ -35,7 +35,7 @@ Entries, History and Listening Timeline tabs. The Cursor is marked NOW on the Ac
 
 ## Library
 
-Subscriptions grouped by their Download Rule on this Device, with empty groups stated. Tapping one opens its Episodes and settings. **Add podcasts** and **Select Subscriptions** follow the groups.
+Subscriptions grouped by their Download Rule on this Device, with empty groups stated. Tapping one opens its Podcast page. **Add podcasts** and **Select Subscriptions** follow the groups.
 
 ## Mini player
 
@@ -71,7 +71,8 @@ Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): h
 - **View editor:** one list with every condition as a row showing its value, each opening a small sheet. A live count and Undo stay pinned above the player.
 - **Rewind:** from the Listening Timeline, a bottom sheet lists what goes back, what becomes Unplayed, what returns and what's kept. The Playlist then shows the result with Undo.
 - **Playlist settings:** name, Clear on Played and Delete on one page, opened with the pencil. Delete asks nothing first (owner, 9 Nov 2026): the Playlist goes to Trash and the snackbar offers Undo.
-- **Subscription settings:** opened with a pencil on the Subscription page. Unchanged values read Default and name what they inherit.
+- **Podcast page** (owner, 10 Nov 2026): compact header with who makes the podcast, a Search Episodes bar and the Episode count. Pulling down reveals artwork and description. Before subscribing the top bar has Subscribe; once subscribed it has a settings gear and a green check, and tapping the check asks "Unsubscribe from Deep Field?". Keyboard shortcuts are never shown on the phone.
+- **Subscription settings:** opened with the gear on the Podcast page. Unsubscribe isn't here. Unchanged values read Default and name what they inherit.
 - **Listening stats:** one scrolling page reached from Settings, with all three periods visible at once, a 30-day chart that can be tapped and a table view.
 - **First run** ([ADR 0012](../adr/0012-a-device-can-work-without-a-server.md)): a Welcome screen offers **Start on this phone** or **Connect to a server**. Either leads to the Getting started card above the starter Views on Views. Connecting a Standalone Device shows what will move before offering **Bring it over** or **Not now**, and the offer stays in Settings.
 - **OPML:** a **Your podcasts** section in Settings, after Your listening, holds **Import OPML** (arrow into a tray) and **Export OPML** (arrow out of a tray). Both use Android's file picker.
