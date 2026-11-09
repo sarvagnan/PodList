@@ -63,7 +63,7 @@
     <string name="starred">Starred</string>
     <string name="show_notes">Show notes</string>
     <string name="in_playlists">In your Playlists</string>
-    <string name="playlist_position">%1$s · Position %2$s</string>
+    <string name="playlist_position">Position %1$s</string>
     <string name="chapters">Chapters</string>
     <string name="view_conditions">Conditions</string>
     <string name="any">Any</string>
@@ -122,7 +122,8 @@
     <string name="playlist_name_error">Enter a name that is not already used.</string>
     <string name="play_next">Play Next</string>
     <string name="play_last">Play Last</string>
-    <string name="added_to_playlist">Added to Playlist</string>
+    <string name="added_to_playlist">Added to %1$s</string>
+    <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
     <string name="play_from_here">Play from here</string>
     <string name="switch_playlist">Switch Playlist</string>
     <string name="resume">Resume</string>
