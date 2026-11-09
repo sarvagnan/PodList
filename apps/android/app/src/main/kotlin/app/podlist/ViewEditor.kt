@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import kotlinx.serialization.encodeToString
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.input.ImeAction
 internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: () -> Unit, deleted: () -> Unit) {
     val model = LocalAppModel.current
     val creating = remember(view.id) { data.state.views.none { it.id == view.id } }
+    var recorded by rememberSaveable(view.id) { mutableStateOf(!creating) }
     val initial = remember(view.id) { view }
     var draft by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
     var saved by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
@@ -39,24 +41,37 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val initialUndo = remember { undoRevision }
     LaunchedEffect(undoRevision) {
         if (undoRevision != initialUndo) {
-            val restored = withContext(Dispatchers.IO) { session.db.loadState().views.find { it.id == view.id } } ?: initial.takeIf { creating }
+            val stored = withContext(Dispatchers.IO) { session.db.loadState().views.find { it.id == view.id } }
+            recorded = stored != null
+            val restored = stored ?: initial.takeIf { creating }
             restored?.let { saved = it; draft = it; name = it.name; podcastMode = it.filter.podcasts?.mode }
         }
     }
-    var count by remember { mutableIntStateOf(0) }
+    var count by remember { mutableStateOf<Int?>(null) }
+    var completing by remember { mutableStateOf(false) }
     val revision by model.revision.collectAsState()
     LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(saved, System.currentTimeMillis()).size } }
-    fun update(next: View) {
+    fun update(next: View, typingGroup: String? = null) {
         draft = next
         if (ViewEdits.problem(next.filter) == null && next != saved) {
-            saved = next; model.edit(Change.SaveView(next))
+            saved = next; recorded = true; model.edit(Change.SaveView(next), typingGroup)
         }
     }
+    fun finish() {
+        if (completing) return
+        model.finishTyping()
+        val accepted = ViewEdits.accepted(draft, saved, recorded)
+        if (accepted == null) done() else {
+            completing = true
+            model.edit(accepted, finished = done)
+        }
+    }
+    DisposableEffect(view.id) { onDispose { model.finishTyping() } }
     val problem = ViewEdits.problem(draft.filter)
     val any = stringResource(R.string.any)
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().imePadding()) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error)) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) done() })) }
+            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error)) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) finish() })) }
             if (problem != null || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
             item { Section(stringResource(R.string.m4_conditions)) }
             item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != null) { sheet = 0 } }
@@ -70,16 +85,16 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { Section(stringResource(R.string.m4_then)) }
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
-            item { TextButton(onClick = { model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { listOf(Change.SaveView(saved)) }; deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            item { TextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(pluralStringResource(R.plurals.m4_matching, count, count), Modifier.weight(1f).padding(vertical = 16.dp))
+            Text(count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting), Modifier.weight(1f).padding(vertical = 16.dp))
             TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
-            TextButton(enabled = problem == null && name.isNotBlank(), onClick = done) { Text(stringResource(R.string.m4_done)) }
+            TextButton(enabled = !completing && problem == null && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
         } }
     }
     val f = draft.filter
-    val close = { sheet = null }
+    val close = { model.finishTyping(); sheet = null }
     val titles = listOf(R.string.m4_published, R.string.m4_podcasts, R.string.m4_mentions, R.string.played, R.string.starred, R.string.m4_in_playlist, R.string.m4_length, R.string.m4_sort, R.string.m4_show)
     sheet?.let { which -> EditorSheet(stringResource(titles[which]), close) {
         when (which) {
@@ -100,12 +115,12 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                     CheckRow(sub["title"] as String, id in selectedIds) { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }
                 } }
             }
-            2 -> OutlinedTextField(f.text.orEmpty(), { update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank)))) }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth())
+            2 -> OutlinedTextField(f.text.orEmpty(), { update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
             3 -> ChoiceRows(listOf(null to any, PlayedFilter.Unplayed to stringResource(R.string.unplayed), PlayedFilter.InProgress to stringResource(R.string.in_progress_condition), PlayedFilter.Played to stringResource(R.string.played)), f.played) { update(draft.copy(filter = f.copy(played = it))); close() }
             4 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.starred), false to stringResource(R.string.m4_not_starred)), f.starred) { update(draft.copy(filter = f.copy(starred = it))); close() }
             5 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.not_in_playlist)), f.notInAnyPlaylist?.takeIf { it }) { update(draft.copy(filter = f.copy(notInAnyPlaylist = it))); close() }
             6 -> {
-                NumberField(stringResource(R.string.m4_at_least_minutes), f.minDuration?.div(60)) { update(draft.copy(filter = draft.filter.copy(minDuration = it?.times(60)))) }
+                NumberField(stringResource(R.string.m4_at_least_minutes), f.minDuration?.div(60), autofocus = true) { update(draft.copy(filter = draft.filter.copy(minDuration = it?.times(60)))) }
                 NumberField(stringResource(R.string.m4_at_most_minutes), f.maxDuration?.div(60)) { update(draft.copy(filter = draft.filter.copy(maxDuration = it?.times(60)))) }
             }
             7 -> ChoiceRows(ViewSort.entries.map { it to sortLabel(it) }, draft.sort) { update(draft.copy(sort = it)); close() }

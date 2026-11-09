@@ -29,7 +29,7 @@
     <string name="no_views">No Views yet</string>
     <string name="no_playlists">No Playlists yet</string>
     <string name="no_subscriptions">No Subscriptions yet</string>
-    <string name="no_episodes">No Episodes yet</string>
+    <string name="no_episodes">No Episodes yet. Refresh this podcast to check for new Episodes.</string>
     <string name="no_matches">No Episodes match this View</string>
     <string name="no_entries">No Entries in this Playlist</string>
     <string name="no_cursor">No current Entry</string>
@@ -129,8 +129,8 @@
     <string name="resume">Resume</string>
     <string name="history">History</string>
     <string name="timeline">Listening Timeline</string>
-    <string name="no_history">No Episodes finished through this Playlist yet</string>
-    <string name="no_timeline">No listening through this Playlist yet</string>
+    <string name="no_history">No History yet. Finish an Episode from Entries to build it.</string>
+    <string name="no_timeline">No listening yet. Play an Episode from Entries to start this Listening Timeline.</string>
     <string name="finished_at">Finished %1$s</string>
     <string name="timeline_position">%1$s · Position %2$s</string>
     <string name="move_up">Move up</string>
@@ -176,10 +176,10 @@
     <string name="directory_failed">Couldn’t find podcasts. Check your connection and try again.</string>
     <string name="subscribe">Subscribe</string>
     <string name="subscribed">Subscribed</string>
-    <string name="subscribe_failed">Couldn’t Subscribe. Try again.</string>
+    <string name="subscribe_failed">Couldn’t subscribe. Try again.</string>
     <string name="unsubscribe">Unsubscribe</string>
     <string name="unsubscribed">Unsubscribed</string>
-    <string name="unsubscribe_failed">Couldn’t Unsubscribe. Try again.</string>
+    <string name="unsubscribe_failed">Couldn’t unsubscribe. Try again.</string>
     <string name="unsubscribe_explanation">Its Episodes leave your Library, except any that are Entries in a Playlist or Starred. Downloads stay on their Devices.</string>
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
@@ -294,7 +294,7 @@
     <string name="m4_step_views">Views find Episodes for you</string>
     <string name="m4_step_views_help">Start with New this week, Under 30 minutes and Starred. Edit them or make your own.</string>
     <string name="m4_step_playlists">Playlists hold what you’ll listen to</string>
-    <string name="m4_step_playlists_help">Use Play Next or Play Last on an Episode; the Default Playlist is ready.</string>
+    <string name="m4_step_playlists_help">Use “Play next” or “Play last” on an Episode; the Default Playlist is ready.</string>
     <string name="m4_hide">Hide</string>
     <string name="m4_search_library">Search the Library</string>
     <string name="m4_save_as_view">Save as a View</string>
@@ -407,4 +407,27 @@
     </plurals>
     <string name="import_undone">Imported Subscriptions removed</string>
     <string name="import_undo_failed">Some imported Subscriptions couldn’t be removed. Check your connection and retry.</string>
+    <string name="counting">Counting…</string>
+    <string name="no_search_matches">No Episodes match this Search. Try another word or clear Search.</string>
+    <string name="retry_action">Retry</string>
+    <string name="edit_undone">Edit undone</string>
+    <string name="edit_redone">Edit redone</string>
+    <string name="edit_reverse_failed">Couldn’t reverse this edit. It’s still available. Check your connection and retry.</string>
+    <string name="edit_history">Undo and Redo</string>
+    <string name="subscribing">Subscribing…</string>
+    <string name="refresh_failed">Couldn’t refresh this podcast. Check your connection and retry.</string>
+    <string name="refreshed_at">Last refreshed %1$s</string>
+    <string name="refresh_podcast">Refresh podcast</string>
+    <string name="retry_refresh">Retry refresh</string>
+    <string name="refreshing_podcast">Refreshing…</string>
+    <string name="speed_accessibility">Speed, %1$s</string>
+    <string name="playback_position">Playback Position</string>
+    <string name="seek_time">%1$s of %2$s</string>
+    <string name="entry_destination">Entry %1$d of %2$d</string>
+    <string name="chart_scroll_hint">Swipe across the chart to choose a day, or show the table.</string>
+    <string name="listened_hours_minutes">%1$s %2$s</string>
+    <string name="listened_under_minute">Under 1 minute</string>
+    <plurals name="listened_minutes"><item quantity="one">%1$d minute</item><item quantity="other">%1$d minutes</item></plurals>
+    <plurals name="listened_hours"><item quantity="one">%1$d hour</item><item quantity="other">%1$d hours</item></plurals>
+    <string name="opml_progress">Processing OPML</string>
 </resources>

@@ -1,7 +1,13 @@
 package app.podlist
 
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -26,6 +32,9 @@ internal class EntryDragState(val list: LazyListState) {
     var source by mutableStateOf<String?>(null)
     var pointer by mutableFloatStateOf(0f)
     var boundary by mutableIntStateOf(-1)
+    var grabOffset by mutableFloatStateOf(0f)
+    var sourceTop by mutableFloatStateOf(0f)
+    var retained by mutableStateOf<String?>(null)
     fun locate(playlist: Playlist) {
         val rows = list.layoutInfo.visibleItemsInfo.filter { info -> playlist.entries.any { it.episodeId == info.key } }
         val nearest = rows.minByOrNull { kotlin.math.abs(pointer - (it.offset + it.size / 2f)) } ?: return
@@ -48,10 +57,9 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
         val target = reveal?.takeIf { it.route == "playlist:${playlist.id}" }?.episode
         val index = playlist.entries.indexOfFirst { it.episodeId == target }
         if (index >= 0) {
+            drag.retained = target
             revealed = reveal?.token
-            val keyIndex = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == target }?.index
-            if (keyIndex != null) list.animateScrollToItem(keyIndex)
-            else list.animateScrollToItem(index + if (header == null) 0 else data.state.playlists.size + 2)
+            list.animateScrollToItem(index + if (header == null) 0 else data.state.playlists.size + 2)
         }
     }
     LaunchedEffect(drag.source) {
@@ -62,7 +70,7 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                 drag.pointer > info.viewportEndOffset - edge -> ((drag.pointer - info.viewportEndOffset + edge) / edge).coerceIn(0f, 1f) * 24f
                 else -> 0f
             }
-            if (velocity != 0f) list.scrollBy(velocity)
+            if (velocity != 0f) drag.sourceTop -= list.scrollBy(velocity)
             drag.locate(playlist)
             delay(16)
         }
@@ -72,7 +80,19 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
             header?.invoke(this)
             if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries); TextButton(onClick = { model.reveal.value = Reveal("search") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_episodes)) } }
             itemsIndexed(playlist.entries, key = { _, entry -> entry.episodeId }) { index, entry ->
-                Column(Modifier.fillMaxWidth().background(if (drag.source == entry.episodeId) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
+                val focus = remember { FocusRequester() }
+                val moving = drag.source == entry.episodeId
+                val marked = drag.retained == entry.episodeId
+                val movedLabel = stringResource(R.string.entry_destination, index + 1, playlist.entries.size)
+                LaunchedEffect(marked, playlist.entries) { if (marked && drag.source == null) focus.requestFocus() }
+                Column(Modifier.fillMaxWidth().zIndex(if (moving) 1f else 0f).graphicsLayer {
+                    if (moving) {
+                        val top = list.layoutInfo.visibleItemsInfo.find { it.key == entry.episodeId }?.offset?.toFloat() ?: drag.sourceTop
+                        translationY = drag.pointer - drag.grabOffset - top
+                        shadowElevation = 8.dp.toPx()
+                    } else { translationY = 0f; shadowElevation = 0f }
+                }.background(if (moving || marked) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                    .focusRequester(focus).focusable().semantics { selected = marked; if (marked) { stateDescription = movedLabel; liveRegion = LiveRegionMode.Polite } }) {
                     if (drag.source != null && drag.boundary == index) HorizontalDivider(thickness = 3.dp, color = MaterialTheme.colorScheme.primary)
                     if (playlist.cursor == entry.episodeId) Section(stringResource(if (playlist.id == data.state.activePlaylistId) R.string.cursor_now else if (entry.position > 0) R.string.cursor_resume else R.string.cursor_here))
                     val row = data.episodes.find { it["id"] == entry.episodeId }
@@ -95,18 +115,28 @@ internal fun EntryDragHandle(playlist: Playlist, episode: String) {
     var handleTop by remember { mutableFloatStateOf(0f) }
     DisposableEffect(Unit) { onDispose { pin?.release() } }
     val modifier = Modifier.onGloballyPositioned { handleTop = it.positionInWindow().y }.pointerInput(episode, drag) {
-        detectDragGesturesAfterLongPress(onDragStart = { offset ->
+        detectDragGestures(onDragStart = { offset ->
             pin = container?.pin()
             drag.source = episode
             drag.pointer = handleTop - drag.viewportTop + offset.y
+            drag.sourceTop = drag.list.layoutInfo.visibleItemsInfo.find { it.key == episode }?.offset?.toFloat() ?: drag.pointer
+            drag.grabOffset = drag.pointer - drag.sourceTop
             drag.locate(currentPlaylist)
         }, onDrag = { change, amount -> change.consume(); drag.pointer += amount.y; drag.locate(currentPlaylist) }, onDragEnd = {
             val sourceIndex = currentPlaylist.entries.indexOfFirst { it.episodeId == episode }
             val destination = (drag.boundary - if (sourceIndex < drag.boundary) 1 else 0).coerceIn(0, currentPlaylist.entries.lastIndex)
             if (sourceIndex != destination) model.moveEntry(playlist.id, episode, destination)
+            drag.retained = episode
             drag.source = null; drag.boundary = -1; pin?.release(); pin = null
         }, onDragCancel = { drag.source = null; drag.boundary = -1; pin?.release(); pin = null })
     }
     val label = stringResource(R.string.drag_entry)
-    Box(modifier.size(48.dp), contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_drag), label) }
+    val up = stringResource(R.string.move_up)
+    val down = stringResource(R.string.move_down)
+    Box(modifier.size(48.dp).semantics {
+        customActions = listOf(
+            CustomAccessibilityAction(up) { val index = playlist.entries.indexOfFirst { it.episodeId == episode }; if (index > 0) { model.moveEntry(playlist.id, episode, index - 1); true } else false },
+            CustomAccessibilityAction(down) { val index = playlist.entries.indexOfFirst { it.episodeId == episode }; if (index < playlist.entries.lastIndex) { model.moveEntry(playlist.id, episode, index + 1); true } else false }
+        )
+    }, contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_drag), label) }
 }

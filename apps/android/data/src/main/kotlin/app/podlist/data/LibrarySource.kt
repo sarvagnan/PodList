@@ -121,8 +121,11 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
             throw e
         }
     }
-    private fun remember(id: String, response: PublisherResponse) = db.execute("""INSERT INTO feed_state (subscription_id, etag, last_modified, checked_at, failures) VALUES (?, ?, ?, ?, 0)
+    private fun remember(id: String, response: PublisherResponse) {
+        db.setMeta("feedRefreshed:$id", now().toString())
+        db.execute("""INSERT INTO feed_state (subscription_id, etag, last_modified, checked_at, failures) VALUES (?, ?, ?, ?, 0)
         ON CONFLICT(subscription_id) DO UPDATE SET etag = excluded.etag, last_modified = excluded.last_modified, checked_at = excluded.checked_at, failures = 0, last_error = NULL""", listOf(id, response.etag, response.lastModified, now()))
+    }
     private fun store(id: String, feed: ParsedFeed) {
         db.execute("UPDATE subscription SET title = ?, title_folded = ?, author = ?, description = ?, artwork_url = ? WHERE id = ?", listOf(feed.title, Mentions.fold(feed.title), feed.author, feed.description, feed.artworkUrl, id))
         val guids = feed.episodes.map { it.guid }.toSet()

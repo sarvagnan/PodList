@@ -20,6 +20,19 @@ object EditUndo {
         is Change.SetSubscriptionOverrides -> subscription?.let { listOf(Change.SetSubscriptionOverrides(it.id, it.playbackSettings, it.playedThreshold)) }.orEmpty()
         is Change.SaveView -> listOf(before.views.find { it.id == change.view.id }?.let { Change.SaveView(it) } ?: Change.DeleteView(change.view.id))
         is Change.RemoveEntry -> before.playlists.find { it.id == change.playlistId }?.let { removeEntry(it, change.episodeId, at) }.orEmpty()
+        is Change.DeleteView -> before.views.find { it.id == change.viewId }?.let { listOf(Change.SaveView(it)) }.orEmpty()
+        is Change.CreatePlaylist -> listOf(Change.DeletePlaylist(change.playlistId))
+        is Change.DeletePlaylist -> listOfNotNull(Change.RestorePlaylist(change.playlistId), Change.SetActivePlaylist(change.playlistId).takeIf { before.activePlaylistId == change.playlistId })
+        is Change.RestorePlaylist -> listOf(Change.DeletePlaylist(change.playlistId))
+        is Change.SetActivePlaylist -> listOf(Change.SetActivePlaylist(before.activePlaylistId))
+        is Change.SetClearOnPlayed -> before.playlists.find { it.id == change.playlistId }?.let { listOf(Change.SetClearOnPlayed(it.id, it.clearOnPlayed)) }.orEmpty()
+        is Change.AddEntry -> before.playlists.find { it.id == change.playlistId }?.let { EpisodeActions.undoAdd(it, listOf(change.episodeId)) }.orEmpty()
+        is Change.MoveEntry -> before.playlists.find { it.id == change.playlistId }?.let { playlist ->
+            val index = playlist.entries.indexOfFirst { it.episodeId == change.episodeId }
+            if (index < 0) emptyList() else listOf(Change.MoveEntry(playlist.id, change.episodeId, playlist.entries.getOrNull(index - 1)?.episodeId))
+        }.orEmpty()
+        is Change.SetCursor -> before.playlists.find { it.id == change.playlistId }?.let { listOf(Change.SetCursor(it.id, it.cursor)) }.orEmpty()
+        is Change.ReportPosition -> before.playlists.find { it.id == change.playlistId }?.entries?.find { it.episodeId == change.episodeId }?.let { listOf(Change.ReportPosition(change.playlistId, change.episodeId, it.position, at)) }.orEmpty()
         else -> emptyList()
     }
 }

@@ -58,7 +58,7 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
                     job == null -> Hint(stringResource(R.string.bring_over_offer, ui.origin))
                     else -> {
                         Text(stringResource(if (job.issues.isNotEmpty()) R.string.bring_over_partial else R.string.bring_over_moving), Modifier.padding(16.dp), style = MaterialTheme.typography.headlineSmall)
-                        if (ui.running) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+                        if (ui.running) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp).then(ProgressModifier(R.string.bring_over_moving)))
                         Hint(pluralStringResource(R.plurals.bring_over_subscription_progress, counts.subscriptions, job.subscribed.size, counts.subscriptions))
                         Hint(stringResource(when (job.phase) {
                             "operations" -> R.string.bring_over_replaying
@@ -71,22 +71,22 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
                     Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
             }
             item {
-                ListItem(headlineContent = { Text(pluralStringResource(R.plurals.bring_over_subscriptions, counts.subscriptions, counts.subscriptions)) },
+                ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(pluralStringResource(R.plurals.bring_over_subscriptions, counts.subscriptions, counts.subscriptions)) },
                     supportingContent = { Text(stringResource(R.string.bring_over_subscription_help)) })
-                ListItem(headlineContent = { Text(pluralStringResource(R.plurals.playlist_count, counts.playlists, counts.playlists)) },
+                ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(pluralStringResource(R.plurals.playlist_count, counts.playlists, counts.playlists)) },
                     supportingContent = { Text(stringResource(R.string.bring_over_playlist_help, pluralStringResource(R.plurals.entry_count, counts.entries, counts.entries))) })
-                ListItem(headlineContent = { Text(stringResource(R.string.bring_over_marks)) }, supportingContent = {
+                ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(stringResource(R.string.bring_over_marks)) }, supportingContent = {
                     Text(stringResource(R.string.bring_over_mark_counts,
                         pluralStringResource(R.plurals.bring_over_played, counts.played, counts.played),
                         pluralStringResource(R.plurals.bring_over_starred, counts.starred, counts.starred)))
                 })
-                ListItem(headlineContent = { Text(stringResource(R.string.bring_over_listening_log)) },
+                ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(stringResource(R.string.bring_over_listening_log)) },
                     supportingContent = { Text(stringResource(R.string.bring_over_time, listened(counts.listeningSeconds.toDouble()))) })
             }
             if (job != null && job.issues.isNotEmpty()) {
                 item { Section(stringResource(R.string.bring_over_waiting)); Hint(stringResource(R.string.bring_over_waiting_help)) }
                 job.issues.forEachIndexed { index, issue -> item(key = "issue:$index") {
-                    ListItem(headlineContent = { Text(issue.title) }, supportingContent = { Column {
+                    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(issue.title) }, supportingContent = { Column {
                         Text(issue.feedUrl)
                         Text(stringResource(when (issue.kind) {
                             "episode" -> R.string.bring_over_unmatched_episode

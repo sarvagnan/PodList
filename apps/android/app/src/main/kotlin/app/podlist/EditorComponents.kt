@@ -26,15 +26,24 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, onClick: () -> Unit) {
-    ListItem(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick),
-        headlineContent = { Text(label) }, supportingContent = help?.let { { Text(it) } }, trailingContent = {
-            Text(value, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium, color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        })
+    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+    val valueColor = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick),
+        headlineContent = { Text(label) }, supportingContent = if (large || help != null) ({
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (large) Text(value, color = valueColor)
+                help?.let { Text(it) }
+            }
+        }) else null, trailingContent = if (large) null else ({
+            Text(value, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium, color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        }))
 }
 
 @Composable
 internal fun EditorSheet(title: String, close: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    ModalBottomSheet(onDismissRequest = close) {
+    val model = LocalAppModel.current
+    ModalBottomSheet(modifier = historyShortcuts(model), onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
@@ -49,13 +58,13 @@ internal fun EditorSheet(title: String, close: () -> Unit, content: @Composable 
 internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, choose: (T) -> Unit) {
     choices.forEach { (value, label) ->
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected == value, role = Role.RadioButton, onClick = { choose(value) }).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected == value, onClick = null); Text(label, Modifier.weight(1f))
+            RadioButton(selected == value, onClick = null); Spacer(Modifier.width(12.dp)); Text(label, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-internal fun NumberField(label: String, value: Double?, integer: Boolean = false, minimum: Double = 0.0, changed: (Double?) -> Unit) {
+internal fun NumberField(label: String, value: Double?, integer: Boolean = false, minimum: Double = 0.0, autofocus: Boolean = false, changed: (Double?) -> Unit) {
     var text by rememberSaveable(label) { mutableStateOf(value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty()) }
     var observed by remember { mutableStateOf(value) }
     LaunchedEffect(value) { if (observed != value) { observed = value; if (NumberInput.parse(text) != value) text = value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty() } }
@@ -67,7 +76,7 @@ internal fun NumberField(label: String, value: Double?, integer: Boolean = false
     OutlinedTextField(text, { text = it; val n = NumberInput.parse(it); if (it.isBlank()) changed(null) else if (n != null && n.isFinite() && n >= minimum && (!integer || n % 1 == 0.0 && n <= Int.MAX_VALUE)) changed(n) },
         label = { Text(label) }, placeholder = { Text(stringResource(R.string.any)) }, singleLine = true,
         isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.m4_number_error, minimum.toLong())) }) else null,
-        keyboardOptions = KeyboardOptions(keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+        keyboardOptions = KeyboardOptions(keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().then(if (autofocus) FocusedInputModifier() else Modifier))
 }
 
 @Composable
@@ -77,15 +86,15 @@ internal fun speedSetting(value: Double): String {
 }
 
 @Composable
-internal fun CheckRow(label: String, checked: Boolean, changed: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = changed).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked, null); Text(label, Modifier.weight(1f))
+internal fun CheckRow(label: String, checked: Boolean, inset: Boolean = false, changed: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = if (inset) 16.dp else 0.dp).heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = changed).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked, null); Spacer(Modifier.width(12.dp)); Text(label, Modifier.weight(1f))
     }
 }
 
 @Composable
 internal fun SwitchRow(label: String, checked: Boolean, help: String? = null, changed: (Boolean) -> Unit) {
-    ListItem(modifier = Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = changed).semantics(mergeDescendants = true) {},
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = changed).semantics(mergeDescendants = true) {},
         headlineContent = { Text(label) }, supportingContent = help?.let { { Text(it) } }, trailingContent = { Switch(checked, null) })
 }
 
@@ -110,6 +119,12 @@ internal fun ActionTooltip(label: String, content: @Composable () -> Unit) {
 
 @Composable
 internal fun DetailAction(icon: Int, label: String, action: () -> Unit) {
-    ListItem(modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = action),
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = action),
         leadingContent = { Icon(androidx.compose.ui.res.painterResource(icon), null) }, headlineContent = { Text(label) })
+}
+
+@Composable
+internal fun ProgressModifier(label: Int): Modifier {
+    val name = stringResource(label)
+    return Modifier.semantics { contentDescription = name }
 }

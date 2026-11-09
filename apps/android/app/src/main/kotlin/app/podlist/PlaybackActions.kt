@@ -33,12 +33,12 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
         Hint(listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
             pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (playlist.id != data.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
-        PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
+        PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
         if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
         else if (tab == 0) EntryList(playlist, data, session, { id -> open("episode:$id") })
         else LazyColumn {
-            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history) }
-            items(playlist.history) { history -> ListItem(modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(data.episodes.find { it["id"] == history.episodeId }?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
+            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history); TextButton(onClick = { tab = 0 }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.entries)) } }
+            items(playlist.history) { history -> ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(data.episodes.find { it["id"] == history.episodeId }?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
         }
     }
 }
@@ -49,10 +49,11 @@ internal fun EntryMenu(playlist: Playlist, episode: String) {
     val index = playlist.entries.indexOfFirst { it.episodeId == episode }
     var menu by remember { mutableStateOf(false) }
     Row {
-        EntryDragHandle(playlist, episode)
         Box {
         ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.entry_actions)) { menu = true }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            val add = LocalAddEpisode.current
+            DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, onClick = { add(episode); menu = false })
             DropdownMenuItem(text = { Text(stringResource(R.string.remove_from_playlist)) }, onClick = { model.removeEntry(playlist.id, episode); menu = false })
             DropdownMenuItem(text = { Text(stringResource(R.string.move_up)) }, enabled = index > 0, onClick = { model.moveEntry(playlist.id, episode, index - 1); menu = false })
             DropdownMenuItem(text = { Text(stringResource(R.string.move_down)) }, enabled = index in 0 until playlist.entries.lastIndex, onClick = { model.moveEntry(playlist.id, episode, index + 1); menu = false })
@@ -69,17 +70,17 @@ internal fun DownloadAction(episode: String, session: Session) {
     val status = statuses[episode]
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(stringResource(when (status?.phase) { DownloadPhase.Stored -> R.string.download_stored; DownloadPhase.Failed -> R.string.download_failed; DownloadPhase.Queued -> R.string.download_queued; DownloadPhase.Transferring -> R.string.download_in_progress; null -> R.string.download_none }), style = MaterialTheme.typography.bodySmall)
-        if (status?.phase == DownloadPhase.Transferring && status.total > 0) LinearProgressIndicator(progress = { (status.received.toFloat() / status.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+        if (status?.phase == DownloadPhase.Transferring && status.total > 0) LinearProgressIndicator(progress = { (status.received.toFloat() / status.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().then(ProgressModifier(R.string.download_in_progress)))
         DetailAction(R.drawable.ic_download, stringResource(when (status?.phase) { DownloadPhase.Stored -> R.string.remove_download; DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download; DownloadPhase.Failed -> R.string.retry_download; null -> R.string.download })) {
             when (status?.phase) {
                 DownloadPhase.Stored -> downloads.removeWithUndo(episode)
                 DownloadPhase.Queued, DownloadPhase.Transferring -> {
                     downloads.cancel(episode)
-                    model.offerUndo(AppMessage(R.string.download_stopped) { downloads.download(episode) })
+                    downloads.offerRequestUndo(listOf(episode), true, R.string.download_stopped)
                 }
                 else -> {
                     downloads.download(episode)
-                    model.offerUndo(AppMessage(R.string.m4_downloads_requested) { downloads.remove(episode) })
+                    downloads.offerRequestUndo(listOf(episode), false, R.string.m4_downloads_requested)
                 }
             }
         }
@@ -109,4 +110,7 @@ internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
 }
 
 
-internal fun dateTime(at: Long): String = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at))
+internal fun dateTime(at: Long): String {
+    val time = java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at))
+    return "${shortDate(at)} · ${time.replace(' ', '\u00a0')}"
+}

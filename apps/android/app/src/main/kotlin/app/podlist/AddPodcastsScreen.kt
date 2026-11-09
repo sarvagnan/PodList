@@ -71,11 +71,11 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
         Button(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
             Text(stringResource(R.string.find_podcasts))
         }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
         error?.let { Text(stringResource(it), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
         LazyColumn(Modifier.weight(1f)) {
             items(results, key = { it.feedUrl }) { result ->
-                ListItem(headlineContent = { Text(result.title, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
+                ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
                     leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
                     trailingContent = {
                         val done = result.feedUrl in subscribed
@@ -92,7 +92,11 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
                                 finally { subscribing = subscribing - result.feedUrl }
                             }
                         }, enabled = !done && result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text(stringResource(if (done) R.string.subscribed else R.string.subscribe))
+                            if (result.feedUrl in subscribing) {
+                                CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(stringResource(if (done) R.string.subscribed else if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
                         }
                     })
                 HorizontalDivider()

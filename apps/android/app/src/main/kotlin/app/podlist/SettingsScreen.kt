@@ -31,14 +31,14 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         item { Section(stringResource(R.string.playback_settings)); PlaybackSettingsEditor(data.state.playbackSettings) }
         item { Section(stringResource(R.string.m4_your_listening)); NameRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
-        item { ListItem(modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }) }
-        item { ListItem(modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, leadingContent = { Icon(painterResource(R.drawable.ic_export_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }) }
+        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }) }
+        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, leadingContent = { Icon(painterResource(R.drawable.ic_export_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }) }
         if (busy) item {
             Column(Modifier.padding(16.dp)) {
                 val progress = opml.progress
-                if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.opml_progress)))
                 else {
-                    LinearProgressIndicator(progress = { if (progress.total == 0) 1f else progress.processed.toFloat() / progress.total }, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = { if (progress.total == 0) 1f else progress.processed.toFloat() / progress.total }, modifier = Modifier.fillMaxWidth().then(ProgressModifier(R.string.m4_import_opml)))
                     Text(pluralStringResource(R.plurals.import_progress, progress.total, progress.processed, progress.total))
                     TextButton(onClick = actions::stop, enabled = !opml.stopping) { Text(stringResource(if (opml.stopping) R.string.import_stopping else R.string.import_stop)) }
                 }
@@ -47,7 +47,7 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         if (!busy && opml.progress?.remaining?.isNotEmpty() == true) item {
             Column(Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.import_stopped)); TextButton(onClick = actions::resume) { Text(stringResource(R.string.import_resume)) } }
         }
-        if (error) item { Column(Modifier.padding(16.dp)) { Text(stringResource(R.string.m4_opml_error), color = MaterialTheme.colorScheme.error); TextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry)) } } }
+        if (error) item { Column(Modifier.padding(16.dp)) { Text(stringResource(R.string.m4_opml_error), color = MaterialTheme.colorScheme.error); TextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
         summary?.let { result -> item {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.m4_import_summary, result.added, result.alreadySubscribed, result.failed.size))

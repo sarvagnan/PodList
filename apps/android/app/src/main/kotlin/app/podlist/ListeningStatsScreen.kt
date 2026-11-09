@@ -1,5 +1,7 @@
 package app.podlist
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.semantics.selected
@@ -27,20 +29,20 @@ import java.util.Locale
 @Composable internal fun listened(seconds: Double): String {
     val minutes = (seconds / 60).toLong()
     return when {
-        minutes >= 60 -> stringResource(R.string.m4_hours_minutes, minutes / 60, minutes % 60)
-        minutes >= 1 -> stringResource(R.string.m4_minutes_short, minutes)
-        seconds > 0 -> stringResource(R.string.m4_under_minute)
-        else -> stringResource(R.string.m4_minutes_short, 0)
+        minutes >= 60 -> stringResource(R.string.listened_hours_minutes, pluralStringResource(R.plurals.listened_hours, (minutes / 60).toInt(), minutes / 60), pluralStringResource(R.plurals.listened_minutes, (minutes % 60).toInt(), minutes % 60))
+        minutes >= 1 -> pluralStringResource(R.plurals.listened_minutes, minutes.toInt(), minutes)
+        seconds > 0 -> stringResource(R.string.listened_under_minute)
+        else -> pluralStringResource(R.plurals.listened_minutes, 0, 0)
     }
 }
 
-private val dayFormat: DateTimeFormatter get() = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
 
 @Composable private fun PeriodTiles(values: List<String>) {
     val labels = listOf(R.string.m4_this_week, R.string.m4_this_month, R.string.m4_all_time)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         values.forEachIndexed { index, value ->
-            Surface(Modifier.weight(1f), shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Surface(Modifier.weight(1f).fillMaxHeight().semantics(mergeDescendants = true) {}, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.padding(12.dp)) {
                     Text(stringResource(labels[index]), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(value, style = MaterialTheme.typography.titleLarge)
@@ -62,26 +64,27 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
         item { Section(stringResource(R.string.m4_last_30), inset = 0.dp); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
         if (table) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(stringResource(R.string.m4_day)); Text(stringResource(R.string.m4_time_listened)) } }
-            items(stats.days.asReversed()) { day -> Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(day.day.format(dayFormat)); Text(listened(day.seconds)) } }
+            items(stats.days.asReversed()) { day -> Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(chartDate(day.day)); Text(listened(day.seconds)) } }
         } else item {
             val max = stats.days.maxOf { it.seconds }.coerceAtLeast(1.0)
             val shown = stats.days[if (chosen < 0) stats.days.lastIndex else chosen]
             val primary = MaterialTheme.colorScheme.primary
-            // All 30 days stay in view. The table below gives each day a full-size row.
-            Row(Modifier.fillMaxWidth().height(132.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+            val dayWidth = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 96.dp else 56.dp
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(132.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
                 stats.days.forEachIndexed { index, day ->
-                    val label = stringResource(R.string.m4_day_listening, day.day.format(dayFormat), listened(day.seconds))
-                    Box(Modifier.weight(1f).fillMaxHeight().clickable { chosen = index }.semantics { contentDescription = label; selected = chosen == index }, contentAlignment = Alignment.BottomCenter) {
+                    val label = stringResource(R.string.m4_day_listening, chartDate(day.day), listened(day.seconds))
+                    Box(Modifier.width(dayWidth).fillMaxHeight().clickable { chosen = index }.semantics { contentDescription = label; selected = chosen == index }, contentAlignment = Alignment.BottomCenter) {
                         if (day.seconds > 0) Box(Modifier.fillMaxWidth().height((day.seconds / max * 132).dp).background(primary, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).then(if (chosen == index) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)) else Modifier))
                     }
                 }
             }
+            Text(stringResource(R.string.chart_scroll_hint), style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stats.days.first().day.format(dayFormat), style = MaterialTheme.typography.labelSmall)
-                Text(stats.days.last().day.format(dayFormat), style = MaterialTheme.typography.labelSmall)
+                Text(chartDate(stats.days.first().day), style = MaterialTheme.typography.labelSmall)
+                Text(chartDate(stats.days.last().day), style = MaterialTheme.typography.labelSmall)
             }
-            Text(stringResource(R.string.m4_day_listening, shown.day.format(dayFormat), listened(shown.seconds)), Modifier.padding(top = 8.dp))
+            Text(stringResource(R.string.m4_day_listening, chartDate(shown.day), listened(shown.seconds)), Modifier.padding(top = 8.dp))
         }
         item { TextButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
         item { Section(stringResource(R.string.m4_top_podcasts), inset = 0.dp) }

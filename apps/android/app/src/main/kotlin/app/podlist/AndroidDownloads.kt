@@ -123,23 +123,45 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
             refresh()
             if (snapshot != null) {
                 val (original, backup, row) = snapshot
-                model.offerUndo(AppMessage(R.string.download_removed) {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { files.withCommitLock(episode) {
-                            if (backup.exists()) {
-                                check(backup.renameTo(original))
-                                session.db.execute("INSERT OR REPLACE INTO download VALUES (?, ?, ?, ?)", listOf(episode, row["manual"], row["bytes"], row["saved_at"]))
-                            }
-                        } }
-                        refresh()
-                        model.reveal.value = Reveal("episode:$episode")
-                    }
-                })
-                delay(10 * 60_000L)
-                withContext(Dispatchers.IO) { backup.delete() }
+                model.editLock.withLock {
+                    model.recordHistory(session, AppMessage(R.string.download_removed), storedStep(episode, original, backup, row, restore = true))
+                }
             }
         }
     }
+    private fun storedStep(episode: String, original: File, backup: File, row: Row, restore: Boolean): ReversibleEdit = ReversibleEdit {
+        withContext(Dispatchers.IO) { files.withCommitLock(episode) {
+            if (restore) {
+                check(backup.exists() && backup.renameTo(original))
+                session.db.execute("INSERT OR REPLACE INTO download VALUES (?, ?, ?, ?)", listOf(episode, row["manual"], row["bytes"], row["saved_at"]))
+            } else {
+                check(original.exists() && original.renameTo(backup))
+                session.db.execute("DELETE FROM download WHERE episode_id = ?", listOf(episode))
+            }
+        } }
+        refresh()
+        model.reveal.value = Reveal("episode:$episode")
+        storedStep(episode, original, backup, row, !restore)
+    }
+
+    internal fun requestStep(ids: List<String>, request: Boolean): ReversibleEdit = ReversibleEdit {
+        ids.forEach { if (request) download(it) else removeAwait(it) }
+        requestStep(ids, !request)
+    }
+
+    internal fun offerRequestUndo(ids: List<String>, request: Boolean, message: Int) {
+        scope.launch { model.editLock.withLock { model.recordHistory(session, AppMessage(message), requestStep(ids, request)) } }
+    }
+
+    private suspend fun removeAwait(episode: String) {
+        cancel(episode)
+        withContext(Dispatchers.IO) {
+            files.remove(episode)
+            session.db.execute("DELETE FROM download WHERE episode_id = ?", listOf(episode))
+        }
+        refresh()
+    }
+
     fun remove(episode: String) {
         cancel(episode)
         scope.launch {
