@@ -49,14 +49,22 @@ class SyncClient(private val db: LocalDatabase, private val transport: SyncTrans
     }
 
     private fun syncLibrary() {
+        var cursor = db.getMeta("catalogueCursor")?.toLong() ?: 0
+        // A Subscription changed after its Episodes, by Unsubscribe for one, arrives on a later page.
+        // Those Episodes wait for it, and the saved cursor stays put so a restart fetches them again.
+        var waiting = emptyList<Episode>()
         while (true) {
-            val cursor = db.getMeta("catalogueCursor")?.toLong() ?: 0
             val page = ProtocolJson.decodeFromString<LibraryPage>(transport.request("GET", "/api/library/changes?since=$cursor", null))
             require(page.cursor >= cursor && (!page.more || page.cursor > cursor)) { "Library cursor did not advance" }
-            db.upsertLibrary(page.subscriptions, page.episodes, page.cursor)
+            val known = db.query("SELECT id FROM subscription").map { it["id"] as String }.toSet() + page.subscriptions.map { it.id }
+            val (ready, unknown) = (waiting + page.episodes).partition { it.subscriptionId in known }
+            waiting = unknown
+            db.upsertLibrary(page.subscriptions, ready, page.cursor.takeIf { waiting.isEmpty() })
             db.notifyChanged()
+            cursor = page.cursor
             if (!page.more) break
         }
+        if (waiting.isNotEmpty()) throw SyncResponseFailure()
     }
 }
 

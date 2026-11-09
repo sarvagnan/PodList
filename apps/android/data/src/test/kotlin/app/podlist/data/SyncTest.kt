@@ -99,6 +99,41 @@ class SyncTest {
     }
 
     @Test
+    fun `Episodes that arrive a page before their Subscription wait for it`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            val subscription = Subscription("s", "https://example.test/feed", "Podcast", null, null, null, 0, 5, null, PlaybackSettingsOverride())
+            val episode = Episode("e", "s", "guid", "Episode", "", 1, 60.0, "https://example.test/audio", null, emptyList(), null)
+            var failLastPage = true
+            val requests = mutableListOf<String>()
+            val transport = SyncTransport { _, route, body ->
+                requests += route
+                when (route) {
+                    "/api/devices" -> body!!
+                    "/api/sync/pull?since=0" -> ProtocolJson.encodeToString(PullPage(5, State.initial(), emptyList()))
+                    "/api/sync/pull?since=5" -> ProtocolJson.encodeToString(PullPage(5, null, emptyList()))
+                    "/api/library/changes?since=0" -> ProtocolJson.encodeToString(LibraryPage(17, emptyList(), listOf(episode), true))
+                    "/api/library/changes?since=17" -> {
+                        if (failLastPage) throw java.io.IOException("offline")
+                        ProtocolJson.encodeToString(LibraryPage(18, listOf(subscription), emptyList(), false))
+                    }
+                    else -> error(route)
+                }
+            }
+
+            runCatching { SyncClient(db, transport).sync() }
+            assertEquals(null, db.getMeta("catalogueCursor"))
+            assertEquals(0, db.query("SELECT id FROM episode").size)
+
+            failLastPage = false
+            SyncClient(db, transport).sync()
+            assertEquals("18", db.getMeta("catalogueCursor"))
+            assertEquals(1, db.query("SELECT id FROM episode").size)
+            assertEquals(2, requests.count { it == "/api/library/changes?since=0" })
+        }
+    }
+
+    @Test
     fun `restart after partial Library pages resumes the returned cursor and retains State commit`() {
         val path = java.nio.file.Files.createTempFile("sync-restart", ".sqlite")
         val subscription = Subscription("s", "https://example.test/feed", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())
