@@ -33,18 +33,22 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         feedback?.editorUndo = true
         onDispose { feedback?.editorUndo = false }
     }
+    val drafts = LocalFormDrafts.current
+    val draftPrefix = "view:${view.id}/"
+    val restored = remember(view.id) { drafts.get(draftPrefix + "view")?.let { runCatching { ProtocolJson.decodeFromString<View>(it) }.getOrNull() } ?: view }
     val creating = remember(view.id) { data.state.views.none { it.id == view.id } }
     var recorded by rememberSaveable(view.id) { mutableStateOf(!creating) }
     val initial = remember(view.id) { view }
-    var draft by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
+    var draft by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(restored) }
     var saved by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
-    var podcastMode by rememberSaveable(view.id) { mutableStateOf(view.filter.podcasts?.mode) }
+    var podcastMode by rememberSaveable(view.id) { mutableStateOf(restored.filter.podcasts?.mode) }
+    val hasInvalidNumber = drafts.hasInvalid(draftPrefix)
     val lastUndo by model.latestUndo.collectAsState()
     val undoViewId by model.undoViewId.collectAsState()
     val undo = lastUndo.takeIf { undoViewId == view.id }
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
-    var name by rememberSaveable(view.id) { mutableStateOf(view.name) }
-    var mentions by rememberSaveable(view.id) { mutableStateOf(view.filter.text.orEmpty()) }
+    var name by rememberDraftText(draftPrefix + "name", restored.name)
+    var mentions by rememberDraftText(draftPrefix + "mentions", restored.filter.text.orEmpty())
     val undoRevision by model.undoRevision.collectAsState()
     val initialUndo = remember { undoRevision }
     LaunchedEffect(undoRevision) {
@@ -52,7 +56,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             val stored = withContext(Dispatchers.IO) { session.db.loadState().views.find { it.id == view.id } }
             recorded = stored != null
             val restored = stored ?: initial.takeIf { creating }
-            restored?.let { saved = it; draft = it; name = it.name; mentions = it.filter.text.orEmpty(); podcastMode = it.filter.podcasts?.mode }
+            restored?.let { drafts.clear(draftPrefix); saved = it; draft = it; name = it.name; mentions = it.filter.text.orEmpty(); podcastMode = it.filter.podcasts?.mode }
         }
     }
     var count by remember { mutableStateOf<Int?>(null) }
@@ -60,6 +64,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val revision by model.revision.collectAsState()
     LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(saved, System.currentTimeMillis()).size } }
     fun update(next: View, typingGroup: String? = null) {
+        drafts.put(draftPrefix + "view", ProtocolJson.encodeToString(next))
         draft = next
         if (ViewEdits.problem(next.filter) == null && next != saved) {
             saved = next; recorded = true; model.edit(Change.SaveView(next), typingGroup)
@@ -69,9 +74,10 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         if (completing) return
         model.finishTyping()
         val accepted = ViewEdits.accepted(draft, saved, recorded)
-        if (accepted == null) done() else {
+        val completed = { drafts.clear(draftPrefix); done() }
+        if (accepted == null) completed() else {
             completing = true
-            model.edit(accepted, finished = done)
+            model.edit(accepted, finished = completed)
         }
     }
     DisposableEffect(view.id) { onDispose { model.finishTyping() } }
@@ -79,8 +85,8 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val any = stringResource(R.string.any)
     Column(Modifier.fillMaxSize().imePadding()) {
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) finish() })) }
-            if (problem != null || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
+            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && name.isNotBlank()) finish() })) }
+            if (problem != null || hasInvalidNumber || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
             item { Section(stringResource(R.string.m4_conditions)) }
             item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != initial.filter.published) { sheet = 0 } }
             item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != initial.filter.podcasts) { sheet = 1 } }
@@ -88,62 +94,75 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.played), stringResource(when(draft.filter.played) { PlayedFilter.Played -> R.string.played; PlayedFilter.Unplayed -> R.string.unplayed; PlayedFilter.InProgress -> R.string.in_progress_condition; null -> R.string.any }), draft.filter.played != initial.filter.played) { sheet = 3 } }
             item { ValueRow(stringResource(R.string.starred), stringResource(when(draft.filter.starred) { true -> R.string.starred; false -> R.string.m4_not_starred; null -> R.string.any }), draft.filter.starred != initial.filter.starred) { sheet = 4 } }
             item { ValueRow(stringResource(R.string.m4_in_playlist), if (draft.filter.notInAnyPlaylist == true) stringResource(R.string.not_in_playlist) else any, draft.filter.notInAnyPlaylist != initial.filter.notInAnyPlaylist) { sheet = 5 } }
-            item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, duration(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, duration(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != initial.filter.minDuration || draft.filter.maxDuration != initial.filter.maxDuration) { sheet = 6 } }
+            item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, lengthLabel(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, lengthLabel(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != initial.filter.minDuration || draft.filter.maxDuration != initial.filter.maxDuration) { sheet = 6 } }
             if (problem != null) item { Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
             item { Section(stringResource(R.string.m4_then)) }
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
-            item { TextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            item { TextButton(contentPadding = PaddingValues.Zero, onClick = { drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_view_draft)) } }
+            item { TextButton(contentPadding = PaddingValues.Zero, onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
-        Surface(tonalElevation = 3.dp) { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
-            val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
-            Text(if (largeText) count?.toString() ?: stringResource(R.string.counting) else fullCount, Modifier.weight(1f).padding(vertical = 8.dp).semantics { contentDescription = fullCount }, style = MaterialTheme.typography.bodyMedium)
-            TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
-            TextButton(enabled = !completing && problem == null && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
-        } }
+            val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+            @Composable fun Actions() {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(contentPadding = PaddingValues.Zero, enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
+                    TextButton(contentPadding = PaddingValues.Zero, enabled = !completing && problem == null && !hasInvalidNumber && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
+                }
+            }
+            if (large) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Text(fullCount, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                Box(Modifier.align(Alignment.End)) { Actions() }
+            } else Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(fullCount, Modifier.weight(1f).padding(vertical = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                Actions()
+            }
+        }
     }
     val f = draft.filter
     val close = { model.finishTyping(); sheet = null }
     val titles = listOf(R.string.m4_published, R.string.m4_podcasts, R.string.m4_mentions, R.string.played, R.string.starred, R.string.m4_in_playlist, R.string.m4_length, R.string.m4_sort, R.string.m4_show)
-    sheet?.let { which -> EditorSheet(stringResource(titles[which]), close) {
-        when (which) {
-            0 -> {
-                val choices = listOf<PublishedFilter?>(null, PublishedFilter.LastDays(7), PublishedFilter.LastDays(14), PublishedFilter.LastDays(30), PublishedFilter.Between(null, null))
-                ChoiceRows(choices.map { it to when(it) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, it.days); is PublishedFilter.Between -> stringResource(R.string.m4_between_dates); null -> any } }, if (f.published is PublishedFilter.Between) PublishedFilter.Between(null, null) else f.published) { update(draft.copy(filter = f.copy(published = it))) }
-                (f.published as? PublishedFilter.Between)?.let { between ->
-                    DateBoundary(R.string.m4_from, between.from, false) { update(draft.copy(filter = draft.filter.copy(published = between.copy(from = it)))) }
-                    DateBoundary(R.string.m4_to, between.to, true) { update(draft.copy(filter = draft.filter.copy(published = between.copy(to = it)))) }
+    CompositionLocalProvider(LocalViewDraftPrefix provides "view:${view.id}") {
+        sheet?.let { which -> EditorSheet(stringResource(titles[which]), close) {
+            when (which) {
+                0 -> {
+                    val choices = listOf<PublishedFilter?>(null, PublishedFilter.LastDays(7), PublishedFilter.LastDays(14), PublishedFilter.LastDays(30), PublishedFilter.Between(null, null))
+                    ChoiceRows(choices.map { it to when(it) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, it.days); is PublishedFilter.Between -> stringResource(R.string.m4_between_dates); null -> any } }, if (f.published is PublishedFilter.Between) PublishedFilter.Between(null, null) else f.published) { update(draft.copy(filter = f.copy(published = it))) }
+                    (f.published as? PublishedFilter.Between)?.let { between ->
+                        DateBoundary(R.string.m4_from, between.from, false) { update(draft.copy(filter = draft.filter.copy(published = between.copy(from = it)))) }
+                        DateBoundary(R.string.m4_to, between.to, true) { update(draft.copy(filter = draft.filter.copy(published = between.copy(to = it)))) }
+                    }
                 }
+                1 -> {
+                    ChoiceRows(listOf(null to any, PodcastMode.Include to stringResource(R.string.m4_only_these), PodcastMode.Exclude to stringResource(R.string.m4_except_these)), podcastMode) { mode -> podcastMode = mode; update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(mode, f.podcasts?.subscriptionIds.orEmpty())))) }
+                    val podcasts = f.podcasts
+                    val selectedIds = podcasts?.subscriptionIds.orEmpty()
+                    if (podcastMode != null) LazyColumn(Modifier.heightIn(max = 280.dp)) { items(data.subscriptions) { sub ->
+                        val id = sub["id"] as String
+                        CheckRow(sub["title"] as String, id in selectedIds) { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }
+                    } }
+                }
+                2 -> OutlinedTextField(mentions, { mentions = it; update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
+                3 -> ChoiceRows(listOf(null to any, PlayedFilter.Unplayed to stringResource(R.string.unplayed), PlayedFilter.InProgress to stringResource(R.string.in_progress_condition), PlayedFilter.Played to stringResource(R.string.played)), f.played) { update(draft.copy(filter = f.copy(played = it))) }
+                4 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.starred), false to stringResource(R.string.m4_not_starred)), f.starred) { update(draft.copy(filter = f.copy(starred = it))) }
+                5 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.not_in_playlist)), f.notInAnyPlaylist?.takeIf { it }) { update(draft.copy(filter = f.copy(notInAnyPlaylist = it))) }
+                6 -> {
+                    NumberField(stringResource(R.string.m4_at_least_minutes), f.minDuration?.div(60), autofocus = true) { update(draft.copy(filter = draft.filter.copy(minDuration = it?.times(60)))) }
+                    NumberField(stringResource(R.string.m4_at_most_minutes), f.maxDuration?.div(60)) { update(draft.copy(filter = draft.filter.copy(maxDuration = it?.times(60)))) }
+                }
+                7 -> ChoiceRows(ViewSort.entries.map { it to sortLabel(it) }, draft.sort) { update(draft.copy(sort = it)) }
+                8 -> { ChoiceRows(listOf(null to stringResource(R.string.m4_all_matches), 10L to "10", 20L to "20", 50L to "50", 100L to "100"), draft.limit) { update(draft.copy(limit = it)) } }
             }
-            1 -> {
-                ChoiceRows(listOf(null to any, PodcastMode.Include to stringResource(R.string.m4_only_these), PodcastMode.Exclude to stringResource(R.string.m4_except_these)), podcastMode) { mode -> podcastMode = mode; update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(mode, f.podcasts?.subscriptionIds.orEmpty())))) }
-                val podcasts = f.podcasts
-                val selectedIds = podcasts?.subscriptionIds.orEmpty()
-                if (podcastMode != null) LazyColumn(Modifier.heightIn(max = 280.dp)) { items(data.subscriptions) { sub ->
-                    val id = sub["id"] as String
-                    CheckRow(sub["title"] as String, id in selectedIds) { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }
-                } }
-            }
-            2 -> OutlinedTextField(mentions, { mentions = it; update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
-            3 -> ChoiceRows(listOf(null to any, PlayedFilter.Unplayed to stringResource(R.string.unplayed), PlayedFilter.InProgress to stringResource(R.string.in_progress_condition), PlayedFilter.Played to stringResource(R.string.played)), f.played) { update(draft.copy(filter = f.copy(played = it))); close() }
-            4 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.starred), false to stringResource(R.string.m4_not_starred)), f.starred) { update(draft.copy(filter = f.copy(starred = it))); close() }
-            5 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.not_in_playlist)), f.notInAnyPlaylist?.takeIf { it }) { update(draft.copy(filter = f.copy(notInAnyPlaylist = it))); close() }
-            6 -> {
-                NumberField(stringResource(R.string.m4_at_least_minutes), f.minDuration?.div(60), autofocus = true) { update(draft.copy(filter = draft.filter.copy(minDuration = it?.times(60)))) }
-                NumberField(stringResource(R.string.m4_at_most_minutes), f.maxDuration?.div(60)) { update(draft.copy(filter = draft.filter.copy(maxDuration = it?.times(60)))) }
-            }
-            7 -> ChoiceRows(ViewSort.entries.map { it to sortLabel(it) }, draft.sort) { update(draft.copy(sort = it)); close() }
-            8 -> { ChoiceRows(listOf(null to stringResource(R.string.m4_all_matches), 10L to "10", 20L to "20", 50L to "50", 100L to "100"), draft.limit) { update(draft.copy(limit = it)); close() } }
-        }
-        if (problem != null) Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
-    } }
+            if (problem != null) Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+        } }
+    }
 }
 
 @Composable private fun DateBoundary(label: Int, value: Long?, end: Boolean, changed: (Long?) -> Unit) {
     var picking by rememberSaveable(label) { mutableStateOf(false) }
     ValueRow(stringResource(label), value?.let(::date) ?: stringResource(R.string.any)) { picking = true }
-    if (value != null) TextButton(onClick = { changed(null) }) { Text(stringResource(R.string.any)) }
+    if (value != null) TextButton(contentPadding = PaddingValues.Zero, onClick = { changed(null) }) { Text(stringResource(R.string.any)) }
     if (picking) {
         // Material's picker uses UTC date labels; convert the chosen date to this Device's boundaries.
         val initial = value?.let { java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() }
@@ -151,8 +170,8 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= 0
             override fun isSelectableYear(year: Int) = year >= 1970
         })
-        DatePickerDialog(onDismissRequest = { picking = false }, dismissButton = { TextButton(onClick = { picking = false }) { Text(stringResource(R.string.cancel)) } }, confirmButton = {
-            TextButton(enabled = picker.selectedDateMillis != null, onClick = {
+        DatePickerDialog(onDismissRequest = { picking = false }, dismissButton = { TextButton(contentPadding = PaddingValues.Zero, onClick = { picking = false }) { Text(stringResource(R.string.cancel)) } }, confirmButton = {
+            TextButton(contentPadding = PaddingValues.Zero, enabled = picker.selectedDateMillis != null, onClick = {
                 picker.selectedDateMillis?.let { millis ->
                     val day = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
                     changed((if (end) day.plusDays(1) else day).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() - if (end) 1 else 0)

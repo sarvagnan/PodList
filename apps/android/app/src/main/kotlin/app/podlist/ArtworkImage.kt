@@ -88,6 +88,6 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
     }
     Box(Modifier.size(size).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
-        else Icon(painterResource(R.drawable.ic_artwork), contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        else Icon(painterResource(R.drawable.ic_artwork), contentDescription = null, modifier = Modifier.size(size * .5f), tint = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }

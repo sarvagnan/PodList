@@ -40,7 +40,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
         } }
         if (!playlist.isDefault) item {
             // No confirmation: the Playlist goes to Trash and the snackbar offers Undo.
-            TextButton(modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp), onClick = {
+            TextButton(contentPadding = PaddingValues.Zero, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp), onClick = {
                 model.changeWithUndo(listOf(Change.DeletePlaylist(playlist.id)), R.string.m4_playlist_deleted, playbackPlaylist = playlist.id) { before -> listOfNotNull(Change.RestorePlaylist(playlist.id), Change.SetActivePlaylist(playlist.id).takeIf { before.activePlaylistId == playlist.id }) }
                 done()
             }) { Text(stringResource(R.string.m4_delete_playlist), color = MaterialTheme.colorScheme.error) }
@@ -50,14 +50,16 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
 }
 
 @Composable
-internal fun NewPlaylistScreen(model: AppModel, created: (String) -> Unit) {
-    var name by rememberSaveable { mutableStateOf("") }
+internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (String) -> Unit) {
+    val drafts = LocalFormDrafts.current
+    var name by rememberDraftText("new-playlist/name")
     var problem by remember { mutableStateOf<PlaylistNames.Problem?>(null) }
     var busy by remember { mutableStateOf(false) }
-    fun submit() { if (!busy) { busy = true; model.createPlaylist(name) { id, error -> busy = false; problem = error; if (id != null) created(id) } } }
+    fun submit() { if (!busy) { busy = true; model.createPlaylist(name) { id, error -> busy = false; problem = error; if (id != null) { drafts.clear("new-playlist/"); created(id) } } } }
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(name, { name = it; problem = null }, label = { Text(stringResource(R.string.playlist_name)) }, singleLine = true, isError = problem != null, supportingText = if (problem != null) ({ Text(playlistProblem(problem!!, name), Modifier.errorAnnouncement()) }) else null, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
         Button(enabled = !busy, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
+        TextButton(contentPadding = PaddingValues.Zero, enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
     }
 }
 
@@ -71,7 +73,7 @@ internal fun TrashScreen(data: ScreenData) {
         if (trash.isEmpty()) item { EmptyMessage(R.string.no_trash) }
         items(trash, key = { it.playlist.id }) { trash ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(trash.playlist.name, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.deleted, date(trash.deletedAt))) }, trailingContent = {
-                TextButton(onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored) { listOf(Change.DeletePlaylist(trash.playlist.id)) } }) { Text(stringResource(R.string.m4_restore)) }
+                TextButton(contentPadding = PaddingValues.Zero, onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored) { listOf(Change.DeletePlaylist(trash.playlist.id)) } }) { Text(stringResource(R.string.m4_restore)) }
             })
         }
     }

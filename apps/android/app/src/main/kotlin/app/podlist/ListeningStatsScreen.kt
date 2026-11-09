@@ -18,15 +18,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.ListeningStats
+import app.podlist.domain.ListeningPresentation
 import java.time.Instant
 import java.time.ZoneId
 
 @Composable internal fun listened(seconds: Double): String {
-    val minutes = (seconds / 60).toLong()
+    val time = ListeningPresentation.time(seconds)
     return when {
-        minutes >= 60 -> stringResource(R.string.listened_hours_minutes, pluralStringResource(R.plurals.listened_hours, (minutes / 60).toInt(), minutes / 60), pluralStringResource(R.plurals.listened_minutes, (minutes % 60).toInt(), minutes % 60))
-        minutes >= 1 -> pluralStringResource(R.plurals.listened_minutes, minutes.toInt(), minutes)
-        seconds > 0 -> stringResource(R.string.listened_under_minute)
+        time.hours > 0 -> stringResource(R.string.listened_hours_minutes, pluralStringResource(R.plurals.listened_hours, time.hours.toInt(), time.hours), pluralStringResource(R.plurals.listened_minutes, time.minutes.toInt(), time.minutes))
+        time.minutes > 0 -> pluralStringResource(R.plurals.listened_minutes, time.minutes.toInt(), time.minutes)
+        time.underMinute -> stringResource(R.string.listened_under_minute)
         else -> pluralStringResource(R.plurals.listened_minutes, 0, 0)
     }
 }
@@ -65,20 +66,31 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
         item { Section(stringResource(R.string.m4_last_30), inset = 0.dp); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
         if (table) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(stringResource(R.string.m4_day)); Text(stringResource(R.string.m4_time_listened)) } }
-            items(stats.days.asReversed()) { day -> Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(chartDate(day.day)); Text(listened(day.seconds)) } }
+            items(stats.days.asReversed()) { day ->
+                if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Text(chartDate(day.day)); Text(listened(day.seconds)) }
+                else Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(chartDate(day.day)); Text(listened(day.seconds)) }
+            }
         } else item {
-            val max = stats.days.maxOf { it.seconds }.coerceAtLeast(1.0)
+            val max = ListeningPresentation.chartMaximum(stats.days.maxOf { it.seconds })
             val shown = stats.days[chosen.coerceIn(stats.days.indices)]
-            val primary = MaterialTheme.colorScheme.primary
-            val outline = MaterialTheme.colorScheme.onSurface
+            val selectedColor = MaterialTheme.colorScheme.primary
+            val unselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = .55f)
+            Text(stringResource(R.string.chart_scale, listened(max)), style = MaterialTheme.typography.labelMedium)
             val chartLabel = stringResource(R.string.listening_chart)
-            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(144.dp).pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
-                val cell = size.width / stats.days.size
-                stats.days.forEachIndexed { index, day ->
-                    val left = index * cell + cell * .18f
-                    val width = cell * .64f
-                    val height = (day.seconds / max * (size.height - 8.dp.toPx())).toFloat().coerceAtLeast(2.dp.toPx())
-                    drawRect(if (index == chosen) outline else primary, androidx.compose.ui.geometry.Offset(left, size.height - height), androidx.compose.ui.geometry.Size(width, height))
+            Row(Modifier.fillMaxWidth().height(144.dp)) {
+                Column(Modifier.fillMaxHeight().widthIn(min = 48.dp, max = 112.dp).padding(end = 8.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                    Text(listened(max), style = MaterialTheme.typography.labelSmall)
+                    Text(listened(max / 2), style = MaterialTheme.typography.labelSmall)
+                    Text(listened(0.0), style = MaterialTheme.typography.labelSmall)
+                }
+                androidx.compose.foundation.Canvas(Modifier.weight(1f).fillMaxHeight().pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
+                    val cell = size.width / stats.days.size
+                    stats.days.forEachIndexed { index, day ->
+                        val left = index * cell + cell * .18f
+                        val width = cell * .64f
+                        val height = ListeningPresentation.barFraction(day.seconds, max) * size.height
+                        if (height > 0f) drawRect(if (index == chosen) selectedColor else unselectedColor, androidx.compose.ui.geometry.Offset(left, size.height - height), androidx.compose.ui.geometry.Size(width, height))
+                    }
                 }
             }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -87,23 +99,25 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
             }
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                ActionIcon(R.drawable.ic_previous, stringResource(R.string.previous_day), enabled = chosen > 0) { chosen-- }
+                ActionIcon(R.drawable.ic_chevron_left, stringResource(R.string.previous_day), enabled = chosen > 0) { chosen-- }
                 Text(stringResource(R.string.m4_day_listening, chartDate(shown.day), listened(shown.seconds)), Modifier.weight(1f))
-                ActionIcon(R.drawable.ic_next, stringResource(R.string.next_day), enabled = chosen < stats.days.lastIndex) { chosen++ }
+                ActionIcon(R.drawable.ic_chevron_right, stringResource(R.string.next_day), enabled = chosen < stats.days.lastIndex) { chosen++ }
             }
         }
-        item { TextButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
+        item { TextButton(contentPadding = PaddingValues.Zero, onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
         item { Section(stringResource(R.string.m4_top_podcasts), inset = 0.dp) }
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         items(stats.podcasts) { (id, seconds) ->
             val subscription = data.subscriptions.find { it["id"] == id }
+            val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ArtworkImage(session, subscription?.get("artwork_url") as? String, 48.dp)
                 Column(Modifier.weight(1f)) {
                     Text(subscription?.get("title") as? String ?: stringResource(R.string.m4_removed_subscription))
+                    if (large) Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
                     Box(Modifier.padding(top = 6.dp).fillMaxWidth((seconds / most).toFloat().coerceIn(.02f, 1f)).height(6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)))
                 }
-                Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
+                if (!large) Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
             }
         }
         item { Section(stringResource(R.string.m4_about_stats), inset = 0.dp); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodySmall) }

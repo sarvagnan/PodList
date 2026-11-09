@@ -71,7 +71,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
-            singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier()))
+            singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
         Button(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
             Text(stringResource(R.string.find_podcasts))
         }
@@ -83,7 +83,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
                     leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
                     trailingContent = {
                         val done = result.feedUrl in subscribed
-                        TextButton(onClick = {
+                        TextButton(contentPadding = PaddingValues.Zero, onClick = {
                             scope.launch {
                                 subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
                                 try {

@@ -20,9 +20,9 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
     var target by remember { mutableStateOf<Long?>(null) }
     val byId = data.episodes.associateBy { it["id"] }
     LazyColumn(Modifier.fillMaxSize(), state = rememberBrowsingListState()) {
-        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); TextButton(onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); TextButton(contentPadding = PaddingValues.Zero, onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
         items(events) { event ->
-            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClickLabel = stringResource(if (TimelineRules.pointAt(playlist, event.moment) != null) R.string.m4_rewind_here else R.string.episode)) { if (TimelineRules.pointAt(playlist, event.moment) != null) target = event.moment else open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
+            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClickLabel = stringResource(if (TimelineRules.pointAt(playlist, event.moment) != null) R.string.m4_rewind_here else R.string.episode)) { if (TimelineRules.pointAt(playlist, event.moment) != null) target = event.moment else open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
                 Column { Text(dateTime(event.at), style = MaterialTheme.typography.labelMedium); Text(when(event.kind) {
                     "listened" -> stringResource(R.string.m4_listened_stretch, duration(event.from), duration(event.to), dateTime(event.end))
                     "finished" -> stringResource(R.string.m4_finished)
@@ -52,7 +52,7 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
                 item { Section(stringResource(R.string.m4_kept)); Hint(stringResource(R.string.m4_rewind_kept)) }
             }
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { target = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(contentPadding = PaddingValues.Zero, onClick = { target = null }) { Text(stringResource(R.string.cancel)) }
                 Button(onClick = { model.rewind(playlist.id, to); target = null; rewound() }) { Text(stringResource(R.string.m4_rewind)) }
             }
         }
@@ -61,5 +61,5 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
 
 @Composable private fun RewindEpisode(id: String, data: ScreenData, session: Session, detail: String? = null) {
     val row = data.episodes.find { it["id"] == id }
-    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(row?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(detail ?: row?.get("podcast") as? String ?: stringResource(R.string.metadata_pending)) }, leadingContent = { ArtworkImage(session, row?.get("artwork_url") as? String ?: row?.get("podcast_artwork_url") as? String) })
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(row?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(detail ?: row?.get("podcast") as? String ?: stringResource(R.string.metadata_pending)) }, leadingContent = { ArtworkImage(session, row?.get("artwork_url") as? String ?: row?.get("podcast_artwork_url") as? String) })
 }

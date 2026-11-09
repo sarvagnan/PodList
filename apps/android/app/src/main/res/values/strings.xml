@@ -16,20 +16,20 @@
     <string name="checking">Checking server…</string>
     <string name="address_error">Enter an HTTPS server address without a path, credentials or query.</string>
     <string name="address_error_debug">Enter an HTTPS server address. Debug builds also allow http://10.0.2.2 with an optional port.</string>
-    <string name="offline_error">Cannot reach the server. Check its address and your tailnet connection, then try again.</string>
-    <string name="tls_error">The secure connection failed. Check the server’s HTTPS certificate.</string>
-    <string name="server_error">The server returned an error. Check the server and try again.</string>
-    <string name="response_error">The server did not return a valid PodList response.</string>
+    <string name="offline_error">Couldn’t reach the server. Check its address and your tailnet connection, then try again.</string>
+    <string name="tls_error">Couldn’t make a secure connection. Check the server’s HTTPS certificate.</string>
+    <string name="server_error">Couldn’t complete the request. Check the server and try again.</string>
+    <string name="response_error">Couldn’t read the server’s response. Check that the address is a PodList server.</string>
     <string name="loading">Loading local Library…</string>
     <string name="syncing">Syncing… Local data remains available.</string>
-    <string name="offline">Offline · Showing local data. Sync will retry.</string>
+    <string name="offline">Offline · Showing local data. Sync will try again.</string>
     <string name="sync_error">Sync error · Showing local data.</string>
-    <string name="retry">Retry sync</string>
+    <string name="retry">Try again</string>
     <string name="no_synced_data">No synced data on this Device yet.</string>
     <string name="no_views">No Views yet</string>
     <string name="no_playlists">No Playlists yet</string>
     <string name="no_subscriptions">No Subscriptions yet</string>
-    <string name="no_episodes">No Episodes yet. Refresh this podcast to check for new Episodes.</string>
+    <string name="no_episodes">No Episodes yet. New Episodes appear here when this podcast publishes them.</string>
     <string name="no_matches">No Episodes match this View</string>
     <string name="no_entries">No Entries in this Playlist</string>
     <string name="no_cursor">No current Entry</string>
@@ -112,8 +112,8 @@
     <string name="end_chapter">End of Chapter</string>
     <string name="end_episode">End of Episode</string>
     <string name="cancel_sleep">Cancel sleep timer</string>
-    <string name="playback_error">Audio could not play. Your place is kept.</string>
-    <string name="retry_playback">Retry playback</string>
+    <string name="playback_error">Couldn’t play the audio. Your place is kept.</string>
+    <string name="retry_playback">Try again</string>
     <string name="buffering">Loading audio…</string>
     <string name="add_to_playlist">Add to a Playlist</string>
     <string name="choose_playlist">Choose a Playlist</string>
@@ -148,10 +148,10 @@
     <string name="download_queued">Waiting to download</string>
     <string name="download_progress">Downloading · %1$s</string>
     <string name="download_stored">Stored on this Device</string>
-    <string name="download_failed">Download failed</string>
+    <string name="download_failed">Couldn’t download this Episode.</string>
     <string name="download_none">Not stored on this Device</string>
     <string name="cancel_download">Cancel download</string>
-    <string name="retry_download">Retry download</string>
+    <string name="retry_download">Try again</string>
     <string name="remove_download">Remove download</string>
     <string name="download_rule">Download Rule on this Device</string>
     <string name="keep_at_most">Maximum kept (blank for unlimited)</string>
@@ -217,7 +217,7 @@
     <string name="m4_playlist_restored">Playlist restored</string>
     <string name="m4_restore">Restore</string>
     <string name="m4_downloads_device">Downloads on this Device</string>
-    <string name="m4_stream_help">Never stored on this Device</string>
+    <string name="m4_stream_help">No automatic downloads on this Device</string>
     <string name="m4_entry_help">Stored while they’re in a Playlist</string>
     <string name="m4_published_help">Stored as they’re published, until Played</string>
     <string name="m4_keep_at_most">Keep at most (blank for unlimited)</string>
@@ -281,7 +281,7 @@
     <string name="m4_opml_error">Couldn’t read or write OPML. Check the file and your connection, then try again. OPML files can be up to 8 MiB.</string>
     <string name="m4_import_summary">%1$d added · %2$d already subscribed · %3$d failed</string>
     <string name="m4_import_failure">%1$s: %2$s</string>
-    <string name="m4_retry_failed">Retry failed Subscriptions</string>
+    <string name="m4_retry_failed">Try again</string>
     <string name="m4_exported">OPML exported</string>
     <string name="m4_keep_deleted">Keep deleted Playlists</string>
     <string name="m4_days">%1$d days</string>
@@ -331,7 +331,7 @@
     <string name="m4_step_done">Done</string>
     <string name="bring_over_title">Bring your Library over</string>
     <string name="bring_over_available">Bring this phone’s Standalone Library to this server</string>
-    <string name="bring_over_in_settings">See saved progress and retry anything still waiting</string>
+    <string name="bring_over_in_settings">See saved progress and try again with anything still waiting</string>
     <string name="bring_over_not_now">Not now</string>
     <string name="bring_over_action">Bring it over</string>
     <string name="bring_over_keep_using">Keep using the app</string>
@@ -344,8 +344,8 @@
     <string name="bring_over_resumable">You can keep using the app. Progress is saved and resumes after a lost connection or a restart.</string>
     <string name="bring_over_replaying">Merging your edits with the server, in their original order.</string>
     <string name="bring_over_copying_downloads">Keeping stored downloads available in the connected Library on this phone.</string>
-    <string name="bring_over_error">Could not finish this time. Progress is saved. Check the connection and retry.</string>
-    <string name="bring_over_download_error">Could not copy a stored download. Progress is saved. Check this phone’s free space and that its original downloads are still available, then retry.</string>
+    <string name="bring_over_error">Couldn’t finish this time. Progress is saved. Check the connection and try again.</string>
+    <string name="bring_over_download_error">Couldn’t copy a stored download. Progress is saved. Check this phone’s free space and that its original downloads are still available, then try again.</string>
     <string name="bring_over_subscription_help">With their Download Rules and settings</string>
     <string name="bring_over_playlist_help">%1$s, with Positions, History and Listening Timelines, including Playlists in Trash</string>
     <string name="bring_over_marks">Played and Starred marks</string>
@@ -355,14 +355,14 @@
     <string name="bring_over_waiting_help">Subscriptions that succeeded are kept. Your remaining edits and downloads wait on this phone until the Library can be matched, so their order and listening records stay correct.</string>
     <string name="bring_over_unmatched_episode">The server has no matching Episode with this feed guid. It may have left the publisher’s feed. Nothing has been discarded.</string>
     <string name="bring_over_removed_subscription">This removed Subscription is missing from the server. It stays removed on this phone; bringing it over must not Subscribe again.</string>
-    <string name="bring_over_failed_feed">The server could not Subscribe to this feed. Check the feed and retry.</string>
+    <string name="bring_over_failed_feed">Couldn’t Subscribe to this feed on the server. Check the feed and try again.</string>
     <string name="bring_over_what_happens">What happens</string>
     <string name="bring_over_explanation">Anything already on the server is kept and edits merge as they do after listening offline. Downloads stay on this phone as Manual Downloads, so they remain available. Podcasts are matched by feed address and Episodes by feed guid.</string>
     <string name="bring_over_other_edits">Views and settings come too. Not now connects to the server and keeps the Standalone Library separate. This offer stays in Settings under This Device.</string>
     <plurals name="bring_over_subscriptions"><item quantity="one">%1$d Subscription</item><item quantity="other">%1$d Subscriptions</item></plurals>
     <plurals name="bring_over_played"><item quantity="one">%1$d Played mark</item><item quantity="other">%1$d Played marks</item></plurals>
     <plurals name="bring_over_starred"><item quantity="one">%1$d Starred mark</item><item quantity="other">%1$d Starred marks</item></plurals>
-    <plurals name="bring_over_retry_feeds"><item quantity="one">Retry %1$d feed</item><item quantity="other">Retry these %1$d feeds</item></plurals>
+    <plurals name="bring_over_retry_feeds"><item quantity="one">Try again</item><item quantity="other">Try again</item></plurals>
     <string name="bring_over_time">%1$s, kept in Listening stats</string>
     <string name="sleep_remaining">Sleep · %1$s left</string>
     <string name="sleep_duration_error">Enter a duration from 1 to 1,440 minutes.</string>
@@ -380,7 +380,7 @@
     <string name="drag_entry">Drag to reorder Entry</string>
     <string name="podcast_offline">Couldn’t reach the podcast service. Check your connection and try again.</string>
     <string name="podcast_tls">Couldn’t make a secure connection. Check the address and try again.</string>
-    <string name="podcast_server">The podcast service couldn’t complete the request. Try again.</string>
+    <string name="podcast_server">Couldn’t complete the podcast request. Try again.</string>
     <plurals name="import_progress">
         <item quantity="one">%1$d of %2$d feed processed</item>
         <item quantity="other">%1$d of %2$d feeds processed</item>
@@ -405,19 +405,19 @@
         <item quantity="other">%1$d podcasts imported</item>
     </plurals>
     <string name="import_undone">Imported Subscriptions removed</string>
-    <string name="import_undo_failed">Some imported Subscriptions couldn’t be removed. Check your connection and retry.</string>
+    <string name="import_undo_failed">Couldn’t remove some imported Subscriptions. Check your connection and try again.</string>
     <string name="counting">Counting…</string>
     <string name="no_search_matches">No Episodes match this Search. Try another word or clear Search.</string>
-    <string name="retry_action">Retry</string>
+    <string name="retry_action">Try again</string>
     <string name="edit_undone">Edit undone</string>
     <string name="edit_redone">Edit redone</string>
-    <string name="edit_reverse_failed">Couldn’t reverse this edit. It’s still available. Check your connection and retry.</string>
+    <string name="edit_reverse_failed">Couldn’t reverse this edit. It’s still available. Check your connection and try again.</string>
     <string name="edit_history">Undo and Redo</string>
     <string name="subscribing">Subscribing…</string>
-    <string name="refresh_failed">Couldn’t refresh this podcast. Check your connection and retry.</string>
+    <string name="refresh_failed">Couldn’t refresh this podcast. Check your connection and try again.</string>
     <string name="refreshed_at">Last refreshed %1$s</string>
     <string name="refresh_podcast">Refresh podcast</string>
-    <string name="retry_refresh">Retry refresh</string>
+    <string name="retry_refresh">Try again</string>
     <string name="refreshing_podcast">Refreshing…</string>
     <string name="speed_accessibility">Speed, %1$s</string>
     <string name="playback_position">Playback Position</string>
@@ -448,7 +448,7 @@
     <string name="podcast_loading">Loading Episodes</string>
     <string name="podcast_load_failed">Couldn’t load this podcast’s Episodes.</string>
     <string name="podcast_invalid_feed">That address isn’t a podcast feed.</string>
-    <string name="podcast_invalid_response">The podcast service returned an unreadable response. Try again.</string>
+    <string name="podcast_invalid_response">Couldn’t read the podcast service’s response. Try again.</string>
     <string name="podcast_try_again">Try again</string>
     <string name="podcast_show_details">Show or hide podcast details</string>
     <string name="podcast_subscribed_unsubscribe">Subscribed to %1$s. Activate to Unsubscribe.</string>
@@ -456,4 +456,11 @@
         <item quantity="one">%1$d of %2$d Episode</item>
         <item quantity="other">%1$d of %2$d Episodes</item>
     </plurals>
+    <string name="download_notification_reason">Allow notifications to see download progress and stop a download.</string>
+    <string name="continue_action">Continue</string>
+    <string name="discard_draft">Discard draft</string>
+    <string name="discard_view_draft">Discard unfinished conditions</string>
+    <string name="show_podcast_details">Show podcast details</string>
+    <string name="hide_podcast_details">Hide podcast details</string>
+    <string name="chart_scale">Daily listening · 0 to %1$s</string>
 </resources>

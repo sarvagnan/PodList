@@ -49,7 +49,7 @@ internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? =
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
+                TextButton(contentPadding = PaddingValues.Zero, onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
             }
             content()
         }
@@ -72,11 +72,17 @@ internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, support
 
 @Composable
 internal fun NumberField(label: String, value: Double?, integer: Boolean = false, minimum: Double = 0.0, autofocus: Boolean = false, changed: (Double?) -> Unit) {
-    var text by rememberSaveable(label) { mutableStateOf(value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty()) }
+    val viewDraftPrefix = LocalViewDraftPrefix.current
+    val drafts = LocalFormDrafts.current
+    val draftKey = viewDraftPrefix?.let { "$it/number/$label" }
+    val durableText = draftKey?.let { rememberDraftText(it, value?.let { number -> if (integer) number.toLong().toString() else NumberInput.format(number) }.orEmpty()) }
+    val localText = rememberSaveable(label) { mutableStateOf(value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty()) }
+    var text by durableText ?: localText
     var observed by remember { mutableStateOf(value) }
     LaunchedEffect(value) { if (observed != value) { observed = value; if (NumberInput.parse(text) != value) text = value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty() } }
     val parsed = NumberInput.parse(text)
     val valid = text.isBlank() || parsed != null && parsed.isFinite() && parsed >= minimum && (!integer || parsed % 1 == 0.0 && parsed <= Int.MAX_VALUE)
+    LaunchedEffect(valid) { viewDraftPrefix?.let { drafts.put("$it/invalid/$label", (!valid).toString()) } }
     val model = LocalAppModel.current
     val currentValid by rememberUpdatedState(valid)
     DisposableEffect(Unit) { onDispose { if (!currentValid) model.messages.trySend(AppMessage(R.string.invalid_number_not_applied)) } }
@@ -107,9 +113,19 @@ internal fun SwitchRow(label: String, checked: Boolean, help: String? = null, ch
 }
 
 @Composable
-internal fun FocusedInputModifier(): Modifier {
+internal fun FocusedInputModifier(once: Boolean = false): Modifier {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    val browsing = LocalBrowsingState.current
+    val route = LocalBrowsingRoute.current
+    val firstVisit = rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val visited = route in browsing?.focusedRoutes.orEmpty()
+        if (!once || !firstVisit.value && !visited) {
+            firstVisit.value = true
+            if (once) browsing?.focusedRoutes?.add(route)
+            focus.requestFocus()
+        }
+    }
     return Modifier.focusRequester(focus)
 }
 

@@ -42,13 +42,13 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
         Hint(listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
             pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (PlaylistRules.hasNoCurrentEntry(playlist)) Hint(stringResource(R.string.no_cursor))
-        if (playlist.id != data.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
+        if (playlist.id != data.state.activePlaylistId) TextButton(contentPadding = PaddingValues.Zero, onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
         PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
         if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
         else if (tab == 0) EntryList(playlist, data, session, { id -> open("episode:$id") }, reveal = revealEpisode?.let { Reveal("playlist:${playlist.id}", it, revealToken) }, revealConsumed = { revealEpisode = null })
         else LazyColumn(state = rememberBrowsingListState("history")) {
-            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history); TextButton(onClick = { tab = 0 }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
-            items(playlist.history) { history -> ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(data.episodes.find { it["id"] == history.episodeId }?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
+            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history); TextButton(contentPadding = PaddingValues.Zero, onClick = { tab = 0 }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+            items(playlist.history) { history -> ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(data.episodes.find { it["id"] == history.episodeId }?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
         }
     }
 }
@@ -85,18 +85,16 @@ internal fun DownloadAction(episode: String, session: Session) {
             if (status.total > 0) LinearProgressIndicator(progress = { (status.received.toFloat() / status.total).coerceIn(0f, 1f) }, modifier = progressModifier)
             else LinearProgressIndicator(modifier = progressModifier)
         }
-        DetailAction(R.drawable.ic_download, stringResource(when (status?.phase) { DownloadPhase.Stored -> R.string.remove_download; DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download; DownloadPhase.Failed -> R.string.retry_download; null -> R.string.download })) {
+        TextButton(contentPadding = PaddingValues.Zero, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp), onClick = {
             when (status?.phase) {
                 DownloadPhase.Stored -> downloads.removeWithUndo(episode)
-                DownloadPhase.Queued, DownloadPhase.Transferring -> {
-                    downloads.cancel(episode)
-                    downloads.offerRequestUndo(listOf(episode), true, R.string.download_stopped)
-                }
-                else -> {
-                    downloads.download(episode)
-                    downloads.offerRequestUndo(listOf(episode), false, R.string.m4_downloads_requested)
-                }
+                DownloadPhase.Queued, DownloadPhase.Transferring -> { downloads.cancel(episode); downloads.offerRequestUndo(listOf(episode), true, R.string.download_stopped) }
+                else -> { downloads.download(episode); downloads.offerRequestUndo(listOf(episode), false, R.string.m4_downloads_requested) }
             }
+        }) {
+            Icon(painterResource(R.drawable.ic_download), null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(when (status?.phase) { DownloadPhase.Stored -> R.string.remove_download; DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download; DownloadPhase.Failed -> R.string.retry_download; null -> R.string.download }))
         }
     }
 }
@@ -105,7 +103,7 @@ internal fun DownloadAction(episode: String, session: Session) {
 internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
     val model = LocalAppModel.current
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
-    val save = { next: PlaybackSettings -> model.edit(Change.SetPlaybackSettings(next)); sheet = null }
+    val save = { next: PlaybackSettings -> model.edit(Change.SetPlaybackSettings(next)) }
     Column(Modifier.fillMaxWidth()) {
         Hint(stringResource(R.string.settings_inheritance))
         ValueRow(stringResource(R.string.speed), speedSetting(settings.speed)) { sheet = 0 }
