@@ -47,7 +47,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     LaunchedEffect(collapseNavigation) { pages = emptyList(); sheet.bottomSheetState.partialExpand() }
     LaunchedEffect(model) {
         for (message in model.messages) {
-            val result = snackbar.showSnackbar(context.getString(message.resource), actionLabel = message.undo?.let { context.getString(R.string.undo) })
+            val result = snackbar.showSnackbar(context.getString(message.resource), actionLabel = message.undo?.let { context.getString(R.string.undo) }, duration = SnackbarDuration.Long)
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }

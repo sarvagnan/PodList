@@ -6,6 +6,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import androidx.core.app.NotificationCompat
 import androidx.work.*
 import app.podlist.data.*
@@ -85,10 +87,16 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
         statuses.update { it + (episode to DownloadUi(DownloadPhase.Queued)) }
         val request = OneTimeWorkRequestBuilder<AudioDownloadWorker>()
             .setInputData(workDataOf("origin" to session.address.origin, "episode" to episode, "manual" to manual))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setConstraints(Constraints.Builder().setRequiredNetworkRequest(anyNetwork(), NetworkType.CONNECTED).build())
             .addTag(tag).addTag("episode:$episode").addTag("requested:${System.currentTimeMillis()}").build()
         manager.enqueueUniqueWork("$tag:$episode", ExistingWorkPolicy.REPLACE, request)
     }
+    // NetworkType.CONNECTED also demands Android's internet validation, which a LAN-only network reaching
+    // the server never passes. VPNs must qualify too, because the server may only be reachable over one.
+    private fun anyNetwork() = NetworkRequest.Builder()
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+        .build()
     fun cancel(episode: String) {
         manager.cancelUniqueWork("$tag:$episode")
         statuses.update { it - episode }
