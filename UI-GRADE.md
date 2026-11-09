@@ -13,8 +13,9 @@ Graded as its own target against the guide's Android phone signals, with two fre
 | Round | Date | Commit | Opus | Codex | Reports |
 |---|---|---|---|---|---|
 | 1 | 9 Nov 2026 | 456f192 | 6.5 | 6.4 | `docs/ui-grade/android-round-1.md`, `docs/ui-grade/android-round-1-codex.md` |
+| 2 | 9 Nov 2026 | cccd2e5 | 7.0 | 6.7 | `docs/ui-grade/android-round-2.md`, `docs/ui-grade/android-round-2-codex.md` |
 
-Round 1's blockers (AX-01, DATA-01), majors and minors were fixed in pod-apx.4.15, except DLG-01 (the confirmation before Delete Playlist), which waits on the owner because the approved mock-up asks first, and multistep Undo/Redo in DATA-04, which was left out.
+Round 1's failures were fixed in pod-apx.4.15; the owner then removed the confirmation before Delete Playlist. Round 2's were fixed in pod-apx.4.17, including multi-step Undo and Redo. The confirmation before Unsubscribe stays for now because product-behaviour.md asks for it.
 
 ## Method
 
