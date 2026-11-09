@@ -219,9 +219,16 @@ Played thresholds and listening samples/sessions read directly from the committe
 download-planning, fake-transfer and atomic-outbox regressions. Tests were added
 and run red before implementing each new behavior seam.
 
-Android lint was attempted with `:app:lintDebug`, but cannot run offline because
-`com.android.tools.lint:lint-gradle:32.5.1` is not cached. Resolve that artifact in
-the main environment, then rerun lint. No device tests were run.
+`:app:lintDebug` passes when run from the main environment; Codex's sandbox cannot
+resolve `com.android.tools.lint:lint-gradle:32.5.1` offline.
+
+Checked on an Android 16 emulator on 9 Nov 2026: player layout, transport, Chapters,
+speed, Sleep at end of Chapter, Played and advancing, Add with Undo, dark mode, the
+media notification, screen off, Manual and rule downloads, stored playback and the
+Offline banner with the server stopped. The list below still needs Android Auto,
+Bluetooth and headphones, drag reordering, the two-transfer limit and outbox replay.
+The emulator's own networking layer crashes it every few minutes on this Mac (its
+main loop blocks in `close()` from `udp_detach`); quit and reopen it to continue.
 
 ## Device verification for the main session
 

@@ -42,12 +42,12 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     val sheet = rememberBottomSheetScaffoldState()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val expanded = sheet.bottomSheetState.currentValue == SheetValue.Expanded || sheet.bottomSheetState.targetValue == SheetValue.Expanded
     LaunchedEffect(collapseNavigation) { pages = emptyList(); sheet.bottomSheetState.partialExpand() }
     LaunchedEffect(model) {
         for (message in model.messages) {
-            val result = snackbar.showSnackbar(context.getString(message.resource), actionLabel = message.undo?.let { context.getString(R.string.undo) }, duration = SnackbarDuration.Long)
+            val result = snackbar.showSnackbar(resources.getString(message.resource), actionLabel = message.undo?.let { resources.getString(R.string.undo) }, duration = SnackbarDuration.Long)
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }
@@ -254,7 +254,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     var invalid by rememberSaveable { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        BoxWithConstraints {
+        Box {
             val screen = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
             val density = androidx.compose.ui.platform.LocalDensity.current
             val halfHeight = with(density) { screen.toDp() / 2 }
