@@ -7,6 +7,7 @@ import app.podlist.data.FormDraftStore
 internal class FormDraftState(private val store: FormDraftStore, initial: Map<String, String>) {
     private val values = initial.toList().toMutableStateMap()
     fun get(key: String): String? = values[key]
+    fun reload() { values.clear(); values.putAll(store.load()) }
     fun put(key: String, text: String) {
         if (values[key] == text) return
         // Commit raw input before acknowledging the edit, including task removal without saved state.
@@ -27,10 +28,11 @@ internal val LocalFormDrafts = staticCompositionLocalOf<FormDraftState> { error(
 @Composable
 internal fun rememberDraftText(key: String, initial: String = ""): MutableState<String> {
     val drafts = LocalFormDrafts.current
+    val fallback by rememberUpdatedState(initial)
     return remember(drafts, key) {
         object : MutableState<String> {
             override var value: String
-                get() = drafts.get(key) ?: initial
+                get() = drafts.get(key) ?: fallback
                 set(value) { drafts.put(key, value) }
             override fun component1() = value
             override fun component2(): (String) -> Unit = { value = it }

@@ -17,7 +17,7 @@ internal fun SubscriptionRefreshStatus(subscription: Row, session: Session) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(stringResource(R.string.refresh_failed), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
         (subscription["refreshed_at"] as? Number)?.toLong()?.let { Text(stringResource(R.string.refreshed_at, dateTime(it)), style = MaterialTheme.typography.bodySmall) }
-        TextButton(contentPadding = PaddingValues.Zero, enabled = id !in refreshing, onClick = { model.refreshSubscription(id) }) {
+        ContentTextButton(enabled = id !in refreshing, onClick = { model.refreshSubscription(id) }) {
             Text(stringResource(if (id in refreshing) R.string.refreshing_podcast else R.string.retry_refresh))
         }
     }
@@ -28,6 +28,8 @@ internal fun EditHistoryMenu() {
     val model = LocalAppModel.current
     val undo by model.latestUndo.collectAsState()
     val redo by model.latestRedo.collectAsState()
-    if (undo != null) ActionIcon(R.drawable.ic_undo, stringResource(R.string.undo)) { undo?.invoke() }
-    if (redo != null) ActionIcon(R.drawable.ic_redo, stringResource(R.string.m4_redo)) { redo?.invoke() }
+    val undoDescription by model.undoDescription.collectAsState()
+    val redoDescription by model.redoDescription.collectAsState()
+    if (undo != null) ActionIcon(R.drawable.ic_undo, undoDescription?.let { stringResource(R.string.undo_specific, stringResource(it)) } ?: stringResource(R.string.undo)) { undo?.invoke() }
+    if (redo != null) ActionIcon(R.drawable.ic_redo, redoDescription?.let { stringResource(R.string.redo_specific, stringResource(it)) } ?: stringResource(R.string.m4_redo)) { redo?.invoke() }
 }

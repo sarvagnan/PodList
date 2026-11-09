@@ -8,11 +8,19 @@ import app.podlist.data.reversibleEdit
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withLock
 
-internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: String? = null, val reloadActive: Boolean = false, val apply: suspend () -> ReversibleEdit)
+internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: String? = null, val reloadActive: Boolean = false, val apply: suspend () -> ReversibleEdit) {
+    var description: Int? = null
+}
 
 internal fun AppModel.changesStep(current: Session, changes: List<Change>, playbackPlaylist: String? = null): ReversibleEdit =
     ReversibleEdit(changes.filterIsInstance<Change.SaveView>().firstOrNull()?.view?.id, playbackPlaylist, changes.any { it is Change.SetActivePlaylist }) {
-        val inverse = withContext(Dispatchers.IO) { current.db.reversibleEdit(changes, System.currentTimeMillis()) }
+        val inverse = withContext(Dispatchers.IO) {
+            current.db.transaction {
+                val inverse = reversibleEdit(changes, System.currentTimeMillis())
+                app.podlist.data.FormDraftStore(this).reconcile(changes)
+                inverse
+            }
+        }
         revealChanges(changes)
         changesStep(current, inverse, playbackPlaylist)
     }
@@ -21,6 +29,7 @@ internal fun AppModel.recordHistory(current: Session, message: AppMessage, step:
     if (session.value !== current) return
     if (typingGroup == null || typingGroup != activeTypingGroup) finishTyping()
     activeTypingGroup = typingGroup
+    step.description = message.resource
     history.record(step, typingGroup)
     updateHistoryActions()
     val notification = message.copy(undo = ::undoEdit)
@@ -41,6 +50,8 @@ internal fun AppModel.finishTyping() {
 }
 
 internal fun AppModel.updateHistoryActions() {
+    undoDescription.value = history.undo?.description
+    redoDescription.value = history.redo?.description
     latestUndo.value = if (history.undo == null) null else ::undoEdit
     latestRedo.value = if (history.redo == null) null else ::redoEdit
     undoViewId.value = history.undo?.viewId
@@ -62,7 +73,7 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 return@withLock
             }
             try {
-                history.reverse(redo) { it.apply() }
+                history.reverse(redo) { step -> step.apply().also { it.description = step.description } }
                 undoRevision.value++
                 updateHistoryActions()
                 messages.trySend(AppMessage(if (redo) R.string.edit_redone else R.string.edit_undone,

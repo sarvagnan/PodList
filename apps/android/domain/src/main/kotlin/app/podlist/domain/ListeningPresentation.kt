@@ -5,6 +5,8 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 object ListeningPresentation {
+    const val unselectedBarAlpha = .72f
+
     data class Time(val hours: Long, val minutes: Long, val underMinute: Boolean)
 
     fun time(seconds: Double): Time {

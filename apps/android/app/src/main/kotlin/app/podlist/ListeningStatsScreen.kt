@@ -74,14 +74,14 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
             val max = ListeningPresentation.chartMaximum(stats.days.maxOf { it.seconds })
             val shown = stats.days[chosen.coerceIn(stats.days.indices)]
             val selectedColor = MaterialTheme.colorScheme.primary
-            val unselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = .55f)
-            Text(stringResource(R.string.chart_scale, listened(max)), style = MaterialTheme.typography.labelMedium)
+            val unselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = ListeningPresentation.unselectedBarAlpha)
+            Text(stringResource(R.string.chart_minutes), style = MaterialTheme.typography.labelMedium)
             val chartLabel = stringResource(R.string.listening_chart)
             Row(Modifier.fillMaxWidth().height(144.dp)) {
-                Column(Modifier.fillMaxHeight().widthIn(min = 48.dp, max = 112.dp).padding(end = 8.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Text(listened(max), style = MaterialTheme.typography.labelSmall)
-                    Text(listened(max / 2), style = MaterialTheme.typography.labelSmall)
-                    Text(listened(0.0), style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.fillMaxHeight().width(IntrinsicSize.Max).padding(end = 8.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                    Text(stringResource(R.string.chart_tick, (max / 60).toLong()), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
+                    if (androidx.compose.ui.platform.LocalDensity.current.fontScale < 1.5f) Text(stringResource(R.string.chart_tick, (max / 120).toLong()), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
+                    Text(stringResource(R.string.chart_tick, 0L), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
                 }
                 androidx.compose.foundation.Canvas(Modifier.weight(1f).fillMaxHeight().pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
                     val cell = size.width / stats.days.size
@@ -93,7 +93,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(chartDate(stats.days.first().day), style = MaterialTheme.typography.labelSmall)
                 Text(chartDate(stats.days.last().day), style = MaterialTheme.typography.labelSmall)
             }
@@ -104,7 +104,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
                 ActionIcon(R.drawable.ic_chevron_right, stringResource(R.string.next_day), enabled = chosen < stats.days.lastIndex) { chosen++ }
             }
         }
-        item { TextButton(contentPadding = PaddingValues.Zero, onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
+        item { ContentTextButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
         item { Section(stringResource(R.string.m4_top_podcasts), inset = 0.dp) }
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         items(stats.podcasts) { (id, seconds) ->
@@ -120,6 +120,6 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
                 if (!large) Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
             }
         }
-        item { Section(stringResource(R.string.m4_about_stats), inset = 0.dp); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodySmall) }
+        item { Section(stringResource(R.string.m4_about_stats), inset = 0.dp); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodyMedium) }
     }
 }

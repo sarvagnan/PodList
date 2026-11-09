@@ -20,7 +20,10 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
     var target by remember { mutableStateOf<Long?>(null) }
     val byId = data.episodes.associateBy { it["id"] }
     LazyColumn(Modifier.fillMaxSize(), state = rememberBrowsingListState()) {
-        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); TextButton(contentPadding = PaddingValues.Zero, onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); FilledTonalButton(onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+        if (events.any { TimelineRules.pointAt(playlist, it.moment) != null }) item {
+            Hint(stringResource(R.string.timeline_rewind_hint))
+        }
         items(events) { event ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClickLabel = stringResource(if (TimelineRules.pointAt(playlist, event.moment) != null) R.string.m4_rewind_here else R.string.episode)) { if (TimelineRules.pointAt(playlist, event.moment) != null) target = event.moment else open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
                 Column { Text(dateTime(event.at), style = MaterialTheme.typography.labelMedium); Text(when(event.kind) {
@@ -51,8 +54,8 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
                 items(preview.restored) { RewindEpisode(it, data, session) }
                 item { Section(stringResource(R.string.m4_kept)); Hint(stringResource(R.string.m4_rewind_kept)) }
             }
-            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(contentPadding = PaddingValues.Zero, onClick = { target = null }) { Text(stringResource(R.string.cancel)) }
+            CommitActions(Modifier.padding(16.dp)) {
+                TextButton(onClick = { target = null }) { Text(stringResource(R.string.cancel)) }
                 Button(onClick = { model.rewind(playlist.id, to); target = null; rewound() }) { Text(stringResource(R.string.m4_rewind)) }
             }
         }

@@ -42,7 +42,7 @@ internal fun WelcomeScreen(model: AppModel) {
 
 @Composable
 internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String) -> Unit) {
-    var input by rememberSaveable { mutableStateOf("") }
+    var input by rememberDraftText("add-podcasts/query")
     val incomingFeed by model.incomingFeed.collectAsState()
     LaunchedEffect(incomingFeed) { incomingFeed?.let { input = it; model.incomingFeed.compareAndSet(it, null) } }
     var results by rememberSaveable(stateSaver = Saver<List<DirectoryResult>, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(emptyList()) }
@@ -71,7 +71,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
-            singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
+            singleLine = true, enabled = !busy, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
         Button(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
             Text(stringResource(R.string.find_podcasts))
         }
@@ -79,11 +79,11 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
         error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
         LazyColumn(Modifier.weight(1f)) {
             items(results, key = { it.feedUrl }) { result ->
-                ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
+                ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
                     leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
                     trailingContent = {
                         val done = result.feedUrl in subscribed
-                        TextButton(contentPadding = PaddingValues.Zero, onClick = {
+                        ContentTextButton(onClick = {
                             scope.launch {
                                 subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
                                 try {

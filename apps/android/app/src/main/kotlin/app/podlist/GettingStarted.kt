@@ -29,7 +29,7 @@ internal fun GettingStarted(data: ScreenData, session: Session, open: (String) -
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.m4_getting_started), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium)
-                TextButton(contentPadding = PaddingValues.Zero, onClick = hide) { Text(stringResource(R.string.m4_hide)) }
+                ContentTextButton(onClick = hide) { Text(stringResource(R.string.m4_hide)) }
             }
             listOf(R.string.m4_step_podcasts to R.string.m4_step_podcasts_help, R.string.m4_step_views to R.string.m4_step_views_help, R.string.m4_step_playlists to R.string.m4_step_playlists_help).forEachIndexed { index, (title, help) ->
                 val done = steps and (1 shl index) != 0
@@ -39,7 +39,7 @@ internal fun GettingStarted(data: ScreenData, session: Session, open: (String) -
                         if (done) Icon(painterResource(R.drawable.ic_check), stringResource(R.string.m4_step_done), Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
                         else Text((index + 1).toString(), style = MaterialTheme.typography.labelMedium)
                     }
-                    Column(Modifier.padding(start = 12.dp)) { Text(stringResource(title), style = MaterialTheme.typography.titleSmall); Text(stringResource(help), style = MaterialTheme.typography.bodySmall) }
+                    Column(Modifier.padding(start = 12.dp)) { Text(stringResource(title), style = MaterialTheme.typography.titleSmall); Text(stringResource(help), style = MaterialTheme.typography.bodyMedium) }
                 }
             }
             if (steps and 1 == 0) FilledTonalButton(onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) }

@@ -87,6 +87,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
     internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
     internal val undoRevision = MutableStateFlow(0L)
+    internal val undoDescription = MutableStateFlow<Int?>(null)
+    internal val redoDescription = MutableStateFlow<Int?>(null)
     internal val latestUndo = MutableStateFlow<(() -> Unit)?>(null)
     internal val undoViewId = MutableStateFlow<String?>(null)
     internal val latestRedo = MutableStateFlow<(() -> Unit)?>(null)

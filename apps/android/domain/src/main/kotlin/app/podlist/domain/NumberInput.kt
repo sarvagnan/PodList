@@ -12,6 +12,12 @@ object NumberInput {
         val number = NumberFormat.getNumberInstance(locale).apply { isGroupingUsed = false }.parse(clean, position)?.toDouble()
         return number?.takeIf { position.index == clean.length && it.isFinite() }
     }
+    fun valid(text: String, minimum: Double = 0.0, integer: Boolean = false): Boolean {
+        val parsed = parse(text)
+        return text.isBlank() || parsed != null && parsed >= minimum &&
+            (!integer || parsed % 1 == 0.0 && parsed <= Int.MAX_VALUE)
+    }
+
     fun format(value: Double, locale: Locale = Locale.getDefault()): String = NumberFormat.getNumberInstance(locale).apply {
         isGroupingUsed = false; maximumFractionDigits = 8
     }.format(value)

@@ -147,6 +147,10 @@ internal fun editMessage(change: Change): Int = when (change) {
     is Change.RenamePlaylist -> R.string.playlist_renamed
     is Change.SaveView -> R.string.view_changed
     is Change.SetDownloadRule -> R.string.download_rule_changed
+    is Change.SetPlaybackSettings -> R.string.playback_settings_changed
+    is Change.SetSubscriptionOverrides -> R.string.subscription_settings_changed
+    is Change.SetTrashDays -> R.string.trash_retention_changed
+    is Change.SetClearOnPlayed -> R.string.clear_on_played_changed
     else -> R.string.m4_setting_changed
 }
 

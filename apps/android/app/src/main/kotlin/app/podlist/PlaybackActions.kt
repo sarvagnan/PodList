@@ -42,12 +42,12 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
         Hint(listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
             pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (PlaylistRules.hasNoCurrentEntry(playlist)) Hint(stringResource(R.string.no_cursor))
-        if (playlist.id != data.state.activePlaylistId) TextButton(contentPadding = PaddingValues.Zero, onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
+        if (playlist.id != data.state.activePlaylistId) ContentTextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
         PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
         if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
         else if (tab == 0) EntryList(playlist, data, session, { id -> open("episode:$id") }, reveal = revealEpisode?.let { Reveal("playlist:${playlist.id}", it, revealToken) }, revealConsumed = { revealEpisode = null })
         else LazyColumn(state = rememberBrowsingListState("history")) {
-            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history); TextButton(contentPadding = PaddingValues.Zero, onClick = { tab = 0 }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history); FilledTonalButton(onClick = { tab = 0 }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
             items(playlist.history) { history -> ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(data.episodes.find { it["id"] == history.episodeId }?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
         }
     }
@@ -73,28 +73,35 @@ internal fun EntryMenu(playlist: Playlist, episode: String) {
 }
 
 @Composable
-internal fun DownloadAction(episode: String, session: Session) {
+internal fun DownloadAction(episode: String, session: Session, modifier: Modifier = Modifier) {
     val model = LocalAppModel.current
     val downloads = model.downloads(session)
     val statuses by downloads.status.collectAsState()
     val status = statuses[episode]
-    Column(Modifier.fillMaxWidth()) {
-        Text(stringResource(when (status?.phase) { DownloadPhase.Stored -> R.string.download_stored; DownloadPhase.Failed -> R.string.download_failed; DownloadPhase.Queued -> R.string.download_queued; DownloadPhase.Transferring -> R.string.download_in_progress; null -> R.string.download_none }), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
-        if (status?.phase == DownloadPhase.Transferring) {
-            val progressModifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).then(ProgressModifier(R.string.download_in_progress))
-            if (status.total > 0) LinearProgressIndicator(progress = { (status.received.toFloat() / status.total).coerceIn(0f, 1f) }, modifier = progressModifier)
-            else LinearProgressIndicator(modifier = progressModifier)
-        }
-        TextButton(contentPadding = PaddingValues.Zero, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp), onClick = {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        EpisodeAction(R.drawable.ic_download, stringResource(when (status?.phase) {
+            DownloadPhase.Stored -> R.string.remove_download
+            DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download
+            DownloadPhase.Failed -> R.string.retry_download
+            null -> R.string.download
+        }), Modifier.fillMaxWidth()) {
             when (status?.phase) {
                 DownloadPhase.Stored -> downloads.removeWithUndo(episode)
                 DownloadPhase.Queued, DownloadPhase.Transferring -> { downloads.cancel(episode); downloads.offerRequestUndo(listOf(episode), true, R.string.download_stopped) }
                 else -> { downloads.download(episode); downloads.offerRequestUndo(listOf(episode), false, R.string.m4_downloads_requested) }
             }
-        }) {
-            Icon(painterResource(R.drawable.ic_download), null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(when (status?.phase) { DownloadPhase.Stored -> R.string.remove_download; DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download; DownloadPhase.Failed -> R.string.retry_download; null -> R.string.download }))
+        }
+        if (status != null) Text(stringResource(when (status.phase) {
+            DownloadPhase.Stored -> R.string.download_stored
+            DownloadPhase.Failed -> R.string.download_failed
+            DownloadPhase.Queued -> R.string.download_queued
+            DownloadPhase.Transferring -> R.string.download_in_progress
+        }), style = MaterialTheme.typography.bodyMedium,
+            modifier = if (status.phase == DownloadPhase.Failed) Modifier.errorAnnouncement() else Modifier)
+        if (status?.phase == DownloadPhase.Transferring) {
+            val progressModifier = Modifier.fillMaxWidth().then(ProgressModifier(R.string.download_in_progress))
+            if (status.total > 0) LinearProgressIndicator(progress = { (status.received.toFloat() / status.total).coerceIn(0f, 1f) }, modifier = progressModifier)
+            else LinearProgressIndicator(modifier = progressModifier)
         }
     }
 }
