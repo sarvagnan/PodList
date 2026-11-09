@@ -194,8 +194,8 @@ does not recreate them on restart. A fresh server Library also creates the start
 Views once, only after both State and Library have loaded. Getting started sits above
 the Views, remembers its three completed steps, stays until Hide, and reopens on Views
 from Settings → Help. A previously used Library becoming empty does not restart it.
-There is still no Library bring-over UI; that existing deferred capability is outside
-the ten screen items implemented here.
+Connecting a Standalone Device now offers to bring its Library over, with real
+counts and saved, resumable progress (see below).
 
 `Session.source: LibrarySource` is the boundary for Library refresh, discovery,
 Subscribe/Unsubscribe, Chapters, Artwork and audio fallback. `ServerLibrary` retains
@@ -204,8 +204,9 @@ Standalone Library uses a separate hashed database/file namespace (`standalone`)
 from every normalized server origin. Existing server database filenames, download
 paths/tags, preferences, cursors and pending outbox operations are preserved.
 Settings → This Device → Server says “None. This phone keeps everything itself.”
-and opens the server connection screen with Back. Connecting keeps both Libraries
-separate; bringing one over is deliberately deferred.
+and opens the server connection screen with Back. Connecting offers **Bring it over**
+or **Not now**. Declining connects without uploading Standalone edits, keeps the two
+Libraries separate, and leaves the offer in Settings → This Device.
 
 Standalone edits apply to State and its indexes atomically without a sync outbox.
 A local operation table retains the edit record, including concrete Mark all Played
@@ -255,7 +256,7 @@ Settings → Server checks and changes the origin. Each normalized origin gets a
 separate SQLite database, cursors and outbox; returning to an address restores its
 local Library. Changing addresses never sends pending operations to a different
 server. Moving the same server to a new address performs a fresh pull at that
-address. Old local data is retained. There is no server-data migration UI.
+address. Old local data is retained. Standalone bring-over does not migrate one server origin to another.
 
 `SyncClient` runs without Android and accepts a fake HTTP transport. It registers
 once, pushes an exact ordered outbox snapshot, pulls from the independent State
@@ -285,6 +286,121 @@ directory-result Artwork comes straight from publishers, with Episode → Subscr
 an 8 MiB memory cache and 64 MiB disk cache. Cached Artwork remains usable offline.
 No image-loading or HTTP-stack dependency was added.
 
+## Bringing a Standalone Library to a server
+
+After a successful connection from a Standalone Device, the agreed round-2 offer
+lists active Subscriptions, Playlists (including Trash), Entries, Played and Starred
+marks separately, and Listening log hours from the stored State. An untouched fresh
+Standalone Library does not trigger the offer. **Not now** connects to the server
+without moving anything; Settings → This Device → Bring your Library over keeps the
+offer available, including after relaunch. Closing progress leaves the transfer
+running through the existing session scheduler. A completed transfer keeps using
+the server session. The original Standalone database and audio files are retained.
+
+`BringOver` in `:data` uses only existing server APIs:
+
+1. Subscribe each active Subscription using `POST /api/subscriptions`. The server
+   reuses the same feed address, including after a lost Subscribe response. Persist
+   each success separately. Do not re-subscribe removed Subscriptions.
+2. Run normal Device registration, State sync and paged `/api/library/changes`.
+   Match Subscription ids by exact feed address and Episode ids by guid within the
+   matching Subscription. Check untouched Back Catalogue too. Report missing feeds,
+   removed Subscriptions absent from the server, and every unmatched Episode.
+3. Once mapping is complete, rewrite every reference in the `local_operation` log:
+   Episode ids, neighbouring Entries, Cursors, Playback-source Playlist ids, View
+   podcast conditions, Listening amounts, Download Rules and Subscription overrides.
+   Queue the entire ordered replay, its fixed map and its checkpoint atomically in
+   the normal outbox. Retain original operation ids, Device id and timestamps;
+   reserve increasing destination sequence numbers in that transaction. Send only
+   the recorded concrete MarkPlayed operations for Mark all Played, because replaying
+   the original bulk intention would also mark server-only Episodes Played.
+4. Normal sync commits acknowledgement and confirmed State. Stable ids make lost
+   push responses harmless, including additive Listening log amounts. Operations
+   reconstruct Playlists, Positions, Played/Starred facts, History, Listening
+   Timelines, Trash, Rewind, the Listening log, Views and settings using ADR 0003's
+   ordinary merge and retention rules. No whole-State replacement is uploaded.
+5. Copy stored audio atomically to the server origin's normal file namespace under
+   mapped Episode ids, then persist each download row and copy checkpoint together.
+   Preserve a valid existing destination file and its timestamp. Imported downloads
+   become Manual Downloads on the destination so that differing server Played facts
+   or Entries cannot immediately discard them; source ownership stays unchanged.
+   Rule cleanup waits until the transfer is complete. Audio is never uploaded.
+
+The immutable snapshot is stored once in destination `sync_meta`; small checkpoints
+store completed feeds, fixed mappings, outbox status and copied Episodes. A separate
+pending marker lets the download planner avoid decoding the operation log. No schema
+migration or dependency is needed. Startup, foreground, connectivity and the existing
+one-minute scheduler resume a pending job. A completed job is a no-op on repeated runs;
+it does not resnapshot the old Standalone Library or resend listening.
+
+The Default Playlist maps to the existing `default` id. Equivalent starter Views
+reuse server View ids, including a View edited back to its initial conditions.
+Implicit untouched starter Views are seeded only when absent. Source deletions of
+starter Views do not delete the server's own starters; differing/colliding user
+Playlists and Views get stable destination ids, keeping the server's objects.
+
+**Limit of the no-server-change approach:** Subscribe only fetches the publisher's
+current feed (and an existing Subscription is not refreshed by Subscribe). An
+Episode retained by the phone but absent from both that feed and the server cannot
+be mapped, even with the same title or audio URL. A removed Subscription used by
+the permanent Listening log may also be unknown to the server. `/api/sync/push`
+accepts State operations, not Subscription/Episode metadata, so it cannot repair
+either case. The partial screen lists them explicitly. Successful Subscriptions
+remain, but the ordered State replay and download copies wait for all mappings;
+the UI does not claim that everything else moved. Retry only subscribes failed
+feeds and uses the existing per-Subscription refresh for unmatched Episodes, then
+pulls changes again. It never silently skips an operation or revives a removed
+Subscription. Feed refresh cannot recover a permanently unpublished Episode.
+
+The smallest proposed server extension is one idempotent Library metadata import
+request: accept missing Subscription metadata keyed by feed address (including its
+removed status) and missing Episode metadata keyed by feed address plus guid; insert
+only missing identities, keep existing server rows, and return the server id map
+through normal Catalogue changes or the response. This avoids fetching an extinct
+feed and preserves Orphaned Episodes and Listening log attribution. State would
+still use the normal outbox and sync push. **This server change is not implemented.**
+
+## Bring-over emulator checklist for the main session
+
+Run `:app:lintDebug` in the main environment; it was intentionally not run here.
+No emulator checks were performed for bring-over in this worktree.
+The requested offline command passed: **299 JVM tests**, 99 in `:domain` and 200
+in `:data`, with zero failures, errors or skips; `:app:assembleDebug` passed.
+This includes 26 bring-over tests and a cross-owner file/row commit locking test.
+Server API compatibility was checked against the implementation and fake wire
+transports; a live-server/emulator end-to-end run remains for the main session.
+
+1. On a fresh Standalone Device subscribe to two controlled feeds. Make a custom
+   Playlist, add Entries, listen partially and finish an Episode, Star another,
+   edit a View, change Playback Settings and set a Download Rule. Store one Manual
+   Download and one rule download. Record the counts shown in Listening stats.
+2. Connect to a server that already has a Subscription from the same feed, a Default
+   Playlist with an Entry, the three starter Views and some listening. Check the
+   offer counts, scope/explanation and hours. Choose Not now: inspect server State
+   for no Standalone edits, relaunch and reopen the offer from Settings → This Device.
+3. Choose Bring it over. Check one Default Playlist, one set of equivalent starter
+   Views, preserved existing server Entries/Views/listening, mapped Entries and
+   Positions, History, Listening Timeline, Playback/Download settings and additive
+   Listening log totals. Confirm the original Standalone database and files remain.
+4. Disable networking during Subscribe, Library paging, push and copying in separate
+   runs. Force-stop the app and relaunch, then reconnect. Check progress resumes,
+   only failed feeds are retried, no duplicate Subscriptions/Entries/Views appear,
+   and listening totals increase exactly once. Close progress and reopen in Settings.
+5. Include an unreachable feed, a phone-retained Episode omitted from the current
+   feed, and a removed Subscription with Listening log amounts unknown to the server.
+   Check explicit feed/Episode rows, honest waiting copy and Retry. Restore the feed
+   or Episode on the server and retry; verify successful feeds are not subscribed
+   again and the completed transfer disappears from Settings.
+6. With the server and publishers unreachable, play both transferred downloads by
+   their new Episode ids. Confirm destination rows/files, Manual ownership, retained
+   original files and no immediate cleanup even if the server marked the Episode
+   Played before the move. Check an already-downloaded destination Episode stays
+   playable. Explicitly remove a migrated download and verify normal removal.
+7. Test light/dark, large text, rotation, compact height, TalkBack and predictive Back
+   on offer, moving, partial and success. Verify scrolling and 48dp actions. Repeat
+   ordinary Standalone use and an existing server session with pending edits and
+   downloads to check that the new flow does not intervene.
+
 ## Dependencies and offline validation
 
 Media3 `media3-exoplayer` and `media3-session` are pinned to **1.11.1**;
@@ -295,17 +411,16 @@ artifacts already used in milestone 2. No jars were vendored.
 From the repository root, using this machine's existing cache:
 
 ```sh
-export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-export PODLIST_JAVA_HOME="$JAVA_HOME"
-export ANDROID_HOME="$HOME/Library/Android/sdk"
-export GRADLE_RO_DEP_CACHE="$HOME/.gradle/caches"
-export GRADLE_USER_HOME="$PWD/apps/android/.gradle/task-home"
+export PODLIST_JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export JAVA_HOME="$PODLIST_JAVA_HOME" ANDROID_HOME="$HOME/Library/Android/sdk"
+export GRADLE_RO_DEP_CACHE="$HOME/.gradle/caches" GRADLE_USER_HOME="$PWD/.gradle-worktree"
 mkdir -p "$GRADLE_USER_HOME"
 cp -rf "$HOME/.gradle/wrapper" "$GRADLE_USER_HOME/"
-./apps/android/gradlew -p apps/android --offline :domain:test :data:test :app:assembleDebug
+cd apps/android
+./gradlew :domain:test :data:test :app:assembleDebug --offline --console=plain
 ```
 
-The full debug APK compiles offline. Milestone 4 verification has **272 passing
+The full debug APK compiles offline. Before bring-over, milestone 4 verification had **272 passing
 JVM tests**: 99 in `:domain`, 173 in `:data`, with zero failures or skips. The affected
 TypeScript feed, Subscription, directory and Chapter suites have **51 passing tests**;
 server/domain TypeScript checks and formatting checks pass. No dependencies were added.
@@ -417,7 +532,7 @@ No emulator checks were performed for this implementation. Check these on a Devi
 6. Upgrade an existing server-connected installation with pending edits/downloads.
    Confirm the same Library and media remain, `/api/directory/search` and Subscribe
    work, and sync/retry still behaves normally. From a Standalone Device connect
-   to a server: verify separate Libraries and no upload of Standalone edits. Reopen
+   to a server and choose Not now: verify separate Libraries and no upload of Standalone edits. Reopen
    saved server origins to confirm isolation and retained downloads.
 7. Review the agreed welcome and Add podcasts on compact screens, large text,
    rotation, dark mode, keyboard open/closed and predictive Back. Confirm the player

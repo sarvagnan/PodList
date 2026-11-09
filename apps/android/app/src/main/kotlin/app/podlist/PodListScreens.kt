@@ -44,10 +44,13 @@ private enum class Destination(val title: Int, val icon: Int) {
 fun PodListShell(model: AppModel) {
     val starting by model.starting.collectAsState()
     val session by model.session.collectAsState()
+    val bringOver by model.bringOver.collectAsState()
+    val bringOverVisible by model.bringOverVisible.collectAsState()
     Surface(Modifier.fillMaxSize()) {
         when {
             starting -> Loading()
             session == null -> WelcomeScreen(model)
+            bringOverVisible && bringOver != null -> BringOverScreen(model, bringOver!!)
             else -> key(session!!.source.key) { ConnectedShell(model, session!!) }
         }
     }

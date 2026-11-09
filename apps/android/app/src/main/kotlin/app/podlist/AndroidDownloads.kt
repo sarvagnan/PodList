@@ -32,6 +32,7 @@ internal data class DownloadUi(val phase: DownloadPhase, val received: Long = 0,
  * The same one-second rule trigger receives State, Library AND download invalidations.
  */
 class AndroidDownloads(private val context: Context, private val model: AppModel, val session: Session) {
+    @Volatile internal var rulesSuspended = session.source.server == null && model.session.value?.source?.server != null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val manager = WorkManager.getInstance(context)
     private val tag = "audio:${digest(session.source.key)}"
@@ -58,6 +59,9 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
         scope.launch {
             @OptIn(FlowPreview::class)
             invalidations.debounce(1000).collect {
+                // Keep copied files stable until State replay and all file/row commits finish.
+                val transferring = withContext(Dispatchers.IO) { session.db.bringOverPending() }
+                if (rulesSuspended || transferring) { refresh(); return@collect }
                 val plan = withContext(Dispatchers.IO) { session.db.downloadPlan(session.deviceId, System.currentTimeMillis()) }
                 plan.discard.forEach { remove(it) }
                 refresh()
@@ -129,40 +133,54 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
             val model = (applicationContext as PodListApplication).model
             val session = withContext(Dispatchers.Main) { model.sessionFor(if (origin == "standalone") null else ServerAddress.parse(origin, BuildConfig.DEBUG)) }
             val downloads = withContext(Dispatchers.Main) { model.downloads(session) }
-            var committed = false
             try {
                 setForeground(foreground())
                 val sources = PlaybackPolicy.sources(null, session.db.playbackMetadata(episode).audioUrl, session.source.audioFallback(episode))
                 val transferContext = currentCoroutineContext()
-                val bytes = downloads.files.save(episode, sources) { url, output ->
-                    val source = DefaultHttpDataSource.Factory().setUserAgent("PodList Android").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).createDataSource()
+                downloads.files.withCommitLock(episode) {
+                    // A pending server worker may race with bring-over. Keep its complete copied file
+                    // and Manual ownership instead of overwriting it (or deleting it on cancellation).
+                    val existing = session.db.query("SELECT bytes FROM download WHERE episode_id = ?", listOf(episode)).firstOrNull()
+                    val stored = downloads.files.stored(episode)
+                    if (existing != null && stored != null && stored.length() == (existing["bytes"] as Number).toLong()) {
+                        if (inputData.getBoolean("manual", true)) session.db.execute("UPDATE download SET manual = 1 WHERE episode_id = ?", listOf(episode))
+                        return@withCommitLock
+                    }
+                    var committed = false
                     try {
-                        val total = source.open(DataSpec(Uri.parse(url)))
-                        var received = 0L
-                        var lastProgress = 0L
-                        run {
-                            val buffer = ByteArray(32 * 1024)
-                            while (true) {
-                                if (isStopped || !transferContext.isActive) throw AudioTransferCancelled()
-                                val count = source.read(buffer, 0, buffer.size)
-                                if (count < 0) break
-                                output.write(buffer, 0, count)
-                                received += count
-                                val now = android.os.SystemClock.elapsedRealtime()
-                                if (now - lastProgress >= 250) { setProgressAsync(workDataOf("received" to received, "total" to total)); lastProgress = now }
-                            }
+                        val bytes = downloads.files.save(episode, sources) { url, output ->
+                            val source = DefaultHttpDataSource.Factory().setUserAgent("PodList Android").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).createDataSource()
+                            try {
+                                val total = source.open(DataSpec(Uri.parse(url)))
+                                var received = 0L
+                                var lastProgress = 0L
+                                run {
+                                    val buffer = ByteArray(32 * 1024)
+                                    while (true) {
+                                        if (isStopped || !transferContext.isActive) throw AudioTransferCancelled()
+                                        val count = source.read(buffer, 0, buffer.size)
+                                        if (count < 0) break
+                                        output.write(buffer, 0, count)
+                                        received += count
+                                        val now = android.os.SystemClock.elapsedRealtime()
+                                        if (now - lastProgress >= 250) { setProgressAsync(workDataOf("received" to received, "total" to total)); lastProgress = now }
+                                    }
+                                }
+                                if (total >= 0 && total != received) throw IOException("Incomplete audio")
+                                received
+                            } finally { source.close() }
                         }
-                        if (total >= 0 && total != received) throw IOException("Incomplete audio")
-                        received
-                    } finally { source.close() }
+                        committed = true
+                        ensureActive()
+                        session.db.execute("INSERT OR REPLACE INTO download (episode_id, manual, bytes, saved_at) VALUES (?, ?, ?, ?)", listOf(episode, if (inputData.getBoolean("manual", true)) 1 else 0, bytes, System.currentTimeMillis()))
+                    } catch (error: CancellationException) {
+                        if (committed) downloads.files.remove(episode)
+                        throw error
+                    }
                 }
-                committed = true
-                ensureActive()
-                session.db.execute("INSERT OR REPLACE INTO download (episode_id, manual, bytes, saved_at) VALUES (?, ?, ?, ?)", listOf(episode, if (inputData.getBoolean("manual", true)) 1 else 0, bytes, System.currentTimeMillis()))
                 session.db.notifyChanged()
                 Result.success()
             } catch (error: CancellationException) {
-                if (committed) downloads.files.remove(episode)
                 throw error
             } catch (_: Exception) { Result.failure() }
     }
