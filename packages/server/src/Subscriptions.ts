@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { Subscriptions as Api } from "@podlist/api"
 import { Library as Domain, Mentions } from "@podlist/domain"
 import { Context, Data, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql"
@@ -77,6 +78,10 @@ export class Subscriptions extends Context.Service<
     /** Follows a feed: fetches it first, and keeps nothing if it cannot be read. */
     readonly subscribe: (feedUrl: string) => Effect.Effect<Domain.Subscription, FeedError>
     readonly unsubscribe: (id: string) => Effect.Effect<Domain.Subscription, NotFound>
+    /** Inserts missing identities without fetching feeds or changing existing rows. Ids sync via Catalogue. */
+    readonly bringOver: (
+      metadata: Api.BringOverRequest
+    ) => Effect.Effect<void, Api.MissingSubscription>
     readonly importOpml: (opml: string) => Effect.Effect<ImportSummary>
     readonly exportOpml: Effect.Effect<string>
   }
@@ -144,6 +149,49 @@ export class Subscriptions extends Context.Service<
           return yield* byId(id)
         })
 
+      const bringOver = (metadata: Api.BringOverRequest) =>
+        Effect.gen(function* () {
+          for (const s of metadata.subscriptions) {
+            yield* sql`INSERT INTO subscription ${sql.insert({
+              id: `sub_${randomUUID()}`,
+              feed_url: s.feedUrl,
+              title: s.title,
+              title_folded: Mentions.fold(s.title),
+              author: s.author,
+              description: s.description,
+              artwork_url: s.artwork?.url ?? null,
+              subscribed_at: s.subscribedAt,
+              unsubscribed_at: s.unsubscribedAt,
+              played_threshold: s.playedThreshold,
+              playback_settings: JSON.stringify(s.playbackSettings)
+            })} ON CONFLICT (feed_url) DO NOTHING`
+          }
+          for (const e of metadata.episodes) {
+            const [subscription] = yield* sql<{ id: string }>`
+              SELECT id FROM subscription WHERE feed_url = ${e.feedUrl}`
+            if (subscription === undefined) {
+              return yield* new Api.MissingSubscription({ feedUrl: e.feedUrl })
+            }
+            // Refresh may have changed a guid while retaining its old hashed id.
+            // A fresh id avoids colliding with that different, existing identity.
+            yield* sql`INSERT INTO episode ${sql.insert({
+              id: `ep_${randomUUID()}`,
+              subscription_id: subscription.id,
+              guid: e.guid,
+              title: e.title,
+              title_folded: Mentions.fold(e.title),
+              description: e.description,
+              description_folded: Mentions.fold(e.description),
+              published: e.published,
+              duration: e.duration,
+              audio_url: e.audioUrl,
+              artwork_url: e.artwork?.url ?? null,
+              chapters: JSON.stringify(e.chapters),
+              audio_updated_at: e.audioUpdatedAt
+            })} ON CONFLICT (subscription_id, guid) DO NOTHING`
+          }
+        }).pipe(sql.withTransaction, Effect.catchTag("SqlError", Effect.die))
+
       const importOpml = (opml: string) =>
         Effect.gen(function* () {
           const urls = yield* Effect.try(() => feedUrlsFromOpml(opml)).pipe(
@@ -194,7 +242,7 @@ export class Subscriptions extends Context.Service<
         })
       )
 
-      return Subscriptions.of({ list, subscribe, unsubscribe, importOpml, exportOpml })
+      return Subscriptions.of({ list, subscribe, unsubscribe, bringOver, importOpml, exportOpml })
     })
   )
 }

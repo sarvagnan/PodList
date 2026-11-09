@@ -297,15 +297,17 @@ offer available, including after relaunch. Closing progress leaves the transfer
 running through the existing session scheduler. A completed transfer keeps using
 the server session. The original Standalone database and audio files are retained.
 
-`BringOver` in `:data` uses only existing server APIs:
+`BringOver` in `:data` uses Subscribe, a metadata fallback and ordinary sync:
 
 1. Subscribe each active Subscription using `POST /api/subscriptions`. The server
    reuses the same feed address, including after a lost Subscribe response. Persist
    each success separately. Do not re-subscribe removed Subscriptions.
 2. Run normal Device registration, State sync and paged `/api/library/changes`.
    Match Subscription ids by exact feed address and Episode ids by guid within the
-   matching Subscription. Check untouched Back Catalogue too. Report missing feeds,
-   removed Subscriptions absent from the server, and every unmatched Episode.
+   matching Subscription. Check untouched Back Catalogue too. For remaining missing
+   identities, send `POST /api/subscriptions/bring-over` with Subscription metadata
+   keyed by feed address, including removed status, and Episode metadata keyed by
+   feed address plus guid. Pull Library changes again to obtain server ids.
 3. Once mapping is complete, rewrite every reference in the `local_operation` log:
    Episode ids, neighbouring Entries, Cursors, Playback-source Playlist ids, View
    podcast conditions, Listening amounts, Download Rules and Subscription overrides.
@@ -339,26 +341,26 @@ Implicit untouched starter Views are seeded only when absent. Source deletions o
 starter Views do not delete the server's own starters; differing/colliding user
 Playlists and Views get stable destination ids, keeping the server's objects.
 
-**Limit of the no-server-change approach:** Subscribe only fetches the publisher's
-current feed (and an existing Subscription is not refreshed by Subscribe). An
-Episode retained by the phone but absent from both that feed and the server cannot
-be mapped, even with the same title or audio URL. A removed Subscription used by
-the permanent Listening log may also be unknown to the server. `/api/sync/push`
-accepts State operations, not Subscription/Episode metadata, so it cannot repair
-either case. The partial screen lists them explicitly. Successful Subscriptions
-remain, but the ordered State replay and download copies wait for all mappings;
-the UI does not claim that everything else moved. Retry only subscribes failed
-feeds and uses the existing per-Subscription refresh for unmatched Episodes, then
-pulls changes again. It never silently skips an operation or revives a removed
-Subscription. Feed refresh cannot recover a permanently unpublished Episode.
+**Metadata fallback and older servers:** Subscribe only fetches the publisher's
+current feed, and an existing Subscription is not refreshed by Subscribe. The
+idempotent `/api/subscriptions/bring-over` request recovers Episodes retained by the
+phone but absent from the publisher and Subscriptions removed on the phone that
+the permanent Listening log still references. It inserts only missing identities
+in one transaction, never updates existing server rows, and returns 204. Server ids
+arrive through normal paged Catalogue changes. The request fetches no feeds; removed
+Subscriptions stay removed and are not polled. Their Episodes are visible only as
+Entries or Stars under the usual Orphaned rules. State still uses the normal outbox
+and sync push after all references can be mapped. Complete Episode metadata is
+retained in the immutable snapshot; older pending snapshots can recover it from the
+retained Standalone database. No database migration is needed.
 
-The smallest proposed server extension is one idempotent Library metadata import
-request: accept missing Subscription metadata keyed by feed address (including its
-removed status) and missing Episode metadata keyed by feed address plus guid; insert
-only missing identities, keep existing server rows, and return the server id map
-through normal Catalogue changes or the response. This avoids fetching an extinct
-feed and preserves Orphaned Episodes and Listening log attribution. State would
-still use the normal outbox and sync push. **This server change is not implemented.**
+If that endpoint returns 404, the existing partial screen and explanation remain:
+missing feeds, removed Subscriptions absent from the server, and unmatched Episodes
+are listed explicitly. Successful Subscriptions remain, while ordered State replay
+and download copies wait for all mappings. Retry subscribes failed feeds and uses
+the existing per-Subscription refresh for unmatched Episodes, then pulls again.
+It never skips an operation or revives a removed Subscription. Other metadata
+request failures remain retryable failures and do not queue dependent State.
 
 ## Bring-over emulator checklist for the main session
 
