@@ -54,6 +54,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun playNow(episode: String) = withPlayback { it.playNow(episode) }
     fun playEntry(playlist: String, episode: String) = withPlayback { it.playEntry(playlist, episode) }
     fun switchPlaylist(playlist: String) = withPlayback { it.switchPlaylist(playlist) }
+    fun restorePlayback() = withPlayback { it.restore() }
     fun togglePlayback() = withPlayback { it.toggle() }
     fun seek(seconds: Double) = withPlayback { it.seek(seconds) }
     fun speed(value: Float) = withPlayback { it.speed(value) }

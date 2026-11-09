@@ -45,6 +45,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     val resources = androidx.compose.ui.platform.LocalResources.current
     val expanded = sheet.bottomSheetState.currentValue == SheetValue.Expanded || sheet.bottomSheetState.targetValue == SheetValue.Expanded
     LaunchedEffect(collapseNavigation) { pages = emptyList(); sheet.bottomSheetState.partialExpand() }
+    LaunchedEffect(session) { model.restorePlayback() }
     LaunchedEffect(model) {
         for (message in model.messages) {
             val result = snackbar.showSnackbar(resources.getString(message.resource), actionLabel = message.undo?.let { resources.getString(R.string.undo) }, duration = SnackbarDuration.Long)
