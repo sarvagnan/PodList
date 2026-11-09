@@ -30,14 +30,14 @@ private val artworkMemory = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
 }
 
-/** Artwork always uses the documented Library-only proxy, with bounded memory/disk caches. */
+/** Server Library Artwork uses its proxy; publisher and directory Artwork load directly. */
 @Composable
-internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp) {
+internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp, direct: Boolean = false) {
     val context = LocalContext.current
-    val bitmap by produceState<Bitmap?>(null, session.address.origin, url) {
+    val bitmap by produceState<Bitmap?>(null, session.source.key, url, direct) {
         value = null
         if (url == null) return@produceState
-        val endpoint = session.address.artwork(url, if (size > 100.dp) 512 else 128)
+        val endpoint = if (direct) url else session.source.artwork(url, if (size > 100.dp) 512 else 128)
         value = withContext(Dispatchers.IO) {
             artworkMemory.get(endpoint) ?: runCatching {
                 val key = MessageDigest.getInstance("SHA-256").digest(endpoint.toByteArray()).joinToString("") { "%02x".format(it) }
@@ -49,7 +49,7 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
                     try {
                         connection.connectTimeout = 10_000
                         connection.readTimeout = 10_000
-                        connection.instanceFollowRedirects = false
+                        connection.instanceFollowRedirects = direct || session.source.server == null
                         connection.setRequestProperty("User-Agent", "PodList Android")
                         if (connection.responseCode != 200) return@run null
                         val bytes = connection.inputStream.use { it.readNBytes(2 * 1024 * 1024 + 1) }

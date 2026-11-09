@@ -30,6 +30,7 @@ packages/desktop/out/
 .claude/worktrees/
 
 # Native Android tooling and signing material
+.gradle-worktree/
 .gradle/
 .kotlin/
 local.properties

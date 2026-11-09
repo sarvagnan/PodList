@@ -21,7 +21,7 @@ internal fun readScreen(db: LocalDatabase, route: String?): ScreenData = db.tran
         route?.startsWith("episode:") == true -> episodeRows(listOf(id!!))
         else -> emptyList()
     }
-    ScreenData(state, subscriptions, episodes, getMeta("userCursor") != null, getMeta("catalogueCursor") != null)
+    ScreenData(state, subscriptions, episodes, getMeta("starterViewsMade") != null || getMeta("userCursor") != null, getMeta("starterViewsMade") != null || getMeta("catalogueCursor") != null)
 }
 
 private fun LocalDatabase.episodeRows(ids: List<String>): List<Row> = query("""

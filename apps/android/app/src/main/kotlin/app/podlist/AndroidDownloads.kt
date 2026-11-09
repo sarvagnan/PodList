@@ -34,10 +34,10 @@ internal data class DownloadUi(val phase: DownloadPhase, val received: Long = 0,
 class AndroidDownloads(private val context: Context, private val model: AppModel, val session: Session) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val manager = WorkManager.getInstance(context)
-    private val tag = "audio:${digest(session.address.origin)}"
+    private val tag = "audio:${digest(session.source.key)}"
     private val statuses = MutableStateFlow<Map<String, DownloadUi>>(emptyMap())
     internal val status = statuses.asStateFlow()
-    internal val files = AudioFiles(File(context.filesDir, "audio/${digest(session.address.origin)}"))
+    internal val files = AudioFiles(File(context.filesDir, "audio/${digest(session.source.key)}"))
     private val invalidations = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var work = emptyList<WorkInfo>()
 
@@ -86,7 +86,7 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
         if (statuses.value[episode]?.phase in listOf(DownloadPhase.Stored, DownloadPhase.Transferring, DownloadPhase.Queued)) return
         statuses.update { it + (episode to DownloadUi(DownloadPhase.Queued)) }
         val request = OneTimeWorkRequestBuilder<AudioDownloadWorker>()
-            .setInputData(workDataOf("origin" to session.address.origin, "episode" to episode, "manual" to manual))
+            .setInputData(workDataOf("origin" to session.source.key, "episode" to episode, "manual" to manual))
             .setConstraints(Constraints.Builder().setRequiredNetworkRequest(anyNetwork(), NetworkType.CONNECTED).build())
             .addTag(tag).addTag("episode:$episode").addTag("requested:${System.currentTimeMillis()}").build()
         manager.enqueueUniqueWork("$tag:$episode", ExistingWorkPolicy.REPLACE, request)
@@ -127,12 +127,12 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
             val origin = inputData.getString("origin") ?: return@withContext Result.failure()
             val episode = inputData.getString("episode") ?: return@withContext Result.failure()
             val model = (applicationContext as PodListApplication).model
-            val session = withContext(Dispatchers.Main) { model.sessionFor(ServerAddress.parse(origin, BuildConfig.DEBUG)) }
+            val session = withContext(Dispatchers.Main) { model.sessionFor(if (origin == "standalone") null else ServerAddress.parse(origin, BuildConfig.DEBUG)) }
             val downloads = withContext(Dispatchers.Main) { model.downloads(session) }
             var committed = false
             try {
                 setForeground(foreground())
-                val sources = PlaybackPolicy.sources(null, session.db.playbackMetadata(episode).audioUrl, session.address.audio(episode))
+                val sources = PlaybackPolicy.sources(null, session.db.playbackMetadata(episode).audioUrl, session.source.audioFallback(episode))
                 val transferContext = currentCoroutineContext()
                 val bytes = downloads.files.save(episode, sources) { url, output ->
                     val source = DefaultHttpDataSource.Factory().setUserAgent("PodList Android").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).createDataSource()

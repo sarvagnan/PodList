@@ -45,8 +45,8 @@ fun PodListShell(model: AppModel) {
     Surface(Modifier.fillMaxSize()) {
         when {
             starting -> Loading()
-            session == null -> ServerScreen(model, null)
-            else -> key(session!!.address.origin) { ConnectedShell(model, session!!) }
+            session == null -> WelcomeScreen(model)
+            else -> key(session!!.source.key) { ConnectedShell(model, session!!) }
         }
     }
 }
@@ -93,7 +93,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
         defaultBackBehavior = BackNavigationBehavior.PopLatest,
         listPane = {
             AnimatedPane {
-                ScreenFrame(stringResource(destination.title), status, model::requestSync, settings = { open("settings") }) {
+                ScreenFrame(stringResource(destination.title), status, model::requestSync, settings = { open("settings") }, add = if (destination == Destination.Library) ({ open("add-podcasts") }) else null) {
                     val loaded = data
                     if (loaded == null || (status == SyncStatus.Loading && if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState)) Loading()
                     else if (if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState) EmptyMessage(R.string.no_synced_data)
@@ -107,6 +107,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                 val title = when {
                     route == "settings" -> stringResource(R.string.settings)
                     route == "server" -> stringResource(R.string.server)
+                    route == "add-podcasts" -> stringResource(R.string.add_podcasts)
                     route == "trash" -> stringResource(R.string.trash)
                     route?.startsWith("view:") == true -> loaded?.state?.views?.find { it.id == route.substringAfter(':') }?.name.orEmpty()
                     route?.startsWith("playlist:") == true -> loaded?.state?.playlists?.find { it.id == route.substringAfter(':') }?.name.orEmpty()
@@ -115,7 +116,8 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                 }
                 ScreenFrame(title, status, model::requestSync, back = back) {
                     when {
-                        route == "server" -> ServerScreen(model, session.address.origin, back)
+                        route == "add-podcasts" -> AddPodcastsScreen(model, session)
+                        route == "server" -> ServerScreen(model, session.source.server?.origin, back)
                         loaded == null -> Loading()
                         else -> pages.SaveableStateProvider(route ?: "detail") {
                             Detail(route, loaded, session, open)
@@ -128,11 +130,12 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
 }
 
 @Composable
-private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, content: @Composable () -> Unit) {
+private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Scaffold(topBar = {
         TopAppBar(title = { Text(title) }, navigationIcon = {
             if (back != null) IconButton(onClick = back) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) }
         }, actions = {
+            if (add != null) IconButton(onClick = add) { Icon(painterResource(R.drawable.ic_add), stringResource(R.string.add_podcasts)) }
             if (settings != null) IconButton(onClick = settings) { Icon(painterResource(R.drawable.ic_settings), stringResource(R.string.settings)) }
         })
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
@@ -201,7 +204,7 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
             item { Section(stringResource(R.string.playback_settings)) }
             item { PlaybackSettingsEditor(data.state.playbackSettings) }
             item { Section(stringResource(R.string.this_device)) }
-            item { NameRow(stringResource(R.string.server), session.address.origin) { open("server") } }
+            item { NameRow(stringResource(R.string.server), session.source.server?.origin ?: stringResource(R.string.server_none)) { open("server") } }
         }
         route == "trash" -> LazyColumn(state = rememberLazyListState()) {
             if (data.state.trash.isNullOrEmpty()) item { EmptyMessage(R.string.no_trash) }
@@ -219,7 +222,7 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         }
         route?.startsWith("subscription:") == true -> {
             if (data.subscriptions.none { it["id"] == id }) EmptyMessage(R.string.missing_subscription)
-            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes, summary = { DownloadRuleEditor(id!!, data.state, session) })
+            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes, summary = { DownloadRuleEditor(id!!, data.state, session); UnsubscribeButton(session, id) })
         }
         route?.startsWith("playlist:") == true -> {
             val playlist = data.state.playlists.find { it.id == id }
@@ -285,6 +288,7 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
     val id = row["id"] as String
+    LaunchedEffect(session, id) { withContext(Dispatchers.IO) { runCatching { session.source.chapters(id) } } }
     val chapters = (row["chapters"] as? String)?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty()
     LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
         item {

@@ -31,6 +31,21 @@ Rewind uses the last Timeline point at or before `to`; no point or missing Playl
 
 SaveView replaces by id in place or appends; DeleteView removes by id. SetDownloadRule replaces only the matching Subscription/Device pair, appending the replacement. When entering All New from any other mode (including no rule), the reducer sets `since` to the operation’s `recordedAt`. Leaving All New removes `since`; consecutive All New writes, including cap edits, preserve the current activation. Any supplied `since` is ignored by the reducer. Arrival order still wins, including an older recorded change that arrives later. The activation is part of synced State, so snapshots and an off/on cycle in one pull preserve it. Legacy All New rules may omit `since`; clients retain their existing local `ruleSince` until a real mode transition, or use first observation when none exists. SetPlaybackSettings replaces all global defaults. SetSubscriptionOverrides replaces the Subscription's whole override document and threshold in the Library; it is not a merge of individual settings. MarkSubscriptionPlayed expands on the server into manual MarkPlayed operations for the Subscription's currently Unplayed Episodes, ordered by Published ascending, observing earlier changes in the push. Generated ids are `intention-id:episode-id`, and Device, sequence and recording time are copied. Both intentions remain in the log. A missing Subscription has no Library effect. [State.ts](../../packages/domain/src/State.ts), [SyncStore.ts](../../packages/server/src/SyncStore.ts).
 
+## Feed parsing on a Standalone Device
+
+[Feed vectors](../../packages/domain/protocol/feeds.json) are generated from the
+server's `FeedParser.ts` by `packages/domain/scripts/feed-vectors.ts`. Each `feeds`
+case supplies XML and either a complete `expected` parsed feed or `error: true`.
+Each `durations` case supplies nullable text and a nullable number of seconds.
+Compare numbers by value. Both the server's TypeScript tests and Android `:data`
+JVM tests execute these fixtures. Regenerate with the ordinary protocol exporter.
+
+RSS requires a channel and title. Items without an enclosure URL are skipped;
+guid falls back to that audio URL. The vectors define namespace field precedence,
+CDATA/escaping, publisher dates, absent metadata and duration formats. XML and OPML
+must reject DTD/entity declarations and external resources and apply an 8 MiB
+UTF-8 size bound. The parsers do not fetch anything while parsing.
+
 ## View evaluation without SQL
 
 Start with Episodes whose Subscription is present and either still subscribed, or whose Episode is Starred or an Entry in any Playlist outside Trash (Orphaned Episodes). Trash Entries do not retain an Episode. Every supplied condition must match. Published uses the Episode's Published time, never when it was first received. LastDays means `published >= now - days * 86400000`, inclusive, without an upper bound; Between uses inclusive non-null endpoints, with null meaning unbounded. These are millisecond comparisons, not local-midnight date arithmetic. [ViewQuery.ts](../../packages/domain/src/ViewQuery.ts).

@@ -1,10 +1,10 @@
-# PodList for Android — milestone 3
+# PodList for Android — Standalone Device
 
 An ordinary Gradle project, outside the pnpm workspace. `:domain` is pure Kotlin/JVM
 and owns wire models, Played/Position/listening accounting, sleep and advancement
 policy, and download planning. `:data` owns bundled SQLite, the shared schema and
-View compiler, atomic outbox batches, HTTP transport, sync, audio metadata and
-atomic private-file commits. `:app` connects these to Compose, Media3 and WorkManager.
+View compiler, atomic edits, HTTP transport, sync, publisher feed parsing/refresh,
+iTunes directory search, OPML, audio metadata and atomic private-file commits. `:app` connects these to Compose, Media3 and WorkManager.
 Android 14 (API 34) is the minimum.
 
 The owner-approved compact phone layout D uses Material 3, system fonts, edge to
@@ -28,8 +28,11 @@ Add and move offer Undo. Playlists include Entries, History and Listening Timeli
 Episode detail includes Artwork, metadata, show notes, Chapters, Played/Star,
 Manual Download, In your Playlists and each Entry's Resume action. Settings exposes
 Playback defaults and Server; Subscription pages expose this Device's Download Rule.
-Later milestone controls, including top-bar creation, selection, pencils, Rewind,
-Listening stats and Add podcasts, remain omitted.
+Library's + opens Add podcasts for directory search or a pasted feed address. Results
+show Artwork, title, author and Subscribe; Subscribed stays on the same screen with
+the input intact. Subscription pages offer confirmed Unsubscribe with Undo/Redo.
+Other later milestone controls, including View/Playlist creation, selection, pencils,
+Rewind and Listening stats, remain omitted.
 
 ## Playback and downloads
 
@@ -38,7 +41,7 @@ background audio, audio focus, becoming noisy and wake locks. MediaSession suppl
 lock-screen/media notifications with Episode and podcast names, back 15 / forward
 30 commands, and an Android Auto tree of Playlists → Entries. Library subscriptions
 are invalidated after local State/Library changes. Media buttons can resume the
-saved Active Playlist. No emulator or Android Auto checks have been performed here.
+saved Active Playlist. No new emulator or Android Auto checks have been performed for Standalone Device support.
 
 `ListeningSession` emits durable batches with the final Position before Played,
 15-second reports, explicit seek/rate/pause/failure/lifecycle flushing, and
@@ -50,11 +53,13 @@ Chapter/Episode sleep, effective Subscription overrides and Artwork resolution.
 Player speed changes do not save Playback Settings. Native Volume boost uses the
 platform LoudnessEnhancer with 6dB gain when supported.
 
-Sources prefer a stored file; otherwise they try the publisher and then the server
-proxy, each once per load. Fallback keeps Position and speed, including a ten-second
+Sources prefer a stored file; otherwise they try the publisher and, when connected,
+the server proxy, each once per load. A Standalone Device has no proxy fallback. Fallback keeps Position and speed, including a ten-second
 loading timeout. An exhausted load exposes an error and explicit retry. Late
 Library metadata fills in names, Chapters, attribution and the publisher source.
-Chapter resolution is cached in the local Episode row. Podcast publishers may use
+Chapter resolution runs on Episode detail and playback, and is cached in the local
+Episode row. A Standalone Device fetches podcast:chapters JSON directly, then probes
+at most 512 KiB of publisher audio for ID3v2.3/v2.4 CHAP frames if needed. Podcast publishers may use
 HTTP audio, so media cleartext is allowed; `ServerAddress` continues to enforce
 HTTPS for PodList origins except the debug emulator address. All HTTP adapters use
 a generic User-Agent and send no personal Device name.
@@ -62,7 +67,8 @@ a generic User-Agent and send no personal Device name.
 Downloads use foreground WorkManager jobs and app-private, origin-isolated files.
 A process-wide semaphore permits at most two transfers, with an additional lock
 preventing replacement attempts for the same Episode from racing. The Media3 HTTP
-source follows publisher redirects, then falls back to the server on failure.
+source follows publisher redirects, then falls back to the server on failure when
+one is connected.
 Only complete files are atomically renamed and recorded as Stored. WorkManager
 persists requests and failed status; failed attempts require explicit retry/cancel.
 
@@ -151,7 +157,57 @@ end-of-sample timezone behavior are preserved.
 
 ## Connection and sync
 
-First run checks `/api/health` before saving an origin. There is no login or secret.
+First run presents a simple welcome proposal awaiting owner review: Start on this
+phone or Connect to a server. Starting on this phone persists a Standalone Device
+session, creates its Default Playlist and creates the three FirstRun.tsx starter
+Views once. Their creation and once-only marker commit atomically; deleting them
+does not recreate them on restart. There is no checklist or bring-over UI.
+
+`Session.source: LibrarySource` is the boundary for Library refresh, discovery,
+Subscribe/Unsubscribe, Chapters, Artwork and audio fallback. `ServerLibrary` retains
+the existing HTTP/sync behavior; `DeviceLibrary` does that work locally. The
+Standalone Library uses a separate hashed database/file namespace (`standalone`)
+from every normalized server origin. Existing server database filenames, download
+paths/tags, preferences, cursors and pending outbox operations are preserved.
+Settings → This Device → Server says “None. This phone keeps everything itself.”
+and opens the server connection screen with Back. Connecting keeps both Libraries
+separate; bringing one over is deliberately deferred.
+
+Standalone edits apply to State and its indexes atomically without a sync outbox.
+A local operation table retains the edit record, including concrete Mark all Played
+expansion; Subscription overrides update metadata in the same transaction. The
+Listening log, History, Listening Timeline, Played/Starred facts, Entries, Positions
+and Download Rules use the existing reducers and retention rules. Unsubscribe hides
+Episodes except Orphaned Episodes that are Entries or Starred; it preserves every
+id, setting, mark, rule and stored download. Re-subscribe reveals retained records.
+
+The Device's feed engine is JVM-testable and uses no new dependencies. It retains
+feed addresses and guids in the existing shared columns, conditionally refreshes
+with ETag/Last-Modified, retains Episodes absent from later feeds, merges unambiguous
+guid changes and detects audio replacement at the server's >30-second threshold.
+Device migration scope `device/1` adds feed refresh bookkeeping and the local
+operation table; shared and web/client migrations remain unchanged. Feed XML and
+OPML reject DTDs/external entities and are limited to 8 MiB of UTF-8. Publisher HTTP
+bounds response size and redirects, uses only HTTP(S), rejects URL credentials,
+and always identifies as generic `PodList Android`.
+
+Standalone refresh runs at startup, foreground entry and connectivity return, plus
+an in-process 30-minute timeout and a unique periodic WorkManager job at 30 minutes
+(subject to Android scheduling). Individual failures back off 30 minutes, 1 hour,
+2 hours, up to a day. The WorkManager network request accepts unvalidated internet
+networks and VPNs, as downloads do. Library commits invalidate the existing Download
+Rule planner, so new Episodes can trigger All New without another edit. Feed failures
+never become an Offline or sync failure banner on a Standalone Device.
+
+`PodcastDirectory` searches Apple's public iTunes API and previews pasted feed
+addresses directly. `Opml.parse/generate` and `DeviceLibrary.importOpml/exportOpml`
+are data-only APIs: recursive deduplicated outlines, XML escaping, inactive
+Subscription exclusion, and added/already-subscribed/per-address failure reporting.
+Malformed imports produce an empty summary, matching the server. OPML UI is deferred.
+Directory result Artwork loads directly even with a server, since the Library-only
+Artwork proxy cannot serve an unsubscribed search result.
+
+Connecting to a server checks `/api/health` before saving an origin. There is no login or secret.
 Use HTTPS over the tailnet. Debug builds additionally allow **only**
 `http://10.0.2.2[:port]` for the Android emulator reaching this host. Release builds
 enforce HTTPS for the PodList server address. Publisher audio can use HTTP; the
@@ -178,8 +234,8 @@ Startup sync is immediate. Edits, foreground entry and connectivity return trigg
 sync; subsequent passes coalesce triggers for two seconds, or run after a one-minute
 timeout measured from the preceding pass. Failures expose Offline or Sync error,
 retain local data, and retry on those triggers or the next periodic pass. Retry sync
-also triggers the same scheduler. Android background services are not part of this
-implementation.
+also triggers the same scheduler. The periodic feed worker is specific to Standalone Devices; server sync retains
+this existing in-process scheduler.
 
 The milestone 2 offline banner existed but could wait behind 10-second connect /
 20-second read timeouts and the independent Library attempt. API transport now
@@ -188,7 +244,8 @@ Library sync starts. This keeps the local UI usable and exposes the first failur
 without waiting for the rest of the pass. Check the five-second relaunch case on
 the emulator, including a server that silently drops connections.
 
-Artwork uses `/api/artwork?url=…&size=128`, with Episode → Subscription fallback,
+Connected Library Artwork uses `/api/artwork?url=…&size=128`; Standalone and
+directory-result Artwork comes straight from publishers, with Episode → Subscription fallback,
 an 8 MiB memory cache and 64 MiB disk cache. Cached Artwork remains usable offline.
 No image-loading or HTTP-stack dependency was added.
 
@@ -212,17 +269,25 @@ cp -rf "$HOME/.gradle/wrapper" "$GRADLE_USER_HOME/"
 ./apps/android/gradlew -p apps/android --offline :domain:test :data:test :app:assembleDebug
 ```
 
-The full debug APK compiles offline. JVM verification has **190 passing tests**:
-82 in `:domain`, 108 in `:data`. This includes all existing protocol vectors,
+The full debug APK compiles offline. Standalone Device verification has **246 passing
+JVM tests**: 82 in `:domain`, 164 in `:data`, with zero failures or skips. The affected
+TypeScript feed, Subscription, directory and Chapter suites have **51 passing tests**;
+server/domain TypeScript checks and formatting checks pass. No dependencies were added.
+This includes all existing protocol vectors,
 Played thresholds and listening samples/sessions read directly from the committed
 `packages/domain/protocol/listening.json`, plus playback-policy, reporting,
-download-planning, fake-transfer and atomic-outbox regressions. Tests were added
-and run red before implementing each new behavior seam.
+download-planning, fake-transfer and atomic-outbox regressions. The shared feed vectors
+are generated from `packages/server/src/FeedParser.ts` by
+`packages/domain/scripts/feed-vectors.ts` and committed as `protocol/feeds.json`.
+Both TypeScript and Kotlin execute them, including duration formats, dates, missing
+enclosures, guid fallback, namespace fields, escaping, malformed XML and unsafe DTDs.
+Regenerate with `pnpm --filter @podlist/domain protocol`.
 
-`:app:lintDebug` passes when run from the main environment; Codex's sandbox cannot
-resolve `com.android.tools.lint:lint-gradle:32.5.1` offline.
+Before this change, `:app:lintDebug` passed in the main environment. It was not run
+for Standalone Device support: the sandbox cannot resolve `com.android.tools.lint:lint-gradle:32.5.1` offline.
 
-Checked on an Android 16 emulator on 9 Nov 2026: player layout, transport, Chapters,
+Before Standalone Device support, checked on an Android 16 emulator on 9 Nov 2026:
+player layout, transport, Chapters,
 speed, Sleep at end of Chapter, Played and advancing, Add with Undo, dark mode, the
 media notification, screen off, Manual and rule downloads, stored playback and the
 Offline banner with the server stopped. The list below still needs Android Auto,
@@ -230,7 +295,40 @@ Bluetooth and headphones, drag reordering, the two-transfer limit and outbox rep
 The emulator's own networking layer crashes it every few minutes on this Mac (its
 main loop blocks in `close()` from `udp_detach`); quit and reopen it to continue.
 
-## Device verification for the main session
+## Standalone Device verification for the main session
+
+Run `:app:lintDebug` in the main environment; it was intentionally not run here.
+No emulator checks were performed for this implementation. Check these on a Device:
+
+1. Clear app data and launch with no server or network. Verify the welcome copy,
+   Start on this phone, Connect to a server, and both button/system Back routes.
+   Start, relaunch and confirm three starter Views plus Default Playlist, no sync
+   banner, and Settings' exact Server text. Delete a starter View and relaunch.
+2. Open Library +. Search a name and paste a valid feed address. Check Artwork,
+   title, author, preview, Subscribe → Subscribed, several subscriptions without
+   dismissal/input loss, duplicate results, invalid-feed copy and network retry.
+3. Stream publisher audio and open Episode detail/Chapters without a server. Check
+   JSON Chapters, ID3 fallback, Chapter Artwork, system notification and background
+   playback; failure should offer playback Retry and never try a server URL.
+4. Exercise Playlists, per-Entry Positions, Played/Star, Listening log, History and
+   Listening Timeline; kill/relaunch and verify retention. Unsubscribe with an Entry,
+   a Starred Episode and a Manual Download, then Undo/Redo and re-subscribe. Verify
+   retained ids/settings/rules and that only Orphaned Episodes remain visible.
+5. Enable All New, publish a new Episode in a controlled feed, and verify refresh
+   on foreground entry and the periodic worker while the Activity is absent. Check
+   download triggering without an edit, stored playback, cancellation and retry.
+   Repeat on a VPN and a network without validated internet; test ETag/304 and a
+   failing Subscription alongside a working one.
+6. Upgrade an existing server-connected installation with pending edits/downloads.
+   Confirm the same Library and media remain, `/api/directory/search` and Subscribe
+   work, and sync/retry still behaves normally. From a Standalone Device connect
+   to a server: verify separate Libraries and no upload of Standalone edits. Reopen
+   saved server origins to confirm isolation and retained downloads.
+7. Review the welcome proposal and Add podcasts on compact screens, large text,
+   rotation, dark mode, keyboard open/closed and predictive Back. Confirm the player
+   keeps running while navigating and all new targets are at least 48dp.
+
+## Existing playback verification for the main session
 
 1. Check compact layout, long titles, dark mode and large text. Confirm mini controls
    are 48dp / 72dp high, no visible names in the player, resolved Chapter Artwork,
