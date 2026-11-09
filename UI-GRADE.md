@@ -16,8 +16,9 @@ Graded as its own target against the guide's Android phone signals, with two fre
 | 2 | 9 Nov 2026 | cccd2e5 | 7.0 | 6.7 | `docs/ui-grade/android-round-2.md`, `docs/ui-grade/android-round-2-codex.md` |
 | 3 | 9 Nov 2026 | ac062d3 | 7.6 | 7.5 | `docs/ui-grade/android-round-3.md`, `docs/ui-grade/android-round-3-codex.md` |
 | 4 | 9 Nov 2026 | 91e5def | 7.8 | 6.8 | `docs/ui-grade/android-round-4.md`, `docs/ui-grade/android-round-4-codex.md` |
+| 5 | 10 Nov 2026 | 9c7713d | 7.4 | 6.9 | `docs/ui-grade/android-round-5.md`, `docs/ui-grade/android-round-5-codex.md` |
 
-Round 1's failures were fixed in pod-apx.4.15; the owner then removed the confirmation before Delete Playlist. Round 2's were fixed in pod-apx.4.17, including multi-step Undo and Redo. Round 3's were fixed in pod-apx.4.19 and round 4's in pod-apx.4.21. The owner keeps a plain confirmation before Unsubscribe for now; both graders marked it as DLG-01 in round 4, which caps Platform fit at 6.9 and Overall at 8.9.
+Round 1's failures were fixed in pod-apx.4.15; the owner then removed the confirmation before Delete Playlist. Round 2's were fixed in pod-apx.4.17, including multi-step Undo and Redo. Round 3's were fixed in pod-apx.4.19, round 4's in pod-apx.4.21 and round 5's in pod-apx.4.23. The owner keeps a plain confirmation before Unsubscribe for now; both graders marked it as DLG-01 in round 4, which caps Platform fit at 6.9 and Overall at 8.9.
 
 ## Method
 
