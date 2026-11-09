@@ -115,7 +115,6 @@ internal fun UnsubscribeButton(session: Session, id: String, title: String, unsu
     TextButton(onClick = { confirming = true }, enabled = !busy, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.unsubscribe), color = MaterialTheme.colorScheme.error) }
     if (error) Text(stringResource(R.string.unsubscribe_failed), color = MaterialTheme.colorScheme.error)
     if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.m4_unsubscribe_named, title)) },
-        text = { Text(stringResource(R.string.unsubscribe_explanation)) },
         dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },
         confirmButton = { TextButton(onClick = {
             confirming = false

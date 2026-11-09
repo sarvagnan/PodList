@@ -180,7 +180,6 @@
     <string name="unsubscribe">Unsubscribe</string>
     <string name="unsubscribed">Unsubscribed</string>
     <string name="unsubscribe_failed">Couldn’t unsubscribe. Try again.</string>
-    <string name="unsubscribe_explanation">Its Episodes leave your Library, except any that are Entries in a Playlist or Starred. Downloads stay on their Devices.</string>
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
     <string name="m4_name">Name</string>
