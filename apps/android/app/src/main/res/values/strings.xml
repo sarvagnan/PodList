@@ -289,7 +289,6 @@
     <string name="m4_help">Help</string>
     <string name="m4_getting_started">Getting started</string>
     <string name="m4_getting_started_hint">Views, Playlists and adding podcasts</string>
-    <string name="m4_welcome">Welcome to PodList</string>
     <string name="m4_step_podcasts">Add your podcasts</string>
     <string name="m4_step_podcasts_help">Search by name, paste a feed address, or import OPML from Settings.</string>
     <string name="m4_step_views">Views find Episodes for you</string>
@@ -327,4 +326,5 @@
     <string name="m4_minutes_short">%1$dm</string>
     <string name="m4_under_minute">Under 1m</string>
     <string name="m4_episodes_finished">Episodes finished</string>
+    <string name="m4_step_done">Done</string>
 </resources>

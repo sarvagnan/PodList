@@ -55,9 +55,9 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
     var chosen by rememberSaveable { mutableIntStateOf(-1) }
     if (stats.totals.all { it.seconds == 0.0 && it.finished == 0 }) { EmptyMessage(R.string.m4_no_listening); return }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Section(stringResource(R.string.m4_time_listened)); PeriodTiles(stats.totals.map { listened(it.seconds) }) }
-        item { Section(stringResource(R.string.m4_episodes_finished)); PeriodTiles(stats.totals.map { it.finished.toString() }) }
-        item { Section(stringResource(R.string.m4_last_30)); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
+        item { Section(stringResource(R.string.m4_time_listened), inset = 0.dp); PeriodTiles(stats.totals.map { listened(it.seconds) }) }
+        item { Section(stringResource(R.string.m4_episodes_finished), inset = 0.dp); PeriodTiles(stats.totals.map { it.finished.toString() }) }
+        item { Section(stringResource(R.string.m4_last_30), inset = 0.dp); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
         if (table) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(stringResource(R.string.m4_day)); Text(stringResource(R.string.m4_time_listened)) } }
             items(stats.days.asReversed()) { day -> Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(day.day.format(dayFormat)); Text(listened(day.seconds)) } }
@@ -82,7 +82,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
             Text(stringResource(R.string.m4_day_listening, shown.day.format(dayFormat), listened(shown.seconds)), Modifier.padding(top = 8.dp))
         }
         item { TextButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
-        item { Section(stringResource(R.string.m4_top_podcasts)) }
+        item { Section(stringResource(R.string.m4_top_podcasts), inset = 0.dp) }
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         items(stats.podcasts) { (id, seconds) ->
             val subscription = data.subscriptions.find { it["id"] == id }
@@ -95,6 +95,6 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
                 Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
             }
         }
-        item { Section(stringResource(R.string.m4_about_stats)); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodySmall) }
+        item { Section(stringResource(R.string.m4_about_stats), inset = 0.dp); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodySmall) }
     }
 }
