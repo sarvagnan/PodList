@@ -25,7 +25,6 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
     LaunchedEffect(undoRevision) { if (undoRevision != initialUndo && session != null) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { session.db.loadState().playlists.find { it.id == playlist.id }?.name }?.let { name = it }
     } }
-    var confirm by rememberSaveable { mutableStateOf(false) }
     val problem = PlaylistNames.validate(name, data.state.playlists, playlist.id)
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!playlist.isDefault) item {
@@ -36,15 +35,14 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
             model.changeWithUndo(listOf(Change.SetClearOnPlayed(playlist.id, checked)), R.string.m4_setting_changed) { before -> listOf(Change.SetClearOnPlayed(playlist.id, before.playlists.first { it.id == playlist.id }.clearOnPlayed)) }
         } }
         if (!playlist.isDefault) item {
-            TextButton(onClick = { confirm = true }) { Text(stringResource(R.string.m4_delete_playlist), color = MaterialTheme.colorScheme.error) }
+            // No confirmation: the Playlist goes to Trash and the snackbar offers Undo.
+            TextButton(onClick = {
+                model.changeWithUndo(listOf(Change.DeletePlaylist(playlist.id)), R.string.m4_playlist_deleted, playbackPlaylist = playlist.id) { before -> listOfNotNull(Change.RestorePlaylist(playlist.id), Change.SetActivePlaylist(playlist.id).takeIf { before.activePlaylistId == playlist.id }) }
+                done()
+            }) { Text(stringResource(R.string.m4_delete_playlist), color = MaterialTheme.colorScheme.error) }
             Text(stringResource(R.string.m4_trash_help, data.state.trashDays ?: 30), style = MaterialTheme.typography.bodySmall)
         }
     }
-    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(stringResource(R.string.m4_delete_named, playlist.name)) }, text = { Text(stringResource(R.string.m4_trash_help, data.state.trashDays ?: 30)) }, dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } }, confirmButton = { TextButton(onClick = {
-        confirm = false
-        model.changeWithUndo(listOf(Change.DeletePlaylist(playlist.id)), R.string.m4_playlist_deleted, playbackPlaylist = playlist.id) { before -> listOfNotNull(Change.RestorePlaylist(playlist.id), Change.SetActivePlaylist(playlist.id).takeIf { before.activePlaylistId == playlist.id }) }
-        done()
-    }) { Text(stringResource(R.string.m4_delete_playlist)) } })
 }
 
 @Composable

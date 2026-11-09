@@ -211,7 +211,6 @@
     <string name="m4_setting_changed">Setting changed</string>
     <string name="m4_delete_playlist">Delete Playlist</string>
     <string name="m4_trash_help">It goes to Trash with its History and Listening Timeline, and can be restored for %1$d days.</string>
-    <string name="m4_delete_named">Delete %1$s?</string>
     <string name="m4_playlist_deleted">Playlist deleted</string>
     <string name="m4_create_playlist">Create Playlist</string>
     <string name="m4_playlist_empty">A Playlist needs a name.</string>
