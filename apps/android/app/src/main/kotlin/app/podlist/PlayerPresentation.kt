@@ -51,13 +51,20 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     val feedback = remember(snackbar) { SheetFeedback(snackbar) }
     val resources = androidx.compose.ui.platform.LocalResources.current
     val expanded = sheet.bottomSheetState.currentValue == SheetValue.Expanded || sheet.bottomSheetState.targetValue == SheetValue.Expanded
-    LaunchedEffect(collapseNavigation) { pages = emptyList(); sheet.bottomSheetState.partialExpand() }
+    var lastCollapse by rememberSaveable { mutableIntStateOf(collapseNavigation) }
+    LaunchedEffect(collapseNavigation) {
+        if (lastCollapse != collapseNavigation) {
+            lastCollapse = collapseNavigation
+            pages = emptyList()
+            sheet.bottomSheetState.partialExpand()
+        }
+    }
     LaunchedEffect(session) { model.restorePlayback() }
     LaunchedEffect(model) {
         model.messages.receiveAsFlow().collectLatest { message ->
             val text = message.quantity?.let { resources.getQuantityString(message.resource, it, *message.formatArgs.toTypedArray()) }
                 ?: resources.getString(message.resource, *message.formatArgs.toTypedArray())
-            val result = snackbar.showSnackbar(text, actionLabel = message.undo?.let { resources.getString(message.actionResource) }, duration = SnackbarDuration.Long)
+            val result = snackbar.showSnackbar(text, actionLabel = message.undo?.takeUnless { feedback.editorUndo && message.actionResource == R.string.undo }?.let { resources.getString(message.actionResource) }, duration = SnackbarDuration.Long)
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }
@@ -82,10 +89,10 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                             })
                             else {
                                 Box(Modifier.fillMaxWidth().height(20.dp), contentAlignment = Alignment.Center) { HorizontalDivider(Modifier.width(32.dp), thickness = 4.dp) }
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     if (page != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { pages = pages.dropLast(1) }
                                     Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else stringResource(when { page.startsWith("episode:") -> R.string.episode; page == "chapters" -> R.string.chapters; else -> R.string.entries }), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                                    EditHistoryMenu()
+                                    if (!feedback.editorUndo) EditHistoryMenu()
                                     ActionIcon(R.drawable.ic_collapse, stringResource(R.string.collapse_player)) { pages = emptyList(); scope.launch { sheet.bottomSheetState.partialExpand() } }
                                 }
                                 when {
@@ -103,7 +110,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                         }
                     }
                 },
-                snackbarHost = { if (feedback.openSheets == 0) SnackbarHost(snackbar, Modifier.imePadding()) }
+                snackbarHost = { if (feedback.openSheets == 0) FeedbackSnackbarHost(feedback, Modifier.imePadding()) }
             ) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) { content() } }
             PredictiveBackHandler(enabled = addEpisode == null && expanded) { events ->
                 try {
@@ -145,9 +152,10 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     var speed by rememberSaveable { mutableStateOf(false) }
     var sleep by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val artworkSize = (maxHeight - 340.dp).coerceIn(160.dp, 360.dp).coerceAtMost(maxWidth - 48.dp)
-        LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)) {
-            item { ArtworkImage(session, now.artwork, artworkSize) }
+        val artworkSize = (maxHeight * if (now.metadata.chapters.isEmpty()) .5f else .4f).coerceIn(160.dp, 360.dp).coerceAtMost(maxWidth - 32.dp)
+        val identity = stringResource(R.string.now_playing_identity, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
+        LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { Box(Modifier.semantics { contentDescription = identity }) { ArtworkImage(session, now.artwork, artworkSize) } }
             if (now.metadata.chapters.isNotEmpty()) item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(R.drawable.ic_previous, stringResource(R.string.previous_chapter), enabled = now.chapterIndex > 0 || now.metadata.chapters.isNotEmpty()) {
@@ -176,14 +184,14 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-                    TextButton(onClick = { speed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble())) }
-                    TextButton(onClick = { sleep = true }) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
+                    TextButton(onClick = { speed = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant), modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
+                    TextButton(onClick = { sleep = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
                 }
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
-                    TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
+                    if (now.metadata.chapters.isNotEmpty()) TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
                     TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
                 }
             }
@@ -248,13 +256,12 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     val value = NumberInput.parse(minutes)
     val valid = value != null && value in 1.0..1440.0
     fun submit() { if (valid) { model.sleep(SleepTimer.Until(SystemClock.elapsedRealtime() + (value * 60_000).toLong())); close() } }
-    EditorSheet(stringResource(R.string.sleep), close, done = ::submit, doneEnabled = valid) {
+    EditorSheet(stringResource(R.string.sleep), close, done = ::submit, doneEnabled = valid, doneLabel = R.string.sleep_duration_start) {
         Text(sleepLabel(now))
         OutlinedTextField(value = minutes, onValueChange = { minutes = it }, label = { Text(stringResource(R.string.sleep_duration)) }, singleLine = true,
             isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.sleep_duration_error), Modifier.errorAnnouncement()) }) else null,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth())
-        Button(enabled = valid, onClick = ::submit) { Text(stringResource(R.string.sleep_duration_start)) }
         TextButton(onClick = { model.sleep(PlaybackPolicy.chapterSleep(now.metadata.chapters, now.position)); close() }) { Text(stringResource(R.string.end_chapter)) }
         TextButton(onClick = { model.sleep(SleepTimer.EpisodeEnd); close() }) { Text(stringResource(R.string.end_episode)) }
         if (now.sleep != null) TextButton(onClick = { model.sleep(null); close() }) { Text(stringResource(R.string.cancel_sleep)) }

@@ -47,7 +47,8 @@ Subscription settings contains this Device's Download Rule, its optional positiv
 cap, Played threshold and individual Playback Settings overrides. Default values
 show what they inherit; changed values carry a neutral “Changed” label. Pending server overrides
 also affect local playback before sync. Mark all Played offers Undo. Unsubscribe
-explains Orphaned Episodes and stored downloads, then offers Undo, Redo and retry.
+explains Orphaned Episodes and stored downloads, shows a working status during the
+request, then offers Undo, Redo and retry.
 
 Listening Timeline groups stretches, finishes and deliberate edits, newest first.
 Rewind previews the target Entry/Position, Unplayed Episodes, restored Entries and
@@ -57,8 +58,8 @@ alone. Existing shared Rewind vectors still exercise the reducer.
 
 Settings contains Playback, Your listening, Your podcasts, Playlists, This Device and
 Help. Listening stats shows all three periods, the current Listening streak, 30 daily
-bars, a table and top podcasts. Bars scroll horizontally so each day remains a 48dp
-touch target, open at the latest days and carry dates beneath each bar. Period tiles
+bars, a table and top podcasts. All 30 bars fit in one overview; tap a day or use
+the 48dp previous/next day controls for details, with the table as an alternative. Period tiles
 stack at large font scales. OPML uses Android OpenDocument/CreateDocument and LibrarySource's server
 or Standalone Device implementation; partial imports list failures and retry just
 those addresses. Imports, exports and their results survive Activity rotation. The launcher exposes Views, Playlists and Library shortcuts.

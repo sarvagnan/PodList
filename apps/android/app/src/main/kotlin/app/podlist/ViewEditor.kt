@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +28,11 @@ import androidx.compose.ui.text.input.ImeAction
 @Composable
 internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: () -> Unit, deleted: () -> Unit) {
     val model = LocalAppModel.current
+    val feedback = LocalSheetFeedback.current
+    DisposableEffect(feedback) {
+        feedback?.editorUndo = true
+        onDispose { feedback?.editorUndo = false }
+    }
     val creating = remember(view.id) { data.state.views.none { it.id == view.id } }
     var recorded by rememberSaveable(view.id) { mutableStateOf(!creating) }
     val initial = remember(view.id) { view }
@@ -37,6 +44,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val undo = lastUndo.takeIf { undoViewId == view.id }
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
     var name by rememberSaveable(view.id) { mutableStateOf(view.name) }
+    var mentions by rememberSaveable(view.id) { mutableStateOf(view.filter.text.orEmpty()) }
     val undoRevision by model.undoRevision.collectAsState()
     val initialUndo = remember { undoRevision }
     LaunchedEffect(undoRevision) {
@@ -44,7 +52,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             val stored = withContext(Dispatchers.IO) { session.db.loadState().views.find { it.id == view.id } }
             recorded = stored != null
             val restored = stored ?: initial.takeIf { creating }
-            restored?.let { saved = it; draft = it; name = it.name; podcastMode = it.filter.podcasts?.mode }
+            restored?.let { saved = it; draft = it; name = it.name; mentions = it.filter.text.orEmpty(); podcastMode = it.filter.podcasts?.mode }
         }
     }
     var count by remember { mutableStateOf<Int?>(null) }
@@ -74,13 +82,13 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) finish() })) }
             if (problem != null || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
             item { Section(stringResource(R.string.m4_conditions)) }
-            item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != null) { sheet = 0 } }
-            item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != null) { sheet = 1 } }
-            item { ValueRow(stringResource(R.string.m4_mentions), draft.filter.text ?: any, draft.filter.text != null) { sheet = 2 } }
-            item { ValueRow(stringResource(R.string.played), stringResource(when(draft.filter.played) { PlayedFilter.Played -> R.string.played; PlayedFilter.Unplayed -> R.string.unplayed; PlayedFilter.InProgress -> R.string.in_progress_condition; null -> R.string.any }), draft.filter.played != null) { sheet = 3 } }
-            item { ValueRow(stringResource(R.string.starred), stringResource(when(draft.filter.starred) { true -> R.string.starred; false -> R.string.m4_not_starred; null -> R.string.any }), draft.filter.starred != null) { sheet = 4 } }
-            item { ValueRow(stringResource(R.string.m4_in_playlist), if (draft.filter.notInAnyPlaylist == true) stringResource(R.string.not_in_playlist) else any, draft.filter.notInAnyPlaylist == true) { sheet = 5 } }
-            item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, duration(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, duration(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != null || draft.filter.maxDuration != null) { sheet = 6 } }
+            item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != initial.filter.published) { sheet = 0 } }
+            item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != initial.filter.podcasts) { sheet = 1 } }
+            item { ValueRow(stringResource(R.string.m4_mentions), draft.filter.text ?: any, draft.filter.text != initial.filter.text) { sheet = 2 } }
+            item { ValueRow(stringResource(R.string.played), stringResource(when(draft.filter.played) { PlayedFilter.Played -> R.string.played; PlayedFilter.Unplayed -> R.string.unplayed; PlayedFilter.InProgress -> R.string.in_progress_condition; null -> R.string.any }), draft.filter.played != initial.filter.played) { sheet = 3 } }
+            item { ValueRow(stringResource(R.string.starred), stringResource(when(draft.filter.starred) { true -> R.string.starred; false -> R.string.m4_not_starred; null -> R.string.any }), draft.filter.starred != initial.filter.starred) { sheet = 4 } }
+            item { ValueRow(stringResource(R.string.m4_in_playlist), if (draft.filter.notInAnyPlaylist == true) stringResource(R.string.not_in_playlist) else any, draft.filter.notInAnyPlaylist != initial.filter.notInAnyPlaylist) { sheet = 5 } }
+            item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, duration(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, duration(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != initial.filter.minDuration || draft.filter.maxDuration != initial.filter.maxDuration) { sheet = 6 } }
             if (problem != null) item { Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
             item { Section(stringResource(R.string.m4_then)) }
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
@@ -88,7 +96,9 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { TextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting), Modifier.weight(1f).padding(vertical = 16.dp))
+            val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
+            val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+            Text(if (largeText) count?.toString() ?: stringResource(R.string.counting) else fullCount, Modifier.weight(1f).padding(vertical = 8.dp).semantics { contentDescription = fullCount }, style = MaterialTheme.typography.bodyMedium)
             TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
             TextButton(enabled = !completing && problem == null && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
         } }
@@ -115,7 +125,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                     CheckRow(sub["title"] as String, id in selectedIds) { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }
                 } }
             }
-            2 -> OutlinedTextField(f.text.orEmpty(), { update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
+            2 -> OutlinedTextField(mentions, { mentions = it; update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
             3 -> ChoiceRows(listOf(null to any, PlayedFilter.Unplayed to stringResource(R.string.unplayed), PlayedFilter.InProgress to stringResource(R.string.in_progress_condition), PlayedFilter.Played to stringResource(R.string.played)), f.played) { update(draft.copy(filter = f.copy(played = it))); close() }
             4 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.starred), false to stringResource(R.string.m4_not_starred)), f.starred) { update(draft.copy(filter = f.copy(starred = it))); close() }
             5 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.not_in_playlist)), f.notInAnyPlaylist?.takeIf { it }) { update(draft.copy(filter = f.copy(notInAnyPlaylist = it))); close() }

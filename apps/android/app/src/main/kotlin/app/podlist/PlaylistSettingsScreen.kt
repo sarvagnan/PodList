@@ -40,7 +40,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
         } }
         if (!playlist.isDefault) item {
             // No confirmation: the Playlist goes to Trash and the snackbar offers Undo.
-            TextButton(contentPadding = PaddingValues(0.dp), modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp), onClick = {
+            TextButton(modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp), onClick = {
                 model.changeWithUndo(listOf(Change.DeletePlaylist(playlist.id)), R.string.m4_playlist_deleted, playbackPlaylist = playlist.id) { before -> listOfNotNull(Change.RestorePlaylist(playlist.id), Change.SetActivePlaylist(playlist.id).takeIf { before.activePlaylistId == playlist.id }) }
                 done()
             }) { Text(stringResource(R.string.m4_delete_playlist), color = MaterialTheme.colorScheme.error) }

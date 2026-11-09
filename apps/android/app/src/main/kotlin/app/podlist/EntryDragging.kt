@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
@@ -44,13 +45,12 @@ internal class EntryDragState(val list: LazyListState) {
 internal val LocalEntryDrag = staticCompositionLocalOf<EntryDragState?> { null }
 
 @Composable
-internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, openEpisode: (String) -> Unit, header: (LazyListScope.() -> Unit)? = null) {
+internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, openEpisode: (String) -> Unit, header: (LazyListScope.() -> Unit)? = null, reveal: Reveal? = null, revealConsumed: () -> Unit = {}) {
     val model = LocalAppModel.current
     val list = rememberBrowsingListState("entries:${playlist.id}", if (header == null) playlist.entries.map { it.episodeId } else null)
     val drag = remember(list) { EntryDragState(list) }
     val edge = with(androidx.compose.ui.platform.LocalDensity.current) { 64.dp.toPx() }
-    val reveal by model.reveal.collectAsState()
-    var revealed by remember { mutableStateOf<Long?>(null) }
+    var revealed by rememberSaveable { mutableStateOf<Long?>(null) }
     LaunchedEffect(reveal?.token, playlist.entries) {
         if (revealed == reveal?.token) return@LaunchedEffect
         val target = reveal?.takeIf { it.route == "playlist:${playlist.id}" }?.episode
@@ -58,7 +58,8 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
         if (index >= 0) {
             drag.retained = target
             revealed = reveal?.token
-            list.animateScrollToItem(index + if (header == null) 0 else data.state.playlists.size + 2)
+            list.scrollToItem(index + if (header == null) 0 else data.state.playlists.size + 2)
+            revealConsumed()
         }
     }
     LaunchedEffect(drag.source) {
@@ -77,7 +78,7 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
     CompositionLocalProvider(LocalEntryDrag provides drag) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().onGloballyPositioned { drag.viewportTop = it.positionInWindow().y }) {
             header?.invoke(this)
-            if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries); TextButton(onClick = { model.reveal.value = Reveal("search") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_episodes)) } }
+            if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries); TextButton(onClick = { model.requestReveal(Reveal("search")) }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_episodes)) } }
             itemsIndexed(playlist.entries, key = { _, entry -> entry.episodeId }) { index, entry ->
                 val focus = remember { FocusRequester() }
                 val moving = drag.source == entry.episodeId

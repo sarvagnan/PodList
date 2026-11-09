@@ -91,6 +91,7 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
     }
     fun download(episode: String, manual: Boolean = true) {
         if (statuses.value[episode]?.phase in listOf(DownloadPhase.Stored, DownloadPhase.Transferring, DownloadPhase.Queued)) return
+        model.requestDownloadNotifications()
         statuses.update { it + (episode to DownloadUi(DownloadPhase.Queued)) }
         val request = OneTimeWorkRequestBuilder<AudioDownloadWorker>()
             .setInputData(workDataOf("origin" to session.source.key, "episode" to episode, "manual" to manual))
@@ -140,7 +141,7 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
             }
         } }
         refresh()
-        model.reveal.value = Reveal("episode:$episode")
+        model.requestReveal(Reveal("episode:$episode"))
         storedStep(episode, original, backup, row, !restore)
     }
 

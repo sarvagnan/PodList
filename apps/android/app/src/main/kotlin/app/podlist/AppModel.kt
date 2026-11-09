@@ -43,7 +43,17 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val playback = MutableStateFlow<PlaybackUi?>(null)
     internal var playbackHost: PlaybackHost? = null
     private var mediaController: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
-    val gettingStartedRequest = MutableStateFlow(0)
+    val gettingStartedRequest = MutableStateFlow<OneShotEvent<Unit>?>(null)
+    internal val incomingFeed = MutableStateFlow<String?>(null)
+    internal val incoming = MutableStateFlow<OneShotEvent<IncomingContent>?>(null)
+    internal val downloadNotificationRequest = MutableStateFlow<OneShotEvent<Unit>?>(null)
+    internal fun requestDownloadNotifications() {
+        val app = getApplication<Application>()
+        if (preferences.getBoolean("downloadNotificationsAsked", false)) return
+        if (ContextCompat.checkSelfPermission(app, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        preferences.edit().putBoolean("downloadNotificationsAsked", true).apply()
+        downloadNotificationRequest.value = OneShotEvent(Unit)
+    }
     val shortcut = MutableStateFlow<String?>(null)
     val messages = Channel<AppMessage>(Channel.BUFFERED)
     private val opml = mutableMapOf<String, OpmlActions>()
@@ -73,8 +83,9 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun speed(value: Float) = withPlayback { it.speed(value) }
     fun sleep(timer: SleepTimer?) = withPlayback { it.sleep(timer) }
     fun flushPlayback() { playbackHost?.flush() }
-    internal val reveal = MutableStateFlow<Reveal?>(null)
-    internal var revealedToken: Long? = null
+    internal val reveal = MutableStateFlow<OneShotEvent<Reveal>?>(null)
+    internal val entryReveal = MutableStateFlow<Reveal?>(null)
+    internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
     internal val undoRevision = MutableStateFlow(0L)
     internal val latestUndo = MutableStateFlow<(() -> Unit)?>(null)
     internal val undoViewId = MutableStateFlow<String?>(null)
@@ -109,7 +120,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             } }
             if (inverse.isNotEmpty()) {
                 recordHistory(current, AppMessage(R.string.entry_moved), changesStep(current, inverse))
-                reveal.value = Reveal("playlist:$playlistId", episode)
+                requestReveal(Reveal("playlist:$playlistId", episode))
             }
         } }
     }

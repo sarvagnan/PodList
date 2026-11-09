@@ -67,11 +67,11 @@
     <string name="chapters">Chapters</string>
     <string name="view_conditions">Conditions</string>
     <string name="any">Any</string>
-    <string name="published_days">Published in the last %1$d days</string>
+    <string name="published_days">Last %1$d days</string>
     <string name="published_between">Published: %1$s – %2$s</string>
-    <string name="podcasts_include">Podcasts: %1$s</string>
+    <string name="podcasts_include">From %1$s</string>
     <string name="podcasts_exclude">Excluding podcasts: %1$s</string>
-    <string name="mentions">Mentions: %1$s</string>
+    <string name="mentions">Mentions “%1$s”</string>
     <string name="played_condition">Played: %1$s</string>
     <string name="in_progress_condition">In progress</string>
     <string name="starred_condition">Starred: %1$s</string>
@@ -80,8 +80,8 @@
     <string name="not_in_playlist">Not in any Playlist</string>
     <string name="min_duration">Length at least %1$s</string>
     <string name="max_duration">Length at most %1$s</string>
-    <string name="newest_first">Newest Published first</string>
-    <string name="oldest_first">Oldest Published first</string>
+    <string name="newest_first">Newest first</string>
+    <string name="oldest_first">Oldest first</string>
     <string name="shortest_first">Shortest first</string>
     <string name="longest_first">Longest first</string>
     <string name="show_limit">Show at most %1$d Episodes</string>
@@ -423,7 +423,6 @@
     <string name="playback_position">Playback Position</string>
     <string name="seek_time">%1$s of %2$s</string>
     <string name="entry_destination">Entry %1$d of %2$d</string>
-    <string name="chart_scroll_hint">Swipe to see more days. Tap a day for its listening time, or show the table.</string>
     <string name="listened_hours_minutes">%1$s %2$s</string>
     <string name="listened_under_minute">Under 1 minute</string>
     <plurals name="listened_minutes"><item quantity="one">%1$d minute</item><item quantity="other">%1$d minutes</item></plurals>
@@ -432,4 +431,16 @@
     <string name="change_download_rule">Change Download Rule</string>
     <string name="changed_value">%1$s · Changed</string>
     <string name="subscribe_failed_named">Couldn’t subscribe to “%1$s”. %2$s</string>
+    <string name="now_playing_identity">%1$s · %2$s</string>
+    <string name="unsubscribing">Unsubscribing…</string>
+    <string name="show_entries">Show Entries</string>
+    <string name="all_episodes">All Episodes</string>
+    <string name="listening_chart">Daily listening over the last 30 days. Tap a day, use the day buttons, or show the table for details.</string>
+    <string name="previous_day">Previous day</string>
+    <string name="next_day">Next day</string>
+    <string name="select_subscriptions_empty">Add podcasts to your Library, then select Subscriptions to change their Download Rules together.</string>
+    <plurals name="more_conditions">
+        <item quantity="one">%d more condition</item>
+        <item quantity="other">%d more conditions</item>
+    </plurals>
 </resources>

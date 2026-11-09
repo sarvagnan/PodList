@@ -17,5 +17,6 @@ tasks.test {
     useJUnitPlatform()
     systemProperty("podlist.protocol", rootProject.file("../../packages/domain/protocol").absolutePath)
     inputs.dir(rootProject.file("../../packages/domain/protocol"))
+    inputs.file(rootProject.file("app/src/main/res/values/strings.xml"))
     testLogging { events("passed", "skipped", "failed") }
 }

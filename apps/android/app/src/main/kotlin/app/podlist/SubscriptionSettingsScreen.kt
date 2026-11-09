@@ -36,14 +36,16 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
         item { val value = secondsSetting(overrides.skipIntro ?: global.skipIntro); ValueRow(stringResource(R.string.m4_skip_intro), if (overrides.skipIntro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipIntro != null) { sheet = 3 } }
         item { val value = secondsSetting(overrides.skipOutro ?: global.skipOutro); ValueRow(stringResource(R.string.m4_skip_outro), if (overrides.skipOutro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipOutro != null) { sheet = 4 } }
         item { val value = stringResource(if (overrides.volumeBoost ?: global.volumeBoost) R.string.m4_on else R.string.m4_off); ValueRow(stringResource(R.string.volume_boost), if (overrides.volumeBoost == null) stringResource(R.string.m4_default_value, value) else value, overrides.volumeBoost != null) { sheet = 5 } }
-        item { TextButton(onClick = { model.markSubscriptionPlayed(id) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
-        item { Box(Modifier.padding(horizontal = 16.dp)) { UnsubscribeButton(session, id, subscription["title"] as String, unsubscribed) } }
+        item { TextButton(onClick = { model.markSubscriptionPlayed(id) }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
+        item { Column(Modifier.padding(horizontal = 16.dp)) { UnsubscribeButton(session, id, subscription["title"] as String, unsubscribed) } }
     }
     val close = { sheet = null }
     sheet?.let { which -> EditorSheet(stringResource(when(which) { 0 -> R.string.m4_download_rule; 1 -> R.string.m4_played_threshold; 2 -> R.string.speed; 3 -> R.string.m4_skip_intro; 4 -> R.string.m4_skip_outro; else -> R.string.volume_boost }), close) {
         when(which) {
             0 -> {
-                ChoiceRows(listOf(DownloadMode.Never, DownloadMode.OnEntry, DownloadMode.AllNew).mapIndexed { index, mode -> mode to (stringResource(ruleLabels[index]) + "\n" + stringResource(ruleHelp[index])) }, rule.mode) { model.edit(Change.SetDownloadRule(rule.copy(mode = it))) }
+                val modes = listOf(DownloadMode.Never, DownloadMode.OnEntry, DownloadMode.AllNew)
+                val explanations = modes.mapIndexed { index, mode -> mode to stringResource(ruleHelp[index]) }.toMap()
+                ChoiceRows(modes.mapIndexed { index, mode -> mode to stringResource(ruleLabels[index]) }, rule.mode, supporting = { explanations.getValue(it) }) { model.edit(Change.SetDownloadRule(rule.copy(mode = it))) }
                 if (rule.mode == DownloadMode.AllNew) NumberField(stringResource(R.string.m4_keep_at_most), rule.keepAtMost?.toDouble(), true, minimum = 1.0) { model.edit(Change.SetDownloadRule(rule.copy(keepAtMost = it?.toLong()))) }
             }
             1 -> ChoiceRows(listOf(null to stringResource(R.string.m4_default_threshold)) + listOf(0.0, 10.0, 30.0, 60.0, 120.0, 300.0).map { it to stringResource(R.string.m4_seconds, it.toLong()) }, threshold) { update(played = it); close() }

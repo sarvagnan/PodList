@@ -85,7 +85,7 @@ internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, su
                 val feed = remaining.first()
                 if (subscribe) {
                     val id = current.source.subscribe(feed).id
-                    reveal.value = Reveal("subscription:$id")
+                    requestReveal(Reveal("subscription:$id"))
                 } else {
                     val id = current.db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feed)).single()["id"] as String
                     current.source.unsubscribe(id)
