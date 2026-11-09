@@ -7,15 +7,15 @@ A personal podcast client that splits listening into two halves: finding episode
 ### Library
 
 **Subscription**:
-A podcast the user follows. The only way an episode enters the Library.
+A podcast the user follows. How a podcast's Episodes enter the Library; a single Episode can also come in from a Podcast page.
 _Avoid_: Feed, follow, podcast (when you mean the user's relationship to it)
 
 **Library**:
-Every Episode of every Subscription.
+Every Episode of every Subscription, and every Orphaned Episode.
 _Avoid_: Catalogue, inbox, feed
 
 **Episode**:
-A single published item of a subscribed podcast, independent of any Playlist.
+A single published item of a podcast, independent of any Playlist.
 _Avoid_: Item, track
 
 **Published**:
@@ -34,8 +34,12 @@ _Avoid_: Completed, listened, done
 Not Played. An Episode with a Position somewhere (in progress) is still Unplayed.
 _Avoid_: New, unheard
 
+**Podcast page**:
+The page for one podcast, whether or not the user subscribes to it: its Episodes, a search within them, and Subscribe. Once subscribed it is also where the Subscription's settings and Unsubscribe live.
+_Avoid_: Preview, show page
+
 **Orphaned**:
-An Episode whose Subscription was removed but which is still an Entry somewhere or Starred. It stays until the user removes it, and Views and Search still find it; nothing else from that podcast remains in the Library. Removing a Subscription doesn't remove downloads on any Device.
+An Episode that is an Entry somewhere or Starred with no Subscription behind it, because the Subscription was removed or because it was played or added from a Podcast page. It stays until the user removes it, and Views and Search still find it; nothing else from that podcast remains in the Library. Removing a Subscription doesn't remove downloads on any Device.
 _Avoid_: Unsubscribed episode, dangling
 
 **Chapter**:
