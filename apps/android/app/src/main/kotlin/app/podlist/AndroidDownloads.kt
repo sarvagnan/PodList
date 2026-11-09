@@ -43,6 +43,9 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
     private var work = emptyList<WorkInfo>()
 
     init {
+        scope.launch { withContext(Dispatchers.IO) {
+            context.cacheDir.listFiles().orEmpty().filter { it.name.startsWith("download-undo-") && it.lastModified() < System.currentTimeMillis() - 10 * 60_000L }.forEach { it.delete() }
+        } }
         scope.launch {
             withContext(Dispatchers.IO) {
                 // Leftover partials are never playable; do not delete a running worker's file.
@@ -105,6 +108,37 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
         manager.cancelUniqueWork("$tag:$episode")
         statuses.update { it - episode }
         invalidations.tryEmit(Unit)
+    }
+    fun removeWithUndo(episode: String) {
+        cancel(episode)
+        scope.launch {
+            val snapshot = withContext(Dispatchers.IO) { files.withCommitLock(episode) {
+                val row = session.db.query("SELECT * FROM download WHERE episode_id = ?", listOf(episode)).firstOrNull() ?: return@withCommitLock null
+                val original = files.stored(episode) ?: return@withCommitLock null
+                val backup = File.createTempFile("download-undo-", ".audio", context.cacheDir)
+                check(original.renameTo(backup))
+                session.db.execute("DELETE FROM download WHERE episode_id = ?", listOf(episode))
+                Triple(original, backup, row)
+            } }
+            refresh()
+            if (snapshot != null) {
+                val (original, backup, row) = snapshot
+                model.offerUndo(AppMessage(R.string.download_removed) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { files.withCommitLock(episode) {
+                            if (backup.exists()) {
+                                check(backup.renameTo(original))
+                                session.db.execute("INSERT OR REPLACE INTO download VALUES (?, ?, ?, ?)", listOf(episode, row["manual"], row["bytes"], row["saved_at"]))
+                            }
+                        } }
+                        refresh()
+                        model.reveal.value = Reveal("episode:$episode")
+                    }
+                })
+                delay(10 * 60_000L)
+                withContext(Dispatchers.IO) { backup.delete() }
+            }
+        }
     }
     fun remove(episode: String) {
         cancel(episode)

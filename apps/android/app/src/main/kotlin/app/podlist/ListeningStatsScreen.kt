@@ -1,6 +1,8 @@
 package app.podlist
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.semantics.selected
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,8 +71,8 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
             Row(Modifier.fillMaxWidth().height(132.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
                 stats.days.forEachIndexed { index, day ->
                     val label = stringResource(R.string.m4_day_listening, day.day.format(dayFormat), listened(day.seconds))
-                    Box(Modifier.weight(1f).fillMaxHeight().clickable { chosen = index }.semantics { contentDescription = label }, contentAlignment = Alignment.BottomCenter) {
-                        if (day.seconds > 0) Box(Modifier.fillMaxWidth().height((day.seconds / max * 132).dp).background(if (chosen < 0 || chosen == index) primary else primary.copy(alpha = .34f), RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                    Box(Modifier.weight(1f).fillMaxHeight().clickable { chosen = index }.semantics { contentDescription = label; selected = chosen == index }, contentAlignment = Alignment.BottomCenter) {
+                        if (day.seconds > 0) Box(Modifier.fillMaxWidth().height((day.seconds / max * 132).dp).background(primary, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).then(if (chosen == index) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)) else Modifier))
                     }
                 }
             }

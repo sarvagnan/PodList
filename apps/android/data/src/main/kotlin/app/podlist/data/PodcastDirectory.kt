@@ -12,12 +12,12 @@ class PodcastDirectory(private val http: PublisherTransport = PublisherHttp()) {
         val clean = query.trim()
         if (isFeedAddress(clean)) {
             val response = http.get(clean, mapOf("Accept" to "application/rss+xml, application/xml, text/xml"))
-            require(response.status in 200..299)
-            val feed = parseFeed(response.body)
+            if (response.status !in 200..299) throw HttpFailure(response.status)
+            val feed = readPodcastFeed(response.body)
             return listOf(DirectoryResult(feed.title, feed.author, clean, feed.artworkUrl, "feed"))
         }
         val response = http.get("https://itunes.apple.com/search?media=podcast&entity=podcast&limit=30&term=${URLEncoder.encode(clean, "UTF-8")}", emptyMap())
-        require(response.status in 200..299)
+        if (response.status !in 200..299) throw HttpFailure(response.status)
         return ProtocolJson.parseToJsonElement(response.body).jsonObject.getValue("results").jsonArray.mapNotNull { value ->
             val row = value.jsonObject
             fun text(key: String) = row[key]?.jsonPrimitive?.contentOrNull

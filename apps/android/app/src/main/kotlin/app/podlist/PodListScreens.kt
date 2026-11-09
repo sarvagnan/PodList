@@ -20,6 +20,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -59,39 +66,48 @@ fun PodListShell(model: AppModel) {
 @Composable
 private fun ConnectedShell(model: AppModel, session: Session) {
     var destination by rememberSaveable { mutableStateOf(Destination.Views) }
+    var collapseNavigation by remember { mutableIntStateOf(0) }
     var requestedRoot by remember { mutableStateOf<Destination?>(null) }
     val helpRequest by model.gettingStartedRequest.collectAsState()
     LaunchedEffect(helpRequest) { if (helpRequest > 0) { destination = Destination.Views; requestedRoot = Destination.Views } }
     val shortcut by model.shortcut.collectAsState()
     LaunchedEffect(shortcut) { shortcut?.let { value -> Destination.entries.find { it.name.equals(value, true) }?.let { destination = it; requestedRoot = it }; model.shortcut.value = null } }
+    val reveal by model.reveal.collectAsState()
+    LaunchedEffect(reveal?.token) { reveal?.let { target ->
+        collapseNavigation++
+        if (target.route.startsWith("view:") || target.route == "views-root") destination = Destination.Views
+        else if (target.route.startsWith("playlist:") || target.route.startsWith("playlist-settings:") || target.route == "playlists-root") destination = Destination.Playlists
+        else if (target.route.startsWith("subscription:") || target.route == "search") destination = Destination.Library
+    } }
+    val cache = remember(session) { mutableStateMapOf<String, ScreenData>() }
     val tabs = rememberSaveableStateHolder()
     var requestedPlaylist by rememberSaveable { mutableStateOf<String?>(null) }
-    var collapseNavigation by remember { mutableIntStateOf(0) }
     NavigationSuiteScaffold(navigationSuiteItems = {
         Destination.entries.forEach { target ->
-            item(selected = destination == target, onClick = { destination = target; collapseNavigation++ },
+            item(selected = destination == target, onClick = { if (destination == target) requestedRoot = target; destination = target; collapseNavigation++ },
                 icon = { Icon(painterResource(target.icon), contentDescription = null) },
                 label = { Text(stringResource(target.title)) })
         }
     }) {
         PlayerContainer(model, session, openPlaylist = { requestedPlaylist = it; destination = Destination.Playlists }, collapseNavigation = collapseNavigation) {
             tabs.SaveableStateProvider(destination.name) {
-                DestinationStack(destination, model, session, requestedPlaylist.takeIf { destination == Destination.Playlists }, consumed = { requestedPlaylist = null }, resetRoot = requestedRoot == destination, rootConsumed = { requestedRoot = null })
+                DestinationStack(destination, model, session, cache, requestedPlaylist.takeIf { destination == Destination.Playlists }, consumed = { requestedPlaylist = null }, resetRoot = requestedRoot == destination, rootConsumed = { requestedRoot = null }, rootBack = { destination = Destination.Views })
             }
         }
     }
 }
 
 @Composable
-private fun DestinationStack(destination: Destination, model: AppModel, session: Session, requestedPlaylist: String?, consumed: () -> Unit, resetRoot: Boolean, rootConsumed: () -> Unit) {
+private fun DestinationStack(destination: Destination, model: AppModel, session: Session, cache: MutableMap<String, ScreenData>, requestedPlaylist: String?, consumed: () -> Unit, resetRoot: Boolean, rootConsumed: () -> Unit, rootBack: () -> Unit) {
     val navigator = rememberListDetailPaneScaffoldNavigator<String>()
     val scope = rememberCoroutineScope()
     val route = navigator.currentDestination?.contentKey
     val revision by model.revision.collectAsState()
     val status by model.status.collectAsState()
-    var data by remember(session, route) { mutableStateOf<ScreenData?>(null) }
+    val data = cache[route ?: "root"]
+    BackHandler(route == null && destination != Destination.Views, onBack = rootBack)
     LaunchedEffect(session, revision, route) {
-        data = withContext(Dispatchers.IO) { readScreen(session.db, route) }
+        cache[route ?: "root"] = withContext(Dispatchers.IO) { readScreen(session.db, route) }
     }
     val pages = rememberSaveableStateHolder()
     suspend fun showRoot() {
@@ -105,6 +121,16 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
         }
     }
     LaunchedEffect(resetRoot) { if (resetRoot) { showRoot(); rootConsumed() } }
+    val reveal by model.reveal.collectAsState()
+    LaunchedEffect(reveal) { reveal?.let { target ->
+        val owns = when { (target.route.startsWith("view:") || target.route == "views-root") -> destination == Destination.Views; (target.route.startsWith("playlist:") || target.route.startsWith("playlist-settings:") || target.route == "playlists-root") -> destination == Destination.Playlists; (target.route.startsWith("subscription:") || target.route == "search") -> destination == Destination.Library; else -> true }
+        if (owns && model.revealedToken != target.token) {
+            model.revealedToken = target.token
+            val sameViewEditor = (route?.startsWith("view-edit:") == true || route?.startsWith("new-view:") == true) && route.substringAfter(':') == target.route.substringAfter(':')
+            if (target.route.endsWith("-root")) showRoot()
+            else if (!sameViewEditor && route != target.route) navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, target.route)
+        }
+    } }
     val back: () -> Unit = { scope.launch { navigator.navigateBack(BackNavigationBehavior.PopLatest) } }
     LaunchedEffect(requestedPlaylist) { requestedPlaylist?.let { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "playlist:$it"); consumed() } }
     // This wraps ListDetailPaneScaffold and provides gesture-driven predictive back transitions.
@@ -114,15 +140,10 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
         defaultBackBehavior = BackNavigationBehavior.PopLatest,
         listPane = {
             AnimatedPane {
-                ScreenFrame(stringResource(destination.title), status, model::requestSync, settings = { open("settings") }, add = { when (destination) {
+                ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, add = { when (destination) {
                     Destination.Library -> open("add-podcasts")
                     Destination.Playlists -> open("new-playlist")
-                    Destination.Views -> scope.launch {
-                        val id = java.util.UUID.randomUUID().toString()
-                        val name = model.getApplication<android.app.Application>().getString(R.string.m4_new_view)
-                        withContext(Dispatchers.IO) { session.db.record(Change.SaveView(View(id, name, ViewFilter(), ViewSort.PublishedDesc, null)), System.currentTimeMillis()) }
-                        open("view-edit:$id")
-                    }
+                    Destination.Views -> open("new-view:${java.util.UUID.randomUUID()}")
                 } }) {
                     val loaded = data
                     if (loaded == null || (status == SyncStatus.Loading && if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState)) Loading()
@@ -141,7 +162,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                     route == "getting-started" -> stringResource(R.string.m4_getting_started)
                     route == "select-subscriptions" -> stringResource(R.string.m4_select_subscriptions)
                     route == "listening-stats" -> stringResource(R.string.m4_listening_stats)
-                    route?.startsWith("view-edit:") == true -> stringResource(R.string.m4_edit_view)
+                    route?.startsWith("view-edit:") == true || route?.startsWith("new-view:") == true -> stringResource(R.string.m4_edit_view)
                     route?.startsWith("playlist-settings:") == true -> stringResource(R.string.m4_playlist_settings)
                     route?.startsWith("subscription-settings:") == true -> stringResource(R.string.m4_subscription_settings)
                     route == "server" -> stringResource(R.string.server)
@@ -161,7 +182,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                     when {
                         route == "add-podcasts" -> AddPodcastsScreen(model, session)
                         route == "server" -> ServerScreen(model, session.source.server?.origin, back)
-                        route == "new-playlist" -> NewPlaylistScreen(model) { open("playlist:$it") }
+                        route == "new-playlist" -> NewPlaylistScreen(model) { id -> scope.launch { navigator.navigateBack(BackNavigationBehavior.PopLatest); navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "playlist:$id") } }
                         loaded == null -> Loading()
                         else -> pages.SaveableStateProvider(route ?: "detail") {
                             Detail(route, loaded, session, open, back)
@@ -175,48 +196,38 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
 }
 
 @Composable
-private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, content: @Composable () -> Unit) {
+private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.m4_create, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, content: @Composable () -> Unit) {
     val selection = LocalEpisodeSelection.current
     Scaffold(topBar = {
         if (selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null) SelectionToolbar(selection, selectionData, selectionSession, route)
-        else TopAppBar(title = { Text(title) }, navigationIcon = {
-            if (back != null) IconButton(onClick = back) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) }
+        else TopAppBar(title = { Column {
+            Text(title, Modifier.semantics { heading() }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (status == SyncStatus.Offline || status == SyncStatus.Error) Text(stringResource(if (status == SyncStatus.Offline) R.string.offline else R.string.sync_error), style = MaterialTheme.typography.bodySmall)
+        } }, navigationIcon = {
+            if (back != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
         }, actions = {
-            if (edit != null) IconButton(onClick = edit) { Icon(painterResource(R.drawable.ic_edit), stringResource(R.string.m4_edit)) }
-            if (add != null) IconButton(onClick = add) { Icon(painterResource(R.drawable.ic_add), stringResource(R.string.m4_create)) }
-            if (settings != null) IconButton(onClick = settings) { Icon(painterResource(R.drawable.ic_settings), stringResource(R.string.settings)) }
+            if (edit != null) ActionIcon(R.drawable.ic_edit, stringResource(R.string.m4_edit), action = edit)
+            if (add != null) ActionIcon(R.drawable.ic_add, stringResource(addLabel), action = add)
+            if (settings != null) ActionIcon(R.drawable.ic_settings, stringResource(R.string.settings), action = settings)
+            if (status == SyncStatus.Offline || status == SyncStatus.Error) TextButton(onClick = retry) { Text(stringResource(R.string.retry)) }
         })
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            if (status != SyncStatus.Ready) {
-                Surface(color = if (status == SyncStatus.Error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer) {
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(when (status) {
-                            SyncStatus.Loading -> R.string.syncing
-                            SyncStatus.Offline -> R.string.offline
-                            else -> R.string.sync_error
-                        }), Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
-                        if (status != SyncStatus.Loading) TextButton(onClick = retry) { Text(stringResource(R.string.retry)) }
-                    }
-                }
-            }
-            Box(Modifier.weight(1f)) { content() }
-        }
+        Box(Modifier.fillMaxSize().padding(padding)) { content() }
     }
+
 }
 
 @Composable
 private fun Directory(destination: Destination, data: ScreenData, session: Session, open: (String) -> Unit) {
     LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
-        item { Hint(stringResource(when (destination) { Destination.Views -> R.string.views_hint; Destination.Playlists -> R.string.playlists_hint; Destination.Library -> R.string.library_hint })) }
         when (destination) {
             Destination.Views -> {
                 item { GettingStarted(data, session, open) }
-                if (data.state.views.isEmpty()) item { EmptyMessage(R.string.no_views) }
+                if (data.state.views.isEmpty()) item { EmptyMessage(R.string.no_views); TextButton(onClick = { open("new-view:${java.util.UUID.randomUUID()}") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_new_view)) } }
                 items(data.state.views, key = { "view:${it.id}" }) { view -> NameRow(view.name, sortLabel(view.sort)) { open("view:${view.id}") } }
             }
             Destination.Playlists -> {
-                if (data.state.playlists.isEmpty()) item { EmptyMessage(R.string.no_playlists) }
+                if (data.state.playlists.isEmpty()) item { EmptyMessage(R.string.no_playlists); TextButton(onClick = { open("new-playlist") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.new_playlist)) } }
                 items(data.state.playlists, key = { "playlist:${it.id}" }) { playlist ->
                     val details = listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
                         pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries))
@@ -257,8 +268,8 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         route == "search" -> SearchScreen(data, session, open)
         route == "listening-stats" -> ListeningStatsScreen(data, session)
         route == "select-subscriptions" -> SelectSubscriptionsScreen(data, session)
-        route?.startsWith("view-edit:") == true -> {
-            val view = data.state.views.find { it.id == id }
+        route?.startsWith("view-edit:") == true || route?.startsWith("new-view:") == true -> {
+            val view = data.state.views.find { it.id == id } ?: if (route.startsWith("new-view:")) View(id!!, stringResource(R.string.m4_new_view), ViewFilter(), ViewSort.PublishedDesc, null) else null
             if (view == null) EmptyMessage(R.string.missing_view) else ViewEditor(view, data, session, done = back, deleted = { open("directory") })
         }
         route?.startsWith("playlist-settings:") == true -> {
@@ -273,6 +284,7 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
             val view = data.state.views.find { it.id == id }
             if (view == null) Column { EmptyMessage(R.string.missing_view); TextButton(onClick = { open("directory") }) { Text(stringResource(R.string.views)) } }
             else if (data.episodes.isEmpty() && data.subscriptions.none { it["unsubscribed_at"] == null }) Column { EmptyMessage(R.string.no_subscriptions); TextButton(onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
+            else if (data.episodes.isEmpty()) Column { EmptyMessage(R.string.no_matches); TextButton(onClick = { open("view-edit:$id") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.edit_conditions)) } }
             else EpisodeList(data.episodes, data, session, open, empty = R.string.no_matches, summary = {
                 Text(pluralStringResource(R.plurals.episode_count, data.episodes.size, data.episodes.size), style = MaterialTheme.typography.titleSmall)
                 Text(viewDescription(view, data), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -304,7 +316,7 @@ internal fun EpisodeList(rows: List<Row>, data: ScreenData, session: Session, op
 }
 
 @Composable
-internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, onClick: (() -> Unit)? = null) {
+internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, showArtwork: Boolean = true, onClick: (() -> Unit)? = null) {
     val model = LocalAppModel.current
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
@@ -313,12 +325,21 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
     val id = row["id"] as String
     val progress = position ?: data.state.playlists.flatMap { it.entries }.filter { it.episodeId == row["id"] }.maxOfOrNull { it.position } ?: 0.0
     val duration = (row["duration"] as? Number)?.toDouble()
+    val stacked = LocalDensity.current.fontScale >= 1.5f || entryPlaylist != null
+    val actions: @Composable () -> Unit = {
+        ActionIcon(R.drawable.ic_add, stringResource(R.string.add_to_playlist)) { add(id) }
+        ActionIcon(R.drawable.ic_play, stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here)) {
+            if (entryPlaylist == null) model.playNow(id) else model.playEntry(entryPlaylist, id)
+            started()
+        }
+        if (entryPlaylist != null) EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, id)
+    }
     Column {
-        Row(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.combinedClickable(onClick = { if (selecting) selection.toggle(id) else onClick() }, onLongClick = { selection?.toggle(id) }) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            if (selecting) Checkbox(id in selection.ids, { selection.toggle(id) })
-            else ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String)
+        Row(Modifier.fillMaxWidth().then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection?.toggle(id) }) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            if (selecting) Checkbox(id in selection.ids, null)
+            else if (showArtwork) ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(row["title"] as String, style = MaterialTheme.typography.titleMedium)
+                Text(row["title"] as String, style = MaterialTheme.typography.titleMedium, maxLines = if (showArtwork) 3 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
                 val published = shortDate((row["published"] as Number).toLong())
                 Text(listOfNotNull(row["podcast"] as String, published, duration?.let { lengthLabel(it) }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 val played = row["played_at"] != null
@@ -331,15 +352,10 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
                 Text(if (starred) "$state · ${stringResource(R.string.starred)}" else state, style = MaterialTheme.typography.bodySmall, color = if (played) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (progress > 0 && duration != null && duration > 0) LinearProgressIndicator(progress = { (progress / duration).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
-            if (showActions && !selecting) Row {
-                IconButton(onClick = { add(row["id"] as String) }, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_add), stringResource(R.string.add_to_playlist)) }
-                IconButton(onClick = {
-                    if (entryPlaylist == null) model.playNow(row["id"] as String) else model.playEntry(entryPlaylist, row["id"] as String)
-                    started()
-                }, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_play), stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here)) }
-                if (entryPlaylist != null) EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, row["id"] as String)
-            }
+            if (showActions && !selecting && !stacked) Row { actions() }
         }
+        if (showActions && !selecting && stacked) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) { actions() }
+
         HorizontalDivider()
     }
 }
@@ -359,16 +375,17 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                 ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 192.dp)
             }
-            EpisodeRow(row, data, session, showActions = false)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TextButton(onClick = { model.playNow(id); started() }) { Text(stringResource(R.string.play_now)) }
-                TextButton(onClick = { add(id) }) { Text(stringResource(R.string.add_to_playlist)) }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            EpisodeRow(row, data, session, showActions = false, showArtwork = false)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(onClick = { model.playNow(id); started() }, modifier = Modifier.fillMaxWidth()) { Icon(painterResource(R.drawable.ic_play), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.play_now)) }
+                DetailAction(R.drawable.ic_add, stringResource(R.string.add_to_playlist)) { add(id) }
                 val played = data.state.episodeStates[id]?.played != null
-                TextButton(onClick = { model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User)) }) { Text(stringResource(if (played) R.string.mark_unplayed else R.string.mark_played)) }
+                DetailAction(R.drawable.ic_check, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played)) { model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User)) }
                 val starred = data.state.episodeStates[id]?.starred == true
-                TextButton(onClick = { model.edit(Change.SetStar(id, !starred)) }) { Text(stringResource(if (starred) R.string.unstar else R.string.star)) }
+                DetailAction(R.drawable.ic_star, stringResource(if (starred) R.string.unstar else R.string.star)) { model.edit(Change.SetStar(id, !starred)) }
+                val context = LocalContext.current
+                val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
+                if (shareLink != null) DetailAction(R.drawable.ic_share, stringResource(R.string.share_episode)) { context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String) }, null)) }
             }
             DownloadAction(id, session)
         }
@@ -376,32 +393,33 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
         item { Section(stringResource(R.string.in_playlists)) }
         if (entries.isEmpty()) item { Hint(stringResource(R.string.not_in_playlist)) }
         items(entries, key = { it.first.id }) { (playlist, entry) ->
-            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text(stringResource(R.string.playlist_position, duration(entry.position))) }, trailingContent = {
+            ListItem(headlineContent = { Text(playlist.name, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.playlist_position, duration(entry.position))) }, trailingContent = {
                 TextButton(onClick = { model.playEntry(playlist.id, id); started() }) { Text(stringResource(R.string.resume)) }
             })
         }
-        item { Section(stringResource(R.string.chapters)) }
-        if (chapters.isEmpty()) item { Hint(stringResource(R.string.no_chapters)) }
+        if (chapters.isNotEmpty()) item { Section(stringResource(R.string.chapters)) }
         items(chapters, key = { it.start }) { chapter ->
-            ListItem(headlineContent = { Text(chapter.title) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String) }, trailingContent = {
+            ListItem(headlineContent = { Text(chapter.title, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String) }, trailingContent = {
                 TextButton(onClick = { model.playNow(id); model.seek(chapter.start); started() }) { Text(stringResource(R.string.play)) }
             })
         }
         item { Section(stringResource(R.string.show_notes)) }
-        item { Text(android.text.Html.fromHtml(row["description"] as? String ?: "", android.text.Html.FROM_HTML_MODE_COMPACT).toString(), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
+        item { SelectionContainer {
+            Text(showNotes(row["description"] as? String ?: ""), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+        } }
     }
 }
 
 @Composable
 internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, onClick: () -> Unit) {
-    ListItem(modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title) }, supportingContent = { Text(subtitle) },
+    ListItem(modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(subtitle) },
         leadingContent = if (session != null) { { ArtworkImage(session, artwork) } } else null)
     HorizontalDivider()
 }
 
 @Composable internal fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-@Composable internal fun Section(text: String, inset: androidx.compose.ui.unit.Dp = 16.dp) { Text(text, Modifier.padding(start = inset, end = inset, top = 20.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall) }
-@Composable internal fun EmptyMessage(resource: Int) { Text(stringResource(resource), Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge) }
+@Composable internal fun Section(text: String, inset: androidx.compose.ui.unit.Dp = 16.dp) { Text(text, Modifier.padding(start = inset, end = inset, top = 20.dp, bottom = 8.dp).semantics { heading() }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall) }
+@Composable internal fun EmptyMessage(resource: Int) { Text(stringResource(resource), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
 @Composable internal fun Loading() { Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(); Text(stringResource(R.string.loading)) } }
 
 internal fun date(millis: Long): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))

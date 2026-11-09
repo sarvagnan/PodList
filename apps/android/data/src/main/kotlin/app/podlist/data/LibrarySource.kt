@@ -65,8 +65,8 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
             return@synchronized subscription(id)
         }
         val response = http.get(feedUrl, mapOf("Accept" to "application/rss+xml, application/xml, text/xml"))
-        require(response.status in 200..299) { "Feed answered HTTP ${response.status}" }
-        val feed = parseFeed(response.body)
+        if (response.status !in 200..299) throw HttpFailure(response.status)
+        val feed = readPodcastFeed(response.body)
         val id = "sub_${UUID.randomUUID()}"
         db.transaction {
             execute("INSERT INTO subscription (id, feed_url, title, title_folded, subscribed_at) VALUES (?, ?, ?, ?, ?)", listOf(id, feedUrl, feed.title, Mentions.fold(feed.title), now()))
@@ -83,7 +83,7 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
     }
     fun subscriptions() = db.query("SELECT id FROM subscription ORDER BY title").map { subscription(it["id"] as String) }
     override fun importOpml(xml: String): ImportSummary {
-        val urls = runCatching { Opml.parse(xml) }.getOrDefault(emptyList())
+        val urls = Opml.parse(xml)
         val known = subscriptions().filter { it.unsubscribedAt == null }.map { it.feedUrl }.toSet()
         val failures = urls.filterNot { it in known }.mapNotNull { url ->
             try { subscribe(url); null } catch (e: Exception) { ImportFailure(url, e.message ?: "Could not read feed") }
@@ -110,8 +110,8 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
             val response = http.get(sub.feedUrl, headers)
             if (response.status == 304) remember(id, PublisherResponse(304, "", state?.get("etag") as? String, state?.get("last_modified") as? String))
             else {
-                require(response.status in 200..299) { "Feed answered HTTP ${response.status}" }
-                val feed = parseFeed(response.body)
+                if (response.status !in 200..299) throw HttpFailure(response.status)
+                val feed = readPodcastFeed(response.body)
                 db.transaction { store(id, feed); remember(id, response) }
                 db.notifyChanged()
             }

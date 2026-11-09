@@ -73,10 +73,30 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun speed(value: Float) = withPlayback { it.speed(value) }
     fun sleep(timer: SleepTimer?) = withPlayback { it.sleep(timer) }
     fun flushPlayback() { playbackHost?.flush() }
+    internal val reveal = MutableStateFlow<Reveal?>(null)
+    internal var revealedToken: Long? = null
+    internal val undoRevision = MutableStateFlow(0L)
+    internal val latestUndo = MutableStateFlow<(() -> Unit)?>(null)
+    internal val undoViewId = MutableStateFlow<String?>(null)
     private val editLock = Mutex()
     fun edit(change: Change) {
         val current = session.value ?: return
-        viewModelScope.launch { editLock.withLock { withContext(Dispatchers.IO) { current.db.record(change, System.currentTimeMillis()) } } }
+        viewModelScope.launch { editLock.withLock {
+            val inverse = withContext(Dispatchers.IO) { current.db.transaction {
+                val before = loadState()
+                val sub = (change as? Change.SetSubscriptionOverrides)?.let { c ->
+                    val row = query("SELECT * FROM subscription WHERE id = ?", listOf(c.subscriptionId)).single()
+                    val pending = pendingSubscriptionOverrides().lastOrNull { it.subscriptionId == c.subscriptionId }
+                    Subscription(c.subscriptionId, row["feed_url"] as String, row["title"] as String, null, null, null, 0, null,
+                        if (pending != null) pending.playedThreshold else (row["played_threshold"] as? Number)?.toDouble(),
+                        pending?.playbackSettings ?: ProtocolJson.decodeFromString(row["playback_settings"] as String))
+                }
+                val undo = EditUndo.inverse(before, change, System.currentTimeMillis() + 1, sub)
+                record(change, System.currentTimeMillis())
+                undo
+            } }
+            if (inverse.isNotEmpty()) offerUndo(AppMessage(editMessage(change)) { restoreChanges(current, inverse) }, (change as? Change.SaveView)?.view?.id)
+        } }
     }
     fun moveEntry(playlistId: String, episode: String, destination: Int) {
         viewModelScope.launch {
@@ -90,11 +110,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                 current.db.record(Change.MoveEntry(playlistId, episode, after), System.currentTimeMillis())
                 listOf<Change>(Change.MoveEntry(playlistId, episode, playlist.entries.getOrNull(index - 1)?.episodeId))
             }
-            messages.send(AppMessage(R.string.entry_moved) { undo(current, inverse) })
+            offerUndo(AppMessage(R.string.entry_moved) { undo(current, inverse) })
         }
     }
     private fun undo(session: Session, changes: List<Change>) {
-        viewModelScope.launch { withContext(Dispatchers.IO) { session.db.recordAll(changes, System.currentTimeMillis()) } }
+        restoreChanges(session, changes)
     }
     fun add(episode: String, playlist: String?, name: String?, placement: Placement, result: (Boolean) -> Unit) {
         viewModelScope.launch {
@@ -157,21 +177,26 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun offerUnsubscribe(current: Session, feed: String) {
+        offerUndo(AppMessage(R.string.subscribed) { changeSubscription(current, feed, subscribe = false) })
+    }
     fun offerResubscribe(current: Session, feed: String) {
-        messages.trySend(AppMessage(R.string.unsubscribed) { changeSubscription(current, feed, subscribe = true) })
+        offerUndo(AppMessage(R.string.unsubscribed) { changeSubscription(current, feed, subscribe = true) })
     }
     private fun changeSubscription(current: Session, feed: String, subscribe: Boolean) {
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    if (subscribe) current.source.subscribe(feed)
+                val restored = withContext(Dispatchers.IO) {
+                    if (subscribe) current.source.subscribe(feed).id
                     else {
                         val id = current.db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feed)).single()["id"] as String
                         current.source.unsubscribe(id)
+                        null
                     }
                 }
+                if (restored != null) reveal.value = Reveal("subscription:$restored")
                 requestSync()
-                messages.send(AppMessage(if (subscribe) R.string.subscribed else R.string.unsubscribed, if (subscribe) R.string.m4_redo else R.string.undo) { changeSubscription(current, feed, !subscribe) })
+                offerUndo(AppMessage(if (subscribe) R.string.subscribed else R.string.unsubscribed, if (subscribe) R.string.m4_redo else R.string.undo) { changeSubscription(current, feed, !subscribe) })
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
                 messages.send(AppMessage(if (subscribe) R.string.subscribe_failed else R.string.unsubscribe_failed, R.string.retry) { changeSubscription(current, feed, subscribe) })
@@ -294,7 +319,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         worker = viewModelScope.launch {
             // Startup is immediate. Thereafter timeout starts after each completed pass.
             while (isActive) {
-                if (address != null) status.value = SyncStatus.Loading
+                if (address != null && revision.value == 0L) status.value = SyncStatus.Loading
                 try {
                     val pendingBringOver = address != null && withContext(Dispatchers.IO) { next.db.bringOverPending() }
                     if (pendingBringOver) {

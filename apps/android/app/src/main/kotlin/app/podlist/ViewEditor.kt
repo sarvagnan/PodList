@@ -7,6 +7,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.Alignment
+import kotlinx.serialization.encodeToString
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -15,30 +18,46 @@ import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: () -> Unit, deleted: () -> Unit) {
     val model = LocalAppModel.current
-    var draft by remember(view.id) { mutableStateOf(view) }
-    var saved by remember(view.id) { mutableStateOf(view) }
+    val creating = remember(view.id) { data.state.views.none { it.id == view.id } }
+    val initial = remember(view.id) { view }
+    var draft by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
+    var saved by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
     var podcastMode by rememberSaveable(view.id) { mutableStateOf(view.filter.podcasts?.mode) }
-    var previous by remember(view.id) { mutableStateOf(emptyList<View>()) }
+    val lastUndo by model.latestUndo.collectAsState()
+    val undoViewId by model.undoViewId.collectAsState()
+    val undo = lastUndo.takeIf { undoViewId == view.id }
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
     var name by rememberSaveable(view.id) { mutableStateOf(view.name) }
+    val undoRevision by model.undoRevision.collectAsState()
+    val initialUndo = remember { undoRevision }
+    LaunchedEffect(undoRevision) {
+        if (undoRevision != initialUndo) {
+            val restored = withContext(Dispatchers.IO) { session.db.loadState().views.find { it.id == view.id } } ?: initial.takeIf { creating }
+            restored?.let { saved = it; draft = it; name = it.name; podcastMode = it.filter.podcasts?.mode }
+        }
+    }
     var count by remember { mutableIntStateOf(0) }
     val revision by model.revision.collectAsState()
     LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(saved, System.currentTimeMillis()).size } }
     fun update(next: View) {
         draft = next
         if (ViewEdits.problem(next.filter) == null && next != saved) {
-            previous = previous + saved; saved = next; model.edit(Change.SaveView(next))
+            saved = next; model.edit(Change.SaveView(next))
         }
     }
     val problem = ViewEdits.problem(draft.filter)
     val any = stringResource(R.string.any)
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error)) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp), singleLine = true) }
+            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error)) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) done() })) }
+            if (problem != null || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
             item { Section(stringResource(R.string.m4_conditions)) }
             item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != null) { sheet = 0 } }
             item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != null) { sheet = 1 } }
@@ -53,9 +72,9 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             item { TextButton(onClick = { model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { listOf(Change.SaveView(saved)) }; deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
-        Surface(tonalElevation = 3.dp) { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Surface(tonalElevation = 3.dp) { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(pluralStringResource(R.plurals.m4_matching, count, count), Modifier.weight(1f).padding(vertical = 16.dp))
-            TextButton(enabled = previous.isNotEmpty(), onClick = { val last = previous.last(); previous = previous.dropLast(1); draft = last; saved = last; name = last.name; podcastMode = last.filter.podcasts?.mode; model.edit(Change.SaveView(last)) }) { Text(stringResource(R.string.undo)) }
+            TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
             TextButton(enabled = problem == null && name.isNotBlank(), onClick = done) { Text(stringResource(R.string.m4_done)) }
         } }
     }
@@ -78,9 +97,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                 val selectedIds = podcasts?.subscriptionIds.orEmpty()
                 if (podcastMode != null) LazyColumn(Modifier.heightIn(max = 280.dp)) { items(data.subscriptions) { sub ->
                     val id = sub["id"] as String
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Checkbox(id in selectedIds, { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }); Text(sub["title"] as String)
-                    }
+                    CheckRow(sub["title"] as String, id in selectedIds) { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }
                 } }
             }
             2 -> OutlinedTextField(f.text.orEmpty(), { update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank)))) }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth())
