@@ -21,7 +21,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
     val error by model.connectionError.collectAsState()
     Column(Modifier.fillMaxSize().then(if (current == null) Modifier.safeDrawingPadding() else Modifier).imePadding()
         .verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
         OutlinedTextField(value = input, onValueChange = { input = it; model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
             placeholder = { Text(stringResource(R.string.server_example)) },
@@ -33,7 +33,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
             ConnectionError.Tls -> R.string.tls_error
             ConnectionError.Server -> R.string.server_error
             ConnectionError.Response -> R.string.response_error
-        }), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        }), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         Button(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {
             Text(stringResource(if (checking) R.string.checking else R.string.connect))
         }

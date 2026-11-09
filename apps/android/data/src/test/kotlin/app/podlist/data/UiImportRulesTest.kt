@@ -47,4 +47,25 @@ class UiImportRulesTest {
         assertEquals(listOf("bad"), result.summary.failed.map { it.feedUrl })
         assertTrue(result.remaining.isEmpty())
     }
+    @Test fun `OPML failures retain authored error categories rather than exception messages`() {
+        val errors = listOf(
+            IOException("sensitive transport details") to LookupError.Offline,
+            SSLHandshakeException("certificate internals") to LookupError.Tls,
+            HttpFailure(503) to LookupError.Server,
+            InvalidFeed(IllegalArgumentException("parser details")) to LookupError.Feed,
+            IllegalStateException("internal response") to LookupError.Response
+        )
+        errors.forEach { (error, expected) ->
+            val result = importSubscriptions("""<opml><body><outline xmlUrl="bad"/></body></opml>""", emptySet(), { throw error })
+            val failure = result.summary.failed.single()
+            assertEquals("bad", failure.feedUrl)
+            assertEquals(expected, failure.error)
+            assertNull(failure.message)
+        }
+    }
+
+    @Test fun `legacy server failure messages have a safe authored fallback category`() {
+        val failure = app.podlist.domain.ProtocolJson.decodeFromString<ImportFailure>("""{"feedUrl":"bad","message":"raw internal error"}""")
+        assertEquals(LookupError.Response, failure.error)
+    }
 }

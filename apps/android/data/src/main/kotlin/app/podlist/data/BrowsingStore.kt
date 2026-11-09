@@ -1,0 +1,21 @@
+package app.podlist.data
+
+import app.podlist.domain.BrowsingContext
+import app.podlist.domain.ProtocolJson
+import kotlinx.serialization.encodeToString
+
+fun LocalDatabase.loadBrowsingContext(): BrowsingContext = transaction {
+    val saved = getMeta("browsingContext")?.let { runCatching { ProtocolJson.decodeFromString<BrowsingContext>(it) }.getOrNull() } ?: BrowsingContext()
+    val state = loadState()
+    val episodeIds = saved.stacks.values.flatten().filter { it.startsWith("episode:") }.map { it.substringAfter(':') }.distinct()
+    val episodes = episodeIds.chunked(500).flatMap { ids -> query("SELECT id FROM episode WHERE id IN (${ids.joinToString(",") { "?" }})", ids) }
+    saved.validated(
+        state.views.map { it.id }.toSet(), state.playlists.map { it.id }.toSet(),
+        query("SELECT id FROM subscription WHERE unsubscribed_at IS NULL").map { it["id"] as String }.toSet(),
+        episodes.map { it["id"] as String }.toSet()
+    )
+}
+
+fun LocalDatabase.saveBrowsingContext(context: BrowsingContext) {
+    setMeta("browsingContext", ProtocolJson.encodeToString(context))
+}

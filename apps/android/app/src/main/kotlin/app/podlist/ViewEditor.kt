@@ -70,8 +70,8 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val problem = ViewEdits.problem(draft.filter)
     val any = stringResource(R.string.any)
     Column(Modifier.fillMaxSize().imePadding()) {
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error)) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) finish() })) }
+        LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
+            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && name.isNotBlank()) finish() })) }
             if (problem != null || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
             item { Section(stringResource(R.string.m4_conditions)) }
             item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != null) { sheet = 0 } }
@@ -81,7 +81,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.starred), stringResource(when(draft.filter.starred) { true -> R.string.starred; false -> R.string.m4_not_starred; null -> R.string.any }), draft.filter.starred != null) { sheet = 4 } }
             item { ValueRow(stringResource(R.string.m4_in_playlist), if (draft.filter.notInAnyPlaylist == true) stringResource(R.string.not_in_playlist) else any, draft.filter.notInAnyPlaylist == true) { sheet = 5 } }
             item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, duration(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, duration(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != null || draft.filter.maxDuration != null) { sheet = 6 } }
-            if (problem != null) item { Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
+            if (problem != null) item { Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
             item { Section(stringResource(R.string.m4_then)) }
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
@@ -126,7 +126,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             7 -> ChoiceRows(ViewSort.entries.map { it to sortLabel(it) }, draft.sort) { update(draft.copy(sort = it)); close() }
             8 -> { ChoiceRows(listOf(null to stringResource(R.string.m4_all_matches), 10L to "10", 20L to "20", 50L to "50", 100L to "100"), draft.limit) { update(draft.copy(limit = it)); close() } }
         }
-        if (problem != null) Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), color = MaterialTheme.colorScheme.error)
+        if (problem != null) Text(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
     } }
 }
 

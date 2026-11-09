@@ -1,6 +1,8 @@
 package app.podlist.domain
 
 object PlaylistRules {
+    fun hasNoCurrentEntry(playlist: Playlist): Boolean = playlist.entries.none { it.episodeId == playlist.cursor }
+
     fun availableTrash(state: State, at: Long): List<TrashedPlaylist> = state.trash.orEmpty().filter {
         it.deletedAt >= at - (state.trashDays ?: 30L) * 86_400_000.0
     }

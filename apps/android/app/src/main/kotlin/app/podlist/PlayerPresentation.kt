@@ -48,6 +48,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     val sheet = rememberBottomSheetScaffoldState()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val feedback = remember(snackbar) { SheetFeedback(snackbar) }
     val resources = androidx.compose.ui.platform.LocalResources.current
     val expanded = sheet.bottomSheetState.currentValue == SheetValue.Expanded || sheet.bottomSheetState.targetValue == SheetValue.Expanded
     LaunchedEffect(collapseNavigation) { pages = emptyList(); sheet.bottomSheetState.partialExpand() }
@@ -65,7 +66,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     }
     LaunchedEffect(now?.metadata?.episodeId) { if (now == null) { pages = emptyList(); sheet.bottomSheetState.partialExpand() } }
     // Registered after destination navigation so it receives Back before the normal stack.
-    CompositionLocalProvider(LocalAppModel provides model, LocalAddEpisode provides { addEpisode = it }, LocalPlaybackStarted provides { pages = emptyList() }) {
+    CompositionLocalProvider(LocalSheetFeedback provides feedback, LocalAppModel provides model, LocalAddEpisode provides { addEpisode = it }, LocalPlaybackStarted provides { pages = emptyList() }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val height = (maxHeight - 8.dp).coerceAtLeast(72.dp)
             BottomSheetScaffold(
@@ -102,7 +103,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                         }
                     }
                 },
-                snackbarHost = { SnackbarHost(snackbar, Modifier.imePadding()) }
+                snackbarHost = { if (feedback.openSheets == 0) SnackbarHost(snackbar, Modifier.imePadding()) }
             ) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) { content() } }
             PredictiveBackHandler(enabled = addEpisode == null && expanded) { events ->
                 try {
@@ -119,7 +120,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
 private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expand: () -> Unit, openPlaylist: () -> Unit) {
     val accessible = stringResource(R.string.open_now_playing, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
     val progressLabel = stringResource(R.string.playback_position)
-    Column(Modifier.fillMaxWidth().height(72.dp).clickable(onClick = expand)) {
+    Column(Modifier.fillMaxWidth().height(72.dp).clickable(onClickLabel = accessible, onClick = expand)) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clickable(onClick = expand).semantics { contentDescription = accessible }, contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp) }
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -143,45 +144,48 @@ private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expan
 private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open: (String) -> Unit) {
     var speed by rememberSaveable { mutableStateOf(false) }
     var sleep by rememberSaveable { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(bottom = 12.dp)) {
-        item { ArtworkImage(session, now.artwork, 216.dp) }
-        item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                ActionIcon(R.drawable.ic_previous, stringResource(R.string.previous_chapter), enabled = now.chapterIndex > 0 || now.metadata.chapters.isNotEmpty()) {
-                    val index = now.chapterIndex
-                    val current = now.metadata.chapters.getOrNull(index)
-                    val previous = if (current != null && now.position - current.start > 3) current else now.metadata.chapters.getOrNull(index - 1) ?: now.metadata.chapters.firstOrNull()
-                    previous?.let { model.seek(it.start) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val artworkSize = (maxHeight - 340.dp).coerceIn(160.dp, 360.dp).coerceAtMost(maxWidth - 48.dp)
+        LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)) {
+            item { ArtworkImage(session, now.artwork, artworkSize) }
+            if (now.metadata.chapters.isNotEmpty()) item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ActionIcon(R.drawable.ic_previous, stringResource(R.string.previous_chapter), enabled = now.chapterIndex > 0 || now.metadata.chapters.isNotEmpty()) {
+                        val index = now.chapterIndex
+                        val current = now.metadata.chapters.getOrNull(index)
+                        val previous = if (current != null && now.position - current.start > 3) current else now.metadata.chapters.getOrNull(index - 1) ?: now.metadata.chapters.firstOrNull()
+                        previous?.let { model.seek(it.start) }
+                    }
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(now.metadata.chapters.getOrNull(now.chapterIndex)?.title ?: stringResource(R.string.no_chapters), style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (now.chapterIndex >= 0) Text(stringResource(R.string.chapter_number, now.chapterIndex + 1, now.metadata.chapters.size), style = MaterialTheme.typography.bodySmall)
+                    }
+                    ActionIcon(R.drawable.ic_next, stringResource(R.string.next_chapter), enabled = now.metadata.chapters.any { it.start > now.position }) { now.metadata.chapters.firstOrNull { it.start > now.position }?.let { model.seek(it.start) } }
                 }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(now.metadata.chapters.getOrNull(now.chapterIndex)?.title ?: stringResource(R.string.no_chapters), style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    if (now.chapterIndex >= 0) Text(stringResource(R.string.chapter_number, now.chapterIndex + 1, now.metadata.chapters.size), style = MaterialTheme.typography.bodySmall)
+            }
+            item { ChapterSeek(now, model) }
+            item {
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                    SkipButton(false, true) { model.seek(now.position - 15) }
+                    ActionTooltip(stringResource(if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
+                    SkipButton(true, true) { model.seek(now.position + 30) }
                 }
-                ActionIcon(R.drawable.ic_next, stringResource(R.string.next_chapter), enabled = now.metadata.chapters.any { it.start > now.position }) { now.metadata.chapters.firstOrNull { it.start > now.position }?.let { model.seek(it.start) } }
             }
-        }
-        item { ChapterSeek(now, model) }
-        item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                SkipButton(false, true) { model.seek(now.position - 15) }
-                ActionTooltip(stringResource(if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
-                SkipButton(true, true) { model.seek(now.position + 30) }
+            if (now.error) item { Text(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error); TextButton(onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
+            else if (now.buffering) item { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
+                    TextButton(onClick = { speed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble())) }
+                    TextButton(onClick = { sleep = true }) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
+                }
             }
-        }
-        if (now.error) item { Text(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.error); TextButton(onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
-        else if (now.buffering) item { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-                TextButton(onClick = { speed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble())) }
-                TextButton(onClick = { sleep = true }) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
-                TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
-                TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
+                    TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
+                    TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
+                }
             }
         }
     }
@@ -244,10 +248,10 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     val value = NumberInput.parse(minutes)
     val valid = value != null && value in 1.0..1440.0
     fun submit() { if (valid) { model.sleep(SleepTimer.Until(SystemClock.elapsedRealtime() + (value * 60_000).toLong())); close() } }
-    EditorSheet(stringResource(R.string.sleep), close) {
+    EditorSheet(stringResource(R.string.sleep), close, done = ::submit, doneEnabled = valid) {
         Text(sleepLabel(now))
         OutlinedTextField(value = minutes, onValueChange = { minutes = it }, label = { Text(stringResource(R.string.sleep_duration)) }, singleLine = true,
-            isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.sleep_duration_error)) }) else null,
+            isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.sleep_duration_error), Modifier.errorAnnouncement()) }) else null,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth())
         Button(enabled = valid, onClick = ::submit) { Text(stringResource(R.string.sleep_duration_start)) }
@@ -293,7 +297,7 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
     var name by rememberSaveable { mutableStateOf("") }
     var invalid by rememberSaveable { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
-    ModalBottomSheet(modifier = historyShortcuts(model), onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), dragHandle = {
+    FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), dragHandle = {
         Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) { HorizontalDivider(Modifier.width(32.dp), thickness = 4.dp) }
     }) {
         val screen = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
@@ -307,7 +311,7 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
                 }
                 item { ChoiceRows(listOf(null to stringResource(R.string.new_playlist)), target) { target = null; invalid = false } }
                 if (target == null) item { OutlinedTextField(name, { name = it; invalid = false }, label = { Text(stringResource(R.string.playlist_name)) }, isError = invalid,
-                    supportingText = if (invalid) ({ Text(stringResource(R.string.playlist_name_error)) }) else null, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
+                    supportingText = if (invalid) ({ Text(stringResource(R.string.playlist_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 for ((placement, label) in listOf(Placement.Next to R.string.play_next, Placement.Last to R.string.play_last)) FilledTonalButton(enabled = !submitting, onClick = {

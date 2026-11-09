@@ -18,13 +18,12 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
     val model = LocalAppModel.current
     val events = remember(playlist) { TimelinePresentation.events(playlist) }
     var target by remember { mutableStateOf<Long?>(null) }
-    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
     val byId = data.episodes.associateBy { it["id"] }
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), state = rememberBrowsingListState()) {
         if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); TextButton(onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.entries)) } }
         items(events) { event ->
-            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
-                Column { Text(shortDate(event.at), softWrap = false); Text(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(event.at)), softWrap = false); Text(when(event.kind) {
+            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClickLabel = stringResource(if (TimelineRules.pointAt(playlist, event.moment) != null) R.string.m4_rewind_here else R.string.episode)) { if (TimelineRules.pointAt(playlist, event.moment) != null) target = event.moment else open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
+                Column { Text(dateTime(event.at), style = MaterialTheme.typography.labelMedium); Text(when(event.kind) {
                     "listened" -> stringResource(R.string.m4_listened_stretch, duration(event.from), duration(event.to), dateTime(event.end))
                     "finished" -> stringResource(R.string.m4_finished)
                     "added" -> stringResource(R.string.m4_entry_added)
@@ -32,15 +31,14 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
                     "removed" -> stringResource(R.string.m4_entry_removed)
                     else -> stringResource(R.string.m4_marked_played)
                 }) }
-            }, trailingContent = if (large) null else ({ if (TimelineRules.pointAt(playlist, event.moment) != null) TextButton(onClick = { target = event.moment }) { Text(stringResource(R.string.m4_rewind_here)) } }))
-            if (large && TimelineRules.pointAt(playlist, event.moment) != null) TextButton(onClick = { target = event.moment }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_rewind_here)) }
+            }, trailingContent = { if (TimelineRules.pointAt(playlist, event.moment) != null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_rewind), null) })
             HorizontalDivider()
         }
     }
     target?.let { to ->
         val preview = TimelinePresentation.preview(data.state, playlist.id, to, System.currentTimeMillis())
         // Fully open from the start: Rewind and Cancel sit below the summary.
-        if (preview != null) ModalBottomSheet(modifier = historyShortcuts(model), onDismissRequest = { target = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        if (preview != null) FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = { target = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             LazyColumn(Modifier.weight(1f, fill = false), contentPadding = PaddingValues(bottom = 16.dp)) {
                 item { Text(stringResource(R.string.m4_rewind_title, playlist.name, dateTime(to)), Modifier.padding(16.dp).semantics { heading() }, style = MaterialTheme.typography.titleLarge) }
                 item { Section(stringResource(R.string.m4_goes_back)) }

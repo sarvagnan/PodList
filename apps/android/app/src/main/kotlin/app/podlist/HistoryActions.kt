@@ -102,7 +102,7 @@ internal fun AppModel.offerSubscriptionHistory(current: Session, feeds: List<Str
     viewModelScope.launch { editLock.withLock { recordHistory(current, message, subscriptionStep(current, feeds, subscribe)) } }
 }
 
-internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onPreviewKeyEvent { event ->
+internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onKeyEvent { event ->
     if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.Z) {
         if (event.isShiftPressed) model.redoEdit() else model.undoEdit()
         true
