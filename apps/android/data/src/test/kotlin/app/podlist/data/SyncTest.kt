@@ -6,6 +6,21 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class SyncTest {
+    @Test fun `offline is exposed before independently attempting Library sync`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            db.setMeta("registered", "true")
+            var reported = false
+            val sync = SyncClient(db, SyncTransport { _, path, _ ->
+                if (path.startsWith("/api/sync")) throw java.io.IOException("offline")
+                assertTrue(reported, "Library must not delay the offline indication")
+                """{"cursor":1,"subscriptions":[],"episodes":[],"more":false}"""
+            }, onFailure = { reported = true })
+            assertFailsWith<java.io.IOException> { sync.sync() }
+            assertTrue(reported)
+        }
+    }
+
     @Test
     fun `registration retries with the same durable Device before any sync requests`() {
         LocalDatabase(":memory:").use { db ->

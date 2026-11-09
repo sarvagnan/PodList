@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- PodList has no voice search yet, so declaring MEDIA_PLAY_FROM_SEARCH would advertise
+         something that does nothing. Remove this with the Android automation work (pod-apx.9). -->
+    <issue id="MissingIntentFilterForMediaSearch" severity="ignore" />
+</lint>

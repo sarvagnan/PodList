@@ -32,12 +32,12 @@ private val artworkMemory = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
 
 /** Artwork always uses the documented Library-only proxy, with bounded memory/disk caches. */
 @Composable
-internal fun ArtworkImage(session: Session, url: String?) {
+internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp) {
     val context = LocalContext.current
     val bitmap by produceState<Bitmap?>(null, session.address.origin, url) {
         value = null
         if (url == null) return@produceState
-        val endpoint = session.address.artwork(url)
+        val endpoint = session.address.artwork(url, if (size > 100.dp) 512 else 128)
         value = withContext(Dispatchers.IO) {
             artworkMemory.get(endpoint) ?: runCatching {
                 val key = MessageDigest.getInstance("SHA-256").digest(endpoint.toByteArray()).joinToString("") { "%02x".format(it) }
@@ -68,8 +68,8 @@ internal fun ArtworkImage(session: Session, url: String?) {
             }.getOrNull()?.also { artworkMemory.put(endpoint, it) }
         }
     }
-    Box(Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-        if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.size(40.dp), contentScale = ContentScale.Crop)
+    Box(Modifier.size(size).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+        if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
         else Icon(painterResource(R.drawable.ic_artwork), contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }

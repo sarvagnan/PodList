@@ -16,7 +16,7 @@ fun interface SyncTransport {
 @Serializable private data class PushResult(val cursor: Long, val accepted: Long)
 
 /** Blocking, platform-independent protocol owner. Calls are serialized; edits can commit during HTTP. */
-class SyncClient(private val db: LocalDatabase, private val transport: SyncTransport) {
+class SyncClient(private val db: LocalDatabase, private val transport: SyncTransport, private val onFailure: (Exception) -> Unit = {}) {
     fun health(): Health = checkHealth(transport)
 
     @Synchronized
@@ -28,7 +28,7 @@ class SyncClient(private val db: LocalDatabase, private val transport: SyncTrans
             db.setMeta("registered", "true")
         }
         var stateFailure: Exception? = null
-        try { syncState() } catch (error: Exception) { stateFailure = error }
+        try { syncState() } catch (error: Exception) { stateFailure = error; onFailure(error) }
         try { syncLibrary() } catch (error: Exception) {
             stateFailure?.let { error.addSuppressed(it) }
             throw error
