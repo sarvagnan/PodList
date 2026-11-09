@@ -22,7 +22,7 @@ Electron also keeps running on the Mac. There we recommend the native app, but n
 | Android | 17 (API 37) | 14 (API 34) |
 | iOS, iPadOS, macOS | 27 | 26 |
 
-The server stays the hub. It already applies the same domain rules as the clients and keeps the same SQLite schema (`packages/domain`, `SyncStore.ts`).
+The server stays the hub whenever there is one, and is optional for the apps with a local database (ADR 0012). It already applies the same domain rules as the clients and keeps the same SQLite schema (`packages/domain`, `SyncStore.ts`).
 
 **Not a concern yet:** how the apps are installed. The owner will probably get developer accounts for both stores; emulators and simulators need neither until then. CarPlay needs an entitlement from Apple, so it waits for the Apple account. There is no switchover either: PodList has no users yet, so no phone needs moving from the PWA to the app.
 

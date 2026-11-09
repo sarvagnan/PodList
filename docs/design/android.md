@@ -65,4 +65,15 @@ A full screen reached from the gear. Sections: **Playback** (Speed, Skip intro, 
 
 ## Not yet designed
 
-Add podcasts, the View editor, Playlist settings, Subscription settings, Rewind, Listening stats and first-run setup. These are designed with their milestones, following the structure above.
+First-run setup and where OPML appears in Settings, which change with [ADR 0012](../adr/0012-a-device-can-work-without-a-server.md).
+
+## Agreed for milestone 4
+
+Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): https://generatedpages.burmese-mountain.ts.net/podlist-android-phone-round-2/
+
+- **Add podcasts:** one field that takes a podcast name or a pasted feed address. OPML isn't here; import and export belong in Settings.
+- **View editor:** one list with every condition as a row showing its value, each opening a small sheet. A live count and Undo stay pinned above the player.
+- **Rewind:** from the Listening Timeline, a bottom sheet lists what goes back, what becomes Unplayed, what returns and what's kept. The Playlist then shows the result with Undo.
+- **Playlist settings:** name, Clear on Played and Delete on one page, opened with the pencil.
+- **Subscription settings:** opened with a pencil on the Subscription page. Unchanged values read Default and name what they inherit.
+- **Listening stats:** one scrolling page reached from Settings, with all three periods visible at once, a 30-day chart that can be tapped and a table view.
