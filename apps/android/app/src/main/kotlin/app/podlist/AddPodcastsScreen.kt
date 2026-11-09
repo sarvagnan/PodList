@@ -54,16 +54,16 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
     }
     fun find() {
         if (busy || input.isBlank()) return
-            val query = input.trim()
-            scope.launch {
-                busy = true; error = null; results = emptyList()
-                try {
-                    results = withContext(Dispatchers.IO) { session.source.search(query).distinctBy { it.feedUrl } }
-                    if (results.isEmpty()) error = if (isFeedAddress(query)) R.string.bad_feed_address else R.string.no_podcasts_found
-                } catch (e: CancellationException) { throw e }
-                catch (failure: Exception) { error = lookupErrorResource(classifyLookup(failure)) }
-                finally { busy = false }
-            }
+        val query = input.trim()
+        scope.launch {
+            busy = true; error = null; results = emptyList()
+            try {
+                results = withContext(Dispatchers.IO) { session.source.search(query).distinctBy { it.feedUrl } }
+                if (results.isEmpty()) error = if (isFeedAddress(query)) R.string.bad_feed_address else R.string.no_podcasts_found
+            } catch (e: CancellationException) { throw e }
+            catch (failure: Exception) { error = lookupErrorResource(classifyLookup(failure)) }
+            finally { busy = false }
+        }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },

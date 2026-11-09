@@ -21,7 +21,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
     var name by rememberSaveable(playlist.id) { mutableStateOf(playlist.name) }
     val undoRevision by model.undoRevision.collectAsState()
     val initialUndo = remember { undoRevision }
-    val session = model.session.value
+    val session = model.session.collectAsState().value
     LaunchedEffect(undoRevision) { if (undoRevision != initialUndo && session != null) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { session.db.loadState().playlists.find { it.id == playlist.id }?.name }?.let { name = it }
     } }
