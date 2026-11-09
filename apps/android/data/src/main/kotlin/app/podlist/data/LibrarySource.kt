@@ -16,6 +16,8 @@ interface LibrarySource {
     fun unsubscribe(id: String)
     fun chapters(episodeId: String): List<Chapter>
     fun artwork(url: String, size: Int): String
+    fun importOpml(xml: String): ImportSummary
+    fun exportOpml(): String
     fun audioFallback(episodeId: String): String?
 }
 class ServerLibrary(private val db: LocalDatabase, override val server: ServerAddress, private val http: SyncTransport = HttpTransport(server), onFailure: (Exception) -> Unit = {}) : LibrarySource {
@@ -30,6 +32,8 @@ class ServerLibrary(private val db: LocalDatabase, override val server: ServerAd
         val subscription = ProtocolJson.decodeFromString<Subscription>(http.request("DELETE", "/api/subscriptions/${URLEncoder.encode(id, "UTF-8")}", null))
         db.upsertLibrary(listOf(subscription), emptyList()); db.notifyChanged()
     }
+    override fun importOpml(xml: String): ImportSummary = ProtocolJson.decodeFromString(http.request("POST", "/api/subscriptions/import", ProtocolJson.encodeToString(mapOf("opml" to xml))))
+    override fun exportOpml(): String = http.request("GET", "/api/subscriptions/export", null)
     override fun chapters(episodeId: String): List<Chapter> {
         val chapters = ProtocolJson.decodeFromString<List<Chapter>>(http.request("GET", episodePath(episodeId) + "/chapters", null))
         db.execute("UPDATE episode SET chapters = ?, chapters_fetched_at = ? WHERE id = ?", listOf(ProtocolJson.encodeToString(chapters), System.currentTimeMillis(), episodeId))
@@ -78,7 +82,7 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
         db.notifyChanged()
     }
     fun subscriptions() = db.query("SELECT id FROM subscription ORDER BY title").map { subscription(it["id"] as String) }
-    fun importOpml(xml: String): ImportSummary {
+    override fun importOpml(xml: String): ImportSummary {
         val urls = runCatching { Opml.parse(xml) }.getOrDefault(emptyList())
         val known = subscriptions().filter { it.unsubscribedAt == null }.map { it.feedUrl }.toSet()
         val failures = urls.filterNot { it in known }.mapNotNull { url ->
@@ -86,7 +90,7 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
         }
         return ImportSummary(urls.count { it !in known } - failures.size, urls.count { it in known }, failures)
     }
-    fun exportOpml() = Opml.generate(subscriptions())
+    override fun exportOpml() = Opml.generate(subscriptions())
     override fun refresh() {
         val rows = db.query("SELECT s.id, f.checked_at, f.failures FROM subscription s LEFT JOIN feed_state f ON f.subscription_id = s.id WHERE s.unsubscribed_at IS NULL")
         for (row in rows) {

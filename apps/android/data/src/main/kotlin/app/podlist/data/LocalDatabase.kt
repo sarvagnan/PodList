@@ -10,6 +10,7 @@ import java.util.UUID
  * HTTP runs outside transactions; readers and durable commits share this lock.
  */
 class LocalDatabase(path: String, private val standalone: Boolean = false) : AutoCloseable {
+    private var transactionDepth = 0
     private val connection: SQLiteConnection = BundledSQLiteDriver().open(path)
 
     init {
@@ -84,15 +85,23 @@ class LocalDatabase(path: String, private val standalone: Boolean = false) : Aut
 
     @Synchronized
     fun <T> transaction(block: LocalDatabase.() -> T): T {
-        execute("BEGIN IMMEDIATE")
+        val depth = transactionDepth
+        val savepoint = "android_nested_$depth"
+        execute(if (depth == 0) "BEGIN IMMEDIATE" else "SAVEPOINT $savepoint")
+        transactionDepth++
         return try {
             val result = block()
-            execute("COMMIT")
+            execute(if (depth == 0) "COMMIT" else "RELEASE SAVEPOINT $savepoint")
             result
         } catch (error: Throwable) {
-            try { execute("ROLLBACK") } catch (rollback: Throwable) { error.addSuppressed(rollback) }
+            try {
+                if (depth == 0) execute("ROLLBACK") else {
+                    execute("ROLLBACK TO SAVEPOINT $savepoint")
+                    execute("RELEASE SAVEPOINT $savepoint")
+                }
+            } catch (rollback: Throwable) { error.addSuppressed(rollback) }
             throw error
-        }
+        } finally { transactionDepth-- }
     }
 
     private fun insert(table: String, row: Row) {
