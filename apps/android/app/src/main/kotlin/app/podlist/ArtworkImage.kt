@@ -30,6 +30,18 @@ private val artworkMemory = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
 }
 
+private const val ArtworkByteLimit = 16 * 1024 * 1024
+
+/** Decodes at the smallest size that still covers the drawn size, so 3000px Artwork can't exhaust memory. */
+private fun decodeArtwork(bytes: ByteArray, pixels: Int): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= pixels) sample *= 2
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+}
+
 /** Server Library Artwork uses its proxy; publisher and directory Artwork load directly. */
 @Composable
 internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp, direct: Boolean = false) {
@@ -37,10 +49,13 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
     val bitmap by produceState<Bitmap?>(null, session.source.key, url, direct) {
         value = null
         if (url == null) return@produceState
-        val endpoint = if (direct) url else session.source.artwork(url, if (size > 100.dp) 512 else 128)
+        val pixels = if (size > 100.dp) 512 else 128
+        val endpoint = if (direct) url else session.source.artwork(url, pixels)
+        // Publisher Artwork arrives full size, so one URL has an entry for each size drawn.
+        val cacheKey = "$endpoint#$pixels"
         value = withContext(Dispatchers.IO) {
-            artworkMemory.get(endpoint) ?: runCatching {
-                val key = MessageDigest.getInstance("SHA-256").digest(endpoint.toByteArray()).joinToString("") { "%02x".format(it) }
+            artworkMemory.get(cacheKey) ?: runCatching {
+                val key = MessageDigest.getInstance("SHA-256").digest(cacheKey.toByteArray()).joinToString("") { "%02x".format(it) }
                 val directory = File(context.cacheDir, "artwork").also { it.mkdirs() }
                 val file = File(directory, key)
                 val cached = if (file.exists()) BitmapFactory.decodeFile(file.path) else null
@@ -52,11 +67,14 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
                         connection.instanceFollowRedirects = direct || session.source.server == null
                         connection.setRequestProperty("User-Agent", "PodList Android")
                         if (connection.responseCode != 200) return@run null
-                        val bytes = connection.inputStream.use { it.readNBytes(2 * 1024 * 1024 + 1) }
-                        if (bytes.size > 2 * 1024 * 1024) return@run null
-                        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@run null
+                        val bytes = connection.inputStream.use { it.readNBytes(ArtworkByteLimit + 1) }
+                        if (bytes.size > ArtworkByteLimit) return@run null
+                        val decoded = decodeArtwork(bytes, pixels) ?: return@run null
                         val temporary = File.createTempFile("artwork-", ".part", directory)
-                        try { temporary.writeBytes(bytes); temporary.renameTo(file) } finally { temporary.delete() }
+                        try {
+                            temporary.outputStream().use { decoded.compress(Bitmap.CompressFormat.WEBP_LOSSY, 85, it) }
+                            temporary.renameTo(file)
+                        } finally { temporary.delete() }
                         var total = 0L
                         directory.listFiles().orEmpty().sortedByDescending { it.lastModified() }.forEach {
                             total += it.length()
@@ -65,7 +83,7 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
                         decoded
                     } finally { connection.disconnect() }
                 }
-            }.getOrNull()?.also { artworkMemory.put(endpoint, it) }
+            }.getOrNull()?.also { artworkMemory.put(cacheKey, it) }
         }
     }
     Box(Modifier.size(size).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {

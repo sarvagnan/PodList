@@ -131,6 +131,16 @@ class DeviceLibraryTest {
         assertEquals(1, invalidations)
         assertEquals(2, db.downloadPlan(device, 1_800_000_000_000).fetch.size)
     }
+    @Test fun `a failed Chapters lookup is retried instead of remembered as none`() = device { db, library, network ->
+        library.subscribe(feedUrl)
+        val id = db.query("SELECT id FROM episode").single()["id"] as String
+        network.status = 503
+        assertTrue(library.chapters(id).isEmpty())
+        assertNull(db.query("SELECT chapters_fetched_at FROM episode").single()["chapters_fetched_at"])
+        network.status = 200
+        network.body = """{"chapters":[{"startTime":0,"title":"First"}]}"""
+        assertEquals(listOf("First"), library.chapters(id).map { it.title })
+    }
     @Test fun `Chapters come directly from podcast JSON and are cached`() = device { db, library, network ->
         library.subscribe(feedUrl)
         val id = db.query("SELECT id FROM episode").single()["id"] as String

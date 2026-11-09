@@ -140,18 +140,21 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
         val row = db.query("SELECT chapters, chapters_url, chapters_fetched_at, audio_url FROM episode WHERE id = ?", listOf(episodeId)).single()
         if (row["chapters_fetched_at"] != null) return@synchronized ProtocolJson.decodeFromString(row["chapters"] as String)
         val url = row["chapters_url"] as? String
+        // A phone is often offline at first play, so only a completed lookup is remembered.
+        var failed = false
         val fromJson = if (url == null) emptyList() else runCatching {
             val response = http.get(url, mapOf("Accept" to "application/json"))
             require(response.status in 200..299)
             jsonChapters(response.body)
-        }.getOrDefault(emptyList())
+        }.getOrElse { failed = true; emptyList() }
         val chapters = fromJson.ifEmpty {
             runCatching {
                 val response = http.get(row["audio_url"] as String, mapOf("Range" to "bytes=0-${Id3ProbeBytes - 1}"))
                 require(response.status in 200..299)
                 id3Chapters(response.bytes ?: byteArrayOf())
-            }.getOrDefault(emptyList())
+            }.getOrElse { failed = true; emptyList() }
         }
+        if (failed) return@synchronized chapters
         db.execute("UPDATE episode SET chapters = ?, chapters_fetched_at = ? WHERE id = ?", listOf(ProtocolJson.encodeToString(chapters), now(), episodeId))
         db.notifyChanged()
         chapters

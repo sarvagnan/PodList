@@ -163,17 +163,20 @@
     {
       "name": "malformed",
       "xml": "<rss><channel><title>Broken</channel></rss>",
-      "error": true
+      "error": true,
+      "deviceOnly": true
     },
     {
       "name": "external-entity",
       "xml": "<!DOCTYPE rss [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><rss><channel><title>&xxe;</title></channel></rss>",
-      "error": true
+      "error": true,
+      "deviceOnly": true
     },
     {
       "name": "external-dtd",
       "xml": "<!DOCTYPE rss SYSTEM \"https://test/evil\"><rss><channel><title>Unsafe</title></channel></rss>",
-      "error": true
+      "error": true,
+      "deviceOnly": true
     }
   ],
   "durations": [

@@ -1,4 +1,4 @@
-import { XMLParser, XMLValidator } from "fast-xml-parser"
+import { XMLParser } from "fast-xml-parser"
 
 // Parses podcast RSS (with the iTunes and Podcasting 2.0 namespaces) into the fields
 // PodList stores. Items without an audio enclosure are not Episodes and are skipped.
@@ -71,12 +71,7 @@ const parseDate = (raw: string | null): number => {
   return Number.isFinite(millis) ? millis : 0
 }
 
-export const feedSizeLimit = 8 * 1024 * 1024
-
 export const parseFeed = (xml: string): ParsedFeed => {
-  if (Buffer.byteLength(xml, "utf8") > feedSizeLimit) throw new FeedParseError("XML is too large")
-  if (/<!\s*(DOCTYPE|ENTITY)/i.test(xml)) throw new FeedParseError("DTD and entities are forbidden")
-  if (XMLValidator.validate(xml) !== true) throw new FeedParseError("Not valid XML")
   let document: Node
   try {
     document = parser.parse(xml) as Node

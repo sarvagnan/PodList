@@ -28,7 +28,7 @@ class PublisherHttp : PublisherTransport {
                         val limit = if (ranged) Id3ProbeBytes else FeedSizeLimit + 1
                         input.readNBytes(limit).also { require(ranged || it.size <= FeedSizeLimit) { "Response is too large" } }
                     } else byteArrayOf()
-                    return PublisherResponse(status, if (ranged) "" else bytes.toString(Charsets.UTF_8), connection.getHeaderField("ETag"), connection.getHeaderField("Last-Modified"), bytes)
+                    return PublisherResponse(status, if (ranged) "" else bytes.toString(Charsets.UTF_8), connection.getHeaderField("ETag"), connection.getHeaderField("Last-Modified"), bytes.takeIf { ranged })
                 }
             } finally { connection.disconnect() }
         }

@@ -37,7 +37,10 @@ const rejected = [
   { name: "not-rss", xml: "<html><body/></html>" },
   { name: "missing-channel", xml: "<rss/>" },
   { name: "missing-title", xml: rss("<description>No title</description>") },
-  { name: "empty-title", xml: rss("<title> </title>") },
+  { name: "empty-title", xml: rss("<title> </title>") }
+]
+// Stricter on the Device than the server, whose tolerant parser keeps sloppy live feeds working.
+const rejectedOnDevice = [
   { name: "malformed", xml: "<rss><channel><title>Broken</channel></rss>" },
   {
     name: "external-entity",
@@ -52,7 +55,8 @@ export const buildFeedVectors = () => ({
   protocolVersion: 4,
   feeds: [
     ...sources.map((source) => ({ ...source, expected: parseFeed(source.xml) })),
-    ...rejected.map((source) => ({ ...source, error: true }))
+    ...rejected.map((source) => ({ ...source, error: true })),
+    ...rejectedOnDevice.map((source) => ({ ...source, error: true, deviceOnly: true }))
   ],
   durations: [
     null,
