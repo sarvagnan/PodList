@@ -297,7 +297,12 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
             }
             follow(force = true)
         } else follow()
-        if (info != null) { audio.play(); loadingAt = SystemClock.elapsedRealtime(); publish() }
+        if (info != null) {
+            audio.play()
+            // STATE_READY only clears the timer on a change, so a resume of ready audio must not arm it.
+            if (audio.playbackState != Player.STATE_READY) loadingAt = SystemClock.elapsedRealtime()
+            publish()
+        }
     }
     private suspend fun pauseAudio() {
         if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
