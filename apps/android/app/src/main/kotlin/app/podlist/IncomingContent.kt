@@ -39,7 +39,7 @@ internal fun DownloadNotificationPermission(model: AppModel) {
     if (explaining) AlertDialog(
         onDismissRequest = { explaining = false },
         text = { Text(stringResource(R.string.download_notification_reason)) },
-        confirmButton = { TextButton(contentPadding = PaddingValues.Zero, onClick = { explaining = false; launcher.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text(stringResource(R.string.continue_action)) } },
-        dismissButton = { TextButton(contentPadding = PaddingValues.Zero, onClick = { explaining = false }) { Text(stringResource(R.string.bring_over_not_now)) } }
+        confirmButton = { TextButton(onClick = { explaining = false; launcher.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text(stringResource(R.string.continue_action)) } },
+        dismissButton = { TextButton(onClick = { explaining = false }) { Text(stringResource(R.string.bring_over_not_now)) } }
     )
 }

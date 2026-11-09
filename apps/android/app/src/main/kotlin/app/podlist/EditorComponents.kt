@@ -42,16 +42,38 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
     HorizontalDivider()
 }
 
+// Sheets and create forms finish at the bottom trailing edge; actions wrap before they crowd.
+@Composable
+internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+}
+
+@Composable
+internal fun ContentTextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: ButtonColors = ButtonDefaults.textButtonColors(),
+    content: @Composable RowScope.() -> Unit
+) {
+    // Keep Material padding, but align the label rather than its padded touch target to the gutter.
+    TextButton(onClick, modifier.offset(x = (-12).dp).defaultMinSize(minWidth = 1.dp), enabled = enabled,
+        colors = colors, content = content)
+}
+
 @Composable
 internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? = null, doneEnabled: Boolean = true, doneLabel: Int = R.string.m4_done, content: @Composable ColumnScope.() -> Unit) {
     val model = LocalAppModel.current
     FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-                TextButton(contentPadding = PaddingValues.Zero, onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
+        Column(Modifier.fillMaxWidth().imePadding()) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+                content()
             }
-            content()
+            CommitActions(Modifier.padding(16.dp)) {
+                TextButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
+            }
         }
     }
 }
@@ -64,24 +86,21 @@ internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, support
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
                 Text(label)
-                supporting?.let { Text(it(value), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                supporting?.let { Text(it(value), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }
 }
 
 @Composable
-internal fun NumberField(label: String, value: Double?, integer: Boolean = false, minimum: Double = 0.0, autofocus: Boolean = false, changed: (Double?) -> Unit) {
+internal fun NumberField(label: String, value: Double?, integer: Boolean = false, minimum: Double = 0.0, autofocus: Boolean = false, draftKey: String? = null, changed: (Double?) -> Unit) {
     val viewDraftPrefix = LocalViewDraftPrefix.current
     val drafts = LocalFormDrafts.current
-    val draftKey = viewDraftPrefix?.let { "$it/number/$label" }
-    val durableText = draftKey?.let { rememberDraftText(it, value?.let { number -> if (integer) number.toLong().toString() else NumberInput.format(number) }.orEmpty()) }
-    val localText = rememberSaveable(label) { mutableStateOf(value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty()) }
-    var text by durableText ?: localText
-    var observed by remember { mutableStateOf(value) }
-    LaunchedEffect(value) { if (observed != value) { observed = value; if (NumberInput.parse(text) != value) text = value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty() } }
-    val parsed = NumberInput.parse(text)
-    val valid = text.isBlank() || parsed != null && parsed.isFinite() && parsed >= minimum && (!integer || parsed % 1 == 0.0 && parsed <= Int.MAX_VALUE)
+    val key = draftKey ?: requireNotNull(viewDraftPrefix) + "/number/$label"
+    val initial = value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty()
+    // Raw drafts own the field until finish/discard/Undo, so delayed model echoes cannot replace input.
+    var text by rememberDraftText(key, initial)
+    val valid = NumberInput.valid(text, minimum, integer)
     LaunchedEffect(valid) { viewDraftPrefix?.let { drafts.put("$it/invalid/$label", (!valid).toString()) } }
     val model = LocalAppModel.current
     val currentValid by rememberUpdatedState(valid)
@@ -151,4 +170,20 @@ internal fun DetailAction(icon: Int, label: String, action: () -> Unit) {
 internal fun ProgressModifier(label: Int): Modifier {
     val name = stringResource(label)
     return Modifier.semantics { contentDescription = name }
+}
+
+@Composable
+internal fun SearchClearButton(text: String, clear: () -> Unit) {
+    if (text.isNotEmpty()) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search), action = clear)
+}
+
+@Composable
+internal fun EpisodeAction(icon: Int, label: String, modifier: Modifier = Modifier, enabled: Boolean = true, action: () -> Unit) {
+    FilledTonalButton(onClick = action, enabled = enabled, modifier = modifier.heightIn(min = 72.dp),
+        shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(8.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(androidx.compose.ui.res.painterResource(icon), null)
+            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
 }

@@ -54,6 +54,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     LaunchedEffect(undoRevision) {
         if (undoRevision != initialUndo) {
             val stored = withContext(Dispatchers.IO) { session.db.loadState().views.find { it.id == view.id } }
+            if (stored == saved || stored == null && !recorded) return@LaunchedEffect
             recorded = stored != null
             val restored = stored ?: initial.takeIf { creating }
             restored?.let { drafts.clear(draftPrefix); saved = it; draft = it; name = it.name; mentions = it.filter.text.orEmpty(); podcastMode = it.filter.podcasts?.mode }
@@ -99,24 +100,17 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { Section(stringResource(R.string.m4_then)) }
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
-            item { TextButton(contentPadding = PaddingValues.Zero, onClick = { drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_view_draft)) } }
-            item { TextButton(contentPadding = PaddingValues.Zero, onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            item { ContentTextButton(onClick = { drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_view_draft)) } }
+            item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
-            val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
-            @Composable fun Actions() {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(contentPadding = PaddingValues.Zero, enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
-                    TextButton(contentPadding = PaddingValues.Zero, enabled = !completing && problem == null && !hasInvalidNumber && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(fullCount, style = MaterialTheme.typography.bodyMedium)
+                CommitActions {
+                    TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
+                    TextButton(enabled = !completing && problem == null && !hasInvalidNumber && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
                 }
-            }
-            if (large) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                Text(fullCount, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium)
-                Box(Modifier.align(Alignment.End)) { Actions() }
-            } else Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(fullCount, Modifier.weight(1f).padding(vertical = 8.dp), style = MaterialTheme.typography.bodyMedium)
-                Actions()
             }
         }
     }
@@ -162,7 +156,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
 @Composable private fun DateBoundary(label: Int, value: Long?, end: Boolean, changed: (Long?) -> Unit) {
     var picking by rememberSaveable(label) { mutableStateOf(false) }
     ValueRow(stringResource(label), value?.let(::date) ?: stringResource(R.string.any)) { picking = true }
-    if (value != null) TextButton(contentPadding = PaddingValues.Zero, onClick = { changed(null) }) { Text(stringResource(R.string.any)) }
+    if (value != null) ContentTextButton(onClick = { changed(null) }) { Text(stringResource(R.string.any)) }
     if (picking) {
         // Material's picker uses UTC date labels; convert the chosen date to this Device's boundaries.
         val initial = value?.let { java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() }
@@ -170,8 +164,8 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= 0
             override fun isSelectableYear(year: Int) = year >= 1970
         })
-        DatePickerDialog(onDismissRequest = { picking = false }, dismissButton = { TextButton(contentPadding = PaddingValues.Zero, onClick = { picking = false }) { Text(stringResource(R.string.cancel)) } }, confirmButton = {
-            TextButton(contentPadding = PaddingValues.Zero, enabled = picker.selectedDateMillis != null, onClick = {
+        DatePickerDialog(onDismissRequest = { picking = false }, dismissButton = { TextButton(onClick = { picking = false }) { Text(stringResource(R.string.cancel)) } }, confirmButton = {
+            TextButton(enabled = picker.selectedDateMillis != null, onClick = {
                 picker.selectedDateMillis?.let { millis ->
                     val day = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
                     changed((if (end) day.plusDays(1) else day).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() - if (end) 1 else 0)

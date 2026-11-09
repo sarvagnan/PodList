@@ -81,7 +81,7 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
     CompositionLocalProvider(LocalEntryDrag provides drag) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().onGloballyPositioned { drag.viewportTop = it.positionInWindow().y }) {
             header?.invoke(this)
-            if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries); TextButton(contentPadding = PaddingValues.Zero, onClick = { model.requestReveal(Reveal("search")) }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_episodes)) } }
+            if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries); FilledTonalButton(onClick = { model.requestReveal(Reveal("search")) }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_episodes)) } }
             itemsIndexed(playlist.entries, key = { _, entry -> entry.episodeId }) { index, entry ->
                 val focus = remember { FocusRequester() }
                 val moving = drag.source == entry.episodeId

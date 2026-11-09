@@ -45,7 +45,7 @@ internal fun FeedbackSnackbarHost(feedback: SheetFeedback, modifier: Modifier = 
     SnackbarHost(feedback.snackbar, modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { data ->
         val label = data.visuals.actionLabel
         Snackbar(action = if (label != null && !(feedback.editorUndo && label == undoLabel)) ({
-            TextButton(contentPadding = PaddingValues.Zero, onClick = data::performAction, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) { Text(label) }
+            ContentTextButton(onClick = data::performAction, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) { Text(label) }
         }) else null) { Text(data.visuals.message) }
     }
 }

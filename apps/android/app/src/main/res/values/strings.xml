@@ -463,4 +463,14 @@
     <string name="show_podcast_details">Show podcast details</string>
     <string name="hide_podcast_details">Hide podcast details</string>
     <string name="chart_scale">Daily listening · 0 to %1$s</string>
+    <string name="timeline_rewind_hint">Tap a row with the Rewind symbol to see what goes back before you Rewind.</string>
+    <string name="undo_specific">Undo: %1$s</string>
+    <string name="redo_specific">Redo: %1$s</string>
+    <string name="chart_minutes">Time listened in minutes</string>
+    <string name="chart_tick">%1$d</string>
+    <string name="podcast">Podcast</string>
+    <string name="playback_settings_changed">Playback Settings changed</string>
+    <string name="subscription_settings_changed">Subscription settings changed</string>
+    <string name="trash_retention_changed">Deleted Playlist retention changed</string>
+    <string name="clear_on_played_changed">Clear on Played changed</string>
 </resources>

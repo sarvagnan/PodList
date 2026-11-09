@@ -81,6 +81,8 @@ private fun ConnectedShell(model: AppModel, session: Session) {
         value = withContext(Dispatchers.IO) { val store = FormDraftStore(session.db); FormDraftState(store, store.load()) }
     }
     val readyDrafts = drafts ?: return
+    val undoRevision by model.undoRevision.collectAsState()
+    LaunchedEffect(undoRevision) { readyDrafts.reload() }
     CompositionLocalProvider(LocalBrowsingState provides browsing, LocalFormDrafts provides readyDrafts) { ConnectedNavigation(model, session, browsing) }
 }
 
@@ -283,7 +285,7 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
             })
             if (status == SyncStatus.Offline || status == SyncStatus.Error) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(if (status == SyncStatus.Offline) R.string.offline else R.string.sync_error), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                TextButton(contentPadding = PaddingValues.Zero, onClick = retry) { Text(stringResource(R.string.retry)) }
+                ContentTextButton(onClick = retry) { Text(stringResource(R.string.retry)) }
             }
         }
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
@@ -329,11 +331,11 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
         when (destination) {
             Destination.Views -> {
                 item(key = "getting-started") { GettingStarted(data, session, open) }
-                if (data.state.views.isEmpty()) item(key = "no-views") { EmptyMessage(R.string.no_views); TextButton(contentPadding = PaddingValues.Zero, onClick = { open("new-view:${java.util.UUID.randomUUID()}") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_new_view)) } }
+                if (data.state.views.isEmpty()) item(key = "no-views") { EmptyMessage(R.string.no_views); FilledTonalButton(onClick = { open("new-view:${java.util.UUID.randomUUID()}") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_new_view)) } }
                 items(data.state.views, key = { "view:${it.id}" }) { view -> NameRow(view.name, viewDescription(view, data)) { open("view:${view.id}") } }
             }
             Destination.Playlists -> {
-                if (data.state.playlists.isEmpty()) item(key = "no-playlists") { EmptyMessage(R.string.no_playlists); TextButton(contentPadding = PaddingValues.Zero, onClick = { open("new-playlist") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.new_playlist)) } }
+                if (data.state.playlists.isEmpty()) item(key = "no-playlists") { EmptyMessage(R.string.no_playlists); FilledTonalButton(onClick = { open("new-playlist") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.new_playlist)) } }
                 items(data.state.playlists, key = { "playlist:${it.id}" }) { playlist ->
                     val details = listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
                         pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries))
@@ -346,8 +348,6 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 if (subscriptions.isEmpty()) item(key = "no-subscriptions") {
                     EmptyMessage(R.string.no_subscriptions)
                     FilledTonalButton(onClick = { open("add-podcasts") }, modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Icon(painterResource(R.drawable.ic_add), null)
-                        Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.add_podcasts))
                     }
                 }
@@ -392,12 +392,12 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         }
         route?.startsWith("view:") == true -> {
             val view = data.state.views.find { it.id == id }
-            if (view == null) Column { EmptyMessage(R.string.missing_view); TextButton(contentPadding = PaddingValues.Zero, onClick = { open("directory") }) { Text(stringResource(R.string.views)) } }
+            if (view == null) Column { EmptyMessage(R.string.missing_view); FilledTonalButton(modifier = Modifier.padding(horizontal = 16.dp), onClick = { open("directory") }) { Text(stringResource(R.string.views)) } }
             else if (data.episodes.isEmpty() && data.subscriptions.none { it["unsubscribed_at"] == null }) Column { EmptyMessage(R.string.no_subscriptions); FilledTonalButton(modifier = Modifier.padding(horizontal = 16.dp), onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
-            else if (data.episodes.isEmpty()) Column { EmptyMessage(R.string.no_matches); TextButton(contentPadding = PaddingValues.Zero, onClick = { open("view-edit:$id") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.edit_conditions)) } }
+            else if (data.episodes.isEmpty()) Column { EmptyMessage(R.string.no_matches); FilledTonalButton(onClick = { open("view-edit:$id") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.edit_conditions)) } }
             else EpisodeList(data.episodes, data, session, open, empty = R.string.no_matches, summary = {
                 Text(pluralStringResource(R.plurals.episode_count, data.episodes.size, data.episodes.size), style = MaterialTheme.typography.titleSmall)
-                Text(viewDescription(view, data, compact = false), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(viewDescription(view, data, compact = false), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             })
         }
         route?.startsWith("playlist:") == true -> {
@@ -490,19 +490,25 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
             EpisodeRow(row, data, session, showActions = false, showArtwork = false)
             Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { model.playNow(id); started() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Icon(painterResource(R.drawable.ic_play), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.play_now)) }
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionIcon(R.drawable.ic_add, stringResource(R.string.add_to_playlist)) { add(id) }
-                    val played = data.state.episodeStates[id]?.played != null
-                    ActionIcon(if (played) R.drawable.ic_unplayed else R.drawable.ic_check, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played)) { model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User)) }
-                    val starred = data.state.episodeStates[id]?.starred == true
-                    ActionIcon(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (starred) R.string.unstar else R.string.star)) { model.edit(Change.SetStar(id, !starred)) }
-                    val context = LocalContext.current
-                    val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
-                    if (shareLink != null) ActionIcon(R.drawable.ic_share, stringResource(R.string.share_episode)) { context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String) }, null)) }
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    val columns = if (LocalDensity.current.fontScale >= 1.5f) 2 else 3
+                    val width = (maxWidth - 8.dp * (columns - 1)) / columns
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EpisodeAction(R.drawable.ic_add, stringResource(R.string.add_to_playlist), Modifier.width(width)) { add(id) }
+                        val played = data.state.episodeStates[id]?.played != null
+                        EpisodeAction(if (played) R.drawable.ic_unplayed else R.drawable.ic_check, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played), Modifier.width(width)) { model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User)) }
+                        val starred = data.state.episodeStates[id]?.starred == true
+                        EpisodeAction(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (starred) R.string.unstar else R.string.star), Modifier.width(width)) { model.edit(Change.SetStar(id, !starred)) }
+                        val context = LocalContext.current
+                        val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
+                        EpisodeAction(R.drawable.ic_share, stringResource(R.string.share_episode), Modifier.width(width), enabled = shareLink != null) {
+                            context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String) }, null))
+                        }
+                        DownloadAction(id, session, Modifier.width(width))
+                    }
                 }
             }
 
-            DownloadAction(id, session)
         }
         if (notes.isNotBlank()) {
             item { Section(stringResource(R.string.show_notes)) }
@@ -512,14 +518,14 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
         item { Section(stringResource(R.string.in_playlists)) }
         if (entries.isEmpty()) item { Hint(stringResource(R.string.not_in_playlist)) }
         items(entries, key = { it.first.id }) { (playlist, entry) ->
-            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(playlist.name, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.playlist_position, duration(entry.position))) }, trailingContent = {
-                TextButton(contentPadding = PaddingValues.Zero, onClick = { model.playEntry(playlist.id, id); started() }) { Text(stringResource(if (entry.position > 0) R.string.resume else R.string.play)) }
+            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.playlist_position, duration(entry.position))) }, trailingContent = {
+                ContentTextButton(onClick = { model.playEntry(playlist.id, id); started() }) { Text(stringResource(if (entry.position > 0) R.string.resume else R.string.play)) }
             })
         }
         if (chapters.isNotEmpty()) item { Section(stringResource(R.string.chapters)) }
         items(chapters, key = { it.start }) { chapter ->
-            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(chapter.title, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String) }, trailingContent = {
-                TextButton(contentPadding = PaddingValues.Zero, onClick = { model.playNow(id); model.seek(chapter.start); started() }) { Text(stringResource(R.string.play)) }
+            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(chapter.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String) }, trailingContent = {
+                ContentTextButton(onClick = { model.playNow(id); model.seek(chapter.start); started() }) { Text(stringResource(R.string.play)) }
             })
         }
 
@@ -528,12 +534,12 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
 
 @Composable
 internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, onClick: () -> Unit) {
-    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(subtitle) },
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(subtitle) },
         leadingContent = if (session != null) { { ArtworkImage(session, artwork) } } else icon?.let { { Icon(painterResource(it), null) } })
     HorizontalDivider()
 }
 
-@Composable internal fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+@Composable internal fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 @Composable internal fun Section(text: String, inset: androidx.compose.ui.unit.Dp = 16.dp) { Text(text, Modifier.padding(start = inset, end = inset, top = 20.dp, bottom = 8.dp).semantics { heading() }, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall) }
 @Composable internal fun EmptyMessage(resource: Int) { Text(stringResource(resource), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
 @Composable internal fun Loading() { Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(Modifier.then(ProgressModifier(R.string.loading))); Text(stringResource(R.string.loading)) } }
