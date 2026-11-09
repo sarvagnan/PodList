@@ -10,7 +10,10 @@ Android 14 (API 34) is the minimum.
 The owner-approved compact phone layout D uses Material 3, system fonts, edge to
 edge, PodList blue (`#2b50c8`) and system dark mode. Views, Playlists and Library keep
 independent navigation stacks through `NavigationSuiteScaffold` and the predictive
-`NavigableListDetailPaneScaffold` wrapper around `ListDetailPaneScaffold`.
+`NavigableListDetailPaneScaffold` wrapper around `ListDetailPaneScaffold`. Browsing
+context (destination, stacks, Playlist tab, Search, stats presentation and scroll
+anchors) is stored per local Library, restored on cold launch and validated against
+retained objects. Missing routes fall back through their stack without starting audio.
 
 The 72dp mini player shows Artwork, back 15, Play/Pause, forward 30 and Active
 Playlist, with 48dp controls and a progress line. Names are accessible descriptions
@@ -42,7 +45,7 @@ Clear on Played.
 
 Subscription settings contains this Device's Download Rule, its optional positive
 cap, Played threshold and individual Playback Settings overrides. Default values
-show what they inherit; overrides use the primary role. Pending server overrides
+show what they inherit; changed values carry a neutral “Changed” label. Pending server overrides
 also affect local playback before sync. Mark all Played offers Undo. Unsubscribe
 explains Orphaned Episodes and stored downloads, then offers Undo, Redo and retry.
 
@@ -55,7 +58,8 @@ alone. Existing shared Rewind vectors still exercise the reducer.
 Settings contains Playback, Your listening, Your podcasts, Playlists, This Device and
 Help. Listening stats shows all three periods, the current Listening streak, 30 daily
 bars, a table and top podcasts. Bars scroll horizontally so each day remains a 48dp
-touch target. OPML uses Android OpenDocument/CreateDocument and LibrarySource's server
+touch target, open at the latest days and carry dates beneath each bar. Period tiles
+stack at large font scales. OPML uses Android OpenDocument/CreateDocument and LibrarySource's server
 or Standalone Device implementation; partial imports list failures and retry just
 those addresses. Imports, exports and their results survive Activity rotation. The launcher exposes Views, Playlists and Library shortcuts.
 

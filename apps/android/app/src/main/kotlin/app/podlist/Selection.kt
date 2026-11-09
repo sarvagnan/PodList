@@ -69,8 +69,8 @@ internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session) {
     var choosing by rememberSaveable { mutableStateOf(false) }
     Column {
         Text(pluralStringResource(R.plurals.m4_selected_count, ids.size, ids.size), Modifier.padding(16.dp))
-        Button(enabled = ids.isNotEmpty(), onClick = { choosing = true }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.download_rule)) }
-        LazyColumn {
+        Button(enabled = ids.isNotEmpty(), onClick = { choosing = true }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.change_download_rule)) }
+        LazyColumn(state = rememberBrowsingListState()) {
             items(data.subscriptions.filter { it["unsubscribed_at"] == null }) { subscription ->
                 val id = subscription["id"] as String
                 CheckRow(subscription["title"] as String, id in ids, inset = true) { checked -> ids = if (checked) ids + id else ids - id }

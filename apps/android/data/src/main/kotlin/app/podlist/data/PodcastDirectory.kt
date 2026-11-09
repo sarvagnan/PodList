@@ -28,7 +28,7 @@ class PodcastDirectory(private val http: PublisherTransport = PublisherHttp()) {
     }
 }
 
-@Serializable data class ImportFailure(val feedUrl: String, val message: String)
+@Serializable data class ImportFailure(val feedUrl: String, val message: String? = null, val error: LookupError = LookupError.Response)
 @Serializable data class ImportSummary(val added: Int, val alreadySubscribed: Int, val failed: List<ImportFailure>)
 object Opml {
     fun parse(xml: String): List<String> {

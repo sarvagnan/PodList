@@ -86,7 +86,7 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
         val urls = Opml.parse(xml)
         val known = subscriptions().filter { it.unsubscribedAt == null }.map { it.feedUrl }.toSet()
         val failures = urls.filterNot { it in known }.mapNotNull { url ->
-            try { subscribe(url); null } catch (e: Exception) { ImportFailure(url, e.message ?: "Could not read feed") }
+            try { subscribe(url); null } catch (e: Exception) { ImportFailure(url, error = classifyLookup(e)) }
         }
         return ImportSummary(urls.count { it !in known } - failures.size, urls.count { it in known }, failures)
     }

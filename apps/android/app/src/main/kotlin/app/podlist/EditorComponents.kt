@@ -27,27 +27,28 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, onClick: () -> Unit) {
     val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
-    val valueColor = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val valueColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val shownValue = if (changed) stringResource(R.string.changed_value, value) else value
     ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick),
         headlineContent = { Text(label) }, supportingContent = if (large || help != null) ({
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (large) Text(value, color = valueColor)
+                if (large) Text(shownValue, color = valueColor)
                 help?.let { Text(it) }
             }
         }) else null, trailingContent = if (large) null else ({
-            Text(value, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium, color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            Text(shownValue, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium, color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
         }))
 }
 
 @Composable
-internal fun EditorSheet(title: String, close: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? = null, doneEnabled: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     val model = LocalAppModel.current
-    ModalBottomSheet(modifier = historyShortcuts(model), onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = close) { Text(stringResource(R.string.m4_done)) }
+                TextButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(R.string.m4_done)) }
             }
             content()
         }
@@ -75,7 +76,7 @@ internal fun NumberField(label: String, value: Double?, integer: Boolean = false
     DisposableEffect(Unit) { onDispose { if (!currentValid) model.messages.trySend(AppMessage(R.string.invalid_number_not_applied)) } }
     OutlinedTextField(text, { text = it; val n = NumberInput.parse(it); if (it.isBlank()) changed(null) else if (n != null && n.isFinite() && n >= minimum && (!integer || n % 1 == 0.0 && n <= Int.MAX_VALUE)) changed(n) },
         label = { Text(label) }, placeholder = { Text(stringResource(R.string.any)) }, singleLine = true,
-        isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.m4_number_error, minimum.toLong())) }) else null,
+        isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.m4_number_error, minimum.toLong()), Modifier.errorAnnouncement()) }) else null,
         keyboardOptions = KeyboardOptions(keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().then(if (autofocus) FocusedInputModifier() else Modifier))
 }
 

@@ -27,7 +27,7 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
     val bringOver by model.bringOver.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) actions.read(uri) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-opml")) { uri -> if (uri != null) actions.export(uri) }
-    LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item { Section(stringResource(R.string.playback_settings)); PlaybackSettingsEditor(data.state.playbackSettings) }
         item { Section(stringResource(R.string.m4_your_listening)); NameRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
@@ -47,11 +47,11 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         if (!busy && opml.progress?.remaining?.isNotEmpty() == true) item {
             Column(Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.import_stopped)); TextButton(onClick = actions::resume) { Text(stringResource(R.string.import_resume)) } }
         }
-        if (error) item { Column(Modifier.padding(16.dp)) { Text(stringResource(R.string.m4_opml_error), color = MaterialTheme.colorScheme.error); TextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
+        if (error) item { Column(Modifier.padding(16.dp)) { Text(stringResource(R.string.m4_opml_error), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error); TextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
         summary?.let { result -> item {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.m4_import_summary, result.added, result.alreadySubscribed, result.failed.size))
-                result.failed.forEach { failure -> Text(stringResource(R.string.m4_import_failure, failure.feedUrl, failure.message), style = MaterialTheme.typography.bodySmall) }
+                result.failed.forEach { failure -> Text(stringResource(R.string.m4_import_failure, failure.feedUrl, stringResource(lookupErrorResource(failure.error))), Modifier.errorAnnouncement(), style = MaterialTheme.typography.bodySmall) }
                 if (result.failed.isNotEmpty()) TextButton(enabled = !busy, onClick = actions::retryFailed) { Text(stringResource(R.string.m4_retry_failed)) }
             }
         } }

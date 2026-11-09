@@ -11,7 +11,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.lerp
+import android.app.UiModeManager
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.graphics.Color
 
 class MainActivity : ComponentActivity() {
@@ -96,11 +104,43 @@ private val DarkColors = darkColorScheme(
     scrim = Color.Black
 )
 
+private val PodListTypography = Typography(
+    headlineLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 30.sp, lineHeight = 38.sp),
+    headlineMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 26.sp, lineHeight = 34.sp),
+    headlineSmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 22.sp, lineHeight = 30.sp),
+    titleLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 20.sp, lineHeight = 28.sp),
+    titleMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 17.sp, lineHeight = 24.sp),
+    titleSmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
+    bodyLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 18.sp),
+    labelLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
+    labelMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 18.sp),
+    labelSmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)
+)
+
 @Composable
 fun PodListTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val manager = remember(context) { context.getSystemService(UiModeManager::class.java) }
+    var contrast by remember(manager) { mutableFloatStateOf(manager.contrast) }
+    DisposableEffect(manager) {
+        val listener = UiModeManager.ContrastChangeListener { contrast = it }
+        manager.addContrastChangeListener(ContextCompat.getMainExecutor(context), listener)
+        onDispose { manager.removeContrastChangeListener(listener) }
+    }
+    val dark = isSystemInDarkTheme()
+    val base = if (dark) DarkColors else LightColors
+    val amount = contrast.coerceIn(0f, 1f)
+    val colors = base.copy(
+        primary = lerp(base.primary, if (dark) Color(0xffe0e5ff) else Color(0xff002781), amount),
+        onSurfaceVariant = lerp(base.onSurfaceVariant, base.onSurface, amount),
+        outline = lerp(base.outline, base.onSurface, amount),
+        outlineVariant = lerp(base.outlineVariant, base.onSurfaceVariant, amount)
+    )
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
-        typography = Typography(),
+        colorScheme = colors,
+        typography = PodListTypography,
         content = content
     )
 }

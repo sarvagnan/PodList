@@ -40,25 +40,31 @@ private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartO
 
 @Composable private fun PeriodTiles(values: List<String>) {
     val labels = listOf(R.string.m4_this_week, R.string.m4_this_month, R.string.m4_all_time)
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        values.forEachIndexed { index, value ->
-            Surface(Modifier.weight(1f).fillMaxHeight().semantics(mergeDescendants = true) {}, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(stringResource(labels[index]), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(value, style = MaterialTheme.typography.titleLarge)
-                }
+    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+    @Composable fun Tile(index: Int, value: String, modifier: Modifier) {
+        Surface(modifier.semantics(mergeDescendants = true) {}, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Column(Modifier.padding(12.dp)) {
+                Text(stringResource(labels[index]), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.titleLarge)
             }
         }
+    }
+    if (large) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        values.forEachIndexed { index, value -> Tile(index, value, Modifier.fillMaxWidth()) }
+    } else Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        values.forEachIndexed { index, value -> Tile(index, value, Modifier.weight(1f).fillMaxHeight()) }
     }
 }
 
 @Composable
 internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
     val stats = remember(data) { ListeningStats.calculate(data.state.listeningLog.orEmpty(), data.state.episodeStates.filterKeys { id -> data.episodes.any { it["id"] == id } }.values.mapNotNull { it.played }, Instant.now(), ZoneId.systemDefault()) }
-    var table by rememberSaveable { mutableStateOf(false) }
-    var chosen by rememberSaveable { mutableIntStateOf(-1) }
+    val browsing = LocalBrowsingState.current
+    var table by rememberSaveable { mutableStateOf(browsing?.context?.statsTable ?: false) }
+    LaunchedEffect(table) { if (browsing != null) browsing.context = browsing.context.copy(statsTable = table) }
+    var chosen by rememberSaveable { mutableIntStateOf(stats.days.lastIndex) }
     if (stats.totals.all { it.seconds == 0.0 && it.finished == 0 }) { EmptyMessage(R.string.m4_no_listening); return }
-    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Section(stringResource(R.string.m4_time_listened), inset = 0.dp); PeriodTiles(stats.totals.map { listened(it.seconds) }) }
         item { Section(stringResource(R.string.m4_episodes_finished), inset = 0.dp); PeriodTiles(stats.totals.map { it.finished.toString() }) }
         item { Section(stringResource(R.string.m4_last_30), inset = 0.dp); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
@@ -67,23 +73,24 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
             items(stats.days.asReversed()) { day -> Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(chartDate(day.day)); Text(listened(day.seconds)) } }
         } else item {
             val max = stats.days.maxOf { it.seconds }.coerceAtLeast(1.0)
-            val shown = stats.days[if (chosen < 0) stats.days.lastIndex else chosen]
+            val shown = stats.days[chosen.coerceIn(stats.days.indices)]
             val primary = MaterialTheme.colorScheme.primary
             val dayWidth = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 96.dp else 56.dp
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(132.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+            val scroll = rememberScrollState()
+            LaunchedEffect(scroll.maxValue) { if (scroll.maxValue > 0) scroll.scrollTo(scroll.maxValue) }
+            Row(Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
                 stats.days.forEachIndexed { index, day ->
                     val label = stringResource(R.string.m4_day_listening, chartDate(day.day), listened(day.seconds))
-                    Box(Modifier.width(dayWidth).fillMaxHeight().clickable { chosen = index }.semantics { contentDescription = label; selected = chosen == index }, contentAlignment = Alignment.BottomCenter) {
-                        if (day.seconds > 0) Box(Modifier.fillMaxWidth().height((day.seconds / max * 132).dp).background(primary, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).then(if (chosen == index) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)) else Modifier))
+                    Column(Modifier.width(dayWidth).clickable { chosen = index }.semantics { contentDescription = label; selected = chosen == index }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.fillMaxWidth().height(132.dp).then(if (chosen == index) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, MaterialTheme.shapes.small) else Modifier), contentAlignment = Alignment.BottomCenter) {
+                            if (day.seconds > 0) Box(Modifier.fillMaxWidth().height((day.seconds / max * 128).coerceAtLeast(4.0).dp).background(primary, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                        }
+                        Text(chartDate(day.day), Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
             Text(stringResource(R.string.chart_scroll_hint), style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(chartDate(stats.days.first().day), style = MaterialTheme.typography.labelSmall)
-                Text(chartDate(stats.days.last().day), style = MaterialTheme.typography.labelSmall)
-            }
             Text(stringResource(R.string.m4_day_listening, chartDate(shown.day), listened(shown.seconds)), Modifier.padding(top = 8.dp))
         }
         item { TextButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }

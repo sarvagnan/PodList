@@ -4,6 +4,7 @@ import java.io.IOException
 import javax.net.ssl.SSLException
 import org.xml.sax.SAXException
 
+@kotlinx.serialization.Serializable
 enum class LookupError { Feed, Offline, Tls, Server, Response }
 class InvalidFeed(cause: Exception) : Exception("Invalid podcast feed", cause)
 fun classifyLookup(error: Exception): LookupError = when (error) {
@@ -30,7 +31,7 @@ fun importSubscriptions(xml: String, known: Set<String>, subscribe: (String) -> 
     for (url in urls) {
         if (stopped()) break
         if (url in known) existing++ else try { subscribe(url); added++ }
-        catch (error: Exception) { failed += ImportFailure(url, error.message ?: "Could not read feed") }
+        catch (error: Exception) { failed += ImportFailure(url, error = classifyLookup(error)) }
         processed++
         progress(result())
     }

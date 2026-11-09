@@ -45,6 +45,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
     var results by rememberSaveable(stateSaver = Saver<List<DirectoryResult>, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Int?>(null) }
+    val failures = remember { mutableStateMapOf<String, LookupError>() }
     var subscribing by remember { mutableStateOf<Set<String>>(emptySet()) }
     var subscribed by remember { mutableStateOf<Set<String>>(emptySet()) }
     val revision by model.revision.collectAsState()
@@ -56,7 +57,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
         if (busy || input.isBlank()) return
         val query = input.trim()
         scope.launch {
-            busy = true; error = null; results = emptyList()
+            busy = true; error = null; results = emptyList(); failures.clear()
             try {
                 results = withContext(Dispatchers.IO) { session.source.search(query).distinctBy { it.feedUrl } }
                 if (results.isEmpty()) error = if (isFeedAddress(query)) R.string.bad_feed_address else R.string.no_podcasts_found
@@ -72,7 +73,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
             Text(stringResource(R.string.find_podcasts))
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
-        error?.let { Text(stringResource(it), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
+        error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
         LazyColumn(Modifier.weight(1f)) {
             items(results, key = { it.feedUrl }) { result ->
                 ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
@@ -81,14 +82,14 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
                         val done = result.feedUrl in subscribed
                         TextButton(onClick = {
                             scope.launch {
-                                subscribing = subscribing + result.feedUrl; error = null
+                                subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
                                 try {
                                     withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
                                     subscribed = subscribed + result.feedUrl
                                     model.requestSync()
                                     model.offerUnsubscribe(session, result.feedUrl)
                                 } catch (e: CancellationException) { throw e }
-                                catch (_: Exception) { error = R.string.subscribe_failed }
+                                catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
                                 finally { subscribing = subscribing - result.feedUrl }
                             }
                         }, enabled = !done && result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -99,6 +100,9 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
                             Text(stringResource(if (done) R.string.subscribed else if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
                         }
                     })
+                failures[result.feedUrl]?.let { failure ->
+                    Text(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+                }
                 HorizontalDivider()
             }
         }
@@ -113,7 +117,7 @@ internal fun UnsubscribeButton(session: Session, id: String, title: String, unsu
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
     TextButton(onClick = { confirming = true }, enabled = !busy, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.unsubscribe), color = MaterialTheme.colorScheme.error) }
-    if (error) Text(stringResource(R.string.unsubscribe_failed), color = MaterialTheme.colorScheme.error)
+    if (error) Text(stringResource(R.string.unsubscribe_failed), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
     if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.m4_unsubscribe_named, title)) },
         dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },
         confirmButton = { TextButton(onClick = {
