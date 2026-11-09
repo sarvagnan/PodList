@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
@@ -53,7 +54,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { TextButton(onClick = { model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { listOf(Change.SaveView(saved)) }; deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.m4_matching, count), Modifier.weight(1f).padding(vertical = 16.dp))
+            Text(pluralStringResource(R.plurals.m4_matching, count, count), Modifier.weight(1f).padding(vertical = 16.dp))
             TextButton(enabled = previous.isNotEmpty(), onClick = { val last = previous.last(); previous = previous.dropLast(1); draft = last; saved = last; name = last.name; podcastMode = last.filter.podcasts?.mode; model.edit(Change.SaveView(last)) }) { Text(stringResource(R.string.undo)) }
             TextButton(enabled = problem == null && name.isNotBlank(), onClick = done) { Text(stringResource(R.string.m4_done)) }
         } }

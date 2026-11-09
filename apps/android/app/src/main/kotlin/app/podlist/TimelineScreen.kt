@@ -36,7 +36,8 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
     }
     target?.let { to ->
         val preview = TimelinePresentation.preview(data.state, playlist.id, to, System.currentTimeMillis())
-        if (preview != null) ModalBottomSheet(onDismissRequest = { target = null }) {
+        // Fully open from the start: Rewind and Cancel sit below the summary.
+        if (preview != null) ModalBottomSheet(onDismissRequest = { target = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             LazyColumn(Modifier.weight(1f, fill = false), contentPadding = PaddingValues(bottom = 16.dp)) {
                 item { Text(stringResource(R.string.m4_rewind_title, playlist.name, dateTime(to)), Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge) }
                 item { Section(stringResource(R.string.m4_goes_back)) }

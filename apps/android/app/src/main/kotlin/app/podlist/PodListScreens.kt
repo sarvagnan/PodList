@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.podlist.data.Row
@@ -215,10 +216,10 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 if (data.state.playlists.isEmpty()) item { EmptyMessage(R.string.no_playlists) }
                 items(data.state.playlists, key = { "playlist:${it.id}" }) { playlist ->
                     val details = listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
-                        stringResource(R.string.entry_count, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries))
+                        pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries))
                     NameRow(playlist.name, details.joinToString(" · ")) { open("playlist:${playlist.id}") }
                 }
-                item { NameRow(stringResource(R.string.trash), stringResource(R.string.playlist_count, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size)) { open("trash") } }
+                item { NameRow(stringResource(R.string.trash), pluralStringResource(R.plurals.playlist_count, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size)) { open("trash") } }
             }
             Destination.Library -> {
                 item { NameRow(stringResource(R.string.m4_search_library), stringResource(R.string.m4_search_hint)) { open("search") } }
@@ -232,7 +233,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     }
                     if (group.isEmpty()) item { Hint(stringResource(R.string.empty_rule)) }
                     items(group, key = { "subscription:${it["id"]}" }) { subscription ->
-                        NameRow(subscription["title"] as String, stringResource(R.string.episode_count, (subscription["episode_count"] as Number).toInt()),
+                        NameRow(subscription["title"] as String, pluralStringResource(R.plurals.episode_count, (subscription["episode_count"] as Number).toInt(), (subscription["episode_count"] as Number).toInt()),
                             artwork = subscription["artwork_url"] as? String, session = session) { open("subscription:${subscription["id"]}") }
                     }
                 }
@@ -251,7 +252,7 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         route == "settings" -> SettingsScreen(data, session, open)
         route == "trash" -> TrashScreen(data)
         route == "search" -> SearchScreen(data, session, open)
-        route == "listening-stats" -> ListeningStatsScreen(data)
+        route == "listening-stats" -> ListeningStatsScreen(data, session)
         route == "select-subscriptions" -> SelectSubscriptionsScreen(data, session)
         route?.startsWith("view-edit:") == true -> {
             val view = data.state.views.find { it.id == id }
@@ -270,13 +271,13 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
             if (view == null) Column { EmptyMessage(R.string.missing_view); TextButton(onClick = { open("directory") }) { Text(stringResource(R.string.views)) } }
             else if (data.episodes.isEmpty() && data.subscriptions.none { it["unsubscribed_at"] == null }) Column { EmptyMessage(R.string.no_subscriptions); TextButton(onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
             else EpisodeList(data.episodes, data, session, open, empty = R.string.no_matches, summary = {
-                Text(stringResource(R.string.episode_count, data.episodes.size), style = MaterialTheme.typography.titleSmall)
+                Text(pluralStringResource(R.plurals.episode_count, data.episodes.size, data.episodes.size), style = MaterialTheme.typography.titleSmall)
                 Text(viewDescription(view, data), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             })
         }
         route?.startsWith("subscription:") == true -> {
             if (data.subscriptions.none { it["id"] == id }) EmptyMessage(R.string.missing_subscription)
-            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes, summary = { Text(stringResource(R.string.episode_count, data.episodes.size)) })
+            else EpisodeList(data.episodes, data, session, open, empty = R.string.no_episodes, summary = { Text(pluralStringResource(R.plurals.episode_count, data.episodes.size, data.episodes.size)) })
         }
         route?.startsWith("playlist:") == true -> {
             val playlist = data.state.playlists.find { it.id == id }

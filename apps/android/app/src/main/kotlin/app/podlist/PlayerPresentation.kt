@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -114,7 +115,7 @@ private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expan
                 FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp)) { Icon(painterResource(if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.playing) R.string.pause else R.string.play)) }
                 SkipButton(true, false) { model.seek(now.position + 30) }
             }
-            IconButton(onClick = openPlaylist, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_playlists), stringResource(R.string.active_playlist_next, now.activePlaylistName, now.activeNextCount)) }
+            IconButton(onClick = openPlaylist, modifier = Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_playlists), pluralStringResource(R.plurals.active_playlist_next, now.activeNextCount, now.activePlaylistName, now.activeNextCount)) }
         }
         LinearProgressIndicator(progress = { (now.position / (now.duration ?: Double.MAX_VALUE)).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(2.dp))
     }
@@ -231,7 +232,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     LazyColumn {
         item { Section(stringResource(R.string.switch_playlist)) }
         items(loaded.state.playlists, key = { "playlist:${it.id}" }) { playlist ->
-            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text(stringResource(R.string.entry_count, playlist.entries.size)) }, trailingContent = { if (playlist.id != loaded.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }) { Text(stringResource(R.string.switch_playlist)) } else Text(stringResource(R.string.active), style = MaterialTheme.typography.labelSmall) })
+            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text(pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size)) }, trailingContent = { if (playlist.id != loaded.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }) { Text(stringResource(R.string.switch_playlist)) } else Text(stringResource(R.string.active), style = MaterialTheme.typography.labelSmall) })
         }
         item { Section(stringResource(R.string.entries)) }
         val playlist = loaded.state.playlists.find { it.id == now.playlistId }

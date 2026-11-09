@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -28,7 +29,7 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
     var tab by rememberSaveable(playlist.id) { mutableIntStateOf(0) }
     Column {
         Hint(listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
-            stringResource(R.string.entry_count, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
+            pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (playlist.id != data.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
         PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
         if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
@@ -98,19 +99,23 @@ internal fun DownloadAction(episode: String, session: Session) {
 @Composable
 internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
     val model = LocalAppModel.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.settings_inheritance), style = MaterialTheme.typography.bodySmall)
-        Text(stringResource(R.string.speed) + " · " + speedSetting(settings.speed))
-        Slider(value = settings.speed.toFloat().coerceIn(.5f, 3f), onValueChange = { model.edit(Change.SetPlaybackSettings(settings.copy(speed = it.toDouble()))) }, valueRange = .5f..3f, steps = 9)
-        NumberSetting(R.string.skip_intro, settings.skipIntro) { model.edit(Change.SetPlaybackSettings(settings.copy(skipIntro = it))) }
-        NumberSetting(R.string.skip_outro, settings.skipOutro) { model.edit(Change.SetPlaybackSettings(settings.copy(skipOutro = it))) }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(stringResource(R.string.volume_boost), Modifier.weight(1f)); Switch(checked = settings.volumeBoost, onCheckedChange = { model.edit(Change.SetPlaybackSettings(settings.copy(volumeBoost = it))) }) }
+    var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
+    val save = { next: PlaybackSettings -> model.edit(Change.SetPlaybackSettings(next)); sheet = null }
+    Column(Modifier.fillMaxWidth()) {
+        Hint(stringResource(R.string.settings_inheritance))
+        ValueRow(stringResource(R.string.speed), speedSetting(settings.speed)) { sheet = 0 }
+        ValueRow(stringResource(R.string.m4_skip_intro), secondsSetting(settings.skipIntro)) { sheet = 1 }
+        ValueRow(stringResource(R.string.m4_skip_outro), secondsSetting(settings.skipOutro)) { sheet = 2 }
+        ListItem(headlineContent = { Text(stringResource(R.string.volume_boost)) }, trailingContent = { Switch(checked = settings.volumeBoost, onCheckedChange = { model.edit(Change.SetPlaybackSettings(settings.copy(volumeBoost = it))) }) })
     }
-}
-
-@Composable private fun NumberSetting(label: Int, value: Double, changed: (Double) -> Unit) {
-    var text by rememberSaveable(label) { mutableStateOf(value.toString()) }
-    OutlinedTextField(value = text, onValueChange = { text = it; it.toDoubleOrNull()?.takeIf { n -> n.isFinite() && n >= 0 }?.let(changed) }, label = { Text(stringResource(label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+    val seconds = listOf(0.0, 15.0, 30.0, 45.0, 60.0, 90.0, 120.0)
+    sheet?.let { which -> EditorSheet(stringResource(listOf(R.string.speed, R.string.m4_skip_intro, R.string.m4_skip_outro)[which]), { sheet = null }) {
+        when (which) {
+            0 -> ChoiceRows(listOf(.8, 1.0, 1.2, 1.3, 1.5, 1.75, 2.0, 2.5, 3.0).map { it to speedSetting(it) }, settings.speed) { save(settings.copy(speed = it)) }
+            1 -> ChoiceRows(seconds.map { it to secondsSetting(it) }, settings.skipIntro) { save(settings.copy(skipIntro = it)) }
+            else -> ChoiceRows(seconds.map { it to secondsSetting(it) }, settings.skipOutro) { save(settings.copy(skipOutro = it)) }
+        }
+    } }
 }
 
 

@@ -44,9 +44,6 @@
     <string name="clear_on_played">Clear on Played</string>
     <string name="keeps_entries">Keeps Entries</string>
     <string name="entries">Entries</string>
-    <string name="playlist_count">%1$d Playlists</string>
-    <string name="entry_count">%1$d Entries</string>
-    <string name="episode_count">%1$d Episodes</string>
     <string name="trash">Trash</string>
     <string name="no_trash">No deleted Playlists</string>
     <string name="deleted">Deleted %1$s</string>
@@ -97,7 +94,6 @@
     <string name="open_now_playing">Now Playing: %1$s · %2$s</string>
     <string name="now_playing_playlist">Now Playing · %1$s</string>
     <string name="collapse_player">Collapse Now Playing</string>
-    <string name="active_playlist_next">%1$s · %2$d Entries after the current one</string>
     <string name="entries_next">Entries · %1$d next</string>
     <string name="no_chapters">No Chapters available</string>
     <string name="chapter_number">Chapter %1$d of %2$d</string>
@@ -201,7 +197,6 @@
     <string name="m4_all_matches">All that match</string>
     <string name="m4_delete_view">Delete View</string>
     <string name="m4_view_deleted">View deleted</string>
-    <string name="m4_matching">%1$d Episodes match</string>
     <string name="m4_between_dates">Between dates</string>
     <string name="m4_from">From</string>
     <string name="m4_to">To</string>
@@ -222,7 +217,6 @@
     <string name="m4_playlist_duplicate">There’s already a Playlist called “%1$s”.</string>
     <string name="m4_playlist_restored">Playlist restored</string>
     <string name="m4_restore">Restore</string>
-    <string name="m4_inherits_global">Inherits your global Playback Settings.</string>
     <string name="m4_downloads_device">Downloads on this Device</string>
     <string name="m4_stream_help">Never stored on this Device</string>
     <string name="m4_entry_help">Stored while they’re in a Playlist</string>
@@ -268,12 +262,11 @@
     <string name="m4_time_listened_value">Time listened · %1$s</string>
     <string name="m4_finished_count">Episodes finished · %1$d</string>
     <string name="m4_last_30">Last 30 days</string>
-    <string name="m4_streak">Current Listening streak: %1$d days</string>
     <string name="m4_show_chart">Show chart</string>
     <string name="m4_show_table">Show table</string>
     <string name="m4_day">Day</string>
     <string name="m4_time_listened">Time listened</string>
-    <string name="m4_day_listening">%1$s · %2$s listened</string>
+    <string name="m4_day_listening">%1$s · %2$s</string>
     <string name="m4_top_podcasts">Top podcasts</string>
     <string name="m4_removed_subscription">Removed Subscription</string>
     <string name="m4_about_stats">About your stats</string>
@@ -323,4 +316,15 @@
     <string name="m4_length_range_error">At most must be at least as long as At least.</string>
     <string name="m4_date_range_error">To must be on or after From.</string>
     <string name="m4_redo">Redo</string>
+    <plurals name="playlist_count"><item quantity="one">%1$d Playlist</item><item quantity="other">%1$d Playlists</item></plurals>
+    <plurals name="entry_count"><item quantity="one">%1$d Entry</item><item quantity="other">%1$d Entries</item></plurals>
+    <plurals name="episode_count"><item quantity="one">%1$d Episode</item><item quantity="other">%1$d Episodes</item></plurals>
+    <plurals name="m4_matching"><item quantity="one">%1$d Episode matches</item><item quantity="other">%1$d Episodes match</item></plurals>
+    <plurals name="m4_streak"><item quantity="one">Current Listening streak: %1$d day</item><item quantity="other">Current Listening streak: %1$d days</item></plurals>
+    <plurals name="active_playlist_next"><item quantity="one">%1$s · %2$d Entry after the current one</item><item quantity="other">%1$s · %2$d Entries after the current one</item></plurals>
+    <string name="m4_download_rule">Download Rule</string>
+    <string name="m4_hours_minutes">%1$dh %2$02dm</string>
+    <string name="m4_minutes_short">%1$dm</string>
+    <string name="m4_under_minute">Under 1m</string>
+    <string name="m4_episodes_finished">Episodes finished</string>
 </resources>

@@ -2,6 +2,7 @@ package app.podlist
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -28,8 +29,8 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         item { Section(stringResource(R.string.playback_settings)); PlaybackSettingsEditor(data.state.playbackSettings) }
         item { Section(stringResource(R.string.m4_your_listening)); NameRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
-        item { ListItem(modifier = Modifier.fillMaxWidth(), leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }) { Text(stringResource(R.string.m4_import_opml)) } }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }) }
-        item { ListItem(leadingContent = { Icon(painterResource(R.drawable.ic_export_opml), null) }, headlineContent = { TextButton(enabled = !busy, onClick = { export.launch("podlist-subscriptions.opml") }) { Text(stringResource(R.string.m4_export_opml)) } }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }) }
+        item { ListItem(modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }) }
+        item { ListItem(modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, leadingContent = { Icon(painterResource(R.drawable.ic_export_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }) }
         if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp)) }
         if (error) item { Column(Modifier.padding(16.dp)) { Text(stringResource(R.string.m4_opml_error), color = MaterialTheme.colorScheme.error); TextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry)) } } }
         summary?.let { result -> item {

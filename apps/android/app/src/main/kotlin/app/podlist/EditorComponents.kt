@@ -19,9 +19,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, onClick: () -> Unit) {
     ListItem(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick),
-        headlineContent = { Text(label) }, supportingContent = {
-            Column { Text(value, color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                if (help != null) Text(help, style = MaterialTheme.typography.bodySmall) }
+        headlineContent = { Text(label) }, supportingContent = help?.let { { Text(it) } }, trailingContent = {
+            Text(value, Modifier.widthIn(max = 168.dp), color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.End)
         })
 }
 
