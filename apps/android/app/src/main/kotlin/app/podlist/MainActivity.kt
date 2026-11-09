@@ -27,16 +27,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val model = (application as PodListApplication).model
-        handleShortcut(intent)
+        if (savedInstanceState == null) handleIncoming(intent)
         setContent { PodListTheme { PodListShell(model) } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleShortcut(intent)
+        setIntent(intent)
+        handleIncoming(intent)
     }
 
-    private fun handleShortcut(intent: Intent) {
+    private fun handleIncoming(intent: Intent) {
+        val model = (application as PodListApplication).model
+        incomingContent(intent)?.let { model.incoming.value = app.podlist.domain.OneShotEvent(it) }
         intent.action?.removePrefix("app.podlist.OPEN_")?.takeIf { it in listOf("VIEWS", "PLAYLISTS", "LIBRARY") }?.let {
             (application as PodListApplication).model.shortcut.value = it
         }

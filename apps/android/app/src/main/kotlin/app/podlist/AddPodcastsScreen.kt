@@ -42,6 +42,8 @@ internal fun WelcomeScreen(model: AppModel) {
 @Composable
 internal fun AddPodcastsScreen(model: AppModel, session: Session) {
     var input by rememberSaveable { mutableStateOf("") }
+    val incomingFeed by model.incomingFeed.collectAsState()
+    LaunchedEffect(incomingFeed) { incomingFeed?.let { input = it; model.incomingFeed.compareAndSet(it, null) } }
     var results by rememberSaveable(stateSaver = Saver<List<DirectoryResult>, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Int?>(null) }
@@ -116,7 +118,13 @@ internal fun UnsubscribeButton(session: Session, id: String, title: String, unsu
     var confirming by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
-    TextButton(onClick = { confirming = true }, enabled = !busy, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.unsubscribe), color = MaterialTheme.colorScheme.error) }
+    TextButton(onClick = { confirming = true }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(stringResource(if (busy) R.string.unsubscribing else R.string.unsubscribe), color = MaterialTheme.colorScheme.error)
+    }
     if (error) Text(stringResource(R.string.unsubscribe_failed), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
     if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.m4_unsubscribe_named, title)) },
         dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },

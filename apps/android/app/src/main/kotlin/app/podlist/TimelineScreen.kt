@@ -20,7 +20,7 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
     var target by remember { mutableStateOf<Long?>(null) }
     val byId = data.episodes.associateBy { it["id"] }
     LazyColumn(Modifier.fillMaxSize(), state = rememberBrowsingListState()) {
-        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); TextButton(onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.entries)) } }
+        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); TextButton(onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
         items(events) { event ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClickLabel = stringResource(if (TimelineRules.pointAt(playlist, event.moment) != null) R.string.m4_rewind_here else R.string.episode)) { if (TimelineRules.pointAt(playlist, event.moment) != null) target = event.moment else open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
                 Column { Text(dateTime(event.at), style = MaterialTheme.typography.labelMedium); Text(when(event.kind) {

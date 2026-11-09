@@ -39,16 +39,17 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
         }) else null, trailingContent = if (large) null else ({
             Text(shownValue, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium, color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
         }))
+    HorizontalDivider()
 }
 
 @Composable
-internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? = null, doneEnabled: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? = null, doneEnabled: Boolean = true, doneLabel: Int = R.string.m4_done, content: @Composable ColumnScope.() -> Unit) {
     val model = LocalAppModel.current
     FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(R.string.m4_done)) }
+                TextButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
             }
             content()
         }
@@ -56,10 +57,15 @@ internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? =
 }
 
 @Composable
-internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, choose: (T) -> Unit) {
+internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, supporting: ((T) -> String)? = null, choose: (T) -> Unit) {
     choices.forEach { (value, label) ->
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected == value, role = Role.RadioButton, onClick = { choose(value) }).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected == value, onClick = null); Spacer(Modifier.width(12.dp)); Text(label, Modifier.weight(1f))
+            RadioButton(selected == value, onClick = null)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(label)
+                supporting?.let { Text(it(value), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
         }
     }
 }
@@ -97,6 +103,7 @@ internal fun CheckRow(label: String, checked: Boolean, inset: Boolean = false, c
 internal fun SwitchRow(label: String, checked: Boolean, help: String? = null, changed: (Boolean) -> Unit) {
     ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = changed).semantics(mergeDescendants = true) {},
         headlineContent = { Text(label) }, supportingContent = help?.let { { Text(it) } }, trailingContent = { Switch(checked, null) })
+    HorizontalDivider()
 }
 
 @Composable

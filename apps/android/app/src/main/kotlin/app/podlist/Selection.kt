@@ -63,26 +63,44 @@ internal fun SelectionToolbar(selection: EpisodeSelection, data: ScreenData, ses
 }
 
 @Composable
-internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session) {
-    val model = LocalAppModel.current
-    var ids by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    var choosing by rememberSaveable { mutableStateOf(false) }
-    Column {
-        Text(pluralStringResource(R.plurals.m4_selected_count, ids.size, ids.size), Modifier.padding(16.dp))
-        Button(enabled = ids.isNotEmpty(), onClick = { choosing = true }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.change_download_rule)) }
-        LazyColumn(state = rememberBrowsingListState()) {
-            items(data.subscriptions.filter { it["unsubscribed_at"] == null }) { subscription ->
-                val id = subscription["id"] as String
-                CheckRow(subscription["title"] as String, id in ids, inset = true) { checked -> ids = if (checked) ids + id else ids - id }
-            }
+internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session, addPodcasts: () -> Unit) {
+    val selection = LocalEpisodeSelection.current ?: return
+    val subscriptions = data.subscriptions.filter { it["unsubscribed_at"] == null }
+    SideEffect { selection.order = subscriptions.map { it["id"] as String }; selection.ids = selection.ids.intersect(selection.order.toSet()) }
+    if (subscriptions.isEmpty()) {
+        Column {
+            EmptyMessage(R.string.no_subscriptions)
+            Hint(stringResource(R.string.select_subscriptions_empty))
+            TextButton(onClick = addPodcasts, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.add_podcasts)) }
+        }
+        return
+    }
+    LazyColumn(state = rememberBrowsingListState()) {
+        item { Hint(stringResource(R.string.m4_select_subscriptions_help)) }
+        items(subscriptions, key = { it["id"] as String }) { subscription ->
+            val id = subscription["id"] as String
+            CheckRow(subscription["title"] as String, id in selection.ids, inset = true) { selection.toggle(id) }
         }
     }
+}
+
+@Composable
+internal fun SubscriptionSelectionToolbar(selection: EpisodeSelection, data: ScreenData, session: Session) {
+    val model = LocalAppModel.current
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    TopAppBar(title = { Text(pluralStringResource(R.plurals.m4_selected_count, selection.ids.size, selection.ids.size), Modifier.semantics { heading() }) }, navigationIcon = {
+        ActionIcon(R.drawable.ic_back, stringResource(R.string.cancel)) { selection.ids = emptySet() }
+    }, actions = {
+        ActionIcon(R.drawable.ic_download, stringResource(R.string.change_download_rule)) { choosing = true }
+    })
     if (choosing) EditorSheet(stringResource(R.string.download_rule), { choosing = false }) {
-        ChoiceRows(listOf(DownloadMode.Never to stringResource(R.string.stream), DownloadMode.OnEntry to stringResource(R.string.on_entry), DownloadMode.AllNew to stringResource(R.string.all_new)), null as DownloadMode?) { mode ->
+        val explanations = mapOf(DownloadMode.Never to stringResource(R.string.m4_stream_help), DownloadMode.OnEntry to stringResource(R.string.m4_entry_help), DownloadMode.AllNew to stringResource(R.string.m4_published_help))
+        ChoiceRows(listOf(DownloadMode.Never to stringResource(R.string.stream), DownloadMode.OnEntry to stringResource(R.string.on_entry), DownloadMode.AllNew to stringResource(R.string.all_new)), null as DownloadMode?, supporting = { explanations[it].orEmpty() }) { mode ->
             if (mode != null) {
-                val selected = ids.toList()
+                val selected = selection.order.filter { it in selection.ids }
                 model.changeWithUndo(selected.map { id -> Change.SetDownloadRule(data.state.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId }?.copy(mode = mode) ?: DownloadRule(id, session.deviceId, mode, null)) }, R.string.download_rule_changed) { before -> selected.map { id -> Change.SetDownloadRule(before.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId } ?: DownloadRule(id, session.deviceId, DownloadMode.Never, null)) } }
                 choosing = false
+                selection.ids = emptySet()
             }
         }
     }

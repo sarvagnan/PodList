@@ -124,14 +124,14 @@ internal fun AppModel.revealChanges(changes: List<Change>) {
         is Change.SetStar -> Reveal("episode:${change.episodeId}")
         else -> null
     } }
-    if (target != null) reveal.value = target
+    if (target != null) requestReveal(target)
 }
 
 internal fun AppModel.showGettingStarted() {
     val current = session.value ?: return
     viewModelScope.launch {
         withContext(Dispatchers.IO) { current.db.transaction { setMeta("gettingStartedHidden", "false"); setMeta("gettingStartedBegun", "true") }; current.db.notifyChanged() }
-        gettingStartedRequest.value++
+        gettingStartedRequest.value = OneShotEvent(Unit)
     }
 }
 
