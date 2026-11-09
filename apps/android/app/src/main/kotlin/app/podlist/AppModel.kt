@@ -12,6 +12,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.core.content.ContextCompat
 import java.io.IOException
+import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
 import javax.net.ssl.SSLException
@@ -29,6 +30,7 @@ data class AppMessage(val resource: Int, val actionResource: Int = R.string.undo
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
 enum class SyncStatus { Loading, Ready, Offline, Error }
 data class Session(val source: LibrarySource, val db: LocalDatabase, val deviceId: String)
+data class BringOverUi(val origin: String, val counts: BringOverCounts, val job: BringOverJob? = null, val running: Boolean = false, val error: Boolean = false)
 
 /** Process-local lifecycle adapter; all protocol decisions and durable data live in :data. */
 class AppModel(application: Application) : AndroidViewModel(application) {
@@ -120,6 +122,9 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     val revision = MutableStateFlow(0L)
     val connecting = MutableStateFlow(false)
     val connectionError = MutableStateFlow<ConnectionError?>(null)
+    private val _bringOver = MutableStateFlow<BringOverUi?>(null)
+    val bringOver = _bringOver.asStateFlow()
+    val bringOverVisible = MutableStateFlow(false)
     private val triggers = Channel<Unit>(Channel.CONFLATED)
     private var worker: Job? = null
     private val sessions = mutableMapOf<String, Session>()
@@ -188,8 +193,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         return try {
             val address = ServerAddress.parse(input, BuildConfig.DEBUG)
             withContext(Dispatchers.IO) { checkHealth(HttpTransport(address)) }
+            val fromStandalone = _session.value?.source?.server == null && _session.value != null
             if (_session.value?.source?.server?.origin != address.origin) activate(address)
             withContext(Dispatchers.IO) { check(preferences.edit().putString("server", address.origin).commit()) }
+            if (fromStandalone && _bringOver.value != null && _bringOver.value?.job?.complete != true) bringOverVisible.value = true
             requestSync()
             true
         } catch (error: Exception) {
@@ -220,6 +227,48 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         Session(source, db, withContext(Dispatchers.IO) { db.installation().id }).also { sessions[key] = it }
     }
 
+    fun showBringOver() { if (_bringOver.value != null) bringOverVisible.value = true }
+    fun dismissBringOver() { bringOverVisible.value = false }
+
+    private fun audioFiles(session: Session) = AudioFiles(File(getApplication<Application>().filesDir, "audio/${digest(session.source.key)}"))
+
+    private suspend fun transfer(next: Session): BringOver {
+        val source = sessionFor(null)
+        return BringOver(source.db, next.db, HttpTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000), audioFiles(source), audioFiles(next)) { job ->
+            _bringOver.update { current -> if (current?.origin == next.source.key) current.copy(job = job, counts = job.snapshot.counts, error = false) else current }
+        }
+    }
+
+    fun beginBringOver() {
+        val current = _session.value ?: return
+        val offer = _bringOver.value ?: return
+        if (offer.running || current.source.key != offer.origin) return
+        _bringOver.value = offer.copy(running = true, error = false)
+        viewModelScope.launch {
+            try {
+                val transfer = transfer(current)
+                withContext(Dispatchers.IO) { transfer.begin() }
+                requestSync()
+            } catch (error: CancellationException) { throw error }
+            catch (_: Exception) { _bringOver.update { it?.copy(running = false, error = true) } }
+        }
+    }
+
+    fun retryBringOver() { requestSync() }
+
+    private suspend fun loadBringOver(next: Session) {
+        bringOverVisible.value = false
+        if (next.source.server == null || !preferences.getBoolean("standalone", false)) { _bringOver.value = null; return }
+        val source = sessionFor(null)
+        _bringOver.value = withContext(Dispatchers.IO) {
+            val job = next.db.bringOverJob()
+            val counts = job?.snapshot?.counts ?: source.db.bringOverSnapshot().counts
+            if (counts.worthMoving) BringOverUi(next.source.key, counts, job, error = next.db.getMeta("bringOverError") == "true") else null
+        }
+        // An accepted transfer resumes automatically; declining an offer does not start one.
+        if (_bringOver.value?.job?.let { !it.complete } == true) bringOverVisible.value = true
+    }
+
     private suspend fun activate(address: ServerAddress?) {
         val previous = _session.value
         val next = sessionFor(address)
@@ -228,9 +277,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         worker?.cancelAndJoin()
         previous?.db?.onChanged = null
         previous?.db?.onEdit = null
+        if (previous?.source?.server == null && address != null) downloads["standalone"]?.rulesSuspended = true
         db.onChanged = { db.updateGettingStartedProgress(); revision.update { it + 1 } }
         db.onEdit = { if (address != null) requestSync() }
         _session.value = next
+        loadBringOver(next)
         status.value = if (address == null) SyncStatus.Ready else SyncStatus.Loading
         downloads(next)
         if (address == null) scheduleFeedRefresh(getApplication())
@@ -239,11 +290,23 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             while (isActive) {
                 if (address != null) status.value = SyncStatus.Loading
                 try {
-                    withContext(Dispatchers.IO) { next.source.refresh(); next.db.initializeGettingStarted(); next.db.updateGettingStartedProgress() }
+                    val pendingBringOver = address != null && withContext(Dispatchers.IO) { next.db.bringOverPending() }
+                    if (pendingBringOver) {
+                        _bringOver.update { it?.copy(running = true, error = false) }
+                        val transfer = transfer(next)
+                        withContext(Dispatchers.IO) { transfer.resume(); next.db.setMeta("bringOverError", "false") }
+                    } else withContext(Dispatchers.IO) { next.source.refresh() }
+                    withContext(Dispatchers.IO) { next.db.initializeGettingStarted(); next.db.updateGettingStartedProgress() }
                     status.value = SyncStatus.Ready
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
                     status.value = if (address == null) SyncStatus.Ready else if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+                    if (_bringOver.value?.job?.let { !it.complete } == true) {
+                        withContext(Dispatchers.IO) { next.db.setMeta("bringOverError", "true") }
+                        _bringOver.update { it?.copy(error = true) }
+                    }
+                } finally {
+                    _bringOver.update { it?.copy(running = false) }
                 }
                 revision.update { it + 1 }
                 withTimeoutOrNull(if (address == null) DeviceLibrary.PollMillis else 60_000) { triggers.receive() }

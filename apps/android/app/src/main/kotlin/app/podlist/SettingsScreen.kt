@@ -23,6 +23,7 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
     val busy = opml.busy
     val error = opml.error
     val summary = opml.summary
+    val bringOver by model.bringOver.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) actions.read(uri) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-opml")) { uri -> if (uri != null) actions.export(uri) }
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -42,6 +43,9 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         } }
         item { Section(stringResource(R.string.playlists)); ValueRow(stringResource(R.string.m4_keep_deleted), stringResource(R.string.m4_days, data.state.trashDays ?: 30)) { retention = true } }
         item { Section(stringResource(R.string.this_device)); NameRow(stringResource(R.string.server), session.source.server?.origin ?: stringResource(R.string.server_none)) { open("server") } }
+        if (bringOver?.origin == session.source.key && bringOver?.job?.complete != true) item {
+            NameRow(stringResource(R.string.bring_over_title), stringResource(if (bringOver?.job == null) R.string.bring_over_available else R.string.bring_over_in_settings)) { model.showBringOver() }
+        }
         item { Section(stringResource(R.string.m4_help)); NameRow(stringResource(R.string.m4_getting_started), stringResource(R.string.m4_getting_started_hint)) { open("getting-started") } }
     }
     if (retention) EditorSheet(stringResource(R.string.m4_keep_deleted), { retention = false }) {

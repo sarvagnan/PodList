@@ -327,4 +327,39 @@
     <string name="m4_under_minute">Under 1m</string>
     <string name="m4_episodes_finished">Episodes finished</string>
     <string name="m4_step_done">Done</string>
+    <string name="bring_over_title">Bring your Library over</string>
+    <string name="bring_over_available">Bring this phone\'s Standalone Library to this server</string>
+    <string name="bring_over_in_settings">See saved progress and retry anything still waiting</string>
+    <string name="bring_over_not_now">Not now</string>
+    <string name="bring_over_action">Bring it over</string>
+    <string name="bring_over_keep_using">Keep using the app</string>
+    <string name="bring_over_offer">This phone has its own Library. Bring it to %1$s?</string>
+    <string name="bring_over_complete">Your Library is on the server</string>
+    <string name="bring_over_complete_help">This phone now syncs with %1$s. The old Standalone Library is still stored on this phone.</string>
+    <string name="bring_over_moving">Bringing your Library over</string>
+    <string name="bring_over_partial">Some of your Library is still waiting</string>
+    <plurals name="bring_over_subscription_progress"><item quantity="one">%1$d of %2$d Subscription ready on the server.</item><item quantity="other">%1$d of %2$d Subscriptions ready on the server.</item></plurals>
+    <string name="bring_over_resumable">You can keep using the app. Progress is saved and resumes after a lost connection or a restart.</string>
+    <string name="bring_over_replaying">Merging your edits with the server, in their original order.</string>
+    <string name="bring_over_copying_downloads">Keeping stored downloads available in the connected Library on this phone.</string>
+    <string name="bring_over_error">Could not finish this time. Progress is saved. Check the connection and retry.</string>
+    <string name="bring_over_download_error">Could not copy a stored download. Progress is saved. Check this phone\'s free space and that its original downloads are still available, then retry.</string>
+    <string name="bring_over_subscription_help">With their Download Rules and settings</string>
+    <string name="bring_over_playlist_help">%1$s, with Positions, History and Listening Timelines, including Playlists in Trash</string>
+    <string name="bring_over_marks">Played and Starred marks</string>
+    <string name="bring_over_mark_counts">%1$s · %2$s</string>
+    <string name="bring_over_listening_log">Your Listening log</string>
+    <string name="bring_over_waiting">Waiting for these feeds and Episodes</string>
+    <string name="bring_over_waiting_help">Subscriptions that succeeded are kept. Your remaining edits and downloads wait on this phone until the Library can be matched, so their order and listening records stay correct.</string>
+    <string name="bring_over_unmatched_episode">The server has no matching Episode with this feed guid. It may have left the publisher\'s feed. Nothing has been discarded.</string>
+    <string name="bring_over_removed_subscription">This removed Subscription is missing from the server. It stays removed on this phone; bringing it over must not Subscribe again.</string>
+    <string name="bring_over_failed_feed">The server could not Subscribe to this feed. Check the feed and retry.</string>
+    <string name="bring_over_what_happens">What happens</string>
+    <string name="bring_over_explanation">Anything already on the server is kept and edits merge as they do after listening offline. Downloads stay on this phone as Manual Downloads, so they remain available. Podcasts are matched by feed address and Episodes by feed guid.</string>
+    <string name="bring_over_other_edits">Views and settings come too. Not now connects to the server and keeps the Standalone Library separate. This offer stays in Settings under This Device.</string>
+    <plurals name="bring_over_subscriptions"><item quantity="one">%1$d Subscription</item><item quantity="other">%1$d Subscriptions</item></plurals>
+    <plurals name="bring_over_played"><item quantity="one">%1$d Played mark</item><item quantity="other">%1$d Played marks</item></plurals>
+    <plurals name="bring_over_starred"><item quantity="one">%1$d Starred mark</item><item quantity="other">%1$d Starred marks</item></plurals>
+    <plurals name="bring_over_retry_feeds"><item quantity="one">Retry %1$d feed</item><item quantity="other">Retry these %1$d feeds</item></plurals>
+    <string name="bring_over_time">%1$s, kept in Listening stats</string>
 </resources>

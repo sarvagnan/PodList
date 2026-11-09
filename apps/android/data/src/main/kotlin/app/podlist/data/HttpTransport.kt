@@ -24,7 +24,7 @@ class ServerAddress private constructor(val origin: String) {
 class HttpFailure(val status: Int) : IOException("HTTP $status")
 
 /** JDK/Android networking: no extra HTTP stack, no application credentials, generic User-Agent. */
-class HttpTransport(private val address: ServerAddress) : SyncTransport {
+class HttpTransport(private val address: ServerAddress, private val subscriptionReadTimeoutMillis: Int = 2_000) : SyncTransport {
     override fun request(method: String, path: String, body: String?): String {
         require(path.startsWith("/api/"))
         val connection = URI(address.origin + path).toURL().openConnection() as HttpURLConnection
@@ -32,7 +32,11 @@ class HttpTransport(private val address: ServerAddress) : SyncTransport {
             connection.requestMethod = method
             connection.connectTimeout = 2_000
             // An OPML import may fetch many publisher feeds before returning its partial summary.
-            connection.readTimeout = if (path == "/api/subscriptions/import") 120_000 else 2_000
+            connection.readTimeout = when {
+                path == "/api/subscriptions/import" -> 120_000
+                path == "/api/subscriptions" || (path.startsWith("/api/subscriptions/") && path.endsWith("/refresh")) -> subscriptionReadTimeoutMillis
+                else -> 2_000
+            }
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("User-Agent", "PodList Android")
             connection.setRequestProperty("Accept", "application/json")
