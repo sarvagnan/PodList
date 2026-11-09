@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.SerializationException
 
-data class AppMessage(val resource: Int, val undo: (() -> Unit)? = null)
+data class AppMessage(val resource: Int, val actionResource: Int = R.string.undo, val undo: (() -> Unit)? = null)
 
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
 enum class SyncStatus { Loading, Ready, Offline, Error }
@@ -35,7 +35,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val playback = MutableStateFlow<PlaybackUi?>(null)
     internal var playbackHost: PlaybackHost? = null
     private var mediaController: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
+    val gettingStartedRequest = MutableStateFlow(0)
+    val shortcut = MutableStateFlow<String?>(null)
     val messages = Channel<AppMessage>(Channel.BUFFERED)
+    private val opml = mutableMapOf<String, OpmlActions>()
+    internal fun opml(session: Session): OpmlActions = opml.getOrPut(session.source.key) { OpmlActions(this, session, getApplication<Application>().contentResolver) }
     private val downloads = mutableMapOf<String, AndroidDownloads>()
 
     fun downloads(session: Session): AndroidDownloads = downloads.getOrPut(session.source.key) { AndroidDownloads(getApplication(), this, session) }
@@ -51,6 +55,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             runCatching { future.get(); playbackHost?.let(action) }.onFailure { messages.trySend(AppMessage(R.string.playback_error)) }
         }, ContextCompat.getMainExecutor(application))
     }
+    internal fun playbackEdit(playlist: String? = null, action: suspend () -> Unit) = withPlayback { it.playlistAction(playlist, action) }
     fun playNow(episode: String) = withPlayback { it.playNow(episode) }
     fun playEntry(playlist: String, episode: String) = withPlayback { it.playEntry(playlist, episode) }
     fun switchPlaylist(playlist: String) = withPlayback { it.switchPlaylist(playlist) }
@@ -60,8 +65,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun speed(value: Float) = withPlayback { it.speed(value) }
     fun sleep(timer: SleepTimer?) = withPlayback { it.sleep(timer) }
     fun flushPlayback() { playbackHost?.flush() }
+    private val editLock = Mutex()
     fun edit(change: Change) {
-        viewModelScope.launch { session.value?.let { withContext(Dispatchers.IO) { it.db.record(change, System.currentTimeMillis()) } } }
+        val current = session.value ?: return
+        viewModelScope.launch { editLock.withLock { withContext(Dispatchers.IO) { current.db.record(change, System.currentTimeMillis()) } } }
     }
     fun moveEntry(playlistId: String, episode: String, destination: Int) {
         viewModelScope.launch {
@@ -153,10 +160,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 requestSync()
-                messages.send(AppMessage(if (subscribe) R.string.subscribed else R.string.unsubscribed) { changeSubscription(current, feed, !subscribe) })
+                messages.send(AppMessage(if (subscribe) R.string.subscribed else R.string.unsubscribed, if (subscribe) R.string.m4_redo else R.string.undo) { changeSubscription(current, feed, !subscribe) })
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
-                messages.send(AppMessage(if (subscribe) R.string.subscribe_failed else R.string.unsubscribe_failed) { changeSubscription(current, feed, subscribe) })
+                messages.send(AppMessage(if (subscribe) R.string.subscribe_failed else R.string.unsubscribe_failed, R.string.retry) { changeSubscription(current, feed, subscribe) })
             }
         }
     }
@@ -221,7 +228,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         worker?.cancelAndJoin()
         previous?.db?.onChanged = null
         previous?.db?.onEdit = null
-        db.onChanged = { revision.update { it + 1 } }
+        db.onChanged = { db.updateGettingStartedProgress(); revision.update { it + 1 } }
         db.onEdit = { if (address != null) requestSync() }
         _session.value = next
         status.value = if (address == null) SyncStatus.Ready else SyncStatus.Loading
@@ -232,7 +239,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             while (isActive) {
                 if (address != null) status.value = SyncStatus.Loading
                 try {
-                    withContext(Dispatchers.IO) { next.source.refresh() }
+                    withContext(Dispatchers.IO) { next.source.refresh(); next.db.initializeGettingStarted(); next.db.updateGettingStartedProgress() }
                     status.value = SyncStatus.Ready
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error

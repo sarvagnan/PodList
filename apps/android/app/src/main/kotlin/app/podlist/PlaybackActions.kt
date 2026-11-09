@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -28,10 +29,11 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
     var tab by rememberSaveable(playlist.id) { mutableIntStateOf(0) }
     Column {
         Hint(listOfNotNull(if (playlist.id == data.state.activePlaylistId) stringResource(R.string.active) else null,
-            stringResource(R.string.entry_count, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
+            pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (playlist.id != data.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
         PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
-        LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
+        if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
+        else LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
             val byId = data.episodes.associateBy { it["id"] }
             when (tab) {
                 0 -> {
@@ -48,10 +50,7 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
                     if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history) }
                     items(playlist.history) { history -> ListItem(modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(byId[history.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending)) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
                 }
-                else -> {
-                    if (playlist.timeline.isEmpty()) item { EmptyMessage(R.string.no_timeline) }
-                    items(playlist.timeline.asReversed()) { point -> ListItem(modifier = Modifier.clickable { open("episode:${point.episodeId}") }, headlineContent = { Text(byId[point.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending)) }, supportingContent = { Text(stringResource(R.string.timeline_position, dateTime(point.at), duration(point.position))) }) }
-                }
+
             }
         }
     }
@@ -100,40 +99,24 @@ internal fun DownloadAction(episode: String, session: Session) {
 @Composable
 internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
     val model = LocalAppModel.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.settings_inheritance), style = MaterialTheme.typography.bodySmall)
-        Text(stringResource(R.string.speed) + " · " + stringResource(R.string.speed_value, settings.speed))
-        Slider(value = settings.speed.toFloat().coerceIn(.5f, 3f), onValueChange = { model.edit(Change.SetPlaybackSettings(settings.copy(speed = it.toDouble()))) }, valueRange = .5f..3f, steps = 9)
-        NumberSetting(R.string.skip_intro, settings.skipIntro) { model.edit(Change.SetPlaybackSettings(settings.copy(skipIntro = it))) }
-        NumberSetting(R.string.skip_outro, settings.skipOutro) { model.edit(Change.SetPlaybackSettings(settings.copy(skipOutro = it))) }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(stringResource(R.string.volume_boost), Modifier.weight(1f)); Switch(checked = settings.volumeBoost, onCheckedChange = { model.edit(Change.SetPlaybackSettings(settings.copy(volumeBoost = it))) }) }
+    var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
+    val save = { next: PlaybackSettings -> model.edit(Change.SetPlaybackSettings(next)); sheet = null }
+    Column(Modifier.fillMaxWidth()) {
+        Hint(stringResource(R.string.settings_inheritance))
+        ValueRow(stringResource(R.string.speed), speedSetting(settings.speed)) { sheet = 0 }
+        ValueRow(stringResource(R.string.m4_skip_intro), secondsSetting(settings.skipIntro)) { sheet = 1 }
+        ValueRow(stringResource(R.string.m4_skip_outro), secondsSetting(settings.skipOutro)) { sheet = 2 }
+        ListItem(headlineContent = { Text(stringResource(R.string.volume_boost)) }, trailingContent = { Switch(checked = settings.volumeBoost, onCheckedChange = { model.edit(Change.SetPlaybackSettings(settings.copy(volumeBoost = it))) }) })
     }
-}
-
-@Composable private fun NumberSetting(label: Int, value: Double, changed: (Double) -> Unit) {
-    var text by rememberSaveable(label) { mutableStateOf(value.toString()) }
-    OutlinedTextField(value = text, onValueChange = { text = it; it.toDoubleOrNull()?.takeIf { n -> n.isFinite() && n >= 0 }?.let(changed) }, label = { Text(stringResource(label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
-}
-
-@Composable
-internal fun DownloadRuleEditor(subscription: String, state: State, session: Session) {
-    val model = LocalAppModel.current
-    val rule = state.downloadRules.find { it.subscriptionId == subscription && it.deviceId == session.deviceId } ?: DownloadRule(subscription, session.deviceId, DownloadMode.Never, null)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.download_rule), style = MaterialTheme.typography.titleSmall)
-        for ((mode, label) in listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new)) Row(Modifier.fillMaxWidth().clickable { model.edit(Change.SetDownloadRule(rule.copy(mode = mode))) }, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = rule.mode == mode, onClick = { model.edit(Change.SetDownloadRule(rule.copy(mode = mode))) }); Text(stringResource(label))
+    val seconds = listOf(0.0, 15.0, 30.0, 45.0, 60.0, 90.0, 120.0)
+    sheet?.let { which -> EditorSheet(stringResource(listOf(R.string.speed, R.string.m4_skip_intro, R.string.m4_skip_outro)[which]), { sheet = null }) {
+        when (which) {
+            0 -> ChoiceRows(listOf(.8, 1.0, 1.2, 1.3, 1.5, 1.75, 2.0, 2.5, 3.0).map { it to speedSetting(it) }, settings.speed) { save(settings.copy(speed = it)) }
+            1 -> ChoiceRows(seconds.map { it to secondsSetting(it) }, settings.skipIntro) { save(settings.copy(skipIntro = it)) }
+            else -> ChoiceRows(seconds.map { it to secondsSetting(it) }, settings.skipOutro) { save(settings.copy(skipOutro = it)) }
         }
-        if (rule.mode == DownloadMode.AllNew) {
-            var cap by rememberSaveable(subscription) { mutableStateOf(rule.keepAtMost?.toString() ?: "") }
-            OutlinedTextField(cap, { input ->
-                cap = input
-                val parsed = input.toLongOrNull()
-                if (input.isBlank() || parsed != null && parsed >= 0) model.edit(Change.SetDownloadRule(rule.copy(keepAtMost = parsed)))
-            }, label = { Text(stringResource(R.string.keep_at_most)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
-            rule.since?.let { Text(stringResource(R.string.all_new_since, dateTime(it)), style = MaterialTheme.typography.bodySmall) }
-        }
-    }
+    } }
 }
 
-private fun dateTime(at: Long): String = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at))
+
+internal fun dateTime(at: Long): String = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at))

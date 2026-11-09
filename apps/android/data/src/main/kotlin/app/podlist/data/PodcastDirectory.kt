@@ -28,8 +28,8 @@ class PodcastDirectory(private val http: PublisherTransport = PublisherHttp()) {
     }
 }
 
-data class ImportFailure(val feedUrl: String, val message: String)
-data class ImportSummary(val added: Int, val alreadySubscribed: Int, val failed: List<ImportFailure>)
+@Serializable data class ImportFailure(val feedUrl: String, val message: String)
+@Serializable data class ImportSummary(val added: Int, val alreadySubscribed: Int, val failed: List<ImportFailure>)
 object Opml {
     fun parse(xml: String): List<String> {
         val root = safeXml(xml)

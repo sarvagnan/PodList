@@ -1,6 +1,10 @@
 package app.podlist.domain
 
 object PlaylistRules {
+    fun availableTrash(state: State, at: Long): List<TrashedPlaylist> = state.trash.orEmpty().filter {
+        it.deletedAt >= at - (state.trashDays ?: 30L) * 86_400_000.0
+    }
+
     fun addEntry(playlist: Playlist, episodeId: String, placement: Placement, at: Long): Playlist {
         val oldIndex = playlist.entries.indexOfFirst { it.episodeId == episodeId }
         if (placement == Placement.Now && playlist.cursor == episodeId) return playlist

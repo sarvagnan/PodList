@@ -8,16 +8,21 @@ internal data class ScreenData(val state: State, val subscriptions: List<Row>, v
 /** One consistent local read. Saved Views always execute the shared compiler, never a cached id list. */
 internal fun readScreen(db: LocalDatabase, route: String?): ScreenData = db.transaction {
     val state = loadState()
-    val subscriptions = query("SELECT s.*, (SELECT count(*) FROM episode e WHERE e.subscription_id = s.id) AS episode_count FROM subscription s ORDER BY s.title COLLATE NOCASE, s.id")
+    val subscriptionRows = query("SELECT s.*, (SELECT count(*) FROM episode e WHERE e.subscription_id = s.id) AS episode_count FROM subscription s ORDER BY s.title COLLATE NOCASE, s.id")
+    val overrides = pendingSubscriptionOverrides()
+    val subscriptions = subscriptionRows.map { row -> overrides.lastOrNull { it.subscriptionId == row["id"] }?.let {
+        row + mapOf("playback_settings" to ProtocolJson.encodeToString(PlaybackSettingsOverride.serializer(), it.playbackSettings), "played_threshold" to it.playedThreshold)
+    } ?: row }
     val id = route?.substringAfter(':', "")
     val episodes = when {
         route?.startsWith("view:") == true -> state.views.find { it.id == id }?.let { evaluate(it, System.currentTimeMillis()) }.orEmpty()
         route?.startsWith("subscription:") == true -> evaluate(View("subscription", "", ViewFilter(podcasts = PodcastFilter(PodcastMode.Include, listOf(id!!))), ViewSort.PublishedDesc, null), System.currentTimeMillis())
-        route?.startsWith("playlist:") == true -> {
+        (route?.startsWith("playlist:") == true || route?.startsWith("playlist-settings:") == true) -> {
             val playlist = state.playlists.find { it.id == id }
-            val ids = (playlist?.entries.orEmpty().map { it.episodeId } + playlist?.history.orEmpty().map { it.episodeId } + playlist?.timeline.orEmpty().map { it.episodeId }).distinct()
+            val ids = (playlist?.entries.orEmpty().map { it.episodeId } + playlist?.history.orEmpty().map { it.episodeId } + playlist?.timeline.orEmpty().map { it.episodeId } + playlist?.edits.orEmpty().map { it.episodeId }).distinct()
             ids.chunked(500).flatMap { chunk -> episodeRows(chunk) }
         }
+        route == "listening-stats" -> query("SELECT id FROM episode")
         route?.startsWith("episode:") == true -> episodeRows(listOf(id!!))
         else -> emptyList()
     }

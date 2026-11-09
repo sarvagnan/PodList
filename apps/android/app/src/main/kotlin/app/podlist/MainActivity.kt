@@ -1,6 +1,7 @@
 package app.podlist
 
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,7 +18,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val model = (application as PodListApplication).model
+        handleShortcut(intent)
         setContent { PodListTheme { PodListShell(model) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleShortcut(intent)
+    }
+
+    private fun handleShortcut(intent: Intent) {
+        intent.action?.removePrefix("app.podlist.OPEN_")?.takeIf { it in listOf("VIEWS", "PLAYLISTS", "LIBRARY") }?.let {
+            (application as PodListApplication).model.shortcut.value = it
+        }
     }
 
     override fun onStop() {
