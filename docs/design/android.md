@@ -39,7 +39,7 @@ Subscriptions grouped by their Download Rule on this Device, with empty groups s
 
 ## Mini player
 
-Sits above the navigation bar on every screen once something is playing. 72dp high with a progress line along its bottom edge.
+Sits above the navigation bar on every screen whenever the Active Playlist has a current Entry, including straight after launch, when it shows that Entry paused at its Position (owner, 9 Nov 2026). Audio never starts by itself. 72dp high with a progress line along its bottom edge.
 
 Left to right: **Artwork · back 15 · Play/Pause · forward 30 · Playlist**. Controls are 48dp.
 

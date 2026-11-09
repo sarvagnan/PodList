@@ -41,6 +41,7 @@ internal interface PlaybackHost {
     fun seek(seconds: Double)
     fun speed(value: Float)
     fun sleep(timer: SleepTimer?)
+    fun restore()
     fun flush()
     fun close()
 }
@@ -250,7 +251,8 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         internalChange = true
         audio.setMediaItem(item(), (position.coerceAtLeast(0.0) * 1000).toLong())
         audio.setPlaybackSpeed(speed)
-        audio.prepare()
+        // Paused loads fetch nothing until Play, so restoring the bar at launch stays quiet offline.
+        if (play) audio.prepare()
         audio.playWhenReady = play
         internalChange = false
         loadingAt = if (play) SystemClock.elapsedRealtime() else 0
@@ -298,11 +300,15 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
             follow(force = true)
         } else follow()
         if (info != null) {
-            audio.play()
-            // STATE_READY only clears the timer on a change, so a resume of ready audio must not arm it.
-            if (audio.playbackState != Player.STATE_READY) loadingAt = SystemClock.elapsedRealtime()
+            resume()
             publish()
         }
+    }
+    private fun resume() {
+        if (audio.playbackState == Player.STATE_IDLE) audio.prepare()
+        audio.play()
+        // STATE_READY only clears the timer on a change, so a resume of ready audio must not arm it.
+        if (audio.playbackState != Player.STATE_READY) loadingAt = SystemClock.elapsedRealtime()
     }
     private suspend fun pauseAudio() {
         if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
@@ -316,7 +322,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         loadedSession = model.session.value
         val state = withContext(Dispatchers.IO) { loadedSession!!.db.loadState() }
         edit(Change.AddEntry(state.activePlaylistId, episode, Placement.Now))
-        if (info?.episodeId == episode && playlistId == state.activePlaylistId && !ended && !error) { audio.play(); publish() }
+        if (info?.episodeId == episode && playlistId == state.activePlaylistId && !ended && !error) { resume(); publish() }
         else follow(force = true, play = true)
     }
     override fun playEntry(playlist: String, episode: String) = enqueue {
@@ -351,6 +357,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         publish()
     }
     override fun sleep(timer: SleepTimer?) = enqueue { this.timer = timer; publish() }
+    override fun restore() = enqueue { if (info == null) follow() }
     override fun flush() = enqueue {
         if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
         event(ListeningSession.Event.Flush)
