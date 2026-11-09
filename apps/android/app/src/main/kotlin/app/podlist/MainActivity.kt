@@ -2,6 +2,7 @@ package app.podlist
 
 import android.os.Bundle
 import android.content.Intent
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -31,6 +32,15 @@ class MainActivity : ComponentActivity() {
         intent.action?.removePrefix("app.podlist.OPEN_")?.takeIf { it in listOf("VIEWS", "PLAYLISTS", "LIBRARY") }?.let {
             (application as PodListApplication).model.shortcut.value = it
         }
+    }
+
+    // At the Activity, not a focusable root composable, which would make the whole screen one
+    // screen reader item. This only sees keys nothing handled, so fields keep their own text undo.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode != KeyEvent.KEYCODE_Z || !event.isCtrlPressed) return super.onKeyDown(keyCode, event)
+        val model = (application as PodListApplication).model
+        if (event.isShiftPressed) model.redoEdit() else model.undoEdit()
+        return true
     }
 
     override fun onStop() {

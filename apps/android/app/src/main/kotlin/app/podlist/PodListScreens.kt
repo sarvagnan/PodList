@@ -2,9 +2,6 @@
 
 package app.podlist
 
-import androidx.compose.foundation.focusable
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -56,9 +53,7 @@ fun PodListShell(model: AppModel) {
     val session by model.session.collectAsState()
     val bringOver by model.bringOver.collectAsState()
     val bringOverVisible by model.bringOverVisible.collectAsState()
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    Surface(Modifier.fillMaxSize().then(historyShortcuts(model)).focusRequester(focus).focusable()) {
+    Surface(Modifier.fillMaxSize()) {
         when {
             starting -> Loading()
             session == null -> WelcomeScreen(model)
