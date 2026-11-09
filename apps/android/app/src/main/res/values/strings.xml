@@ -166,4 +166,23 @@
     <string name="settings_inheritance">Subscription overrides apply to these defaults.</string>
     <string name="close">Close</string>
     <string name="skip_number">%1$d</string>
+    <string name="welcome_phone">Find Episodes with Views and listen through Playlists, all on this phone.</string>
+    <string name="start_phone">Start on this phone</string>
+    <string name="connect_to_server">Connect to a server</string>
+    <string name="server_later">A server keeps your other Devices in sync. You can add one later.</string>
+    <string name="server_none">None. This phone keeps everything itself.</string>
+    <string name="add_podcasts">Add podcasts</string>
+    <string name="podcast_name_address">Podcast name or feed address</string>
+    <string name="find_podcasts">Find podcasts</string>
+    <string name="bad_feed_address">That address isn\'t a podcast feed. Check it, or type the podcast\'s name instead.</string>
+    <string name="no_podcasts_found">No podcasts found. Try another name.</string>
+    <string name="directory_failed">Couldn\'t find podcasts. Check your connection and try again.</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="subscribed">Subscribed</string>
+    <string name="subscribe_failed">Couldn\'t Subscribe. Try again.</string>
+    <string name="unsubscribe">Unsubscribe</string>
+    <string name="unsubscribed">Unsubscribed</string>
+    <string name="unsubscribe_failed">Couldn\'t Unsubscribe. Try again.</string>
+    <string name="unsubscribe_explanation">Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on this Device.</string>
+    <string name="cancel">Cancel</string>
 </resources>

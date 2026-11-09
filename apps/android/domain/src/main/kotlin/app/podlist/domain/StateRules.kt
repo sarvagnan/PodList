@@ -107,7 +107,7 @@ object StateRules {
             }
         }
         is Change.Rewind -> Rewind.apply(state, change.playlistId, change.to, at)
-        // These intentions need the Library. Only the server expands them.
+        // These intentions need the Library. The server or Standalone Device expands them.
         is Change.MarkSubscriptionPlayed, is Change.SetSubscriptionOverrides -> state
     }
 }

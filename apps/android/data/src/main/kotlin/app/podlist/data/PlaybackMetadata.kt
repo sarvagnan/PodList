@@ -40,3 +40,16 @@ fun LocalDatabase.downloadPlan(deviceId: String, now: Long): DownloadPlan = tran
     plan.legacySince.forEach { (subscription, since) -> setMeta("ruleSince:$subscription", since.toString()) }
     plan
 }
+
+/** Podcasting 2.0 Chapter JSON: hidden entries are omitted; starts clamp to zero and sort. */
+fun jsonChapters(body: String): List<Chapter> {
+    val root = ProtocolJson.parseToJsonElement(body) as kotlinx.serialization.json.JsonObject
+    val rows = root["chapters"] as kotlinx.serialization.json.JsonArray
+    return rows.mapNotNull { value ->
+        val row = value as kotlinx.serialization.json.JsonObject
+        fun text(key: String) = (row[key] as? kotlinx.serialization.json.JsonPrimitive)?.takeUnless { it is kotlinx.serialization.json.JsonNull }?.content
+        if (text("toc") == "false") return@mapNotNull null
+        val start = requireNotNull(text("startTime")?.toDoubleOrNull()).also { require(it.isFinite()) }
+        Chapter(start.coerceAtLeast(0.0), text("title") ?: "", text("img")?.let(::Artwork), text("url"))
+    }.sortedBy { it.start }
+}

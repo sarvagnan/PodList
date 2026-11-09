@@ -9,14 +9,14 @@ import java.util.UUID
 /** Native bundled SQLite on both Android and JVM. A connection is serialized by this owner.
  * HTTP runs outside transactions; readers and durable commits share this lock.
  */
-class LocalDatabase(path: String) : AutoCloseable {
+class LocalDatabase(path: String, private val standalone: Boolean = false) : AutoCloseable {
     private val connection: SQLiteConnection = BundledSQLiteDriver().open(path)
 
     init {
         try {
             execute("PRAGMA foreign_keys = ON")
             execute("CREATE TABLE IF NOT EXISTS android_migration (scope TEXT NOT NULL, id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (scope, id))")
-            for ((scope, migrations) in listOf("shared" to SharedSchema.migrations, "client" to SharedSchema.clientMigrations)) {
+            for ((scope, migrations) in listOf("shared" to SharedSchema.migrations, "client" to SharedSchema.clientMigrations, "device" to SharedSchema.deviceMigrations)) {
                 for (migration in migrations) transaction {
                     if (query("SELECT id FROM android_migration WHERE scope = ? AND id = ?", listOf(scope, migration.id)).isEmpty()) {
                         for (statement in migration.statements) execute(statement)
@@ -120,6 +120,20 @@ class LocalDatabase(path: String) : AutoCloseable {
         loadState()
     }
 
+    /** Initial Library setup and its once-only marker commit together, even across process death. */
+    @Synchronized
+    fun initializeStandalone() = transaction {
+        val state = loadState()
+        if (getMeta("starterViewsMade") == null) {
+            if (state.views.isEmpty()) replaceState(state.copy(views = listOf(
+                View("starter-new-this-week", "New this week", ViewFilter(published = PublishedFilter.LastDays(7), played = PlayedFilter.Unplayed), ViewSort.PublishedDesc, null),
+                View("starter-under-30", "Under 30 minutes", ViewFilter(played = PlayedFilter.Unplayed, maxDuration = 1800.0), ViewSort.DurationAsc, null),
+                View("starter-starred", "Starred", ViewFilter(starred = true), ViewSort.PublishedDesc, null)
+            )))
+            setMeta("starterViewsMade", "true")
+        }
+    }
+
     @Synchronized
     fun evaluate(view: View, now: Long): List<Row> {
         val compiled = ViewQuery.compile(view, now)
@@ -173,7 +187,23 @@ class LocalDatabase(path: String) : AutoCloseable {
             var state = loadState()
             val operations = changes.mapIndexed { index, change ->
                 val operation = Operation(ids[index], deviceId, sequence + index, recordedAt, change)
-                execute("INSERT INTO outbox (id, operation) VALUES (?, ?)", listOf(operation.id, operation.encode()))
+                val table = if (standalone) "local_operation" else "outbox"
+                execute("INSERT INTO $table (id, operation) VALUES (?, ?)", listOf(operation.id, operation.encode()))
+                if (standalone) when (change) {
+                    is Change.SetSubscriptionOverrides -> execute("UPDATE subscription SET playback_settings = ?, played_threshold = ? WHERE id = ?", listOf(ProtocolJson.encodeToString(change.playbackSettings), change.playedThreshold, change.subscriptionId))
+                    is Change.MarkSubscriptionPlayed -> {
+                        val episodes = query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published ASC", listOf(change.subscriptionId))
+                        for (row in episodes) {
+                            val episode = row["id"] as String
+                            if (state.episodeStates[episode]?.played == null) {
+                                val concrete = operation.copy(id = "${operation.id}:$episode", change = Change.MarkPlayed(episode, PlayedSource.User))
+                                execute("INSERT INTO local_operation (id, operation) VALUES (?, ?)", listOf(concrete.id, concrete.encode()))
+                                state = StateRules.apply(state, concrete.change, recordedAt)
+                            }
+                        }
+                    }
+                    else -> Unit
+                }
                 state = StateRules.apply(state, change, recordedAt)
                 operation
             }

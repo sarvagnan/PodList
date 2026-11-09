@@ -1,0 +1,248 @@
+{
+  "protocolVersion": 4,
+  "feeds": [
+    {
+      "name": "publisher-fields",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\" xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\" xmlns:podcast=\"https://podcastindex.org/namespace/1.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">\n  <channel>\n    <title>Night Shift Histories</title>\n    <itunes:author>Night Shift Media</itunes:author>\n    <description><![CDATA[Stories from <b>after dark</b>.]]></description>\n    <itunes:image href=\"https://example.test/podcast.jpg\"/>\n    <item>\n      <title>The night the bridge lights went out</title>\n      <guid isPermaLink=\"false\">ns-0212</guid>\n      <pubDate>Wed, 04 Nov 2026 06:00:00 GMT</pubDate>\n      <itunes:duration>1:12:04</itunes:duration>\n      <enclosure url=\"https://example.test/0212.mp3\" length=\"1\" type=\"audio/mpeg\"/>\n      <itunes:image href=\"https://example.test/0212.jpg\"/>\n      <podcast:chapters url=\"https://example.test/0212.chapters.json\" type=\"application/json+chapters\"/>\n      <content:encoded><![CDATA[<p>In the summer of 1977…</p>]]></content:encoded>\n      <description>Short description</description>\n    </item>\n    <item>\n      <title>The lamplighters' strike</title>\n      <pubDate>Mon, 03 Aug 2026 06:00:00 GMT</pubDate>\n      <itunes:duration>3900</itunes:duration>\n      <enclosure url=\"https://example.test/0180.mp3\" length=\"1\" type=\"audio/mpeg\"/>\n      <description>No guid: identified by its audio URL.</description>\n    </item>\n    <item>\n      <title>Trailer page, not audio</title>\n      <link>https://example.test/about</link>\n    </item>\n  </channel>\n</rss>\n",
+      "expected": {
+        "title": "Night Shift Histories",
+        "author": "Night Shift Media",
+        "description": "Stories from <b>after dark</b>.",
+        "artworkUrl": "https://example.test/podcast.jpg",
+        "episodes": [
+          {
+            "guid": "ns-0212",
+            "title": "The night the bridge lights went out",
+            "description": "<p>In the summer of 1977…</p>",
+            "published": 1793772000000,
+            "duration": 4324,
+            "audioUrl": "https://example.test/0212.mp3",
+            "artworkUrl": "https://example.test/0212.jpg",
+            "chaptersUrl": "https://example.test/0212.chapters.json"
+          },
+          {
+            "guid": "https://example.test/0180.mp3",
+            "title": "The lamplighters' strike",
+            "description": "No guid: identified by its audio URL.",
+            "published": 1785736800000,
+            "duration": 3900,
+            "audioUrl": "https://example.test/0180.mp3",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "fallbacks-and-escaping",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title> Fish &amp; Chips </title><itunes:owner>Owner</itunes:owner><itunes:summary>Summary</itunes:summary><image><url>https://test/image</url></image>\n    <item><itunes:title>iTunes title</itunes:title><itunes:summary>Item summary</itunes:summary><pubDate>2026-11-09T12:34:56Z</pubDate><itunes:duration>1:00:00.5</itunes:duration><enclosure url=\"https://test/a?x=1&amp;y=2\"/></item>\n    <item><guid>  explicit </guid><title/><description/><enclosure url=\"https://test/b\"/><pubDate>bad date</pubDate><itunes:duration>soon</itunes:duration></item>\n    <item><title>No enclosure</title></item><item><enclosure url=\"\"/></item></channel></rss>",
+      "expected": {
+        "title": "Fish & Chips",
+        "author": "Owner",
+        "description": "Summary",
+        "artworkUrl": "https://test/image",
+        "episodes": [
+          {
+            "guid": "https://test/a?x=1&y=2",
+            "title": "iTunes title",
+            "description": "Item summary",
+            "published": 1794227696000,
+            "duration": 3600.5,
+            "audioUrl": "https://test/a?x=1&y=2",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          },
+          {
+            "guid": "explicit",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "https://test/b",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty-channel",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Empty</title></channel></rss>",
+      "expected": {
+        "title": "Empty",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "nested-text-and-publisher-dates",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><itunes:owner><itunes:name>Not direct text</itunes:name></itunes:owner>\n      <item><title> Hello <b>ignored markup</b> world </title><enclosure url=\"https://test/date1\"/><pubDate>Tue, 09 Nov 2026 04:05:06 GMT</pubDate></item>\n      <item><enclosure url=\"https://test/date2\"/><pubDate>09 Nov 26 04:05:06 +0000</pubDate></item>\n      <item><enclosure url=\"https://test/date3\"/><pubDate>2026-11-09</pubDate></item></channel></rss>",
+      "expected": {
+        "title": "Show",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "https://test/date1",
+            "title": "Helloworld",
+            "description": "",
+            "published": 1794197106000,
+            "duration": null,
+            "audioUrl": "https://test/date1",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          },
+          {
+            "guid": "https://test/date2",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 1794197106000,
+            "duration": null,
+            "audioUrl": "https://test/date2",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          },
+          {
+            "guid": "https://test/date3",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 1794182400000,
+            "duration": null,
+            "audioUrl": "https://test/date3",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "description-priority",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Podcast</title><itunes:author>Author</itunes:author><itunes:owner>Ignored</itunes:owner><description>Description</description><itunes:summary>Ignored</itunes:summary><itunes:image href=\"https://test/itunes\"/><image><url>https://test/ignored</url></image>\n    <item><title>First</title><itunes:title>Ignored</itunes:title><content:encoded><![CDATA[<p>Show notes & details</p>]]></content:encoded><description>Ignored</description><enclosure url=\"https://test/c\"/><enclosure url=\"https://test/ignored\"/><pubDate>Mon, 09 Nov 2026 04:05:06 +0000</pubDate><itunes:duration>60:00</itunes:duration></item></channel></rss>",
+      "expected": {
+        "title": "Podcast",
+        "author": "Author",
+        "description": "Description",
+        "artworkUrl": "https://test/itunes",
+        "episodes": [
+          {
+            "guid": "https://test/c",
+            "title": "First",
+            "description": "<p>Show notes & details</p>",
+            "published": 1794197106000,
+            "duration": 3600,
+            "audioUrl": "https://test/c",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "not-rss",
+      "xml": "<html><body/></html>",
+      "error": true
+    },
+    {
+      "name": "missing-channel",
+      "xml": "<rss/>",
+      "error": true
+    },
+    {
+      "name": "missing-title",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><description>No title</description></channel></rss>",
+      "error": true
+    },
+    {
+      "name": "empty-title",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title> </title></channel></rss>",
+      "error": true
+    },
+    {
+      "name": "malformed",
+      "xml": "<rss><channel><title>Broken</channel></rss>",
+      "error": true,
+      "deviceOnly": true
+    },
+    {
+      "name": "external-entity",
+      "xml": "<!DOCTYPE rss [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><rss><channel><title>&xxe;</title></channel></rss>",
+      "error": true,
+      "deviceOnly": true
+    },
+    {
+      "name": "external-dtd",
+      "xml": "<!DOCTYPE rss SYSTEM \"https://test/evil\"><rss><channel><title>Unsafe</title></channel></rss>",
+      "error": true,
+      "deviceOnly": true
+    }
+  ],
+  "durations": [
+    {
+      "input": null,
+      "expected": null
+    },
+    {
+      "input": "3600",
+      "expected": 3600
+    },
+    {
+      "input": "60:00",
+      "expected": 3600
+    },
+    {
+      "input": "1:00:00",
+      "expected": 3600
+    },
+    {
+      "input": "1:00:00.5",
+      "expected": 3600.5
+    },
+    {
+      "input": "0",
+      "expected": 0
+    },
+    {
+      "input": "0.25",
+      "expected": 0.25
+    },
+    {
+      "input": "1:2",
+      "expected": 62
+    },
+    {
+      "input": "1:2:3:4",
+      "expected": null
+    },
+    {
+      "input": "soon",
+      "expected": null
+    },
+    {
+      "input": "-1",
+      "expected": null
+    },
+    {
+      "input": "NaN",
+      "expected": null
+    },
+    {
+      "input": "Infinity",
+      "expected": null
+    },
+    {
+      "input": "",
+      "expected": 0
+    },
+    {
+      "input": " ",
+      "expected": 0
+    },
+    {
+      "input": "1::2",
+      "expected": 3602
+    }
+  ]
+}

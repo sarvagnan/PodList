@@ -230,7 +230,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         timer = timer.takeIf { it is SleepTimer.Until }
         val files = model.downloads(session).files
         val stored = withContext(Dispatchers.IO) { files.stored(entry.episodeId)?.toURI()?.toString() }
-        candidates = PlaybackPolicy.sources(stored, info!!.audioUrl, session.address.audio(entry.episodeId))
+        candidates = PlaybackPolicy.sources(stored, info!!.audioUrl, session.source.audioFallback(entry.episodeId))
         candidate = 0
         loadSource(start, settings.speed.toFloat(), play)
         if (start != entry.position) event(ListeningSession.Event.Seek(start))
@@ -243,7 +243,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         return MediaItem.Builder().setMediaId("entry:${Uri.encode(playlistId)}:${Uri.encode(metadata.episodeId)}")
             .setUri(candidates.getOrElse(candidate) { candidates.last() }).setMediaMetadata(MediaMetadata.Builder()
                 .setTitle(metadata.title ?: getString(R.string.metadata_pending)).setArtist(metadata.podcast ?: getString(R.string.app_name))
-                .setAlbumTitle(metadata.podcast).setArtworkUri(artwork?.let { Uri.parse(loadedSession!!.address.artwork(it, 512)) })
+                .setAlbumTitle(metadata.podcast).setArtworkUri(artwork?.let { Uri.parse(loadedSession!!.source.artwork(it, 512)) })
                 .setIsBrowsable(false).setIsPlayable(true).setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE).build()).build()
     }
     private fun loadSource(position: Double, speed: Float, play: Boolean) {
@@ -390,24 +390,13 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
             event(ListeningSession.Event.Discontinuity)
             val files = model.downloads(session).files
             val local = withContext(Dispatchers.IO) { files.stored(fresh.episodeId)?.toURI()?.toString() }
-            candidates = PlaybackPolicy.sources(local, fresh.audioUrl, session.address.audio(fresh.episodeId))
+            candidates = PlaybackPolicy.sources(local, fresh.audioUrl, session.source.audioFallback(fresh.episodeId))
             candidate = 0
             loadSource(position(), audio.playbackParameters.speed, audio.playWhenReady)
         }
     }
     private fun resolveChapters(session: Session, episode: String) {
-        scope.launch {
-            val chapters = withContext(Dispatchers.IO) {
-                runCatching {
-                    ProtocolJson.decodeFromString<List<Chapter>>(HttpTransport(session.address).request("GET", episodePath(episode) + "/chapters", null))
-                }.getOrNull()
-            } ?: return@launch
-            if (chapters.isEmpty()) return@launch
-            withContext(Dispatchers.IO) {
-                session.db.execute("UPDATE episode SET chapters = ?, chapters_fetched_at = ? WHERE id = ?", listOf(kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(Chapter.serializer()), chapters), System.currentTimeMillis(), episode))
-                session.db.notifyChanged()
-            }
-        }
+        scope.launch { withContext(Dispatchers.IO) { runCatching { session.source.chapters(episode) } } }
     }
     private suspend fun publish() {
         val metadata = info ?: return

@@ -28,7 +28,7 @@ data class AppMessage(val resource: Int, val undo: (() -> Unit)? = null)
 
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
 enum class SyncStatus { Loading, Ready, Offline, Error }
-data class Session(val address: ServerAddress, val db: LocalDatabase, val deviceId: String)
+data class Session(val source: LibrarySource, val db: LocalDatabase, val deviceId: String)
 
 /** Process-local lifecycle adapter; all protocol decisions and durable data live in :data. */
 class AppModel(application: Application) : AndroidViewModel(application) {
@@ -38,7 +38,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     val messages = Channel<AppMessage>(Channel.BUFFERED)
     private val downloads = mutableMapOf<String, AndroidDownloads>()
 
-    fun downloads(session: Session): AndroidDownloads = downloads.getOrPut(session.address.origin) { AndroidDownloads(getApplication(), this, session) }
+    fun downloads(session: Session): AndroidDownloads = downloads.getOrPut(session.source.key) { AndroidDownloads(getApplication(), this, session) }
     private fun withPlayback(action: (PlaybackHost) -> Unit) {
         playbackHost?.let { action(it); return }
         val application = getApplication<Application>()
@@ -121,7 +121,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) { requestSync() }
         override fun onLost(network: Network) {
-            if (connectivity.activeNetwork == null) status.value = SyncStatus.Offline
+            if (_session.value?.source?.server != null && connectivity.activeNetwork == null) status.value = SyncStatus.Offline
         }
     }
 
@@ -129,13 +129,42 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         connectivity.registerDefaultNetworkCallback(callback)
         viewModelScope.launch {
             try {
-                preferences.getString("server", null)?.let { address ->
-                    activate(ServerAddress.parse(address, BuildConfig.DEBUG))
-                }
+                val saved = preferences.getString("server", null)
+                if (saved != null) activate(ServerAddress.parse(saved, BuildConfig.DEBUG))
+                else if (preferences.getBoolean("standalone", false)) activate(null)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 connectionError.value = classify(error)
             } finally { starting.value = false }
+        }
+    }
+
+    fun offerResubscribe(current: Session, feed: String) {
+        messages.trySend(AppMessage(R.string.unsubscribed) { changeSubscription(current, feed, subscribe = true) })
+    }
+    private fun changeSubscription(current: Session, feed: String, subscribe: Boolean) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (subscribe) current.source.subscribe(feed)
+                    else {
+                        val id = current.db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feed)).single()["id"] as String
+                        current.source.unsubscribe(id)
+                    }
+                }
+                requestSync()
+                messages.send(AppMessage(if (subscribe) R.string.subscribed else R.string.unsubscribed) { changeSubscription(current, feed, !subscribe) })
+            } catch (error: CancellationException) { throw error }
+            catch (_: Exception) {
+                messages.send(AppMessage(if (subscribe) R.string.subscribe_failed else R.string.unsubscribe_failed) { changeSubscription(current, feed, subscribe) })
+            }
+        }
+    }
+
+    fun startOnPhone() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { check(preferences.edit().remove("server").putBoolean("standalone", true).commit()) }
+            activate(null)
         }
     }
 
@@ -152,7 +181,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         return try {
             val address = ServerAddress.parse(input, BuildConfig.DEBUG)
             withContext(Dispatchers.IO) { checkHealth(HttpTransport(address)) }
-            if (_session.value?.address?.origin != address.origin) activate(address)
+            if (_session.value?.source?.server?.origin != address.origin) activate(address)
             withContext(Dispatchers.IO) { check(preferences.edit().putString("server", address.origin).commit()) }
             requestSync()
             true
@@ -163,23 +192,28 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         } finally { connecting.value = false }
     }
 
-    internal suspend fun sessionFor(address: ServerAddress): Session = sessionLock.withLock {
-        sessions[address.origin]?.let { return@withLock it }
+    internal suspend fun sessionFor(address: ServerAddress?): Session = sessionLock.withLock {
+        val key = address?.origin ?: "standalone"
+        sessions[key]?.let { return@withLock it }
         val db = withContext(Dispatchers.IO) {
-            val digest = MessageDigest.getInstance("SHA-256").digest(address.origin.toByteArray()).joinToString("") { "%02x".format(it) }
+            val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
             val installationId = preferences.getString("deviceId", null) ?: UUID.randomUUID().toString()
             val registeredAt = preferences.getLong("registeredAt", System.currentTimeMillis())
             check(preferences.edit().putString("deviceId", installationId).putLong("registeredAt", registeredAt).commit())
-            LocalDatabase(getApplication<Application>().getDatabasePath("library-$digest.sqlite").also { it.parentFile?.mkdirs() }.path).also {
+            LocalDatabase(getApplication<Application>().getDatabasePath("library-$digest.sqlite").also { it.parentFile?.mkdirs() }.path, standalone = address == null).also {
                 it.ensureState()
+                if (address == null) it.initializeStandalone()
                 it.setMeta("deviceId", installationId)
                 it.setMeta("registeredAt", registeredAt.toString())
             }
         }
-        Session(address, db, withContext(Dispatchers.IO) { db.installation().id }).also { sessions[address.origin] = it }
+        val source = if (address == null) DeviceLibrary(db) else ServerLibrary(db, address) { error ->
+            status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+        }
+        Session(source, db, withContext(Dispatchers.IO) { db.installation().id }).also { sessions[key] = it }
     }
 
-    private suspend fun activate(address: ServerAddress) {
+    private suspend fun activate(address: ServerAddress?) {
         val previous = _session.value
         val next = sessionFor(address)
         val db = next.db
@@ -188,26 +222,24 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         previous?.db?.onChanged = null
         previous?.db?.onEdit = null
         db.onChanged = { revision.update { it + 1 } }
-        db.onEdit = { requestSync() }
+        db.onEdit = { if (address != null) requestSync() }
         _session.value = next
-        status.value = SyncStatus.Loading
+        status.value = if (address == null) SyncStatus.Ready else SyncStatus.Loading
         downloads(next)
-        val client = SyncClient(db, HttpTransport(address), onFailure = { error ->
-            status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
-        })
+        if (address == null) scheduleFeedRefresh(getApplication())
         worker = viewModelScope.launch {
             // Startup is immediate. Thereafter timeout starts after each completed pass.
             while (isActive) {
-                status.value = SyncStatus.Loading
+                if (address != null) status.value = SyncStatus.Loading
                 try {
-                    withContext(Dispatchers.IO) { client.sync() }
+                    withContext(Dispatchers.IO) { next.source.refresh() }
                     status.value = SyncStatus.Ready
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
-                    status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+                    status.value = if (address == null) SyncStatus.Ready else if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
                 }
                 revision.update { it + 1 }
-                withTimeoutOrNull(60_000) { triggers.receive() }
+                withTimeoutOrNull(if (address == null) DeviceLibrary.PollMillis else 60_000) { triggers.receive() }
                 delay(2_000)
                 while (triggers.tryReceive().isSuccess) { /* coalesce bursts */ }
             }

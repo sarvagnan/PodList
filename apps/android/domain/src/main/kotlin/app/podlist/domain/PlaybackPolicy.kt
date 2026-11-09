@@ -26,7 +26,7 @@ object PlaybackPolicy {
         return if (end) PlaybackBoundary.Advance else PlaybackBoundary.Continue
     }
     fun holdLoaded(playing: Boolean, finished: Boolean, ended: Boolean) = playing || (finished && !ended)
-    fun sources(stored: String?, host: String?, proxy: String): List<String> = if (stored != null) listOf(stored) else listOfNotNull(host, proxy).distinct()
+    fun sources(stored: String?, host: String?, proxy: String?): List<String> = if (stored != null) listOf(stored) else listOfNotNull(host, proxy).distinct()
     fun settings(global: PlaybackSettings, override: PlaybackSettingsOverride) = PlaybackSettings(
         override.speed ?: global.speed, override.skipIntro ?: global.skipIntro, override.skipOutro ?: global.skipOutro, override.volumeBoost ?: global.volumeBoost
     )
