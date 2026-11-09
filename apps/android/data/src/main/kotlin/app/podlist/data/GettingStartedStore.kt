@@ -20,3 +20,15 @@ fun LocalDatabase.initializeGettingStarted() = transaction {
     }
     setMeta("gettingStartedChecked", "true")
 }
+
+/** Completion is remembered even when later listening empties a Playlist or a Subscription leaves. */
+fun LocalDatabase.updateGettingStartedProgress() = transaction {
+    if (getMeta("starterViewsMade") == null && (getMeta("userCursor") == null || getMeta("catalogueCursor") == null)) return@transaction
+    val previous = getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0
+    var steps = previous
+    if (query("SELECT id FROM subscription WHERE unsubscribed_at IS NULL LIMIT 1").isNotEmpty()) steps = steps or 1
+    val state = loadState()
+    if (state.views.isNotEmpty()) steps = steps or 2
+    if (state.playlists.any { it.entries.isNotEmpty() }) steps = steps or 4
+    if (steps != previous) setMeta("gettingStartedSteps", steps.toString())
+}

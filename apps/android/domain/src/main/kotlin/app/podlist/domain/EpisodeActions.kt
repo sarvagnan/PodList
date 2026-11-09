@@ -1,9 +1,23 @@
 package app.podlist.domain
 
 object EpisodeActions {
-    /** Next always inserts after the Cursor, so reversed operations preserve displayed order. */
-    fun addMany(ids: List<String>, playlistId: String, placement: Placement): List<Change> =
-        (if (placement == Placement.Next) ids.distinct().asReversed() else ids.distinct()).map { Change.AddEntry(playlistId, it, placement) }
+    /** The first insert into an empty/past-end Playlist establishes its Cursor. */
+    fun addMany(ids: List<String>, playlistId: String, placement: Placement, before: Playlist? = null): List<Change> {
+        val unique = ids.distinct()
+        val hasCursor = before?.entries?.any { it.episodeId == before.cursor } == true
+        val order = if (placement != Placement.Next) unique else if (hasCursor) unique.asReversed() else unique.take(1) + unique.drop(1).asReversed()
+        val operations = order.map { Change.AddEntry(playlistId, it, placement) }.toMutableList<Change>()
+        var result = before ?: Playlist(playlistId, "", false, false, emptyList(), null, emptyList(), emptyList())
+        order.forEach { result = PlaylistRules.addEntry(result, it, placement, 0) }
+        // Moving the Cursor itself can change the insertion anchor. Keep the selected group in
+        // displayed order without changing the per-Entry Positions or the resulting Cursor.
+        if (result.entries.filter { it.episodeId in unique }.map { it.episodeId } != unique) {
+            val first = result.entries.indexOfFirst { it.episodeId in unique }
+            var anchor = result.entries.getOrNull(first - 1)?.episodeId
+            unique.forEach { id -> operations += Change.MoveEntry(playlistId, id, anchor); anchor = id }
+        }
+        return operations
+    }
 
     fun undoAdd(before: Playlist, ids: List<String>): List<Change> = buildList {
         ids.filter { id -> before.entries.none { it.episodeId == id } }.forEach { add(Change.RemoveEntry(before.id, it)) }

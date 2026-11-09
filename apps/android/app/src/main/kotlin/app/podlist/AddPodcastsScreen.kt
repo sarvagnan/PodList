@@ -92,7 +92,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session) {
 }
 
 @Composable
-internal fun UnsubscribeButton(session: Session, id: String) {
+internal fun UnsubscribeButton(session: Session, id: String, title: String, unsubscribed: () -> Unit) {
     val model = LocalAppModel.current
     val scope = rememberCoroutineScope()
     var confirming by remember { mutableStateOf(false) }
@@ -100,7 +100,7 @@ internal fun UnsubscribeButton(session: Session, id: String) {
     var error by remember { mutableStateOf(false) }
     TextButton(onClick = { confirming = true }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.unsubscribe)) }
     if (error) Text(stringResource(R.string.unsubscribe_failed), color = MaterialTheme.colorScheme.error)
-    if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.unsubscribe)) },
+    if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.m4_unsubscribe_named, title)) },
         text = { Text(stringResource(R.string.unsubscribe_explanation)) },
         dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },
         confirmButton = { TextButton(onClick = {
@@ -115,6 +115,7 @@ internal fun UnsubscribeButton(session: Session, id: String) {
                     }
                     model.requestSync()
                     model.offerResubscribe(session, feed)
+                    unsubscribed()
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) { error = true }
                 finally { busy = false }

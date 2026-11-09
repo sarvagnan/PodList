@@ -1,4 +1,4 @@
-# PodList for Android — Standalone Device
+# PodList for Android — milestone 4
 
 An ordinary Gradle project, outside the pnpm workspace. `:domain` is pure Kotlin/JVM
 and owns wire models, Played/Position/listening accounting, sleep and advancement
@@ -26,13 +26,43 @@ New Playlist, Play Next / Play Last). New Playlist + Add commits atomically to t
 outbox. Entries support Play from here, drag/discrete moves and Switch Playlist;
 Add and move offer Undo. Playlists include Entries, History and Listening Timeline.
 Episode detail includes Artwork, metadata, show notes, Chapters, Played/Star,
-Manual Download, In your Playlists and each Entry's Resume action. Settings exposes
-Playback defaults and Server; Subscription pages expose this Device's Download Rule.
-Library's + opens Add podcasts for directory search or a pasted feed address. Results
-show Artwork, title, author and Subscribe; Subscribed stays on the same screen with
-the input intact. Subscription pages offer confirmed Unsubscribe with Undo/Redo.
-Other later milestone controls, including View/Playlist creation, selection, pencils,
-Rewind and Listening stats, remain omitted.
+Manual Download, In your Playlists and each Entry's Resume action. Library's + opens
+Add podcasts for directory search or a pasted feed address. Results keep the input
+and remain open after Subscribe. Pencils open the View editor, Playlist settings and
+Subscription settings; gears always open app Settings.
+
+The agreed round-2 View editor has all seven condition rows, Sort and Show, each
+opening a Material bottom sheet. Published ranges use the native Material date
+picker. Valid edits apply immediately; reversed ranges retain the input and explain
+the error without recording invalid Operations. The matching count and Undo stay
+above the player. Search uses the same SQLite View compiler and can become a named
+View. Playlist creation validates blank and duplicate names; Delete, Trash Restore,
+Clear on Played and selection actions offer Undo. The Default Playlist exposes only
+Clear on Played.
+
+Subscription settings contains this Device's Download Rule, its optional positive
+cap, Played threshold and individual Playback Settings overrides. Default values
+show what they inherit; overrides use the primary role. Pending server overrides
+also affect local playback before sync. Mark all Played offers Undo. Unsubscribe
+explains Orphaned Episodes and stored downloads, then offers Undo, Redo and retry.
+
+Listening Timeline groups stretches, finishes and deliberate edits, newest first.
+Rewind previews the target Entry/Position, Unplayed Episodes, restored Entries and
+kept edits in the agreed summary sheet. Rewind and Undo serialize behind the player's
+final sample and reload the target paused; they leave the permanent Listening log
+alone. Existing shared Rewind vectors still exercise the reducer.
+
+Settings contains Playback, Your listening, Your podcasts, Playlists, This Device and
+Help. Listening stats shows all three periods, the current Listening streak, 30 daily
+bars, a table and top podcasts. Bars scroll horizontally so each day remains a 48dp
+touch target. OPML uses Android OpenDocument/CreateDocument and LibrarySource's server
+or Standalone Device implementation; partial imports list failures and retry just
+those addresses. Imports, exports and their results survive Activity rotation. The launcher exposes Views, Playlists and Library shortcuts.
+
+Long press selects Episode rows in a View, Search, Subscription or Playlist. Checkboxes
+replace Artwork, trailing actions disappear, and the contextual app bar exposes Add,
+Mark Played, Star and Download. Bulk Next/Last preserves displayed order. Library also
+provides Select Subscriptions for changing this Device's Download Rules together.
 
 ## Playback and downloads
 
@@ -157,11 +187,15 @@ end-of-sample timezone behavior are preserved.
 
 ## Connection and sync
 
-First run presents a simple welcome proposal awaiting owner review: Start on this
-phone or Connect to a server. Starting on this phone persists a Standalone Device
+First run presents the agreed welcome: Start on this phone or Connect to a server. Starting on this phone persists a Standalone Device
 session, creates its Default Playlist and creates the three FirstRun.tsx starter
 Views once. Their creation and once-only marker commit atomically; deleting them
-does not recreate them on restart. There is no checklist or bring-over UI.
+does not recreate them on restart. A fresh server Library also creates the starter
+Views once, only after both State and Library have loaded. Getting started sits above
+the Views, remembers its three completed steps, stays until Hide, and reopens on Views
+from Settings → Help. A previously used Library becoming empty does not restart it.
+There is still no Library bring-over UI; that existing deferred capability is outside
+the ten screen items implemented here.
 
 `Session.source: LibrarySource` is the boundary for Library refresh, discovery,
 Subscribe/Unsubscribe, Chapters, Artwork and audio fallback. `ServerLibrary` retains
@@ -187,7 +221,8 @@ with ETag/Last-Modified, retains Episodes absent from later feeds, merges unambi
 guid changes and detects audio replacement at the server's >30-second threshold.
 Device migration scope `device/1` adds feed refresh bookkeeping and the local
 operation table; shared and web/client migrations remain unchanged. Feed XML and
-OPML reject DTDs/external entities and are limited to 8 MiB of UTF-8. Publisher HTTP
+OPML reject DTDs/external entities. Feeds have a 32 MiB UTF-8 limit and use the streamed
+SAX parser; only OPML has an 8 MiB limit. Publisher HTTP
 bounds response size and redirects, uses only HTTP(S), rejects URL credentials,
 and always identifies as generic `PodList Android`.
 
@@ -203,7 +238,8 @@ never become an Offline or sync failure banner on a Standalone Device.
 addresses directly. `Opml.parse/generate` and `DeviceLibrary.importOpml/exportOpml`
 are data-only APIs: recursive deduplicated outlines, XML escaping, inactive
 Subscription exclusion, and added/already-subscribed/per-address failure reporting.
-Malformed imports produce an empty summary, matching the server. OPML UI is deferred.
+Malformed imports produce an empty summary, matching the server. Settings supplies the
+OPML file-picker UI for either source.
 Directory result Artwork loads directly even with a server, since the Library-only
 Artwork proxy cannot serve an unsubscribed search result.
 
@@ -269,8 +305,8 @@ cp -rf "$HOME/.gradle/wrapper" "$GRADLE_USER_HOME/"
 ./apps/android/gradlew -p apps/android --offline :domain:test :data:test :app:assembleDebug
 ```
 
-The full debug APK compiles offline. Standalone Device verification has **246 passing
-JVM tests**: 82 in `:domain`, 164 in `:data`, with zero failures or skips. The affected
+The full debug APK compiles offline. Milestone 4 verification has **272 passing
+JVM tests**: 99 in `:domain`, 173 in `:data`, with zero failures or skips. The affected
 TypeScript feed, Subscription, directory and Chapter suites have **51 passing tests**;
 server/domain TypeScript checks and formatting checks pass. No dependencies were added.
 This includes all existing protocol vectors,
@@ -284,7 +320,7 @@ enclosures, guid fallback, namespace fields, escaping, malformed XML and unsafe 
 Regenerate with `pnpm --filter @podlist/domain protocol`.
 
 Before this change, `:app:lintDebug` passed in the main environment. It was not run
-for Standalone Device support: the sandbox cannot resolve `com.android.tools.lint:lint-gradle:32.5.1` offline.
+for milestone 4: the sandbox cannot resolve `com.android.tools.lint:lint-gradle:32.5.1` offline.
 
 Before Standalone Device support, checked on an Android 16 emulator on 9 Nov 2026:
 player layout, transport, Chapters,
@@ -294,6 +330,65 @@ Offline banner with the server stopped. The list below still needs Android Auto,
 Bluetooth and headphones, drag reordering, the two-transfer limit and outbox replay.
 The emulator's own networking layer crashes it every few minutes on this Mac (its
 main loop blocks in `close()` from `udp_detach`); quit and reopen it to continue.
+
+## Milestone 4 emulator checklist for the main session
+
+Run `:app:lintDebug` in the main environment. Repeat these checks on a Standalone
+Device and with a connected server; also repeat durable State edits with that server
+stopped and check their replay after reconnecting. No milestone 4 emulator checks
+were performed in this worktree.
+
+1. Start fresh with no network: Start on this phone, three starter Views, Default
+   Playlist, and Getting started above Views. Subscribe, open a View, add Entries,
+   then remove Entries and relaunch: completed steps stay ticked. Hide, reopen from
+   Settings → Help, delete a starter View and relaunch. On a server, delay the initial
+   Library response and confirm it never creates starter Views or a fresh checklist
+   while loading; an existing Library must keep its Views.
+2. Open a View's pencil. Exercise all seven conditions, Sort and Show, Published
+   date selection, both podcast modes, Any, text, reversed dates/lengths and their
+   correction. Check live count, primary values, Undo above the mini player, name,
+   Delete/Undo, Done and + creation. Search titles, podcast names and show notes;
+   save with a blank/valid name and compare the saved View's results.
+3. Create a Playlist from +, try blank and duplicate names, rename, toggle Clear on
+   Played and Undo. Confirm enabling it keeps already Played Entries. The Default
+   Playlist must expose only Clear on Played. Delete an Active Playlist, confirm
+   Default becomes Active and playback pauses, Undo, then Delete → Trash → Restore
+   → Undo. Check the configured retention value and expired Trash behavior.
+4. Play across several Episodes with Clear on Played. In History check only playback
+   finishes; in Listening Timeline check stretches, finishes, adds/moves/removes and
+   manual Played rows. Preview Rewind: verify every summary group and Artwork, then
+   confirm the Cursor, Position, restored order and Unplayed facts. Later deliberate
+   adds/reorders/manual marks must stay. Undo while paused and after resuming, then
+   relaunch. Time listened must never decrease.
+5. Open a Subscription pencil: all three Download Rules, positive Keep at most and
+   blank/unlimited; Default and custom threshold, speed, skips and boost, including
+   resetting each to Default. Change global defaults and verify inherited labels.
+   Mark all Played/Undo; Unsubscribe confirmation, Undo, Redo and failed-call Retry.
+   Verify Orphaned Entries/Stars, downloads and retained overrides. With a stopped
+   server, pending overrides must still be used by local playback.
+6. Open Listening stats with no listening, then after partial listening and playback
+   finishes. Check this week/month/all time, Monday/date boundaries, streak, bar
+   selection and horizontal scroll, table, top podcasts and removed Subscription
+   names. Manual Played must not increase finished; Rewind/Unplayed can reduce it
+   while time listened remains.
+7. In Settings check section order, global Playback Settings, Trash retention and
+   Help. Import a nested OPML containing a duplicate, valid feed and failing feed;
+   check added/already-subscribed/failure counts and Retry failed Subscriptions.
+   Export with the system picker, inspect/round-trip the XML and exclude inactive
+   Subscriptions. Cancel both pickers, try malformed/over-8-MiB documents and failed
+   reads/writes, and retry a server import after losing connectivity.
+8. Long press Episodes in a View, Search, Subscription and Playlist. Check contextual
+   count, checkbox/title taps, hidden trailing actions, Back cancellation and all
+   four actions with Undo. Choose another Playlist and create one in Add; several
+   Next/Last must keep displayed order, moving existing Entries without duplicates.
+   Select several Subscriptions and change their Download Rules, then Undo.
+9. Long press the launcher icon and open each destination shortcut from both a cold
+   launch and an already nested screen. Navigation should reach that destination's
+   root without starting audio.
+10. Check all new screens and sheets in light/dark, large text, compact height,
+    rotation, keyboard open/closed, TalkBack and predictive Back. Check 48dp actions,
+    scrolling, player/navigation reachability and Undo positioning. Back must never
+    pause playback; explicit Rewind/Delete of the playing Playlist pauses it.
 
 ## Standalone Device verification for the main session
 
@@ -324,7 +419,7 @@ No emulator checks were performed for this implementation. Check these on a Devi
    work, and sync/retry still behaves normally. From a Standalone Device connect
    to a server: verify separate Libraries and no upload of Standalone edits. Reopen
    saved server origins to confirm isolation and retained downloads.
-7. Review the welcome proposal and Add podcasts on compact screens, large text,
+7. Review the agreed welcome and Add podcasts on compact screens, large text,
    rotation, dark mode, keyboard open/closed and predictive Back. Confirm the player
    keeps running while navigating and all new targets are at least 48dp.
 

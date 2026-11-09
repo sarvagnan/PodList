@@ -6,6 +6,22 @@ import java.time.Instant
 import java.time.ZoneId
 
 class MilestoneFourTest {
+    @Test fun `Trash display expires even without another State edit`() {
+        val s = State.initial().copy(trash = listOf(TrashedPlaylist(playlist().copy(id = "deleted"), 0)))
+        assertEquals(1, PlaylistRules.availableTrash(s, 30L * 86_400_000).size)
+        assertTrue(PlaylistRules.availableTrash(s, 30L * 86_400_000 + 1).isEmpty())
+        assertTrue(PlaylistRules.availableTrash(s.copy(trashDays = 7), 8L * 86_400_000).isEmpty())
+    }
+    @Test fun `reversed View ranges stay invalid until corrected`() {
+        assertEquals(ViewEdits.Problem.LengthRange, ViewEdits.problem(ViewFilter(minDuration = 120.0, maxDuration = 60.0)))
+        assertEquals(ViewEdits.Problem.DateRange, ViewEdits.problem(ViewFilter(published = PublishedFilter.Between(200, 100))))
+        assertNull(ViewEdits.problem(ViewFilter(minDuration = 60.0, maxDuration = 60.0, published = PublishedFilter.Between(null, 100))))
+    }
+    @Test fun `no selected podcasts means Any and valid selections deduplicate`() {
+        assertNull(ViewEdits.podcasts(PodcastMode.Include, emptyList()))
+        assertNull(ViewEdits.podcasts(null, listOf("a")))
+        assertEquals(PodcastFilter(PodcastMode.Exclude, listOf("a", "b")), ViewEdits.podcasts(PodcastMode.Exclude, listOf("a", "a", "b")))
+    }
     private fun playlist() = State.initial().playlists.first().copy(clearOnPlayed = true, entries = listOf(Entry("a", 5.0, 0), Entry("b", 0.0, 0), Entry("c", 0.0, 0)), cursor = "a")
     @Test fun `timeline coalesces stretches but splits a ten minute gap and interleaved Episodes`() {
         val p = playlist().copy(timeline = listOf(TimelinePoint(0, "a", 5.0), TimelinePoint(60_000, "a", 60.0), TimelinePoint(700_001, "a", 70.0), TimelinePoint(710_000, "b", 0.0)))

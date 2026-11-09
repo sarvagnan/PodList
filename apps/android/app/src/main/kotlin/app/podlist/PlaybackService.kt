@@ -43,6 +43,7 @@ internal interface PlaybackHost {
     fun sleep(timer: SleepTimer?)
     fun restore()
     fun flush()
+    fun playlistAction(affected: String?, action: suspend () -> Unit)
     fun close()
 }
 
@@ -361,6 +362,13 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     override fun flush() = enqueue {
         if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
         event(ListeningSession.Event.Flush)
+    }
+    override fun playlistAction(affected: String?, action: suspend () -> Unit) = enqueue {
+        val reload = affected == null || affected == playlistId
+        // Serialize the final sample before Rewind/Delete; no late report can overwrite the result.
+        if (reload) { pauseAudio(); event(ListeningSession.Event.Flush) }
+        action()
+        if (reload) { follow(force = true); publish() }
     }
     override fun close() = enqueue {
         pauseAudio(); event(ListeningSession.Event.Flush)

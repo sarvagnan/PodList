@@ -9,14 +9,15 @@ data class PlaybackMetadata(
     val chapters: List<Chapter>, val override: PlaybackSettingsOverride, val playedThreshold: Double?
 )
 
-fun LocalDatabase.playbackMetadata(episodeId: String): PlaybackMetadata {
+fun LocalDatabase.playbackMetadata(episodeId: String): PlaybackMetadata = transaction {
     val row = query("""SELECT e.*, s.title AS podcast, s.artwork_url AS podcast_artwork,
         s.playback_settings, s.played_threshold FROM episode e JOIN subscription s ON s.id = e.subscription_id WHERE e.id = ?""", listOf(episodeId)).firstOrNull()
-    return PlaybackMetadata(episodeId, row?.get("subscription_id") as? String, row?.get("title") as? String, row?.get("podcast") as? String,
+    val pending = pendingSubscriptionOverrides().lastOrNull { it.subscriptionId == row?.get("subscription_id") }
+    PlaybackMetadata(episodeId, row?.get("subscription_id") as? String, row?.get("title") as? String, row?.get("podcast") as? String,
         row?.get("audio_url") as? String, (row?.get("duration") as? Number)?.toDouble(), row?.get("artwork_url") as? String, row?.get("podcast_artwork") as? String,
         (row?.get("chapters") as? String)?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty(),
-        (row?.get("playback_settings") as? String)?.let { ProtocolJson.decodeFromString<PlaybackSettingsOverride>(it) } ?: PlaybackSettingsOverride(),
-        (row?.get("played_threshold") as? Number)?.toDouble())
+        pending?.playbackSettings ?: (row?.get("playback_settings") as? String)?.let { ProtocolJson.decodeFromString<PlaybackSettingsOverride>(it) } ?: PlaybackSettingsOverride(),
+        if (pending != null) pending.playedThreshold else (row?.get("played_threshold") as? Number)?.toDouble())
 }
 
 fun episodePath(episodeId: String) = "/api/episodes/${URLEncoder.encode(episodeId, "UTF-8").replace("+", "%20")}" 
@@ -53,3 +54,8 @@ fun jsonChapters(body: String): List<Chapter> {
         Chapter(start.coerceAtLeast(0.0), text("title") ?: "", text("img")?.let(::Artwork), text("url"))
     }.sortedBy { it.start }
 }
+
+/** Server overrides are metadata intentions, projected locally until their outbox is acknowledged. */
+fun LocalDatabase.pendingSubscriptionOverrides(): List<Change.SetSubscriptionOverrides> =
+    query("SELECT operation FROM outbox WHERE operation LIKE ? ORDER BY seq", listOf("%SetSubscriptionOverrides%"))
+        .mapNotNull { Operation.decode(it["operation"] as String).change as? Change.SetSubscriptionOverrides }

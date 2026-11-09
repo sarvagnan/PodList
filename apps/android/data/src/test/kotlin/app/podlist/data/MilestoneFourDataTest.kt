@@ -5,6 +5,32 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class MilestoneFourDataTest {
+    @Test fun `Getting started remembers completed steps after Entries leave and Subscriptions are removed`() {
+        LocalDatabase(":memory:", standalone = true).use { db ->
+            db.ensureState(); db.initializeStandalone(); db.initializeGettingStarted()
+            db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())), emptyList())
+            db.record(Change.AddEntry("default", "e", Placement.Last), 100)
+            db.updateGettingStartedProgress()
+            assertEquals("7", db.getMeta("gettingStartedSteps"))
+            db.record(Change.RemoveEntry("default", "e"), 200)
+            db.execute("UPDATE subscription SET unsubscribed_at = 300")
+            db.updateGettingStartedProgress()
+            assertEquals("7", db.getMeta("gettingStartedSteps"))
+        }
+    }
+    @Test fun `pending server overrides work without sync and Default clears the override`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, 30.0, PlaybackSettingsOverride(speed = 1.5))), listOf(Episode("e", "s", "g", "Episode", "", 0, 100.0, "https://podcast.test/audio", null, emptyList(), null)))
+            db.record(Change.SetSubscriptionOverrides("s", PlaybackSettingsOverride(speed = 2.0, skipIntro = 10.0), 0.0), 100)
+            assertEquals(2.0, db.playbackMetadata("e").override.speed)
+            assertEquals(0.0, db.playbackMetadata("e").playedThreshold)
+            assertEquals(30.0, (db.query("SELECT played_threshold FROM subscription").single()["played_threshold"] as Number).toDouble())
+            db.record(Change.SetSubscriptionOverrides("s", PlaybackSettingsOverride(), null), 200)
+            assertNull(db.playbackMetadata("e").override.speed)
+            assertNull(db.playbackMetadata("e").playedThreshold)
+        }
+    }
     @Test fun `outer action rolls back nested Operations metadata and sequence together`() {
         LocalDatabase(":memory:").use { db ->
             db.ensureState()

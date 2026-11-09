@@ -31,7 +31,8 @@ class HttpTransport(private val address: ServerAddress) : SyncTransport {
         try {
             connection.requestMethod = method
             connection.connectTimeout = 2_000
-            connection.readTimeout = 2_000
+            // An OPML import may fetch many publisher feeds before returning its partial summary.
+            connection.readTimeout = if (path == "/api/subscriptions/import") 120_000 else 2_000
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("User-Agent", "PodList Android")
             connection.setRequestProperty("Accept", "application/json")

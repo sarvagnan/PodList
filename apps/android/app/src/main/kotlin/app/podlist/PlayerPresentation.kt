@@ -48,7 +48,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     LaunchedEffect(session) { model.restorePlayback() }
     LaunchedEffect(model) {
         for (message in model.messages) {
-            val result = snackbar.showSnackbar(resources.getString(message.resource), actionLabel = message.undo?.let { resources.getString(R.string.undo) }, duration = SnackbarDuration.Long)
+            val result = snackbar.showSnackbar(resources.getString(message.resource), actionLabel = message.undo?.let { resources.getString(message.actionResource) }, duration = SnackbarDuration.Long)
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }

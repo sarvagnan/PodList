@@ -1,0 +1,11 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="views" android:enabled="true" android:icon="@drawable/ic_views" android:shortcutShortLabel="@string/views">
+        <intent android:action="app.podlist.OPEN_VIEWS" android:targetPackage="app.podlist" android:targetClass="app.podlist.MainActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="playlists" android:enabled="true" android:icon="@drawable/ic_playlists" android:shortcutShortLabel="@string/playlists">
+        <intent android:action="app.podlist.OPEN_PLAYLISTS" android:targetPackage="app.podlist" android:targetClass="app.podlist.MainActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="library" android:enabled="true" android:icon="@drawable/ic_library" android:shortcutShortLabel="@string/library">
+        <intent android:action="app.podlist.OPEN_LIBRARY" android:targetPackage="app.podlist" android:targetClass="app.podlist.MainActivity" />
+    </shortcut>
+</shortcuts>

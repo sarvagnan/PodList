@@ -31,7 +31,8 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
             stringResource(R.string.entry_count, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (playlist.id != data.state.activePlaylistId) TextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
         PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
-        LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
+        if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
+        else LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()) {
             val byId = data.episodes.associateBy { it["id"] }
             when (tab) {
                 0 -> {
@@ -48,10 +49,7 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
                     if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history) }
                     items(playlist.history) { history -> ListItem(modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(byId[history.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending)) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
                 }
-                else -> {
-                    if (playlist.timeline.isEmpty()) item { EmptyMessage(R.string.no_timeline) }
-                    items(playlist.timeline.asReversed()) { point -> ListItem(modifier = Modifier.clickable { open("episode:${point.episodeId}") }, headlineContent = { Text(byId[point.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending)) }, supportingContent = { Text(stringResource(R.string.timeline_position, dateTime(point.at), duration(point.position))) }) }
-                }
+
             }
         }
     }
@@ -102,7 +100,7 @@ internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
     val model = LocalAppModel.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.settings_inheritance), style = MaterialTheme.typography.bodySmall)
-        Text(stringResource(R.string.speed) + " · " + stringResource(R.string.speed_value, settings.speed))
+        Text(stringResource(R.string.speed) + " · " + speedSetting(settings.speed))
         Slider(value = settings.speed.toFloat().coerceIn(.5f, 3f), onValueChange = { model.edit(Change.SetPlaybackSettings(settings.copy(speed = it.toDouble()))) }, valueRange = .5f..3f, steps = 9)
         NumberSetting(R.string.skip_intro, settings.skipIntro) { model.edit(Change.SetPlaybackSettings(settings.copy(skipIntro = it))) }
         NumberSetting(R.string.skip_outro, settings.skipOutro) { model.edit(Change.SetPlaybackSettings(settings.copy(skipOutro = it))) }
@@ -115,25 +113,5 @@ internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
     OutlinedTextField(value = text, onValueChange = { text = it; it.toDoubleOrNull()?.takeIf { n -> n.isFinite() && n >= 0 }?.let(changed) }, label = { Text(stringResource(label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
 }
 
-@Composable
-internal fun DownloadRuleEditor(subscription: String, state: State, session: Session) {
-    val model = LocalAppModel.current
-    val rule = state.downloadRules.find { it.subscriptionId == subscription && it.deviceId == session.deviceId } ?: DownloadRule(subscription, session.deviceId, DownloadMode.Never, null)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.download_rule), style = MaterialTheme.typography.titleSmall)
-        for ((mode, label) in listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new)) Row(Modifier.fillMaxWidth().clickable { model.edit(Change.SetDownloadRule(rule.copy(mode = mode))) }, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = rule.mode == mode, onClick = { model.edit(Change.SetDownloadRule(rule.copy(mode = mode))) }); Text(stringResource(label))
-        }
-        if (rule.mode == DownloadMode.AllNew) {
-            var cap by rememberSaveable(subscription) { mutableStateOf(rule.keepAtMost?.toString() ?: "") }
-            OutlinedTextField(cap, { input ->
-                cap = input
-                val parsed = input.toLongOrNull()
-                if (input.isBlank() || parsed != null && parsed >= 0) model.edit(Change.SetDownloadRule(rule.copy(keepAtMost = parsed)))
-            }, label = { Text(stringResource(R.string.keep_at_most)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
-            rule.since?.let { Text(stringResource(R.string.all_new_since, dateTime(it)), style = MaterialTheme.typography.bodySmall) }
-        }
-    }
-}
 
-private fun dateTime(at: Long): String = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at))
+internal fun dateTime(at: Long): String = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at))
