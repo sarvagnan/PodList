@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -23,8 +24,8 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
     val complete = job?.complete == true
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.bring_over_title)) }, navigationIcon = {
-                IconButton(onClick = model::dismissBringOver) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) }
+            TopAppBar(title = { Text(stringResource(R.string.bring_over_title), Modifier.semantics { heading() }) }, navigationIcon = {
+                ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = model::dismissBringOver)
             })
         },
         bottomBar = {

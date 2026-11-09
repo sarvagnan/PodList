@@ -163,7 +163,7 @@ class DeviceLibraryTest {
         assertEquals(1, summary.alreadySubscribed)
         assertEquals("https://test/fail", summary.failed.single().feedUrl)
         assertEquals(listOf(feedUrl), Opml.parse(library.exportOpml()))
-        assertEquals(ImportSummary(0, 0, emptyList()), library.importOpml("<broken>"))
+        assertFails { library.importOpml("<broken>") }
     }
     @Test fun `local edits listening and concrete intentions survive restart with no outbox`() {
         val path = Files.createTempFile("device-library", ".sqlite")

@@ -47,9 +47,9 @@
     <string name="trash">Trash</string>
     <string name="no_trash">No deleted Playlists</string>
     <string name="deleted">Deleted %1$s</string>
-    <string name="cursor_now">NOW</string>
-    <string name="cursor_resume">RESUME</string>
-    <string name="cursor_here">HERE</string>
+    <string name="cursor_now">Now</string>
+    <string name="cursor_resume">Resume</string>
+    <string name="cursor_here">Here</string>
     <string name="metadata_pending">Episode details are still syncing</string>
     <string name="missing_view">This View is no longer available. Return to Views.</string>
     <string name="missing_playlist">This Playlist is no longer available. Return to Playlists.</string>
@@ -86,7 +86,7 @@
     <string name="longest_first">Longest first</string>
     <string name="show_limit">Show at most %1$d Episodes</string>
     <string name="unavailable">Unavailable</string>
-    <string name="play_now">Play Now</string>
+    <string name="play_now">Play now</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
     <string name="back_15">Back 15 seconds</string>
@@ -120,8 +120,8 @@
     <string name="new_playlist">New Playlist</string>
     <string name="playlist_name">Playlist name</string>
     <string name="playlist_name_error">Enter a name that is not already used.</string>
-    <string name="play_next">Play Next</string>
-    <string name="play_last">Play Last</string>
+    <string name="play_next">Play next</string>
+    <string name="play_last">Play last</string>
     <string name="added_to_playlist">Added to %1$s</string>
     <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
     <string name="play_from_here">Play from here</string>
@@ -171,15 +171,15 @@
     <string name="add_podcasts">Add podcasts</string>
     <string name="podcast_name_address">Podcast name or feed address</string>
     <string name="find_podcasts">Find podcasts</string>
-    <string name="bad_feed_address">That address isn\'t a podcast feed. Check it, or type the podcast\'s name instead.</string>
+    <string name="bad_feed_address">That address isn’t a podcast feed. Check it, or type the podcast’s name instead.</string>
     <string name="no_podcasts_found">No podcasts found. Try another name.</string>
-    <string name="directory_failed">Couldn\'t find podcasts. Check your connection and try again.</string>
+    <string name="directory_failed">Couldn’t find podcasts. Check your connection and try again.</string>
     <string name="subscribe">Subscribe</string>
     <string name="subscribed">Subscribed</string>
-    <string name="subscribe_failed">Couldn\'t Subscribe. Try again.</string>
+    <string name="subscribe_failed">Couldn’t Subscribe. Try again.</string>
     <string name="unsubscribe">Unsubscribe</string>
     <string name="unsubscribed">Unsubscribed</string>
-    <string name="unsubscribe_failed">Couldn\'t Unsubscribe. Try again.</string>
+    <string name="unsubscribe_failed">Couldn’t Unsubscribe. Try again.</string>
     <string name="unsubscribe_explanation">Its Episodes leave your Library, except any that are Entries in a Playlist or Starred. Downloads stay on their Devices.</string>
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
@@ -228,7 +228,7 @@
     <string name="m4_seconds">%1$d seconds</string>
     <string name="m4_default_value">Default (%1$s)</string>
     <string name="m4_threshold_help">How close to the end counts as finished. Inherits the default of 30 seconds until changed.</string>
-    <string name="m4_playback_overrides">Playback Settings</string>
+    <string name="m4_playback_overrides">Playback settings</string>
     <string name="m4_override_help">Follow your defaults until you change one here. Picking Default clears a change.</string>
     <string name="m4_skip_intro">Skip intro</string>
     <string name="m4_skip_outro">Skip outro</string>
@@ -309,7 +309,10 @@
     <string name="m4_add_podcasts_hint">Search by name or paste a feed address</string>
     <string name="m4_select_subscriptions">Select Subscriptions</string>
     <string name="m4_select_subscriptions_help">Change Download Rules together</string>
-    <string name="m4_selected_count">%1$d selected</string>
+    <plurals name="m4_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="m4_selection_changed">Selection updated</string>
     <string name="m4_downloads_requested">Downloads requested</string>
     <string name="m4_active_target">%1$s · Active Playlist</string>
@@ -329,7 +332,7 @@
     <string name="m4_episodes_finished">Episodes finished</string>
     <string name="m4_step_done">Done</string>
     <string name="bring_over_title">Bring your Library over</string>
-    <string name="bring_over_available">Bring this phone\'s Standalone Library to this server</string>
+    <string name="bring_over_available">Bring this phone’s Standalone Library to this server</string>
     <string name="bring_over_in_settings">See saved progress and retry anything still waiting</string>
     <string name="bring_over_not_now">Not now</string>
     <string name="bring_over_action">Bring it over</string>
@@ -344,7 +347,7 @@
     <string name="bring_over_replaying">Merging your edits with the server, in their original order.</string>
     <string name="bring_over_copying_downloads">Keeping stored downloads available in the connected Library on this phone.</string>
     <string name="bring_over_error">Could not finish this time. Progress is saved. Check the connection and retry.</string>
-    <string name="bring_over_download_error">Could not copy a stored download. Progress is saved. Check this phone\'s free space and that its original downloads are still available, then retry.</string>
+    <string name="bring_over_download_error">Could not copy a stored download. Progress is saved. Check this phone’s free space and that its original downloads are still available, then retry.</string>
     <string name="bring_over_subscription_help">With their Download Rules and settings</string>
     <string name="bring_over_playlist_help">%1$s, with Positions, History and Listening Timelines, including Playlists in Trash</string>
     <string name="bring_over_marks">Played and Starred marks</string>
@@ -352,7 +355,7 @@
     <string name="bring_over_listening_log">Your Listening log</string>
     <string name="bring_over_waiting">Waiting for these feeds and Episodes</string>
     <string name="bring_over_waiting_help">Subscriptions that succeeded are kept. Your remaining edits and downloads wait on this phone until the Library can be matched, so their order and listening records stay correct.</string>
-    <string name="bring_over_unmatched_episode">The server has no matching Episode with this feed guid. It may have left the publisher\'s feed. Nothing has been discarded.</string>
+    <string name="bring_over_unmatched_episode">The server has no matching Episode with this feed guid. It may have left the publisher’s feed. Nothing has been discarded.</string>
     <string name="bring_over_removed_subscription">This removed Subscription is missing from the server. It stays removed on this phone; bringing it over must not Subscribe again.</string>
     <string name="bring_over_failed_feed">The server could not Subscribe to this feed. Check the feed and retry.</string>
     <string name="bring_over_what_happens">What happens</string>
@@ -363,4 +366,46 @@
     <plurals name="bring_over_starred"><item quantity="one">%1$d Starred mark</item><item quantity="other">%1$d Starred marks</item></plurals>
     <plurals name="bring_over_retry_feeds"><item quantity="one">Retry %1$d feed</item><item quantity="other">Retry these %1$d feeds</item></plurals>
     <string name="bring_over_time">%1$s, kept in Listening stats</string>
+    <string name="sleep_remaining">Sleep · %1$s left</string>
+    <string name="sleep_duration_error">Enter a duration from 1 to 1,440 minutes.</string>
+    <string name="episode_starred">Episode starred</string>
+    <string name="episode_unstarred">Episode unstarred</string>
+    <string name="episode_played">Episode marked Played</string>
+    <string name="episode_unplayed">Episode marked Unplayed</string>
+    <string name="episodes_starred">Episodes starred</string>
+    <string name="episodes_played">Episodes marked Played</string>
+    <string name="playlist_renamed">Playlist renamed</string>
+    <string name="view_changed">View changed</string>
+    <string name="download_rule_changed">Download Rule changed</string>
+    <string name="entry_removed">Entry removed from Playlist</string>
+    <string name="remove_from_playlist">Remove from this Playlist</string>
+    <string name="drag_entry">Drag to reorder Entry</string>
+    <string name="podcast_offline">Couldn’t reach the podcast service. Check your connection and try again.</string>
+    <string name="podcast_tls">Couldn’t make a secure connection. Check the address and try again.</string>
+    <string name="podcast_server">The podcast service couldn’t complete the request. Try again.</string>
+    <plurals name="import_progress">
+        <item quantity="one">%1$d of %2$d feed processed</item>
+        <item quantity="other">%1$d of %2$d feeds processed</item>
+    </plurals>
+    <string name="import_stop">Stop after current feed</string>
+    <string name="import_stopping">Stopping after current feed…</string>
+    <string name="import_stopped">Import stopped. Podcasts already added are kept.</string>
+    <string name="import_resume">Import remaining podcasts</string>
+    <string name="clear_search">Clear Search</string>
+    <string name="edit_conditions">Edit this View</string>
+    <string name="find_episodes">Find Episodes</string>
+    <string name="select_episode">Select Episode</string>
+    <string name="share_episode">Share Episode</string>
+    <string name="playlist_created">Playlist created</string>
+    <string name="download_removed">Download removed</string>
+    <string name="download_stopped">Download stopped</string>
+    <string name="draft_kept">Your unfinished conditions are kept here. Valid edits apply as made.</string>
+    <string name="view_created">View created</string>
+    <string name="invalid_number_not_applied">That number wasn’t applied. Other edits are kept.</string>
+    <plurals name="import_added">
+        <item quantity="one">%1$d podcast imported</item>
+        <item quantity="other">%1$d podcasts imported</item>
+    </plurals>
+    <string name="import_undone">Imported Subscriptions removed</string>
+    <string name="import_undo_failed">Some imported Subscriptions couldn’t be removed. Check your connection and retry.</string>
 </resources>

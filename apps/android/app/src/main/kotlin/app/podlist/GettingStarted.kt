@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -35,7 +36,7 @@ internal fun GettingStarted(data: ScreenData, session: Session, open: (String) -
     Surface(Modifier.fillMaxWidth().padding(16.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.m4_getting_started), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.m4_getting_started), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium)
                 TextButton(onClick = hide) { Text(stringResource(R.string.m4_hide)) }
             }
             listOf(R.string.m4_step_podcasts to R.string.m4_step_podcasts_help, R.string.m4_step_views to R.string.m4_step_views_help, R.string.m4_step_playlists to R.string.m4_step_playlists_help).forEachIndexed { index, (title, help) ->

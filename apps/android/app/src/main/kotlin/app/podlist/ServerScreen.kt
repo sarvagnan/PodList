@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> Unit)? = null) {
@@ -19,13 +21,12 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
     val error by model.connectionError.collectAsState()
     Column(Modifier.fillMaxSize().then(if (current == null) Modifier.safeDrawingPadding() else Modifier).imePadding()
         .verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        if (current == null) Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
         OutlinedTextField(value = input, onValueChange = { input = it; model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
             placeholder = { Text(stringResource(R.string.server_example)) },
             singleLine = true, enabled = !checking, isError = error != null,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { if (!checking && input.isNotBlank()) model.connect(input) { connected?.invoke() } }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
         if (error != null) Text(stringResource(when (error!!) {
             ConnectionError.Address -> if (BuildConfig.DEBUG) R.string.address_error_debug else R.string.address_error
             ConnectionError.Offline -> R.string.offline_error
