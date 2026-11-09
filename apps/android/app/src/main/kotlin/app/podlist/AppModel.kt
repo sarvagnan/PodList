@@ -60,7 +60,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
         val future = mediaController ?: MediaController.Builder(application, SessionToken(application, ComponentName(application, PlaybackService::class.java))).buildAsync().also { mediaController = it }
         future.addListener({
-            runCatching { future.get(); playbackHost?.let(action) }.onFailure { messages.trySend(AppMessage(R.string.playback_error)) }
+            runCatching { future.get(); playbackHost?.let(action) }.onFailure { messages.trySend(AppMessage(R.string.playback_error, R.string.retry_playback, undo = { withPlayback(action) })) }
         }, ContextCompat.getMainExecutor(application))
     }
     internal fun playbackEdit(playlist: String? = null, action: suspend () -> Unit) = withPlayback { it.playlistAction(playlist, action) }
@@ -78,66 +78,40 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val undoRevision = MutableStateFlow(0L)
     internal val latestUndo = MutableStateFlow<(() -> Unit)?>(null)
     internal val undoViewId = MutableStateFlow<String?>(null)
-    private val editLock = Mutex()
-    fun edit(change: Change) {
+    internal val latestRedo = MutableStateFlow<(() -> Unit)?>(null)
+    internal val history = EditHistory<ReversibleEdit>()
+    internal var typingJob: Job? = null
+    internal var typingMessage: AppMessage? = null
+    internal var activeTypingGroup: String? = null
+    internal val editLock = Mutex()
+    fun edit(change: Change, typingGroup: String? = null, finished: (() -> Unit)? = null) {
         val current = session.value ?: return
         viewModelScope.launch { editLock.withLock {
-            val inverse = withContext(Dispatchers.IO) { current.db.transaction {
-                val before = loadState()
-                val sub = (change as? Change.SetSubscriptionOverrides)?.let { c ->
-                    val row = query("SELECT * FROM subscription WHERE id = ?", listOf(c.subscriptionId)).single()
-                    val pending = pendingSubscriptionOverrides().lastOrNull { it.subscriptionId == c.subscriptionId }
-                    Subscription(c.subscriptionId, row["feed_url"] as String, row["title"] as String, null, null, null, 0, null,
-                        if (pending != null) pending.playedThreshold else (row["played_threshold"] as? Number)?.toDouble(),
-                        pending?.playbackSettings ?: ProtocolJson.decodeFromString(row["playback_settings"] as String))
-                }
-                val undo = EditUndo.inverse(before, change, System.currentTimeMillis() + 1, sub)
-                record(change, System.currentTimeMillis())
-                undo
-            } }
-            if (inverse.isNotEmpty()) offerUndo(AppMessage(editMessage(change)) { restoreChanges(current, inverse) }, (change as? Change.SaveView)?.view?.id)
+            if (session.value !== current) return@withLock
+            val inverse = withContext(Dispatchers.IO) { current.db.reversibleEdit(listOf(change), System.currentTimeMillis()) }
+            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(editMessage(change)),
+                ReversibleEdit((change as? Change.SaveView)?.view?.id) { changesStep(current, inverse).apply() }, typingGroup)
+            finished?.invoke()
         } }
     }
     fun moveEntry(playlistId: String, episode: String, destination: Int) {
-        viewModelScope.launch {
-            val current = session.value ?: return@launch
-            val inverse = withContext(Dispatchers.IO) {
-                val playlist = current.db.loadState().playlists.find { it.id == playlistId } ?: return@withContext emptyList<Change>()
+        val current = session.value ?: return
+        viewModelScope.launch { editLock.withLock {
+            if (session.value !== current) return@withLock
+            val inverse = withContext(Dispatchers.IO) { current.db.transaction {
+                val playlist = loadState().playlists.find { it.id == playlistId } ?: return@transaction emptyList<Change>()
                 val index = playlist.entries.indexOfFirst { it.episodeId == episode }
-                if (index < 0) return@withContext emptyList<Change>()
+                if (index < 0) return@transaction emptyList<Change>()
                 val without = playlist.entries.filterNot { it.episodeId == episode }
                 val after = without.getOrNull(destination.coerceIn(0, without.size) - 1)?.episodeId
-                current.db.record(Change.MoveEntry(playlistId, episode, after), System.currentTimeMillis())
+                record(Change.MoveEntry(playlistId, episode, after), System.currentTimeMillis())
                 listOf<Change>(Change.MoveEntry(playlistId, episode, playlist.entries.getOrNull(index - 1)?.episodeId))
+            } }
+            if (inverse.isNotEmpty()) {
+                recordHistory(current, AppMessage(R.string.entry_moved), changesStep(current, inverse))
+                reveal.value = Reveal("playlist:$playlistId", episode)
             }
-            offerUndo(AppMessage(R.string.entry_moved) { undo(current, inverse) })
-        }
-    }
-    private fun undo(session: Session, changes: List<Change>) {
-        restoreChanges(session, changes)
-    }
-    fun add(episode: String, playlist: String?, name: String?, placement: Placement, result: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val current = session.value ?: return@launch
-            var inverse = emptyList<Change>()
-            val playlistName = withContext(Dispatchers.IO) {
-                val state = current.db.loadState()
-                val clean = name?.trim()
-                if (playlist != null && state.playlists.none { it.id == playlist }) return@withContext null
-                if (playlist == null && (clean.isNullOrEmpty() || state.playlists.any { it.name.equals(clean, ignoreCase = true) })) return@withContext null
-                val id = playlist ?: UUID.randomUUID().toString()
-                val before = state.playlists.find { it.id == id }
-                val oldIndex = before?.entries?.indexOfFirst { it.episodeId == episode } ?: -1
-                inverse = if (before == null) listOf(Change.DeletePlaylist(id)) else listOfNotNull(
-                    if (oldIndex >= 0) Change.MoveEntry(id, episode, before.entries.getOrNull(oldIndex - 1)?.episodeId) else Change.RemoveEntry(id, episode),
-                    Change.SetCursor(id, before.cursor)
-                )
-                current.db.recordAll(listOfNotNull(if (playlist == null) Change.CreatePlaylist(id, clean!!, false) else null, Change.AddEntry(id, episode, placement)), System.currentTimeMillis())
-                before?.name ?: clean!!
-            }
-            if (playlistName != null) messages.trySend(AppMessage(R.string.added_to_playlist, formatArgs = listOf(playlistName)) { undo(current, inverse) })
-            result(playlistName != null)
-        }
+        } }
     }
 
     private val preferences = application.getSharedPreferences("connection", 0)
@@ -178,30 +152,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun offerUnsubscribe(current: Session, feed: String) {
-        offerUndo(AppMessage(R.string.subscribed) { changeSubscription(current, feed, subscribe = false) })
+        offerSubscriptionHistory(current, listOf(feed), subscribe = false, AppMessage(R.string.subscribed))
     }
     fun offerResubscribe(current: Session, feed: String) {
-        offerUndo(AppMessage(R.string.unsubscribed) { changeSubscription(current, feed, subscribe = true) })
-    }
-    private fun changeSubscription(current: Session, feed: String, subscribe: Boolean) {
-        viewModelScope.launch {
-            try {
-                val restored = withContext(Dispatchers.IO) {
-                    if (subscribe) current.source.subscribe(feed).id
-                    else {
-                        val id = current.db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feed)).single()["id"] as String
-                        current.source.unsubscribe(id)
-                        null
-                    }
-                }
-                if (restored != null) reveal.value = Reveal("subscription:$restored")
-                requestSync()
-                offerUndo(AppMessage(if (subscribe) R.string.subscribed else R.string.unsubscribed, if (subscribe) R.string.m4_redo else R.string.undo) { changeSubscription(current, feed, !subscribe) })
-            } catch (error: CancellationException) { throw error }
-            catch (_: Exception) {
-                messages.send(AppMessage(if (subscribe) R.string.subscribe_failed else R.string.unsubscribe_failed, R.string.retry) { changeSubscription(current, feed, subscribe) })
-            }
-        }
+        offerSubscriptionHistory(current, listOf(feed), subscribe = true, AppMessage(R.string.unsubscribed))
     }
 
     fun startOnPhone() {
@@ -211,6 +165,19 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    val refreshing = MutableStateFlow<Set<String>>(emptySet())
+    fun refreshSubscription(id: String) {
+        val current = session.value ?: return
+        val source = current.source as? DeviceLibrary ?: return requestSync()
+        if (id in refreshing.value) return
+        refreshing.update { it + id }
+        viewModelScope.launch {
+            try { withContext(Dispatchers.IO) { source.refreshOne(id) } }
+            catch (error: CancellationException) { throw error }
+            catch (_: Exception) { /* The feed’s recorded failure remains beside its Retry action. */ }
+            finally { refreshing.update { it - id }; revision.update { it + 1 } }
+        }
+    }
     fun requestSync() { triggers.trySend(Unit) }
 
     fun connect(input: String, connected: () -> Unit) {
@@ -311,7 +278,12 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         if (previous?.source?.server == null && address != null) downloads["standalone"]?.rulesSuspended = true
         db.onChanged = { db.updateGettingStartedProgress(); revision.update { it + 1 } }
         db.onEdit = { if (address != null) requestSync() }
-        _session.value = next
+        editLock.withLock {
+            typingJob?.cancel(); typingJob = null; typingMessage = null; activeTypingGroup = null
+            history.clear(); updateHistoryActions()
+            while (messages.tryReceive().isSuccess) { /* discard the previous session’s actions */ }
+            _session.value = next
+        }
         loadBringOver(next)
         status.value = if (address == null) SyncStatus.Ready else SyncStatus.Loading
         downloads(next)

@@ -37,7 +37,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
         Button(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {
             Text(stringResource(if (checking) R.string.checking else R.string.connect))
         }
-        if (checking) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (checking) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.connect_to_server)))
         Text(stringResource(R.string.server_scope), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

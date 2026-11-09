@@ -20,19 +20,11 @@ import kotlinx.coroutines.withContext
 internal fun GettingStarted(data: ScreenData, session: Session, open: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     val model = LocalAppModel.current
-    val revision by model.revision.collectAsState()
-    var visible by remember(session) { mutableStateOf(false) }
-    var steps by remember { mutableIntStateOf(0) }
-    LaunchedEffect(revision, data.hasLibrary, data.hasState) {
-        if (!data.hasLibrary || !data.hasState) return@LaunchedEffect
-        val result = withContext(Dispatchers.IO) { session.db.transaction {
-            updateGettingStartedProgress()
-            (getMeta("gettingStartedBegun") == "true" && getMeta("gettingStartedHidden") != "true") to (getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0)
-        } }
-        visible = result.first; steps = result.second
-    }
+    var hidden by remember(data.gettingStarted) { mutableStateOf(false) }
+    val visible = data.gettingStarted && !hidden
+    val steps = data.gettingStartedSteps
     if (!visible) return
-    val hide = { visible = false; scope.launch { withContext(Dispatchers.IO) { session.db.setMeta("gettingStartedHidden", "true") } }; Unit }
+    val hide = { hidden = true; scope.launch { withContext(Dispatchers.IO) { session.db.setMeta("gettingStartedHidden", "true") } }; Unit }
     Surface(Modifier.fillMaxWidth().padding(16.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

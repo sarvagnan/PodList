@@ -45,7 +45,7 @@ internal class OpmlActions(private val model: AppModel, private val session: Ses
         }
         if (added.isNotEmpty()) {
             val feeds = added.toList()
-            model.offerUndo(AppMessage(R.plurals.import_added, formatArgs = listOf(feeds.size), quantity = feeds.size) { model.undoSubscriptions(session, feeds) })
+            model.offerSubscriptionHistory(session, feeds, subscribe = false, AppMessage(R.plurals.import_added, formatArgs = listOf(feeds.size), quantity = feeds.size))
         }
         return result.summary
     }

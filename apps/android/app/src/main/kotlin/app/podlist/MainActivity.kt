@@ -55,7 +55,15 @@ private val LightColors = lightColorScheme(
     background = Color(0xfffaf8ff), onBackground = Color(0xff1b1b21),
     surface = Color(0xfffaf8ff), onSurface = Color(0xff1b1b21),
     surfaceVariant = Color(0xffe3e1ec), onSurfaceVariant = Color(0xff46464f),
-    outline = Color(0xff777680)
+    surfaceDim = Color(0xffdbd9e2), surfaceBright = Color(0xfffaf8ff),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xfff4f3fc),
+    surfaceContainer = Color(0xffefedf7), surfaceContainerHigh = Color(0xffe9e7f1),
+    surfaceContainerHighest = Color(0xffe3e1eb), surfaceTint = Color(0xff2b50c8),
+    outlineVariant = Color(0xffc7c5d0), outline = Color(0xff777680),
+    error = Color(0xffba1a1a), onError = Color.White,
+    errorContainer = Color(0xffffdad6), onErrorContainer = Color(0xff410002),
+    inverseSurface = Color(0xff303038), inverseOnSurface = Color(0xfff2f0fa), inversePrimary = Color(0xffb8c4ff),
+    scrim = Color.Black
 )
 private val DarkColors = darkColorScheme(
     primary = Color(0xffb8c4ff), onPrimary = Color(0xff002781),
@@ -67,7 +75,15 @@ private val DarkColors = darkColorScheme(
     background = Color(0xff121318), onBackground = Color(0xffe4e1e9),
     surface = Color(0xff121318), onSurface = Color(0xffe4e1e9),
     surfaceVariant = Color(0xff46464f), onSurfaceVariant = Color(0xffc7c5d0),
-    outline = Color(0xff918f9a)
+    surfaceDim = Color(0xff121318), surfaceBright = Color(0xff383940),
+    surfaceContainerLowest = Color(0xff0d0e13), surfaceContainerLow = Color(0xff1a1b23),
+    surfaceContainer = Color(0xff1e1f27), surfaceContainerHigh = Color(0xff282a32),
+    surfaceContainerHighest = Color(0xff33343d), surfaceTint = Color(0xffb8c4ff),
+    outlineVariant = Color(0xff46464f), outline = Color(0xff918f9a),
+    error = Color(0xffffb4ab), onError = Color(0xff690005),
+    errorContainer = Color(0xff93000a), onErrorContainer = Color(0xffffdad6),
+    inverseSurface = Color(0xffe4e1e9), inverseOnSurface = Color(0xff303038), inversePrimary = Color(0xff2b50c8),
+    scrim = Color.Black
 )
 
 @Composable

@@ -55,7 +55,7 @@ internal fun SelectionToolbar(selection: EpisodeSelection, data: ScreenData, ses
             val downloads = model.downloads(session)
             val fresh = ordered.filter { downloads.status.value[it]?.phase !in listOf(DownloadPhase.Stored, DownloadPhase.Transferring, DownloadPhase.Queued) }
             fresh.forEach { downloads.download(it) }
-            model.offerUndo(AppMessage(R.string.m4_downloads_requested) { fresh.forEach { downloads.remove(it) } })
+            downloads.offerRequestUndo(fresh, false, R.string.m4_downloads_requested)
             selection.ids = emptySet()
         }
     })
@@ -73,7 +73,7 @@ internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session) {
         LazyColumn {
             items(data.subscriptions.filter { it["unsubscribed_at"] == null }) { subscription ->
                 val id = subscription["id"] as String
-                CheckRow(subscription["title"] as String, id in ids) { checked -> ids = if (checked) ids + id else ids - id }
+                CheckRow(subscription["title"] as String, id in ids, inset = true) { checked -> ids = if (checked) ids + id else ids - id }
             }
         }
     }

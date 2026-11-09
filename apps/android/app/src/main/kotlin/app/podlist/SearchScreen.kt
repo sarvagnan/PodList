@@ -35,20 +35,18 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
     val revision by model.revision.collectAsState()
     LaunchedEffect(text, revision, submitted) { rows = withContext(Dispatchers.IO) { session.db.evaluate(search, System.currentTimeMillis()) } }
     fun saveView() {
-        if (name.isBlank()) invalid = true else scope.launch {
+        if (name.isBlank()) invalid = true else {
             val id = UUID.randomUUID().toString()
-            withContext(Dispatchers.IO) { session.db.record(Change.SaveView(search.copy(id = id, name = name.trim())), System.currentTimeMillis()) }
-            model.offerUndo(AppMessage(R.string.view_created) { model.restoreChanges(session, listOf(Change.DeleteView(id))) })
-            naming = false; open("view:$id")
+            model.edit(Change.SaveView(search.copy(id = id, name = name.trim())), finished = { naming = false; open("view:$id") })
         }
     }
     Column(Modifier.fillMaxSize()) {
-        OutlinedTextField(text, { text = it; selection?.ids = emptySet() }, label = { Text(stringResource(R.string.m4_search_library)) }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submitted++; keyboard?.hide() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier()))
+        OutlinedTextField(text, { text = it; selection?.ids = emptySet() }, label = { Text(stringResource(R.string.m4_search_library)) }, singleLine = true, trailingIcon = { if (text.isNotEmpty()) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search)) { text = ""; selection?.ids = emptySet() } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submitted++; keyboard?.hide() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier()))
         TextButton(enabled = rows != null, onClick = { naming = true; if (name.isEmpty()) name = text }) { Text(stringResource(R.string.m4_save_as_view)) }
         if (rows == null) Loading()
         else if (data.subscriptions.none { it["unsubscribed_at"] == null } && rows!!.isEmpty()) Column { EmptyMessage(R.string.no_subscriptions); TextButton(onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
-        else if (rows!!.isEmpty()) Column { EmptyMessage(R.string.no_matches); TextButton(onClick = { text = "" }) { Text(stringResource(R.string.clear_search)) } }
-        else EpisodeList(rows!!, data, session, open, R.string.no_matches)
+        else if (rows!!.isEmpty()) Column { EmptyMessage(R.string.no_search_matches); TextButton(onClick = { text = "" }) { Text(stringResource(R.string.clear_search)) } }
+        else EpisodeList(rows!!, data, session, open, R.string.no_search_matches)
     }
     if (naming) AlertDialog(onDismissRequest = { naming = false }, title = { Text(stringResource(R.string.m4_save_as_view), Modifier.semantics { heading() }) }, text = { OutlinedTextField(name, { name = it; invalid = false }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { saveView() }), modifier = Modifier.then(FocusedInputModifier()), isError = invalid, supportingText = if (invalid) ({ Text(stringResource(R.string.m4_view_name_error)) }) else null) }, dismissButton = { TextButton(onClick = { naming = false }) { Text(stringResource(R.string.cancel)) } }, confirmButton = { TextButton(onClick = {
         saveView()

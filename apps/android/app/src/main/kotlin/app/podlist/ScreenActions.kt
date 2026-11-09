@@ -5,104 +5,111 @@ import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /** Capture inverses against the latest local State, in the same transaction as the edit. */
 internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, inverse: (State) -> List<Change>) {
     val current = session.value ?: return
     val action: suspend () -> Unit = {
-        val undo = withContext(Dispatchers.IO) { current.db.transaction {
-            val before = loadState()
-            val result = inverse(before)
-            recordAll(changes, System.currentTimeMillis())
-            result
-        } }
-        offerUndo(AppMessage(message) {
-            if (playbackPlaylist != null) playbackEdit { withContext(Dispatchers.IO) { recordUndo(current, undo) } }
-            else restoreChanges(current, undo)
-        })
+        editLock.withLock {
+            if (session.value !== current) return@withLock
+            val undo = withContext(Dispatchers.IO) { current.db.transaction {
+                val before = loadState()
+                val result = inverse(before)
+                recordAll(changes, System.currentTimeMillis())
+                result
+            } }
+            recordHistory(current, AppMessage(message), changesStep(current, undo, playbackPlaylist))
+        }
     }
     if (playbackPlaylist != null) playbackEdit(playbackPlaylist, action)
     else viewModelScope.launch { action() }
 }
 
-internal fun AppModel.restoreChanges(current: Session, changes: List<Change>) {
-    viewModelScope.launch { withContext(Dispatchers.IO) { recordUndo(current, changes) } }
-}
-
 internal fun AppModel.rewind(playlistId: String, to: Long) {
     val current = session.value ?: return
     playbackEdit(playlistId) {
-        val inverse = withContext(Dispatchers.IO) { current.db.transaction {
-            val before = loadState()
-            val at = System.currentTimeMillis()
-            record(Change.Rewind(playlistId, to), at)
-            TimelinePresentation.undo(before, loadState(), playlistId, at + 1)
-        } }
-        offerUndo(AppMessage(R.string.rewound) { playbackEdit(playlistId) { withContext(Dispatchers.IO) { recordUndo(current, inverse) } } })
+        editLock.withLock {
+            if (session.value !== current) return@withLock
+            val inverse = withContext(Dispatchers.IO) { current.db.transaction {
+                val before = loadState()
+                val at = System.currentTimeMillis()
+                record(Change.Rewind(playlistId, to), at)
+                TimelinePresentation.undo(before, loadState(), playlistId, at + 1)
+            } }
+            recordHistory(current, AppMessage(R.string.rewound), changesStep(current, inverse, playlistId))
+        }
     }
 }
 
 internal fun AppModel.createPlaylist(name: String, finished: (String?, PlaylistNames.Problem?) -> Unit) {
     val current = session.value ?: return
     viewModelScope.launch {
-        val result = withContext(Dispatchers.IO) { current.db.transaction {
-            val problem = PlaylistNames.validate(name, loadState().playlists)
-            if (problem != null) null to problem else {
-                val id = UUID.randomUUID().toString()
-                record(Change.CreatePlaylist(id, name.trim(), false), System.currentTimeMillis())
-                id to null
-            }
-        } }
-        result.first?.let { id -> offerUndo(AppMessage(R.string.playlist_created) { restoreChanges(current, listOf(Change.DeletePlaylist(id))) }) }
-        finished(result.first, result.second)
+        editLock.withLock {
+            if (session.value !== current) return@withLock
+            val result = withContext(Dispatchers.IO) { current.db.transaction {
+                val problem = PlaylistNames.validate(name, loadState().playlists)
+                if (problem != null) null to problem else {
+                    val id = UUID.randomUUID().toString()
+                    record(Change.CreatePlaylist(id, name.trim(), false), System.currentTimeMillis())
+                    id to null
+                }
+            } }
+            result.first?.let { id -> recordHistory(current, AppMessage(R.string.playlist_created), changesStep(current, listOf(Change.DeletePlaylist(id)), id)) }
+            finished(result.first, result.second)
+        }
     }
 }
 
 internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: String?, placement: Placement, finished: (Boolean) -> Unit) {
     val current = session.value ?: return
     viewModelScope.launch {
-        val result = withContext(Dispatchers.IO) { current.db.transaction {
-            val before = loadState()
-            if (playlistId == null && PlaylistNames.validate(name.orEmpty(), before.playlists) != null) return@transaction null
-            val id = playlistId ?: UUID.randomUUID().toString()
-            val playlist = before.playlists.find { it.id == id }
-            if (playlistId != null && playlist == null) return@transaction null
-            val changes = buildList {
-                if (playlistId == null) add(Change.CreatePlaylist(id, name!!.trim(), false))
-                addAll(EpisodeActions.addMany(ids, id, placement, playlist))
+        editLock.withLock {
+            if (session.value !== current) return@withLock
+            val result = withContext(Dispatchers.IO) { current.db.transaction {
+                val before = loadState()
+                if (playlistId == null && PlaylistNames.validate(name.orEmpty(), before.playlists) != null) return@transaction null
+                val id = playlistId ?: UUID.randomUUID().toString()
+                val playlist = before.playlists.find { it.id == id }
+                if (playlistId != null && playlist == null) return@transaction null
+                val changes = buildList {
+                    if (playlistId == null) add(Change.CreatePlaylist(id, name!!.trim(), false))
+                    addAll(EpisodeActions.addMany(ids, id, placement, playlist))
+                }
+                recordAll(changes, System.currentTimeMillis())
+                val undo = if (playlist == null) listOf<Change>(Change.DeletePlaylist(id)) else EpisodeActions.undoAdd(playlist, ids)
+                (playlist?.name ?: name!!.trim()) to undo
+            } }
+            if (result != null) {
+                val (playlistName, undo) = result
+                val count = ids.distinct().size
+                recordHistory(current, AppMessage(R.plurals.entries_added_to_playlist, formatArgs = listOf(count, playlistName), quantity = count), changesStep(current, undo))
             }
-            recordAll(changes, System.currentTimeMillis())
-            val undo = if (playlist == null) listOf<Change>(Change.DeletePlaylist(id)) else EpisodeActions.undoAdd(playlist, ids)
-            (playlist?.name ?: name!!.trim()) to undo
-        } }
-        if (result != null) {
-            val (playlistName, undo) = result
-            val count = ids.distinct().size
-            offerUndo(AppMessage(R.plurals.entries_added_to_playlist, formatArgs = listOf(count, playlistName), quantity = count) { restoreChanges(current, undo) })
+            finished(result != null)
         }
-        finished(result != null)
     }
 }
 
 internal fun AppModel.markSubscriptionPlayed(subscriptionId: String) {
     val current = session.value ?: return
     viewModelScope.launch {
-        val inverse = withContext(Dispatchers.IO) { current.db.transaction {
-            val before = loadState()
-            val ids = query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published, id", listOf(subscriptionId)).map { it["id"] as String }.filter { before.episodeStates[it]?.played == null }
-            val at = System.currentTimeMillis()
-            val undo = EpisodeActions.undoPlayed(before, ids, at + 1)
-            recordAll(ids.map { Change.MarkPlayed(it, PlayedSource.User) }, at)
-            undo
-        } }
-        offerUndo(AppMessage(R.string.m4_marked_all) { restoreChanges(current, inverse) })
+        editLock.withLock {
+            if (session.value !== current) return@withLock
+            val inverse = withContext(Dispatchers.IO) { current.db.transaction {
+                val before = loadState()
+                val ids = query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published, id", listOf(subscriptionId)).map { it["id"] as String }.filter { before.episodeStates[it]?.played == null }
+                val at = System.currentTimeMillis()
+                val undo = EpisodeActions.undoPlayed(before, ids, at + 1)
+                recordAll(ids.map { Change.MarkPlayed(it, PlayedSource.User) }, at)
+                undo
+            } }
+            recordHistory(current, AppMessage(R.string.m4_marked_all), changesStep(current, inverse))
+        }
     }
 }
 
-internal fun AppModel.recordUndo(current: Session, changes: List<Change>) {
-    val at = System.currentTimeMillis()
-    current.db.recordAll(changes.map { if (it is Change.ReportPosition) it.copy(listenedAt = at) else it }, at)
+internal fun AppModel.revealChanges(changes: List<Change>) {
     val restoredEntry = changes.filterIsInstance<Change.AddEntry>().firstOrNull()
     val target = restoredEntry?.let { Reveal("playlist:${it.playlistId}", it.episodeId) } ?: changes.firstNotNullOfOrNull { change -> when (change) {
         is Change.SaveView -> Reveal("view:${change.view.id}")
@@ -117,7 +124,6 @@ internal fun AppModel.recordUndo(current: Session, changes: List<Change>) {
         is Change.SetStar -> Reveal("episode:${change.episodeId}")
         else -> null
     } }
-    undoRevision.value++
     if (target != null) reveal.value = target
 }
 
@@ -141,34 +147,8 @@ internal fun editMessage(change: Change): Int = when (change) {
     else -> R.string.m4_setting_changed
 }
 
-internal fun AppModel.offerUndo(message: AppMessage, viewId: String? = null) {
-    var available = true
-    val once: () -> Unit = { if (available) { available = false; latestUndo.value = null; message.undo?.invoke() } }
-    undoViewId.value = viewId
-    latestUndo.value = once
-    messages.trySend(message.copy(undo = once))
-}
-
 internal fun AppModel.removeEntry(playlist: String, episode: String) {
     changeWithUndo(listOf(Change.RemoveEntry(playlist, episode)), R.string.entry_removed, playbackPlaylist = playlist) { before ->
         before.playlists.find { it.id == playlist }?.let { EditUndo.removeEntry(it, episode, System.currentTimeMillis() + 1) }.orEmpty()
-    }
-}
-
-internal fun AppModel.undoSubscriptions(current: Session, feeds: List<String>) {
-    viewModelScope.launch {
-        val failed = withContext(Dispatchers.IO) {
-            feeds.filter { feed ->
-                try {
-                    val id = current.db.query("SELECT id FROM subscription WHERE feed_url = ?", listOf(feed)).single()["id"] as String
-                    current.source.unsubscribe(id)
-                    false
-                } catch (error: kotlinx.coroutines.CancellationException) { throw error }
-                catch (_: Exception) { true }
-            }
-        }
-        requestSync()
-        if (failed.isEmpty()) messages.send(AppMessage(R.string.import_undone))
-        else messages.send(AppMessage(R.string.import_undo_failed, R.string.retry) { undoSubscriptions(current, failed) })
     }
 }
