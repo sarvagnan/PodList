@@ -71,7 +71,7 @@ Played uses the Subscription's threshold or 30 seconds before the end by default
 
 ### Unsubscribe
 
-Ask for confirmation first, explaining that Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
+Ask for confirmation first, with a plain "are you sure" dialog and no explanation (owner, 9 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
 
 The server retains Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices' Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals those retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Do not silently queue Subscribe or Unsubscribe as an offline State edit.
 
