@@ -66,6 +66,8 @@ internal fun RenameableName(
                 close()
             }
             OutlinedTextField(value, { input ->
+                    // The keyboard can send a last update as Cancel or Save closes the field; it must not reopen it.
+                    if (drafts.get(draftKey) == null) return@OutlinedTextField
                     // Names are one line. The field wraps a long one; Enter means Save rather than a line break.
                     val enter = input.text.contains('\n')
                     val clean = input.copy(text = input.text.replace("\n", ""), selection = TextRange(input.selection.start.coerceAtMost(input.text.replace("\n", "").length)))
