@@ -12,7 +12,7 @@ Finding (Views over the Library) and listening (Playlists with their own playbac
 - Support selecting multiple Episodes for Play Next, Play Last, Mark Played, Star and Download. Show which Playlist receives Play Next and Play Last; allow another target. Keep the selected Episodes in their displayed order when adding them together.
 - Editing exposes all conditions: Published, Podcasts, Mentions (text), Played, Starred, In a Playlist and Length; then Sort and Show (limit). An unrestricted condition is Any. All conditions must match. Conditions are not added or removed.
 - Played choices are Any, Unplayed (including in progress), In progress and Played. In progress means a Position exists on an Entry; it is not a separate Episode-level Played fact. Preserve the supported filter semantics in client duties, including the current absence of a positive In a Playlist filter.
-- Edits apply as made, without Save. Show the live matching count and allow Undo of an edit. Let people rename or delete a View and finish editing.
+- Condition edits apply as made, without Save. Show the live matching count and allow Undo of an edit. Let people rename or delete a View and finish editing. Renaming a View is an explicit step with Save and Cancel, like renaming a Playlist (owner, 10 Nov 2026).
 - Search is the same query as an unsaved View, with Mentions filled in. Search titles, podcast names and available show notes. Saving Search as a View asks for a name.
 - Distinguish loading from an empty result. With no Subscriptions, offer adding podcasts. With no matches, offer changing the View or Search. With no Views, offer creating one. A missing View gives a way back to Views.
 
