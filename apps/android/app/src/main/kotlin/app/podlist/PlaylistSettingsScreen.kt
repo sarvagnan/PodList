@@ -26,6 +26,14 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
     var name by rememberDraftText(prefix + "name", playlist.name)
     DisposableEffect(playlist.id) { onDispose { model.finishTyping() } }
     val problem = PlaylistNames.validate(name, data.state.playlists, playlist.id)
+    var focused by remember { mutableStateOf(false) }
+    val draft = drafts.get(prefix + "name")
+    // A draft lives only while the field holds a name that can't be saved. A valid name is saved as it's
+    // typed, so its draft goes once the saved name matches, or when the field is left (trimmed, or replaced
+    // by Undo or another Device's rename).
+    LaunchedEffect(draft, playlist.name, focused) {
+        if (draft != null && (draft == playlist.name || (!focused && problem == null))) drafts.clear(prefix)
+    }
     LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!playlist.isDefault) item {
             OutlinedTextField(name, { input -> name = input; if (PlaylistNames.validate(input, data.state.playlists, playlist.id) == null) model.edit(Change.RenamePlaylist(playlist.id, input.trim()), "playlist-name:${playlist.id}") }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, isError = problem != null,
@@ -36,7 +44,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
                             Text(stringResource(R.string.use_saved_playlist_name, playlist.name))
                         }
                     }
-                }) else null, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() })
+                }) else null, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).onFocusChanged { focused = it.isFocused; if (!it.isFocused) model.finishTyping() })
         }
         item { SwitchRow(stringResource(R.string.clear_on_played), playlist.clearOnPlayed, stringResource(R.string.m4_clear_help)) { checked ->
             model.changeWithUndo(listOf(Change.SetClearOnPlayed(playlist.id, checked)), R.string.clear_on_played_changed) { before -> listOf(Change.SetClearOnPlayed(playlist.id, before.playlists.first { it.id == playlist.id }.clearOnPlayed)) }
