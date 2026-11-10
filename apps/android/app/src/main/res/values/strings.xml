@@ -106,7 +106,7 @@
     <string name="new_playlist">New Playlist</string>
     <string name="play_next">Play Next</string>
     <string name="play_last">Play Last</string>
-    <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
+    <plurals name="entries_added_to_playlist"><item quantity="one">%1$d Entry added to %2$s</item><item quantity="other">%1$d Entries added to %2$s</item></plurals>
     <string name="play_from_here">Play from here</string>
     <string name="switch_playlist">Switch Playlist</string>
     <string name="resume">Resume</string>
@@ -118,7 +118,7 @@
     <string name="move_up">Move up</string>
     <string name="move_down">Move down</string>
     <string name="entry_actions">Entry actions</string>
-    <string name="entry_moved">Entry moved</string>
+    <string name="entry_moved">Entry %1$s moved in %2$s</string>
     <string name="undo">Undo</string>
     <string name="mark_played">Mark Played</string>
     <string name="mark_unplayed">Mark Unplayed</string>
@@ -152,9 +152,9 @@
     <string name="directory_failed">Couldn’t find podcasts. Check your connection and try again.</string>
     <string name="subscribe">Subscribe</string>
     <string name="subscribed">Subscribed</string>
-    <string name="subscribed_message">%1$s subscribed</string>
+    <string name="subscribed_message">Podcast %1$s subscribed</string>
     <string name="unsubscribe">Unsubscribe</string>
-    <string name="unsubscribed_message">%1$s unsubscribed</string>
+    <string name="unsubscribed_message">Podcast %1$s unsubscribed</string>
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
     <string name="m4_name">Name</string>
@@ -202,9 +202,9 @@
     <string name="m4_played_threshold">Counts as Played</string>
     <string name="m4_seconds">%1$d seconds</string>
     <string name="m4_default_value">Default (%1$s)</string>
-    <string name="m4_threshold_help">How close to the end counts as finished. Inherits the default of 30 seconds until changed.</string>
+    <string name="m4_threshold_help">Time before the end that counts as Played.</string>
     <string name="m4_playback_overrides">Playback Settings</string>
-    <string name="m4_override_help">Follow your defaults until you change one here. Picking Default clears a change.</string>
+    <string name="m4_override_help">Default follows your global Playback Settings.</string>
     <string name="m4_skip_intro">Skip intro</string>
     <string name="m4_skip_outro">Skip outro</string>
     <string name="m4_on">On</string>
@@ -460,8 +460,8 @@
     <string name="number_whole_error">Use a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
     <string name="number_minimum_error">That number is too small. Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
     <string name="number_maximum_error">That number is too large. Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
-    <string name="show_completed_steps">Show completed steps</string>
-    <string name="hide_completed_steps">Hide completed steps</string>
+    <string name="show_completed_steps">Show help for completed steps</string>
+    <string name="hide_completed_steps">Hide help for completed steps</string>
     <string name="select_all">Select all</string>
     <string name="select_none">Select none</string>
     <string name="share_podcast">Share podcast</string>
@@ -469,4 +469,9 @@
     <string name="feed_address_copied">Feed address for %1$s copied</string>
     <string name="clear_on_played_on_help">Entries leave when their Episodes become Played. Entries already Played stay when you turn this on.</string>
     <string name="clear_on_played_off_help">Entries stay until you remove them.</string>
+    <string name="no_podcasts">No podcasts</string>
+    <string name="podcast_episode_add_failed">Couldn’t add %1$s.</string>
+    <string name="podcast_episode_add_error">Couldn’t add %1$s. %2$s</string>
+    <string name="retry_episode_action">Retry</string>
+    <string name="retry_episode_named">Retry %1$s</string>
 </resources>

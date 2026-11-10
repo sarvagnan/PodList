@@ -8,7 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,7 +17,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,7 +53,7 @@ private fun decodeArtwork(bytes: ByteArray, pixels: Int): Bitmap? {
 
 /** Server Library Artwork uses its proxy; publisher and directory Artwork load directly. */
 @Composable
-internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp, direct: Boolean = false) {
+internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp, direct: Boolean = false, placeholderTitle: String? = null) {
     val context = LocalContext.current
     val pixels = with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
     val identity = "${session.source.key}#$url"
@@ -103,6 +107,15 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
     val shown = bitmap ?: available
     Box(Modifier.size(size).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
         if (shown != null) Image(shown.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
-        else Icon(painterResource(R.drawable.ic_artwork), contentDescription = null, modifier = Modifier.size(size * .5f), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        else {
+            val title = placeholderTitle?.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name)
+            val initials = title.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1) }.uppercase(androidx.compose.ui.platform.LocalConfiguration.current.locales[0])
+            // Artwork is decorative; its lettering scales with the tile, independently of body text.
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1f)) {
+                Text(initials, modifier = Modifier.clearAndSetSemantics {}, color = MaterialTheme.colorScheme.onSecondaryContainer, fontSize = (size.value * .34f).sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
     }
 }

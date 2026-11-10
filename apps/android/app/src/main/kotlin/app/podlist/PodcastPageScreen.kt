@@ -20,13 +20,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.podlist.domain.TwoTapConfirmation
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import app.podlist.domain.PodcastBrowsing
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,6 +43,7 @@ import app.podlist.data.*
 import app.podlist.domain.ProtocolJson
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -72,6 +71,8 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     var failure by remember { mutableStateOf<LookupError?>(null) }
     var actionFailure by remember { mutableStateOf<LookupError?>(null) }
     var retryAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val episodeFailures = remember(result.feedUrl) { mutableStateMapOf<String, Pair<LookupError, () -> Unit>>() }
+    var revealGuid by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var changingSubscription by remember { mutableStateOf(false) }
     var confirmation by remember(result.feedUrl) { mutableStateOf(TwoTapConfirmation()) }
@@ -150,9 +151,11 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     LaunchedEffect(list) {
         snapshotFlow { list.isScrollInProgress }.collect { if (it) confirmation = confirmation.disarm() }
     }
-    val headerVisible by remember(list) { derivedStateOf {
-        list.layoutInfo.totalItemsCount == 0 || list.layoutInfo.visibleItemsInfo.any { it.key == "header" }
-    } }
+    LaunchedEffect(revealGuid, filtered) {
+        val guid = revealGuid ?: return@LaunchedEffect
+        val index = filtered.indexOfFirst { it["guid"] == guid }
+        if (index >= 0) { list.animateScrollToItem(index + 1); revealGuid = null }
+    }
     val title = feed?.title ?: subscription?.get("title") as? String ?: result.title
     val author = feed?.author ?: subscription?.get("author") as? String ?: result.author
     val artwork = feed?.artworkUrl ?: subscription?.get("artwork_url") as? String ?: result.artworkUrl
@@ -161,7 +164,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         confirmation = confirmation.disarm()
         if (busy) return
         scope.launch {
-            busy = true; resolvingGuid = row["guid"] as String; actionFailure = null
+            busy = true; resolvingGuid = row["guid"] as String
             try {
                 val episode = withContext(Dispatchers.IO) {
                     localRows.find { it["guid"] == row["guid"] }?.get("id") as? String
@@ -169,10 +172,24 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 }
                 model.requestSync()
                 action(episode)
+                episodeFailures.remove(row["guid"] as String)
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
-                actionFailure = classifyLookup(error)
-                retryAction = { resolve(row, action) }
+                val guid = row["guid"] as String
+                val retry = { resolve(row, action) }
+                episodeFailures[guid] = classifyLookup(error) to retry
+                if (inspectingGuid != guid && list.layoutInfo.visibleItemsInfo.none { it.key == guid }) {
+                    model.messages.trySend(AppMessage(R.string.podcast_episode_add_failed, R.string.retry_episode_action,
+                        formatArgs = listOf(row["title"] as String), undo = {
+                            if (filterPodcastEpisodes(listOf(row), query).isEmpty()) query = ""
+                            inspectingGuid = null
+                            revealGuid = guid
+                            scope.launch {
+                                snapshotFlow { busy }.first { !it }
+                                if (episodeFailures.containsKey(guid)) retry()
+                            }
+                        }))
+                }
             }
             finally { busy = false; resolvingGuid = null }
         }
@@ -202,18 +219,15 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         BackHandler { inspectingGuid = null }
         val episodeScroll = TopAppBarDefaults.pinnedScrollBehavior()
         Scaffold(modifier = Modifier.nestedScroll(episodeScroll.nestedScrollConnection), topBar = {
-            TopAppBar(scrollBehavior = episodeScroll, title = { Text(stringResource(R.string.episode)) }, navigationIcon = {
+            TopAppBar(scrollBehavior = episodeScroll, title = { Text(inspected["title"] as? String ?: stringResource(R.string.episode), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { inspectingGuid = null }
             }, actions = { EpisodeOverflow(data.copy(episodes = listOf(inspected)), session) })
         }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 EpisodeDetail(data.copy(episodes = listOf(inspected)), session, resolve = if (localRows.any { it["id"] == inspected["id"] }) null else ::resolve,
                     actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"], actionError = {
-                        actionFailure?.let {
-                            Column {
-                                InlineError(stringResource(podcastErrorResource(it)))
-                                ContentTextButton(onClick = { retryAction?.invoke() }, enabled = !busy) { Text(stringResource(R.string.podcast_try_again)) }
-                            }
+                        episodeFailures[inspected["guid"]]?.let { (error, retry) ->
+                            EpisodeActionFailure(inspected["title"] as String, error, !busy, retry)
                         }
                     })
             }
@@ -256,27 +270,10 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     Scaffold(modifier = disarmOnOtherTap.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
-            else TopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (armed || headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            else TopAppBar(scrollBehavior = scrollBehavior, title = { Text(title.ifBlank { stringResource(R.string.podcast) }, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
-                if (!armed) {
-                    EditHistoryMenu()
-                    Box {
-                        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { confirmation = confirmation.disarm(); shareMenu = true }
-                        DropdownMenu(shareMenu, onDismissRequest = { shareMenu = false }) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.share_podcast)) }, onClick = {
-                                shareMenu = false
-                                shareText(context, title, app.podlist.domain.ShareLinks.podcast(feed?.link ?: subscription?.get("website_url") as? String, result.feedUrl))
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.copy_feed_address)) }, onClick = {
-                                shareMenu = false
-                                (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
-                                    .setPrimaryClip(android.content.ClipData.newPlainText(title, result.feedUrl))
-                                model.messages.trySend(AppMessage(R.string.feed_address_copied, formatArgs = listOf(title)))
-                            })
-                        }
-                    }
-                }
+                if (!armed) EditHistoryMenu()
                 if (subscribed) {
                     if (!armed || LocalDensity.current.fontScale < 1.5f) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { openPage("subscription-settings:$id") }
                     val label = if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
@@ -311,10 +308,33 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     if (changingSubscription) CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
                     else Text(stringResource(R.string.subscribe))
                 }
+                Box {
+                    ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions), enabled = !armed) { confirmation = confirmation.disarm(); shareMenu = true }
+                    DropdownMenu(shareMenu, onDismissRequest = { shareMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.share_podcast)) }, onClick = {
+                            shareMenu = false
+                            shareText(context, title, app.podlist.domain.ShareLinks.podcast(feed?.link ?: subscription?.get("website_url") as? String, result.feedUrl))
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.copy_feed_address)) }, onClick = {
+                            shareMenu = false
+                            (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                                .setPrimaryClip(android.content.ClipData.newPlainText(title, result.feedUrl))
+                            model.messages.trySend(AppMessage(R.string.feed_address_copied, formatArgs = listOf(title)))
+                        })
+                    }
+                }
             })
-            if (busy) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)))
-                Text(stringResource(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode), Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall)
+            // A fixed 4 dp slot: the bar appears and goes without moving the page under the person's typing
+            // (FLOW-01). The status is announced from the same slot instead of a line of text that comes and goes.
+            val status = if (!busy) null else stringResource(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)
+            Box(Modifier.fillMaxWidth().height(4.dp).semantics { if (status != null) { liveRegion = LiveRegionMode.Polite; contentDescription = status } }) {
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)))
+            }
+            actionFailure?.let {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    InlineError(stringResource(podcastErrorResource(it)))
+                    ContentTextButton(onClick = { retryAction?.invoke() }, enabled = !busy) { Text(stringResource(R.string.podcast_try_again)) }
+                }
             }
         }
     }, bottomBar = {
@@ -328,7 +348,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                     author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     if (expanded) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        ArtworkImage(session, artwork, size = 120.dp, direct = true)
+                        ArtworkImage(session, artwork, size = 120.dp, direct = true, placeholderTitle = title)
                         description?.let { SelectionContainer { Text(showNotes(it)) } }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -345,10 +365,6 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                         InlineError(stringResource(podcastErrorResource(it)))
                         ContentTextButton(onClick = ::load, enabled = !loading) { Text(stringResource(R.string.podcast_try_again)) }
                     }
-                    actionFailure?.let {
-                        InlineError(stringResource(podcastErrorResource(it)), Modifier)
-                        ContentTextButton(onClick = { retryAction?.invoke() }, enabled = !busy) { Text(stringResource(R.string.podcast_try_again)) }
-                    }
                 }
             }
             if (filtered.isEmpty() && !loading && localLoaded && failure == null) item {
@@ -359,7 +375,12 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 CompositionLocalProvider(LocalEpisodeSelection provides selection) {
                     EpisodeRow(row, data, session, showArtwork = false, showPodcast = false, actionsEnabled = !busy, actionBusy = resolvingGuid == row["guid"],
                         addAction = { resolve(row, add) },
-                        playAction = { resolve(row) { model.playNow(it); started() } }) {
+                        playAction = { resolve(row) { model.playNow(it); started() } },
+                        actionError = {
+                            episodeFailures[row["guid"]]?.let { (error, retry) ->
+                                EpisodeActionFailure(row["title"] as String, error, !busy, retry)
+                            }
+                        }) {
                         val stored = localRows.find { it["guid"] == row["guid"] }
                         confirmation = confirmation.disarm()
                         if (stored != null) openPage("episode:${stored["id"]}") else inspectingGuid = row["guid"] as String
@@ -374,4 +395,12 @@ private fun podcastErrorResource(error: LookupError): Int = when (error) {
     LookupError.Feed -> R.string.podcast_invalid_feed
     LookupError.Response -> R.string.podcast_invalid_response
     else -> lookupErrorResource(error)
+}
+
+@Composable
+private fun EpisodeActionFailure(title: String, error: LookupError, enabled: Boolean, retry: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        InlineError(stringResource(R.string.podcast_episode_add_error, title, stringResource(podcastErrorResource(error))))
+        ContentTextButton(onClick = retry, enabled = enabled) { Text(stringResource(R.string.retry_episode_named, title)) }
+    }
 }

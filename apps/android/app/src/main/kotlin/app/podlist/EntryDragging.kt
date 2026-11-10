@@ -5,6 +5,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -14,8 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.LocalPinnableContainer
 import androidx.compose.ui.layout.PinnableContainer
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -47,6 +48,7 @@ internal val LocalEntryDrag = staticCompositionLocalOf<EntryDragState?> { null }
 @Composable
 internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, openEpisode: (String) -> Unit, header: (LazyListScope.() -> Unit)? = null, reveal: Reveal? = null, revealConsumed: () -> Unit = {}) {
     val model = LocalAppModel.current
+    val playback by model.playback.collectAsState()
     val list = rememberBrowsingListState("entries:${playlist.id}", if (header == null) playlist.entries.map { it.episodeId } else null)
     val drag = remember(list) { EntryDragState(list) }
     val edge = with(androidx.compose.ui.platform.LocalDensity.current) { 64.dp.toPx() }
@@ -91,7 +93,12 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                 val focus = remember { FocusRequester() }
                 val moving = drag.source == entry.episodeId
                 val marked = drag.retained == entry.episodeId
-                val currentLabel = stringResource(if (playlist.id == data.state.activePlaylistId) R.string.cursor_now else R.string.cursor_here)
+                val currentLabel = stringResource(if (playlist.id == data.state.activePlaylistId && playback?.playlistId == playlist.id && playback?.playing == true) R.string.cursor_now else R.string.cursor_here)
+                val current = playlist.cursor == entry.episodeId
+                val selected = entry.episodeId in selection?.ids.orEmpty()
+                val highlight by animateColorAsState(if (marked || moving) MaterialTheme.colorScheme.tertiaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                    animationSpec = tween(if (marked || moving) 120 else 900), label = "Entry move highlight")
+                val indicator = MaterialTheme.colorScheme.primary
                 val movedLabel = stringResource(R.string.entry_destination, index + 1, playlist.entries.size)
                 val row = data.episodes.find { it["id"] == entry.episodeId }
                 LaunchedEffect(marked, playlist.entries, row != null) { if (marked && drag.source == null && row != null) focus.requestFocus() }
@@ -101,7 +108,9 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                         translationY = drag.pointer - drag.grabOffset - top
                         shadowElevation = 8.dp.toPx()
                     } else { translationY = 0f; shadowElevation = 0f }
-                }.background(if (moving || marked) MaterialTheme.colorScheme.primaryContainer else if (playlist.cursor == entry.episodeId) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                }.background(if (selected) MaterialTheme.colorScheme.secondaryContainer else if (current) MaterialTheme.colorScheme.surfaceTint.copy(alpha = .05f) else androidx.compose.ui.graphics.Color.Transparent)
+                    .background(if (selected) androidx.compose.ui.graphics.Color.Transparent else highlight)
+                    .drawBehind { if (current) drawRect(indicator, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
                     .semantics { if (playlist.cursor == entry.episodeId) stateDescription = currentLabel; if (marked) { stateDescription = movedLabel; liveRegion = LiveRegionMode.Polite } }) {
                     if (drag.source != null && drag.boundary == index) HorizontalDivider(thickness = 3.dp, color = MaterialTheme.colorScheme.primary)
                     if (playlist.cursor == entry.episodeId) Text(currentLabel, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
@@ -142,13 +151,14 @@ internal fun EntryDragHandle(playlist: Playlist, episode: String) {
             drag.source = null; drag.boundary = -1; pin?.release(); pin = null
         }, onDragCancel = { drag.source = null; drag.boundary = -1; pin?.release(); pin = null })
     }
-    val label = stringResource(R.string.drag_entry)
+    val dragLabel = stringResource(R.string.drag_entry)
     val up = stringResource(R.string.move_up)
     val down = stringResource(R.string.move_down)
-    Box(modifier.size(48.dp).semantics {
+    EntryMenu(playlist, episode, modifier.semantics {
+        stateDescription = dragLabel
         customActions = listOf(
             CustomAccessibilityAction(up) { val index = playlist.entries.indexOfFirst { it.episodeId == episode }; if (index > 0) { model.moveEntry(playlist.id, episode, index - 1); true } else false },
             CustomAccessibilityAction(down) { val index = playlist.entries.indexOfFirst { it.episodeId == episode }; if (index < playlist.entries.lastIndex) { model.moveEntry(playlist.id, episode, index + 1); true } else false }
         )
-    }, contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_drag), label) }
+    })
 }

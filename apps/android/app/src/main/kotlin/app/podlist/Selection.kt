@@ -90,7 +90,7 @@ internal fun SelectionActionBar(selection: EpisodeSelection, data: ScreenData, s
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
         ActionGrid {
             LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { adding = true }
-            LabelledAction(R.drawable.ic_played, stringResource(R.string.mark_played)) {
+            LabelledAction(R.drawable.ic_unplayed, stringResource(R.string.mark_played)) {
                 model.changeWithUndo(ordered.map { Change.MarkPlayed(it, PlayedSource.User) }, R.string.episodes_played) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
                 selection.ids = emptySet()
             }

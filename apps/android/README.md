@@ -588,3 +588,163 @@ fixture's loopback Artwork URLs need no rewriting. The demo Device's Download Ru
 belong to that Device; this new Android Device therefore starts with Stream groups.
 Stop the demo server to check offline browsing, then restart/reconnect to exercise
 retry. A fresh demo invocation uses a new origin and a fresh local Library.
+
+## Instrumented UI flow run (pod-apx.4.33)
+
+`FlowRunSmokeTest` drives the real Compose UI through Welcome → Connect, then
+flows A–E (View/Episode/Add/Undo; Default/Play/Now Playing/reorder/Undo;
+feed lookup/Podcast/Subscribe/Undo with typing during completion; create/rename
+Playlist/Undo; Library search/inline Create View). It clears the connection
+preferences, Library databases and device properties **before** launching the
+Activity, so run it only against a disposable demo installation and fresh demo
+server. It does not clear external evidence from earlier runs. No model or database
+shortcuts complete the flows. The bead remains open for device verification.
+
+Start the default demo seed from the repository root:
+
+```sh
+node packages/web/ui-flows/demo.mjs
+```
+
+Use the printed server PORT and the actual fixture FPORT (not necessarily PORT−1:
+`demo.mjs` currently allocates both independently). Find FPORT in the demo feed URLs
+or from `GET /api/library/changes?since=0&limit=1000`; the fixture URL is
+`http://127.0.0.1:FPORT/feeds/long-list.xml`. Do not use the `large:true` seed: this
+flow needs Long listening initially unsubscribed. Fixture Episodes have fixed
+publication dates around **6 November 2026**; run with the device date within seven
+days of that date so New this week contains Episodes. A missing Episode is an
+explicit flow failure, not a skipped check.
+
+From `apps/android`, with the demo running and emulator ready, install both APKs
+and invoke instrumentation directly so the evidence survives the run. Close any
+other automation tool/session holding the device's UiAutomation connection first;
+otherwise UI Automator can fail with “UiAutomationService … already registered”.
+Runner 1.7 / Espresso 3.7 are required on Android 16 (older Espresso calls the removed
+`InputManager.getInstance`).
+
+```sh
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export PODLIST_JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$HOME/Library/Android/sdk"
+export GRADLE_RO_DEP_CACHE="$HOME/.gradle/caches" GRADLE_USER_HOME="$PWD/.gradle-worktree"
+./gradlew --offline :app:installDebug :app:installDebugAndroidTest
+adb reverse tcp:FPORT tcp:FPORT
+adb shell am instrument -w \
+  -e server http://10.0.2.2:PORT \
+  -e feed http://127.0.0.1:FPORT/feeds/long-list.xml \
+  -e class app.podlist.FlowRunSmokeTest \
+  app.podlist.test/androidx.test.runner.AndroidJUnitRunner
+adb pull /sdcard/Android/data/app.podlist/files/flow-run ./flow-run
+```
+
+Replace PORT and FPORT. `adb reverse tcp:FPORT tcp:FPORT` makes the fixture feed's
+`127.0.0.1:FPORT` reachable from the device as well as the Mac demo server. The test converts `feed`'s `10.0.2.2` host to `127.0.0.1`
+when `server` uses `10.0.2.2`: **the Mac demo server performs feed lookups**, so it
+needs its own loopback address. The original and typed URLs are reported. Other
+feed hosts are typed unchanged.
+
+Alternatively, Gradle can run instrumentation, but `connectedDebugAndroidTest`
+uninstalls the app afterwards and deletes its external files, including evidence.
+Use the direct invocation above when collecting reports; a pull after the Gradle
+task returns cannot recover the deleted folder.
+
+```sh
+./gradlew --offline :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=app.podlist.FlowRunSmokeTest \
+  -Pandroid.testInstrumentationRunnerArguments.server=http://10.0.2.2:PORT \
+  -Pandroid.testInstrumentationRunnerArguments.feed=http://127.0.0.1:FPORT/feeds/long-list.xml
+```
+
+Each appearance is selected via Settings → Appearance and verified with the
+Activity's night qualifier. There is one delayed pass plus **five undelayed passes
+per appearance**, at the current phone width. Allow several minutes. The debug-only
+`DebugNetworkDelay` wraps real HTTP responses after IO, adding 2000 ms per request.
+For FLOW-03, Subscribe completion is additionally held until Search Episodes has
+been typed, then released through the same 2000 ms delay. Local database commits
+are not artificially delayed. Both controls reset in `finally`; release transports
+are plain `HttpTransport`, with no test-control state or delay.
+
+Evidence is under the target app's external files directory:
+
+```text
+/sdcard/Android/data/app.podlist/files/flow-run/<yyyyMMdd-HHmmss-SSS>/
+  A-<sequence>-<step>-light.png   (and other flows/steps/appearances)
+  measurements.csv
+  timings.csv
+  frames.csv
+  summary.md
+```
+
+`Log.i("FlowRun", "Output: …")` prints the actual path. The `adb pull` above copies
+all retained runs; you can also pull that individual directory. Each delayed step records float semantics bounds in
+root/window physical px and dp, changes, input age/person-caused status, focused
+label, semantic scroll axis and visible-first-item text, typed values, and follow-up
+visibility against window/IME/navigation/player/snackbar geometry. The flow captures
+follow-ups before deliberately dismissing the keyboard for Undo/navigation, so
+obscured controls are reported while the remaining flow can continue. Android's guide
+tolerance is **2 dp**; physical deltas are also provided. Screenshots follow each
+semantics snapshot. Timed passes write per-input timings instead of screenshot
+strips. Missing kinds have explicit `present=false` rows. Each bottom tab also has
+a `navigation:<tab>` row with its selected state. Switching tabs first restores its
+stack (`select-<tab>`); a separate tap on that selected tab returns to its root
+(`start-<tab>`). A failed run includes `failure-semantics.txt` with the unmerged tree.
+
+The summary starts with a verdicts table, then findings (each with measurement
+rows and both PNGs), the raw-candidate exclusion audit, per-step timings, and method.
+FLOW-01 compares settled states after `waitForIdle` on the same heading/screen,
+plus pending → settled async completions without intervening input. `-input`
+captures stay in the strip but cannot establish layout failures. Only the main
+input/action, headings and navigation count as core, with a 2 dp top/left tolerance.
+Requested navigation, scrolling, keyboard/focus and typing are excluded; a late
+completion after 500 ms remains unprompted. Capture age alone cannot establish
+change onset: ambiguous action effects are N/O. FLOW-02 distinguishes requested
+focus/scroll from unsolicited changes and ignores replaced semantic scroll node IDs.
+FLOW-03 protects newer unsubmitted typing during completion, allowing deliberate
+edits and clearing a submitted field on success. Additional CSV metadata records
+screen identity, phase, input serial/intent, pending state and submitted fields.
+
+Response timing uses `ViewTreeObserver.OnDrawListener` timestamps, armed inside
+the dispatched semantics action after Compose synchronization, with asynchronous
+`PixelCopy` confirmation of changed task-content pixels. No repeated UiAutomation
+screenshots run on timed passes. A copy spanning multiple draws gives an interval;
+only uninterrupted unchanged frame confirmations establish a lower bound. CSVs
+retain response upper/busy/settle/gap columns and add response lower bound, draw,
+confirmed-frame and unresolved-frame counts. Precision is a draw interval (usually
+one refresh period when consecutive copies resolve it), not a GPU presentation
+clock. The nearest-rank p75 needs at least five resolved runs: ≤200 ms upper bound
+passes, >200 ms lower bound fails, ambiguous or missing evidence is N/O. The bottom
+140 dp and system bars are excluded; caret/unrelated animation, transient pressed
+states and chrome-only responses still need review. Busy/settle observations are
+upper bounds and cannot prove the 1 s busy deadline was missed. Debug/emulator
+performance verdicts are N/O for audience hardware.
+
+The 500-Episode Podcast page is verified, then flung eight times in each appearance.
+`Window.OnFrameMetricsAvailableListener` retains raw total/deadline durations,
+refresh rate, estimated missed vsyncs and callback drops in `frames.csv`. FOOT-02
+is **N/O: debug build on emulator; not audience hardware** for the normal run.
+It becomes eligible only on a non-debuggable build on a physical device. Optional
+`-e footBuild release-like` annotates a later real-device run; it never overrides
+the actual build/device checks. That later run needs a dedicated non-debuggable
+instrumentation variant with the test transport hooks (the shipping release
+transport deliberately has none), the physical device's reachable demo-server
+address, and the same fling/FrameMetrics capture. The default harness remains debug.
+
+Replay an existing strip without touching its raw CSVs/PNGs:
+
+```sh
+./gradlew --offline :domain:reclassifyFlowRun -PflowEvidence=/absolute/path/to/run
+```
+
+This replaces `summary.md` using the same plain Kotlin classifier, preserving the
+original once as `summary-original.md` (also used for repeatable later replays).
+Legacy strips lack dispatch/async metadata; the replay recovers scripted intents
+and the explicit held Subscribe probe, marking unresolved onset N/O. JVM tests use
+a small fixture of original measurement rows, including all 17 original text-change
+candidates and both delayed Subscribe completion pairs. Guideline violations do
+not fail JUnit; missing arguments, incomplete UI flows, wrong fixtures or evidence
+write failures do. Device execution is still required to verify the new capture path.
+
+Offline build check (no emulator needed):
+
+```sh
+./gradlew --offline :domain:test :data:test :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+```
