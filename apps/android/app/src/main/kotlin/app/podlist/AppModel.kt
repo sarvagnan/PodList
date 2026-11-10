@@ -131,7 +131,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                 listOf<Change>(Change.MoveEntry(playlistId, episode, playlist.entries.getOrNull(index - 1)?.episodeId))
             } }
             if (inverse.isNotEmpty()) {
-                recordHistory(current, AppMessage(R.string.entry_moved), changesStep(current, inverse))
+                val names = withContext(Dispatchers.IO) { listOf(
+                    current.db.query("SELECT title FROM episode WHERE id = ?", listOf(episode)).firstOrNull()?.get("title") ?: getApplication<Application>().getString(R.string.episode),
+                    current.db.loadState().playlists.find { it.id == playlistId }?.name.orEmpty()) }
+                recordHistory(current, AppMessage(R.string.entry_moved, formatArgs = names), changesStep(current, inverse))
                 requestReveal(Reveal("playlist:$playlistId", episode))
             }
         } }

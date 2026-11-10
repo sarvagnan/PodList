@@ -54,13 +54,13 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
 }
 
 @Composable
-internal fun EntryMenu(playlist: Playlist, episode: String) {
+internal fun EntryMenu(playlist: Playlist, episode: String, modifier: Modifier = Modifier) {
     val model = LocalAppModel.current
     val index = playlist.entries.indexOfFirst { it.episodeId == episode }
     var menu by remember { mutableStateOf(false) }
     Row {
         Box {
-        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.entry_actions)) { menu = true }
+        ActionIcon(R.drawable.ic_drag, stringResource(R.string.entry_actions), modifier = modifier) { menu = true }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             val add = LocalAddEpisode.current
             DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, onClick = { add(episode); menu = false })
@@ -104,7 +104,7 @@ internal fun RowScope.DownloadAction(episode: String, session: Session) {
     val statuses by downloads.status.collectAsState()
     val phase = statuses[episode]?.phase
     LabelledAction(when (phase) {
-        DownloadPhase.Stored -> R.drawable.ic_download_remove
+        DownloadPhase.Stored -> R.drawable.ic_downloaded
         DownloadPhase.Failed -> R.drawable.ic_retry
         DownloadPhase.Queued, DownloadPhase.Transferring -> R.drawable.ic_close
         null -> R.drawable.ic_download

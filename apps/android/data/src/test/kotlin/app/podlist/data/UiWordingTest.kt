@@ -130,10 +130,12 @@ class UiWordingTest {
 
     @Test fun `confirmations name objects and use glossary capitalisation`() {
         assertEquals("Playlist Commute restored", text("m4_playlist_restored").format("Commute"))
-        assertEquals("Deep Field subscribed", text("subscribed_message").format("Deep Field"))
+        assertEquals("Podcast Deep Field subscribed", text("subscribed_message").format("Deep Field"))
         assertEquals("View Night skies created", text("view_created").format("Night skies"))
         assertEquals("Episode Galaxies marked Starred", text("episode_starred").format("Galaxies"))
         assertEquals("Episode Galaxies marked Not Starred", text("episode_unstarred").format("Galaxies"))
+        assertEquals("Podcast Deep Field unsubscribed", text("unsubscribed_message").format("Deep Field"))
+        assertEquals("Entry Galaxies moved in Commute", text("entry_moved").format("Galaxies", "Commute"))
         assertEquals("Select all", text("select_all"))
         assertEquals("Select none", text("select_none"))
         assertTrue(text("clear_on_played_on_help").contains("already Played"))
@@ -150,6 +152,33 @@ class UiWordingTest {
         assertTrue(text("m4_stats_about").startsWith("Time listened includes partial listening"))
         assertFalse(text("timeline_rewind_hint").contains("symbol"))
         assertFalse(text("m4_listened_stretch").contains("until"))
+    }
+
+    @Test fun `remote Episode recovery names the affected Episode without treating its title as a format string`() {
+        val title = "100% listening"
+        assertEquals("Couldn’t add 100% listening.", text("podcast_episode_add_failed").format(title))
+        assertEquals("Retry 100% listening", text("retry_episode_named").format(title))
+        assertEquals("Retry", text("retry_episode_action"))
+        assertEquals("Couldn’t add 100% listening. Check your connection.",
+            text("podcast_episode_add_error").format(title, "Check your connection."))
+    }
+
+    @Test fun `help labels describe the content revealed and threshold help avoids repeating the inherited value`() {
+        assertEquals("Show help for completed steps", text("show_completed_steps"))
+        assertEquals("Hide help for completed steps", text("hide_completed_steps"))
+        assertEquals("Current Entry", text("cursor_here"))
+        assertEquals("No podcasts", text("no_podcasts"))
+        assertEquals("Time before the end that counts as Played.", text("m4_threshold_help"))
+        assertFalse(text("m4_threshold_help").contains("30 seconds"))
+        assertEquals("Default follows your global Playback Settings.", text("m4_override_help"))
+    }
+
+    @Test fun `add confirmations lead with the affected Entries`() {
+        val plurals = resources.getElementsByTagName("plurals")
+        val entries = (0 until plurals.length).map { plurals.item(it) as Element }
+            .single { it.getAttribute("name") == "entries_added_to_playlist" }.getElementsByTagName("item")
+        assertEquals("1 Entry added to Commute", entries.item(0).textContent.format(1, "Commute"))
+        assertEquals("3 Entries added to Commute", entries.item(1).textContent.format(3, "Commute"))
     }
 
 }

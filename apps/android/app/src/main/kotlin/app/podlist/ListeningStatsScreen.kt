@@ -122,7 +122,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
         items(stats.podcasts) { (id, seconds) ->
             val subscription = data.subscriptions.find { it["id"] == id }
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                ArtworkImage(session, subscription?.get("artwork_url") as? String, 48.dp)
+                ArtworkImage(session, subscription?.get("artwork_url") as? String, 48.dp, placeholderTitle = subscription?.get("title") as? String)
                 Column(Modifier.weight(1f)) {
                     Text(subscription?.get("title") as? String ?: stringResource(R.string.m4_removed_subscription))
                     Text(listened(seconds), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

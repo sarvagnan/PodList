@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package app.podlist
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
@@ -25,18 +26,15 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, onClick: () -> Unit) {
-    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
     val valueColor = MaterialTheme.colorScheme.onSurfaceVariant
     val shownValue = if (changed) stringResource(R.string.changed_value, value) else value
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label, style = MaterialTheme.typography.bodyLarge)
-            if (large) Text(shownValue, style = MaterialTheme.typography.bodyMedium, color = valueColor)
+            Text(shownValue, style = MaterialTheme.typography.bodyMedium, color = valueColor)
             help?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = valueColor) }
         }
-        if (!large) Text(shownValue, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium,
-            color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
     HorizontalDivider()
 }
@@ -133,7 +131,7 @@ internal fun speedSetting(value: Double): String {
 
 @Composable
 internal fun CheckRow(label: String, checked: Boolean, inset: Boolean = false, changed: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = if (inset) 16.dp else 0.dp).heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = changed).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(if (checked) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent).padding(horizontal = if (inset) 16.dp else 0.dp).heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = changed).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked, null); Spacer(Modifier.width(12.dp)); Text(label, Modifier.weight(1f))
     }
 }

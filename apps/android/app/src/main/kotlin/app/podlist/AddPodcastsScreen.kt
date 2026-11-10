@@ -87,30 +87,33 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
             }
         }
         items(results, key = { it.feedUrl }) { result ->
-            ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
-                leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
-                trailingContent = {
-                    val done = result.feedUrl in subscribed
-                    if (done) SubscribedIndicator(showText = true) else ContentTextButton(onClick = {
-                        scope.launch {
-                            subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
-                            try {
-                                withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
-                                subscribed = subscribed + result.feedUrl
-                                model.requestSync()
-                                model.offerUnsubscribe(session, result.feedUrl)
-                            } catch (e: CancellationException) { throw e }
-                            catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
-                            finally { subscribing = subscribing - result.feedUrl }
-                        }
-                    }, enabled = result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
-                        if (result.feedUrl in subscribing) {
-                            CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(stringResource(if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
+            val stacked = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+            val subscribeAction: @Composable () -> Unit = {
+                val done = result.feedUrl in subscribed
+                if (done) SubscribedIndicator(showText = true) else Button(onClick = {
+                    scope.launch {
+                        subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
+                        try {
+                            withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
+                            subscribed = subscribed + result.feedUrl
+                            model.requestSync()
+                            model.offerUnsubscribe(session, result.feedUrl)
+                        } catch (e: CancellationException) { throw e }
+                        catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
+                        finally { subscribing = subscribing - result.feedUrl }
                     }
-                })
+                }, enabled = result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
+                    if (result.feedUrl in subscribing) {
+                        CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(stringResource(if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
+                }
+            }
+            ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
+                leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true, placeholderTitle = result.title) },
+                trailingContent = if (stacked) null else subscribeAction)
+            if (stacked) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End) { subscribeAction() }
             failures[result.feedUrl]?.let { failure ->
                 InlineError(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }

@@ -48,7 +48,7 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
     }
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         item { Section(stringResource(R.string.m4_downloads_device)) }
-        item { ValueRow(stringResource(R.string.m4_download_rule), stringResource(ruleLabels[modeIndex]), rule.mode != DownloadMode.Never, stringResource(ruleHelp[modeIndex])) { sheet = 0 } }
+        item { ValueRow(stringResource(R.string.m4_download_rule), stringResource(ruleLabels[modeIndex]), rule.mode != DownloadMode.Never) { sheet = 0 } }
         if (rule.mode == DownloadMode.AllNew) item { ValueRow(stringResource(R.string.m4_keep_at_most), rule.keepAtMost?.let { pluralStringResource(R.plurals.episode_count, it.toInt(), it.toInt()) } ?: stringResource(R.string.m4_unlimited), rule.keepAtMost != null) { sheet = 0 } }
         item { Section(stringResource(R.string.played)) }
         item { ValueRow(stringResource(R.string.m4_played_threshold), threshold?.let { stringResource(R.string.m4_seconds, it.toLong()) } ?: stringResource(R.string.m4_default_value, stringResource(R.string.m4_seconds, 30L)), threshold != null, stringResource(R.string.m4_threshold_help)) { sheet = 1 } }

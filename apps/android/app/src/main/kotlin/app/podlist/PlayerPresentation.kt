@@ -107,7 +107,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                                 LaunchedEffect(revision, episode) { episodeData = episode?.let { withContext(Dispatchers.IO) { readScreen(session.db, "episode:$it") } } }
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     if (page != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { pages = pages.dropLast(1) }
-                                    Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else stringResource(when { page.startsWith("episode:") -> R.string.episode; page == "chapters" -> R.string.chapters; else -> R.string.entries }), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                                    Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else if (page.startsWith("episode:")) episodeData?.episodes?.firstOrNull()?.get("title") as? String ?: stringResource(R.string.episode) else stringResource(if (page == "chapters") R.string.chapters else R.string.entries), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                                     EditHistoryMenu()
                                     episodeData?.let { EpisodeOverflow(it, session) }
                                     ActionIcon(R.drawable.ic_collapse, stringResource(R.string.collapse_player)) { pages = emptyList(); scope.launch { sheet.bottomSheetState.partialExpand() } }
@@ -146,7 +146,7 @@ private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expan
     val progressLabel = stringResource(R.string.playback_position)
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = ripple(), onClickLabel = accessible, onClick = expand).semantics { isTraversalGroup = true }) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(48.dp).clickable(onClickLabel = accessible, onClick = expand).semantics { contentDescription = accessible; traversalIndex = 0f }, contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp) }
+            Box(Modifier.size(48.dp).clickable(onClickLabel = accessible, onClick = expand).semantics { contentDescription = accessible; traversalIndex = 0f }, contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp, placeholderTitle = now.metadata.podcast) }
             Row(Modifier.weight(1f).semantics { isTraversalGroup = true; traversalIndex = 1f }, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 SkipButton(false, false) { model.seek(now.position - 15) }
                 val actionLabel = stringResource(if (now.error) R.string.retry_playback else if (now.buffering) R.string.buffering else if (now.playing) R.string.pause else R.string.play)
@@ -170,7 +170,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
     var sleep by rememberSaveable { mutableStateOf(false) }
     val identity = stringResource(R.string.now_playing_identity, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
     PlayerLayout(artwork = { size ->
-        Box(Modifier.semantics { contentDescription = identity }) { ArtworkImage(session, now.artwork, size) }
+        Box(Modifier.semantics { contentDescription = identity }) { ArtworkImage(session, now.artwork, size, placeholderTitle = now.metadata.podcast) }
     }) {
         if (now.metadata.chapters.isNotEmpty()) Box {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -191,14 +191,13 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         Box {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                 SkipButton(false, true) { model.seek(now.position - 15) }
-                ActionTooltip(stringResource(if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
+                ActionTooltip(stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
                 SkipButton(true, true) { model.seek(now.position + 30) }
             }
         }
-        if (now.error) Column(horizontalAlignment = Alignment.CenterHorizontally) { InlineError(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp)); ContentTextButton(onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
-        else if (now.buffering) Box { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
+        if (now.buffering) Box { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
                 ContentTextButton(onClick = { speed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
                 ContentTextButton(onClick = { sleep = true }) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
@@ -314,7 +313,7 @@ private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composabl
     LazyColumn {
         if (now.metadata.chapters.isEmpty()) item { EmptyMessage(R.string.no_chapters) }
         items(now.metadata.chapters, key = { it.start }) { chapter ->
-            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { model.seek(chapter.start); started() }, headlineContent = { Text(chapter.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: now.metadata.episodeArtwork ?: now.metadata.podcastArtwork) })
+            ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { model.seek(chapter.start); started() }, headlineContent = { Text(chapter.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: now.metadata.episodeArtwork ?: now.metadata.podcastArtwork, placeholderTitle = now.metadata.podcast) })
         }
     }
 }
