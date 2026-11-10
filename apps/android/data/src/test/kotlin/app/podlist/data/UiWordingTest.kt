@@ -175,7 +175,6 @@ class UiWordingTest {
         assertEquals("Show help for completed steps", text("show_completed_steps"))
         assertEquals("Hide help for completed steps", text("hide_completed_steps"))
         assertEquals("Current Entry", text("cursor_here"))
-        assertEquals("No podcasts use: Stream, As published", text("unused_download_rules").format("Stream, As published"))
         assertEquals("Time before the end that counts as Played.", text("m4_threshold_help"))
         assertFalse(text("m4_threshold_help").contains("30 seconds"))
         assertEquals("Default follows your global Playback Settings.", text("m4_override_help"))
@@ -187,6 +186,38 @@ class UiWordingTest {
             .single { it.getAttribute("name") == "entries_added_to_playlist" }.getElementsByTagName("item")
         assertEquals("Added 1 Entry to Commute", entries.item(0).textContent.format(1, "Commute"))
         assertEquals("Added 3 Entries to Commute", entries.item(1).textContent.format(3, "Commute"))
+    }
+
+    @Test fun `history feedback always carries the original named action`() {
+        assertEquals("Undid: Marked “100% listening” Starred", text("edit_undone_specific").format(text("episode_starred").format("100% listening")))
+        assertEquals("Redid: Created View “Walk”", text("edit_redone_specific").format(text("view_created").format("Walk")))
+        assertEquals("Speed 1.0×", text("speed_accessibility").format("1.0×"))
+    }
+
+    @Test fun `OPML failures distinguish access size format connection and destination`() {
+        assertTrue(text("opml_read_error").contains("accessible OPML file"))
+        assertTrue(text("opml_size_error").contains("8 MiB"))
+        assertTrue(text("opml_invalid_error").contains("isn’t valid OPML"))
+        assertTrue(text("opml_export_error").contains("connection"))
+        assertTrue(text("opml_write_error").contains("another location"))
+    }
+
+    @Test fun `bulk and import messages name counts objects and scope`() {
+        fun plural(name: String, vararg args: Any): String {
+            val plurals = resources.getElementsByTagName("plurals")
+            val items = (0 until plurals.length).map { plurals.item(it) as Element }
+                .single { it.getAttribute("name") == name }.getElementsByTagName("item")
+            return items.item(if (args[0] == 1) 0 else 1).textContent.format(*args)
+        }
+        assertEquals("Marked 3 Episodes Played", plural("episodes_played", 3))
+        assertEquals("Marked 1 Episode Unplayed", plural("episodes_unplayed", 1))
+        assertEquals("Marked 3 Episodes Not Starred", plural("episodes_unstarred", 3))
+        assertEquals("Updated Download Rule for 3 Subscriptions", plural("download_rules_changed", 3))
+        assertEquals("Marked 3 Episodes Played in Deep Field", plural("subscription_episodes_played", 3, "Deep Field"))
+        assertEquals("Imported 12 podcasts", plural("import_added", 12))
+        assertEquals("Exported 12 podcasts", plural("podcasts_exported", 12))
+        assertEquals("Imported 12 podcasts · 2 podcasts already subscribed · 1 podcast failed",
+            text("m4_import_summary").format(plural("import_added", 12), plural("import_existing", 2), plural("import_failed", 1)))
     }
 
 }

@@ -7,6 +7,9 @@ import kotlin.math.pow
 object ListeningPresentation {
     const val unselectedBarAlpha = .72f
 
+    fun selectedDayIndex(saved: String?, days: List<java.time.LocalDate>): Int =
+        days.indexOfFirst { it.toString() == saved }.takeIf { it >= 0 } ?: days.lastIndex
+
     data class Time(val hours: Long, val minutes: Long, val underMinute: Boolean)
 
     fun time(seconds: Double): Time {

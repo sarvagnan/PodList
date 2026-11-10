@@ -19,4 +19,11 @@ class ListeningPresentationTest {
         assertEquals(.5f, ListeningPresentation.barFraction(600.0, 1200.0))
         assertEquals(1f, ListeningPresentation.barFraction(1800.0, 1200.0))
     }
+    @Test fun `stats selection follows the date as the thirty day window advances`() {
+        val day = java.time.LocalDate.of(2026, 11, 3)
+        assertEquals(1, ListeningPresentation.selectedDayIndex(day.toString(), listOf(day.minusDays(1), day, day.plusDays(1))))
+        assertEquals(0, ListeningPresentation.selectedDayIndex(day.toString(), listOf(day, day.plusDays(1), day.plusDays(2))))
+        assertEquals(1, ListeningPresentation.selectedDayIndex(day.minusDays(40).toString(), listOf(day, day.plusDays(1))))
+        assertEquals(1, ListeningPresentation.selectedDayIndex("invalid", listOf(day, day.plusDays(1))))
+    }
 }

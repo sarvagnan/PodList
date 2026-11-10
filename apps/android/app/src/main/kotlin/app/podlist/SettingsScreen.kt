@@ -43,7 +43,7 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
             val index = if (key in playbackKeys) playbackKeys.indexOf(key) + 2 else {
                 val retentionIndex = 10 + (if (busy) 1 else 0) +
                     (if (!busy && opml.progress?.remaining?.isNotEmpty() == true) 1 else 0) +
-                    (if (error) 1 else 0) + (if (summary != null) 1 else 0)
+                    (if (error != null) 1 else 0) + (if (summary != null) 1 else 0)
                 if (key == SettingKey.TrashRetention) retentionIndex else retentionIndex + 2
             }
             if (index >= 0) listState.animateScrollToItem(index)
@@ -58,8 +58,8 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         playbackKeys.forEach { key -> item(key = key) { PlaybackSettingsEditor(data.state.playbackSettings, key) } }
         item { Section(stringResource(R.string.m4_your_listening)); SettingsRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
-        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }); ContentDivider() }
-        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }); ContentDivider() }
+        item { ValueRow(stringResource(R.string.m4_import_opml), stringResource(R.string.m4_import_help), enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) } }
+        item { ValueRow(stringResource(R.string.m4_export_opml), stringResource(R.string.m4_export_help), enabled = !busy) { export.launch("podlist-subscriptions.opml") } }
         if (busy) item {
             Column(Modifier.padding(16.dp)) {
                 val progress = opml.progress
@@ -74,10 +74,10 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         if (!busy && opml.progress?.remaining?.isNotEmpty() == true) item {
             Column(Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.import_stopped)); ContentTextButton(onClick = actions::resume) { Text(stringResource(R.string.import_resume)) } }
         }
-        if (error) item { Column(Modifier.padding(16.dp)) { InlineError(stringResource(R.string.m4_opml_error), modifier = Modifier); ContentTextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
+        if (error != null) item { Column(Modifier.padding(16.dp)) { InlineError(stringResource(error), modifier = Modifier); ContentTextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
         summary?.let { result -> item {
             Column(Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.m4_import_summary, result.added, result.alreadySubscribed, result.failed.size))
+                Text(stringResource(R.string.m4_import_summary, pluralStringResource(R.plurals.import_added, result.added, result.added), pluralStringResource(R.plurals.import_existing, result.alreadySubscribed, result.alreadySubscribed), pluralStringResource(R.plurals.import_failed, result.failed.size, result.failed.size)))
                 result.failed.forEach { failure -> InlineError(stringResource(R.string.m4_import_failure, failure.feedUrl, stringResource(lookupErrorResource(failure.error))), Modifier) }
                 if (result.failed.isNotEmpty()) ContentTextButton(enabled = !busy, onClick = actions::retryFailed) { Text(stringResource(R.string.m4_retry_failed)) }
             }
@@ -100,7 +100,7 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
 
 @Composable
 private fun SettingsRow(title: String, subtitle: String, onClick: () -> Unit) {
-    NameRow(title, subtitle, titleStyle = MaterialTheme.typography.bodyLarge, onClick = onClick)
+    ValueRow(title, subtitle, onClick = onClick)
 }
 
 internal fun appearanceLabel(appearance: app.podlist.data.Appearance): Int = when (appearance) {

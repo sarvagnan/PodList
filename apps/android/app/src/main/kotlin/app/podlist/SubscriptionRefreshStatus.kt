@@ -48,8 +48,6 @@ internal fun RedoMenuItem(close: () -> Unit) {
 
 @Composable
 internal fun HistoryOverflow() {
-    val redo by LocalAppModel.current.latestRedo.collectAsState()
-    if (redo == null) return
     var expanded by remember { mutableStateOf(false) }
     Box {
         ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }

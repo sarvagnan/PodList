@@ -26,10 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, onClick: () -> Unit) {
+internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
     val valueColor = MaterialTheme.colorScheme.onSurfaceVariant
     val shownValue = if (changed) stringResource(R.string.changed_value, value) else value
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(16.dp),
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, onClick = onClick).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label, style = MaterialTheme.typography.bodyLarge)
@@ -68,9 +68,9 @@ internal fun ContentTextButton(
     colors: ButtonColors = ButtonDefaults.textButtonColors(),
     content: @Composable RowScope.() -> Unit
 ) {
-    // Keep the whole padded button within the content gutter.
+    // Callers supply the 16 dp gutter; the label starts on that keyline.
     TextButton(onClick, modifier.heightIn(min = 48.dp), enabled = enabled,
-        colors = colors, content = content)
+        colors = colors, contentPadding = PaddingValues(vertical = 8.dp), content = content)
 }
 
 /** Bordered secondary commands remain recognisable beside headings and explanatory text. */
@@ -88,16 +88,17 @@ internal fun ContentActionButton(
         content = content)
 }
 
-/** At enlarged text sizes titles and actions get separate rows, preserving whole words. */
+/** Only bars with page actions split at large text sizes; history-only controls stay inline. */
 @Composable
 internal fun PodListTopAppBar(
     title: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
-    scrollBehavior: TopAppBarScrollBehavior? = null
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+    separateActions: Boolean = true
 ) {
-    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) {
+    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f && separateActions) {
         Surface {
             Column(modifier) {
                 TopAppBar(title = title, navigationIcon = navigationIcon,
@@ -109,7 +110,8 @@ internal fun PodListTopAppBar(
             }
         }
     } else TopAppBar(title = title, modifier = modifier, navigationIcon = navigationIcon,
-        actions = actions, scrollBehavior = scrollBehavior)
+        actions = actions, scrollBehavior = scrollBehavior,
+        expandedHeight = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) with(androidx.compose.ui.platform.LocalDensity.current) { 56.sp.toDp() + 16.dp } else 64.dp)
 }
 
 /** Quiet, inset separators keep adjacent list rows distinct without heavy rules. */

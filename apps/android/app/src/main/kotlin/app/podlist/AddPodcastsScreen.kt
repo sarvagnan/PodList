@@ -13,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -51,6 +53,9 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
     LaunchedEffect(incomingFeed) { incomingFeed?.let { input = it; model.incomingFeed.compareAndSet(it, null) } }
     var results by rememberSaveable(stateSaver = Saver<List<DirectoryResult>, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(emptyList()) }
     var busy by remember { mutableStateOf(false) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+    var searchVersion by remember { mutableIntStateOf(0) }
+    fun cancelSearch() { searchVersion++; searchJob?.cancel(); busy = false }
     var error by remember { mutableStateOf<Int?>(null) }
     val failures = remember { mutableStateMapOf<String, LookupError>() }
     var subscribing by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -61,24 +66,28 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
         subscribed = withContext(Dispatchers.IO) { session.db.query("SELECT feed_url FROM subscription WHERE unsubscribed_at IS NULL").map { it["feed_url"] as String }.toSet() }
     }
     fun find() {
-        if (busy || input.isBlank()) return
+        if (input.isBlank()) return
+        cancelSearch()
+        val version = searchVersion
         val query = input.trim()
-        scope.launch {
+        searchJob = scope.launch {
             busy = true; error = null; results = emptyList(); failures.clear()
             try {
-                results = withContext(Dispatchers.IO) { session.source.search(query).distinctBy { it.feedUrl } }
+                val found = withContext(Dispatchers.IO) { session.source.search(query).distinctBy { it.feedUrl } }
+                if (version != searchVersion) return@launch
+                results = found
                 if (results.isEmpty()) error = if (isFeedAddress(query)) R.string.bad_feed_address else R.string.no_podcasts_found
             } catch (e: CancellationException) { throw e }
-            catch (failure: Exception) { error = lookupErrorResource(classifyLookup(failure)) }
-            finally { busy = false }
+            catch (failure: Exception) { if (version == searchVersion) error = lookupErrorResource(classifyLookup(failure)) }
+            finally { if (version == searchVersion) busy = false }
         }
     }
     LazyColumn(Modifier.fillMaxSize().imePadding()) {
         item {
             Column {
-                OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
-                    singleLine = true, enabled = !busy, isError = error != null,
-                    supportingText = error?.let { message -> ({ InlineError(stringResource(message)) }) }, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
+                OutlinedTextField(input, onValueChange = { cancelSearch(); input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
+                    singleLine = true, isError = error != null,
+                    supportingText = error?.let { message -> ({ InlineError(stringResource(message)) }) }, trailingIcon = { SearchClearButton(input) { cancelSearch(); input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
                 CommitActions(Modifier.padding(horizontal = 16.dp)) {
                     if (input.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("add-podcasts/"); results = emptyList(); error = null }) { Text(stringResource(R.string.discard_draft)) }
                     CommitButton(onClick = ::find, enabled = input.isNotBlank() && !busy) { Text(stringResource(R.string.find_podcasts)) }
@@ -90,24 +99,27 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
             val stacked = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
             val subscribeAction: @Composable () -> Unit = {
                 val done = result.feedUrl in subscribed
-                if (done) SubscribedIndicator(showText = true) else Button(onClick = {
-                    scope.launch {
-                        subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
-                        try {
-                            withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
-                            subscribed = subscribed + result.feedUrl
-                            model.requestSync()
-                            model.offerUnsubscribe(session, result.feedUrl)
-                        } catch (e: CancellationException) { throw e }
-                        catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
-                        finally { subscribing = subscribing - result.feedUrl }
+                // Measure Subscribe once; success and pending states keep the same footprint.
+                Box(Modifier.width(IntrinsicSize.Max).heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.subscribe), Modifier.padding(horizontal = 24.dp, vertical = 8.dp).graphicsLayer { alpha = 0f }.clearAndSetSemantics {})
+                    if (done) SubscribedIndicator() else Button(onClick = {
+                        scope.launch {
+                            subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
+                            try {
+                                withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
+                                subscribed = subscribed + result.feedUrl
+                                model.requestSync()
+                                model.offerUnsubscribe(session, result.feedUrl)
+                            } catch (e: CancellationException) { throw e }
+                            catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
+                            finally { subscribing = subscribing - result.feedUrl }
+                        }
+                    }, enabled = result.feedUrl !in subscribing, modifier = Modifier.matchParentSize()) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(stringResource(R.string.subscribe), if (result.feedUrl in subscribing) Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics {} else Modifier)
+                            if (result.feedUrl in subscribing) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
+                        }
                     }
-                }, enabled = result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
-                    if (result.feedUrl in subscribing) {
-                        CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text(stringResource(if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
                 }
             }
             ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },

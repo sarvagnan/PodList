@@ -11,7 +11,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /** Capture inverses against the latest local State, in the same transaction as the edit. */
-internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, formatArgs: List<Any> = emptyList(), notify: Boolean = true, inverse: (State) -> List<Change>) {
+internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, formatArgs: List<Any> = emptyList(), notify: Boolean = true, quantity: Int? = null, inverse: (State) -> List<Change>) {
     val current = session.value ?: return
     val sheet = feedbackSheet
     val action: suspend () -> Unit = {
@@ -23,7 +23,7 @@ internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playba
                 recordAll(changes, System.currentTimeMillis())
                 result to restoredMessage(before, loadState(), changes)
             } }
-            recordHistory(current, (result.second ?: AppMessage(message, formatArgs = formatArgs)).copy(feedbackSheet = sheet), changesStep(current, result.first, playbackPlaylist), notify = notify)
+            recordHistory(current, (result.second ?: AppMessage(message, formatArgs = formatArgs, quantity = quantity)).copy(feedbackSheet = sheet), changesStep(current, result.first, playbackPlaylist), notify = notify)
         }
     }
     if (playbackPlaylist != null) playbackEdit(playbackPlaylist, action)
@@ -122,9 +122,10 @@ internal fun AppModel.markSubscriptionPlayed(subscriptionId: String) {
                 val at = System.currentTimeMillis()
                 val undo = EpisodeActions.undoPlayed(before, ids, at + 1)
                 recordAll(ids.map { Change.MarkPlayed(it, PlayedSource.User) }, at)
-                undo
+                undo to ids.size
             } }
-            recordHistory(current, AppMessage(R.string.m4_marked_all), changesStep(current, inverse))
+            val name = withContext(Dispatchers.IO) { current.db.query("SELECT title FROM subscription WHERE id = ?", listOf(subscriptionId)).firstOrNull()?.get("title") as? String ?: subscriptionId }
+            recordHistory(current, AppMessage(R.plurals.subscription_episodes_played, formatArgs = listOf(inverse.second, name), quantity = inverse.second), changesStep(current, inverse.first))
         }
     }
 }
@@ -178,6 +179,9 @@ internal fun AppModel.removeEntry(playlist: String, episode: String) {
 
 /** Use committed State so feedback reflects a suffix selected inside the transaction. */
 internal fun restoredMessage(before: State, after: State, changes: List<Change>): AppMessage? {
+    changes.filterIsInstance<Change.RenamePlaylist>().firstOrNull()?.let { change ->
+        after.playlists.find { it.id == change.playlistId }?.let { return AppMessage(R.string.playlist_renamed_to, formatArgs = listOf(it.name)) }
+    }
     val id = changes.filterIsInstance<Change.RestorePlaylist>().firstOrNull()?.playlistId ?: return null
     val original = before.trash?.find { it.playlist.id == id }?.playlist ?: return null
     val restored = after.playlists.find { it.id == id } ?: return null
