@@ -109,7 +109,7 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
         if (shown != null) Image(shown.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
         else {
             val title = placeholderTitle?.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name)
-            val initials = title.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1) }.uppercase(java.util.Locale.getDefault())
+            val initials = title.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1) }.uppercase(androidx.compose.ui.platform.LocalConfiguration.current.locales[0])
             // Artwork is decorative; its lettering scales with the tile, independently of body text.
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, 1f)) {
