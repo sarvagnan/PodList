@@ -211,7 +211,8 @@
     <string name="m4_delete_playlist">Delete Playlist</string>
     <string name="m4_trash_help">It goes to Trash with its History and Listening Timeline, and can be restored for %1$d days.</string>
     <string name="m4_playlist_deleted">Playlist %1$s moved to Trash</string>
-    <string name="use_saved_playlist_name">Use saved name (%1$s)</string>
+    <string name="rename">Rename</string>
+    <string name="save">Save</string>
     <string name="m4_create_playlist">Create Playlist</string>
     <string name="m4_playlist_empty">A Playlist needs a name.</string>
     <string name="m4_playlist_duplicate">There’s already a Playlist called “%1$s”.</string>
@@ -372,7 +373,7 @@
     <string name="episode_unplayed">Episode marked Unplayed</string>
     <string name="episodes_starred">Episodes starred</string>
     <string name="episodes_played">Episodes marked Played</string>
-    <string name="playlist_renamed">Playlist renamed</string>
+    <string name="playlist_renamed_to">Playlist renamed to %1$s</string>
     <string name="view_changed">View changed</string>
     <string name="download_rule_changed">Download Rule changed</string>
     <string name="entry_removed">Entry removed from Playlist</string>

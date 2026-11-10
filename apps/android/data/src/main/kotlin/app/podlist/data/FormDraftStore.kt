@@ -8,11 +8,10 @@ class FormDraftStore(private val db: LocalDatabase) {
 
     fun put(key: String, text: String) { db.setMeta("formDraft:$key", text) }
 
-    // A deliberate reversal replaces the raw draft even when its editor is off screen.
+    // Live editors follow deliberate reversals even off screen. Explicit rename drafts stay open.
     fun reconcile(changes: List<Change>) {
         changes.forEach { change ->
             when (change) {
-                is Change.RenamePlaylist -> clear("playlist:${change.playlistId}/")
                 is Change.DeletePlaylist -> clear("playlist:${change.playlistId}/")
                 is Change.SaveView -> clear("view:${change.view.id}/")
                 is Change.DeleteView -> clear("view:${change.viewId}/")

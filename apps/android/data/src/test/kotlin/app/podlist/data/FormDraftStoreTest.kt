@@ -69,4 +69,74 @@ class FormDraftStoreTest {
             assertEquals("Walk", drafts.load()["new-playlist/name"])
         }
     }
+
+    @Test fun `open rename persists unchanged empty and valid text without recording edits`() {
+        val file = directory.resolve("rename.sqlite").toString()
+        val key = "playlist:walk/rename"
+        LocalDatabase(file).use { db ->
+            db.ensureState()
+            db.record(Change.CreatePlaylist("walk", "Walk", false), 100)
+        }
+        for (text in listOf("Walk", "", "  Morning’s walk  ")) {
+            LocalDatabase(file).use { db ->
+                val pending = db.outbox()
+                FormDraftStore(db).put(key, text)
+                assertEquals(pending, db.outbox())
+                assertEquals("Walk", db.loadState().playlists.single { it.id == "walk" }.name)
+            }
+            LocalDatabase(file).use { db -> assertEquals(text, FormDraftStore(db).load()[key]) }
+        }
+    }
+
+    @Test fun `rename from another Device keeps typing and validates against the new saved names`() {
+        val file = directory.resolve("rename-elsewhere.sqlite").toString()
+        val key = "playlist:walk/rename"
+        LocalDatabase(file).use { db ->
+            db.ensureState()
+            db.record(Change.CreatePlaylist("walk", "Walk", false), 100)
+            db.record(Change.CreatePlaylist("other", "Other", false), 101)
+            val drafts = FormDraftStore(db)
+            drafts.put(key, "  Morning  ")
+            val changes = listOf(Change.RenamePlaylist("walk", "Evening"), Change.RenamePlaylist("other", "Morning"))
+            db.recordAll(changes, 102)
+            drafts.reconcile(changes)
+        }
+        LocalDatabase(file).use { db ->
+            val text = FormDraftStore(db).load().getValue(key)
+            assertEquals("  Morning  ", text)
+            assertEquals("Evening", db.loadState().playlists.single { it.id == "walk" }.name)
+            assertEquals(PlaylistNames.Problem.Duplicate, PlaylistNames.validate(text, db.loadState().playlists, "walk"))
+        }
+    }
+
+    @Test fun `saving clears the rename and records one reversible edit while Delete clears open renames`() {
+        val file = directory.resolve("rename-save.sqlite").toString()
+        LocalDatabase(file).use { db ->
+            db.ensureState()
+            db.record(Change.CreatePlaylist("walk", "Walk", false), 100)
+            val drafts = FormDraftStore(db)
+            drafts.put("playlist:walk/rename", "  Morning  ")
+            drafts.put("playlist:other/rename", "Keep")
+            val count = db.outbox().size
+            val inverse = db.transaction {
+                val undo = reversibleEdit(listOf(Change.RenamePlaylist("walk", drafts.load().getValue("playlist:walk/rename").trim())), 101)
+                drafts.clear("playlist:walk/")
+                undo
+            }
+            assertEquals(count + 1, db.outbox().size)
+            assertEquals("Morning", db.loadState().playlists.single { it.id == "walk" }.name)
+            assertNull(drafts.load()["playlist:walk/rename"])
+            db.reversibleEdit(inverse, 102)
+            drafts.reconcile(inverse)
+            assertEquals("Walk", db.loadState().playlists.single { it.id == "walk" }.name)
+            drafts.put("playlist:walk/rename", "Still typing")
+            val deletion = listOf(Change.DeletePlaylist("walk"))
+            db.reversibleEdit(deletion, 103)
+            drafts.reconcile(deletion)
+        }
+        LocalDatabase(file).use { db ->
+            assertEquals(mapOf("playlist:other/rename" to "Keep"), FormDraftStore(db).load())
+            assertTrue(db.loadState().playlists.none { it.id == "walk" })
+        }
+    }
 }
