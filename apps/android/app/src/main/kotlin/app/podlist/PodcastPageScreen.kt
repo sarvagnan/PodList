@@ -6,7 +6,6 @@ import android.os.SystemClock
 import android.view.ViewConfiguration
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
@@ -29,6 +28,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -74,7 +74,15 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     val episodeFailures = remember(result.feedUrl) { mutableStateMapOf<String, Pair<LookupError, () -> Unit>>() }
     var revealGuid by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var changingSubscription by remember { mutableStateOf(false) }
+    val subscriptionFailures by model.subscriptionFailures.collectAsState()
+    val subscriptionFailure = subscriptionFailures[result.feedUrl]
+    val transitions by model.subscriptionTransitions.collectAsState()
+    val transition = transitions[result.feedUrl]
+    val changingSubscription = transition?.pending == true
+    val shownSubscribed = transition?.target ?: subscribed
+    LaunchedEffect(subscribed, transition) {
+        if (transition?.pending == false && transition.target == subscribed) model.subscriptionTransitions.value -= result.feedUrl
+    }
     var confirmation by remember(result.feedUrl) { mutableStateOf(TwoTapConfirmation()) }
     val armed = confirmation.isArmed
     val accessibility = LocalContext.current.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -196,40 +204,51 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     }
     fun changeSubscription(remove: Boolean) {
         confirmation = confirmation.disarm()
-        if (busy) return
+        if (busy || model.subscriptionTransitions.value[result.feedUrl]?.pending == true) return
+        model.subscriptionFailures.value -= result.feedUrl
+        model.subscriptionTransitions.value += result.feedUrl to AppModel.SubscriptionTransition(!remove)
         scope.launch {
-            busy = true; changingSubscription = true; actionFailure = null
+            busy = true; actionFailure = null
             try {
                 withContext(Dispatchers.IO) {
                     if (remove) session.source.unsubscribe(requireNotNull(id)) else session.source.subscribe(result.feedUrl)
                 }
+                model.subscriptionTransitions.value += result.feedUrl to AppModel.SubscriptionTransition(!remove, pending = false)
                 model.requestSync()
                 model.offerSubscriptionHistory(session, listOf(result.feedUrl), subscribe = remove,
                     AppMessage(if (remove) R.string.unsubscribed_message else R.string.subscribed_message, formatArgs = listOf(title)), reveal = false)
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
+                model.subscriptionTransitions.value -= result.feedUrl
                 actionFailure = classifyLookup(error)
                 retryAction = { changeSubscription(remove) }
             }
-            finally { busy = false; changingSubscription = false }
+            finally {
+                busy = false
+                if (model.subscriptionTransitions.value[result.feedUrl]?.pending == true) model.subscriptionTransitions.value -= result.feedUrl
+            }
         }
     }
+    val collapsingTitle = remember(result.feedUrl) { CollapsingTitle() }
     val inspected = rows.find { it["guid"] == inspectingGuid }
     if (inspected != null) {
         BackHandler { inspectingGuid = null }
         val episodeScroll = TopAppBarDefaults.pinnedScrollBehavior()
+        val episodeTitle = remember(inspectingGuid) { CollapsingTitle() }
         Scaffold(modifier = Modifier.nestedScroll(episodeScroll.nestedScrollConnection), topBar = {
-            TopAppBar(scrollBehavior = episodeScroll, title = { Text(inspected["title"] as? String ?: stringResource(R.string.episode), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            TopAppBar(scrollBehavior = episodeScroll, title = { Text(if (episodeTitle.headlineVisible) stringResource(R.string.episode) else inspected["title"] as? String ?: stringResource(R.string.episode), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { inspectingGuid = null }
             }, actions = { EpisodeOverflow(data.copy(episodes = listOf(inspected)), session) })
         }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                EpisodeDetail(data.copy(episodes = listOf(inspected)), session, resolve = if (localRows.any { it["id"] == inspected["id"] }) null else ::resolve,
-                    actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"], actionError = {
-                        episodeFailures[inspected["guid"]]?.let { (error, retry) ->
-                            EpisodeActionFailure(inspected["title"] as String, error, !busy, retry)
-                        }
-                    })
+                CompositionLocalProvider(LocalCollapsingTitle provides episodeTitle) {
+                    EpisodeDetail(data.copy(episodes = listOf(inspected)), session, resolve = if (localRows.any { it["id"] == inspected["id"] }) null else ::resolve,
+                        actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"], actionError = {
+                            episodeFailures[inspected["guid"]]?.let { (error, retry) ->
+                                EpisodeActionFailure(inspected["title"] as String, error, !busy, retry)
+                            }
+                        })
+                }
             }
         }
         return
@@ -270,13 +289,13 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     Scaffold(modifier = disarmOnOtherTap.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
-            else TopAppBar(scrollBehavior = scrollBehavior, title = { Text(title.ifBlank { stringResource(R.string.podcast) }, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            else TopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (collapsingTitle.headlineVisible) stringResource(R.string.podcast) else title.ifBlank { stringResource(R.string.podcast) }, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
-                if (!armed) EditHistoryMenu()
-                if (subscribed) {
-                    if (!armed || LocalDensity.current.fontScale < 1.5f) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { openPage("subscription-settings:$id") }
-                    val label = if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
+                if (!armed) EditHistoryMenu(overflow = false) else Spacer(Modifier.size(48.dp))
+                if (shownSubscribed) {
+                    if (!armed || LocalDensity.current.fontScale < 1.5f) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy && !changingSubscription && id != null) { openPage("subscription-settings:$id") }
+                    val label = if (changingSubscription) stringResource(R.string.subscribing) else if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
                     val armedAnnouncement = stringResource(R.string.podcast_unsubscribe_armed, title)
                     // A single semantics/click node retains focus and its trailing edge as it grows left.
                     ActionTooltip(label) {
@@ -290,27 +309,30 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                     AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_TEXT)
                                 confirmation = confirmation.arm(now, timeout.toLong())
                             }
-                        }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        }, enabled = !busy && !changingSubscription, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                             contentPadding = PaddingValues(horizontal = if (armed) 12.dp else 0.dp),
                             modifier = Modifier.padding(end = 12.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }
-                                .animateContentSize(alignment = Alignment.CenterEnd).height(48.dp).widthIn(min = 48.dp)
+                                .height(48.dp).widthIn(min = 48.dp).then(flowSlot("podcast-subscription"))
                                 .semantics {
                                     contentDescription = label
                                     stateDescription = if (armed) armedAnnouncement else ""
                                     liveRegion = LiveRegionMode.Polite
                                 }) {
-                            if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
+                            if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
                             else if (armed) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
                             else SubscribedIndicator()
                         }
                     }
-                } else Button(onClick = { changeSubscription(false) }, enabled = !busy, modifier = Modifier.padding(end = 12.dp)) {
-                    if (changingSubscription) CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
-                    else Text(stringResource(R.string.subscribe))
+                } else Button(onClick = { changeSubscription(false) }, enabled = !busy && !changingSubscription, modifier = Modifier.padding(end = 12.dp).heightIn(min = 48.dp).then(flowSlot("podcast-subscription"))) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(stringResource(R.string.subscribe), if (changingSubscription) Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics {} else Modifier)
+                        if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
+                    }
                 }
                 Box {
                     ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions), enabled = !armed) { confirmation = confirmation.disarm(); shareMenu = true }
                     DropdownMenu(shareMenu, onDismissRequest = { shareMenu = false }) {
+                        RedoMenuItem { shareMenu = false }
                         DropdownMenuItem(text = { Text(stringResource(R.string.share_podcast)) }, onClick = {
                             shareMenu = false
                             shareText(context, title, app.podlist.domain.ShareLinks.podcast(feed?.link ?: subscription?.get("website_url") as? String, result.feedUrl))
@@ -326,9 +348,15 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             })
             // A fixed 4 dp slot: the bar appears and goes without moving the page under the person's typing
             // (FLOW-01). The status is announced from the same slot instead of a line of text that comes and goes.
-            val status = if (!busy) null else stringResource(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)
+            val status = if (!busy && !changingSubscription) null else stringResource(if (changingSubscription) { if (shownSubscribed) R.string.subscribing else R.string.unsubscribing } else R.string.podcast_bringing_episode)
             Box(Modifier.fillMaxWidth().height(4.dp).semantics { if (status != null) { liveRegion = LiveRegionMode.Polite; contentDescription = status } }) {
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)))
+                if (busy || changingSubscription) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (shownSubscribed) R.string.subscribing else R.string.unsubscribing } else R.string.podcast_bringing_episode)))
+            }
+            subscriptionFailure?.let { error ->
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    InlineError(appMessageText(error))
+                    ContentTextButton(onClick = { error.undo?.invoke() }, enabled = !changingSubscription) { Text(stringResource(R.string.retry_action)) }
+                }
             }
             actionFailure?.let {
                 Column(Modifier.padding(horizontal = 16.dp)) {
@@ -340,12 +368,12 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     }, bottomBar = {
         if (selection != null && selection.ids.isNotEmpty()) SelectionActionBar(selection, data.copy(episodes = rows), session, "subscription:$id")
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
-        LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).imePadding().listSelectionKeys(selection).nestedScroll(pull).semantics {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).then(collapsingTitle.viewport()).imePadding().listSelectionKeys(selection).nestedScroll(pull).semantics {
             customActions = listOf(CustomAccessibilityAction(detailsLabel) { toggleDetails(); true })
         }) {
             item(key = "header") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+                    Text(title, headlineVisibility(collapsingTitle).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                     author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     if (expanded) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         ArtworkImage(session, artwork, size = 120.dp, direct = true, placeholderTitle = title)

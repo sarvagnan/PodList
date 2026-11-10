@@ -58,13 +58,11 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
 @Composable
 private fun PlaylistName(playlist: Playlist, data: ScreenData) {
     val model = LocalAppModel.current
+    var rejected by remember { mutableStateOf<Pair<String, Names.Problem>?>(null) }
     RenameableName(playlist.name, "playlist:${playlist.id}/rename",
-        problem = { text -> PlaylistNames.validate(text, data.state.playlists, playlist.id)?.let { playlistProblem(it, text, data.state.playlists.map { it.name }) } },
+        problem = { text -> (PlaylistNames.validate(text, data.state.playlists, playlist.id) ?: rejected?.takeIf { it.first == text.trim() }?.second)?.let { playlistProblem(it, text, data.state.playlists.map { it.name }) } },
         save = { name, close ->
-            model.changeWithUndo(listOf(Change.RenamePlaylist(playlist.id, name)), R.string.playlist_renamed_to, formatArgs = listOf(name)) { before ->
-                listOf(Change.RenamePlaylist(playlist.id, before.playlists.first { it.id == playlist.id }.name))
-            }
-            close(true)
+            model.renamePlaylist(playlist.id, name) { error, accepted -> rejected = error?.let { name to it }; close(accepted) }
         })
 }
 
@@ -80,6 +78,7 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () ->
     fun submit() {
         interacted = "true"
         if (busy || problem != null) return
+        drafts.flush()
         val submitted = drafts.snapshot("new-playlist/")
         busy = true
         model.createPlaylist(name) { id, error ->

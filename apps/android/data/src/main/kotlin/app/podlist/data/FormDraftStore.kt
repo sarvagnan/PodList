@@ -4,8 +4,32 @@ import app.podlist.domain.Change
 import java.util.UUID
 
 class FormDraftStore(private val db: LocalDatabase) {
-    fun load(): Map<String, String> = db.query("SELECT key, value FROM sync_meta WHERE key LIKE 'formDraft:%'")
+    private fun raw(): Map<String, String> = db.query("SELECT key, value FROM sync_meta WHERE key LIKE 'formDraft:%'")
         .associate { (it["key"] as String).removePrefix("formDraft:") to (it["value"] as String) }
+
+    fun load(): Map<String, String> = db.transaction {
+        val values = raw()
+        val submittedDrafts = values.filterKeys { it.endsWith("/submitted") }
+        if (submittedDrafts.isEmpty()) return@transaction values
+        val state = loadState()
+        submittedDrafts.forEach { (marker, submitted) ->
+            val key = marker.removeSuffix("/submitted")
+            val committed = when {
+                key.startsWith("playlist:") -> state.playlists.find { it.id == key.removePrefix("playlist:").substringBefore('/') }?.name
+                key.startsWith("view-rename:") -> state.views.find { it.id == key.removePrefix("view-rename:").substringBefore('/') }?.name
+                else -> null
+            }
+            if (committed == submitted.trim()) finishRename(key, submitted)
+        }
+        raw()
+    }
+
+    fun finishRename(key: String, submitted: String) = db.transaction {
+        val values = raw()
+        if (values[key] == values["$key/submitted"] && values["$key/submitted"]?.trim() == submitted.trim()) {
+            db.execute("DELETE FROM sync_meta WHERE key IN (?, ?)", listOf("formDraft:$key", "formDraft:$key/submitted"))
+        }
+    }
 
     /** One recoverable New View per Library; Back never clears this identity. */
     fun pendingNewViewId(): String = db.transaction {

@@ -109,7 +109,7 @@ class UiWordingTest {
     }
 
     @Test fun `empty Trash explains its contents retention setting and next step`() {
-        assertEquals("Trash holds deleted Playlists, together with their History and Listening Timeline, for 30 days, changeable in Settings.", text("empty_trash_help").format(30))
+        assertEquals("Delete a Playlist in its settings to move it here with its History and Listening Timeline. Restore it within 30 days.", text("empty_trash_help").format(30))
         assertTrue(text("empty_trash_help").format(7).contains("7 days"))
         assertEquals("Back to Playlists", text("back_to_playlists"))
         assertEquals("Find something to play", text("find_something_to_play"))
@@ -157,8 +157,8 @@ class UiWordingTest {
     @Test fun `remote Episode recovery names the affected Episode without treating its title as a format string`() {
         val title = "100% listening"
         assertEquals("Couldn’t add 100% listening.", text("podcast_episode_add_failed").format(title))
-        assertEquals("Retry 100% listening", text("retry_episode_named").format(title))
-        assertEquals("Retry", text("retry_episode_action"))
+        assertEquals("Try again: 100% listening", text("retry_episode_named").format(title))
+        assertEquals("Try again", text("retry_episode_action"))
         assertEquals("Couldn’t add 100% listening. Check your connection.",
             text("podcast_episode_add_error").format(title, "Check your connection."))
     }
@@ -167,7 +167,7 @@ class UiWordingTest {
         assertEquals("Show help for completed steps", text("show_completed_steps"))
         assertEquals("Hide help for completed steps", text("hide_completed_steps"))
         assertEquals("Current Entry", text("cursor_here"))
-        assertEquals("No podcasts", text("no_podcasts"))
+        assertEquals("No podcasts use: Stream, As published", text("unused_download_rules").format("Stream, As published"))
         assertEquals("Time before the end that counts as Played.", text("m4_threshold_help"))
         assertFalse(text("m4_threshold_help").contains("30 seconds"))
         assertEquals("Default follows your global Playback Settings.", text("m4_override_help"))

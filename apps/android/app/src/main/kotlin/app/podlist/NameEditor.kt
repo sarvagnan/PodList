@@ -59,13 +59,21 @@ internal fun RenameableName(
             // The persisted text owns this field even if Undo or another Device changes the saved name.
             var value by remember(draftKey) { mutableStateOf(TextFieldValue(draft, TextRange(0, draft.length))) }
             val fieldFocus = remember { FocusRequester() }
-            val reason = problem(value.text)
+            val validationProblem = problem(value.text)
+            var saveFailed by remember { mutableStateOf(false) }
+            val reason = validationProblem ?: if (saveFailed) stringResource(R.string.name_save_failed) else null
             var saving by remember { mutableStateOf(false) }
-            val canSave = !saving && reason == null && value.text.trim() != name
+            val canSave = !saving && validationProblem == null && value.text.trim() != name
             fun commit() {
                 if (!canSave || drafts.get(draftKey) == null) return
                 saving = true
-                save(value.text.trim()) { accepted -> saving = false; if (accepted) close() }
+                saveFailed = false
+                drafts.put("$draftKey/submitted", value.text)
+                drafts.flush()
+                save(value.text.trim()) { accepted ->
+                    saving = false
+                    if (accepted) close() else { saveFailed = true; drafts.clear("$draftKey/submitted") }
+                }
             }
             OutlinedTextField(value, { input ->
                     // The keyboard can send a last update as Cancel or Save closes the field; it must not reopen it.
@@ -73,6 +81,7 @@ internal fun RenameableName(
                     // Names are one line. The field wraps a long one; Enter means Save rather than a line break.
                     val enter = input.text.contains('\n')
                     val clean = input.copy(text = input.text.replace("\n", ""), selection = TextRange(input.selection.start.coerceAtMost(input.text.replace("\n", "").length)))
+                    saveFailed = false
                     drafts.put(draftKey, clean.text); value = clean
                     if (enter) commit()
                 },

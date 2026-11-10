@@ -119,6 +119,9 @@ internal class FlowRunReport(private val instrumentation: Instrumentation, priva
             val index = elements.count { it.id.startsWith("action:$handle:") }
             elements += Element("action:$handle:$index", text(node), node.boundsInRoot, node.boundsInWindow, node)
         }
+        visibleNodes.filter { it.config.getOrNull(FlowSlotKey) != null }.forEach { node ->
+            elements += Element("slot:${node.config[FlowSlotKey]}", text(node), node.boundsInRoot, node.boundsInWindow, node)
+        }
         val navigation = visibleNodes.filter { node ->
             text(node) in setOf("Views", "Playlists", "Library") && node.config.getOrNull(SemanticsProperties.Role) == Role.Tab && node.config.getOrNull(SemanticsProperties.Selected) != null
         }
@@ -160,7 +163,7 @@ internal class FlowRunReport(private val instrumentation: Instrumentation, priva
         }
         val viewport = Rect(visible.left.toFloat(), visible.top.toFloat(), visible.right.toFloat(), minOf(visible.bottom, imeTop).toFloat())
         val occluders = elements.filter { it.id in setOf("bottom-navigation", "mini-player", "snackbar") }
-        val followUps = elements.filter { it.label == "Undo" || it.label.startsWith("Retry") || it.id == "snackbar" }
+        val followUps = elements.filter { it.label == "Undo" || it.label.startsWith("Try again") || it.id == "snackbar" }
         val visibility = followUps.associate { element ->
             // Ancestors of the follow-up (its own snackbar) are not occluders.
             val box = element.window

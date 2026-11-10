@@ -103,18 +103,19 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                             else if (!contextual) {
                                 Box(Modifier.fillMaxWidth().height(20.dp), contentAlignment = Alignment.Center) { HorizontalDivider(Modifier.width(32.dp), thickness = 4.dp) }
                                 val episode = page?.takeIf { it.startsWith("episode:") }?.substringAfter(':')
+                                val episodeTitle = remember(episode) { CollapsingTitle() }
                                 var episodeData by remember(episode) { mutableStateOf<ScreenData?>(null) }
                                 LaunchedEffect(revision, episode) { episodeData = episode?.let { withContext(Dispatchers.IO) { readScreen(session.db, "episode:$it") } } }
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     if (page != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { pages = pages.dropLast(1) }
-                                    Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else if (page.startsWith("episode:")) episodeData?.episodes?.firstOrNull()?.get("title") as? String ?: stringResource(R.string.episode) else stringResource(if (page == "chapters") R.string.chapters else R.string.entries), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                                    EditHistoryMenu()
+                                    Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else if (page.startsWith("episode:")) (if (episodeTitle.headlineVisible) null else episodeData?.episodes?.firstOrNull()?.get("title") as? String) ?: stringResource(R.string.episode) else stringResource(if (page == "chapters") R.string.chapters else R.string.entries), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                                    EditHistoryMenu(overflow = episode == null)
                                     episodeData?.let { EpisodeOverflow(it, session) }
                                     ActionIcon(R.drawable.ic_collapse, stringResource(R.string.collapse_player)) { pages = emptyList(); scope.launch { sheet.bottomSheetState.partialExpand() } }
                                 }
                                 when {
                                     page?.startsWith("episode:") == true -> {
-                                        episodeData?.let { EpisodeDetail(it, session) }
+                                        episodeData?.let { CompositionLocalProvider(LocalCollapsingTitle provides episodeTitle) { EpisodeDetail(it, session) } }
                                     }
                                     page == "chapters" -> ChapterPage(current, session, model) { pages = emptyList() }
                                     page == "entries" -> PlayerEntries(current, session, model, revision, openEpisode = { pages = pages + "episode:$it" }) { pages = emptyList() }
@@ -199,13 +200,13 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-                ContentTextButton(onClick = { speed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
-                ContentTextButton(onClick = { sleep = true }) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
+                FilledTonalButton(onClick = { speed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }) { Icon(painterResource(R.drawable.ic_speed), null); Spacer(Modifier.width(8.dp)); Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
+                FilledTonalButton(onClick = { sleep = true }) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
             }
             FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
-                if (now.metadata.chapters.isNotEmpty()) TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
-                TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
+                FilledTonalButton(onClick = { open("episode") }) { Icon(painterResource(R.drawable.ic_episode), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.episode)) }
+                if (now.metadata.chapters.isNotEmpty()) FilledTonalButton(onClick = { open("chapters") }) { Icon(painterResource(R.drawable.ic_library), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.chapters)) }
+                FilledTonalButton(onClick = { open("entries") }) { Icon(painterResource(R.drawable.ic_playlists), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.entries_next, now.nextCount)) }
             }
         }
     }

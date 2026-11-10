@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.podlist.data.Row
@@ -24,15 +25,35 @@ internal fun SubscriptionRefreshStatus(subscription: Row, session: Session, onRe
 }
 
 @Composable
-internal fun EditHistoryMenu() {
+internal fun EditHistoryMenu(overflow: Boolean = true) {
     val model = LocalAppModel.current
     val undo by model.latestUndo.collectAsState()
-    val redo by model.latestRedo.collectAsState()
-    val undoDescription by model.undoDescription.collectAsState()
-    val redoDescription by model.redoDescription.collectAsState()
+    val description by model.undoDescription.collectAsState()
     val snackbarUndo = LocalSheetFeedback.current?.snackbar?.currentSnackbarData?.visuals?.actionLabel == stringResource(R.string.undo)
-    if (undo != null && !snackbarUndo) ActionIcon(R.drawable.ic_undo, undoDescription?.let { stringResource(R.string.undo_specific, appMessageText(it)) } ?: stringResource(R.string.undo)) { undo?.invoke() }
-    if (redo != null) ActionIcon(R.drawable.ic_redo, redoDescription?.let { stringResource(R.string.redo_specific, appMessageText(it)) } ?: stringResource(R.string.m4_redo)) { redo?.invoke() }
+    // Reserve the slot even before the first edit and while snackbar Undo owns the command.
+    // No invisible clickable/focusable node is left in the accessibility tree.
+    if (undo != null && !snackbarUndo) ActionIcon(R.drawable.ic_undo, description?.let { stringResource(R.string.undo_specific, appMessageText(it)) } ?: stringResource(R.string.undo)) { undo?.invoke() }
+    else Spacer(Modifier.size(48.dp).clearAndSetSemantics {})
+    if (overflow) HistoryOverflow()
+}
+
+@Composable
+internal fun RedoMenuItem(close: () -> Unit) {
+    val model = LocalAppModel.current
+    val redo by model.latestRedo.collectAsState()
+    val description by model.redoDescription.collectAsState()
+    DropdownMenuItem(text = { Text(description?.let { stringResource(R.string.redo_specific, appMessageText(it)) } ?: stringResource(R.string.m4_redo)) }, enabled = redo != null,
+        leadingIcon = { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_redo), null) },
+        onClick = { close(); redo?.invoke() })
+}
+
+@Composable
+private fun HistoryOverflow() {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }) { RedoMenuItem { expanded = false } }
+    }
 }
 
 @Composable
