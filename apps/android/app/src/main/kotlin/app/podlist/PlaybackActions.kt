@@ -60,7 +60,7 @@ internal fun EntryMenu(playlist: Playlist, episode: String, modifier: Modifier =
     var menu by remember { mutableStateOf(false) }
     Row {
         Box {
-        ActionIcon(R.drawable.ic_drag, stringResource(R.string.entry_actions), modifier = modifier) { menu = true }
+        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.entry_actions), modifier = modifier) { menu = true }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             val add = LocalAddEpisode.current
             DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, onClick = { add(episode); menu = false })

@@ -10,8 +10,20 @@ fun LocalDatabase.reversibleNamedView(view: View, at: Long): NamedViewEdit = tra
     val inverse = if (problem == null) {
         val inverse = reversibleEdit(listOf(Change.SaveView(view.copy(name = view.name.trim()))), at)
         val drafts = FormDraftStore(this)
+        drafts.finishRename("view-rename:${view.id}/name", view.name)
         // Creation and releasing its pending identity commit together, including process death.
         if (drafts.load()["new-view/id"] == view.id) drafts.finishNewView(view.id)
+        inverse
+    } else emptyList()
+    NamedViewEdit(problem, inverse)
+}
+
+/** The queued UI must keep its recovery state until this entire transaction commits. */
+fun LocalDatabase.reversibleNamedPlaylist(id: String, name: String, at: Long): NamedViewEdit = transaction {
+    val problem = PlaylistNames.validate(name, loadState().playlists, id)
+    val inverse = if (problem == null) {
+        val inverse = reversibleEdit(listOf(Change.RenamePlaylist(id, name.trim())), at)
+        FormDraftStore(this).finishRename("playlist:$id/rename", name)
         inverse
     } else emptyList()
     NamedViewEdit(problem, inverse)

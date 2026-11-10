@@ -30,16 +30,16 @@ Artwork, title (wrapping; never truncated to one line), podcast, Published, dura
 - After an action: a snackbar with Undo, above the player and navigation.
 - Toggle icons show current state: outline Star, checked circle and download arrow until Starred, Played or downloaded; filled Star, checked circle or downloaded check once set. Labels name the action (Mark Played / Mark Unplayed, Download / Remove download).
 - Episode metadata uses bodyMedium (14sp). Selected rows use secondaryContainer and a checkbox; the list itself never becomes a focusable accessibility node.
-- On a Podcast page, failed Play/Add acquisition stays inline on the affected Episode with a named Retry. If the row is offscreen when failure arrives, a snackbar also offers Retry, which retries and reveals that row. Page-load errors stay in the header.
-- Podcast and Episode top bars show the item's name, ellipsized, with a generic fallback while loading. Missing Artwork uses the same initials tile everywhere.
+- On a Podcast page, failed Play/Add acquisition stays inline on the affected Episode with a named Try again action. If the row is offscreen when failure arrives, a snackbar also offers Try again, which retries and reveals that row. Page-load errors stay in the header.
+- Podcast and Episode top bars show a generic label while the headline is visible; the item’s name appears, ellipsized, after the headline scrolls away. Missing Artwork uses the same initials tile everywhere.
 
 ## Playlist
 
-Entries, History and Listening Timeline tabs. The Cursor says Now playing only while playing in the Active Playlist; otherwise it says Current Entry. A leading indicator and subtle tint mark it. Just-moved Entries briefly highlight with tertiaryContainer and fade; selected Entries use secondaryContainer with a checkbox. Each Entry has its own progress and visible Play from here. The drag handle opens its secondary-action menu on tap, including Move up and Move down, giving the text column room.
+Entries, History and Listening Timeline tabs. The Cursor says Now playing only while playing in the Active Playlist; otherwise it says Current Entry. A leading indicator and subtle tint mark it. Just-moved Entries briefly highlight with tertiaryContainer and fade; selected Entries use secondaryContainer with a checkbox. Each Entry has its own progress and visible Play from here. The drag handle is for dragging, with accessible Move up and Move down actions. A separate 48dp ⋮ button labelled Entry actions opens the secondary-action menu, including Remove from this Playlist and discrete moves.
 
 ## Library
 
-Subscriptions grouped by their Download Rule on this Device, with every empty group stated as one quiet “No podcasts” line. Tapping one opens its Podcast page. **Add podcasts** and **Select Subscriptions** follow the groups.
+Subscriptions grouped by their Download Rule on this Device, with populated groups headed by their rule and empty groups combined into one quiet “No podcasts use: …” line. Tapping one opens its Podcast page. **Add podcasts** and **Select Subscriptions** follow the groups.
 
 ## Mini player
 
@@ -53,9 +53,9 @@ Left to right: **Artwork · back 15 · Play/Pause · forward 30 · Playlist**. C
 
 ## Now Playing
 
-A persistent bottom sheet that expands from the mini player and leaves the navigation bar reachable. Playback errors use the snackbar only, with Retry also available on the transport control. Tapping a navigation destination collapses it. Playback continues.
+A persistent bottom sheet that expands from the mini player and leaves the navigation bar reachable. Playback errors use the snackbar only, with Try again also available on the transport control. Tapping a navigation destination collapses it. Playback continues.
 
-Top to bottom: handle, "Now Playing · {Playlist}" and collapse; Artwork; previous Chapter, Chapter name and number, next Chapter; seek bar with Chapter ticks and elapsed/remaining; **back 15 · Play/Pause · forward 30**, the largest controls on the screen; speed and Sleep; then **Episode**, **Chapters** and **Entries · N next**.
+Top to bottom: handle, "Now Playing · {Playlist}" and collapse; Artwork; previous Chapter, Chapter name and number, next Chapter; seek bar with Chapter ticks and elapsed/remaining; **back 15 · Play/Pause · forward 30**, the largest controls on the screen; icon-and-label tonal buttons for speed and Sleep; then **Episode**, **Chapters** and **Entries · N next**.
 
 The podcast and Episode names are left out here too. The Chapter name stays, because many podcasts have no Chapter Artwork. The Episode button leads to the full details.
 
@@ -81,4 +81,4 @@ Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): h
 - **First run** ([ADR 0012](../adr/0012-a-device-can-work-without-a-server.md)): a Welcome screen offers **Start on this phone** or **Connect to a server**. Either leads to the Getting started card above the starter Views on Views. Connecting a Standalone Device shows what will move before offering **Bring it over** or **Not now**, and the offer stays in Settings.
 - **OPML:** a **Your podcasts** section in Settings, after Your listening, holds **Import OPML** (arrow into a tray) and **Export OPML** (arrow out of a tray). Both use Android's file picker.
 
-Success confirmations use “<Object> <past-tense verb>”, including the affected name where available. Subscribe is filled on both the Podcast page and directory results. The owner-required “Playlist <name> moved to Trash” stays exact. The two secondary player control rows both use 8dp gaps.
+Success confirmations use “<Object> <past-tense verb>”, including the affected name where available. Subscribe is filled on both the Podcast page and directory results. The owner-required “Playlist <name> moved to Trash” stays exact. The two secondary player control rows use consistent compact tonal buttons with icons, labels and 8dp gaps. Top bars keep one Undo slot at a fixed width, invisible and unfocusable while snackbar Undo is visible; Redo is in overflow. Sheet snackbars overlay the content without changing its height.

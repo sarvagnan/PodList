@@ -8,7 +8,7 @@ import app.podlist.data.reversibleEdit
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withLock
 
-internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: String? = null, val reloadActive: Boolean = false, val apply: suspend () -> ReversibleEdit) {
+internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: String? = null, val reloadActive: Boolean = false, val subscriptionTargets: Map<String, Boolean> = emptyMap(), val apply: suspend () -> ReversibleEdit) {
     var description: AppMessage? = null
     var feedback: AppMessage? = null
 }
@@ -70,12 +70,16 @@ internal fun AppModel.redoEdit() = traverseHistory(true)
 private fun AppModel.traverseHistory(redo: Boolean) {
     val current = session.value ?: return
     val expected = (if (redo) history.redo else history.undo) ?: return
+    if (expected.subscriptionTargets.keys.any { subscriptionTransitions.value[it]?.pending == true }) return
+    subscriptionFailures.value -= expected.subscriptionTargets.keys
+    subscriptionTransitions.value += expected.subscriptionTargets.mapValues { AppModel.SubscriptionTransition(it.value) }
     val action: suspend () -> Unit = {
-        editLock.withLock {
+        try { editLock.withLock {
             if (session.value !== current) return@withLock
             finishTyping()
             val step = (if (redo) history.redo else history.undo) ?: return@withLock
             if (step !== expected) {
+                subscriptionTransitions.value -= expected.subscriptionTargets.keys
                 traverseHistory(redo)
                 return@withLock
             }
@@ -83,14 +87,20 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 withContext(Dispatchers.IO) { flushFormDrafts?.invoke() }
                 var feedback: AppMessage? = null
                 history.reverse(redo) { step -> step.apply().also { it.description = step.description; feedback = it.feedback } }
+                subscriptionTransitions.value += step.subscriptionTargets.mapValues { AppModel.SubscriptionTransition(it.value, pending = false) }
                 undoRevision.value++
                 updateHistoryActions()
                 messages.trySend((feedback ?: AppMessage(if (redo) R.string.edit_redone else R.string.edit_undone)).copy(
                     actionResource = if (redo) R.string.undo else R.string.m4_redo, undo = if (redo) ::undoEdit else ::redoEdit))
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
-                messages.trySend(AppMessage(R.string.edit_reverse_failed, R.string.retry_action, undo = if (redo) ::redoEdit else ::undoEdit))
+                subscriptionTransitions.value -= expected.subscriptionTargets.keys
+                val failure = AppMessage(R.string.edit_reverse_failed, R.string.retry_action, undo = if (redo) ::redoEdit else ::undoEdit)
+                subscriptionFailures.value += expected.subscriptionTargets.mapValues { failure }
+                messages.trySend(failure)
             }
+        } } finally {
+            subscriptionTransitions.value = subscriptionTransitions.value.filter { (feed, transition) -> feed !in expected.subscriptionTargets || !transition.pending }
         }
     }
     if (expected.playbackPlaylist == null) viewModelScope.launch { action() }
@@ -99,7 +109,7 @@ private fun AppModel.traverseHistory(redo: Boolean) {
 
 internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, subscribe: Boolean, reveal: Boolean = true): ReversibleEdit {
     val remaining = feeds.toMutableList()
-    return ReversibleEdit {
+    return ReversibleEdit(subscriptionTargets = feeds.associateWith { subscribe }) {
         withContext(Dispatchers.IO) {
             while (remaining.isNotEmpty()) {
                 val feed = remaining.first()

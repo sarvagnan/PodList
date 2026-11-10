@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -31,9 +32,9 @@ internal fun FeedbackSheet(
         onDispose { feedback?.let { it.openSheets-- } }
     }
     ModalBottomSheet(modifier = modifier, onDismissRequest = onDismissRequest, sheetState = sheetState, dragHandle = dragHandle) {
-        Column(Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f, fill = false)) { content() }
-            feedback?.let { FeedbackSnackbarHost(it) }
+        Box(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth()) { content() }
+            feedback?.let { FeedbackSnackbarHost(it, Modifier.align(Alignment.BottomCenter)) }
         }
     }
 }

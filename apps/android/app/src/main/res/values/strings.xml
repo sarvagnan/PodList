@@ -446,7 +446,7 @@
     <string name="appearance_dark">Dark</string>
     <string name="playlist_settings">Playlist settings</string>
     <string name="default_playlist_limits">The Default Playlist can’t be renamed or deleted.</string>
-    <string name="empty_trash_help">Trash holds deleted Playlists, together with their History and Listening Timeline, for %1$d days, changeable in Settings.</string>
+    <string name="empty_trash_help">Delete a Playlist in its settings to move it here with its History and Listening Timeline. Restore it within %1$d days.</string>
     <string name="back_to_playlists">Back to Playlists</string>
     <string name="find_something_to_play">Find something to play</string>
     <string name="setting_back_to">%1$s back to %2$s</string>
@@ -469,9 +469,10 @@
     <string name="feed_address_copied">Feed address for %1$s copied</string>
     <string name="clear_on_played_on_help">Entries leave when their Episodes become Played. Entries already Played stay when you turn this on.</string>
     <string name="clear_on_played_off_help">Entries stay until you remove them.</string>
-    <string name="no_podcasts">No podcasts</string>
     <string name="podcast_episode_add_failed">Couldn’t add %1$s.</string>
     <string name="podcast_episode_add_error">Couldn’t add %1$s. %2$s</string>
-    <string name="retry_episode_action">Retry</string>
-    <string name="retry_episode_named">Retry %1$s</string>
+    <string name="retry_episode_action">Try again</string>
+    <string name="retry_episode_named">Try again: %1$s</string>
+    <string name="name_save_failed">Couldn’t save the name. Try again.</string>
+    <string name="unused_download_rules">No podcasts use: %1$s</string>
 </resources>

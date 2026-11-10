@@ -28,7 +28,7 @@ fun LocalDatabase.updateGettingStartedProgress() = transaction {
     var steps = previous
     if (query("SELECT id FROM subscription WHERE unsubscribed_at IS NULL LIMIT 1").isNotEmpty()) steps = steps or 1
     val state = loadState()
-    if (state.views.isNotEmpty()) steps = steps or 2
-    if (state.playlists.any { it.entries.isNotEmpty() }) steps = steps or 4
+    if (steps and 1 != 0 && getMeta("gettingStartedExploredView") == "true") steps = steps or 2
+    if (steps and 3 == 3 && state.playlists.any { it.entries.isNotEmpty() }) steps = steps or 4
     if (steps != previous) setMeta("gettingStartedSteps", steps.toString())
 }

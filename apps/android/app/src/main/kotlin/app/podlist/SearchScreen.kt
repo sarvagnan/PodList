@@ -43,9 +43,10 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
     fun saveView() {
         if (problem != null || saving || text.isBlank()) return
         val id = UUID.randomUUID().toString()
+        drafts.flush()
         val submittedDraft = drafts.snapshot("search-view/")
         saving = true
-        model.saveNamedView(search.copy(id = id, name = name.trim()), message = R.string.view_created) { error ->
+        model.saveNamedView(search.copy(id = id, name = name.trim()), message = R.string.view_created, failed = { saving = false }) { error ->
             saving = false; rejected = error
             if (error == null && drafts.clearIfUnchanged("search-view/", submittedDraft)) { naming = false; open("view:$id") }
         }

@@ -43,6 +43,7 @@ internal object FlowRunClassification {
     }
     private val mainActions = setOf("Check and connect", "Find podcasts", "Subscribe", "Save", "Create Playlist", "Create View", "Save as a View", "Play Last", "Rename", "New Playlist", "Add podcasts")
     fun isCore(id: String, state: State): Boolean {
+        if (id.startsWith("slot:")) return true
         if (id.startsWith("action:")) {
             val label = id.removePrefix("action:").substringBeforeLast(':')
             return label in mainActions || label == "Add to a Playlist" && "Show notes" in state.labels.values
@@ -94,6 +95,15 @@ internal object FlowRunClassification {
         return result("fail", if (check == "FLOW-01") "same-screen core edge moved >2 dp without input in the preceding 500 ms" else "unrequested $element change")
     }
 
+    fun withRoleSlots(state: State): State {
+        val slots = state.labels.filter { (id, label) ->
+            id.startsWith("action:") && (id.startsWith("action:Subscribe:") || label == "Subscribe" || label == "Subscribing…" || label == "Unsubscribing…" || label == "Unsubscribe" || label.startsWith("Subscribed to "))
+        }.mapNotNull { (id, label) -> state.core[id]?.let { Triple("slot:podcast-subscription", it, label) } }
+        // Recorded semantic slots are authoritative; the fallback only replays old CSVs.
+        return state.copy(core = slots.associate { it.first to it.second } + state.core,
+            labels = slots.associate { it.first to it.third } + state.labels)
+    }
+
     class Audit {
         private val states = mutableListOf<State>()
         fun probeEvidence(): String {
@@ -107,6 +117,7 @@ internal object FlowRunClassification {
         private var settled: State? = null
         private var working: State? = null
         fun add(now: State) {
+            val now = withRoleSlots(now)
             states += now
             fun compatible(s: State?) = s?.takeIf { it.flow == now.flow && it.appearance == now.appearance }
             val old = compatible(previous)

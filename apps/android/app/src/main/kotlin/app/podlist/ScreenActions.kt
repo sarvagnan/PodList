@@ -2,6 +2,7 @@ package app.podlist
 
 import androidx.lifecycle.viewModelScope
 import app.podlist.data.reversibleNamedView
+import app.podlist.data.reversibleNamedPlaylist
 import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,6 +43,19 @@ internal fun AppModel.rewind(playlistId: String, to: Long) {
             recordHistory(current, AppMessage(R.string.rewound, formatArgs = listOf(current.db.loadState().playlists.find { it.id == playlistId }?.name.orEmpty())), changesStep(current, inverse, playlistId))
         }
     }
+}
+
+internal fun AppModel.renamePlaylist(id: String, name: String, finished: (Names.Problem?, Boolean) -> Unit) {
+    val current = session.value ?: return
+    viewModelScope.launch { editLock.withLock {
+        if (session.value !== current) return@withLock
+        try {
+            val result = withContext(Dispatchers.IO) { current.db.reversibleNamedPlaylist(id, name, System.currentTimeMillis()) }
+            if (result.problem == null) recordHistory(current, AppMessage(R.string.playlist_renamed_to, formatArgs = listOf(name)), changesStep(current, result.inverse))
+            finished(result.problem, result.problem == null)
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) { messages.trySend(AppMessage(R.string.name_save_failed)); finished(null, false) }
+    } }
 }
 
 internal fun AppModel.createPlaylist(name: String, finished: (String?, Names.Problem?) -> Unit) {
@@ -170,13 +184,16 @@ internal fun restoredMessage(before: State, after: State, changes: List<Change>)
         else AppMessage(R.string.m4_playlist_restored, formatArgs = listOf(restored.name))
 }
 
-internal fun AppModel.saveNamedView(view: View, message: Int = R.string.view_changed, formatArgs: List<Any> = emptyList(), finished: (Names.Problem?) -> Unit) {
+internal fun AppModel.saveNamedView(view: View, message: Int = R.string.view_changed, formatArgs: List<Any> = emptyList(), failed: () -> Unit = {}, finished: (Names.Problem?) -> Unit) {
     val current = session.value ?: return
     viewModelScope.launch { editLock.withLock {
         if (session.value !== current) return@withLock
-        val result = withContext(Dispatchers.IO) { current.db.reversibleNamedView(view, System.currentTimeMillis()) }
-        if (result.problem == null) recordHistory(current, AppMessage(message, formatArgs = formatArgs.ifEmpty { listOf(view.name) }), changesStep(current, result.inverse))
-        finished(result.problem)
+        try {
+            val result = withContext(Dispatchers.IO) { current.db.reversibleNamedView(view, System.currentTimeMillis()) }
+            if (result.problem == null) recordHistory(current, AppMessage(message, formatArgs = formatArgs.ifEmpty { listOf(view.name) }), changesStep(current, result.inverse))
+            finished(result.problem)
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) { messages.trySend(AppMessage(R.string.name_save_failed)); failed() }
     } }
 }
 

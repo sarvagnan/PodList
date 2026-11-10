@@ -94,6 +94,9 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val latestUndo = MutableStateFlow<(() -> Unit)?>(null)
     internal val undoViewId = MutableStateFlow<String?>(null)
     internal val latestRedo = MutableStateFlow<(() -> Unit)?>(null)
+    internal data class SubscriptionTransition(val target: Boolean, val pending: Boolean = true)
+    internal val subscriptionFailures = MutableStateFlow<Map<String, AppMessage>>(emptyMap())
+    internal val subscriptionTransitions = MutableStateFlow<Map<String, SubscriptionTransition>>(emptyMap())
     internal val history = EditHistory<ReversibleEdit>()
     internal var typingJob: Job? = null
     internal var typingMessage: AppMessage? = null
@@ -349,6 +352,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         editLock.withLock {
             typingJob?.cancel(); typingJob = null; typingMessage = null; activeTypingGroup = null
             history.clear(); updateHistoryActions()
+            subscriptionTransitions.value = emptyMap(); subscriptionFailures.value = emptyMap()
             while (messages.tryReceive().isSuccess) { /* discard the previous session’s actions */ }
             _session.value = next
         }

@@ -2,6 +2,8 @@
 
 package app.podlist
 
+import app.podlist.data.updateGettingStartedProgress
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -282,15 +284,17 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
 private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.create_view, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, search: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, content: @Composable () -> Unit) {
     val selection = LocalEpisodeSelection.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val collapsingTitle = remember(route) { CollapsingTitle() }
+    val barTitle = if (route?.startsWith("episode:") == true && collapsingTitle.headlineVisible) stringResource(R.string.episode) else title
     Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         if (selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null) {
             SelectionToolbar(selection)
         }
         else Column {
-            TopAppBar(scrollBehavior = scrollBehavior, title = { Text(title, Modifier.semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+            TopAppBar(scrollBehavior = scrollBehavior, title = { Text(barTitle, Modifier.semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                 if (back != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
             }, actions = {
-                EditHistoryMenu()
+                EditHistoryMenu(overflow = route?.startsWith("episode:") != true)
                 if (route == "select-subscriptions" && selection != null) SelectAllAction(selection)
                 if (edit != null) ActionIcon(R.drawable.ic_edit,
                     stringResource(if (route?.startsWith("playlist:") == true) R.string.playlist_settings else R.string.m4_edit_view), action = edit)
@@ -311,7 +315,9 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
             else SelectionActionBar(selection, selectionData, selectionSession, route)
         }
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) { content() }
+        CompositionLocalProvider(LocalCollapsingTitle provides collapsingTitle) {
+            Box(Modifier.fillMaxSize().padding(padding)) { content() }
+        }
     }
 
 }
@@ -373,14 +379,17 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     }
                 }
                 for ((mode, title) in listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new)) {
-                    item(key = "rule:$mode") { Section(stringResource(title)) }
                     val group = group(mode)
-                    if (group.isEmpty()) item(key = "empty:$mode") { Text(stringResource(R.string.no_podcasts), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (group.isNotEmpty()) item(key = "rule:$mode") { Section(stringResource(title)) }
                     items(group, key = { "subscription:${it["id"]}" }) { subscription ->
                         NameRow(subscription["title"] as String, pluralStringResource(R.plurals.episode_count, (subscription["episode_count"] as Number).toInt(), (subscription["episode_count"] as Number).toInt()),
                             artwork = subscription["artwork_url"] as? String, session = session) { open("subscription:${subscription["id"]}") }
                         SubscriptionRefreshStatus(subscription, session)
                     }
+                }
+                val unused = listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new).filter { group(it.first).isEmpty() }
+                if (unused.isNotEmpty()) item(key = "unused-rules") {
+                    Text(stringResource(R.string.unused_download_rules, unused.map { stringResource(it.second) }.joinToString(", ")), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (subscriptions.isNotEmpty()) item(key = "select-subscriptions") { NameRow(stringResource(R.string.m4_select_subscriptions), stringResource(R.string.m4_select_subscriptions_help), icon = R.drawable.ic_select_all) { open("select-subscriptions") } }
             }
@@ -413,6 +422,9 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         }
         route?.startsWith("view:") == true -> {
             val view = data.state.views.find { it.id == id }
+            LaunchedEffect(view?.id) {
+                if (view != null) withContext(Dispatchers.IO) { session.db.setMeta("gettingStartedExploredView", "true"); session.db.updateGettingStartedProgress(); session.db.notifyChanged() }
+            }
             if (view == null) Column { EmptyMessage(R.string.missing_view); FilledTonalButton(modifier = Modifier.padding(horizontal = 16.dp), onClick = { open("directory") }) { Text(stringResource(R.string.views)) } }
             else if (data.episodes.isEmpty() && data.subscriptions.none { it["unsubscribed_at"] == null }) Column { EmptyMessage(R.string.no_subscriptions); FilledTonalButton(modifier = Modifier.padding(horizontal = 16.dp), onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
             else if (data.episodes.isEmpty()) Column { EmptyMessage(R.string.no_matches); FilledTonalButton(onClick = { open("view-edit:$id") }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.edit_conditions)) } }
@@ -455,6 +467,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
     val stacked = LocalDensity.current.fontScale >= 1.5f
     val actions: @Composable () -> Unit = {
         if (entryPlaylist == null) ActionIcon(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist), enabled = actionsEnabled) { if (addAction != null) addAction() else add(id) }
+        else EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, id)
         ActionIcon(R.drawable.ic_play, stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here), enabled = actionsEnabled) {
             if (playAction != null) playAction() else {
                 if (entryPlaylist == null) model.playNow(id) else model.playEntry(entryPlaylist, id)
@@ -469,7 +482,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
             else if (entryPlaylist != null) EntryDragHandle(data.state.playlists.first { it.id == entryPlaylist }, id)
             else if (showArtwork) ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, placeholderTitle = row["podcast"] as? String)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(row["title"] as String, style = if (detail) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = if (detail) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
+                Text(row["title"] as String, modifier = if (detail) headlineVisibility(LocalCollapsingTitle.current) else Modifier, style = if (detail) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = if (detail) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
                 val published = shortDate((row["published"] as Number).toLong())
                 Text(listOfNotNull((row["podcast"] as? String).takeIf { showPodcast }, published, duration?.let { lengthLabel(it) }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 val played = row["played_at"] != null
@@ -501,6 +514,7 @@ internal fun EpisodeOverflow(data: ScreenData, session: Session) {
     Box {
         ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
         DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+            RedoMenuItem { expanded = false }
             DownloadMenuItem(id, session) { expanded = false }
             val shareLink = ShareLinks.episode(row["website_url"] as? String, row["podcast_website_url"] as? String, row["feed_url"] as? String, row["audio_url"] as? String)
             DropdownMenuItem(text = { Text(stringResource(R.string.share_episode)) }, enabled = shareLink != null, onClick = {
@@ -525,7 +539,8 @@ internal fun EpisodeDetail(data: ScreenData, session: Session,
     LaunchedEffect(session, id) { if (resolve == null) withContext(Dispatchers.IO) { runCatching { session.source.chapters(id) } } }
     val chapters = (row["chapters"] as? String)?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty()
     val notes = showNotes(row["description"] as? String ?: "")
-    LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.fillMaxSize()) {
+    val collapsingTitle = LocalCollapsingTitle.current
+    LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.fillMaxSize().then(collapsingTitle?.viewport() ?: Modifier)) {
         item {
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.Start) {
                 ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 112.dp, direct = resolve != null, placeholderTitle = row["podcast"] as? String)
@@ -584,7 +599,7 @@ internal fun NameRow(title: String, subtitle: String, artwork: String? = null, s
 }
 
 @Composable internal fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-@Composable internal fun Section(text: String, inset: androidx.compose.ui.unit.Dp = 16.dp) { Text(text, Modifier.padding(start = inset, end = inset, top = 20.dp, bottom = 8.dp).semantics { heading() }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)) }
+@Composable internal fun Section(text: String, inset: androidx.compose.ui.unit.Dp = 16.dp) { Text(text, Modifier.padding(start = inset, end = inset, top = 20.dp, bottom = 8.dp).semantics { heading() }, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)) }
 @Composable internal fun EmptyMessage(resource: Int) { Text(stringResource(resource), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
 @Composable internal fun Loading() { Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(Modifier.then(ProgressModifier(R.string.loading))); Text(stringResource(R.string.loading)) } }
 

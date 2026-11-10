@@ -154,11 +154,13 @@ internal fun EntryDragHandle(playlist: Playlist, episode: String) {
     val dragLabel = stringResource(R.string.drag_entry)
     val up = stringResource(R.string.move_up)
     val down = stringResource(R.string.move_down)
-    EntryMenu(playlist, episode, modifier.semantics {
-        stateDescription = dragLabel
+    Box(modifier.size(48.dp).semantics {
+        contentDescription = dragLabel
         customActions = listOf(
             CustomAccessibilityAction(up) { val index = playlist.entries.indexOfFirst { it.episodeId == episode }; if (index > 0) { model.moveEntry(playlist.id, episode, index - 1); true } else false },
             CustomAccessibilityAction(down) { val index = playlist.entries.indexOfFirst { it.episodeId == episode }; if (index < playlist.entries.lastIndex) { model.moveEntry(playlist.id, episode, index + 1); true } else false }
         )
-    })
+    }, contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_drag), null)
+    }
 }

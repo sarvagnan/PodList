@@ -74,7 +74,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     }
     fun rename(name: String, complete: (Boolean) -> Unit) {
         // Rename accepted conditions while keeping any invalid condition draft intact.
-        model.saveNamedView(saved.copy(name = name), message = R.string.view_renamed_to, formatArgs = listOf(name)) { error ->
+        model.saveNamedView(saved.copy(name = name), message = R.string.view_renamed_to, formatArgs = listOf(name), failed = { complete(false) }) { error ->
             rejectedName = error?.let { name to it }
             if (error == null) {
                 draft = draft.copy(name = name)
@@ -87,11 +87,12 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     fun finish() {
         if (completing || hasInvalidNumber || ViewEdits.problem(draft.filter) != null || hasInvalidName) return
         model.finishTyping()
+        drafts.flush()
         val accepted = ViewEdits.accepted(draft, saved, recorded)
         val completed = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }
         if (accepted == null) completed() else {
             completing = true
-            model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed) { error ->
+            model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed, failed = { completing = false }) { error ->
                 completing = false
                 rejectedName = error?.let { draft.name to it }
                 if (error == null) completed()
@@ -131,15 +132,13 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(fullCount, style = MaterialTheme.typography.bodyMedium)
-                CommitActions {
-                    if (creating || problem != null || hasInvalidNumber) TextButton(enabled = !completing, modifier = Modifier.heightIn(min = 48.dp), onClick = {
-                        if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix)
-                        done()
-                    }) { Text(stringResource(R.string.discard_draft)) }
-                    CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
-                }
+                if (creating || problem != null || hasInvalidNumber) TextButton(enabled = !completing, modifier = Modifier.heightIn(min = 48.dp), onClick = {
+                    if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix)
+                    done()
+                }) { Text(stringResource(R.string.discard_draft)) }
+                CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
             }
         }
     }

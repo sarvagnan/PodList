@@ -9,6 +9,23 @@ class FlowRunClassificationTest {
     private val states = readFlowStates(File(requireNotNull(javaClass.getResource("/flow-run/measurements.csv")).toURI())).associateBy { it.row }
     private fun state(row: Int) = states.getValue(row)
 
+    @Test fun `round thirteen rows 99 to 100 pair subscription by role across label changes`() {
+        val rows = readFlowStates(File(requireNotNull(javaClass.getResource("/flow-run/round13-subscribe.csv")).toURI()))
+        assertEquals(listOf(99, 100), rows.map { it.row })
+        val audit = FlowRunClassification.Audit()
+        rows.forEach(audit::add)
+        val moved = audit.findings().single { it.element == "slot:podcast-subscription" }
+        assertEquals("FLOW-01", moved.check)
+        assertEquals(20f, moved.after.core.getValue(moved.element).x - moved.before.core.getValue(moved.element).x)
+        // The slot also detects future movement with completely different labels.
+        val before = FlowRunClassification.withRoleSlots(rows.first())
+        val after = FlowRunClassification.withRoleSlots(rows.last())
+        val stable = FlowRunClassification.Audit()
+        stable.add(before)
+        stable.add(after.copy(core = after.core + ("slot:podcast-subscription" to before.core.getValue("slot:podcast-subscription"))))
+        assertTrue(stable.findings().none { it.element == "slot:podcast-subscription" })
+    }
+
     @Test fun `all seventeen original text candidates are deliberate edits or own submits`() {
         val pairs = listOf(Triple(6, 7, "Server address"), Triple(104, 105, "Search Episodes"),
             Triple(124, 125, "Name"), Triple(132, 133, "Name"), Triple(135, 136, "Name"),

@@ -5,10 +5,24 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class MilestoneFourDataTest {
+    @Test fun `fresh starter Views do not complete the exploration step before podcasts`() {
+        LocalDatabase(":memory:", standalone = true).use { db ->
+            db.ensureState(); db.initializeStandalone(); db.initializeGettingStarted(); db.updateGettingStartedProgress()
+            assertTrue(db.loadState().views.isNotEmpty())
+            assertEquals(0, db.getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0)
+            db.setMeta("gettingStartedExploredView", "true")
+            db.updateGettingStartedProgress()
+            assertEquals(0, db.getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0)
+            db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())), emptyList())
+            db.updateGettingStartedProgress()
+            assertEquals("3", db.getMeta("gettingStartedSteps"))
+        }
+    }
     @Test fun `Getting started remembers completed steps after Entries leave and Subscriptions are removed`() {
         LocalDatabase(":memory:", standalone = true).use { db ->
             db.ensureState(); db.initializeStandalone(); db.initializeGettingStarted()
             db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())), emptyList())
+            db.setMeta("gettingStartedExploredView", "true")
             db.record(Change.AddEntry("default", "e", Placement.Last), 100)
             db.updateGettingStartedProgress()
             assertEquals("7", db.getMeta("gettingStartedSteps"))
