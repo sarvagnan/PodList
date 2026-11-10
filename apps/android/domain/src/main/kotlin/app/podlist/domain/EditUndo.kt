@@ -23,7 +23,11 @@ object EditUndo {
         is Change.DeleteView -> before.views.find { it.id == change.viewId }?.let { listOf(Change.SaveView(it)) }.orEmpty()
         is Change.CreatePlaylist -> listOf(Change.DeletePlaylist(change.playlistId))
         is Change.DeletePlaylist -> listOfNotNull(Change.RestorePlaylist(change.playlistId), Change.SetActivePlaylist(change.playlistId).takeIf { before.activePlaylistId == change.playlistId })
-        is Change.RestorePlaylist -> listOf(Change.DeletePlaylist(change.playlistId))
+        is Change.RestorePlaylist -> {
+            val rename = PlaylistRestores.changes(before, change, at).filterIsInstance<Change.RenamePlaylist>().singleOrNull()
+            val original = before.trash?.find { it.playlist.id == change.playlistId }?.playlist
+            listOfNotNull(original?.let { Change.RenamePlaylist(it.id, it.name) }.takeIf { rename != null }, Change.DeletePlaylist(change.playlistId))
+        }
         is Change.SetActivePlaylist -> listOf(Change.SetActivePlaylist(before.activePlaylistId))
         is Change.SetClearOnPlayed -> before.playlists.find { it.id == change.playlistId }?.let { listOf(Change.SetClearOnPlayed(it.id, it.clearOnPlayed)) }.orEmpty()
         is Change.AddEntry -> before.playlists.find { it.id == change.playlistId }?.let { EpisodeActions.undoAdd(it, listOf(change.episodeId)) }.orEmpty()

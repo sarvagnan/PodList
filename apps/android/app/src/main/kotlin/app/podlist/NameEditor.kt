@@ -29,7 +29,7 @@ internal fun RenameableName(
     name: String,
     draftKey: String,
     problem: @Composable (String) -> String?,
-    save: (String) -> Unit,
+    save: (String, (Boolean) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drafts = LocalFormDrafts.current
@@ -59,11 +59,12 @@ internal fun RenameableName(
             var value by remember(draftKey) { mutableStateOf(TextFieldValue(draft, TextRange(0, draft.length))) }
             val fieldFocus = remember { FocusRequester() }
             val reason = problem(value.text)
-            val canSave = reason == null && value.text.trim() != name
+            var saving by remember { mutableStateOf(false) }
+            val canSave = !saving && reason == null && value.text.trim() != name
             fun commit() {
                 if (!canSave || drafts.get(draftKey) == null) return
-                save(value.text.trim())
-                close()
+                saving = true
+                save(value.text.trim()) { accepted -> saving = false; if (accepted) close() }
             }
             OutlinedTextField(value, { input ->
                     // The keyboard can send a last update as Cancel or Save closes the field; it must not reopen it.
@@ -74,12 +75,12 @@ internal fun RenameableName(
                     drafts.put(draftKey, clean.text); value = clean
                     if (enter) commit()
                 },
-                label = { Text(stringResource(R.string.m4_name)) }, maxLines = 4, isError = reason != null,
+                enabled = !saving, label = { Text(stringResource(R.string.m4_name)) }, maxLines = 4, isError = reason != null,
                 supportingText = if (reason != null) ({ Text(reason, Modifier.errorAnnouncement()) }) else null,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { commit() }),
                 modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus).then(textFieldHistoryShortcuts()))
             CommitActions(Modifier.padding(top = 8.dp)) {
-                TextButton(onClick = close, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = close, enabled = !saving, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
                 Button(onClick = ::commit, enabled = canSave, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.save)) }
             }
             LaunchedEffect(Unit) { fieldFocus.requestFocus(); keyboard?.show() }

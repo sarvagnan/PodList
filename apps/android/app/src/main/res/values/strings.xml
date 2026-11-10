@@ -183,6 +183,8 @@
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
     <string name="m4_name">Name</string>
+    <string name="view_name_duplicate">There’s already a View called “%1$s”.</string>
+    <string name="playlist_restored_as">Playlist %1$s restored as %2$s</string>
     <string name="m4_view_name_error">A View needs a name.</string>
     <string name="m4_conditions">Show Episodes where</string>
     <string name="m4_published">Published</string>

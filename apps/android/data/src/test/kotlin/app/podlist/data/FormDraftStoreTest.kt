@@ -190,7 +190,7 @@ class FormDraftStoreTest {
             val text = FormDraftStore(db).load().getValue(key)
             assertEquals("  Morning  ", text)
             assertEquals("Evening", db.loadState().playlists.single { it.id == "walk" }.name)
-            assertEquals(PlaylistNames.Problem.Duplicate, PlaylistNames.validate(text, db.loadState().playlists, "walk"))
+            assertEquals(Names.Problem.Duplicate, PlaylistNames.validate(text, db.loadState().playlists, "walk"))
         }
     }
 

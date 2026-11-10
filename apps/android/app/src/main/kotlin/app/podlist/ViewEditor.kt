@@ -50,7 +50,11 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val undo = lastUndo.takeIf { undoViewId == view.id }
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
     val creationName = if (creating) rememberDraftText(draftPrefix + "name", restored.name) else null
-    val hasInvalidName = creating && creationName?.value.isNullOrBlank()
+    var rejectedName by remember { mutableStateOf<Pair<String, Names.Problem>?>(null) }
+    val nameProblem = if (creating) ViewNames.validate(creationName!!.value, data.state.views, view.id)
+        ?: rejectedName?.takeIf { it.first == creationName.value.trim() }?.second else null
+    val hasInvalidName = nameProblem != null
+    LaunchedEffect(data.state.views) { rejectedName = null }
     var mentions by rememberDraftText(draftPrefix + "mentions", restored.filter.text.orEmpty())
     val undoRevision by model.undoRevision.collectAsState()
     val initialUndo = remember { undoRevision }
@@ -66,29 +70,38 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     var count by remember { mutableStateOf<Int?>(null) }
     var completing by remember { mutableStateOf(false) }
     val revision by model.revision.collectAsState()
-    LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(saved, System.currentTimeMillis()).size } }
+    LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(draft, System.currentTimeMillis()).size } }
     fun update(next: View, typingGroup: String? = null) {
         drafts.put(draftPrefix + "view", ProtocolJson.encodeToString(next))
         draft = next
-        if (ViewEdits.problem(next.filter) == null && next != saved) {
+        if (!creating && ViewEdits.problem(next.filter) == null && next != saved) {
             saved = next; recorded = true; model.edit(Change.SaveView(next), typingGroup)
         }
     }
-    fun rename(name: String) {
-        // Rename the accepted View even while a condition has an invalid draft; keep that draft intact.
-        draft = draft.copy(name = name)
-        drafts.put(draftPrefix + "view", ProtocolJson.encodeToString(draft))
-        saved = saved.copy(name = name)
-        model.edit(Change.SaveView(saved), message = R.string.view_renamed_to, formatArgs = listOf(name))
+    fun rename(name: String, complete: (Boolean) -> Unit) {
+        // Rename accepted conditions while keeping any invalid condition draft intact.
+        model.saveNamedView(saved.copy(name = name), message = R.string.view_renamed_to, formatArgs = listOf(name)) { error ->
+            rejectedName = error?.let { name to it }
+            if (error == null) {
+                draft = draft.copy(name = name)
+                drafts.put(draftPrefix + "view", ProtocolJson.encodeToString(draft))
+                saved = saved.copy(name = name)
+            }
+            complete(error == null)
+        }
     }
     fun finish() {
-        if (completing) return
+        if (completing || hasInvalidNumber || ViewEdits.problem(draft.filter) != null || hasInvalidName) return
         model.finishTyping()
         val accepted = ViewEdits.accepted(draft, saved, recorded)
         val completed = { drafts.clear(draftPrefix); done() }
         if (accepted == null) completed() else {
             completing = true
-            model.edit(accepted, finished = completed)
+            model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed) { error ->
+                completing = false
+                rejectedName = error?.let { draft.name to it }
+                if (error == null) completed()
+            }
         }
     }
     DisposableEffect(view.id) { onDispose { model.finishTyping() } }
@@ -98,10 +111,10 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
             if (creating) item {
                 var name by creationName!!
-                OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "new-view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && name.isNotBlank()) finish() }))
+                OutlinedTextField(name, { name = it; rejectedName = null; update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ Text(viewNameProblem(error, name), Modifier.errorAnnouncement()) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
             } else item {
                 RenameableName(saved.name, renamePrefix + "name",
-                    problem = { text -> if (text.isBlank()) stringResource(R.string.m4_view_name_error) else null },
+                    problem = { text -> (ViewNames.validate(text, data.state.views, view.id) ?: rejectedName?.takeIf { it.first == text.trim() }?.second)?.let { viewNameProblem(it, text) } },
                     save = ::rename)
             }
             if (problem != null || hasInvalidNumber || hasInvalidName) item { Hint(stringResource(R.string.draft_kept)) }
@@ -126,7 +139,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                 Text(fullCount, style = MaterialTheme.typography.bodyMedium)
                 CommitActions {
                     TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
-                    TextButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
+                    TextButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.m4_create else R.string.m4_done)) }
                 }
             }
         }
@@ -192,3 +205,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         }) { DatePicker(picker) }
     }
 }
+
+@Composable
+internal fun viewNameProblem(problem: Names.Problem, name: String): String =
+    stringResource(if (problem == Names.Problem.Empty) R.string.m4_view_name_error else R.string.view_name_duplicate, name.trim())

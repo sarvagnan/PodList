@@ -44,6 +44,15 @@ class UiWordingTest {
         assertEquals("A View needs a name.", text("m4_view_name_error"))
     }
 
+    @Test fun `duplicate names identify the taken name and restore feedback names both versions`() {
+        assertEquals("There’s already a View called “Commute”.", text("view_name_duplicate").format("Commute"))
+        assertEquals("There’s already a Playlist called “Commute”.", text("m4_playlist_duplicate").format("Commute"))
+        val message = text("playlist_restored_as").format("Commute", "Commute 2")
+        assertEquals("Playlist Commute restored as Commute 2", message)
+        assertEquals("Undo: Playlist Commute restored as Commute 2", text("undo_specific").format(message))
+        assertEquals("Playlist 100% listening restored as 100% listening 2", text("playlist_restored_as").format("100% listening", "100% listening 2"))
+    }
+
     @Test fun `recovery commands use the same verb across screens`() {
         listOf("retry", "retry_playback", "retry_download", "m4_retry_failed", "retry_action", "retry_refresh", "podcast_try_again").forEach {
             assertEquals("Try again", text(it), it)

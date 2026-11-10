@@ -48,10 +48,11 @@ private fun PlaylistName(playlist: Playlist, data: ScreenData) {
     val model = LocalAppModel.current
     RenameableName(playlist.name, "playlist:${playlist.id}/rename",
         problem = { text -> PlaylistNames.validate(text, data.state.playlists, playlist.id)?.let { playlistProblem(it, text) } },
-        save = { name ->
+        save = { name, close ->
             model.changeWithUndo(listOf(Change.RenamePlaylist(playlist.id, name)), R.string.playlist_renamed_to, formatArgs = listOf(name)) { before ->
                 listOf(Change.RenamePlaylist(playlist.id, before.playlists.first { it.id == playlist.id }.name))
             }
+            close(true)
         })
 }
 
@@ -59,7 +60,7 @@ private fun PlaylistName(playlist: Playlist, data: ScreenData) {
 internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (String) -> Unit) {
     val drafts = LocalFormDrafts.current
     var name by rememberDraftText("new-playlist/name")
-    var problem by remember { mutableStateOf<PlaylistNames.Problem?>(null) }
+    var problem by remember { mutableStateOf<Names.Problem?>(null) }
     var busy by remember { mutableStateOf(false) }
     fun submit() { if (!busy) { busy = true; model.createPlaylist(name) { id, error -> busy = false; problem = error; if (id != null) { drafts.clear("new-playlist/"); created(id) } } } }
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -75,7 +76,7 @@ internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (S
     }
 }
 
-@Composable internal fun playlistProblem(problem: PlaylistNames.Problem, name: String): String = stringResource(if (problem == PlaylistNames.Problem.Empty) R.string.m4_playlist_empty else R.string.m4_playlist_duplicate, name.trim())
+@Composable internal fun playlistProblem(problem: Names.Problem, name: String): String = stringResource(if (problem == Names.Problem.Empty) R.string.m4_playlist_empty else R.string.m4_playlist_duplicate, name.trim())
 
 @Composable
 internal fun TrashScreen(data: ScreenData) {
@@ -85,7 +86,7 @@ internal fun TrashScreen(data: ScreenData) {
         if (trash.isEmpty()) item { EmptyMessage(R.string.no_trash) }
         items(trash, key = { it.playlist.id }) { trash ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(trash.playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.deleted, date(trash.deletedAt))) }, trailingContent = {
-                ContentTextButton(onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored) { listOf(Change.DeletePlaylist(trash.playlist.id)) } }) { Text(stringResource(R.string.m4_restore)) }
+                ContentTextButton(onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored) { before -> EditUndo.inverse(before, Change.RestorePlaylist(trash.playlist.id), System.currentTimeMillis()) } }) { Text(stringResource(R.string.m4_restore)) }
             })
         }
     }

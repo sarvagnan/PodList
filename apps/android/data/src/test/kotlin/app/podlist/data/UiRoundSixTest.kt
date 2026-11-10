@@ -28,8 +28,8 @@ class UiRoundSixTest {
         LocalDatabase(file).use { db ->
             assertEquals(raw, FormDraftStore(db).load())
             assertEquals("Walk", db.loadState().playlists.single { it.id == "walk" }.name)
-            assertEquals(PlaylistNames.Problem.Empty, PlaylistNames.validate(raw.getValue("playlist:walk/rename"), db.loadState().playlists, "walk"))
-            assertEquals(PlaylistNames.Problem.Duplicate, PlaylistNames.validate(raw.getValue("playlist:other/rename"), db.loadState().playlists, "other"))
+            assertEquals(Names.Problem.Empty, PlaylistNames.validate(raw.getValue("playlist:walk/rename"), db.loadState().playlists, "walk"))
+            assertEquals(Names.Problem.Duplicate, PlaylistNames.validate(raw.getValue("playlist:other/rename"), db.loadState().playlists, "other"))
             assertFalse(NumberInput.valid(raw.getValue("subscription:podcast/keep-at-most"), 1.0, true))
         }
     }

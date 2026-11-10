@@ -2,6 +2,7 @@ package app.podlist
 
 import androidx.lifecycle.viewModelScope
 import app.podlist.data.FormDraftStore
+import app.podlist.data.reversibleNamedView
 import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -15,13 +16,13 @@ internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playba
     val action: suspend () -> Unit = {
         editLock.withLock {
             if (session.value !== current) return@withLock
-            val undo = withContext(Dispatchers.IO) { current.db.transaction {
+            val result = withContext(Dispatchers.IO) { current.db.transaction {
                 val before = loadState()
                 val result = inverse(before)
                 recordAll(changes, System.currentTimeMillis())
-                result
+                result to restoredMessage(before, loadState(), changes)
             } }
-            recordHistory(current, AppMessage(message, formatArgs = formatArgs), changesStep(current, undo, playbackPlaylist))
+            recordHistory(current, result.second ?: AppMessage(message, formatArgs = formatArgs), changesStep(current, result.first, playbackPlaylist))
         }
     }
     if (playbackPlaylist != null) playbackEdit(playbackPlaylist, action)
@@ -44,7 +45,7 @@ internal fun AppModel.rewind(playlistId: String, to: Long) {
     }
 }
 
-internal fun AppModel.createPlaylist(name: String, finished: (String?, PlaylistNames.Problem?) -> Unit) {
+internal fun AppModel.createPlaylist(name: String, finished: (String?, Names.Problem?) -> Unit) {
     val current = session.value ?: return
     viewModelScope.launch {
         editLock.withLock {
@@ -157,4 +158,23 @@ internal fun AppModel.removeEntry(playlist: String, episode: String) {
     changeWithUndo(listOf(Change.RemoveEntry(playlist, episode)), R.string.entry_removed, playbackPlaylist = playlist) { before ->
         before.playlists.find { it.id == playlist }?.let { EditUndo.removeEntry(it, episode, System.currentTimeMillis() + 1) }.orEmpty()
     }
+}
+
+/** Use committed State so feedback reflects a suffix selected inside the transaction. */
+internal fun restoredMessage(before: State, after: State, changes: List<Change>): AppMessage? {
+    val id = changes.filterIsInstance<Change.RestorePlaylist>().firstOrNull()?.playlistId ?: return null
+    val original = before.trash?.find { it.playlist.id == id }?.playlist ?: return null
+    val restored = after.playlists.find { it.id == id } ?: return null
+    return if (original.name != restored.name) AppMessage(R.string.playlist_restored_as, formatArgs = listOf(original.name, restored.name))
+        else AppMessage(R.string.m4_playlist_restored)
+}
+
+internal fun AppModel.saveNamedView(view: View, message: Int = R.string.view_changed, formatArgs: List<Any> = emptyList(), finished: (Names.Problem?) -> Unit) {
+    val current = session.value ?: return
+    viewModelScope.launch { editLock.withLock {
+        if (session.value !== current) return@withLock
+        val result = withContext(Dispatchers.IO) { current.db.reversibleNamedView(view, System.currentTimeMillis()) }
+        if (result.problem == null) recordHistory(current, AppMessage(message, formatArgs = formatArgs), changesStep(current, result.inverse))
+        finished(result.problem)
+    } }
 }

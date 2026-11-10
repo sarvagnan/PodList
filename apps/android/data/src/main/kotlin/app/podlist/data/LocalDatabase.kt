@@ -183,9 +183,11 @@ class LocalDatabase(path: String, private val standalone: Boolean = false) : Aut
     /** One durable edit: stable id, increasing sequence, outbox, optimistic State and indexes. */
     @Synchronized
     fun record(change: Change, recordedAt: Long, id: String = UUID.randomUUID().toString()): Operation =
-        recordAll(listOf(change), recordedAt, listOf(id)).single()
+        recordAll(listOf(change), recordedAt, listOf(id)).first()
 
-    /** Related changes (such as New Playlist + Add) either all commit or all roll back. */
+    /** Related changes (such as New Playlist + Add) either all commit or all roll back.
+     * Local restores may also record a RenamePlaylist; remote replay never expands changes.
+     */
     @Synchronized
     fun recordAll(changes: List<Change>, recordedAt: Long, ids: List<String> = changes.map { UUID.randomUUID().toString() }): List<Operation> {
         require(ids.size == changes.size)
@@ -194,29 +196,33 @@ class LocalDatabase(path: String, private val standalone: Boolean = false) : Aut
             val deviceId = getMeta("deviceId") ?: UUID.randomUUID().toString().also { setMeta("deviceId", it) }
             val sequence = getMeta("sequence")?.toLong() ?: 0L
             var state = loadState()
-            val operations = changes.mapIndexed { index, change ->
-                val operation = Operation(ids[index], deviceId, sequence + index, recordedAt, change)
-                val table = if (standalone) "local_operation" else "outbox"
-                execute("INSERT INTO $table (id, operation) VALUES (?, ?)", listOf(operation.id, operation.encode()))
-                if (standalone) when (change) {
-                    is Change.SetSubscriptionOverrides -> execute("UPDATE subscription SET playback_settings = ?, played_threshold = ? WHERE id = ?", listOf(ProtocolJson.encodeToString(change.playbackSettings), change.playedThreshold, change.subscriptionId))
-                    is Change.MarkSubscriptionPlayed -> {
-                        val episodes = query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published ASC", listOf(change.subscriptionId))
-                        for (row in episodes) {
-                            val episode = row["id"] as String
-                            if (state.episodeStates[episode]?.played == null) {
-                                val concrete = operation.copy(id = "${operation.id}:$episode", change = Change.MarkPlayed(episode, PlayedSource.User))
-                                execute("INSERT INTO local_operation (id, operation) VALUES (?, ?)", listOf(concrete.id, concrete.encode()))
-                                state = StateRules.apply(state, concrete.change, recordedAt)
+            var nextSequence = sequence
+            val operations = changes.flatMapIndexed { index, requested ->
+                val expanded = if (requested is Change.RestorePlaylist) PlaylistRestores.changes(state, requested, recordedAt) else listOf(requested)
+                expanded.mapIndexed { part, change ->
+                    val operation = Operation(if (part == 0) ids[index] else UUID.randomUUID().toString(), deviceId, nextSequence++, recordedAt, change)
+                    val table = if (standalone) "local_operation" else "outbox"
+                    execute("INSERT INTO $table (id, operation) VALUES (?, ?)", listOf(operation.id, operation.encode()))
+                    if (standalone) when (change) {
+                        is Change.SetSubscriptionOverrides -> execute("UPDATE subscription SET playback_settings = ?, played_threshold = ? WHERE id = ?", listOf(ProtocolJson.encodeToString(change.playbackSettings), change.playedThreshold, change.subscriptionId))
+                        is Change.MarkSubscriptionPlayed -> {
+                            val episodes = query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published ASC", listOf(change.subscriptionId))
+                            for (row in episodes) {
+                                val episode = row["id"] as String
+                                if (state.episodeStates[episode]?.played == null) {
+                                    val concrete = operation.copy(id = "${operation.id}:$episode", change = Change.MarkPlayed(episode, PlayedSource.User))
+                                    execute("INSERT INTO local_operation (id, operation) VALUES (?, ?)", listOf(concrete.id, concrete.encode()))
+                                    state = StateRules.apply(state, concrete.change, recordedAt)
+                                }
                             }
                         }
+                        else -> Unit
                     }
-                    else -> Unit
+                    state = StateRules.apply(state, change, recordedAt)
+                    operation
                 }
-                state = StateRules.apply(state, change, recordedAt)
-                operation
             }
-            setMeta("sequence", (sequence + changes.size).toString())
+            setMeta("sequence", nextSequence.toString())
             replaceState(state)
             operations
         }
