@@ -15,18 +15,17 @@ class ReversibleEditsTest {
         checkNotNull(result).getOrThrow()
     }
 
-    @Test fun `live name and Mentions bursts each undo and redo as one durable edit`() {
+    @Test fun `explicit View rename and live Mentions burst each undo and redo as one durable edit`() {
         LocalDatabase(":memory:").use { db ->
             db.ensureState()
             var view = View("v", "Original", ViewFilter(), ViewSort.PublishedDesc, null)
             db.record(Change.SaveView(view), 1)
             val history = EditHistory<List<Change>>()
             var at = 2L
-            for (name in listOf("C", "Co", "Commute")) {
-                view = view.copy(name = name)
-                history.record(db.reversibleEdit(listOf(Change.SaveView(view)), at++), "name")
-            }
-            history.endTyping()
+            val beforeRename = db.outbox().size
+            view = view.copy(name = "Commute")
+            history.record(db.reversibleEdit(listOf(Change.SaveView(view)), at++))
+            assertEquals(beforeRename + 1, db.outbox().size)
             for (text in listOf("s", "spa", "space")) {
                 view = view.copy(filter = view.filter.copy(text = text))
                 history.record(db.reversibleEdit(listOf(Change.SaveView(view)), at++), "mentions")

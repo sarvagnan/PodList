@@ -14,7 +14,10 @@ class FormDraftStore(private val db: LocalDatabase) {
             when (change) {
                 is Change.DeletePlaylist -> clear("playlist:${change.playlistId}/")
                 is Change.SaveView -> clear("view:${change.view.id}/")
-                is Change.DeleteView -> clear("view:${change.viewId}/")
+                is Change.DeleteView -> {
+                    clear("view:${change.viewId}/")
+                    clear("view-rename:${change.viewId}/")
+                }
                 is Change.SetDownloadRule -> clear("subscription:${change.rule.subscriptionId}/")
                 else -> Unit
             }
