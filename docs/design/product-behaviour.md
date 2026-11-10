@@ -12,7 +12,7 @@ Finding (Views over the Library) and listening (Playlists with their own playbac
 - Support selecting multiple Episodes for Play Next, Play Last, Mark Played, Star and Download. Show which Playlist receives Play Next and Play Last; allow another target. Keep the selected Episodes in their displayed order when adding them together.
 - Editing exposes all conditions: Published, Podcasts, Mentions (text), Played, Starred, In a Playlist and Length; then Sort and Show (limit). An unrestricted condition is Any. All conditions must match. Conditions are not added or removed.
 - Played choices are Any, Unplayed (including in progress), In progress and Played. In progress means a Position exists on an Entry; it is not a separate Episode-level Played fact. Preserve the supported filter semantics in client duties, including the current absence of a positive In a Playlist filter.
-- Edits apply as made, without Save. Show the live matching count and allow Undo of an edit. Let people rename or delete a View and finish editing.
+- Condition edits apply as made, without Save. Show the live matching count and allow Undo of an edit. Let people rename or delete a View and finish editing. Renaming a View is an explicit step with Save and Cancel, like renaming a Playlist (owner, 10 Nov 2026).
 - Search is the same query as an unsaved View, with Mentions filled in. Search titles, podcast names and available show notes. Saving Search as a View asks for a name.
 - Distinguish loading from an empty result. With no Subscriptions, offer adding podcasts. With no matches, offer changing the View or Search. With no Views, offer creating one. A missing View gives a way back to Views.
 
@@ -34,13 +34,14 @@ Show **In your Playlists** with each Entry's own Position and Resume action. Pos
 
 ## Playlists and Entries
 
-- List Playlists with Entry counts, whether they are Active and whether they use Clear on Played. Create and open a Playlist. The Default Playlist always exists and cannot be renamed or deleted.
+- List Playlists with Entry counts, whether they are Active and whether they use Clear on Played. Create and open a Playlist. Renaming a Playlist is an explicit step with Save and Cancel, never applied while typing (owner, 10 Nov 2026). The Default Playlist always exists and cannot be renamed or deleted.
 - A Playlist exposes Entries, History and Listening Timeline. Mark its Cursor, distinguish the Active Playlist from another Playlist and display each Entry's Position. The old layout's NOW/HERE labels are presentation; the underlying distinction must remain available.
 - Open an Entry's Episode, Play from here, reorder Entries, remove an Entry, Star/Unstar and mark Played/Unplayed. Reordering is undoable; support discrete move actions as well as the platform's direct manipulation.
 - **Play this** on an inactive Playlist switches the Active Playlist and resumes its Cursor (or starts its first Entry if there is no Cursor). An empty Playlist can become Active without starting audio. Switching Playlists resumes their independent playback state.
 - Empty Playlists and Playlists past their end must clearly say there is no current Entry. An empty Playlist offers a route to find Episodes. History records Entries finished through that Playlist's playback; a manual Played mark creates no History.
+- Playlist and View names are unique, ignoring case and surrounding spaces: a Playlist's among Playlists not in Trash, a View's among Views (owner, 10 Nov 2026). Creating, renaming or saving Search as a View with a name already in use is refused, saying which name is taken. Restoring a Playlist whose name has since been taken gives it the next free name ("Commute 2") and says so. Duplicates that arrive from another Device offline are kept until someone renames one.
 - Playlist settings have their own screen, where people can change the name, Clear on Played and Delete. Clear on Played removes an Entry as soon as its Episode becomes Played, wherever that happened. It is on by default for the Default Playlist; enabling it does not retroactively remove already Played Entries. Star does not prevent Clear on Played.
-- Delete sends a Playlist, its History and its Listening Timeline to Trash. Deleting the Active Playlist makes the Default Playlist Active. Trash supports Restore and retains deleted Playlists for 30 days by default, changeable in Settings. Deletion and restoration offer Undo.
+- Delete sends a Playlist, its History and its Listening Timeline to Trash. Deleting the Active Playlist makes the Default Playlist Active. Trash supports Restore and retains deleted Playlists for 30 days by default, changeable in Settings. Deletion and restoration offer Undo; the deletion message names the Playlist ("Playlist Commute moved to Trash", owner, 10 Nov 2026).
 
 ## Listening Timeline and Rewind
 
@@ -72,7 +73,7 @@ Played uses the Subscription's threshold or 30 seconds before the end by default
 
 ### Unsubscribe
 
-Ask for confirmation first, with a plain "are you sure" dialog and no explanation (owner, 9 Nov 2026). Afterwards stay on the Podcast page and let the person navigate back (owner, 10 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
+No confirmation dialog (owner, 10 Nov 2026). Unsubscribe takes two taps on the same control: tapping the subscribed control (the green check on the Podcast page) turns it into an Unsubscribe button, and tapping that unsubscribes. The button turns back into the check after a few seconds, or on any other interaction, scroll, Back or leaving the page. Afterwards stay on the Podcast page and let the person navigate back (owner, 10 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
 
 The server retains Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices' Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals those retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Do not silently queue Subscribe or Unsubscribe as an offline State edit.
 

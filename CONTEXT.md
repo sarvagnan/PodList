@@ -57,7 +57,7 @@ _Avoid_: Favourite, saved, bookmark, like
 ### Finding
 
 **View**:
-A saved, named filter over the Library that is re-evaluated every time it is opened; it never stores a list of Episodes. Its conditions all have to match; text matches titles, podcast names and show notes (when the feed has them). Edits to a View take effect as they are made, with no separate save.
+A saved, named filter over the Library that is re-evaluated every time it is opened; it never stores a list of Episodes. Its conditions all have to match; text matches titles, podcast names and show notes (when the feed has them). Edits to its conditions take effect as they are made, with no separate save; renaming it is an explicit step. No two Views share a name.
 _Avoid_: Filter, smart playlist, feed, saved search
 
 **Search**:
@@ -67,7 +67,7 @@ _Avoid_: Query, ad-hoc filter
 ### Listening
 
 **Playlist**:
-An ordered collection of Entries with its own playback state (Cursor, Entry Positions, History).
+An ordered collection of Entries with its own playback state (Cursor, Entry Positions, History). No two Playlists outside Trash share a name.
 _Avoid_: Queue, list
 
 **Default Playlist**:

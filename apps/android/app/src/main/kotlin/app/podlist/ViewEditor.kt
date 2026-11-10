@@ -35,6 +35,8 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     }
     val drafts = LocalFormDrafts.current
     val draftPrefix = "view:${view.id}/"
+    // Condition drafts are reconciled on SaveView/Undo; an explicit rename stays open independently.
+    val renamePrefix = "view-rename:${view.id}/"
     val restored = remember(view.id) { drafts.get(draftPrefix + "view")?.let { runCatching { ProtocolJson.decodeFromString<View>(it) }.getOrNull() } ?: view }
     val creating = remember(view.id) { data.state.views.none { it.id == view.id } }
     var recorded by rememberSaveable(view.id) { mutableStateOf(!creating) }
@@ -47,7 +49,12 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val undoViewId by model.undoViewId.collectAsState()
     val undo = lastUndo.takeIf { undoViewId == view.id }
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
-    var name by rememberDraftText(draftPrefix + "name", restored.name)
+    val creationName = if (creating) rememberDraftText(draftPrefix + "name", restored.name) else null
+    var rejectedName by remember { mutableStateOf<Pair<String, Names.Problem>?>(null) }
+    val nameProblem = if (creating) ViewNames.validate(creationName!!.value, data.state.views, view.id)
+        ?: rejectedName?.takeIf { it.first == creationName.value.trim() }?.second else null
+    val hasInvalidName = nameProblem != null
+    LaunchedEffect(data.state.views) { rejectedName = null }
     var mentions by rememberDraftText(draftPrefix + "mentions", restored.filter.text.orEmpty())
     val undoRevision by model.undoRevision.collectAsState()
     val initialUndo = remember { undoRevision }
@@ -57,28 +64,44 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             if (stored == saved || stored == null && !recorded) return@LaunchedEffect
             recorded = stored != null
             val restored = stored ?: initial.takeIf { creating }
-            restored?.let { drafts.clear(draftPrefix); saved = it; draft = it; name = it.name; mentions = it.filter.text.orEmpty(); podcastMode = it.filter.podcasts?.mode }
+            restored?.let { drafts.clear(draftPrefix); saved = it; draft = it; creationName?.value = it.name; mentions = it.filter.text.orEmpty(); podcastMode = it.filter.podcasts?.mode }
         }
     }
     var count by remember { mutableStateOf<Int?>(null) }
     var completing by remember { mutableStateOf(false) }
     val revision by model.revision.collectAsState()
-    LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(saved, System.currentTimeMillis()).size } }
+    LaunchedEffect(draft, revision) { count = withContext(Dispatchers.IO) { session.db.evaluate(draft, System.currentTimeMillis()).size } }
     fun update(next: View, typingGroup: String? = null) {
         drafts.put(draftPrefix + "view", ProtocolJson.encodeToString(next))
         draft = next
-        if (ViewEdits.problem(next.filter) == null && next != saved) {
+        if (!creating && ViewEdits.problem(next.filter) == null && next != saved) {
             saved = next; recorded = true; model.edit(Change.SaveView(next), typingGroup)
         }
     }
+    fun rename(name: String, complete: (Boolean) -> Unit) {
+        // Rename accepted conditions while keeping any invalid condition draft intact.
+        model.saveNamedView(saved.copy(name = name), message = R.string.view_renamed_to, formatArgs = listOf(name)) { error ->
+            rejectedName = error?.let { name to it }
+            if (error == null) {
+                draft = draft.copy(name = name)
+                drafts.put(draftPrefix + "view", ProtocolJson.encodeToString(draft))
+                saved = saved.copy(name = name)
+            }
+            complete(error == null)
+        }
+    }
     fun finish() {
-        if (completing) return
+        if (completing || hasInvalidNumber || ViewEdits.problem(draft.filter) != null || hasInvalidName) return
         model.finishTyping()
         val accepted = ViewEdits.accepted(draft, saved, recorded)
         val completed = { drafts.clear(draftPrefix); done() }
         if (accepted == null) completed() else {
             completing = true
-            model.edit(accepted, finished = completed)
+            model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed) { error ->
+                completing = false
+                rejectedName = error?.let { draft.name to it }
+                if (error == null) completed()
+            }
         }
     }
     DisposableEffect(view.id) { onDispose { model.finishTyping() } }
@@ -86,8 +109,15 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val any = stringResource(R.string.any)
     Column(Modifier.fillMaxSize().imePadding()) {
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { OutlinedTextField(name, { name = it; if (it.isNotBlank()) update(draft.copy(name = it.trim()), "view-name:${view.id}") }, label = { Text(stringResource(R.string.m4_name)) }, isError = name.isBlank(), supportingText = if (name.isBlank()) ({ Text(stringResource(R.string.m4_view_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(if (creating) FocusedInputModifier() else Modifier), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && name.isNotBlank()) finish() })) }
-            if (problem != null || hasInvalidNumber || name.isBlank()) item { Hint(stringResource(R.string.draft_kept)) }
+            if (creating) item {
+                var name by creationName!!
+                OutlinedTextField(name, { name = it; rejectedName = null; update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ Text(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier.errorAnnouncement()) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
+            } else item {
+                RenameableName(saved.name, renamePrefix + "name",
+                    problem = { text -> (ViewNames.validate(text, data.state.views, view.id) ?: rejectedName?.takeIf { it.first == text.trim() }?.second)?.let { viewNameProblem(it, text, data.state.views.map { it.name }) } },
+                    save = ::rename)
+            }
+            if (problem != null || hasInvalidNumber || hasInvalidName) item { Hint(stringResource(R.string.draft_kept)) }
             item { Section(stringResource(R.string.m4_conditions)) }
             item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != initial.filter.published) { sheet = 0 } }
             item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != initial.filter.podcasts) { sheet = 1 } }
@@ -101,7 +131,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             item { ContentTextButton(onClick = { drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_view_draft)) } }
-            item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
@@ -109,7 +139,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                 Text(fullCount, style = MaterialTheme.typography.bodyMedium)
                 CommitActions {
                     TextButton(enabled = undo != null, onClick = { undo?.invoke() }) { Text(stringResource(R.string.undo)) }
-                    TextButton(enabled = !completing && problem == null && !hasInvalidNumber && name.isNotBlank(), onClick = ::finish) { Text(stringResource(R.string.m4_done)) }
+                    TextButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.m4_create else R.string.m4_done)) }
                 }
             }
         }
@@ -175,3 +205,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         }) { DatePicker(picker) }
     }
 }
+
+@Composable
+internal fun viewNameProblem(problem: Names.Problem, name: String, taken: List<String> = emptyList()): String =
+    stringResource(if (problem == Names.Problem.Empty) R.string.m4_view_name_error else R.string.view_name_duplicate, Names.match(name, taken) ?: name.trim())

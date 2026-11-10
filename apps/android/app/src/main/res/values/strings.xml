@@ -183,6 +183,8 @@
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
     <string name="m4_name">Name</string>
+    <string name="view_name_duplicate">There’s already a View called “%1$s”.</string>
+    <string name="playlist_restored_as">Playlist %1$s restored as %2$s</string>
     <string name="m4_view_name_error">A View needs a name.</string>
     <string name="m4_conditions">Show Episodes where</string>
     <string name="m4_published">Published</string>
@@ -210,7 +212,9 @@
     <string name="m4_setting_changed">Setting changed</string>
     <string name="m4_delete_playlist">Delete Playlist</string>
     <string name="m4_trash_help">It goes to Trash with its History and Listening Timeline, and can be restored for %1$d days.</string>
-    <string name="m4_playlist_deleted">Playlist deleted</string>
+    <string name="m4_playlist_deleted">Playlist %1$s moved to Trash</string>
+    <string name="rename">Rename</string>
+    <string name="save">Save</string>
     <string name="m4_create_playlist">Create Playlist</string>
     <string name="m4_playlist_empty">A Playlist needs a name.</string>
     <string name="m4_playlist_duplicate">There’s already a Playlist called “%1$s”.</string>
@@ -235,7 +239,6 @@
     <string name="m4_mark_all_played">Mark all Played</string>
     <string name="m4_marked_all">All Episodes marked Played</string>
     <string name="m4_default_threshold">Default (30 seconds)</string>
-    <string name="m4_unsubscribe_named">Unsubscribe from %1$s?</string>
     <string name="m4_listened_stretch">Listened %1$s–%2$s · until %3$s</string>
     <string name="m4_finished">Finished through playback</string>
     <string name="m4_entry_added">Entry added</string>
@@ -372,7 +375,8 @@
     <string name="episode_unplayed">Episode marked Unplayed</string>
     <string name="episodes_starred">Episodes starred</string>
     <string name="episodes_played">Episodes marked Played</string>
-    <string name="playlist_renamed">Playlist renamed</string>
+    <string name="playlist_renamed_to">Playlist renamed to %1$s</string>
+    <string name="view_renamed_to">View renamed to %1$s</string>
     <string name="view_changed">View changed</string>
     <string name="download_rule_changed">Download Rule changed</string>
     <string name="entry_removed">Entry removed from Playlist</string>
@@ -451,7 +455,8 @@
     <string name="podcast_invalid_response">Couldn’t read the podcast service’s response. Try again.</string>
     <string name="podcast_try_again">Try again</string>
     <string name="podcast_show_details">Show or hide podcast details</string>
-    <string name="podcast_subscribed_unsubscribe">Subscribed to %1$s. Activate to Unsubscribe.</string>
+    <string name="podcast_unsubscribe_armed">Activate again to unsubscribe from %1$s.</string>
+    <string name="podcast_subscribed_unsubscribe">Subscribed to %1$s. Activate to show Unsubscribe.</string>
     <plurals name="podcast_filtered_count">
         <item quantity="one">%1$d of %2$d Episode</item>
         <item quantity="other">%1$d of %2$d Episodes</item>

@@ -88,8 +88,8 @@ class MilestoneFourTest {
         assertEquals(0, ListeningStats.calculate(emptyMap(), emptyList(), now, zone).streak)
     }
     @Test fun `Playlist names trim and compare without case while excluding self`() {
-        assertEquals(PlaylistNames.Problem.Empty, PlaylistNames.validate("  ", listOf(playlist())))
-        assertEquals(PlaylistNames.Problem.Duplicate, PlaylistNames.validate(" DEFAULT ", listOf(playlist())))
+        assertEquals(Names.Problem.Empty, PlaylistNames.validate("  ", listOf(playlist())))
+        assertEquals(Names.Problem.Duplicate, PlaylistNames.validate(" DEFAULT ", listOf(playlist())))
         assertNull(PlaylistNames.validate("Default", listOf(playlist()), "default"))
     }
 }

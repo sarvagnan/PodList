@@ -45,8 +45,10 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
 // Sheets and create forms finish at the bottom trailing edge; actions wrap before they crowd.
 @Composable
 internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
-    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-        verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        maxItemsInEachRow = if (largeText) 1 else Int.MAX_VALUE, content = content)
 }
 
 @Composable

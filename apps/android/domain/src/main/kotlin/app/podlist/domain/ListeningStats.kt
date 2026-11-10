@@ -27,12 +27,3 @@ data class ListeningStats(val totals: List<ListeningTotal>, val days: List<Liste
         }
     }
 }
-
-object PlaylistNames {
-    enum class Problem { Empty, Duplicate }
-    fun validate(name: String, playlists: List<Playlist>, excluding: String? = null): Problem? = when {
-        name.trim().isEmpty() -> Problem.Empty
-        playlists.any { it.id != excluding && it.name.equals(name.trim(), ignoreCase = true) } -> Problem.Duplicate
-        else -> null
-    }
-}

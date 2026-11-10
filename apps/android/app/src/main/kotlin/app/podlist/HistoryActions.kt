@@ -9,27 +9,29 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withLock
 
 internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: String? = null, val reloadActive: Boolean = false, val apply: suspend () -> ReversibleEdit) {
-    var description: Int? = null
+    var description: AppMessage? = null
+    var feedback: AppMessage? = null
 }
 
 internal fun AppModel.changesStep(current: Session, changes: List<Change>, playbackPlaylist: String? = null): ReversibleEdit =
     ReversibleEdit(changes.filterIsInstance<Change.SaveView>().firstOrNull()?.view?.id, playbackPlaylist, changes.any { it is Change.SetActivePlaylist }) {
-        val inverse = withContext(Dispatchers.IO) {
+        val result = withContext(Dispatchers.IO) {
             current.db.transaction {
+                val before = loadState()
                 val inverse = reversibleEdit(changes, System.currentTimeMillis())
                 app.podlist.data.FormDraftStore(this).reconcile(changes)
-                inverse
+                inverse to restoredMessage(before, loadState(), changes)
             }
         }
         revealChanges(changes)
-        changesStep(current, inverse, playbackPlaylist)
+        changesStep(current, result.first, playbackPlaylist).also { it.feedback = result.second }
     }
 
 internal fun AppModel.recordHistory(current: Session, message: AppMessage, step: ReversibleEdit, typingGroup: String? = null) {
     if (session.value !== current) return
     if (typingGroup == null || typingGroup != activeTypingGroup) finishTyping()
     activeTypingGroup = typingGroup
-    step.description = message.resource
+    step.description = message.copy(undo = null)
     history.record(step, typingGroup)
     updateHistoryActions()
     val notification = message.copy(undo = ::undoEdit)
@@ -73,11 +75,12 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 return@withLock
             }
             try {
-                history.reverse(redo) { step -> step.apply().also { it.description = step.description } }
+                var feedback: AppMessage? = null
+                history.reverse(redo) { step -> step.apply().also { it.description = step.description; feedback = it.feedback } }
                 undoRevision.value++
                 updateHistoryActions()
-                messages.trySend(AppMessage(if (redo) R.string.edit_redone else R.string.edit_undone,
-                    if (redo) R.string.undo else R.string.m4_redo, undo = if (redo) ::undoEdit else ::redoEdit))
+                messages.trySend((feedback ?: AppMessage(if (redo) R.string.edit_redone else R.string.edit_undone)).copy(
+                    actionResource = if (redo) R.string.undo else R.string.m4_redo, undo = if (redo) ::undoEdit else ::redoEdit))
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
                 messages.trySend(AppMessage(R.string.edit_reverse_failed, R.string.retry_action, undo = if (redo) ::redoEdit else ::undoEdit))
@@ -118,4 +121,10 @@ internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onKeyEvent {
         if (event.isShiftPressed) model.redoEdit() else model.undoEdit()
         true
     } else false
+}
+
+// Let the field handle text Undo first, then consume unhandled Ctrl+Z (including Redo).
+// Otherwise a field with no text history can fall through to a sheet or MainActivity's app Undo.
+internal fun textFieldHistoryShortcuts(): Modifier = Modifier.onKeyEvent { event ->
+    event.isCtrlPressed && event.key == Key.Z
 }

@@ -87,8 +87,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
     internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
     internal val undoRevision = MutableStateFlow(0L)
-    internal val undoDescription = MutableStateFlow<Int?>(null)
-    internal val redoDescription = MutableStateFlow<Int?>(null)
+    internal val undoDescription = MutableStateFlow<AppMessage?>(null)
+    internal val redoDescription = MutableStateFlow<AppMessage?>(null)
     internal val latestUndo = MutableStateFlow<(() -> Unit)?>(null)
     internal val undoViewId = MutableStateFlow<String?>(null)
     internal val latestRedo = MutableStateFlow<(() -> Unit)?>(null)
@@ -97,12 +97,12 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal var typingMessage: AppMessage? = null
     internal var activeTypingGroup: String? = null
     internal val editLock = Mutex()
-    fun edit(change: Change, typingGroup: String? = null, finished: (() -> Unit)? = null) {
+    fun edit(change: Change, typingGroup: String? = null, message: Int = editMessage(change), formatArgs: List<Any> = emptyList(), finished: (() -> Unit)? = null) {
         val current = session.value ?: return
         viewModelScope.launch { editLock.withLock {
             if (session.value !== current) return@withLock
             val inverse = withContext(Dispatchers.IO) { current.db.reversibleEdit(listOf(change), System.currentTimeMillis()) }
-            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(editMessage(change)),
+            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(message, formatArgs = formatArgs),
                 ReversibleEdit((change as? Change.SaveView)?.view?.id) { changesStep(current, inverse).apply() }, typingGroup)
             finished?.invoke()
         } }
