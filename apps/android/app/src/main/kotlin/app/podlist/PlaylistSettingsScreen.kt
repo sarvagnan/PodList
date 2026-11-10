@@ -7,11 +7,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,29 +26,8 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
     val model = LocalAppModel.current
     val drafts = LocalFormDrafts.current
     val prefix = "playlist:${playlist.id}/"
-    var name by rememberDraftText(prefix + "name", playlist.name)
-    DisposableEffect(playlist.id) { onDispose { model.finishTyping() } }
-    val problem = PlaylistNames.validate(name, data.state.playlists, playlist.id)
-    var focused by remember { mutableStateOf(false) }
-    val draft = drafts.get(prefix + "name")
-    // A draft lives only while the field holds a name that can't be saved. A valid name is saved as it's
-    // typed, so its draft goes once the saved name matches, or when the field is left (trimmed, or replaced
-    // by Undo or another Device's rename).
-    LaunchedEffect(draft, playlist.name, focused) {
-        if (draft != null && (draft == playlist.name || (!focused && problem == null))) drafts.clear(prefix)
-    }
-    LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (!playlist.isDefault) item {
-            OutlinedTextField(name, { input -> name = input; if (PlaylistNames.validate(input, data.state.playlists, playlist.id) == null) model.edit(Change.RenamePlaylist(playlist.id, input.trim()), "playlist-name:${playlist.id}") }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, isError = problem != null,
-                supportingText = if (problem != null) ({
-                    Column {
-                        Text(playlistProblem(problem, name), Modifier.errorAnnouncement())
-                        ContentTextButton(onClick = { drafts.clear(prefix); model.finishTyping() }) {
-                            Text(stringResource(R.string.use_saved_playlist_name, playlist.name))
-                        }
-                    }
-                }) else null, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).onFocusChanged { focused = it.isFocused; if (!it.isFocused) model.finishTyping() })
-        }
+    LazyColumn(modifier = Modifier.imePadding(), state = rememberBrowsingListState(), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (!playlist.isDefault) item(key = "name") { PlaylistName(playlist, data) }
         item { SwitchRow(stringResource(R.string.clear_on_played), playlist.clearOnPlayed, stringResource(R.string.m4_clear_help)) { checked ->
             model.changeWithUndo(listOf(Change.SetClearOnPlayed(playlist.id, checked)), R.string.clear_on_played_changed) { before -> listOf(Change.SetClearOnPlayed(playlist.id, before.playlists.first { it.id == playlist.id }.clearOnPlayed)) }
         } }
@@ -58,6 +40,66 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
             }) { Text(stringResource(R.string.m4_delete_playlist), color = MaterialTheme.colorScheme.error) }
             Text(stringResource(R.string.m4_trash_help, data.state.trashDays ?: 30), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
         }
+    }
+}
+
+@Composable
+private fun PlaylistName(playlist: Playlist, data: ScreenData) {
+    val model = LocalAppModel.current
+    val drafts = LocalFormDrafts.current
+    val prefix = "playlist:${playlist.id}/"
+    val key = prefix + "rename"
+    // Presence means open, including an empty string. Only Save, Cancel or Delete clears it.
+    val draft = drafts.get(key)
+    val renameFocus = remember(playlist.id) { FocusRequester() }
+    var returnFocus by remember(playlist.id) { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val close = {
+        drafts.clear(prefix)
+        keyboard?.hide()
+        returnFocus = true
+    }
+    if (draft == null) {
+        ListItem(
+            modifier = Modifier.semantics(mergeDescendants = true) {},
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            headlineContent = { Text(stringResource(R.string.m4_name)) },
+            supportingContent = { Text(playlist.name) },
+            trailingContent = {
+                TextButton(onClick = { drafts.put(key, playlist.name) }, modifier = Modifier.focusRequester(renameFocus).heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.rename))
+                }
+            }
+        )
+        LaunchedEffect(returnFocus) {
+            if (returnFocus) { renameFocus.requestFocus(); returnFocus = false }
+        }
+    } else {
+        // The persisted text owns this field even if Undo or another Device changes the saved name.
+        var value by remember(playlist.id) { mutableStateOf(TextFieldValue(draft, TextRange(0, draft.length))) }
+        val fieldFocus = remember { FocusRequester() }
+        val problem = PlaylistNames.validate(value.text, data.state.playlists, playlist.id)
+        val canSave = problem == null && value.text.trim() != playlist.name
+        fun save() {
+            if (!canSave || drafts.get(key) == null) return
+            val name = value.text.trim()
+            model.changeWithUndo(listOf(Change.RenamePlaylist(playlist.id, name)), R.string.playlist_renamed_to, formatArgs = listOf(name)) { before ->
+                listOf(Change.RenamePlaylist(playlist.id, before.playlists.first { it.id == playlist.id }.name))
+            }
+            close()
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(value, { drafts.put(key, it.text); value = it },
+                label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, isError = problem != null,
+                supportingText = if (problem != null) ({ Text(playlistProblem(problem, value.text), Modifier.errorAnnouncement()) }) else null,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { save() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus).then(textFieldHistoryShortcuts()))
+            CommitActions {
+                TextButton(onClick = close, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
+                Button(onClick = ::save, enabled = canSave, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.save)) }
+            }
+        }
+        LaunchedEffect(Unit) { fieldFocus.requestFocus(); keyboard?.show() }
     }
 }
 

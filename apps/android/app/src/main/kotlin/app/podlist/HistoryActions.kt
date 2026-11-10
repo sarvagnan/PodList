@@ -119,3 +119,9 @@ internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onKeyEvent {
         true
     } else false
 }
+
+// Let the field handle text Undo first, then consume unhandled Ctrl+Z (including Redo).
+// Otherwise a field with no text history can fall through to a sheet or MainActivity's app Undo.
+internal fun textFieldHistoryShortcuts(): Modifier = Modifier.onKeyEvent { event ->
+    event.isCtrlPressed && event.key == Key.Z
+}

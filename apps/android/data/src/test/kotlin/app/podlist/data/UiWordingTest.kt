@@ -21,8 +21,18 @@ class UiWordingTest {
         assertEquals("Playlist Commute moved to Trash", message)
         assertEquals("Undo: Playlist Commute moved to Trash", text("undo_specific").format(message))
         assertEquals("Redo: Playlist Commute moved to Trash", text("redo_specific").format(message))
-        assertEquals("Use saved name (Commute)", text("use_saved_playlist_name").format("Commute"))
         assertEquals("Playlist 100% listening moved to Trash", text("m4_playlist_deleted").format("100% listening"))
+    }
+
+    @Test fun `explicit Playlist rename names the saved result in feedback and Undo`() {
+        val message = text("playlist_renamed_to").format("Commute")
+        assertEquals("Playlist renamed to Commute", message)
+        assertEquals("Undo: Playlist renamed to Commute", text("undo_specific").format(message))
+        assertEquals("Redo: Playlist renamed to Commute", text("redo_specific").format(message))
+        assertEquals("Playlist renamed to 100% listening", text("playlist_renamed_to").format("100% listening"))
+        assertEquals("Rename", text("rename"))
+        assertEquals("Cancel", text("cancel"))
+        assertEquals("Save", text("save"))
     }
 
     @Test fun `recovery commands use the same verb across screens`() {

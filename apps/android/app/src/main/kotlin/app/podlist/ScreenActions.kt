@@ -144,7 +144,6 @@ internal fun editMessage(change: Change): Int = when (change) {
     is Change.SetStar -> if (change.starred) R.string.episode_starred else R.string.episode_unstarred
     is Change.MarkPlayed -> R.string.episode_played
     is Change.MarkUnplayed -> R.string.episode_unplayed
-    is Change.RenamePlaylist -> R.string.playlist_renamed
     is Change.SaveView -> R.string.view_changed
     is Change.SetDownloadRule -> R.string.download_rule_changed
     is Change.SetPlaybackSettings -> R.string.playback_settings_changed

@@ -13,8 +13,8 @@ class UiRoundSixTest {
     @Test fun `unfinished names and numbers survive cold reopen without changing accepted values`() {
         val file = directory.resolve("drafts.sqlite").toString()
         val raw = mapOf(
-            "playlist:walk/name" to "  ",
-            "playlist:other/name" to " Walk ",
+            "playlist:walk/rename" to "  ",
+            "playlist:other/rename" to " Walk ",
             "subscription:podcast/keep-at-most" to "1x",
             "sleep/minutes" to "1,",
             "view:one/number/Length" to "-"
@@ -28,29 +28,31 @@ class UiRoundSixTest {
         LocalDatabase(file).use { db ->
             assertEquals(raw, FormDraftStore(db).load())
             assertEquals("Walk", db.loadState().playlists.single { it.id == "walk" }.name)
-            assertEquals(PlaylistNames.Problem.Empty, PlaylistNames.validate(raw.getValue("playlist:walk/name"), db.loadState().playlists, "walk"))
-            assertEquals(PlaylistNames.Problem.Duplicate, PlaylistNames.validate(raw.getValue("playlist:other/name"), db.loadState().playlists, "other"))
+            assertEquals(PlaylistNames.Problem.Empty, PlaylistNames.validate(raw.getValue("playlist:walk/rename"), db.loadState().playlists, "walk"))
+            assertEquals(PlaylistNames.Problem.Duplicate, PlaylistNames.validate(raw.getValue("playlist:other/rename"), db.loadState().playlists, "other"))
             assertFalse(NumberInput.valid(raw.getValue("subscription:podcast/keep-at-most"), 1.0, true))
         }
     }
 
-    @Test fun `using saved Playlist name clears only its invalid draft and survives reopen`() {
+    @Test fun `Cancel closes only its Playlist rename without changing the saved name after reopen`() {
         val file = directory.resolve("saved-name.sqlite").toString()
         LocalDatabase(file).use { db ->
             db.ensureState()
             db.record(Change.CreatePlaylist("walk", "Walk", false), 100)
             db.record(Change.RenamePlaylist("walk", "Morning"), 101)
-            FormDraftStore(db).put("playlist:walk/name", "")
-            FormDraftStore(db).put("playlist:other/name", "Keep typing")
+            FormDraftStore(db).put("playlist:walk/rename", "")
+            FormDraftStore(db).put("playlist:other/rename", "Keep typing")
         }
         LocalDatabase(file).use { db ->
             val drafts = FormDraftStore(db)
-            assertEquals("", drafts.load()["playlist:walk/name"])
+            assertEquals("", drafts.load()["playlist:walk/rename"])
+            val pending = db.outbox()
             drafts.clear("playlist:walk/")
+            assertEquals(pending, db.outbox())
             assertEquals("Morning", db.loadState().playlists.single { it.id == "walk" }.name)
         }
         LocalDatabase(file).use { db ->
-            assertEquals(mapOf("playlist:other/name" to "Keep typing"), FormDraftStore(db).load())
+            assertEquals(mapOf("playlist:other/rename" to "Keep typing"), FormDraftStore(db).load())
             assertEquals("Morning", db.loadState().playlists.single { it.id == "walk" }.name)
         }
     }
@@ -72,15 +74,15 @@ class UiRoundSixTest {
         LocalDatabase(file).use { db -> assertEquals("123x", FormDraftStore(db).load()[key]) }
     }
 
-    @Test fun `Undo reconciles only affected forms and cannot resurrect a stale draft after reopen`() {
+    @Test fun `Undo preserves open Playlist renames while reconciling live editor drafts after reopen`() {
         val file = directory.resolve("undo.sqlite").toString()
         LocalDatabase(file).use { db ->
             db.ensureState()
             val drafts = FormDraftStore(db)
             db.record(Change.CreatePlaylist("walk", "Walk", false), 100)
             val inverse = db.reversibleEdit(listOf(Change.RenamePlaylist("walk", "Morning")), 101)
-            drafts.put("playlist:walk/name", "  ")
-            drafts.put("playlist:keep/name", "Keep typing")
+            drafts.put("playlist:walk/rename", "  ")
+            drafts.put("playlist:keep/rename", "Keep typing")
             drafts.put("subscription:podcast/keep-at-most", "0x")
             drafts.put("sleep/minutes", "-")
             db.transaction {
@@ -91,7 +93,7 @@ class UiRoundSixTest {
             drafts.reconcile(listOf(Change.SetDownloadRule(DownloadRule("podcast", "device", DownloadMode.AllNew, 10))))
         }
         LocalDatabase(file).use { db ->
-            assertEquals(mapOf("playlist:keep/name" to "Keep typing", "sleep/minutes" to "-"), FormDraftStore(db).load())
+            assertEquals(mapOf("playlist:walk/rename" to "  ", "playlist:keep/rename" to "Keep typing", "sleep/minutes" to "-"), FormDraftStore(db).load())
         }
     }
 
