@@ -12,11 +12,21 @@ object NumberInput {
         val number = NumberFormat.getNumberInstance(locale).apply { isGroupingUsed = false }.parse(clean, position)?.toDouble()
         return number?.takeIf { position.index == clean.length && it.isFinite() }
     }
-    fun valid(text: String, minimum: Double = 0.0, integer: Boolean = false): Boolean {
-        val parsed = parse(text)
-        return text.isBlank() || parsed != null && parsed >= minimum &&
-            (!integer || parsed % 1 == 0.0 && parsed <= Int.MAX_VALUE)
+    enum class Problem { Number, Minimum, WholeNumber, Maximum }
+
+    fun problem(text: String, minimum: Double = 0.0, integer: Boolean = false): Problem? {
+        if (text.isBlank()) return null
+        val parsed = parse(text) ?: return Problem.Number
+        return when {
+            integer && parsed % 1 != 0.0 -> Problem.WholeNumber
+            parsed < minimum -> Problem.Minimum
+            integer && parsed > Int.MAX_VALUE -> Problem.Maximum
+            else -> null
+        }
     }
+
+    fun valid(text: String, minimum: Double = 0.0, integer: Boolean = false): Boolean =
+        problem(text, minimum, integer) == null
 
     fun format(value: Double, locale: Locale = Locale.getDefault()): String = NumberFormat.getNumberInstance(locale).apply {
         isGroupingUsed = false; maximumFractionDigits = 8

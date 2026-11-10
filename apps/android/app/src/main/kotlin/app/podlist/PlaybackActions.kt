@@ -113,13 +113,14 @@ internal fun DownloadStatus(episode: String, session: Session, modifier: Modifie
     val statuses by downloads.status.collectAsState()
     val status = statuses[episode] ?: return
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(when (status.phase) {
+        val message = stringResource(when (status.phase) {
             DownloadPhase.Stored -> R.string.download_stored
             DownloadPhase.Failed -> if (status.storageFull) R.string.download_storage_full else R.string.download_failed
             DownloadPhase.Queued -> R.string.download_queued
             DownloadPhase.Transferring -> R.string.download_in_progress
-        }), style = MaterialTheme.typography.bodyMedium,
-            modifier = if (status.phase == DownloadPhase.Failed) Modifier.errorAnnouncement() else Modifier)
+        })
+        if (status.phase == DownloadPhase.Failed) InlineError(message)
+        else Text(message, style = MaterialTheme.typography.bodyMedium)
         if (status.phase == DownloadPhase.Failed) {
             ContentTextButton(onClick = { performDownloadAction(downloads, episode, status.phase) }) { Text(stringResource(R.string.retry_download)) }
         }

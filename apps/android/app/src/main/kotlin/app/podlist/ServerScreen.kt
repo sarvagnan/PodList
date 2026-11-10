@@ -26,14 +26,14 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
             label = { Text(stringResource(R.string.server_address)) },
             placeholder = { Text(stringResource(R.string.server_example)) },
             singleLine = true, enabled = !checking, isError = error != null,
+            supportingText = error?.let { problem -> ({ InlineError(stringResource(when (problem) {
+                ConnectionError.Address -> if (BuildConfig.DEBUG) R.string.address_error_debug else R.string.address_error
+                ConnectionError.Offline -> R.string.offline_error
+                ConnectionError.Tls -> R.string.tls_error
+                ConnectionError.Server -> R.string.server_error
+                ConnectionError.Response -> R.string.response_error
+            })) }) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { if (!checking && input.isNotBlank()) model.connect(input) { connected?.invoke() } }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
-        if (error != null) Text(stringResource(when (error!!) {
-            ConnectionError.Address -> if (BuildConfig.DEBUG) R.string.address_error_debug else R.string.address_error
-            ConnectionError.Offline -> R.string.offline_error
-            ConnectionError.Tls -> R.string.tls_error
-            ConnectionError.Server -> R.string.server_error
-            ConnectionError.Response -> R.string.response_error
-        }), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         CommitActions {
             if (draft != null) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.discard_draft))

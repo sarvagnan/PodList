@@ -56,7 +56,7 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
                 label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = saving,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { saveView() }),
                 modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), isError = problem != null,
-                supportingText = problem?.let { error -> ({ Text(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier.errorAnnouncement()) }) })
+                supportingText = problem?.let { error -> ({ InlineError(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier) }) })
             CommitActions {
                 TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !saving, onClick = { drafts.clear("search-view/"); naming = false }) { Text(stringResource(R.string.cancel)) }
                 CommitButton(enabled = problem == null && !saving, onClick = ::saveView) { Text(stringResource(R.string.create_view)) }

@@ -40,7 +40,7 @@ private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartO
     @Composable fun Tile(index: Int, value: String, modifier: Modifier) {
         Surface(modifier.semantics(mergeDescendants = true) {}, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Column(Modifier.padding(12.dp)) {
-                Text(stringResource(labels[index]), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(labels[index]), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(value, style = MaterialTheme.typography.titleLarge)
             }
         }
@@ -81,14 +81,14 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
             val shown = stats.days[chosen.coerceIn(stats.days.indices)]
             val selectedColor = MaterialTheme.colorScheme.primary
             val unselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = ListeningPresentation.unselectedBarAlpha)
-            Text(stringResource(R.string.chart_minutes), style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.chart_minutes), Modifier.padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium)
             val chartLabel = stringResource(R.string.listening_chart)
             val baseline = MaterialTheme.colorScheme.outlineVariant
             Row(Modifier.fillMaxWidth()) {
                 Column(Modifier.height(144.dp).width(IntrinsicSize.Max).padding(end = 8.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.chart_tick, (max / 60).toLong()), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
-                    if (androidx.compose.ui.platform.LocalDensity.current.fontScale < 1.5f) Text(stringResource(R.string.chart_tick, (max / 120).toLong()), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
-                    Text(stringResource(R.string.chart_tick, 0L), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
+                    Text(stringResource(R.string.chart_tick, (max / 60).toLong()), style = MaterialTheme.typography.bodyMedium, softWrap = false, maxLines = 1)
+                    if (androidx.compose.ui.platform.LocalDensity.current.fontScale < 1.5f) Text(stringResource(R.string.chart_tick, (max / 120).toLong()), style = MaterialTheme.typography.bodyMedium, softWrap = false, maxLines = 1)
+                    Text(stringResource(R.string.chart_tick, 0L), style = MaterialTheme.typography.bodyMedium, softWrap = false, maxLines = 1)
                 }
                 Column(Modifier.weight(1f)) {
                     androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(144.dp).pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
@@ -103,8 +103,8 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
                         }
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(chartDate(stats.days.first().day), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                        Text(chartDate(stats.days.last().day), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall,
+                        Text(chartDate(stats.days.first().day), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Text(chartDate(stats.days.last().day), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                             textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     }
                 }
@@ -121,15 +121,13 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         items(stats.podcasts) { (id, seconds) ->
             val subscription = data.subscriptions.find { it["id"] == id }
-            val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ArtworkImage(session, subscription?.get("artwork_url") as? String, 48.dp)
                 Column(Modifier.weight(1f)) {
                     Text(subscription?.get("title") as? String ?: stringResource(R.string.m4_removed_subscription))
-                    if (large) Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
+                    Text(listened(seconds), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Box(Modifier.padding(top = 6.dp).fillMaxWidth((seconds / most).toFloat().coerceIn(.02f, 1f)).height(6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)))
                 }
-                if (!large) Text(listened(seconds), style = MaterialTheme.typography.bodySmall)
             }
         }
         item { Section(stringResource(R.string.m4_about_stats), inset = 0.dp); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodyMedium) }

@@ -202,19 +202,16 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { inspectingGuid = null }
             })
         }) { padding ->
-            LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-                item { Box(Modifier.padding(16.dp)) { ArtworkImage(session, inspected["artwork_url"] as? String ?: artwork, size = 224.dp, direct = true) } }
-                item {
-                    EpisodeRow(inspected, data, session, showArtwork = false, detail = true, actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"],
-                        addAction = { resolve(inspected, add) }, playAction = { resolve(inspected) { model.playNow(it); started() } })
-                }
-                item { actionFailure?.let {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(podcastErrorResource(it)), Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
-                        ContentTextButton(onClick = { retryAction?.invoke() }, enabled = !busy) { Text(stringResource(R.string.podcast_try_again)) }
-                    }
-                } }
-                item { Text(showNotes((inspected["description"] as? String).orEmpty()), Modifier.padding(16.dp)) }
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                EpisodeDetail(data.copy(episodes = listOf(inspected)), session, resolve = if (localRows.any { it["id"] == inspected["id"] }) null else ::resolve,
+                    actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"], actionError = {
+                        actionFailure?.let {
+                            Column {
+                                InlineError(stringResource(podcastErrorResource(it)))
+                                ContentTextButton(onClick = { retryAction?.invoke() }, enabled = !busy) { Text(stringResource(R.string.podcast_try_again)) }
+                            }
+                        }
+                    })
             }
         }
         return
@@ -255,12 +252,12 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     Scaffold(modifier = disarmOnOtherTap, topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
-            else TopAppBar(title = { if (!armed) Text(if (headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            else TopAppBar(title = { Text(if (armed || headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
                 if (!armed) EditHistoryMenu()
                 if (subscribed) {
-                    if (!armed) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { openPage("subscription-settings:$id") }
+                    if (!armed || LocalDensity.current.fontScale < 1.5f) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { openPage("subscription-settings:$id") }
                     val label = if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
                     val armedAnnouncement = stringResource(R.string.podcast_unsubscribe_armed, title)
                     // A single semantics/click node retains focus and its trailing edge as it grows left.
@@ -277,7 +274,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                             }
                         }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                             contentPadding = PaddingValues(horizontal = if (armed) 12.dp else 0.dp),
-                            modifier = Modifier.padding(end = 8.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }
+                            modifier = Modifier.padding(end = 12.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }
                                 .animateContentSize(alignment = Alignment.CenterEnd).height(48.dp).widthIn(min = 48.dp)
                                 .semantics {
                                     contentDescription = label
@@ -289,7 +286,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                             else SubscribedIndicator()
                         }
                     }
-                } else Button(onClick = { changeSubscription(false) }, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {
+                } else Button(onClick = { changeSubscription(false) }, enabled = !busy, modifier = Modifier.padding(end = 12.dp)) {
                     if (changingSubscription) CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
                     else Text(stringResource(R.string.subscribe))
                 }
@@ -313,19 +310,22 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                         ArtworkImage(session, artwork, size = 120.dp, direct = true)
                         description?.let { SelectionContainer { Text(showNotes(it)) } }
                     }
-                    ContentTextButton(onClick = ::toggleDetails) { Text(stringResource(if (expanded) R.string.hide_podcast_details else R.string.show_podcast_details)) }
-                    if (subscribed && subscription != null) SubscriptionRefreshStatus(subscription, session, onRefresh = { confirmation = confirmation.disarm() })
-                    OutlinedTextField(query, onValueChange = { confirmation = confirmation.disarm(); query = it }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) confirmation = confirmation.disarm() })
-                    Text(if (count.filtered) pluralStringResource(R.plurals.podcast_filtered_count, count.total, count.shown, count.total)
+                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        ContentTextButton(onClick = ::toggleDetails) { Text(stringResource(if (expanded) R.string.hide_podcast_details else R.string.show_podcast_details)) }
+                        if (subscribed && subscription != null) SubscriptionRefreshStatus(subscription, session, onRefresh = { confirmation = confirmation.disarm() })
+                        OutlinedTextField(query, onValueChange = { confirmation = confirmation.disarm(); query = it }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) confirmation = confirmation.disarm() })
+                        Spacer(Modifier.height(16.dp))
+                        Text(if (count.filtered) pluralStringResource(R.plurals.podcast_filtered_count, count.total, count.shown, count.total)
                         else pluralStringResource(R.plurals.episode_count, count.total, count.total), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    }
                     if (loading || !localLoaded) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.podcast_loading)))
                     failure?.let {
-                        Text(stringResource(R.string.podcast_load_failed), Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
-                        Text(stringResource(podcastErrorResource(it)), color = MaterialTheme.colorScheme.error)
+                        InlineError(stringResource(R.string.podcast_load_failed), Modifier)
+                        InlineError(stringResource(podcastErrorResource(it)))
                         ContentTextButton(onClick = ::load, enabled = !loading) { Text(stringResource(R.string.podcast_try_again)) }
                     }
                     actionFailure?.let {
-                        Text(stringResource(podcastErrorResource(it)), Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+                        InlineError(stringResource(podcastErrorResource(it)), Modifier)
                         ContentTextButton(onClick = { retryAction?.invoke() }, enabled = !busy) { Text(stringResource(R.string.podcast_try_again)) }
                     }
                 }

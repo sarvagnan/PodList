@@ -13,6 +13,15 @@ class NumberDraftTest {
         }
     }
 
+    @Test fun `integer rejection explains the correction while preserving raw input`() {
+        assertEquals(NumberInput.Problem.WholeNumber, NumberInput.problem(NumberInput.format(1.5), 1.0, true))
+        assertEquals(NumberInput.Problem.Number, NumberInput.problem("1x", 1.0, true))
+        assertEquals(NumberInput.Problem.Minimum, NumberInput.problem("0", 1.0, true))
+        assertEquals(NumberInput.Problem.Maximum, NumberInput.problem("2147483648", 1.0, true))
+        assertNull(NumberInput.problem("", 1.0, true))
+        assertNull(NumberInput.problem("2147483647", 1.0, true))
+    }
+
     @Test fun `decimal conditions retain their validation without imposing integer rules`() {
         assertTrue(NumberInput.valid(NumberInput.format(1.5)))
         assertFalse(NumberInput.valid("-1"))

@@ -67,11 +67,11 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         if (!busy && opml.progress?.remaining?.isNotEmpty() == true) item {
             Column(Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.import_stopped)); ContentTextButton(onClick = actions::resume) { Text(stringResource(R.string.import_resume)) } }
         }
-        if (error) item { Column(Modifier.padding(16.dp)) { Text(stringResource(R.string.m4_opml_error), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error); ContentTextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
+        if (error) item { Column(Modifier.padding(16.dp)) { InlineError(stringResource(R.string.m4_opml_error), modifier = Modifier); ContentTextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
         summary?.let { result -> item {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.m4_import_summary, result.added, result.alreadySubscribed, result.failed.size))
-                result.failed.forEach { failure -> Text(stringResource(R.string.m4_import_failure, failure.feedUrl, stringResource(lookupErrorResource(failure.error))), Modifier.errorAnnouncement(), style = MaterialTheme.typography.bodyMedium) }
+                result.failed.forEach { failure -> InlineError(stringResource(R.string.m4_import_failure, failure.feedUrl, stringResource(lookupErrorResource(failure.error))), Modifier) }
                 if (result.failed.isNotEmpty()) ContentTextButton(enabled = !busy, onClick = actions::retryFailed) { Text(stringResource(R.string.m4_retry_failed)) }
             }
         } }

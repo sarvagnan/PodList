@@ -28,16 +28,16 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
     val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
     val valueColor = MaterialTheme.colorScheme.onSurfaceVariant
     val shownValue = if (changed) stringResource(R.string.changed_value, value) else value
-    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick),
-        headlineContent = { Text(label) }, supportingContent = if (large || help != null) ({
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (large) Text(shownValue, color = valueColor)
-                help?.let { Text(it) }
-            }
-        }) else null, trailingContent = if (large) null else ({
-            Text(shownValue, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium, color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        }))
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (large) Text(shownValue, style = MaterialTheme.typography.bodyMedium, color = valueColor)
+            help?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = valueColor) }
+        }
+        if (!large) Text(shownValue, Modifier.widthIn(max = 168.dp), style = MaterialTheme.typography.bodyMedium,
+            color = valueColor, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+    }
     HorizontalDivider()
 }
 
@@ -107,14 +107,21 @@ internal fun NumberField(label: String, value: Double?, integer: Boolean = false
     val initial = value?.let { if (integer) it.toLong().toString() else NumberInput.format(it) }.orEmpty()
     // Raw drafts own the field until finish/discard/Undo, so delayed model echoes cannot replace input.
     var text by rememberDraftText(key, initial)
-    val valid = NumberInput.valid(text, minimum, integer)
+    val problem = NumberInput.problem(text, minimum, integer)
+    val valid = problem == null
     LaunchedEffect(valid) { viewDraftPrefix?.let { drafts.put("$it/invalid/$label", (!valid).toString()) } }
     val model = LocalAppModel.current
     val currentValid by rememberUpdatedState(valid)
     DisposableEffect(Unit) { onDispose { if (!currentValid) model.messages.trySend(AppMessage(R.string.invalid_number_not_applied)) } }
     OutlinedTextField(text, { text = it; val n = NumberInput.parse(it); if (it.isBlank()) changed(null) else if (n != null && n.isFinite() && n >= minimum && (!integer || n % 1 == 0.0 && n <= Int.MAX_VALUE)) changed(n) },
         label = { Text(label) }, placeholder = { Text(stringResource(R.string.any)) }, singleLine = true,
-        isError = !valid, supportingText = if (!valid) ({ Text(stringResource(R.string.m4_number_error, minimum.toLong()), Modifier.errorAnnouncement()) }) else null,
+        isError = !valid, supportingText = if (!valid) ({ InlineError(if (integer) stringResource(when (problem) {
+            NumberInput.Problem.WholeNumber -> R.string.number_whole_error
+            NumberInput.Problem.Maximum -> R.string.number_maximum_error
+            NumberInput.Problem.Minimum -> R.string.number_minimum_error
+            else -> R.string.number_integer_error
+        }, minimum.toLong(), Int.MAX_VALUE) else stringResource(R.string.m4_number_error, minimum.toLong())) }) else null,
+        // Number requests TYPE_CLASS_NUMBER without the decimal-point flag; pasted text is still validated.
         keyboardOptions = KeyboardOptions(keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().then(if (autofocus) FocusedInputModifier() else Modifier))
 }
 
@@ -182,4 +189,11 @@ internal fun ProgressModifier(label: Int): Modifier {
 @Composable
 internal fun SearchClearButton(text: String, clear: () -> Unit) {
     if (text.isNotEmpty()) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search), action = clear)
+}
+
+/** Field supporting slots and other inline failures share one tone, size and announcement. */
+@Composable
+internal fun InlineError(message: String, modifier: Modifier = Modifier) {
+    Text(message, modifier.padding(vertical = 4.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall)
 }

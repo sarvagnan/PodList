@@ -15,7 +15,7 @@ internal fun SubscriptionRefreshStatus(subscription: Row, session: Session, onRe
     val refreshing by model.refreshing.collectAsState()
     val id = subscription["id"] as String
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(stringResource(R.string.refresh_failed), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+        InlineError(stringResource(R.string.refresh_failed), modifier = Modifier)
         (subscription["refreshed_at"] as? Number)?.toLong()?.let { Text(stringResource(R.string.refreshed_at, dateTime(it)), style = MaterialTheme.typography.bodySmall) }
         ContentTextButton(enabled = id !in refreshing, onClick = { onRefresh(); model.refreshSubscription(id) }) {
             Text(stringResource(if (id in refreshing) R.string.refreshing_podcast else R.string.retry_refresh))

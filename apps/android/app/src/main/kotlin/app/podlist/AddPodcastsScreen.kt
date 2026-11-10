@@ -75,13 +75,13 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
         item {
             Column {
                 OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
-                    singleLine = true, enabled = !busy, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
+                    singleLine = true, enabled = !busy, isError = error != null,
+                    supportingText = error?.let { message -> ({ InlineError(stringResource(message)) }) }, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
                 CommitActions(Modifier.padding(horizontal = 16.dp)) {
                     if (input.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("add-podcasts/"); results = emptyList(); error = null }) { Text(stringResource(R.string.discard_draft)) }
                     CommitButton(onClick = ::find, enabled = input.isNotBlank() && !busy) { Text(stringResource(R.string.find_podcasts)) }
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
-                error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
             }
         }
         items(results, key = { it.feedUrl }) { result ->
@@ -110,7 +110,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
                     }
                 })
             failures[result.feedUrl]?.let { failure ->
-                Text(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+                InlineError(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
             HorizontalDivider()
         }

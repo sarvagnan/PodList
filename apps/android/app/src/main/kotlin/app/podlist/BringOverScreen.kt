@@ -67,8 +67,8 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
                         }))
                     }
                 }
-                if (ui.error) Text(stringResource(if (job?.phase == "downloads") R.string.bring_over_download_error else R.string.bring_over_error),
-                    Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+                if (ui.error) InlineError(stringResource(if (job?.phase == "downloads") R.string.bring_over_download_error else R.string.bring_over_error),
+                    Modifier.padding(16.dp))
             }
             item {
                 ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(pluralStringResource(R.plurals.bring_over_subscriptions, counts.subscriptions, counts.subscriptions)) },

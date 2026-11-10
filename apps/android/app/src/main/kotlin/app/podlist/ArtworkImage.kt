@@ -46,11 +46,12 @@ private fun decodeArtwork(bytes: ByteArray, pixels: Int): Bitmap? {
 @Composable
 internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp, direct: Boolean = false) {
     val context = LocalContext.current
-    val bitmap by produceState<Bitmap?>(null, session.source.key, url, direct) {
+    val pixels = with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
+    val bitmap by produceState<Bitmap?>(null, session.source.key, url, direct, pixels) {
         value = null
         if (url == null) return@produceState
-        val pixels = if (size > 100.dp) 512 else 128
-        val endpoint = if (direct) url else session.source.artwork(url, pixels)
+        val publisherSource = direct || pixels > 512
+        val endpoint = if (publisherSource) url else session.source.artwork(url, pixels)
         // Publisher Artwork arrives full size, so one URL has an entry for each size drawn.
         val cacheKey = "$endpoint#$pixels"
         value = withContext(Dispatchers.IO) {
@@ -64,7 +65,7 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
                     try {
                         connection.connectTimeout = 10_000
                         connection.readTimeout = 10_000
-                        connection.instanceFollowRedirects = direct || session.source.server == null
+                        connection.instanceFollowRedirects = publisherSource || session.source.server == null
                         connection.setRequestProperty("User-Agent", "PodList Android")
                         if (connection.responseCode != 200) return@run null
                         val bytes = connection.inputStream.use { it.readNBytes(ArtworkByteLimit + 1) }

@@ -67,6 +67,6 @@ class UiRoundFourTest {
         assertEquals("12:34", TimelinePresentation.positionLabel("12:34", "12:34"))
         assertEquals("12:34–13:00", TimelinePresentation.positionLabel("12:34", "13:00"))
         assertEquals("0:00", TimelinePresentation.positionLabel("0:00", "0:00"))
-        assertEquals("Listened 12:34 · until 14:00", resources.getValue("m4_listened_stretch").format("12:34", "14:00"))
+        assertEquals("Listened at Position 12:34\\nEnded 14:00", resources.getValue("m4_listened_stretch").format("12:34", "14:00"))
     }
 }
