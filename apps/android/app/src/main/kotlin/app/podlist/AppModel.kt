@@ -254,7 +254,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         connectionError.value = null
         return try {
             val address = ServerAddress.parse(input, BuildConfig.DEBUG)
-            withContext(Dispatchers.IO) { checkHealth(HttpTransport(address)) }
+            withContext(Dispatchers.IO) { checkHealth(flowRunTransport(address)) }
             val fromStandalone = _session.value?.source?.server == null && _session.value != null
             if (_session.value?.source?.server?.origin != address.origin) activate(address)
             withContext(Dispatchers.IO) { check(preferences.edit().putString("server", address.origin).commit()) }
@@ -284,7 +284,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                 it.setMeta("registeredAt", registeredAt.toString())
             }
         }
-        val source = if (address == null) DeviceLibrary(db) else ServerLibrary(db, address) { error ->
+        val source = if (address == null) DeviceLibrary(db) else ServerLibrary(db, address, http = flowRunTransport(address)) { error ->
             status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
         }
         Session(source, db, withContext(Dispatchers.IO) { db.installation().id }).also { sessions[key] = it }
@@ -297,7 +297,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun transfer(next: Session): BringOver {
         val source = sessionFor(null)
-        return BringOver(source.db, next.db, HttpTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000), audioFiles(source), audioFiles(next)) { job ->
+        return BringOver(source.db, next.db, flowRunTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000), audioFiles(source), audioFiles(next)) { job ->
             _bringOver.update { current -> if (current?.origin == next.source.key) current.copy(job = job, counts = job.snapshot.counts, error = false) else current }
         }
     }
