@@ -94,9 +94,7 @@ class UiWordingTest {
         assertEquals("When Episodes become an Entry", text("on_entry"))
         assertEquals("As Episodes are published", text("all_new"))
         assertEquals("Download Rule", text("m4_download_rule"))
-        assertEquals("Episodes play without automatic downloads.", text("library_stream_help"))
-        assertEquals("Episodes are stored when added to a Playlist.", text("library_on_entry_help"))
-        assertEquals("Newly published Episodes are stored on this Device.", text("library_all_new_help"))
+        assertEquals("Grouped by Download Rule", text("library_grouped_by_rule"))
     }
     @Test fun `restored settings feedback names the setting and restored value`() {
         assertEquals("Restored Speed to 1.0×", text("setting_back_to").format(text("speed"), text("speed_value").format("1.0")))
@@ -112,7 +110,7 @@ class UiWordingTest {
         assertEquals("Play Now", text("play_now"))
         assertEquals("Play Next", text("play_next"))
         assertEquals("Play Last", text("play_last"))
-        assertTrue(text("m4_step_playlists_help").contains("“Play Next” or “Play Last”"))
+        assertTrue(text("m4_step_playlists_help").startsWith("Use Add on an Episode, then Play Next or Play Last."))
         assertEquals("Playlist settings", text("playlist_settings"))
         assertEquals("The Default Playlist can’t be renamed or deleted.", text("default_playlist_limits"))
     }
@@ -157,7 +155,10 @@ class UiWordingTest {
             assertFalse(text(key).contains("”"), key)
         }
         assertEquals("Name", text("m4_name"))
-        assertTrue(text("m4_stats_about").startsWith("Time listened includes partial listening"))
+        assertTrue(text("stats_time_help").contains("partial listening across Devices"))
+        assertTrue(text("stats_finished_help").contains("excludes manual Played marks"))
+        assertTrue(text("stats_finished_changes").contains("Rewind or marking Unplayed"))
+        assertEquals("Grouped by Download Rule", text("library_grouped_by_rule"))
         assertFalse(text("timeline_rewind_hint").contains("symbol"))
         assertFalse(text("m4_listened_stretch").contains("until"))
     }

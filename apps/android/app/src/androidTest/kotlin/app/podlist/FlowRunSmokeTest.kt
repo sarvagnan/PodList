@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExternalResource
@@ -313,11 +314,28 @@ class FlowRunSmokeTest {
             enter("type-while-pending", "Search Episodes", "Long E")
             probe.typed(value("Search Episodes"), SystemClock.uptimeMillis(), DebugNetworkDelay.pending.get())
             capture("typing-pending")
+            val pendingSubscription = compose.onNode(SemanticsMatcher.expectValue(FlowSlotKey, "podcast-subscription")).fetchSemanticsNode().boundsInRoot
+            val pendingSearch = compose.onNode(field("Search Episodes")).fetchSemanticsNode().boundsInRoot
             DebugNetworkDelay.holdSubscriptionCompletion = false
             waitFor("Subscribe completion") { present(hasText("Undo") and hasClickAction()) && !busy() }
             compose.waitForIdle()
             capture("subscribe-completion")
             probe.completed(value("Search Episodes"), SystemClock.uptimeMillis())
+            // The delayed reply changes only the spinner/check, never the slot or the active input.
+            val settledSubscription = compose.onNode(SemanticsMatcher.expectValue(FlowSlotKey, "podcast-subscription")).fetchSemanticsNode().boundsInRoot
+            val settledSearch = compose.onNode(field("Search Episodes")).fetchSemanticsNode().boundsInRoot
+            val tolerance = compose.activity.resources.displayMetrics.density
+            listOf(pendingSubscription to settledSubscription, pendingSearch to settledSearch).forEach { (before, after) ->
+                assertEquals(before.left, after.left, tolerance)
+                assertEquals(before.top, after.top, tolerance)
+                assertEquals(before.width, after.width, tolerance)
+                assertEquals(before.height, after.height, tolerance)
+            }
+            val gear = compose.onNode(label("Subscription settings") and hasClickAction()).fetchSemanticsNode().boundsInRoot
+            val overflow = compose.onNode(control("More actions")).fetchSemanticsNode().boundsInRoot
+            assertEquals(48f * tolerance, settledSubscription.width, tolerance)
+            assertEquals(48f * tolerance, settledSubscription.center.x - gear.center.x, tolerance)
+            assertEquals(48f * tolerance, overflow.center.x - settledSubscription.center.x, tolerance)
         } else tap("subscribe", "Subscribe", { present(hasText("Undo") and hasClickAction()) && !busy() })
         capture("follow-up")
         undo("undo-subscribe") { present(control("Subscribe")) && !busy() }

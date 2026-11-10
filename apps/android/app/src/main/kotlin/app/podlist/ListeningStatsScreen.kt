@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -70,9 +72,10 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
         return
     }
     LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Section(stringResource(R.string.m4_time_listened), inset = 0.dp); PeriodTiles(stats.totals.map { listened(it.seconds) }) }
-        item { Section(stringResource(R.string.m4_episodes_finished), inset = 0.dp); PeriodTiles(stats.totals.map { it.finished.toString() }) }
-        item { Section(stringResource(R.string.m4_last_30), inset = 0.dp); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
+        item { StatHeading(R.string.m4_time_listened, R.string.stats_time_help); PeriodTiles(stats.totals.map { listened(it.seconds) }) }
+        item { StatHeading(R.string.m4_episodes_finished, R.string.stats_finished_help, R.string.stats_finished_changes); PeriodTiles(stats.totals.map { it.finished.toString() }) }
+        item { StatHeading(R.string.listening_streak, R.string.stats_streak_help); Text(pluralStringResource(R.plurals.m4_streak, stats.streak, stats.streak)) }
+        item { StatHeading(R.string.m4_last_30, R.string.stats_daily_help) }
         if (table) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(stringResource(R.string.m4_day)); Text(stringResource(R.string.m4_time_listened)) } }
             items(stats.days.asReversed()) { day ->
@@ -120,7 +123,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
             }
         }
         item { ContentActionButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
-        item { Section(stringResource(R.string.m4_top_podcasts), inset = 0.dp) }
+        item { StatHeading(R.string.m4_top_podcasts, R.string.stats_podcasts_help) }
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         items(stats.podcasts) { (id, seconds) ->
             val subscription = data.subscriptions.find { it["id"] == id }
@@ -133,6 +136,24 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
                 }
             }
         }
-        item { Section(stringResource(R.string.m4_about_stats), inset = 0.dp); Text(stringResource(R.string.m4_stats_about), style = MaterialTheme.typography.bodyMedium) }
+    }
+}
+
+/** Keep definitions beside the count they explain, available without a long About section. */
+@Composable private fun StatHeading(label: Int, definition: Int, detail: Int? = null) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val expandedLabel = stringResource(R.string.definition_shown)
+    val collapsedLabel = stringResource(R.string.definition_hidden)
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(label), Modifier.weight(1f).semantics { heading() },
+                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            ActionIcon(R.drawable.ic_info, stringResource(R.string.stats_definition, stringResource(label)),
+                modifier = Modifier.semantics { stateDescription = if (expanded) expandedLabel else collapsedLabel }) { expanded = !expanded }
+        }
+        if (expanded) {
+            Text(stringResource(definition), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            detail?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
     }
 }
