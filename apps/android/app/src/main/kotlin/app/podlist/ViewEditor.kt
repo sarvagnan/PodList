@@ -123,7 +123,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             // A permanent note at the end of the form never inserts space above the conditions.
             item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
-            if (creating || problem != null || hasInvalidNumber) item { ContentTextButton(onClick = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(if (creating) R.string.discard_draft else R.string.discard_view_draft)) } }
+            if (creating || problem != null || hasInvalidNumber) item { ContentTextButton(onClick = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_draft)) } }
             if (!creating) item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) {

@@ -19,6 +19,13 @@ class FormDraftStore(private val db: LocalDatabase) {
 
     fun put(key: String, text: String) { db.setMeta("formDraft:$key", text) }
 
+    fun snapshot(prefix: String): Map<String, String> = load().filterKeys { it.startsWith(prefix) }
+
+    /** A completed request owns only the exact draft it submitted, including raw whitespace. */
+    fun clearIfUnchanged(prefix: String, submitted: Map<String, String>): Boolean = db.transaction {
+        if (snapshot(prefix) != submitted) false else { clear(prefix); true }
+    }
+
     // Live editors follow deliberate reversals even off screen. Explicit rename drafts stay open.
     fun reconcile(changes: List<Change>) {
         changes.forEach { change ->

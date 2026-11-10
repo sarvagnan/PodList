@@ -77,7 +77,7 @@
     <string name="longest_first">Longest first</string>
     <string name="show_limit">Show at most %1$d Episodes</string>
     <string name="unavailable">Unavailable</string>
-    <string name="play_now">Play now</string>
+    <string name="play_now">Play Now</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
     <string name="back_15">Back 15 seconds</string>
@@ -107,9 +107,8 @@
     <string name="add_to_playlist">Add to a Playlist</string>
     <string name="new_playlist">New Playlist</string>
     <string name="playlist_name">Playlist name</string>
-    <string name="playlist_name_error">Enter a name that is not already used.</string>
-    <string name="play_next">Play next</string>
-    <string name="play_last">Play last</string>
+    <string name="play_next">Play Next</string>
+    <string name="play_last">Play Last</string>
     <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
     <string name="play_from_here">Play from here</string>
     <string name="switch_playlist">Switch Playlist</string>
@@ -272,7 +271,7 @@
     <string name="m4_step_views">Views find Episodes for you</string>
     <string name="m4_step_views_help">Start with New this week, Under 30 minutes and Starred. Edit them or make your own.</string>
     <string name="m4_step_playlists">Playlists hold what you’ll listen to</string>
-    <string name="m4_step_playlists_help">Use “Play next” or “Play last” on an Episode; the Default Playlist is ready.</string>
+    <string name="m4_step_playlists_help">Use “Play Next” or “Play Last” on an Episode; the Default Playlist is ready.</string>
     <string name="m4_hide">Hide</string>
     <string name="m4_search_library">Search the Library</string>
     <string name="m4_save_as_view">Save as a View</string>
@@ -280,7 +279,6 @@
     <string name="m4_edit_view">Edit View</string>
     <string name="playlist_settings_for">Settings for %1$s</string>
     <string name="m4_subscription_settings">Subscription settings</string>
-    <string name="m4_edit">Edit</string>
     <string name="create_view">Create View</string>
     <string name="m4_search_hint">Episode titles, podcast names and show notes</string>
     <string name="m4_add_podcasts_hint">Search by name or paste a feed address</string>
@@ -433,7 +431,6 @@
     <string name="download_notification_reason">Allow notifications to see download progress and stop a download.</string>
     <string name="continue_action">Continue</string>
     <string name="discard_draft">Discard draft</string>
-    <string name="discard_view_draft">Discard unfinished conditions</string>
     <string name="show_podcast_details">Show podcast details</string>
     <string name="hide_podcast_details">Hide podcast details</string>
     <string name="timeline_rewind_hint">Tap a row with the Rewind symbol to see what goes back before you Rewind.</string>
@@ -456,4 +453,14 @@
     <string name="appearance_system">System default</string>
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>
+    <string name="playlist_settings">Playlist settings</string>
+    <string name="default_playlist_limits">The Default Playlist can’t be renamed or deleted.</string>
+    <string name="empty_trash_help">Trash holds deleted Playlists, together with their History and Listening Timeline, for %1$d days, changeable in Settings.</string>
+    <string name="back_to_playlists">Back to Playlists</string>
+    <string name="find_something_to_play">Find something to play</string>
+    <string name="setting_back_to">%1$s back to %2$s</string>
+    <string name="settings_restored">%1$s</string>
+    <string name="setting_for">%1$s for %2$s</string>
+    <string name="subscription">Subscription</string>
+    <string name="download_limit">Maximum downloads kept</string>
 </resources>

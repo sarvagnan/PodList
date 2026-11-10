@@ -1,7 +1,6 @@
 package app.podlist
 
 import androidx.lifecycle.viewModelScope
-import app.podlist.data.FormDraftStore
 import app.podlist.data.reversibleNamedView
 import app.podlist.domain.*
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +54,6 @@ internal fun AppModel.createPlaylist(name: String, finished: (String?, Names.Pro
                 if (problem != null) null to problem else {
                     val id = UUID.randomUUID().toString()
                     record(Change.CreatePlaylist(id, name.trim(), false), System.currentTimeMillis())
-                    FormDraftStore(this).clear("new-playlist/")
                     id to null
                 }
             } }
@@ -65,14 +63,18 @@ internal fun AppModel.createPlaylist(name: String, finished: (String?, Names.Pro
     }
 }
 
-internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: String?, placement: Placement, finished: (Boolean) -> Unit) {
+internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: String?, placement: Placement, finished: (Boolean, Names.Problem?) -> Unit) {
     val current = session.value ?: return
     viewModelScope.launch {
         editLock.withLock {
             if (session.value !== current) return@withLock
+            var nameProblem: Names.Problem? = null
             val result = withContext(Dispatchers.IO) { current.db.transaction {
                 val before = loadState()
-                if (playlistId == null && PlaylistNames.validate(name.orEmpty(), before.playlists) != null) return@transaction null
+                if (playlistId == null) {
+                    nameProblem = PlaylistNames.validate(name.orEmpty(), before.playlists)
+                    if (nameProblem != null) return@transaction null
+                }
                 val id = playlistId ?: UUID.randomUUID().toString()
                 val playlist = before.playlists.find { it.id == id }
                 if (playlistId != null && playlist == null) return@transaction null
@@ -81,7 +83,6 @@ internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: S
                     addAll(EpisodeActions.addMany(ids, id, placement, playlist))
                 }
                 recordAll(changes, System.currentTimeMillis())
-                FormDraftStore(this).clear("add-playlist:${ids.joinToString(":")}/")
                 val undo = if (playlist == null) listOf<Change>(Change.DeletePlaylist(id)) else EpisodeActions.undoAdd(playlist, ids)
                 (playlist?.name ?: name!!.trim()) to undo
             } }
@@ -90,7 +91,7 @@ internal fun AppModel.addSeveral(ids: List<String>, playlistId: String?, name: S
                 val count = ids.distinct().size
                 recordHistory(current, AppMessage(R.plurals.entries_added_to_playlist, formatArgs = listOf(count, playlistName), quantity = count), changesStep(current, undo))
             }
-            finished(result != null)
+            finished(result != null, nameProblem)
         }
     }
 }

@@ -286,7 +286,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                 }) {
                             if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
                             else if (armed) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
-                            else Icon(painterResource(R.drawable.ic_check), null, tint = LocalSubscribedColors.current.foreground, modifier = Modifier.background(LocalSubscribedColors.current.background, CircleShape).padding(4.dp).size(24.dp))
+                            else SubscribedIndicator()
                         }
                     }
                 } else Button(onClick = { changeSubscription(false) }, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {

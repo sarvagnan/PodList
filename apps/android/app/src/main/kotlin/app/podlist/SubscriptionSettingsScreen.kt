@@ -25,7 +25,28 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
     val ruleLabels = listOf(R.string.stream, R.string.on_entry, R.string.all_new)
     val ruleHelp = listOf(R.string.m4_stream_help, R.string.m4_entry_help, R.string.m4_published_help)
     val modeIndex = when (rule.mode) { DownloadMode.Never -> 0; DownloadMode.OnEntry -> 1; DownloadMode.AllNew -> 2 }
-    LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    val listState = rememberBrowsingListState()
+    val reveal by model.settingReveal.collectAsState()
+    var revealed by rememberSaveable { mutableLongStateOf(0L) }
+    LaunchedEffect(reveal) {
+        val target = reveal
+        if (target != null && target.token != revealed && target.route == "subscription-settings:$id") {
+            val offset = if (rule.mode == DownloadMode.AllNew) 1 else 0
+            val index = when (target.key) {
+                SettingKey.DownloadRule -> 1
+                SettingKey.KeepAtMost -> if (offset == 1) 2 else 1
+                SettingKey.PlayedThreshold -> 3 + offset
+                SettingKey.Speed -> 5 + offset
+                SettingKey.SkipIntro -> 6 + offset
+                SettingKey.SkipOutro -> 7 + offset
+                SettingKey.VolumeBoost -> 8 + offset
+                else -> 0
+            }
+            listState.animateScrollToItem(index)
+            revealed = target.token
+        }
+    }
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         item { Section(stringResource(R.string.m4_downloads_device)) }
         item { ValueRow(stringResource(R.string.m4_download_rule), stringResource(ruleLabels[modeIndex]), rule.mode != DownloadMode.Never, stringResource(ruleHelp[modeIndex])) { sheet = 0 } }
         if (rule.mode == DownloadMode.AllNew) item { ValueRow(stringResource(R.string.m4_keep_at_most), rule.keepAtMost?.let { pluralStringResource(R.plurals.episode_count, it.toInt(), it.toInt()) } ?: stringResource(R.string.m4_unlimited), rule.keepAtMost != null) { sheet = 0 } }

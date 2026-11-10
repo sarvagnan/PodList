@@ -43,6 +43,7 @@ internal fun WelcomeScreen(model: AppModel) {
 
 @Composable
 internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String) -> Unit) {
+    val drafts = LocalFormDrafts.current
     var input by rememberDraftText("add-podcasts/query")
     val incomingFeed by model.incomingFeed.collectAsState()
     LaunchedEffect(incomingFeed) { incomingFeed?.let { input = it; model.incomingFeed.compareAndSet(it, null) } }
@@ -76,6 +77,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
                 OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
                     singleLine = true, enabled = !busy, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
                 CommitActions(Modifier.padding(horizontal = 16.dp)) {
+                    if (input.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("add-podcasts/"); results = emptyList(); error = null }) { Text(stringResource(R.string.discard_draft)) }
                     CommitButton(onClick = ::find, enabled = input.isNotBlank() && !busy) { Text(stringResource(R.string.find_podcasts)) }
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
@@ -87,7 +89,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
                 leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
                 trailingContent = {
                     val done = result.feedUrl in subscribed
-                    ContentTextButton(onClick = {
+                    if (done) SubscribedIndicator(showText = true) else ContentTextButton(onClick = {
                         scope.launch {
                             subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
                             try {
@@ -99,12 +101,12 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
                             catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
                             finally { subscribing = subscribing - result.feedUrl }
                         }
-                    }, enabled = !done && result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
+                    }, enabled = result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
                         if (result.feedUrl in subscribing) {
                             CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
                             Spacer(Modifier.width(8.dp))
                         }
-                        Text(stringResource(if (done) R.string.subscribed else if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
+                        Text(stringResource(if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
                     }
                 })
             failures[result.feedUrl]?.let { failure ->

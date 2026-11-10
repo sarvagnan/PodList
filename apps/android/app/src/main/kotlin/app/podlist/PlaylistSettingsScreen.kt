@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -26,8 +27,19 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
     val model = LocalAppModel.current
     val drafts = LocalFormDrafts.current
     val prefix = "playlist:${playlist.id}/"
-    LazyColumn(modifier = Modifier.imePadding(), state = rememberBrowsingListState(), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val listState = rememberBrowsingListState()
+    val reveal by model.settingReveal.collectAsState()
+    var revealed by rememberSaveable { mutableLongStateOf(0L) }
+    LaunchedEffect(reveal) {
+        val target = reveal
+        if (target != null && target.token != revealed && target.route == "playlist-settings:${playlist.id}") {
+            listState.animateScrollToItem(1)
+            revealed = target.token
+        }
+    }
+    LazyColumn(modifier = Modifier.imePadding(), state = listState, contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!playlist.isDefault) item(key = "name") { PlaylistName(playlist, data) }
+        else item { Hint(stringResource(R.string.default_playlist_limits)) }
         item { SwitchRow(stringResource(R.string.clear_on_played), playlist.clearOnPlayed, stringResource(R.string.m4_clear_help)) { checked ->
             model.changeWithUndo(listOf(Change.SetClearOnPlayed(playlist.id, checked)), R.string.clear_on_played_changed, notify = false) { before -> listOf(Change.SetClearOnPlayed(playlist.id, before.playlists.first { it.id == playlist.id }.clearOnPlayed)) }
         } }
@@ -57,18 +69,27 @@ private fun PlaylistName(playlist: Playlist, data: ScreenData) {
 }
 
 @Composable
-internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (String) -> Unit) {
+internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () -> Unit, created: (String) -> Unit) {
     val drafts = LocalFormDrafts.current
     var name by rememberDraftText("new-playlist/name")
-    var problem by remember { mutableStateOf<Names.Problem?>(null) }
+    var rejected by remember { mutableStateOf<Names.Problem?>(null) }
+    val problem = PlaylistNames.validate(name, data.state.playlists) ?: rejected
     var busy by remember { mutableStateOf(false) }
-    fun submit() { if (!busy) { busy = true; model.createPlaylist(name) { id, error -> busy = false; problem = error; if (id != null) { drafts.clear("new-playlist/"); created(id) } } } }
+    fun submit() {
+        if (busy || problem != null) return
+        val submitted = drafts.snapshot("new-playlist/")
+        busy = true
+        model.createPlaylist(name) { id, error ->
+            busy = false; rejected = error
+            if (id != null) { drafts.clearIfUnchanged("new-playlist/", submitted); created(id) }
+        }
+    }
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(name, { name = it; problem = null }, label = { Text(stringResource(R.string.playlist_name)) }, singleLine = true, isError = problem != null, supportingText = if (problem != null) ({ Text(playlistProblem(problem!!, name), Modifier.errorAnnouncement()) }) else null, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
+            OutlinedTextField(name, { if (!busy) { name = it; rejected = null } }, label = { Text(stringResource(R.string.playlist_name)) }, singleLine = true, readOnly = busy, isError = problem != null, supportingText = if (problem != null) ({ Text(playlistProblem(problem, name, data.state.playlists.map { it.name }), Modifier.errorAnnouncement()) }) else null, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
             CommitActions {
                 TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
-                CommitButton(enabled = !busy, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
+                CommitButton(enabled = !busy && problem == null, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
             }
         }
     }
@@ -78,11 +99,15 @@ internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (S
 @Composable internal fun playlistProblem(problem: Names.Problem, name: String, taken: List<String> = emptyList()): String = stringResource(if (problem == Names.Problem.Empty) R.string.m4_playlist_empty else R.string.m4_playlist_duplicate, Names.match(name, taken) ?: name.trim())
 
 @Composable
-internal fun TrashScreen(data: ScreenData) {
+internal fun TrashScreen(data: ScreenData, openPlaylists: () -> Unit) {
     val model = LocalAppModel.current
     val trash = PlaylistRules.availableTrash(data.state, System.currentTimeMillis())
     LazyColumn(state = rememberBrowsingListState("trash")) {
-        if (trash.isEmpty()) item { EmptyMessage(R.string.no_trash) }
+        if (trash.isEmpty()) item {
+            EmptyMessage(R.string.no_trash)
+            Hint(stringResource(R.string.empty_trash_help, data.state.trashDays ?: 30))
+            FilledTonalButton(onClick = openPlaylists, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.back_to_playlists)) }
+        }
         items(trash, key = { it.playlist.id }) { trash ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(trash.playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.deleted, date(trash.deletedAt))) }, trailingContent = {
                 ContentTextButton(onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored) { before -> EditUndo.inverse(before, Change.RestorePlaylist(trash.playlist.id), System.currentTimeMillis()) } }) { Text(stringResource(R.string.m4_restore)) }
