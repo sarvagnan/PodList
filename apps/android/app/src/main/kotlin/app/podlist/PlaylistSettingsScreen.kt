@@ -46,61 +46,13 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
 @Composable
 private fun PlaylistName(playlist: Playlist, data: ScreenData) {
     val model = LocalAppModel.current
-    val drafts = LocalFormDrafts.current
-    val prefix = "playlist:${playlist.id}/"
-    val key = prefix + "rename"
-    // Presence means open, including an empty string. Only Save, Cancel or Delete clears it.
-    val draft = drafts.get(key)
-    val renameFocus = remember(playlist.id) { FocusRequester() }
-    var returnFocus by remember(playlist.id) { mutableStateOf(false) }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val close = {
-        drafts.clear(prefix)
-        keyboard?.hide()
-        returnFocus = true
-    }
-    if (draft == null) {
-        ListItem(
-            modifier = Modifier.semantics(mergeDescendants = true) {},
-            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-            headlineContent = { Text(stringResource(R.string.m4_name)) },
-            supportingContent = { Text(playlist.name) },
-            trailingContent = {
-                TextButton(onClick = { drafts.put(key, playlist.name) }, modifier = Modifier.focusRequester(renameFocus).heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.rename))
-                }
-            }
-        )
-        LaunchedEffect(returnFocus) {
-            if (returnFocus) { renameFocus.requestFocus(); returnFocus = false }
-        }
-    } else {
-        // The persisted text owns this field even if Undo or another Device changes the saved name.
-        var value by remember(playlist.id) { mutableStateOf(TextFieldValue(draft, TextRange(0, draft.length))) }
-        val fieldFocus = remember { FocusRequester() }
-        val problem = PlaylistNames.validate(value.text, data.state.playlists, playlist.id)
-        val canSave = problem == null && value.text.trim() != playlist.name
-        fun save() {
-            if (!canSave || drafts.get(key) == null) return
-            val name = value.text.trim()
+    RenameableName(playlist.name, "playlist:${playlist.id}/rename",
+        problem = { text -> PlaylistNames.validate(text, data.state.playlists, playlist.id)?.let { playlistProblem(it, text) } },
+        save = { name ->
             model.changeWithUndo(listOf(Change.RenamePlaylist(playlist.id, name)), R.string.playlist_renamed_to, formatArgs = listOf(name)) { before ->
                 listOf(Change.RenamePlaylist(playlist.id, before.playlists.first { it.id == playlist.id }.name))
             }
-            close()
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(value, { drafts.put(key, it.text); value = it },
-                label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, isError = problem != null,
-                supportingText = if (problem != null) ({ Text(playlistProblem(problem, value.text), Modifier.errorAnnouncement()) }) else null,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { save() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus).then(textFieldHistoryShortcuts()))
-            CommitActions {
-                TextButton(onClick = close, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
-                Button(onClick = ::save, enabled = canSave, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.save)) }
-            }
-        }
-        LaunchedEffect(Unit) { fieldFocus.requestFocus(); keyboard?.show() }
-    }
+        })
 }
 
 @Composable
