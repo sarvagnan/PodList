@@ -588,3 +588,102 @@ fixture's loopback Artwork URLs need no rewriting. The demo Device's Download Ru
 belong to that Device; this new Android Device therefore starts with Stream groups.
 Stop the demo server to check offline browsing, then restart/reconnect to exercise
 retry. A fresh demo invocation uses a new origin and a fresh local Library.
+
+## Instrumented UI flow run (pod-apx.4.33)
+
+`FlowRunSmokeTest` drives the real Compose UI through Welcome → Connect, then
+flows A–E (View/Episode/Add/Undo; Default/Play/Now Playing/reorder/Undo;
+feed lookup/Podcast/Subscribe/Undo with typing during completion; create/rename
+Playlist/Undo; Library search/inline Create View). It clears the connection
+preferences, Library databases and device properties **before** launching the
+Activity, so run it only against a disposable demo installation and fresh demo
+server. It does not clear external evidence from earlier runs. No model or database
+shortcuts complete the flows. The bead remains open for device verification.
+
+Start the default demo seed from the repository root:
+
+```sh
+node packages/web/ui-flows/demo.mjs
+```
+
+Use the printed server PORT and the actual fixture FPORT (not necessarily PORT−1:
+`demo.mjs` currently allocates both independently). Find FPORT in the demo feed URLs
+or from `GET /api/library/changes?since=0&limit=1000`; the fixture URL is
+`http://127.0.0.1:FPORT/feeds/long-list.xml`. Do not use the `large:true` seed: this
+flow needs Long listening initially unsubscribed. Fixture Episodes have fixed
+publication dates around **6 November 2026**; run with the device date within seven
+days of that date so New this week contains Episodes. A missing Episode is an
+explicit flow failure, not a skipped check.
+
+From `apps/android`, with the demo running and emulator ready:
+
+```sh
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export PODLIST_JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$HOME/Library/Android/sdk"
+export GRADLE_RO_DEP_CACHE="$HOME/.gradle/caches" GRADLE_USER_HOME="$PWD/.gradle-worktree"
+./gradlew --offline :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.server=http://10.0.2.2:PORT \
+  -Pandroid.testInstrumentationRunnerArguments.feed=http://10.0.2.2:FPORT/feeds/long-list.xml
+```
+
+Replace PORT and FPORT. The test converts `feed`'s `10.0.2.2` host to `127.0.0.1`
+when `server` uses `10.0.2.2`: **the Mac demo server performs feed lookups**, so it
+needs its own loopback address. The original and typed URLs are reported. Other
+feed hosts are typed unchanged. Port-reverse setup remains the caller's job.
+
+Each appearance is selected via Settings → Appearance and verified with the
+Activity's night qualifier. There is one delayed pass plus **five undelayed passes
+per appearance**, at the current phone width. Allow several minutes. The debug-only
+`DebugNetworkDelay` wraps real HTTP responses after IO, adding 2000 ms per request.
+For FLOW-03, Subscribe completion is additionally held until Search Episodes has
+been typed, then released through the same 2000 ms delay. Local database commits
+are not artificially delayed. Both controls reset in `finally`; release transports
+are plain `HttpTransport`, with no test-control state or delay.
+
+Evidence is under the target app's external files directory:
+
+```text
+/sdcard/Android/data/app.podlist/files/flow-run/<yyyyMMdd-HHmmss-SSS>/
+  A-<sequence>-<step>-light.png   (and other flows/steps/appearances)
+  measurements.csv
+  timings.csv
+  frames.csv
+  summary.md
+```
+
+`Log.i("FlowRun", "Output: …")` prints the actual path. Pull that directory with
+your normal device tooling. Each delayed step records float semantics bounds in
+root/window physical px and dp, changes, input age/person-caused status, focused
+label, semantic scroll axis and visible-first-item text, typed values, and follow-up
+visibility against window/IME/navigation/player/snackbar geometry. The flow captures
+follow-ups before deliberately dismissing the keyboard for Undo/navigation, so
+obscured controls are reported while the remaining flow can continue. Android's guide
+tolerance is **2 dp**; physical deltas are also provided. Screenshots follow each
+semantics snapshot. Timed passes write per-input timings instead of screenshot
+strips. Missing kinds have explicit `present=false` rows.
+
+Response timing samples rendered UiAutomation screenshots on a background thread
+at 16 ms plus capture cost; a 4 px pixel grid excludes system bars and the bottom
+140 dp of persistent chrome. Time to the first changed image is an **upper bound**,
+with measured maximum sampling gap in `timings.csv`. It includes dispatch and
+Compose synchronization overhead; no sub-frame accuracy is claimed. Busy-indicator
+time is its first semantic observation; blank means unobserved. Settle is the
+explicit UI completion plus Compose idle, not background sync completion. The
+summary gives nearest-rank p75 over five runs per step/appearance, flags 200 ms
+response/1 s busy/10 s progress limits, and documents transient/caret/chrome timing
+limitations. Pixel sampling itself adds overhead; investigate borderline results
+on representative hardware.
+
+The 500-Episode Podcast page is verified, then flung eight times in each appearance.
+Android `Window.OnFrameMetricsAvailableListener` records total durations and platform
+deadlines, refresh rate, estimated missed vsyncs, and callback drops separately.
+`summary.md` lists measured FLOW-01/02/03/04, RESP-01 and FOOT-02 findings with CSV
+rows or frame records. Guideline violations **do not fail JUnit**; missing arguments,
+incomplete UI flows, wrong fixtures, or evidence-write failures do. Device execution
+is required to verify selectors, keyboard/overlay geometry and rendering timings.
+
+Offline build check (no emulator needed):
+
+```sh
+./gradlew --offline :domain:test :data:test :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+```
