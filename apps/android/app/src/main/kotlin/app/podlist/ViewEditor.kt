@@ -127,8 +127,8 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             // A permanent note at the end of the form never inserts space above the conditions.
-            item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
             if (!creating) item { ContentActionButton(destructive = true, onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted, formatArgs = listOf(saved.name)) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)

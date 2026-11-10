@@ -236,7 +236,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         val episodeScroll = TopAppBarDefaults.pinnedScrollBehavior()
         val episodeTitle = remember(inspectingGuid) { CollapsingTitle() }
         Scaffold(modifier = Modifier.nestedScroll(episodeScroll.nestedScrollConnection), topBar = {
-            PodListTopAppBar(scrollBehavior = episodeScroll, title = { Text(if (episodeTitle.headlineVisible) stringResource(R.string.episode) else inspected["title"] as? String ?: stringResource(R.string.episode), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            PodListTopAppBar(scrollBehavior = episodeScroll, title = { Text(if (episodeTitle.headlineVisible) "" else inspected["title"] as? String ?: "", maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { inspectingGuid = null }
             }, actions = { EpisodeOverflow(data.copy(episodes = listOf(inspected)), session) })
         }) { padding ->
@@ -289,7 +289,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     Scaffold(modifier = disarmOnOtherTap.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
-            else PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (collapsingTitle.headlineVisible) stringResource(R.string.podcast) else title.ifBlank { stringResource(R.string.podcast) }, Modifier.semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            else PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (collapsingTitle.headlineVisible) "" else title, Modifier.semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
                 if (!armed) UndoAction() else Spacer(Modifier.size(48.dp))

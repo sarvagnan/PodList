@@ -58,7 +58,13 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
     val browsing = LocalBrowsingState.current
     var table by rememberSaveable { mutableStateOf(browsing?.context?.statsTable ?: false) }
     LaunchedEffect(table) { if (browsing != null) browsing.context = browsing.context.copy(statsTable = table) }
-    var chosen by rememberSaveable { mutableIntStateOf(stats.days.lastIndex) }
+    val days = stats.days.map { it.day }
+    var chosenDay by rememberSaveable { mutableStateOf(browsing?.context?.statsDay) }
+    val chosen = ListeningPresentation.selectedDayIndex(chosenDay, days)
+    fun choose(index: Int) { chosenDay = days[index].toString() }
+    LaunchedEffect(chosenDay, days) {
+        if (browsing != null && chosen >= 0) browsing.context = browsing.context.copy(statsDay = days[chosen].toString())
+    }
     if (stats.totals.all { it.seconds == 0.0 && it.finished == 0 }) {
         Column {
             EmptyMessage(R.string.m4_no_listening)
@@ -91,7 +97,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
                     Text(stringResource(R.string.chart_tick, 0L), style = MaterialTheme.typography.bodyMedium, softWrap = false, maxLines = 1)
                 }
                 Column(Modifier.weight(1f)) {
-                    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(144.dp).pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(144.dp).pointerInput(stats.days) { detectTapGestures { offset -> choose((offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices)) } }.semantics { contentDescription = chartLabel }) {
                         drawLine(baseline, androidx.compose.ui.geometry.Offset(0f, size.height),
                             androidx.compose.ui.geometry.Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
                         val cell = size.width / stats.days.size
@@ -111,9 +117,9 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
             }
             ContentDivider()
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                ActionIcon(R.drawable.ic_chevron_left, stringResource(R.string.previous_day), enabled = chosen > 0) { chosen-- }
+                ActionIcon(R.drawable.ic_chevron_left, stringResource(R.string.previous_day), enabled = chosen > 0) { choose(chosen - 1) }
                 Text(stringResource(R.string.m4_day_listening, chartDate(shown.day), listened(shown.seconds)), Modifier.weight(1f))
-                ActionIcon(R.drawable.ic_chevron_right, stringResource(R.string.next_day), enabled = chosen < stats.days.lastIndex) { chosen++ }
+                ActionIcon(R.drawable.ic_chevron_right, stringResource(R.string.next_day), enabled = chosen < stats.days.lastIndex) { choose(chosen + 1) }
             }
         }
         item { ContentActionButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }

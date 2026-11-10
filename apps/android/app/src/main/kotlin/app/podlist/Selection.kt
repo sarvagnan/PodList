@@ -30,7 +30,17 @@ internal val LocalEpisodeSelection = staticCompositionLocalOf<EpisodeSelection?>
 
 @Composable
 internal fun SelectionProvider(key: String?, data: ScreenData?, session: Session, content: @Composable () -> Unit) {
-    val selection = rememberSaveable(key, saver = Saver<EpisodeSelection, ArrayList<String>>(save = { ArrayList(it.ids) }, restore = { EpisodeSelection().apply { ids = it.toSet() } })) { EpisodeSelection() }
+    val browsing = LocalBrowsingState.current
+    val route = LocalBrowsingRoute.current
+    val selection = rememberSaveable(route, saver = Saver<EpisodeSelection, ArrayList<String>>(save = { ArrayList(it.ids) }, restore = { EpisodeSelection().apply { ids = it.toSet() } })) {
+        EpisodeSelection().apply { ids = browsing?.context?.selections?.get(route).orEmpty() }
+    }
+    LaunchedEffect(selection, route) {
+        snapshotFlow { selection.ids }.collect { ids ->
+            if (browsing != null) browsing.context = browsing.context.copy(selections =
+                if (ids.isEmpty()) browsing.context.selections - route else browsing.context.selections + (route to ids))
+        }
+    }
     ContextualMode(key == "select-subscriptions" || selection.ids.isNotEmpty() || key?.startsWith("view-edit:") == true || key?.startsWith("new-view:") == true)
     CompositionLocalProvider(LocalEpisodeSelection provides selection) { content() }
     BackHandler(selection.ids.isNotEmpty()) { selection.ids = emptySet() }
@@ -70,13 +80,14 @@ internal fun ActionGrid(content: @Composable FlowRowScope.() -> Unit) {
 }
 
 @Composable
-internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, action: () -> Unit) {
+internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, accessibilityLabel: String? = null, action: () -> Unit) {
     TextButton(onClick = action, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-        modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp)) {
+        modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp).then(
+            if (accessibilityLabel == null) Modifier else Modifier.semantics { contentDescription = accessibilityLabel })) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
+            Text(label, modifier = if (accessibilityLabel == null) Modifier else Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
         }
     }
 }
@@ -87,15 +98,17 @@ internal fun SelectionActionBar(selection: EpisodeSelection, data: ScreenData, s
     var adding by remember { mutableStateOf(false) }
     val playlist = data.state.playlists.find { route == "playlist:${it.id}" }
     val ordered = (playlist?.entries?.map { it.episodeId } ?: selection.order).filter { it in selection.ids }
+    val allPlayed = ordered.isNotEmpty() && ordered.all { data.state.episodeStates[it]?.played != null }
+    val allStarred = ordered.isNotEmpty() && ordered.all { data.state.episodeStates[it]?.starred == true }
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
         ActionGrid {
             LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { adding = true }
-            LabelledAction(R.drawable.ic_unplayed, stringResource(R.string.mark_played)) {
-                model.changeWithUndo(ordered.map { Change.MarkPlayed(it, PlayedSource.User) }, R.string.episodes_played) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
+            LabelledAction(if (allPlayed) R.drawable.ic_unplayed else R.drawable.ic_played, stringResource(if (allPlayed) R.string.mark_unplayed else R.string.mark_played)) {
+                model.changeWithUndo(ordered.map { if (allPlayed) Change.MarkUnplayed(it) else Change.MarkPlayed(it, PlayedSource.User) }, if (allPlayed) R.plurals.episodes_unplayed else R.plurals.episodes_played, formatArgs = listOf(ordered.size), quantity = ordered.size) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
                 selection.ids = emptySet()
             }
-            LabelledAction(R.drawable.ic_star_outline, stringResource(R.string.star)) {
-                model.changeWithUndo(ordered.map { Change.SetStar(it, true) }, R.string.episodes_starred) { before -> ordered.map { Change.SetStar(it, before.episodeStates[it]?.starred == true) } }
+            LabelledAction(if (allStarred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (allStarred) R.string.unstar else R.string.star)) {
+                model.changeWithUndo(ordered.map { Change.SetStar(it, !allStarred) }, if (allStarred) R.plurals.episodes_unstarred else R.plurals.episodes_starred, formatArgs = listOf(ordered.size), quantity = ordered.size) { before -> ordered.map { Change.SetStar(it, before.episodeStates[it]?.starred == true) } }
                 selection.ids = emptySet()
             }
             LabelledAction(R.drawable.ic_download, stringResource(R.string.download)) {
@@ -145,7 +158,7 @@ internal fun SubscriptionSelectionActionBar(selection: EpisodeSelection, data: S
     if (choosing) EditorSheet(stringResource(R.string.download_rule), { choosing = false }, doneEnabled = chosenMode != null, doneLabel = R.string.change_download_rule, done = {
         chosenMode?.let { mode ->
             val selected = selection.order.filter { it in selection.ids }
-            model.changeWithUndo(selected.map { id -> Change.SetDownloadRule(data.state.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId }?.copy(mode = mode) ?: DownloadRule(id, session.deviceId, mode, null)) }, R.string.download_rule_changed) { before -> selected.map { id -> Change.SetDownloadRule(before.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId } ?: DownloadRule(id, session.deviceId, DownloadMode.Never, null)) } }
+            model.changeWithUndo(selected.map { id -> Change.SetDownloadRule(data.state.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId }?.copy(mode = mode) ?: DownloadRule(id, session.deviceId, mode, null)) }, R.plurals.download_rules_changed, formatArgs = listOf(selected.size), quantity = selected.size) { before -> selected.map { id -> Change.SetDownloadRule(before.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId } ?: DownloadRule(id, session.deviceId, DownloadMode.Never, null)) } }
             choosing = false
             selection.ids = emptySet()
         }

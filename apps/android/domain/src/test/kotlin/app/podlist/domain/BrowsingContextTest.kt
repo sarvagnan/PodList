@@ -52,4 +52,13 @@ class BrowsingContextTest {
         assertTrue(PlaylistRules.hasNoCurrentEntry(pastEnd.copy(cursor = "missing")))
         assertFalse(PlaylistRules.hasNoCurrentEntry(pastEnd.copy(cursor = "e")))
     }
+    @Test fun `selections keep only existing ids on retained screens and dates must parse`() {
+        val saved = BrowsingContext(stacks = mapOf("Views" to listOf("view:v"), "Library" to listOf("select-subscriptions")),
+            selections = mapOf("Views/view:v" to setOf("e", "deleted"), "Views/view:deleted" to setOf("e"),
+                "Library/select-subscriptions" to setOf("s", "deleted"), "Playlists/playlist:deleted" to setOf("e")), statsDay = "not-a-date")
+        val restored = validate(saved)
+        assertEquals(mapOf("Views/view:v" to setOf("e"), "Library/select-subscriptions" to setOf("s")), restored.selections)
+        assertNull(restored.statsDay)
+        assertEquals("2026-11-03", validate(saved.copy(statsDay = "2026-11-03")).statsDay)
+    }
 }

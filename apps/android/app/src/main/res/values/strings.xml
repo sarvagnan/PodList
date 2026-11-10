@@ -210,7 +210,6 @@
     <string name="m4_on">On</string>
     <string name="m4_off">Off</string>
     <string name="m4_mark_all_played">Mark all Played</string>
-    <string name="m4_marked_all">Marked all Episodes Played</string>
     <string name="m4_default_threshold">Default (30 seconds)</string>
     <string name="m4_listened_stretch">Listened at Position %1$s\nEnded %2$s</string>
     <string name="m4_finished">Finished through playback</string>
@@ -251,11 +250,9 @@
     <string name="m4_export_opml">Export OPML</string>
     <string name="m4_import_help">Subscribe to every podcast in a file from another app</string>
     <string name="m4_export_help">Save your Subscriptions as a file</string>
-    <string name="m4_opml_error">Couldn’t read or write OPML. Check the file and your connection, then try again. OPML files can be up to 8 MiB.</string>
-    <string name="m4_import_summary">%1$d added · %2$d already subscribed · %3$d failed</string>
+    <string name="m4_import_summary">%1$s · %2$s · %3$s</string>
     <string name="m4_import_failure">%1$s: %2$s</string>
     <string name="m4_retry_failed">Try again</string>
-    <string name="m4_exported">OPML exported</string>
     <string name="m4_keep_deleted">Keep deleted Playlists</string>
     <string name="m4_days">%1$d days</string>
     <string name="m4_help">Help</string>
@@ -275,7 +272,6 @@
     <string name="playlist_settings_for">Settings for %1$s</string>
     <string name="m4_subscription_settings">Subscription settings</string>
     <string name="create_view">Create View</string>
-    <string name="m4_search_hint">Episode titles, podcast names and show notes</string>
     <string name="m4_select_subscriptions">Select Subscriptions</string>
     <string name="m4_select_subscriptions_help">Change Download Rules together</string>
     <plurals name="m4_selected_count">
@@ -337,12 +333,9 @@
     <string name="episode_unstarred">Marked “%1$s” Not Starred</string>
     <string name="episode_played">Marked “%1$s” Played</string>
     <string name="episode_unplayed">Marked “%1$s” Unplayed</string>
-    <string name="episodes_starred">Marked Episodes Starred</string>
-    <string name="episodes_played">Marked Episodes Played</string>
     <string name="playlist_renamed_to">Renamed Playlist to “%1$s”</string>
     <string name="view_renamed_to">Renamed View to “%1$s”</string>
     <string name="view_changed">Updated View “%1$s”</string>
-    <string name="download_rule_changed">Updated Download Rule</string>
     <string name="entry_removed">Removed Entry from Playlist “%1$s”</string>
     <string name="remove_from_playlist">Remove from this Playlist</string>
     <string name="drag_entry">Drag to reorder Entry</string>
@@ -375,8 +368,6 @@
     <string name="counting">Counting…</string>
     <string name="no_search_matches">No Episodes match this Search. Try another word or clear Search.</string>
     <string name="retry_action">Try again</string>
-    <string name="edit_undone">Undid edit</string>
-    <string name="edit_redone">Redid edit</string>
     <string name="edit_reverse_failed">Couldn’t reverse this edit. It’s still available. Check your connection and try again.</string>
     <string name="subscribing">Subscribing…</string>
     <string name="refresh_failed">Couldn’t refresh this podcast. Check your connection and try again.</string>
@@ -384,7 +375,7 @@
     <string name="refresh_podcast">Refresh podcast</string>
     <string name="retry_refresh">Try again</string>
     <string name="refreshing_podcast">Refreshing…</string>
-    <string name="speed_accessibility">Speed, %1$s</string>
+    <string name="speed_accessibility">Speed %1$s</string>
     <string name="playback_position">Playback Position</string>
     <string name="seek_time">%1$s of %2$s</string>
     <string name="entry_destination">Entry %1$d of %2$d</string>
@@ -432,7 +423,6 @@
     <string name="redo_specific">Redo: %1$s</string>
     <string name="chart_minutes">Time listened in minutes</string>
     <string name="chart_tick">%1$d</string>
-    <string name="podcast">Podcast</string>
     <string name="playback_settings_changed">Updated Playback Settings</string>
     <string name="subscription_settings_changed">Updated Subscription settings</string>
     <string name="trash_retention_changed">Updated deleted Playlist retention</string>
@@ -474,8 +464,60 @@
     <string name="retry_episode_action">Try again</string>
     <string name="retry_episode_named">Try again: %1$s</string>
     <string name="name_save_failed">Couldn’t save the name. Try again.</string>
-    <string name="unused_download_rules">No podcasts use: %1$s</string>
     <string name="library_stream_help">Episodes play without automatic downloads.</string>
     <string name="library_on_entry_help">Episodes are stored when added to a Playlist.</string>
     <string name="library_all_new_help">Newly published Episodes are stored on this Device.</string>
+    <string name="download_rule_changed">Updated Download Rule</string>
+    <string name="subscriptions">Subscriptions</string>
+    <string name="edit_undone_specific">Undid: %1$s</string>
+    <string name="edit_redone_specific">Redid: %1$s</string>
+    <string name="opml_read_error">Couldn’t read this file. Choose an accessible OPML file and try again.</string>
+    <string name="opml_size_error">This OPML file is larger than 8 MiB. Split it into smaller files, then try again.</string>
+    <string name="opml_invalid_error">This file isn’t valid OPML. Export your subscriptions as OPML from the other app, then try again.</string>
+    <string name="opml_export_error">Couldn’t export your podcasts. Check your connection, then try again.</string>
+    <string name="opml_write_error">Couldn’t save this OPML file. Check available storage or choose another location, then try again.</string>
+    <plurals name="episodes_played">
+        <item quantity="one">Marked %1$d Episode Played</item>
+        <item quantity="other">Marked %1$d Episodes Played</item>
+    </plurals>
+    <plurals name="episodes_unplayed">
+        <item quantity="one">Marked %1$d Episode Unplayed</item>
+        <item quantity="other">Marked %1$d Episodes Unplayed</item>
+    </plurals>
+    <plurals name="episodes_starred">
+        <item quantity="one">Marked %1$d Episode Starred</item>
+        <item quantity="other">Marked %1$d Episodes Starred</item>
+    </plurals>
+    <plurals name="episodes_unstarred">
+        <item quantity="one">Marked %1$d Episode Not Starred</item>
+        <item quantity="other">Marked %1$d Episodes Not Starred</item>
+    </plurals>
+    <plurals name="download_rules_changed">
+        <item quantity="one">Updated Download Rule for %1$d Subscription</item>
+        <item quantity="other">Updated Download Rule for %1$d Subscriptions</item>
+    </plurals>
+    <plurals name="subscription_episodes_played">
+        <item quantity="one">Marked %1$d Episode Played in %2$s</item>
+        <item quantity="other">Marked %1$d Episodes Played in %2$s</item>
+    </plurals>
+    <plurals name="podcasts_subscribed">
+        <item quantity="one">Subscribed to %1$d podcast</item>
+        <item quantity="other">Subscribed to %1$d podcasts</item>
+    </plurals>
+    <plurals name="podcasts_unsubscribed">
+        <item quantity="one">Unsubscribed from %1$d podcast</item>
+        <item quantity="other">Unsubscribed from %1$d podcasts</item>
+    </plurals>
+    <plurals name="podcasts_exported">
+        <item quantity="one">Exported %1$d podcast</item>
+        <item quantity="other">Exported %1$d podcasts</item>
+    </plurals>
+    <plurals name="import_existing">
+        <item quantity="one">%1$d podcast already subscribed</item>
+        <item quantity="other">%1$d podcasts already subscribed</item>
+    </plurals>
+    <plurals name="import_failed">
+        <item quantity="one">%1$d podcast failed</item>
+        <item quantity="other">%1$d podcasts failed</item>
+    </plurals>
 </resources>

@@ -215,7 +215,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                 defaultBackBehavior = BackNavigationBehavior.PopLatest,
                 listPane = {
                     AnimatedPane {
-                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, search = if (destination == Destination.Views) ({ open("search") }) else null, add = ({ when (destination) {
+                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, search = if (destination == Destination.Views || destination == Destination.Library) ({ open("search") }) else null, add = ({ when (destination) {
                             Destination.Library -> open("add-podcasts")
                             Destination.Playlists -> open("new-playlist")
                             Destination.Views -> open("new-view")
@@ -285,13 +285,14 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
     val selection = LocalEpisodeSelection.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val collapsingTitle = remember(route) { CollapsingTitle() }
-    val barTitle = if (route?.startsWith("episode:") == true && collapsingTitle.headlineVisible) stringResource(R.string.episode) else title
+    val hasPageActions = edit != null || search != null || add != null || settings != null || route == "select-subscriptions" || route?.startsWith("episode:") == true
+    val barTitle = if (route?.startsWith("episode:") == true && collapsingTitle.headlineVisible) "" else title
     Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         if (selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null) {
             SelectionToolbar(selection)
         }
         else Column {
-            PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(barTitle, Modifier.semantics { heading() }, maxLines = 2, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+            PodListTopAppBar(scrollBehavior = scrollBehavior, separateActions = hasPageActions, title = { Text(barTitle, Modifier.semantics { heading() }, maxLines = 2, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                 if (back != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
             }, actions = {
                 UndoAction()
@@ -342,7 +343,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 add("trash")
             }
             Destination.Library -> {
-                add("search")
+                if (subscriptions.isNotEmpty()) add("subscriptions")
                 if (subscriptions.isEmpty()) add("no-subscriptions")
                 for (mode in DownloadMode.entries) {
                     val rows = group(mode)
@@ -350,7 +351,6 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     addAll(rows.map { "subscription:${it["id"]}" })
                 }
                 if (subscriptions.isNotEmpty()) {
-                    if (DownloadMode.entries.any { group(it).isEmpty() }) add("unused-rules")
                     add("select-subscriptions")
                 }
             }
@@ -374,7 +374,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 item(key = "trash") { NameRow(stringResource(R.string.trash), pluralStringResource(R.plurals.playlist_count, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size)) { open("trash") } }
             }
             Destination.Library -> {
-                item(key = "search") { NameRow(stringResource(R.string.m4_search_library), stringResource(R.string.m4_search_hint), icon = R.drawable.ic_search) { open("search") } }
+                if (subscriptions.isNotEmpty()) item(key = "subscriptions") { Section(stringResource(R.string.subscriptions)) }
                 if (subscriptions.isEmpty()) item(key = "no-subscriptions") {
                     EmptyMessage(R.string.no_subscriptions)
                     FilledTonalButton(onClick = { open("add-podcasts") }, modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -385,8 +385,8 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     val group = group(mode)
                     if (group.isNotEmpty()) item(key = "rule:$mode") {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.m4_download_rule), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(stringResource(title), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.m4_download_rule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(title), Modifier.semantics { heading() }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(stringResource(when (mode) {
                                 DownloadMode.Never -> R.string.library_stream_help
                                 DownloadMode.OnEntry -> R.string.library_on_entry_help
@@ -399,10 +399,6 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                             artwork = subscription["artwork_url"] as? String, session = session) { open("subscription:${subscription["id"]}") }
                         SubscriptionRefreshStatus(subscription, session)
                     }
-                }
-                val unused = listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new).filter { group(it.first).isEmpty() }
-                if (subscriptions.isNotEmpty() && unused.isNotEmpty()) item(key = "unused-rules") {
-                    Text(stringResource(R.string.unused_download_rules, unused.map { stringResource(it.second) }.joinToString(", ")), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (subscriptions.isNotEmpty()) item(key = "select-subscriptions") { NameRow(stringResource(R.string.m4_select_subscriptions), stringResource(R.string.m4_select_subscriptions_help), icon = R.drawable.ic_select_all) { open("select-subscriptions") } }
             }
@@ -480,24 +476,25 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
     val stacked = LocalDensity.current.fontScale >= 1.5f
     val actions: @Composable () -> Unit = {
         if (entryPlaylist == null) ActionIcon(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist), enabled = actionsEnabled) { if (addAction != null) addAction() else add(id) }
-        else EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, id)
         ActionIcon(R.drawable.ic_play, stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here), enabled = actionsEnabled) {
             if (playAction != null) playAction() else {
                 if (entryPlaylist == null) model.playNow(id) else model.playEntry(entryPlaylist, id)
                 started()
             }
         }
+        if (entryPlaylist != null) EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, id)
     }
     val progressLabel = stringResource(R.string.playback_position)
     Column(Modifier.background(if (selecting && id in selection.ids) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)) {
-        Row(rowModifier.fillMaxWidth().then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null && selection != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection.toggle(id) }) else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(rowModifier.fillMaxWidth().then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null && selection != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection.toggle(id) }) else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = if (entryPlaylist != null) 8.dp else 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             if (selecting) Checkbox(id in selection.ids, null)
             else if (entryPlaylist != null) EntryDragHandle(data.state.playlists.first { it.id == entryPlaylist }, id)
             else if (showArtwork) ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, placeholderTitle = row["podcast"] as? String)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(row["title"] as String, modifier = if (detail) headlineVisibility(LocalCollapsingTitle.current) else Modifier, style = if (detail) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = if (detail) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
+                Text(row["title"] as String, modifier = if (detail) headlineVisibility(LocalCollapsingTitle.current) else Modifier, style = if (detail) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, minLines = if (entryPlaylist != null && !stacked) 2 else 1, maxLines = if (detail || (entryPlaylist != null && stacked)) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
                 val published = shortDate((row["published"] as Number).toLong())
-                Text(listOfNotNull((row["podcast"] as? String).takeIf { showPodcast }, published, duration?.let { lengthLabel(it) }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val metadata = listOfNotNull((row["podcast"] as? String).takeIf { showPodcast }, published, duration?.let { lengthLabel(it) })
+                if (entryPlaylist == null) Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 val played = row["played_at"] != null
                 val state = when {
                     played -> stringResource(R.string.played)
@@ -505,13 +502,17 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
                     else -> stringResource(R.string.unplayed)
                 }
                 val starred = (row["starred"] as? Number)?.toInt() == 1
-                Text(if (starred) "$state · ${stringResource(R.string.starred)}" else state, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val stateLabel = if (starred) "$state · ${stringResource(R.string.starred)}" else state
+                Text(if (entryPlaylist != null) (metadata + stateLabel).joinToString(" · ") else stateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (actionBusy) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.podcast_bringing_episode)))
                 if (progress > 0 && duration != null && duration > 0) LinearProgressIndicator(progress = { (progress / duration).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp).semantics { contentDescription = progressLabel; stateDescription = duration(progress) })
             }
-            if (showActions && !selecting && !stacked) Row { actions() }
+            if (showActions && !selecting) {
+                if (entryPlaylist != null) Column(Modifier.heightIn(min = 96.dp), verticalArrangement = Arrangement.Center) { actions() }
+                else if (!stacked) Row { actions() }
+            }
         }
-        if (showActions && !selecting && stacked) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) { actions() }
+        if (showActions && !selecting && stacked && entryPlaylist == null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) { actions() }
 
         actionError()
         if (!detail) ContentDivider()
@@ -564,7 +565,7 @@ internal fun EpisodeDetail(data: ScreenData, session: Session,
                 ActionGrid {
                     LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist), enabled = actionsEnabled) { act(add) }
                     val played = data.state.episodeStates[id]?.played != null
-                    LabelledAction(if (played) R.drawable.ic_played else R.drawable.ic_unplayed, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played), enabled = actionsEnabled) {
+                    LabelledAction(if (played) R.drawable.ic_unplayed else R.drawable.ic_played, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played), enabled = actionsEnabled) {
                         act { model.edit(if (played) Change.MarkUnplayed(it) else Change.MarkPlayed(it, PlayedSource.User)) }
                     }
                     val starred = data.state.episodeStates[id]?.starred == true
@@ -605,8 +606,8 @@ internal fun EpisodeDetail(data: ScreenData, session: Session,
 }
 
 @Composable
-internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, titleStyle: androidx.compose.ui.text.TextStyle? = null, onClick: () -> Unit) {
-    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = titleStyle ?: MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = subtitle.takeIf { it.isNotBlank() }?.let { { Text(it) } },
+internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, onClick: () -> Unit) {
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = subtitle.takeIf { it.isNotBlank() }?.let { { Text(it) } },
         leadingContent = if (session != null) { { ArtworkImage(session, artwork, placeholderTitle = title) } } else icon?.let { { Box(Modifier.size(40.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { Icon(painterResource(it), null) } } })
     ContentDivider()
 }

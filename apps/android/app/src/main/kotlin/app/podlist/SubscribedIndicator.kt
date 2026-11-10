@@ -13,11 +13,10 @@ import androidx.compose.ui.unit.dp
 
 /** Shared status glyph; the Podcast page supplies its two-tap Unsubscribe semantics. */
 @Composable
-internal fun SubscribedIndicator(showText: Boolean = false) {
+internal fun SubscribedIndicator() {
     Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(painterResource(R.drawable.ic_check), if (showText) null else stringResource(R.string.subscribed),
+        Icon(painterResource(R.drawable.ic_check), stringResource(R.string.subscribed),
             tint = LocalSubscribedColors.current.foreground,
             modifier = Modifier.background(LocalSubscribedColors.current.background, CircleShape).padding(4.dp).size(24.dp))
-        if (showText) Text(stringResource(R.string.subscribed), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelLarge)
     }
 }

@@ -200,11 +200,11 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), maxItemsInEachRow = 2,
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-            LabelledAction(R.drawable.ic_speed, speedLabel) { speed = true }
+            LabelledAction(R.drawable.ic_speed, speedSetting(now.speed.toDouble()), accessibilityLabel = speedLabel) { speed = true }
             LabelledAction(R.drawable.ic_sleep, sleepLabel(now)) { sleep = true }
             LabelledAction(R.drawable.ic_episode, stringResource(R.string.episode)) { open("episode") }
             if (now.metadata.chapters.isNotEmpty()) LabelledAction(R.drawable.ic_chapters, stringResource(R.string.chapters)) { open("chapters") }
-            LabelledAction(R.drawable.ic_playlists, stringResource(R.string.entries_next, now.nextCount)) { open("entries") }
+            LabelledAction(R.drawable.ic_entries, stringResource(R.string.entries_next, now.nextCount)) { open("entries") }
             if (now.metadata.chapters.isNotEmpty()) Spacer(Modifier.weight(1f))
         }
     }

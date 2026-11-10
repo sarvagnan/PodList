@@ -3,6 +3,7 @@ package app.podlist
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
 import androidx.lifecycle.viewModelScope
+import android.app.Application
 import app.podlist.domain.*
 import app.podlist.data.reversibleEdit
 import kotlinx.coroutines.*
@@ -91,7 +92,11 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 subscriptionTransitions.value += step.subscriptionTargets.mapValues { AppModel.SubscriptionTransition(it.value, pending = false) }
                 undoRevision.value++
                 updateHistoryActions()
-                messages.trySend((feedback ?: AppMessage(if (redo) R.string.edit_redone else R.string.edit_undone)).copy(
+                val description = checkNotNull(step.description)
+                val resources = getApplication<Application>().resources
+                val actionText = description.quantity?.let { resources.getQuantityString(description.resource, it, *description.formatArgs.toTypedArray()) }
+                    ?: resources.getString(description.resource, *description.formatArgs.toTypedArray())
+                messages.trySend((feedback ?: AppMessage(if (redo) R.string.edit_redone_specific else R.string.edit_undone_specific, formatArgs = listOf(actionText))).copy(
                     actionResource = if (redo) R.string.undo else R.string.m4_redo, undo = if (redo) ::undoEdit else ::redoEdit,
                     feedbackSheet = sheet))
             } catch (error: CancellationException) { throw error }
@@ -126,7 +131,11 @@ internal fun AppModel.subscriptionStep(current: Session, feeds: List<String>, su
             }
         }
         requestSync()
-        subscriptionStep(current, feeds, !subscribe, reveal)
+        val names = withContext(Dispatchers.IO) { feeds.map { feed -> current.db.query("SELECT title FROM subscription WHERE feed_url = ?", listOf(feed)).firstOrNull()?.get("title") as? String ?: feed } }
+        subscriptionStep(current, feeds, !subscribe, reveal).also {
+            it.feedback = if (feeds.size == 1) AppMessage(if (subscribe) R.string.subscribed_message else R.string.unsubscribed_message, formatArgs = names)
+                else AppMessage(if (subscribe) R.plurals.podcasts_subscribed else R.plurals.podcasts_unsubscribed, formatArgs = listOf(feeds.size), quantity = feeds.size)
+        }
     }
 }
 
