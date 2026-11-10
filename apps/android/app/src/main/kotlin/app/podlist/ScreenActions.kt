@@ -10,7 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /** Capture inverses against the latest local State, in the same transaction as the edit. */
-internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, inverse: (State) -> List<Change>) {
+internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, formatArgs: List<Any> = emptyList(), inverse: (State) -> List<Change>) {
     val current = session.value ?: return
     val action: suspend () -> Unit = {
         editLock.withLock {
@@ -21,7 +21,7 @@ internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playba
                 recordAll(changes, System.currentTimeMillis())
                 result
             } }
-            recordHistory(current, AppMessage(message), changesStep(current, undo, playbackPlaylist))
+            recordHistory(current, AppMessage(message, formatArgs = formatArgs), changesStep(current, undo, playbackPlaylist))
         }
     }
     if (playbackPlaylist != null) playbackEdit(playbackPlaylist, action)

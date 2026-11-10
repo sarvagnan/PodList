@@ -34,6 +34,27 @@ class UiRoundSixTest {
         }
     }
 
+    @Test fun `using saved Playlist name clears only its invalid draft and survives reopen`() {
+        val file = directory.resolve("saved-name.sqlite").toString()
+        LocalDatabase(file).use { db ->
+            db.ensureState()
+            db.record(Change.CreatePlaylist("walk", "Walk", false), 100)
+            db.record(Change.RenamePlaylist("walk", "Morning"), 101)
+            FormDraftStore(db).put("playlist:walk/name", "")
+            FormDraftStore(db).put("playlist:other/name", "Keep typing")
+        }
+        LocalDatabase(file).use { db ->
+            val drafts = FormDraftStore(db)
+            assertEquals("", drafts.load()["playlist:walk/name"])
+            drafts.clear("playlist:walk/")
+            assertEquals("Morning", db.loadState().playlists.single { it.id == "walk" }.name)
+        }
+        LocalDatabase(file).use { db ->
+            assertEquals(mapOf("playlist:other/name" to "Keep typing"), FormDraftStore(db).load())
+            assertEquals("Morning", db.loadState().playlists.single { it.id == "walk" }.name)
+        }
+    }
+
     @Test fun `late database echoes do not replace newer raw digits or an invalid intermediate value`() {
         val file = directory.resolve("echo.sqlite").toString()
         val key = "subscription:podcast/keep-at-most"

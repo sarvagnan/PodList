@@ -16,6 +16,15 @@ class UiWordingTest {
         return (0 until strings.length).map { strings.item(it) as Element }.single { it.getAttribute("name") == name }.textContent
     }
 
+    @Test fun `Playlist deletion names the saved Playlist in feedback and Undo`() {
+        val message = text("m4_playlist_deleted").format("Commute")
+        assertEquals("Playlist Commute moved to Trash", message)
+        assertEquals("Undo: Playlist Commute moved to Trash", text("undo_specific").format(message))
+        assertEquals("Redo: Playlist Commute moved to Trash", text("redo_specific").format(message))
+        assertEquals("Use saved name (Commute)", text("use_saved_playlist_name").format("Commute"))
+        assertEquals("Playlist 100% listening moved to Trash", text("m4_playlist_deleted").format("100% listening"))
+    }
+
     @Test fun `recovery commands use the same verb across screens`() {
         listOf("retry", "retry_playback", "retry_download", "m4_retry_failed", "retry_action", "retry_refresh", "podcast_try_again").forEach {
             assertEquals("Try again", text(it), it)

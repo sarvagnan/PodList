@@ -6,6 +6,11 @@ import android.os.SystemClock
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -154,51 +159,45 @@ private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expan
 private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open: (String) -> Unit) {
     var speed by rememberSaveable { mutableStateOf(false) }
     var sleep by rememberSaveable { mutableStateOf(false) }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
-        val artworkSize = (maxHeight * if (largeText || now.metadata.chapters.isNotEmpty()) .18f else .24f)
-            .coerceIn(80.dp, 160.dp).coerceAtMost((maxWidth - 32.dp).coerceAtLeast(0.dp))
-        val identity = stringResource(R.string.now_playing_identity, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
-        LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { Box(Modifier.semantics { contentDescription = identity }) { ArtworkImage(session, now.artwork, artworkSize) } }
-            if (now.metadata.chapters.isNotEmpty()) item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ActionIcon(R.drawable.ic_previous, stringResource(R.string.previous_chapter), enabled = now.chapterIndex > 0 || now.metadata.chapters.isNotEmpty()) {
-                        val index = now.chapterIndex
-                        val current = now.metadata.chapters.getOrNull(index)
-                        val previous = if (current != null && now.position - current.start > 3) current else now.metadata.chapters.getOrNull(index - 1) ?: now.metadata.chapters.firstOrNull()
-                        previous?.let { model.seek(it.start) }
-                    }
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(now.metadata.chapters.getOrNull(now.chapterIndex)?.title ?: stringResource(R.string.no_chapters), style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        if (now.chapterIndex >= 0) Text(stringResource(R.string.chapter_number, now.chapterIndex + 1, now.metadata.chapters.size), style = MaterialTheme.typography.bodySmall)
-                    }
-                    ActionIcon(R.drawable.ic_next, stringResource(R.string.next_chapter), enabled = now.metadata.chapters.any { it.start > now.position }) { now.metadata.chapters.firstOrNull { it.start > now.position }?.let { model.seek(it.start) } }
+    val identity = stringResource(R.string.now_playing_identity, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
+    PlayerLayout(artwork = { size ->
+        Box(Modifier.semantics { contentDescription = identity }) { ArtworkImage(session, now.artwork, size) }
+    }) {
+        if (now.metadata.chapters.isNotEmpty()) Box {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ActionIcon(R.drawable.ic_previous, stringResource(R.string.previous_chapter), enabled = now.chapterIndex > 0 || now.metadata.chapters.isNotEmpty()) {
+                    val index = now.chapterIndex
+                    val current = now.metadata.chapters.getOrNull(index)
+                    val previous = if (current != null && now.position - current.start > 3) current else now.metadata.chapters.getOrNull(index - 1) ?: now.metadata.chapters.firstOrNull()
+                    previous?.let { model.seek(it.start) }
                 }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(now.metadata.chapters.getOrNull(now.chapterIndex)?.title ?: stringResource(R.string.no_chapters), style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    if (now.chapterIndex >= 0) Text(stringResource(R.string.chapter_number, now.chapterIndex + 1, now.metadata.chapters.size), style = MaterialTheme.typography.bodySmall)
+                }
+                ActionIcon(R.drawable.ic_next, stringResource(R.string.next_chapter), enabled = now.metadata.chapters.any { it.start > now.position }) { now.metadata.chapters.firstOrNull { it.start > now.position }?.let { model.seek(it.start) } }
             }
-            item { ChapterSeek(now, model) }
-            item {
-                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                    SkipButton(false, true) { model.seek(now.position - 15) }
-                    ActionTooltip(stringResource(if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
-                    SkipButton(true, true) { model.seek(now.position + 30) }
-                }
+        }
+        ChapterSeek(now, model)
+        Box {
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                SkipButton(false, true) { model.seek(now.position - 15) }
+                ActionTooltip(stringResource(if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
+                SkipButton(true, true) { model.seek(now.position + 30) }
             }
-            if (now.error) item { Text(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error); ContentTextButton(onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
-            else if (now.buffering) item { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
-            item {
-                FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-                    ContentTextButton(onClick = { speed = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant), modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
-                    ContentTextButton(onClick = { sleep = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
-                }
+        }
+        if (now.error) Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(stringResource(R.string.playback_error), Modifier.padding(horizontal = 16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error); ContentTextButton(onClick = model::togglePlayback) { Text(stringResource(R.string.retry_playback)) } }
+        else if (now.buffering) Box { Text(stringResource(R.string.buffering), style = MaterialTheme.typography.bodySmall) }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
+                ContentTextButton(onClick = { speed = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant), modifier = Modifier.semantics { contentDescription = speedLabel }) { Text(speedSetting(now.speed.toDouble()), Modifier.clearAndSetSemantics {}) }
+                ContentTextButton(onClick = { sleep = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) { Icon(painterResource(R.drawable.ic_sleep), null); Spacer(Modifier.width(8.dp)); Text(sleepLabel(now)) }
             }
-            item {
-                FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
-                    if (now.metadata.chapters.isNotEmpty()) TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
-                    TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
-                }
+            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { open("episode") }) { Text(stringResource(R.string.episode)) }
+                if (now.metadata.chapters.isNotEmpty()) TextButton(onClick = { open("chapters") }) { Text(stringResource(R.string.chapters)) }
+                TextButton(onClick = { open("entries") }) { Text(stringResource(R.string.entries_next, now.nextCount)) }
             }
         }
     }
@@ -206,6 +205,34 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         ChoiceRows(PlaybackSpeeds.map { it to speedSetting(it) }, PlaybackSpeeds.firstOrNull { kotlin.math.abs(it - now.speed) < .001 } ?: now.speed.toDouble()) { model.speed(it.toFloat()) }
     }
     if (sleep) SleepDialog(now, model) { sleep = false }
+}
+
+/** Measure controls first: Artwork fills the remaining height up to a square, with a scroll fallback. */
+@Composable
+private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composable () -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val viewportHeight = maxHeight
+        SubcomposeLayout(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { constraints ->
+            val width = constraints.maxWidth
+            val inset = 12.dp.roundToPx()
+            val gap = 16.dp.roundToPx()
+            val controlGroup = subcompose("controls") {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)) { controls() }
+            }.single().measure(Constraints(maxWidth = width))
+            val cap = minOf((width - 32.dp.roundToPx()).coerceAtLeast(0), 400.dp.roundToPx())
+            val artworkSize = (viewportHeight.roundToPx() - controlGroup.height - 2 * inset - gap)
+                .coerceIn(minOf(80.dp.roundToPx(), cap), cap)
+            val image = subcompose("artwork") { artwork(artworkSize.toDp()) }
+                .single().measure(Constraints.fixed(artworkSize, artworkSize))
+            val height = maxOf(viewportHeight.roundToPx(), controlGroup.height + artworkSize + 2 * inset + gap)
+            layout(width, height) {
+                val controlsY = height - inset - controlGroup.height
+                image.placeRelative((width - artworkSize) / 2, inset + (controlsY - gap - inset - artworkSize) / 2)
+                controlGroup.placeRelative(0, controlsY)
+            }
+        }
+    }
 }
 
 @Composable private fun ChapterSeek(now: PlaybackUi, model: AppModel) {

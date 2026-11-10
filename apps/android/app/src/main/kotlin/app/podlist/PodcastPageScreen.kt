@@ -1,7 +1,25 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package app.podlist
 
+import android.content.Context
+import android.os.SystemClock
+import android.view.ViewConfiguration
+import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.podlist.domain.TwoTapConfirmation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import app.podlist.data.*
 import app.podlist.domain.ProtocolJson
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.encodeToString
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -53,12 +72,48 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     var retryAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var busy by remember { mutableStateOf(false) }
     var changingSubscription by remember { mutableStateOf(false) }
-    var confirming by remember { mutableStateOf(false) }
+    var confirmation by remember(result.feedUrl) { mutableStateOf(TwoTapConfirmation()) }
+    val armed = confirmation.isArmed
+    val accessibility = LocalContext.current.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(confirmation) {
+        if (confirmation.isArmed) {
+            delay((confirmation.expiresAtMillis - SystemClock.uptimeMillis()).coerceAtLeast(0))
+            confirmation = confirmation.disarm()
+        }
+    }
+    LaunchedEffect(subscribed) { if (!subscribed) confirmation = confirmation.disarm() }
+    DisposableEffect(lifecycle, result.feedUrl) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) confirmation = confirmation.disarm()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); confirmation = confirmation.disarm() }
+    }
+    var controlBounds by remember { mutableStateOf(Rect.Zero) }
+    var backBounds by remember { mutableStateOf(Rect.Zero) }
+    var pageOrigin by remember { mutableStateOf(Offset.Zero) }
+    // Observe downs before descendants consume them, without consuming or delaying their gestures.
+    val disarmOnOtherTap = Modifier.onGloballyPositioned { pageOrigin = it.positionInWindow() }
+        .pointerInput(result.feedUrl) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (confirmation.isArmed && event.changes.any {
+                        it.pressed && !it.previousPressed && !controlBounds.contains(it.position + pageOrigin)
+                            && !backBounds.contains(it.position + pageOrigin)
+                    }) confirmation = confirmation.disarm()
+                }
+            }
+        }
+    fun pageBack() { if (confirmation.isArmed) confirmation = confirmation.disarm() else back() }
+    fun openPage(route: String) { confirmation = confirmation.disarm(); open(route) }
     val browsing = LocalBrowsingState.current
     val initialBrowsing = remember(result.feedUrl) { browsing?.context?.podcasts?.get(result.feedUrl) ?: PodcastBrowsing() }
     var query by rememberSaveable(result.feedUrl) { mutableStateOf(initialBrowsing.query) }
     var expanded by rememberSaveable(result.feedUrl) { mutableStateOf(initialBrowsing.expanded) }
     LaunchedEffect(query, expanded) {
+        confirmation = confirmation.disarm()
         if (browsing != null) browsing.context = browsing.context.copy(podcasts = browsing.context.podcasts + (result.feedUrl to PodcastBrowsing(query, expanded)))
     }
     var inspectingGuid by rememberSaveable { mutableStateOf<String?>(null) }
@@ -68,6 +123,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         localLoaded = true
     }
     fun load() {
+        confirmation = confirmation.disarm()
         scope.launch {
             loading = true; failure = null
             try { feed = withContext(Dispatchers.IO) { session.source.readPodcast(result.feedUrl) } }
@@ -89,6 +145,9 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     val filtered = filterPodcastEpisodes(rows, query)
     val count = podcastEpisodeCount(rows, query)
     val list = rememberBrowsingListState("podcast:${result.feedUrl}", listOf("about", "header") + filtered.map { it["guid"] as String }, ready = localLoaded && !loading && (subscribed || feed != null || localRows.isNotEmpty()))
+    LaunchedEffect(list) {
+        snapshotFlow { list.isScrollInProgress }.collect { if (it) confirmation = confirmation.disarm() }
+    }
     val headerVisible by remember(list) { derivedStateOf {
         list.layoutInfo.totalItemsCount == 0 || list.layoutInfo.visibleItemsInfo.any { it.key == "header" }
     } }
@@ -97,6 +156,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     val artwork = feed?.artworkUrl ?: subscription?.get("artwork_url") as? String ?: result.artworkUrl
     val description = feed?.description ?: subscription?.get("description") as? String
     fun resolve(row: Row, action: (String) -> Unit) {
+        confirmation = confirmation.disarm()
         if (busy) return
         scope.launch {
             busy = true; resolvingGuid = row["guid"] as String; actionFailure = null
@@ -116,6 +176,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         }
     }
     fun changeSubscription(remove: Boolean) {
+        confirmation = confirmation.disarm()
         if (busy) return
         scope.launch {
             busy = true; changingSubscription = true; actionFailure = null
@@ -159,7 +220,11 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         }
         return
     }
+    BackHandler(enabled = armed) { confirmation = confirmation.disarm() }
     val selection = LocalEpisodeSelection.current.takeIf { feed == null }
+    LaunchedEffect(selection?.ids) {
+        if (selection?.ids?.isNotEmpty() == true) confirmation = confirmation.disarm()
+    }
     SideEffect {
         selection?.order = filtered.map { it["id"] as String }
         if (selection != null) selection.ids = selection.ids.intersect(selection.order.toSet())
@@ -169,6 +234,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         object : NestedScrollConnection {
             var distance = 0f
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available != Offset.Zero) confirmation = confirmation.disarm()
                 if (available.y < 0) distance = 0f
                 return Offset.Zero
             }
@@ -183,22 +249,45 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     }
     val detailsLabel = stringResource(R.string.podcast_show_details)
     fun toggleDetails() {
+        confirmation = confirmation.disarm()
         expanded = !expanded
         if (expanded) scope.launch { list.animateScrollToItem(0) }
     }
-    Scaffold(topBar = {
+    Scaffold(modifier = disarmOnOtherTap, topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection, data.copy(episodes = rows), session, "subscription:$id")
-            else TopAppBar(title = { Text(if (headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
-                ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
+            else TopAppBar(title = { if (!armed) Text(if (headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+                ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
-                EditHistoryMenu()
+                if (!armed) EditHistoryMenu()
                 if (subscribed) {
-                    ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { open("subscription-settings:$id") }
-                    ActionTooltip(stringResource(R.string.podcast_subscribed_unsubscribe, title)) {
-                        IconButton(onClick = { confirming = true }, enabled = !busy, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                    if (!armed) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { openPage("subscription-settings:$id") }
+                    val label = if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
+                    val armedAnnouncement = stringResource(R.string.podcast_unsubscribe_armed, title)
+                    // A single semantics/click node retains focus and its trailing edge as it grows left.
+                    ActionTooltip(label) {
+                        TextButton(onClick = {
+                            val now = SystemClock.uptimeMillis()
+                            if (confirmation.canConfirm(now, ViewConfiguration.getDoubleTapTimeout().toLong())) {
+                                confirmation = confirmation.disarm()
+                                changeSubscription(true)
+                            } else if (!confirmation.isArmedAt(now)) {
+                                val timeout = accessibility.getRecommendedTimeoutMillis(5_000,
+                                    AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_TEXT)
+                                confirmation = confirmation.arm(now, timeout.toLong())
+                            }
+                        }, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            contentPadding = PaddingValues(horizontal = if (armed) 12.dp else 0.dp),
+                            modifier = Modifier.padding(end = 8.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }
+                                .animateContentSize(alignment = Alignment.CenterEnd).height(48.dp).widthIn(min = 48.dp)
+                                .semantics {
+                                    contentDescription = label
+                                    stateDescription = if (armed) armedAnnouncement else ""
+                                    liveRegion = LiveRegionMode.Polite
+                                }) {
                             if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
-                            else Icon(painterResource(R.drawable.ic_check), stringResource(R.string.podcast_subscribed_unsubscribe, title), tint = colorResource(R.color.on_subscribed), modifier = Modifier.background(colorResource(R.color.subscribed), CircleShape).padding(4.dp).size(24.dp))
+                            else if (armed) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
+                            else Icon(painterResource(R.drawable.ic_check), null, tint = colorResource(R.color.on_subscribed), modifier = Modifier.background(colorResource(R.color.subscribed), CircleShape).padding(4.dp).size(24.dp))
                         }
                     }
                 } else Button(onClick = { changeSubscription(false) }, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {
@@ -226,8 +315,8 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                     author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     ContentTextButton(onClick = ::toggleDetails) { Text(stringResource(if (expanded) R.string.hide_podcast_details else R.string.show_podcast_details)) }
-                    if (subscribed && subscription != null) SubscriptionRefreshStatus(subscription, session)
-                    OutlinedTextField(query, onValueChange = { query = it }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth())
+                    if (subscribed && subscription != null) SubscriptionRefreshStatus(subscription, session, onRefresh = { confirmation = confirmation.disarm() })
+                    OutlinedTextField(query, onValueChange = { confirmation = confirmation.disarm(); query = it }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) confirmation = confirmation.disarm() })
                     Text(if (count.filtered) pluralStringResource(R.plurals.podcast_filtered_count, count.total, count.shown, count.total)
                         else pluralStringResource(R.plurals.episode_count, count.total, count.total), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     if (loading || !localLoaded) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.podcast_loading)))
@@ -252,15 +341,13 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                         addAction = { resolve(row, add) },
                         playAction = { resolve(row) { model.playNow(it); started() } }) {
                         val stored = localRows.find { it["guid"] == row["guid"] }
-                        if (stored != null) open("episode:${stored["id"]}") else inspectingGuid = row["guid"] as String
+                        confirmation = confirmation.disarm()
+                        if (stored != null) openPage("episode:${stored["id"]}") else inspectingGuid = row["guid"] as String
                     }
                 }
             }
         }
     }
-    if (confirming) AlertDialog(onDismissRequest = { confirming = false }, title = { Text(stringResource(R.string.m4_unsubscribe_named, title)) },
-        dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },
-        confirmButton = { TextButton(onClick = { confirming = false; changeSubscription(true) }) { Text(stringResource(R.string.unsubscribe)) } })
 }
 
 private fun podcastErrorResource(error: LookupError): Int = when (error) {

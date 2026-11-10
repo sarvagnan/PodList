@@ -9,7 +9,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withLock
 
 internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: String? = null, val reloadActive: Boolean = false, val apply: suspend () -> ReversibleEdit) {
-    var description: Int? = null
+    var description: AppMessage? = null
 }
 
 internal fun AppModel.changesStep(current: Session, changes: List<Change>, playbackPlaylist: String? = null): ReversibleEdit =
@@ -29,7 +29,7 @@ internal fun AppModel.recordHistory(current: Session, message: AppMessage, step:
     if (session.value !== current) return
     if (typingGroup == null || typingGroup != activeTypingGroup) finishTyping()
     activeTypingGroup = typingGroup
-    step.description = message.resource
+    step.description = message.copy(undo = null)
     history.record(step, typingGroup)
     updateHistoryActions()
     val notification = message.copy(undo = ::undoEdit)
