@@ -26,10 +26,10 @@ class UiWordingTest {
 
     @Test fun `explicit Playlist rename names the saved result in feedback and Undo`() {
         val message = text("playlist_renamed_to").format("Commute")
-        assertEquals("Playlist Commute renamed", message)
-        assertEquals("Undo: Playlist Commute renamed", text("undo_specific").format(message))
-        assertEquals("Redo: Playlist Commute renamed", text("redo_specific").format(message))
-        assertEquals("Playlist 100% listening renamed", text("playlist_renamed_to").format("100% listening"))
+        assertEquals("Renamed Playlist to “Commute”", message)
+        assertEquals("Undo: Renamed Playlist to “Commute”", text("undo_specific").format(message))
+        assertEquals("Redo: Renamed Playlist to “Commute”", text("redo_specific").format(message))
+        assertEquals("Renamed Playlist to “100% listening”", text("playlist_renamed_to").format("100% listening"))
         assertEquals("Rename", text("rename"))
         assertEquals("Cancel", text("cancel"))
         assertEquals("Save", text("save"))
@@ -37,10 +37,10 @@ class UiWordingTest {
 
     @Test fun `explicit View rename names the saved result in feedback and Undo`() {
         val message = text("view_renamed_to").format("Commute")
-        assertEquals("View Commute renamed", message)
-        assertEquals("Undo: View Commute renamed", text("undo_specific").format(message))
-        assertEquals("Redo: View Commute renamed", text("redo_specific").format(message))
-        assertEquals("View 100% listening renamed", text("view_renamed_to").format("100% listening"))
+        assertEquals("Renamed View to “Commute”", message)
+        assertEquals("Undo: Renamed View to “Commute”", text("undo_specific").format(message))
+        assertEquals("Redo: Renamed View to “Commute”", text("redo_specific").format(message))
+        assertEquals("Renamed View to “100% listening”", text("view_renamed_to").format("100% listening"))
         assertEquals("A View needs a name.", text("m4_view_name_error"))
     }
 
@@ -48,15 +48,20 @@ class UiWordingTest {
         assertEquals("There’s already a View called Commute.", text("view_name_duplicate").format("Commute"))
         assertEquals("There’s already a Playlist called Commute.", text("m4_playlist_duplicate").format("Commute"))
         val message = text("playlist_restored_as").format("Commute", "Commute 2")
-        assertEquals("Playlist Commute restored as Commute 2", message)
-        assertEquals("Undo: Playlist Commute restored as Commute 2", text("undo_specific").format(message))
-        assertEquals("Playlist 100% listening restored as 100% listening 2", text("playlist_restored_as").format("100% listening", "100% listening 2"))
+        assertEquals("Restored Playlist “Commute” as “Commute 2”", message)
+        assertEquals("Undo: Restored Playlist “Commute” as “Commute 2”", text("undo_specific").format(message))
+        assertEquals("Restored Playlist “100% listening” as “100% listening 2”", text("playlist_restored_as").format("100% listening", "100% listening 2"))
     }
 
     @Test fun `recovery commands use the same verb across screens`() {
         listOf("retry", "retry_playback", "retry_download", "m4_retry_failed", "retry_action", "retry_refresh", "podcast_try_again").forEach {
             assertEquals("Try again", text(it), it)
         }
+    }
+
+    @Test fun `subscribe is a lowercase verb in failure messages`() {
+        assertEquals("Couldn’t subscribe to this feed on the server. Check the feed and try again.", text("bring_over_failed_feed"))
+        assertEquals("Couldn’t subscribe to Deep Field. Check your connection.", text("subscribe_failed_named").format("Deep Field", "Check your connection."))
     }
 
     @Test fun `failure helpers use a curly apostrophe and a plain recovery sentence`() {
@@ -84,19 +89,23 @@ class UiWordingTest {
         assertEquals("Try again", text("retry_download"))
     }
 
-    @Test fun `Library Download Rule groups read as content headings`() {
-        assertEquals("Play without downloading", text("stream"))
-        assertEquals("Download when added to a Playlist", text("on_entry"))
-        assertEquals("Download when published", text("all_new"))
+    @Test fun `Download Rule names match the domain vocabulary`() {
+        assertEquals("Stream", text("stream"))
+        assertEquals("When Episodes become an Entry", text("on_entry"))
+        assertEquals("As Episodes are published", text("all_new"))
+        assertEquals("Download Rule", text("m4_download_rule"))
+        assertEquals("Episodes play without automatic downloads.", text("library_stream_help"))
+        assertEquals("Episodes are stored when added to a Playlist.", text("library_on_entry_help"))
+        assertEquals("Newly published Episodes are stored on this Device.", text("library_all_new_help"))
     }
     @Test fun `restored settings feedback names the setting and restored value`() {
-        assertEquals("Speed back to 1.0×", text("setting_back_to").format(text("speed"), text("speed_value").format("1.0")))
-        assertEquals("Appearance back to System default", text("setting_back_to").format(text("appearance"), text("appearance_system")))
-        assertEquals("Keep deleted Playlists back to 30 days", text("setting_back_to").format(text("m4_keep_deleted"), text("m4_days").format(30)))
-        assertEquals("Clear on Played for Commute back to On", text("setting_back_to").format(text("setting_for").format(text("clear_on_played"), "Commute"), text("m4_on")))
-        assertEquals("Download Rule for A podcast back to Play without downloading", text("setting_back_to").format(text("setting_for").format(text("m4_download_rule"), "A podcast"), text("stream")))
-        assertEquals("Skip intro back to Off", text("setting_back_to").format(text("m4_skip_intro"), text("m4_off")))
-        assertEquals("Volume boost back to On", text("setting_back_to").format(text("volume_boost"), text("m4_on")))
+        assertEquals("Restored Speed to 1.0×", text("setting_back_to").format(text("speed"), text("speed_value").format("1.0")))
+        assertEquals("Restored Appearance to System default", text("setting_back_to").format(text("appearance"), text("appearance_system")))
+        assertEquals("Restored Keep deleted Playlists to 30 days", text("setting_back_to").format(text("m4_keep_deleted"), text("m4_days").format(30)))
+        assertEquals("Restored Clear on Played for Commute to On", text("setting_back_to").format(text("setting_for").format(text("clear_on_played"), "Commute"), text("m4_on")))
+        assertEquals("Restored Download Rule for A podcast to Stream", text("setting_back_to").format(text("setting_for").format(text("m4_download_rule"), "A podcast"), text("stream")))
+        assertEquals("Restored Skip intro to Off", text("setting_back_to").format(text("m4_skip_intro"), text("m4_off")))
+        assertEquals("Restored Volume boost to On", text("setting_back_to").format(text("volume_boost"), text("m4_on")))
     }
 
     @Test fun `Play commands use glossary capitalisation in controls and help`() {
@@ -129,22 +138,21 @@ class UiWordingTest {
     }
 
     @Test fun `confirmations name objects and use glossary capitalisation`() {
-        assertEquals("Playlist Commute restored", text("m4_playlist_restored").format("Commute"))
-        assertEquals("Podcast Deep Field subscribed", text("subscribed_message").format("Deep Field"))
-        assertEquals("View Night skies created", text("view_created").format("Night skies"))
-        assertEquals("Episode Galaxies marked Starred", text("episode_starred").format("Galaxies"))
-        assertEquals("Episode Galaxies marked Not Starred", text("episode_unstarred").format("Galaxies"))
-        assertEquals("Podcast Deep Field unsubscribed", text("unsubscribed_message").format("Deep Field"))
-        assertEquals("Entry Galaxies moved in Commute", text("entry_moved").format("Galaxies", "Commute"))
+        assertEquals("Restored Playlist “Commute”", text("m4_playlist_restored").format("Commute"))
+        assertEquals("Subscribed to Deep Field", text("subscribed_message").format("Deep Field"))
+        assertEquals("Created View “Night skies”", text("view_created").format("Night skies"))
+        assertEquals("Marked “Galaxies” Starred", text("episode_starred").format("Galaxies"))
+        assertEquals("Marked “Galaxies” Not Starred", text("episode_unstarred").format("Galaxies"))
+        assertEquals("Unsubscribed from Deep Field", text("unsubscribed_message").format("Deep Field"))
+        assertEquals("Moved “Galaxies” in Commute", text("entry_moved").format("Galaxies", "Commute"))
         assertEquals("Select all", text("select_all"))
         assertEquals("Select none", text("select_none"))
         assertTrue(text("clear_on_played_on_help").contains("already Played"))
         assertFalse(text("draft_kept").contains("Valid condition"))
     }
 
-    @Test fun `messages use bare object names consistently`() {
-        listOf("view_name_duplicate", "m4_playlist_duplicate", "m4_playlist_deleted", "playlist_restored_as",
-            "playlist_renamed_to", "view_renamed_to", "subscribe_failed_named", "setting_for").forEach { key ->
+    @Test fun `diagnostics and the owner fixed Trash message keep bare names`() {
+        listOf("view_name_duplicate", "m4_playlist_duplicate", "m4_playlist_deleted", "subscribe_failed_named", "setting_for").forEach { key ->
             assertFalse(text(key).contains("“"), key)
             assertFalse(text(key).contains("”"), key)
         }
@@ -173,12 +181,12 @@ class UiWordingTest {
         assertEquals("Default follows your global Playback Settings.", text("m4_override_help"))
     }
 
-    @Test fun `add confirmations lead with the affected Entries`() {
+    @Test fun `add confirmations lead with the action and retain the affected Entries`() {
         val plurals = resources.getElementsByTagName("plurals")
         val entries = (0 until plurals.length).map { plurals.item(it) as Element }
             .single { it.getAttribute("name") == "entries_added_to_playlist" }.getElementsByTagName("item")
-        assertEquals("1 Entry added to Commute", entries.item(0).textContent.format(1, "Commute"))
-        assertEquals("3 Entries added to Commute", entries.item(1).textContent.format(3, "Commute"))
+        assertEquals("Added 1 Entry to Commute", entries.item(0).textContent.format(1, "Commute"))
+        assertEquals("Added 3 Entries to Commute", entries.item(1).textContent.format(3, "Commute"))
     }
 
 }

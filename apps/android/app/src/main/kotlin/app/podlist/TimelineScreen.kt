@@ -35,7 +35,7 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
                     else -> stringResource(R.string.m4_marked_played)
                 }) }
             }, trailingContent = { if (TimelineRules.pointAt(playlist, event.moment) != null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_rewind), null) })
-            HorizontalDivider()
+            ContentDivider()
         }
     }
     target?.let { to ->

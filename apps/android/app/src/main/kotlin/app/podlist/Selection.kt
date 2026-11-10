@@ -39,7 +39,7 @@ internal fun SelectionProvider(key: String?, data: ScreenData?, session: Session
 /** The contextual title stays compact; primary commands live in the bottom action bar. */
 @Composable
 internal fun SelectionToolbar(selection: EpisodeSelection) {
-    TopAppBar(title = { Text(pluralStringResource(R.plurals.m4_selected_count, selection.ids.size, selection.ids.size), Modifier.semantics { heading() }) }, navigationIcon = {
+    PodListTopAppBar(title = { Text(pluralStringResource(R.plurals.m4_selected_count, selection.ids.size, selection.ids.size), Modifier.semantics { heading() }) }, navigationIcon = {
         ActionIcon(R.drawable.ic_close, stringResource(R.string.cancel)) { selection.ids = emptySet() }
     }, actions = { SelectAllAction(selection) })
 }

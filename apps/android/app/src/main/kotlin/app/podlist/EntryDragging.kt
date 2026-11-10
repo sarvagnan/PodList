@@ -96,7 +96,7 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                 val currentLabel = stringResource(if (playlist.id == data.state.activePlaylistId && playback?.playlistId == playlist.id && playback?.playing == true) R.string.cursor_now else R.string.cursor_here)
                 val current = playlist.cursor == entry.episodeId
                 val selected = entry.episodeId in selection?.ids.orEmpty()
-                val highlight by animateColorAsState(if (marked || moving) MaterialTheme.colorScheme.tertiaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                val highlight by animateColorAsState(if (marked || moving) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
                     animationSpec = tween(if (marked || moving) 120 else 900), label = "Entry move highlight")
                 val indicator = MaterialTheme.colorScheme.primary
                 val movedLabel = stringResource(R.string.entry_destination, index + 1, playlist.entries.size)

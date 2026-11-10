@@ -31,7 +31,7 @@ internal fun WelcomeScreen(model: AppModel) {
     BackHandler(server) { server = false }
     if (server) {
         val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-        Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = { TopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
+        Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = { PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
             Box(Modifier.padding(padding)) { ServerScreen(model, null) }
         }
     } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -117,7 +117,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
             failures[result.feedUrl]?.let { failure ->
                 InlineError(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
-            HorizontalDivider()
+            ContentDivider()
         }
     }
 }

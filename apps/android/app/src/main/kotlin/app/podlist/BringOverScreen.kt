@@ -26,7 +26,7 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.bring_over_title), Modifier.semantics { heading() }) }, navigationIcon = {
+            PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.bring_over_title), Modifier.semantics { heading() }) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = model::dismissBringOver)
             })
         },

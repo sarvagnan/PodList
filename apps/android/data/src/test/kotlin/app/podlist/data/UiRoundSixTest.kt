@@ -120,6 +120,30 @@ class UiRoundSixTest {
         }
     }
 
+    @Test fun `all initials colour pairs meet text contrast in both themes and demo artwork`() {
+        val root = Path.of(System.getProperty("podlist.repo"))
+        val source = root.resolve("apps/android/app/src/main/kotlin/app/podlist/MainActivity.kt").toFile().readText()
+        val themes = listOf(
+            source.substringAfter("private val LightColors =").substringBefore("private val DarkColors ="),
+            source.substringAfter("private val DarkColors =").substringBefore("private val PodListTypography =")
+        )
+        themes.forEachIndexed { index, theme ->
+            fun role(name: String) = Regex("\\b$name = Color\\(0xff([0-9a-f]{6})\\)").find(theme)!!.groupValues[1].toInt(16)
+            val ratio = contrast(role("onSecondaryContainer"), role("secondaryContainer"), 1.0)
+            assertTrue(ratio >= 4.5, "Theme $index placeholder contrast $ratio")
+        }
+        // The graded ochre MH tile is artwork from this shared flow fixture, not the app fallback.
+        // These images are identical in light and dark; check every declared fixture palette pair.
+        val demo = root.resolve("packages/web/ui-flows/demo.mjs").toFile().readText()
+        assertTrue(demo.contains("fill=\"#fff\""), "Fixture initials must stay white for this contrast check")
+        val colours = Regex("color: \"#([0-9a-fA-F]{6})\"").findAll(demo).map { it.groupValues[1].toInt(16) }.toList()
+        assertTrue(colours.isNotEmpty())
+        colours.forEach { background ->
+            val ratio = contrast(0xffffff, background, 1.0)
+            assertTrue(ratio >= 4.5, "Fixture #${background.toString(16)} contrast $ratio")
+        }
+    }
+
     private fun contrast(foreground: Int, background: Int, alpha: Double): Double {
         fun channel(color: Int, shift: Int) = (color ushr shift and 255) / 255.0
         fun luminance(blend: Boolean): Double = listOf(16, 8, 0).zip(listOf(.2126, .7152, .0722)).sumOf { (shift, weight) ->

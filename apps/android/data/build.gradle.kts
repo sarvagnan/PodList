@@ -20,5 +20,6 @@ tasks.test {
     systemProperty("podlist.repo", rootProject.file("../..").absolutePath)
     inputs.dir(rootProject.file("../../packages/domain/protocol"))
     inputs.files(rootProject.file("../../packages/domain/src/Sql.ts"), rootProject.file("../../packages/web/src/platform/LocalDb.ts"))
+    inputs.files(rootProject.file("app/src/main/res/values/strings.xml"), rootProject.file("app/src/main/kotlin/app/podlist/MainActivity.kt"), rootProject.file("../../packages/web/ui-flows/demo.mjs"))
     testLogging { events("passed", "skipped", "failed") }
 }

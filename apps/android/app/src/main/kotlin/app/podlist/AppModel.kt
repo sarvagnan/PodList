@@ -30,7 +30,8 @@ data class AppMessage(
     val actionResource: Int = R.string.undo,
     val formatArgs: List<Any> = emptyList(),
     val quantity: Int? = null,
-    val undo: (() -> Unit)? = null
+    val undo: (() -> Unit)? = null,
+    val feedbackSheet: String? = null
 )
 
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
@@ -56,6 +57,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
     val shortcut = MutableStateFlow<String?>(null)
     val messages = Channel<AppMessage>(Channel.BUFFERED)
+    // Captured at a sheet action's dispatch, never when its asynchronous result arrives.
+    internal var feedbackSheet: String? = null
     private val opml = mutableMapOf<String, OpmlActions>()
     internal fun opml(session: Session): OpmlActions = opml.getOrPut(session.source.key) { OpmlActions(this, session, getApplication<Application>().contentResolver) }
     private val downloads = mutableMapOf<String, AndroidDownloads>()
@@ -104,6 +107,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val editLock = Mutex()
     fun edit(change: Change, typingGroup: String? = null, message: Int = editMessage(change), formatArgs: List<Any> = emptyList(), finished: (() -> Unit)? = null) {
         val current = session.value ?: return
+        val sheet = feedbackSheet
         viewModelScope.launch { editLock.withLock {
             if (session.value !== current) return@withLock
             val inverse = withContext(Dispatchers.IO) { current.db.reversibleEdit(listOf(change), System.currentTimeMillis()) }
@@ -114,7 +118,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                 is Change.MarkUnplayed -> listOf(current.db.query("SELECT title FROM episode WHERE id = ?", listOf(change.episodeId)).firstOrNull()?.get("title") ?: getApplication<Application>().getString(R.string.episode))
                 else -> emptyList()
             } }
-            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(message, formatArgs = namedArgs),
+            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(message, formatArgs = namedArgs, feedbackSheet = sheet),
                 ReversibleEdit((change as? Change.SaveView)?.view?.id) { changesStep(current, inverse).apply() }, typingGroup,
                 notify = change !is Change.SetPlaybackSettings && change !is Change.SetSubscriptionOverrides && change !is Change.SetTrashDays && change !is Change.SetDownloadRule && change !is Change.SetClearOnPlayed)
             finished?.invoke()

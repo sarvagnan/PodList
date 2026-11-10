@@ -203,13 +203,25 @@ class FlowRunSmokeTest {
         // Settings is a LazyColumn; offscreen labels do not exist in semantics until scrolled to.
         dispatched()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Appearance"))
+        fun settingsScroll() = compose.onNode(SemanticsMatcher.keyIsDefined(SettingsScrollPosition))
+            .fetchSemanticsNode().config[SettingsScrollPosition]
+        val before = settingsScroll()
+        val activityBefore = compose.activity
         tap("appearance", "Appearance", { present(control(mode)) })
+        check(settingsScroll() == before) { "Opening Appearance changed the Settings anchor: $before → ${settingsScroll()}" }
+        assertNoSnackbarOverlapsSheetOptions(compose)
         tap("choose-$mode", mode)
-        device.pressBack() // dismiss Appearance sheet
         waitFor("appearance applied") {
             val dark = compose.activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             dark == (mode == "Dark")
         }
+        compose.waitForIdle()
+        check(settingsScroll() == before) { "Appearance changed the Settings scroll position: $before → ${settingsScroll()} (index, offset px)" }
+        check(compose.activity === activityBefore) { "Appearance recreated the Activity" }
+        assertNoSnackbarOverlapsSheetOptions(compose)
+        device.pressBack() // dismiss Appearance sheet
+        waitFor("Appearance sheet dismissed") { !present(control("Done")) }
+        check(settingsScroll() == before) { "Dismissing Appearance changed the Settings anchor: $before → ${settingsScroll()}" }
         appearance = mode
         root("Views")
         report.note("$mode selected through Settings → Appearance; resource night qualifier verified.")

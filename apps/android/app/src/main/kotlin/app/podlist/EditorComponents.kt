@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, onClick: () -> Unit) {
@@ -36,16 +37,21 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
             help?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = valueColor) }
         }
     }
-    HorizontalDivider()
+    ContentDivider()
 }
 
 // Single-field forms commit directly beneath their field; sheets and multi-field forms may pin this region.
 // The primary commit is trailing and filled; secondary actions are text. Actions wrap before they crowd.
 @Composable
 internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
-    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        content = content)
+    val local = LocalSheetSnackbar.current
+    Column(modifier.fillMaxWidth()) {
+        // Reserve real space above the actions. An overlay padded only by the action height
+        // still covers the final option/field, especially when text is enlarged.
+        if (local?.snackbar?.currentSnackbarData != null) FeedbackSnackbarHost(local.snackbar)
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
 }
 
 /** Primary commits share filled emphasis and a minimum 48 dp target inside CommitActions. */
@@ -62,9 +68,54 @@ internal fun ContentTextButton(
     colors: ButtonColors = ButtonDefaults.textButtonColors(),
     content: @Composable RowScope.() -> Unit
 ) {
-    // Keep Material padding, but align the label rather than its padded touch target to the gutter.
-    TextButton(onClick, modifier.offset(x = (-12).dp).defaultMinSize(minWidth = 1.dp), enabled = enabled,
+    // Keep the whole padded button within the content gutter.
+    TextButton(onClick, modifier.heightIn(min = 48.dp), enabled = enabled,
         colors = colors, content = content)
+}
+
+/** Bordered secondary commands remain recognisable beside headings and explanatory text. */
+@Composable
+internal fun ContentActionButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    destructive: Boolean = false,
+    content: @Composable RowScope.() -> Unit
+) {
+    val color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    OutlinedButton(onClick, modifier.heightIn(min = 48.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (destructive) color else MaterialTheme.colorScheme.outline),
+        content = content)
+}
+
+/** At enlarged text sizes titles and actions get separate rows, preserving whole words. */
+@Composable
+internal fun PodListTopAppBar(
+    title: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    navigationIcon: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
+    scrollBehavior: TopAppBarScrollBehavior? = null
+) {
+    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) {
+        Surface {
+            Column(modifier) {
+                TopAppBar(title = title, navigationIcon = navigationIcon,
+                    expandedHeight = with(androidx.compose.ui.platform.LocalDensity.current) { 56.sp.toDp() + 16.dp },
+                    scrollBehavior = scrollBehavior)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
+                    content = actions)
+            }
+        }
+    } else TopAppBar(title = title, modifier = modifier, navigationIcon = navigationIcon,
+        actions = actions, scrollBehavior = scrollBehavior)
+}
+
+/** Quiet, inset separators keep adjacent list rows distinct without heavy rules. */
+@Composable
+internal fun ContentDivider() {
+    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))
 }
 
 @Composable
@@ -140,7 +191,7 @@ internal fun CheckRow(label: String, checked: Boolean, inset: Boolean = false, c
 internal fun SwitchRow(label: String, checked: Boolean, help: String? = null, changed: (Boolean) -> Unit) {
     ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = changed).semantics(mergeDescendants = true) {},
         headlineContent = { Text(label) }, supportingContent = help?.let { { Text(it) } }, trailingContent = { Switch(checked, null) })
-    HorizontalDivider()
+    ContentDivider()
 }
 
 @Composable

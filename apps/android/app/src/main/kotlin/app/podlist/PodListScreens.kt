@@ -291,17 +291,18 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
             SelectionToolbar(selection)
         }
         else Column {
-            TopAppBar(scrollBehavior = scrollBehavior, title = { Text(barTitle, Modifier.semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+            PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(barTitle, Modifier.semantics { heading() }, maxLines = 2, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                 if (back != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
             }, actions = {
-                EditHistoryMenu(overflow = route?.startsWith("episode:") != true)
+                UndoAction()
                 if (route == "select-subscriptions" && selection != null) SelectAllAction(selection)
                 if (edit != null) ActionIcon(R.drawable.ic_edit,
                     stringResource(if (route?.startsWith("playlist:") == true) R.string.playlist_settings else R.string.m4_edit_view), action = edit)
-                if (route?.startsWith("episode:") == true && selectionData != null && selectionSession != null) EpisodeOverflow(selectionData, selectionSession)
                 if (search != null) ActionIcon(R.drawable.ic_search, stringResource(R.string.m4_search_library), action = search)
                 if (add != null) ActionIcon(R.drawable.ic_add, stringResource(addLabel), action = add)
                 if (settings != null) ActionIcon(R.drawable.ic_settings, stringResource(R.string.settings), action = settings)
+                if (route?.startsWith("episode:") == true && selectionData != null && selectionSession != null) EpisodeOverflow(selectionData, selectionSession)
+                else HistoryOverflow()
 
             })
             if (status == SyncStatus.Offline || status == SyncStatus.Error) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -344,12 +345,14 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 add("search")
                 if (subscriptions.isEmpty()) add("no-subscriptions")
                 for (mode in DownloadMode.entries) {
-                    add("rule:$mode")
                     val rows = group(mode)
+                    if (rows.isNotEmpty()) add("rule:$mode")
                     addAll(rows.map { "subscription:${it["id"]}" })
-                    if (rows.isEmpty()) add("empty:$mode")
                 }
-                if (subscriptions.isNotEmpty()) add("select-subscriptions")
+                if (subscriptions.isNotEmpty()) {
+                    if (DownloadMode.entries.any { group(it).isEmpty() }) add("unused-rules")
+                    add("select-subscriptions")
+                }
             }
         }
         add("end")
@@ -380,7 +383,17 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 }
                 for ((mode, title) in listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new)) {
                     val group = group(mode)
-                    if (group.isNotEmpty()) item(key = "rule:$mode") { Section(stringResource(title)) }
+                    if (group.isNotEmpty()) item(key = "rule:$mode") {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.m4_download_rule), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(title), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(when (mode) {
+                                DownloadMode.Never -> R.string.library_stream_help
+                                DownloadMode.OnEntry -> R.string.library_on_entry_help
+                                DownloadMode.AllNew -> R.string.library_all_new_help
+                            }), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     items(group, key = { "subscription:${it["id"]}" }) { subscription ->
                         NameRow(subscription["title"] as String, pluralStringResource(R.plurals.episode_count, (subscription["episode_count"] as Number).toInt(), (subscription["episode_count"] as Number).toInt()),
                             artwork = subscription["artwork_url"] as? String, session = session) { open("subscription:${subscription["id"]}") }
@@ -388,7 +401,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     }
                 }
                 val unused = listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new).filter { group(it.first).isEmpty() }
-                if (unused.isNotEmpty()) item(key = "unused-rules") {
+                if (subscriptions.isNotEmpty() && unused.isNotEmpty()) item(key = "unused-rules") {
                     Text(stringResource(R.string.unused_download_rules, unused.map { stringResource(it.second) }.joinToString(", ")), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (subscriptions.isNotEmpty()) item(key = "select-subscriptions") { NameRow(stringResource(R.string.m4_select_subscriptions), stringResource(R.string.m4_select_subscriptions_help), icon = R.drawable.ic_select_all) { open("select-subscriptions") } }
@@ -501,7 +514,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
         if (showActions && !selecting && stacked) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) { actions() }
 
         actionError()
-        if (!detail) HorizontalDivider()
+        if (!detail) ContentDivider()
     }
 }
 
@@ -595,7 +608,7 @@ internal fun EpisodeDetail(data: ScreenData, session: Session,
 internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, titleStyle: androidx.compose.ui.text.TextStyle? = null, onClick: () -> Unit) {
     ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = titleStyle ?: MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = subtitle.takeIf { it.isNotBlank() }?.let { { Text(it) } },
         leadingContent = if (session != null) { { ArtworkImage(session, artwork, placeholderTitle = title) } } else icon?.let { { Box(Modifier.size(40.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { Icon(painterResource(it), null) } } })
-    HorizontalDivider()
+    ContentDivider()
 }
 
 @Composable internal fun Hint(text: String) { Text(text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }

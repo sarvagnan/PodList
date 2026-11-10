@@ -109,14 +109,14 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
                     }
                 }
             }
-            HorizontalDivider()
+            ContentDivider()
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 ActionIcon(R.drawable.ic_chevron_left, stringResource(R.string.previous_day), enabled = chosen > 0) { chosen-- }
                 Text(stringResource(R.string.m4_day_listening, chartDate(shown.day), listened(shown.seconds)), Modifier.weight(1f))
                 ActionIcon(R.drawable.ic_chevron_right, stringResource(R.string.next_day), enabled = chosen < stats.days.lastIndex) { chosen++ }
             }
         }
-        item { ContentTextButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
+        item { ContentActionButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
         item { Section(stringResource(R.string.m4_top_podcasts), inset = 0.dp) }
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         items(stats.podcasts) { (id, seconds) ->

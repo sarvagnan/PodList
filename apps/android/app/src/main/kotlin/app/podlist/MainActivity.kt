@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.lerp
 import android.app.UiModeManager
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +37,10 @@ class MainActivity : ComponentActivity() {
             val appearance by model.appearance.collectAsState()
             val dark = appearance.isDark(isSystemInDarkTheme())
             SideEffect {
+                // uiMode is handled in place. Refresh the native window too; the persisted
+                // application night mode still supplies the matching splash on the next launch.
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(
+                    (if (dark) DarkColors.background else LightColors.background).toArgb()))
                 val style = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark }
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
