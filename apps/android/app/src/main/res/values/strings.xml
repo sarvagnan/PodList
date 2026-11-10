@@ -374,6 +374,7 @@
     <string name="episodes_starred">Episodes starred</string>
     <string name="episodes_played">Episodes marked Played</string>
     <string name="playlist_renamed_to">Playlist renamed to %1$s</string>
+    <string name="view_renamed_to">View renamed to %1$s</string>
     <string name="view_changed">View changed</string>
     <string name="download_rule_changed">Download Rule changed</string>
     <string name="entry_removed">Entry removed from Playlist</string>

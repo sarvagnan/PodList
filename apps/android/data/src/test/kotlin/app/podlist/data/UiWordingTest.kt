@@ -35,6 +35,15 @@ class UiWordingTest {
         assertEquals("Save", text("save"))
     }
 
+    @Test fun `explicit View rename names the saved result in feedback and Undo`() {
+        val message = text("view_renamed_to").format("Commute")
+        assertEquals("View renamed to Commute", message)
+        assertEquals("Undo: View renamed to Commute", text("undo_specific").format(message))
+        assertEquals("Redo: View renamed to Commute", text("redo_specific").format(message))
+        assertEquals("View renamed to 100% listening", text("view_renamed_to").format("100% listening"))
+        assertEquals("A View needs a name.", text("m4_view_name_error"))
+    }
+
     @Test fun `recovery commands use the same verb across screens`() {
         listOf("retry", "retry_playback", "retry_download", "m4_retry_failed", "retry_action", "retry_refresh", "podcast_try_again").forEach {
             assertEquals("Try again", text(it), it)
