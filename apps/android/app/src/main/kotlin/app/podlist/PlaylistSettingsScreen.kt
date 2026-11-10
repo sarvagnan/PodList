@@ -73,9 +73,12 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () ->
     val drafts = LocalFormDrafts.current
     var name by rememberDraftText("new-playlist/name")
     var rejected by remember { mutableStateOf<Names.Problem?>(null) }
+    var interacted by rememberDraftText("new-playlist/interacted", if (name.isNotEmpty()) "true" else "false")
     val problem = PlaylistNames.validate(name, data.state.playlists) ?: rejected
+    val shownProblem = problem.takeIf { interacted == "true" || rejected != null }
     var busy by remember { mutableStateOf(false) }
     fun submit() {
+        interacted = "true"
         if (busy || problem != null) return
         val submitted = drafts.snapshot("new-playlist/")
         busy = true
@@ -86,7 +89,7 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () ->
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(name, { if (!busy) { name = it; rejected = null } }, label = { Text(stringResource(R.string.playlist_name)) }, singleLine = true, readOnly = busy, isError = problem != null, supportingText = if (problem != null) ({ Text(playlistProblem(problem, name, data.state.playlists.map { it.name }), Modifier.errorAnnouncement()) }) else null, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
+            OutlinedTextField(name, { if (!busy) { name = it; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = busy, isError = shownProblem != null, supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, data.state.playlists.map { it.name })) }) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
             CommitActions {
                 TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
                 CommitButton(enabled = !busy && problem == null, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }

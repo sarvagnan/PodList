@@ -2,6 +2,7 @@
 package app.podlist
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +30,7 @@ internal val LocalEpisodeSelection = staticCompositionLocalOf<EpisodeSelection?>
 @Composable
 internal fun SelectionProvider(key: String?, data: ScreenData?, session: Session, content: @Composable () -> Unit) {
     val selection = rememberSaveable(key, saver = Saver<EpisodeSelection, ArrayList<String>>(save = { ArrayList(it.ids) }, restore = { EpisodeSelection().apply { ids = it.toSet() } })) { EpisodeSelection() }
+    ContextualMode(selection.ids.isNotEmpty() || key?.startsWith("view-edit:") == true || key?.startsWith("new-view:") == true)
     CompositionLocalProvider(LocalEpisodeSelection provides selection) { content() }
     BackHandler(selection.ids.isNotEmpty()) { selection.ids = emptySet() }
 }
@@ -55,7 +57,10 @@ internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean 
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
         modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(painterResource(icon), contentDescription = null)
+            Icon(painterResource(icon), contentDescription = null,
+                modifier = if (icon == R.drawable.ic_check) Modifier.background(LocalSubscribedColors.current.background,
+                    androidx.compose.foundation.shape.CircleShape).padding(4.dp) else Modifier,
+                tint = if (icon == R.drawable.ic_check) LocalSubscribedColors.current.foreground else LocalContentColor.current)
             Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
         }
     }

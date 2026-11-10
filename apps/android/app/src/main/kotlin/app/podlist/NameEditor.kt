@@ -76,7 +76,7 @@ internal fun RenameableName(
                     if (enter) commit()
                 },
                 enabled = !saving, label = { Text(stringResource(R.string.m4_name)) }, maxLines = 4, isError = reason != null,
-                supportingText = if (reason != null) ({ Text(reason, Modifier.errorAnnouncement()) }) else null,
+                supportingText = if (reason != null) ({ InlineError(reason) }) else null,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { commit() }),
                 modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus).then(textFieldHistoryShortcuts()))
             CommitActions(Modifier.padding(top = 8.dp)) {

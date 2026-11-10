@@ -45,8 +45,8 @@ class UiWordingTest {
     }
 
     @Test fun `duplicate names identify the taken name and restore feedback names both versions`() {
-        assertEquals("There’s already a View called “Commute”.", text("view_name_duplicate").format("Commute"))
-        assertEquals("There’s already a Playlist called “Commute”.", text("m4_playlist_duplicate").format("Commute"))
+        assertEquals("There’s already a View called Commute.", text("view_name_duplicate").format("Commute"))
+        assertEquals("There’s already a Playlist called Commute.", text("m4_playlist_duplicate").format("Commute"))
         val message = text("playlist_restored_as").format("Commute", "Commute 2")
         assertEquals("Playlist Commute restored as Commute 2", message)
         assertEquals("Undo: Playlist Commute restored as Commute 2", text("undo_specific").format(message))
@@ -85,9 +85,9 @@ class UiWordingTest {
     }
 
     @Test fun `Library Download Rule groups read as content headings`() {
-        assertEquals("Streamed only", text("library_downloads_stream"))
-        assertEquals("Downloaded when added to a Playlist", text("library_downloads_entry"))
-        assertEquals("Downloaded as published", text("library_downloads_published"))
+        assertEquals("Play without downloading", text("library_downloads_stream"))
+        assertEquals("Download when added to a Playlist", text("library_downloads_entry"))
+        assertEquals("Download when published", text("library_downloads_published"))
     }
     @Test fun `restored settings feedback names the setting and restored value`() {
         assertEquals("Speed back to 1.0×", text("setting_back_to").format(text("speed"), text("speed_value").format("1.0")))
@@ -114,6 +114,30 @@ class UiWordingTest {
         assertEquals("Back to Playlists", text("back_to_playlists"))
         assertEquals("Find something to play", text("find_something_to_play"))
         assertEquals("A Playlist needs a name.", text("m4_playlist_empty"))
+    }
+
+    @Test fun `integer limit errors explain whole numbers bounds and unlimited`() {
+        listOf("number_integer_error", "number_whole_error", "number_minimum_error", "number_maximum_error").forEach { key ->
+            val message = text(key).format(1, Int.MAX_VALUE)
+            assertTrue(message.contains("whole number"), key)
+            assertTrue(message.contains("1"), key)
+            assertTrue(message.contains(Int.MAX_VALUE.toString()), key)
+            assertTrue(message.endsWith("or leave blank for unlimited."), key)
+        }
+        assertEquals("Show download progress?", text("download_notification_title"))
+        assertEquals("12 MB of 24 MB", text("download_bytes").format("12 MB", "24 MB"))
+    }
+
+    @Test fun `messages use bare object names consistently`() {
+        listOf("view_name_duplicate", "m4_playlist_duplicate", "m4_playlist_deleted", "playlist_restored_as",
+            "playlist_renamed_to", "view_renamed_to", "subscribe_failed_named", "setting_for").forEach { key ->
+            assertFalse(text(key).contains("“"), key)
+            assertFalse(text(key).contains("”"), key)
+        }
+        assertEquals("Name", text("m4_name"))
+        assertTrue(text("m4_stats_about").startsWith("Time listened includes partial listening"))
+        assertFalse(text("timeline_rewind_hint").contains("symbol"))
+        assertFalse(text("m4_listened_stretch").contains("until"))
     }
 
 }

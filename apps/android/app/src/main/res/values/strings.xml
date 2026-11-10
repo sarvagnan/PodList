@@ -106,7 +106,6 @@
     <string name="buffering">Loading audio…</string>
     <string name="add_to_playlist">Add to a Playlist</string>
     <string name="new_playlist">New Playlist</string>
-    <string name="playlist_name">Playlist name</string>
     <string name="play_next">Play Next</string>
     <string name="play_last">Play Last</string>
     <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
@@ -162,7 +161,7 @@
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
     <string name="m4_name">Name</string>
-    <string name="view_name_duplicate">There’s already a View called “%1$s”.</string>
+    <string name="view_name_duplicate">There’s already a View called %1$s.</string>
     <string name="playlist_restored_as">Playlist %1$s restored as %2$s</string>
     <string name="m4_view_name_error">A View needs a name.</string>
     <string name="m4_conditions">Show Episodes where</string>
@@ -186,7 +185,7 @@
     <string name="m4_at_least_minutes">At least (minutes)</string>
     <string name="m4_at_most_minutes">At most (minutes)</string>
     <string name="m4_number_error">Enter a number of %1$d or more.</string>
-    <string name="m4_clear_help">An Entry leaves once its Episode is Played, wherever you heard it. Turning it on keeps Entries that are already Played.</string>
+    <string name="m4_clear_help">On: Entries leave when their Episodes become Played, through listening or by hand. Turning this on keeps Entries already Played.\n\nOff: Entries stay until you remove them.</string>
     <string name="m4_setting_changed">Setting changed</string>
     <string name="m4_delete_playlist">Delete Playlist</string>
     <string name="m4_trash_help">It goes to Trash with its History and Listening Timeline, and can be restored for %1$d days.</string>
@@ -195,7 +194,7 @@
     <string name="save">Save</string>
     <string name="m4_create_playlist">Create Playlist</string>
     <string name="m4_playlist_empty">A Playlist needs a name.</string>
-    <string name="m4_playlist_duplicate">There’s already a Playlist called “%1$s”.</string>
+    <string name="m4_playlist_duplicate">There’s already a Playlist called %1$s.</string>
     <string name="m4_playlist_restored">Playlist restored</string>
     <string name="m4_restore">Restore</string>
     <string name="m4_downloads_device">Downloads on this Device</string>
@@ -217,7 +216,7 @@
     <string name="m4_mark_all_played">Mark all Played</string>
     <string name="m4_marked_all">All Episodes marked Played</string>
     <string name="m4_default_threshold">Default (30 seconds)</string>
-    <string name="m4_listened_stretch">Listened %1$s · until %2$s</string>
+    <string name="m4_listened_stretch">Listened at Position %1$s\nEnded %2$s</string>
     <string name="m4_finished">Finished through playback</string>
     <string name="m4_entry_added">Entry added</string>
     <string name="m4_entry_moved">Entry moved</string>
@@ -247,7 +246,7 @@
     <string name="m4_top_podcasts">Top podcasts</string>
     <string name="m4_removed_subscription">Removed Subscription</string>
     <string name="m4_about_stats">About your stats</string>
-    <string name="m4_stats_about">Listening is counted across your Devices, even after you remove an Episode or Playlist. Weeks start on Monday; days follow the Device you listened on. Episodes finished counts Episodes in your Library that you finished by listening. Marking an Episode Played by hand doesn’t count. Rewind or marking it Unplayed takes it out of this count; your time listened stays.</string>
+    <string name="m4_stats_about">Time listened includes partial listening across your Devices. Removing an Episode or Playlist never removes that time.\n\nEpisodes finished counts Episodes in your Library finished through listening. Manual Played marks don’t count. Rewind or marking Unplayed can reduce this count; time listened stays.\n\nWeeks start on Monday. Each day follows the Device you listened on.</string>
     <string name="m4_your_listening">Your listening</string>
     <string name="m4_listening_stats">Listening stats</string>
     <string name="m4_stats_hint">Time listened, Episodes finished and your Listening streak</string>
@@ -281,7 +280,6 @@
     <string name="m4_subscription_settings">Subscription settings</string>
     <string name="create_view">Create View</string>
     <string name="m4_search_hint">Episode titles, podcast names and show notes</string>
-    <string name="m4_add_podcasts_hint">Search by name or paste a feed address</string>
     <string name="m4_select_subscriptions">Select Subscriptions</string>
     <string name="m4_select_subscriptions_help">Change Download Rules together</string>
     <plurals name="m4_selected_count">
@@ -401,7 +399,7 @@
     <string name="opml_progress">Processing OPML</string>
     <string name="change_download_rule">Change Download Rule</string>
     <string name="changed_value">%1$s · Changed</string>
-    <string name="subscribe_failed_named">Couldn’t subscribe to “%1$s”. %2$s</string>
+    <string name="subscribe_failed_named">Couldn’t subscribe to %1$s. %2$s</string>
     <string name="now_playing_identity">%1$s · %2$s</string>
     <string name="unsubscribing">Unsubscribing…</string>
     <string name="show_entries">Show Entries</string>
@@ -433,7 +431,7 @@
     <string name="discard_draft">Discard draft</string>
     <string name="show_podcast_details">Show podcast details</string>
     <string name="hide_podcast_details">Hide podcast details</string>
-    <string name="timeline_rewind_hint">Tap a row with the Rewind symbol to see what goes back before you Rewind.</string>
+    <string name="timeline_rewind_hint">Tap a listening moment to review what Rewind would change. You can cancel before applying it.</string>
     <string name="undo_specific">Undo: %1$s</string>
     <string name="redo_specific">Redo: %1$s</string>
     <string name="chart_minutes">Time listened in minutes</string>
@@ -444,9 +442,9 @@
     <string name="trash_retention_changed">Deleted Playlist retention changed</string>
     <string name="clear_on_played_changed">Clear on Played changed</string>
     <string name="new_view_draft_kept">Your conditions are kept until you create the View.</string>
-    <string name="library_downloads_stream">Streamed only</string>
-    <string name="library_downloads_entry">Downloaded when added to a Playlist</string>
-    <string name="library_downloads_published">Downloaded as published</string>
+    <string name="library_downloads_stream">Play without downloading</string>
+    <string name="library_downloads_entry">Download when added to a Playlist</string>
+    <string name="library_downloads_published">Download when published</string>
     <string name="more_actions">More actions</string>
     <string name="appearance">Appearance</string>
     <string name="appearance_changed">Appearance changed</string>
@@ -463,4 +461,12 @@
     <string name="setting_for">%1$s for %2$s</string>
     <string name="subscription">Subscription</string>
     <string name="download_limit">Maximum downloads kept</string>
+    <string name="download_notification_title">Show download progress?</string>
+    <string name="download_bytes">%1$s of %2$s</string>
+    <string name="number_integer_error">Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
+    <string name="number_whole_error">Use a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
+    <string name="number_minimum_error">That number is too small. Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
+    <string name="number_maximum_error">That number is too large. Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
+    <string name="show_completed_steps">Show completed steps</string>
+    <string name="hide_completed_steps">Hide completed steps</string>
 </resources>

@@ -124,16 +124,21 @@ private fun ConnectedNavigation(model: AppModel, session: Session, browsing: Bro
     val cache = remember(session) { mutableStateMapOf<String, ScreenData>() }
     val tabs = rememberSaveableStateHolder()
     var requestedPlaylist by rememberSaveable { mutableStateOf<String?>(null) }
-    NavigationSuiteScaffold(navigationSuiteItems = {
-        Destination.entries.forEach { target ->
-            item(selected = destination == target, onClick = { if (destination == target) requestedRoot = target; destination = target; collapseNavigation++ },
-                icon = { Icon(painterResource(target.icon), contentDescription = null) },
-                label = { Text(stringResource(target.title)) })
-        }
-    }) {
-        PlayerContainer(model, session, openPlaylist = { requestedPlaylist = it; destination = Destination.Playlists }, collapseNavigation = collapseNavigation) {
-            tabs.SaveableStateProvider(destination.name) {
-                DestinationStack(destination, model, session, cache, incomingRoute.takeIf { destination == Destination.Library }, { incomingRoute = null }, revealRoute?.let { Reveal(it, revealEpisode, revealToken) }, { revealRoute = null }, requestedPlaylist.takeIf { destination == Destination.Playlists }, consumed = { requestedPlaylist = null }, resetRoot = requestedRoot == destination, rootConsumed = { requestedRoot = null }, rootBack = { destination = Destination.Views })
+    val chrome = remember { ContextualChrome() }
+    val navigation = androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState()
+    LaunchedEffect(chrome.hidden) { if (chrome.hidden) navigation.hide() else navigation.show() }
+    CompositionLocalProvider(LocalContextualChrome provides chrome) {
+        NavigationSuiteScaffold(state = navigation, navigationSuiteItems = {
+            Destination.entries.forEach { target ->
+                item(selected = destination == target, onClick = { if (destination == target) requestedRoot = target; destination = target; collapseNavigation++ },
+                    icon = { Icon(painterResource(target.icon), contentDescription = null) },
+                    label = { Text(stringResource(target.title)) })
+            }
+        }) {
+            PlayerContainer(model, session, openPlaylist = { requestedPlaylist = it; destination = Destination.Playlists }, collapseNavigation = collapseNavigation) {
+                tabs.SaveableStateProvider(destination.name) {
+                    DestinationStack(destination, model, session, cache, incomingRoute.takeIf { destination == Destination.Library }, { incomingRoute = null }, revealRoute?.let { Reveal(it, revealEpisode, revealToken) }, { revealRoute = null }, requestedPlaylist.takeIf { destination == Destination.Playlists }, consumed = { requestedPlaylist = null }, resetRoot = requestedRoot == destination, rootConsumed = { requestedRoot = null }, rootBack = { destination = Destination.Views })
+                }
             }
         }
     }
@@ -203,11 +208,11 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                 defaultBackBehavior = BackNavigationBehavior.PopLatest,
                 listPane = {
                     AnimatedPane {
-                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, selectSubscriptions = if (destination == Destination.Library) ({ open("select-subscriptions") }) else null, add = { when (destination) {
+                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, add = if (destination == Destination.Library && data?.subscriptions?.none { it["unsubscribed_at"] == null } == true) null else ({ when (destination) {
                             Destination.Library -> open("add-podcasts")
                             Destination.Playlists -> open("new-playlist")
                             Destination.Views -> open("new-view")
-                        } }) {
+                        } })) {
                             val loaded = data
                             if (loaded == null || (destination == Destination.Views && !loaded.hasLibrary) || (status == SyncStatus.Loading && if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState)) Loading()
                             else if (if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState) EmptyMessage(R.string.no_synced_data)
@@ -270,7 +275,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
 }
 
 @Composable
-private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.create_view, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, selectSubscriptions: (() -> Unit)? = null, content: @Composable () -> Unit) {
+private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.create_view, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, content: @Composable () -> Unit) {
     val selection = LocalEpisodeSelection.current
     Scaffold(topBar = {
         if (selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null) {
@@ -286,15 +291,7 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
                 if (route?.startsWith("episode:") == true && selectionData != null && selectionSession != null) EpisodeOverflow(selectionData, selectionSession)
                 if (add != null) ActionIcon(R.drawable.ic_add, stringResource(addLabel), action = add)
                 if (settings != null) ActionIcon(R.drawable.ic_settings, stringResource(R.string.settings), action = settings)
-                if (selectSubscriptions != null) {
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
-                        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.m4_select_subscriptions)) }, onClick = { expanded = false; selectSubscriptions() })
-                        }
-                    }
-                }
+
             })
             if (status == SyncStatus.Offline || status == SyncStatus.Error) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(if (status == SyncStatus.Offline) R.string.offline else R.string.sync_error), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -338,7 +335,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     val rows = group(mode)
                     addAll(rows.map { "subscription:${it["id"]}" })
                 }
-                if (subscriptions.isNotEmpty()) add("add-podcasts")
+                if (subscriptions.isNotEmpty()) add("select-subscriptions")
             }
         }
         add("end")
@@ -376,7 +373,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                         SubscriptionRefreshStatus(subscription, session)
                     }
                 }
-                if (subscriptions.isNotEmpty()) item(key = "add-podcasts") { NameRow(stringResource(R.string.add_podcasts), stringResource(R.string.m4_add_podcasts_hint), icon = R.drawable.ic_add) { open("add-podcasts") } }
+                if (subscriptions.isNotEmpty()) item(key = "select-subscriptions") { NameRow(stringResource(R.string.m4_select_subscriptions), stringResource(R.string.m4_select_subscriptions_help), icon = R.drawable.ic_library) { open("select-subscriptions") } }
             }
         }
         item(key = "end") { Spacer(Modifier.height(16.dp)) }
@@ -509,37 +506,45 @@ internal fun EpisodeOverflow(data: ScreenData, session: Session) {
 }
 
 @Composable
-internal fun EpisodeDetail(data: ScreenData, session: Session) {
+internal fun EpisodeDetail(data: ScreenData, session: Session,
+    resolve: ((Row, (String) -> Unit) -> Unit)? = null, actionsEnabled: Boolean = true,
+    actionBusy: Boolean = false, actionError: @Composable () -> Unit = {}) {
     val row = data.episodes.firstOrNull()
     if (row == null) { EmptyMessage(R.string.metadata_pending); return }
     val model = LocalAppModel.current
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
     val id = row["id"] as String
-    LaunchedEffect(session, id) { withContext(Dispatchers.IO) { runCatching { session.source.chapters(id) } } }
+    fun act(action: (String) -> Unit) { if (resolve != null) resolve(row, action) else action(id) }
+    LaunchedEffect(session, id) { if (resolve == null) withContext(Dispatchers.IO) { runCatching { session.source.chapters(id) } } }
     val chapters = (row["chapters"] as? String)?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty()
     val notes = showNotes(row["description"] as? String ?: "")
     LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.fillMaxSize()) {
         item {
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 112.dp)
+                ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 112.dp, direct = resolve != null)
             }
-            EpisodeRow(row, data, session, showActions = false, showArtwork = false, detail = true)
+            EpisodeRow(row, data, session, showActions = false, showArtwork = false, detail = true, actionBusy = actionBusy)
             Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { model.playNow(id); started() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Icon(painterResource(R.drawable.ic_play), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.play_now)) }
+                Button(onClick = { act { model.playNow(it); started() } }, enabled = actionsEnabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp)) { Icon(painterResource(R.drawable.ic_play), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.play_now)) }
                 ActionGrid {
-                    LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { add(id) }
-                    val starred = data.state.episodeStates[id]?.starred == true
-                    LabelledAction(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (starred) R.string.unstar else R.string.star)) {
-                        model.edit(Change.SetStar(id, !starred))
-                    }
+                    LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist), enabled = actionsEnabled) { act(add) }
                     val played = data.state.episodeStates[id]?.played != null
-                    LabelledAction(R.drawable.ic_check, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played)) {
-                        model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User))
+                    LabelledAction(R.drawable.ic_check, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played), enabled = actionsEnabled) {
+                        act { model.edit(if (played) Change.MarkUnplayed(it) else Change.MarkPlayed(it, PlayedSource.User)) }
                     }
-                    DownloadAction(id, session)
+                    val starred = data.state.episodeStates[id]?.starred == true
+                    LabelledAction(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (starred) R.string.unstar else R.string.star), enabled = actionsEnabled) {
+                        act { model.edit(Change.SetStar(it, !starred)) }
+                    }
+                    if (resolve == null) DownloadAction(id, session)
+                    else LabelledAction(R.drawable.ic_download, stringResource(R.string.download), enabled = actionsEnabled) {
+                        act { val downloads = model.downloads(session); downloads.download(it); downloads.offerRequestUndo(listOf(it), false, R.string.m4_downloads_requested) }
+                    }
                 }
-                DownloadStatus(id, session, Modifier.padding(horizontal = 16.dp))
+                if (resolve == null) DownloadStatus(id, session, Modifier.padding(horizontal = 16.dp))
+                Box(Modifier.padding(horizontal = 16.dp)) { actionError() }
+
             }
 
         }

@@ -209,6 +209,7 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                             val source = DefaultHttpDataSource.Factory().setUserAgent("PodList Android").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).createDataSource()
                             try {
                                 val total = source.open(DataSpec(Uri.parse(url)))
+                                setForegroundAsync(foreground(0, total)).get()
                                 var received = 0L
                                 var lastProgress = 0L
                                 run {
@@ -220,10 +221,16 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                                         output.write(buffer, 0, count)
                                         received += count
                                         val now = android.os.SystemClock.elapsedRealtime()
-                                        if (now - lastProgress >= 250) { setProgressAsync(workDataOf("received" to received, "total" to total)); lastProgress = now }
+                                        if (now - lastProgress >= 250) {
+                                            setProgressAsync(workDataOf("received" to received, "total" to total))
+                                            setForegroundAsync(foreground(received, total)).get()
+                                            lastProgress = now
+                                        }
                                     }
                                 }
                                 if (total >= 0 && total != received) throw IOException("Incomplete audio")
+                                setProgressAsync(workDataOf("received" to received, "total" to total))
+                                setForegroundAsync(foreground(received, total)).get()
                                 received
                             } finally { source.close() }
                         }
@@ -248,12 +255,17 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                 Result.failure(workDataOf("storageFull" to storageFull))
             }
     }
-    private fun foreground(): ForegroundInfo {
+    private fun foreground(received: Long = 0, total: Long = -1): ForegroundInfo {
         val context = applicationContext
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("downloads", context.getString(R.string.downloads), NotificationManager.IMPORTANCE_LOW))
+        val progress = app.podlist.domain.DownloadProgress(received, total)
+        val bytes = android.text.format.Formatter.formatShortFileSize(context, progress.boundedReceived)
+        val detail = if (progress.indeterminate) bytes else context.getString(R.string.download_bytes,
+            bytes, android.text.format.Formatter.formatShortFileSize(context, total))
         val notification = NotificationCompat.Builder(context, "downloads")
             .setSmallIcon(R.drawable.ic_download).setContentTitle(context.getString(R.string.download_in_progress))
-            .setOngoing(true).setProgress(0, 0, true)
+            .setOngoing(true).setOnlyAlertOnce(true).setContentText(detail)
+            .setProgress(progress.maximum, progress.progress, progress.indeterminate)
             .addAction(0, context.getString(R.string.cancel_download), WorkManager.getInstance(context).createCancelPendingIntent(id)).build()
         return ForegroundInfo(id.hashCode(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     }
