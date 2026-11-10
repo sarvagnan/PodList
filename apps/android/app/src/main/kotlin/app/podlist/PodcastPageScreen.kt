@@ -55,6 +55,9 @@ internal fun podcastFromRoute(route: String): DirectoryResult = ProtocolJson.dec
 @Composable
 internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, session: Session, fromSearch: Boolean, open: (String) -> Unit, back: () -> Unit) {
     val model = LocalAppModel.current
+    val context = LocalContext.current
+    var shareMenu by remember { mutableStateOf(false) }
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scope = rememberCoroutineScope()
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
@@ -138,7 +141,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     }
     val rows = feed?.let { remote ->
         val stored = localRows.associateBy { it["guid"] }
-        val remoteRows = podcastEpisodeRows(remote)
+        val remoteRows = podcastEpisodeRows(remote).map { it + ("feed_url" to result.feedUrl) }
         remoteRows.map { stored[it["guid"]] ?: it } + localRows.filter { local -> remoteRows.none { it["guid"] == local["guid"] } }
     } ?: localRows
     val filtered = filterPodcastEpisodes(rows, query)
@@ -185,7 +188,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 }
                 model.requestSync()
                 model.offerSubscriptionHistory(session, listOf(result.feedUrl), subscribe = remove,
-                    AppMessage(if (remove) R.string.unsubscribed else R.string.subscribed), reveal = false)
+                    AppMessage(if (remove) R.string.unsubscribed_message else R.string.subscribed_message, formatArgs = listOf(title)), reveal = false)
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
                 actionFailure = classifyLookup(error)
@@ -197,10 +200,11 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     val inspected = rows.find { it["guid"] == inspectingGuid }
     if (inspected != null) {
         BackHandler { inspectingGuid = null }
-        Scaffold(topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.episode)) }, navigationIcon = {
+        val episodeScroll = TopAppBarDefaults.pinnedScrollBehavior()
+        Scaffold(modifier = Modifier.nestedScroll(episodeScroll.nestedScrollConnection), topBar = {
+            TopAppBar(scrollBehavior = episodeScroll, title = { Text(stringResource(R.string.episode)) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { inspectingGuid = null }
-            })
+            }, actions = { EpisodeOverflow(data.copy(episodes = listOf(inspected)), session) })
         }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 EpisodeDetail(data.copy(episodes = listOf(inspected)), session, resolve = if (localRows.any { it["id"] == inspected["id"] }) null else ::resolve,
@@ -249,13 +253,30 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         expanded = !expanded
         if (expanded) scope.launch { list.animateScrollToItem(0) }
     }
-    Scaffold(modifier = disarmOnOtherTap, topBar = {
+    Scaffold(modifier = disarmOnOtherTap.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
-            else TopAppBar(title = { Text(if (armed || headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            else TopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (armed || headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
-                if (!armed) EditHistoryMenu()
+                if (!armed) {
+                    EditHistoryMenu()
+                    Box {
+                        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { confirmation = confirmation.disarm(); shareMenu = true }
+                        DropdownMenu(shareMenu, onDismissRequest = { shareMenu = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.share_podcast)) }, onClick = {
+                                shareMenu = false
+                                shareText(context, title, app.podlist.domain.ShareLinks.podcast(feed?.link ?: subscription?.get("website_url") as? String, result.feedUrl))
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.copy_feed_address)) }, onClick = {
+                                shareMenu = false
+                                (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                                    .setPrimaryClip(android.content.ClipData.newPlainText(title, result.feedUrl))
+                                model.messages.trySend(AppMessage(R.string.feed_address_copied, formatArgs = listOf(title)))
+                            })
+                        }
+                    }
+                }
                 if (subscribed) {
                     if (!armed || LocalDensity.current.fontScale < 1.5f) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy) { openPage("subscription-settings:$id") }
                     val label = if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
@@ -299,7 +320,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     }, bottomBar = {
         if (selection != null && selection.ids.isNotEmpty()) SelectionActionBar(selection, data.copy(episodes = rows), session, "subscription:$id")
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
-        LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).imePadding().nestedScroll(pull).semantics {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).imePadding().listSelectionKeys(selection).nestedScroll(pull).semantics {
             customActions = listOf(CustomAccessibilityAction(detailsLabel) { toggleDetails(); true })
         }) {
             item(key = "header") {

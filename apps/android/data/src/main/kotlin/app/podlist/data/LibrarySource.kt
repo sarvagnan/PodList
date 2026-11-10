@@ -165,7 +165,7 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
         ON CONFLICT(subscription_id) DO UPDATE SET etag = excluded.etag, last_modified = excluded.last_modified, checked_at = excluded.checked_at, failures = 0, last_error = NULL""", listOf(id, response.etag, response.lastModified, now()))
     }
     private fun store(id: String, feed: ParsedFeed) {
-        db.execute("UPDATE subscription SET title = ?, title_folded = ?, author = ?, description = ?, artwork_url = ? WHERE id = ?", listOf(feed.title, Mentions.fold(feed.title), feed.author, feed.description, feed.artworkUrl, id))
+        db.execute("UPDATE subscription SET title = ?, title_folded = ?, author = ?, description = ?, artwork_url = ?, website_url = ? WHERE id = ?", listOf(feed.title, Mentions.fold(feed.title), feed.author, feed.description, feed.artworkUrl, feed.link, id))
         val guids = feed.episodes.map { it.guid }.toSet()
         for (e in feed.episodes) {
             val existing = db.query("SELECT * FROM episode WHERE subscription_id = ? AND guid = ?", listOf(id, e.guid)).firstOrNull()
@@ -173,12 +173,12 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
             val episodeId = existing?.get("id") as? String ?: "ep_" + MessageDigest.getInstance("SHA-256").digest("$id\n${e.guid}".toByteArray()).joinToString("") { "%02x".format(it) }.take(24)
             val replaced = (existing?.get("duration") as? Number)?.toDouble()?.let { old -> e.duration?.let { kotlin.math.abs(old - it) > 30 } } == true
             val resetChapters = replaced || existing?.get("chapters_url") != e.chaptersUrl
-            db.execute("""INSERT INTO episode (id, subscription_id, guid, title, title_folded, description, description_folded, published, duration, audio_url, artwork_url, chapters_url, audio_updated_at, chapters_fetched_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET guid = excluded.guid, title = excluded.title, title_folded = excluded.title_folded,
+            db.execute("""INSERT INTO episode (id, subscription_id, guid, title, title_folded, description, description_folded, published, duration, audio_url, artwork_url, chapters_url, audio_updated_at, chapters_fetched_at, website_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET guid = excluded.guid, title = excluded.title, title_folded = excluded.title_folded,
                 description = excluded.description, description_folded = excluded.description_folded, published = excluded.published, duration = excluded.duration, audio_url = excluded.audio_url,
-                artwork_url = excluded.artwork_url, chapters_url = excluded.chapters_url, audio_updated_at = excluded.audio_updated_at, chapters_fetched_at = excluded.chapters_fetched_at""",
+                artwork_url = excluded.artwork_url, chapters_url = excluded.chapters_url, audio_updated_at = excluded.audio_updated_at, chapters_fetched_at = excluded.chapters_fetched_at, website_url = excluded.website_url""",
                 listOf(episodeId, id, e.guid, e.title, Mentions.fold(e.title), e.description, Mentions.fold(e.description), e.published, e.duration, e.audioUrl, e.artworkUrl, e.chaptersUrl,
-                    if (replaced) now() else existing?.get("audio_updated_at"), if (resetChapters) null else existing?.get("chapters_fetched_at")))
+                    if (replaced) now() else existing?.get("audio_updated_at"), if (resetChapters) null else existing?.get("chapters_fetched_at"), e.link))
         }
     }
     override fun chapters(episodeId: String): List<Chapter> = synchronized(lock) {

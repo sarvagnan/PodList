@@ -26,10 +26,10 @@ class UiWordingTest {
 
     @Test fun `explicit Playlist rename names the saved result in feedback and Undo`() {
         val message = text("playlist_renamed_to").format("Commute")
-        assertEquals("Playlist renamed to Commute", message)
-        assertEquals("Undo: Playlist renamed to Commute", text("undo_specific").format(message))
-        assertEquals("Redo: Playlist renamed to Commute", text("redo_specific").format(message))
-        assertEquals("Playlist renamed to 100% listening", text("playlist_renamed_to").format("100% listening"))
+        assertEquals("Playlist Commute renamed", message)
+        assertEquals("Undo: Playlist Commute renamed", text("undo_specific").format(message))
+        assertEquals("Redo: Playlist Commute renamed", text("redo_specific").format(message))
+        assertEquals("Playlist 100% listening renamed", text("playlist_renamed_to").format("100% listening"))
         assertEquals("Rename", text("rename"))
         assertEquals("Cancel", text("cancel"))
         assertEquals("Save", text("save"))
@@ -37,10 +37,10 @@ class UiWordingTest {
 
     @Test fun `explicit View rename names the saved result in feedback and Undo`() {
         val message = text("view_renamed_to").format("Commute")
-        assertEquals("View renamed to Commute", message)
-        assertEquals("Undo: View renamed to Commute", text("undo_specific").format(message))
-        assertEquals("Redo: View renamed to Commute", text("redo_specific").format(message))
-        assertEquals("View renamed to 100% listening", text("view_renamed_to").format("100% listening"))
+        assertEquals("View Commute renamed", message)
+        assertEquals("Undo: View Commute renamed", text("undo_specific").format(message))
+        assertEquals("Redo: View Commute renamed", text("redo_specific").format(message))
+        assertEquals("View 100% listening renamed", text("view_renamed_to").format("100% listening"))
         assertEquals("A View needs a name.", text("m4_view_name_error"))
     }
 
@@ -85,16 +85,16 @@ class UiWordingTest {
     }
 
     @Test fun `Library Download Rule groups read as content headings`() {
-        assertEquals("Play without downloading", text("library_downloads_stream"))
-        assertEquals("Download when added to a Playlist", text("library_downloads_entry"))
-        assertEquals("Download when published", text("library_downloads_published"))
+        assertEquals("Play without downloading", text("stream"))
+        assertEquals("Download when added to a Playlist", text("on_entry"))
+        assertEquals("Download when published", text("all_new"))
     }
     @Test fun `restored settings feedback names the setting and restored value`() {
         assertEquals("Speed back to 1.0×", text("setting_back_to").format(text("speed"), text("speed_value").format("1.0")))
         assertEquals("Appearance back to System default", text("setting_back_to").format(text("appearance"), text("appearance_system")))
         assertEquals("Keep deleted Playlists back to 30 days", text("setting_back_to").format(text("m4_keep_deleted"), text("m4_days").format(30)))
         assertEquals("Clear on Played for Commute back to On", text("setting_back_to").format(text("setting_for").format(text("clear_on_played"), "Commute"), text("m4_on")))
-        assertEquals("Download Rule for A podcast back to Stream", text("setting_back_to").format(text("setting_for").format(text("m4_download_rule"), "A podcast"), text("stream")))
+        assertEquals("Download Rule for A podcast back to Play without downloading", text("setting_back_to").format(text("setting_for").format(text("m4_download_rule"), "A podcast"), text("stream")))
         assertEquals("Skip intro back to Off", text("setting_back_to").format(text("m4_skip_intro"), text("m4_off")))
         assertEquals("Volume boost back to On", text("setting_back_to").format(text("volume_boost"), text("m4_on")))
     }
@@ -126,6 +126,18 @@ class UiWordingTest {
         }
         assertEquals("Show download progress?", text("download_notification_title"))
         assertEquals("12 MB of 24 MB", text("download_bytes").format("12 MB", "24 MB"))
+    }
+
+    @Test fun `confirmations name objects and use glossary capitalisation`() {
+        assertEquals("Playlist Commute restored", text("m4_playlist_restored").format("Commute"))
+        assertEquals("Deep Field subscribed", text("subscribed_message").format("Deep Field"))
+        assertEquals("View Night skies created", text("view_created").format("Night skies"))
+        assertEquals("Episode Galaxies marked Starred", text("episode_starred").format("Galaxies"))
+        assertEquals("Episode Galaxies marked Not Starred", text("episode_unstarred").format("Galaxies"))
+        assertEquals("Select all", text("select_all"))
+        assertEquals("Select none", text("select_none"))
+        assertTrue(text("clear_on_played_on_help").contains("already Played"))
+        assertFalse(text("draft_kept").contains("Valid condition"))
     }
 
     @Test fun `messages use bare object names consistently`() {

@@ -144,7 +144,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
 private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expand: () -> Unit, openPlaylist: () -> Unit) {
     val accessible = stringResource(R.string.open_now_playing, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
     val progressLabel = stringResource(R.string.playback_position)
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).pointerInput(expand) { detectTapGestures { expand() } }.semantics { isTraversalGroup = true }) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = ripple(), onClickLabel = accessible, onClick = expand).semantics { isTraversalGroup = true }) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clickable(onClickLabel = accessible, onClick = expand).semantics { contentDescription = accessible; traversalIndex = 0f }, contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp) }
             Row(Modifier.weight(1f).semantics { isTraversalGroup = true; traversalIndex = 1f }, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -367,7 +367,7 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
                     supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, state.playlists.map { it.name })) }) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
             }
             CommitActions(Modifier.padding(vertical = 16.dp)) {
-                if (target == null) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting, onClick = { drafts.clear(draftPrefix); dismiss() }) { Text(stringResource(R.string.discard_draft)) }
+                if (target == null && name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting, onClick = { drafts.clear(draftPrefix); dismiss() }) { Text(stringResource(R.string.discard_draft)) }
                 for ((placement, label) in listOf(Placement.Next to R.string.play_next, Placement.Last to R.string.play_last)) FilledTonalButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting && problem == null, onClick = {
                     val submittedDraft = drafts.snapshot(draftPrefix)
                     submitting = true

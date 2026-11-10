@@ -16,8 +16,9 @@ import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
 
 @Composable
-internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -> Unit) {
+internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -> Unit, initialAppearance: Boolean = false) {
     val model = LocalAppModel.current
+    var showAppearance by rememberSaveable { mutableStateOf(initialAppearance) }
     var retention by rememberSaveable { mutableStateOf(false) }
     val actions = remember(session) { model.opml(session) }
     val opml by actions.state.collectAsState()
@@ -77,11 +78,14 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         } }
         item(key = SettingKey.TrashRetention) { Section(stringResource(R.string.playlists)); ValueRow(stringResource(R.string.m4_keep_deleted), stringResource(R.string.m4_days, data.state.trashDays ?: 30)) { retention = true } }
         item { Section(stringResource(R.string.this_device)); SettingsRow(stringResource(R.string.server), session.source.server?.origin ?: stringResource(R.string.server_none)) { open("server") } }
-        item(key = SettingKey.Appearance) { SettingsRow(stringResource(R.string.appearance), stringResource(appearanceLabel(appearance))) { open("appearance") } }
+        item(key = SettingKey.Appearance) { SettingsRow(stringResource(R.string.appearance), stringResource(appearanceLabel(appearance))) { showAppearance = true } }
         if (bringOver?.origin == session.source.key && bringOver?.job?.complete != true) item {
             SettingsRow(stringResource(R.string.bring_over_title), stringResource(if (bringOver?.job == null) R.string.bring_over_available else R.string.bring_over_in_settings)) { model.showBringOver() }
         }
         item { Section(stringResource(R.string.m4_help)); SettingsRow(stringResource(R.string.m4_getting_started), stringResource(R.string.m4_getting_started_hint)) { open("getting-started") } }
+    }
+    if (showAppearance) EditorSheet(stringResource(R.string.appearance), { showAppearance = false }) {
+        ChoiceRows(app.podlist.data.Appearance.entries.map { it to stringResource(appearanceLabel(it)) }, appearance, choose = model::setAppearance)
     }
     if (retention) EditorSheet(stringResource(R.string.m4_keep_deleted), { retention = false }) {
         ChoiceRows(listOf(7L, 14L, 30L, 60L, 90L).map { it to stringResource(R.string.m4_days, it) }, data.state.trashDays ?: 30) { model.edit(Change.SetTrashDays(it)) }
@@ -97,16 +101,4 @@ internal fun appearanceLabel(appearance: app.podlist.data.Appearance): Int = whe
     app.podlist.data.Appearance.System -> R.string.appearance_system
     app.podlist.data.Appearance.Light -> R.string.appearance_light
     app.podlist.data.Appearance.Dark -> R.string.appearance_dark
-}
-
-@Composable
-internal fun AppearanceScreen() {
-    val model = LocalAppModel.current
-    val appearance by model.appearance.collectAsState()
-    LazyColumn(contentPadding = PaddingValues(16.dp)) {
-        item {
-            ChoiceRows(app.podlist.data.Appearance.entries.map { it to stringResource(appearanceLabel(it)) },
-                appearance, choose = model::setAppearance)
-        }
-    }
 }

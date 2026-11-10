@@ -103,7 +103,12 @@ internal fun RowScope.DownloadAction(episode: String, session: Session) {
     val downloads = LocalAppModel.current.downloads(session)
     val statuses by downloads.status.collectAsState()
     val phase = statuses[episode]?.phase
-    LabelledAction(if (phase in listOf(DownloadPhase.Queued, DownloadPhase.Transferring)) R.drawable.ic_close else R.drawable.ic_download,
+    LabelledAction(when (phase) {
+        DownloadPhase.Stored -> R.drawable.ic_download_remove
+        DownloadPhase.Failed -> R.drawable.ic_retry
+        DownloadPhase.Queued, DownloadPhase.Transferring -> R.drawable.ic_close
+        null -> R.drawable.ic_download
+    },
         stringResource(downloadActionLabel(phase))) { performDownloadAction(downloads, episode, phase) }
 }
 

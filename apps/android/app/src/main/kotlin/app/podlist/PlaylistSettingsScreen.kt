@@ -40,7 +40,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
     LazyColumn(modifier = Modifier.imePadding(), state = listState, contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!playlist.isDefault) item(key = "name") { PlaylistName(playlist, data) }
         else item { Hint(stringResource(R.string.default_playlist_limits)) }
-        item { SwitchRow(stringResource(R.string.clear_on_played), playlist.clearOnPlayed, stringResource(R.string.m4_clear_help)) { checked ->
+        item { SwitchRow(stringResource(R.string.clear_on_played), playlist.clearOnPlayed, stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played_on_help else R.string.clear_on_played_off_help)) { checked ->
             model.changeWithUndo(listOf(Change.SetClearOnPlayed(playlist.id, checked)), R.string.clear_on_played_changed, notify = false) { before -> listOf(Change.SetClearOnPlayed(playlist.id, before.playlists.first { it.id == playlist.id }.clearOnPlayed)) }
         } }
         if (!playlist.isDefault) item {
@@ -91,7 +91,7 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () ->
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(name, { if (!busy) { name = it; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = busy, isError = shownProblem != null, supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, data.state.playlists.map { it.name })) }) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
             CommitActions {
-                TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
+                if (name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
                 CommitButton(enabled = !busy && problem == null, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
             }
         }
@@ -113,7 +113,7 @@ internal fun TrashScreen(data: ScreenData, openPlaylists: () -> Unit) {
         }
         items(trash, key = { it.playlist.id }) { trash ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(trash.playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.deleted, date(trash.deletedAt))) }, trailingContent = {
-                ContentTextButton(onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored) { before -> EditUndo.inverse(before, Change.RestorePlaylist(trash.playlist.id), System.currentTimeMillis()) } }) { Text(stringResource(R.string.m4_restore)) }
+                ContentTextButton(onClick = { model.changeWithUndo(listOf(Change.RestorePlaylist(trash.playlist.id)), R.string.m4_playlist_restored, formatArgs = listOf(trash.playlist.name)) { before -> EditUndo.inverse(before, Change.RestorePlaylist(trash.playlist.id), System.currentTimeMillis()) } }) { Text(stringResource(R.string.m4_restore)) }
             })
         }
     }

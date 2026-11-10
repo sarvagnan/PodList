@@ -39,7 +39,7 @@ internal fun AppModel.rewind(playlistId: String, to: Long) {
                 record(Change.Rewind(playlistId, to), at)
                 TimelinePresentation.undo(before, loadState(), playlistId, at + 1)
             } }
-            recordHistory(current, AppMessage(R.string.rewound), changesStep(current, inverse, playlistId))
+            recordHistory(current, AppMessage(R.string.rewound, formatArgs = listOf(current.db.loadState().playlists.find { it.id == playlistId }?.name.orEmpty())), changesStep(current, inverse, playlistId))
         }
     }
 }
@@ -57,7 +57,7 @@ internal fun AppModel.createPlaylist(name: String, finished: (String?, Names.Pro
                     id to null
                 }
             } }
-            result.first?.let { id -> recordHistory(current, AppMessage(R.string.playlist_created), changesStep(current, listOf(Change.DeletePlaylist(id)), id)) }
+            result.first?.let { id -> recordHistory(current, AppMessage(R.string.playlist_created, formatArgs = listOf(name.trim())), changesStep(current, listOf(Change.DeletePlaylist(id)), id)) }
             finished(result.first, result.second)
         }
     }
@@ -156,7 +156,7 @@ internal fun editMessage(change: Change): Int = when (change) {
 }
 
 internal fun AppModel.removeEntry(playlist: String, episode: String) {
-    changeWithUndo(listOf(Change.RemoveEntry(playlist, episode)), R.string.entry_removed, playbackPlaylist = playlist) { before ->
+    changeWithUndo(listOf(Change.RemoveEntry(playlist, episode)), R.string.entry_removed, playbackPlaylist = playlist, formatArgs = listOf(currentPlaylistName(playlist))) { before ->
         before.playlists.find { it.id == playlist }?.let { EditUndo.removeEntry(it, episode, System.currentTimeMillis() + 1) }.orEmpty()
     }
 }
@@ -167,7 +167,7 @@ internal fun restoredMessage(before: State, after: State, changes: List<Change>)
     val original = before.trash?.find { it.playlist.id == id }?.playlist ?: return null
     val restored = after.playlists.find { it.id == id } ?: return null
     return if (original.name != restored.name) AppMessage(R.string.playlist_restored_as, formatArgs = listOf(original.name, restored.name))
-        else AppMessage(R.string.m4_playlist_restored)
+        else AppMessage(R.string.m4_playlist_restored, formatArgs = listOf(restored.name))
 }
 
 internal fun AppModel.saveNamedView(view: View, message: Int = R.string.view_changed, formatArgs: List<Any> = emptyList(), finished: (Names.Problem?) -> Unit) {
@@ -175,7 +175,9 @@ internal fun AppModel.saveNamedView(view: View, message: Int = R.string.view_cha
     viewModelScope.launch { editLock.withLock {
         if (session.value !== current) return@withLock
         val result = withContext(Dispatchers.IO) { current.db.reversibleNamedView(view, System.currentTimeMillis()) }
-        if (result.problem == null) recordHistory(current, AppMessage(message, formatArgs = formatArgs), changesStep(current, result.inverse))
+        if (result.problem == null) recordHistory(current, AppMessage(message, formatArgs = formatArgs.ifEmpty { listOf(view.name) }), changesStep(current, result.inverse))
         finished(result.problem)
     } }
 }
+
+private fun AppModel.currentPlaylistName(id: String): String = session.value?.db?.loadState()?.playlists?.find { it.id == id }?.name.orEmpty()

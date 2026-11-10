@@ -34,7 +34,7 @@ internal fun readScreen(db: LocalDatabase, route: String?): ScreenData = db.tran
 }
 
 private fun LocalDatabase.episodeRows(ids: List<String>): List<Row> = query("""
-    SELECT e.*, s.title AS podcast, s.artwork_url AS podcast_artwork_url,
+    SELECT e.*, s.title AS podcast, s.artwork_url AS podcast_artwork_url, s.website_url AS podcast_website_url, s.feed_url AS feed_url,
       st.played_at, COALESCE(st.starred, 0) AS starred
     FROM episode e JOIN subscription s ON s.id = e.subscription_id
     LEFT JOIN episode_state st ON st.episode_id = e.id

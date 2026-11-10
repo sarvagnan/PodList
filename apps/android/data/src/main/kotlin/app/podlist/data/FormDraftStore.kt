@@ -17,6 +17,8 @@ class FormDraftStore(private val db: LocalDatabase) {
         if (load()["new-view/id"] == id) clear("new-view/")
     }
 
+    fun putAll(values: Map<String, String>) = db.transaction { values.forEach { (key, text) -> put(key, text) } }
+
     fun put(key: String, text: String) { db.setMeta("formDraft:$key", text) }
 
     fun snapshot(prefix: String): Map<String, String> = load().filterKeys { it.startsWith(prefix) }

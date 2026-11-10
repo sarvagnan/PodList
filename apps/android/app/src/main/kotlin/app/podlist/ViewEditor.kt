@@ -24,6 +24,8 @@ import java.time.ZoneId
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 
 @Composable
 internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: () -> Unit, deleted: () -> Unit) {
@@ -103,7 +105,9 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
             if (creating) item {
                 var name by creationName!!
-                OutlinedTextField(name, { name = it; rejectedName = null; update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ InlineError(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
+                var input by remember(view.id) { mutableStateOf(TextFieldValue(name, TextRange(0, name.length))) }
+                LaunchedEffect(name) { if (input.text != name) input = TextFieldValue(name, TextRange(0, name.length)) }
+                OutlinedTextField(input, { input = it; name = it.text; rejectedName = null; update(draft.copy(name = it.text.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ InlineError(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
             } else item {
                 RenameableName(saved.name, renamePrefix + "name",
                     problem = { text -> (ViewNames.validate(text, data.state.views, view.id) ?: rejectedName?.takeIf { it.first == text.trim() }?.second)?.let { viewNameProblem(it, text, data.state.views.map { it.name }) } },
@@ -123,15 +127,20 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             // A permanent note at the end of the form never inserts space above the conditions.
             item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
-            if (creating || problem != null || hasInvalidNumber) item { ContentTextButton(onClick = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_draft)) } }
-            if (!creating) item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            if ((creating && (draft != initial || creationName!!.value != initial.name)) || problem != null || hasInvalidNumber) item { ContentTextButton(onClick = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.discard_draft)) } }
+            if (creating) item {
+                CommitActions(Modifier.padding(horizontal = 16.dp)) {
+                    CommitButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(R.string.create_view)) }
+                }
+            }
+            if (!creating) item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted, formatArgs = listOf(saved.name)) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(fullCount, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                CommitActions(Modifier.weight(1f)) {
+                if (!creating) CommitActions(Modifier.weight(1f)) {
                     CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
                 }
             }

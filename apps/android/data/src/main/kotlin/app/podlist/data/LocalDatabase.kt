@@ -17,7 +17,7 @@ class LocalDatabase(path: String, private val standalone: Boolean = false) : Aut
         try {
             execute("PRAGMA foreign_keys = ON")
             execute("CREATE TABLE IF NOT EXISTS android_migration (scope TEXT NOT NULL, id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (scope, id))")
-            for ((scope, migrations) in listOf("shared" to SharedSchema.migrations, "client" to SharedSchema.clientMigrations, "device" to SharedSchema.deviceMigrations)) {
+            for ((scope, migrations) in listOf("shared" to SharedSchema.migrations, "client" to SharedSchema.clientMigrations, "device" to SharedSchema.deviceMigrations, "android" to SharedSchema.androidMigrations)) {
                 for (migration in migrations) transaction {
                     if (query("SELECT id FROM android_migration WHERE scope = ? AND id = ?", listOf(scope, migration.id)).isEmpty()) {
                         for (statement in migration.statements) execute(statement)
