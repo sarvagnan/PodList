@@ -26,7 +26,7 @@ import android.net.Uri
 import java.security.MessageDigest
 
 internal enum class DownloadPhase { Queued, Transferring, Stored, Failed }
-internal data class DownloadUi(val phase: DownloadPhase, val received: Long = 0, val total: Long = 0)
+internal data class DownloadUi(val phase: DownloadPhase, val received: Long = 0, val total: Long = 0, val storageFull: Boolean = false)
 
 /** WorkManager persists transfer requests across process death; failures await explicit retry.
  * The same one-second rule trigger receives State, Library AND download invalidations.
@@ -84,7 +84,7 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
                 WorkInfo.State.FAILED -> DownloadPhase.Failed
                 else -> null
             }
-            if (phase != null) next[id] = DownloadUi(phase, info.progress.getLong("received", 0), info.progress.getLong("total", 0)) else next.remove(id)
+            if (phase != null) next[id] = DownloadUi(phase, info.progress.getLong("received", 0), info.progress.getLong("total", 0), info.outputData.getBoolean("storageFull", false)) else next.remove(id)
         }
         for (row in stored) next[row["episode_id"] as String] = DownloadUi(DownloadPhase.Stored, (row["bytes"] as Number).toLong())
         statuses.value = next
@@ -239,7 +239,14 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                 Result.success()
             } catch (error: CancellationException) {
                 throw error
-            } catch (_: Exception) { Result.failure() }
+            } catch (error: Exception) {
+                val storageFull = generateSequence<Throwable>(error) { it.cause }.any {
+                    it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC ||
+                        it.message?.contains("ENOSPC", ignoreCase = true) == true ||
+                        it.message?.contains("No space left on device", ignoreCase = true) == true
+                }
+                Result.failure(workDataOf("storageFull" to storageFull))
+            }
     }
     private fun foreground(): ForegroundInfo {
         val context = applicationContext

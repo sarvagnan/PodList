@@ -103,7 +103,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             if (session.value !== current) return@withLock
             val inverse = withContext(Dispatchers.IO) { current.db.reversibleEdit(listOf(change), System.currentTimeMillis()) }
             if (inverse.isNotEmpty()) recordHistory(current, AppMessage(message, formatArgs = formatArgs),
-                ReversibleEdit((change as? Change.SaveView)?.view?.id) { changesStep(current, inverse).apply() }, typingGroup)
+                ReversibleEdit((change as? Change.SaveView)?.view?.id) { changesStep(current, inverse).apply() }, typingGroup,
+                notify = change !is Change.SetPlaybackSettings && change !is Change.SetSubscriptionOverrides && change !is Change.SetTrashDays && change !is Change.SetDownloadRule && change !is Change.SetClearOnPlayed)
             finished?.invoke()
         } }
     }
@@ -139,9 +140,23 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         _serverAddressDraft.value = value
     }
 
-    fun setAppearance(value: Appearance) {
+    private fun applyAppearance(value: Appearance) {
         deviceSettings.appearance = value
         _appearance.value = value
+    }
+    private fun appearanceStep(value: Appearance): ReversibleEdit = ReversibleEdit {
+        val before = _appearance.value
+        applyAppearance(value)
+        appearanceStep(before)
+    }
+    fun setAppearance(value: Appearance) {
+        val before = _appearance.value
+        if (before == value) return
+        applyAppearance(value)
+        val current = session.value ?: return
+        viewModelScope.launch { editLock.withLock {
+            recordHistory(current, AppMessage(R.string.appearance_changed), appearanceStep(before), notify = false)
+        } }
     }
     private val _session = MutableStateFlow<Session?>(null)
     val session = _session.asStateFlow()

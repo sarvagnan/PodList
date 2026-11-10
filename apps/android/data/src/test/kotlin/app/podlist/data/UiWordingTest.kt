@@ -65,4 +65,28 @@ class UiWordingTest {
         }
         assertEquals("Allow notifications to see download progress and stop a download.", text("download_notification_reason"))
     }
+    @Test fun `creation connection and Playback Settings use consistent domain wording`() {
+        assertEquals("Create View", text("create_view"))
+        assertEquals("Create Playlist", text("m4_create_playlist"))
+        assertEquals(text("connect_to_server"), text("connect_title"))
+        assertEquals("Playback Settings", text("playback_settings"))
+        assertEquals("Playback Settings", text("m4_playback_overrides"))
+        assertEquals("Settings for Commute", text("playlist_settings_for").format("Commute"))
+        assertEquals("Discard draft", text("discard_draft"))
+        assertEquals("Cancel", text("cancel"))
+        assertFalse(text("connect_help").contains("tailnet"))
+        assertFalse(text("offline_error").contains("tailnet"))
+    }
+
+    @Test fun `download failure gives practical recovery and distinguishes known storage exhaustion`() {
+        assertEquals("Couldn’t download this Episode. Check your connection, then try again.", text("download_failed"))
+        assertEquals("Couldn’t download this Episode because this Device is out of storage. Free some space, then try again.", text("download_storage_full"))
+        assertEquals("Try again", text("retry_download"))
+    }
+
+    @Test fun `Library Download Rule groups read as content headings`() {
+        assertEquals("Streamed only", text("library_downloads_stream"))
+        assertEquals("Downloaded when added to a Playlist", text("library_downloads_entry"))
+        assertEquals("Downloaded as published", text("library_downloads_published"))
+    }
 }

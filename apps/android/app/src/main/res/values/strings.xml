@@ -7,8 +7,8 @@
     <string name="server">Server</string>
     <string name="this_device">This Device</string>
     <string name="back">Back</string>
-    <string name="connect_title">Connect to your server</string>
-    <string name="connect_help">Enter the HTTPS address of your PodList server. Connect to your tailnet first.</string>
+    <string name="connect_title">Connect to a server</string>
+    <string name="connect_help">Enter the HTTPS address of your PodList server. If it uses a private network, connect to that network first.</string>
     <string name="server_scope">Each server address keeps its own Library on this Device. Returning to a saved address reopens its local data.</string>
     <string name="server_address">Server address</string>
     <string name="server_example">https://podlist.example</string>
@@ -16,12 +16,11 @@
     <string name="checking">Checking server…</string>
     <string name="address_error">Enter an HTTPS server address without a path, credentials or query.</string>
     <string name="address_error_debug">Enter an HTTPS server address. Debug builds also allow http://10.0.2.2 with an optional port.</string>
-    <string name="offline_error">Couldn’t reach the server. Check its address and your tailnet connection, then try again.</string>
+    <string name="offline_error">Couldn’t reach the server. Check its address and your private network connection, then try again.</string>
     <string name="tls_error">Couldn’t make a secure connection. Check the server’s HTTPS certificate.</string>
     <string name="server_error">Couldn’t complete the request. Check the server and try again.</string>
     <string name="response_error">Couldn’t read the server’s response. Check that the address is a PodList server.</string>
     <string name="loading">Loading local Library…</string>
-    <string name="syncing">Syncing… Local data remains available.</string>
     <string name="offline">Offline · Showing local data. Sync will try again.</string>
     <string name="sync_error">Sync error · Showing local data.</string>
     <string name="retry">Try again</string>
@@ -33,9 +32,6 @@
     <string name="no_matches">No Episodes match this View</string>
     <string name="no_entries">No Entries in this Playlist</string>
     <string name="no_cursor">No current Entry</string>
-    <string name="views_hint">Saved conditions over your Library</string>
-    <string name="playlists_hint">Each Playlist keeps its own place</string>
-    <string name="library_hint">Download Rules on this Device</string>
     <string name="stream">Stream</string>
     <string name="on_entry">When Episodes become an Entry</string>
     <string name="all_new">As Episodes are published</string>
@@ -64,17 +60,13 @@
     <string name="in_playlists">In your Playlists</string>
     <string name="playlist_position">Position %1$s</string>
     <string name="chapters">Chapters</string>
-    <string name="view_conditions">Conditions</string>
     <string name="any">Any</string>
     <string name="published_days">Last %1$d days</string>
     <string name="published_between">Published: %1$s – %2$s</string>
     <string name="podcasts_include">From %1$s</string>
     <string name="podcasts_exclude">Excluding podcasts: %1$s</string>
     <string name="mentions">Mentions “%1$s”</string>
-    <string name="played_condition">Played: %1$s</string>
     <string name="in_progress_condition">In progress</string>
-    <string name="starred_condition">Starred: %1$s</string>
-    <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="not_in_playlist">Not in any Playlist</string>
     <string name="min_duration">Length at least %1$s</string>
@@ -104,8 +96,6 @@
     <string name="speed_value">%1$s×</string>
     <string name="episode_speed">Speed for this Episode</string>
     <string name="sleep">Sleep</string>
-    <string name="sleep_set">Sleep timer set</string>
-    <string name="sleep_minutes">%1$d minutes</string>
     <string name="sleep_duration">Duration (minutes)</string>
     <string name="sleep_duration_start">Start timer</string>
     <string name="end_chapter">End of Chapter</string>
@@ -115,13 +105,11 @@
     <string name="retry_playback">Try again</string>
     <string name="buffering">Loading audio…</string>
     <string name="add_to_playlist">Add to a Playlist</string>
-    <string name="choose_playlist">Choose a Playlist</string>
     <string name="new_playlist">New Playlist</string>
     <string name="playlist_name">Playlist name</string>
     <string name="playlist_name_error">Enter a name that is not already used.</string>
     <string name="play_next">Play next</string>
     <string name="play_last">Play last</string>
-    <string name="added_to_playlist">Added to %1$s</string>
     <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
     <string name="play_from_here">Play from here</string>
     <string name="switch_playlist">Switch Playlist</string>
@@ -131,7 +119,6 @@
     <string name="no_history">No History yet. Finish an Episode from Entries to build it.</string>
     <string name="no_timeline">No listening yet. Play an Episode from Entries to start this Listening Timeline.</string>
     <string name="finished_at">Finished %1$s</string>
-    <string name="timeline_position">%1$s · Position %2$s</string>
     <string name="move_up">Move up</string>
     <string name="move_down">Move down</string>
     <string name="entry_actions">Entry actions</string>
@@ -145,19 +132,15 @@
     <string name="downloads">Downloads</string>
     <string name="download_in_progress">Downloading Episode</string>
     <string name="download_queued">Waiting to download</string>
-    <string name="download_progress">Downloading · %1$s</string>
     <string name="download_stored">Stored on this Device</string>
-    <string name="download_failed">Couldn’t download this Episode.</string>
-    <string name="download_none">Not stored on this Device</string>
+    <string name="download_failed">Couldn’t download this Episode. Check your connection, then try again.</string>
+    <string name="download_storage_full">Couldn’t download this Episode because this Device is out of storage. Free some space, then try again.</string>
     <string name="cancel_download">Cancel download</string>
     <string name="retry_download">Try again</string>
     <string name="remove_download">Remove download</string>
     <string name="download_rule">Download Rule on this Device</string>
     <string name="keep_at_most">Maximum kept (blank for unlimited)</string>
-    <string name="all_new_since">All New since %1$s</string>
-    <string name="playback_settings">Playback</string>
-    <string name="skip_intro">Skip intro (seconds)</string>
-    <string name="skip_outro">Skip outro (seconds)</string>
+    <string name="playback_settings">Playback Settings</string>
     <string name="volume_boost">Volume boost</string>
     <string name="settings_inheritance">Subscription overrides apply to these defaults.</string>
     <string name="close">Close</string>
@@ -175,10 +158,8 @@
     <string name="directory_failed">Couldn’t find podcasts. Check your connection and try again.</string>
     <string name="subscribe">Subscribe</string>
     <string name="subscribed">Subscribed</string>
-    <string name="subscribe_failed">Couldn’t subscribe. Try again.</string>
     <string name="unsubscribe">Unsubscribe</string>
     <string name="unsubscribed">Unsubscribed</string>
-    <string name="unsubscribe_failed">Couldn’t unsubscribe. Try again.</string>
     <string name="cancel">Cancel</string>
     <string name="m4_done">Done</string>
     <string name="m4_name">Name</string>
@@ -201,7 +182,6 @@
     <string name="m4_between_dates">Between dates</string>
     <string name="m4_from">From</string>
     <string name="m4_to">To</string>
-    <string name="m4_date_format">YYYY-MM-DD</string>
     <string name="m4_only_these">Only these</string>
     <string name="m4_except_these">All except these</string>
     <string name="m4_at_least_minutes">At least (minutes)</string>
@@ -229,7 +209,7 @@
     <string name="m4_seconds">%1$d seconds</string>
     <string name="m4_default_value">Default (%1$s)</string>
     <string name="m4_threshold_help">How close to the end counts as finished. Inherits the default of 30 seconds until changed.</string>
-    <string name="m4_playback_overrides">Playback settings</string>
+    <string name="m4_playback_overrides">Playback Settings</string>
     <string name="m4_override_help">Follow your defaults until you change one here. Picking Default clears a change.</string>
     <string name="m4_skip_intro">Skip intro</string>
     <string name="m4_skip_outro">Skip outro</string>
@@ -238,7 +218,7 @@
     <string name="m4_mark_all_played">Mark all Played</string>
     <string name="m4_marked_all">All Episodes marked Played</string>
     <string name="m4_default_threshold">Default (30 seconds)</string>
-    <string name="m4_listened_stretch">Listened %1$s–%2$s · until %3$s</string>
+    <string name="m4_listened_stretch">Listened %1$s · until %2$s</string>
     <string name="m4_finished">Finished through playback</string>
     <string name="m4_entry_added">Entry added</string>
     <string name="m4_entry_moved">Entry moved</string>
@@ -256,12 +236,9 @@
     <string name="m4_rewind">Rewind</string>
     <string name="rewound">Playlist rewound</string>
     <string name="m4_no_listening">No listening yet. Play an Episode and it’s counted here. Listening is counted from now on.</string>
-    <string name="m4_time_and_finished">Time listened and Episodes finished</string>
     <string name="m4_this_week">This week</string>
     <string name="m4_this_month">This month</string>
     <string name="m4_all_time">All time</string>
-    <string name="m4_time_listened_value">Time listened · %1$s</string>
-    <string name="m4_finished_count">Episodes finished · %1$d</string>
     <string name="m4_last_30">Last 30 days</string>
     <string name="m4_show_chart">Show chart</string>
     <string name="m4_show_table">Show table</string>
@@ -301,10 +278,10 @@
     <string name="m4_save_as_view">Save as a View</string>
     <string name="m4_new_view">New View</string>
     <string name="m4_edit_view">Edit View</string>
-    <string name="m4_playlist_settings">Playlist settings</string>
+    <string name="playlist_settings_for">Settings for %1$s</string>
     <string name="m4_subscription_settings">Subscription settings</string>
     <string name="m4_edit">Edit</string>
-    <string name="m4_create">Create</string>
+    <string name="create_view">Create View</string>
     <string name="m4_search_hint">Episode titles, podcast names and show notes</string>
     <string name="m4_add_podcasts_hint">Search by name or paste a feed address</string>
     <string name="m4_select_subscriptions">Select Subscriptions</string>
@@ -313,7 +290,6 @@
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>
     </plurals>
-    <string name="m4_selection_changed">Selection updated</string>
     <string name="m4_downloads_requested">Downloads requested</string>
     <string name="m4_active_target">%1$s · Active Playlist</string>
     <string name="m4_length_range_error">At most must be at least as long as At least.</string>
@@ -326,9 +302,6 @@
     <plurals name="m4_streak"><item quantity="one">Current Listening streak: %1$d day</item><item quantity="other">Current Listening streak: %1$d days</item></plurals>
     <plurals name="active_playlist_next"><item quantity="one">%1$s · %2$d Entry after the current one</item><item quantity="other">%1$s · %2$d Entries after the current one</item></plurals>
     <string name="m4_download_rule">Download Rule</string>
-    <string name="m4_hours_minutes">%1$dh %2$02dm</string>
-    <string name="m4_minutes_short">%1$dm</string>
-    <string name="m4_under_minute">Under 1m</string>
     <string name="m4_episodes_finished">Episodes finished</string>
     <string name="m4_step_done">Done</string>
     <string name="bring_over_title">Bring your Library over</string>
@@ -407,15 +380,12 @@
         <item quantity="one">%1$d podcast imported</item>
         <item quantity="other">%1$d podcasts imported</item>
     </plurals>
-    <string name="import_undone">Imported Subscriptions removed</string>
-    <string name="import_undo_failed">Couldn’t remove some imported Subscriptions. Check your connection and try again.</string>
     <string name="counting">Counting…</string>
     <string name="no_search_matches">No Episodes match this Search. Try another word or clear Search.</string>
     <string name="retry_action">Try again</string>
     <string name="edit_undone">Edit undone</string>
     <string name="edit_redone">Edit redone</string>
     <string name="edit_reverse_failed">Couldn’t reverse this edit. It’s still available. Check your connection and try again.</string>
-    <string name="edit_history">Undo and Redo</string>
     <string name="subscribing">Subscribing…</string>
     <string name="refresh_failed">Couldn’t refresh this podcast. Check your connection and try again.</string>
     <string name="refreshed_at">Last refreshed %1$s</string>
@@ -466,7 +436,6 @@
     <string name="discard_view_draft">Discard unfinished conditions</string>
     <string name="show_podcast_details">Show podcast details</string>
     <string name="hide_podcast_details">Hide podcast details</string>
-    <string name="chart_scale">Daily listening · 0 to %1$s</string>
     <string name="timeline_rewind_hint">Tap a row with the Rewind symbol to see what goes back before you Rewind.</string>
     <string name="undo_specific">Undo: %1$s</string>
     <string name="redo_specific">Redo: %1$s</string>
@@ -478,12 +447,12 @@
     <string name="trash_retention_changed">Deleted Playlist retention changed</string>
     <string name="clear_on_played_changed">Clear on Played changed</string>
     <string name="new_view_draft_kept">Your conditions are kept until you create the View.</string>
-    <string name="library_downloads_stream">Download Rule: Stream only</string>
-    <string name="library_downloads_entry">Download Rule: When Episodes become Entries</string>
-    <string name="library_downloads_published">Download Rule: As Episodes are published</string>
+    <string name="library_downloads_stream">Streamed only</string>
+    <string name="library_downloads_entry">Downloaded when added to a Playlist</string>
+    <string name="library_downloads_published">Downloaded as published</string>
     <string name="more_actions">More actions</string>
-    <string name="selection_actions">Actions</string>
     <string name="appearance">Appearance</string>
+    <string name="appearance_changed">Appearance changed</string>
     <string name="appearance_system">System default</string>
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>

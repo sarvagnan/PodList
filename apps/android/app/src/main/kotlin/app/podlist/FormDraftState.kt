@@ -14,6 +14,8 @@ internal class FormDraftState(private val store: FormDraftStore, initial: Map<St
         store.put(key, text)
         values[key] = text
     }
+    fun pendingNewViewId(): String = store.pendingNewViewId().also { values["new-view/id"] = it }
+    fun finishNewView(id: String) { store.finishNewView(id); reload() }
     fun hasInvalid(prefix: String): Boolean = values.any { (key, value) -> key.startsWith(prefix + "invalid/") && value == "true" }
     fun clear(prefix: String) {
         store.clear(prefix)

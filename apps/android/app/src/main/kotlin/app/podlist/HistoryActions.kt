@@ -27,13 +27,14 @@ internal fun AppModel.changesStep(current: Session, changes: List<Change>, playb
         changesStep(current, result.first, playbackPlaylist).also { it.feedback = result.second }
     }
 
-internal fun AppModel.recordHistory(current: Session, message: AppMessage, step: ReversibleEdit, typingGroup: String? = null) {
+internal fun AppModel.recordHistory(current: Session, message: AppMessage, step: ReversibleEdit, typingGroup: String? = null, notify: Boolean = true) {
     if (session.value !== current) return
     if (typingGroup == null || typingGroup != activeTypingGroup) finishTyping()
     activeTypingGroup = typingGroup
     step.description = message.copy(undo = null)
     history.record(step, typingGroup)
     updateHistoryActions()
+    if (!notify) return
     val notification = message.copy(undo = ::undoEdit)
     if (typingGroup == null) messages.trySend(notification)
     else {

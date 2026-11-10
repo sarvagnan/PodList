@@ -9,7 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -30,41 +33,53 @@ internal fun SelectionProvider(key: String?, data: ScreenData?, session: Session
     BackHandler(selection.ids.isNotEmpty()) { selection.ids = emptySet() }
 }
 
+/** The contextual title stays compact; primary commands live in the bottom action bar. */
 @Composable
-internal fun SelectionToolbar(selection: EpisodeSelection, data: ScreenData, session: Session, route: String?) {
-    val model = LocalAppModel.current
-    var adding by remember { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
-    val playlist = data.state.playlists.find { route == "playlist:${it.id}" }
-    val ordered = (playlist?.entries?.map { it.episodeId } ?: selection.order).filter { it in selection.ids }
+internal fun SelectionToolbar(selection: EpisodeSelection) {
     TopAppBar(title = { Text(pluralStringResource(R.plurals.m4_selected_count, selection.ids.size, selection.ids.size), Modifier.semantics { heading() }) }, navigationIcon = {
         ActionIcon(R.drawable.ic_close, stringResource(R.string.cancel)) { selection.ids = emptySet() }
-    }, actions = {
-        Box {
-            TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.selection_actions)) }
-            DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, onClick = { menu = false; adding = true })
-                DropdownMenuItem(text = { Text(stringResource(R.string.mark_played)) }, onClick = {
-                    menu = false
-                    model.changeWithUndo(ordered.map { Change.MarkPlayed(it, PlayedSource.User) }, R.string.episodes_played) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
-                    selection.ids = emptySet()
-                })
-                DropdownMenuItem(text = { Text(stringResource(R.string.star)) }, onClick = {
-                    menu = false
-                    model.changeWithUndo(ordered.map { Change.SetStar(it, true) }, R.string.episodes_starred) { before -> ordered.map { Change.SetStar(it, before.episodeStates[it]?.starred == true) } }
-                    selection.ids = emptySet()
-                })
-                DropdownMenuItem(text = { Text(stringResource(R.string.download)) }, onClick = {
-                    menu = false
-                    val downloads = model.downloads(session)
-                    val fresh = ordered.filter { downloads.status.value[it]?.phase !in listOf(DownloadPhase.Stored, DownloadPhase.Transferring, DownloadPhase.Queued) }
-                    fresh.forEach { downloads.download(it) }
-                    downloads.offerRequestUndo(fresh, false, R.string.m4_downloads_requested)
-                    selection.ids = emptySet()
-                })
+    })
+}
+
+/** Equal, expanding slots: labels wrap at large text sizes, never clip or ellipsize. */
+@Composable
+internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, action: () -> Unit) {
+    TextButton(onClick = action, enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+        modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp)) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(painterResource(icon), contentDescription = null)
+            Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+internal fun SelectionActionBar(selection: EpisodeSelection, data: ScreenData, session: Session, route: String?) {
+    val model = LocalAppModel.current
+    var adding by remember { mutableStateOf(false) }
+    val playlist = data.state.playlists.find { route == "playlist:${it.id}" }
+    val ordered = (playlist?.entries?.map { it.episodeId } ?: selection.order).filter { it in selection.ids }
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.Top) {
+            LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { adding = true }
+            LabelledAction(R.drawable.ic_check, stringResource(R.string.mark_played)) {
+                model.changeWithUndo(ordered.map { Change.MarkPlayed(it, PlayedSource.User) }, R.string.episodes_played) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
+                selection.ids = emptySet()
+            }
+            LabelledAction(R.drawable.ic_star_outline, stringResource(R.string.star)) {
+                model.changeWithUndo(ordered.map { Change.SetStar(it, true) }, R.string.episodes_starred) { before -> ordered.map { Change.SetStar(it, before.episodeStates[it]?.starred == true) } }
+                selection.ids = emptySet()
+            }
+            LabelledAction(R.drawable.ic_download, stringResource(R.string.download)) {
+                val downloads = model.downloads(session)
+                val fresh = ordered.filter { downloads.status.value[it]?.phase !in listOf(DownloadPhase.Stored, DownloadPhase.Transferring, DownloadPhase.Queued) }
+                fresh.forEach { downloads.download(it) }
+                downloads.offerRequestUndo(fresh, false, R.string.m4_downloads_requested)
+                selection.ids = emptySet()
             }
         }
-    })
+    }
     if (adding) PlaylistAddSheet(ordered, data.state, model, { adding = false }) { selection.ids = emptySet(); adding = false }
 }
 
@@ -91,22 +106,16 @@ internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session, addPo
 }
 
 @Composable
-internal fun SubscriptionSelectionToolbar(selection: EpisodeSelection, data: ScreenData, session: Session) {
+internal fun SubscriptionSelectionActionBar(selection: EpisodeSelection, data: ScreenData, session: Session) {
     val model = LocalAppModel.current
     var choosing by rememberSaveable { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
-    TopAppBar(title = { Text(pluralStringResource(R.plurals.m4_selected_count, selection.ids.size, selection.ids.size), Modifier.semantics { heading() }) }, navigationIcon = {
-        ActionIcon(R.drawable.ic_close, stringResource(R.string.cancel)) { selection.ids = emptySet() }
-    }, actions = {
-        Box {
-            TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.selection_actions)) }
-            DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.change_download_rule)) }, onClick = { menu = false; choosing = true })
-            }
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+            LabelledAction(R.drawable.ic_download, stringResource(R.string.change_download_rule)) { choosing = true }
         }
-    })
+    }
     var chosenMode by rememberSaveable { mutableStateOf<DownloadMode?>(null) }
-    if (choosing) EditorSheet(stringResource(R.string.download_rule), { choosing = false }, doneEnabled = chosenMode != null, done = {
+    if (choosing) EditorSheet(stringResource(R.string.download_rule), { choosing = false }, doneEnabled = chosenMode != null, doneLabel = R.string.change_download_rule, done = {
         chosenMode?.let { mode ->
             val selected = selection.order.filter { it in selection.ids }
             model.changeWithUndo(selected.map { id -> Change.SetDownloadRule(data.state.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId }?.copy(mode = mode) ?: DownloadRule(id, session.deviceId, mode, null)) }, R.string.download_rule_changed) { before -> selected.map { id -> Change.SetDownloadRule(before.downloadRules.find { it.subscriptionId == id && it.deviceId == session.deviceId } ?: DownloadRule(id, session.deviceId, DownloadMode.Never, null)) } }

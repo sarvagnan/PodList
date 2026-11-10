@@ -26,8 +26,8 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
         }
         items(events) { event ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClickLabel = stringResource(if (TimelineRules.pointAt(playlist, event.moment) != null) R.string.m4_rewind_here else R.string.episode)) { if (TimelineRules.pointAt(playlist, event.moment) != null) target = event.moment else open("episode:${event.episodeId}") }, headlineContent = { Text(byId[event.episodeId]?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = {
-                Column { Text(dateTime(event.at), style = MaterialTheme.typography.labelMedium); Text(when(event.kind) {
-                    "listened" -> stringResource(R.string.m4_listened_stretch, duration(event.from), duration(event.to), dateTime(event.end))
+                Column { Text(dateTime(event.at), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(when(event.kind) {
+                    "listened" -> stringResource(R.string.m4_listened_stretch, TimelinePresentation.positionLabel(duration(event.from), duration(event.to)), dateTime(event.end))
                     "finished" -> stringResource(R.string.m4_finished)
                     "added" -> stringResource(R.string.m4_entry_added)
                     "moved" -> stringResource(R.string.m4_entry_moved)

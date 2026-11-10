@@ -41,7 +41,8 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
     HorizontalDivider()
 }
 
-// Sheets and create forms finish at the bottom trailing edge; actions wrap before they crowd.
+// Single-field forms commit directly beneath their field; sheets and multi-field forms may pin this region.
+// The primary commit is trailing and filled; secondary actions are text. Actions wrap before they crowd.
 @Composable
 internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
     FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),

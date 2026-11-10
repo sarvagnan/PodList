@@ -12,6 +12,9 @@ object ViewSummary {
         filter.starred?.let { add(if (it) Status.Starred else Status.NotStarred) }
     }
 
+    fun distinctSummary(name: String, summary: String): String =
+        summary.takeUnless { it.trim().equals(name.trim(), ignoreCase = true) }.orEmpty()
+
     fun compact(conditions: List<String>, more: (Int) -> String): String {
         val visible = conditions.take(3)
         return (visible + if (conditions.size > 3) listOf(more(conditions.size - 3)) else emptyList()).joinToString(" · ")

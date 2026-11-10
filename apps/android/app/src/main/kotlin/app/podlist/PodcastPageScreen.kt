@@ -254,7 +254,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     }
     Scaffold(modifier = disarmOnOtherTap, topBar = {
         Column {
-            if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection, data.copy(episodes = rows), session, "subscription:$id")
+            if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
             else TopAppBar(title = { if (!armed) Text(if (headerVisible) stringResource(R.string.podcast) else title, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
@@ -299,6 +299,8 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 Text(stringResource(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode), Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall)
             }
         }
+    }, bottomBar = {
+        if (selection != null && selection.ids.isNotEmpty()) SelectionActionBar(selection, data.copy(episodes = rows), session, "subscription:$id")
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).imePadding().nestedScroll(pull).semantics {
             customActions = listOf(CustomAccessibilityAction(detailsLabel) { toggleDetails(); true })
