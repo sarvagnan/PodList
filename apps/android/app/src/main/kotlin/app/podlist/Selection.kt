@@ -2,7 +2,6 @@
 package app.podlist
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.focusable
 import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -52,12 +51,15 @@ internal fun SelectAllAction(selection: EpisodeSelection) {
     }
 }
 
-/** Bubble from list rows, after native text controls have handled their own Ctrl+A. */
+/**
+ * Bubble from list rows, after native text controls have handled their own Ctrl+A. The list itself must not be
+ * focusable: that merges every row into one accessibility node, so TalkBack and long-press lose the rows.
+ */
 internal fun Modifier.listSelectionKeys(selection: EpisodeSelection?): Modifier = onKeyEvent { event ->
     if (selection != null && selection.order.isNotEmpty() && event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.A) {
         selection.ids = selection.order.toSet(); true
     } else false
-}.focusable()
+}
 
 /** Two equal columns at enlarged text sizes give every word room without hiding commands. */
 @Composable

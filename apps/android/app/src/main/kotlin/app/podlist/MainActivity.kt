@@ -3,6 +3,9 @@ package app.podlist
 import android.os.Bundle
 import android.content.Intent
 import android.view.KeyEvent
+import android.view.KeyboardShortcutGroup
+import android.view.KeyboardShortcutInfo
+import android.view.Menu
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -61,6 +64,15 @@ class MainActivity : ComponentActivity() {
         val model = (application as PodListApplication).model
         if (event.isShiftPressed) model.redoEdit() else model.undoEdit()
         return true
+    }
+
+    // Android's own Keyboard Shortcuts panel (Meta+/) lists these; the app never shows a shortcut list itself.
+    override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>, menu: Menu?, deviceId: Int) {
+        data += KeyboardShortcutGroup(getString(R.string.app_name), listOf(
+            KeyboardShortcutInfo(getString(R.string.undo), KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON),
+            KeyboardShortcutInfo(getString(R.string.m4_redo), KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON or KeyEvent.META_SHIFT_ON),
+        ))
+        super.onProvideKeyboardShortcuts(data, menu, deviceId)
     }
 
     override fun onStop() {
