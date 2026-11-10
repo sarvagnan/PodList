@@ -8,6 +8,9 @@ data class TimelineEvent(val kind: String, val episodeId: String, val at: Long, 
 data class RewindPreview(val cursor: String?, val position: Double, val unplayed: List<String>, val restored: List<String>)
 
 object TimelinePresentation {
+    /** Compare the displayed Positions too: subsecond stretches must not read 12:34–12:34. */
+    fun positionLabel(from: String, to: String): String = if (from == to) from else "$from–$to"
+
     fun events(playlist: Playlist): List<TimelineEvent> {
         val events = mutableListOf<TimelineEvent>()
         var run: TimelineEvent? = null

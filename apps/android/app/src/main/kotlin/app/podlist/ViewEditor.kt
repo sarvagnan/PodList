@@ -86,7 +86,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         if (completing || hasInvalidNumber || ViewEdits.problem(draft.filter) != null || hasInvalidName) return
         model.finishTyping()
         val accepted = ViewEdits.accepted(draft, saved, recorded)
-        val completed = { drafts.clear(draftPrefix); done() }
+        val completed = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }
         if (accepted == null) completed() else {
             completing = true
             model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed) { error ->
@@ -123,16 +123,16 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             // A permanent note at the end of the form never inserts space above the conditions.
             item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
-            if (creating || problem != null || hasInvalidNumber) item { ContentTextButton(onClick = { drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(if (creating) R.string.discard_draft else R.string.discard_view_draft)) } }
-            item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            if (creating || problem != null || hasInvalidNumber) item { ContentTextButton(onClick = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(if (creating) R.string.discard_draft else R.string.discard_view_draft)) } }
+            if (!creating) item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
-        if (drafts.get(renamePrefix + "name") == null) Surface(tonalElevation = 3.dp) {
+        Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(fullCount, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 CommitActions(Modifier.weight(1f)) {
-                    CommitButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.m4_create else R.string.m4_done)) }
+                    CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
                 }
             }
         }

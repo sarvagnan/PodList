@@ -10,6 +10,81 @@ import kotlin.test.*
 class FormDraftStoreTest {
     @TempDir lateinit var directory: Path
 
+    @Test fun `New View reuses its pending identity and exact draft after Back and cold reopen per Library`() {
+        val file = directory.resolve("pending-view.sqlite").toString()
+        val id = LocalDatabase(file).use { db ->
+            db.ensureState()
+            val drafts = FormDraftStore(db)
+            val id = drafts.pendingNewViewId()
+            drafts.put("view:$id/name", "  Morning  ")
+            drafts.put("view:$id/view", ProtocolJson.encodeToString(View(id, "Morning", ViewFilter(starred = true), ViewSort.PublishedDesc, null)))
+            // Both + and the empty-state entry resolve the same pending New View.
+            assertEquals(id, drafts.pendingNewViewId())
+            assertEquals(id, drafts.pendingNewViewId())
+            assertTrue(db.loadState().views.isEmpty())
+            assertTrue(db.outbox().isEmpty())
+            id
+        }
+        LocalDatabase(file).use { db ->
+            val drafts = FormDraftStore(db)
+            assertEquals(id, drafts.pendingNewViewId())
+            assertEquals("  Morning  ", drafts.load()["view:$id/name"])
+            assertTrue(ProtocolJson.decodeFromString<View>(drafts.load().getValue("view:$id/view")).filter.starred == true)
+        }
+        LocalDatabase(directory.resolve("other-pending.sqlite").toString()).use { db ->
+            db.ensureState()
+            assertNotEquals(id, FormDraftStore(db).pendingNewViewId())
+        }
+    }
+
+    @Test fun `only successful Create or explicit Discard releases the pending New View`() {
+        LocalDatabase(directory.resolve("complete-view.sqlite").toString()).use { db ->
+            db.ensureState()
+            val drafts = FormDraftStore(db)
+            val id = drafts.pendingNewViewId()
+            val view = View(id, "", ViewFilter(), ViewSort.PublishedDesc, null)
+            drafts.put("view:$id/name", "")
+            drafts.put("new-playlist/name", "Keep")
+            assertEquals(Names.Problem.Empty, db.reversibleNamedView(view, 100).problem)
+            assertEquals(id, drafts.pendingNewViewId())
+            assertEquals("", drafts.load()["view:$id/name"])
+            assertNull(db.reversibleNamedView(view.copy(name = "Morning"), 101).problem)
+            assertNull(drafts.load()["new-view/id"])
+            assertNull(drafts.load()["view:$id/name"])
+            assertEquals("Morning", db.loadState().views.single().name)
+            val next = drafts.pendingNewViewId()
+            assertNotEquals(id, next)
+            drafts.put("view:$next/name", "Discard me")
+            drafts.finishNewView(next)
+            assertNull(drafts.load()["new-view/id"])
+            assertNull(drafts.load()["view:$next/name"])
+            assertEquals("Keep", drafts.load()["new-playlist/name"])
+            val third = drafts.pendingNewViewId()
+            assertNotEquals(next, third)
+            // A late completion for the previous form cannot release the new draft.
+            drafts.finishNewView(next)
+            assertEquals(third, drafts.pendingNewViewId())
+        }
+    }
+
+    @Test fun `interrupted View creation rolls back both saved View and pending draft release`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            val drafts = FormDraftStore(db)
+            val id = drafts.pendingNewViewId()
+            drafts.put("view:$id/name", "Morning")
+            assertFailsWith<IllegalStateException> {
+                db.transaction {
+                    db.reversibleNamedView(View(id, "Morning", ViewFilter(), ViewSort.PublishedDesc, null), 100)
+                    error("Interrupted creation")
+                }
+            }
+            assertEquals(id, drafts.pendingNewViewId())
+            assertEquals("Morning", drafts.load()["view:$id/name"])
+            assertTrue(db.loadState().views.isEmpty())
+        }
+    }
+
     @Test fun `task removal keeps exact names and invalid View conditions in their Library`() {
         val file = directory.resolve("library.sqlite").toString()
         val invalid = View("draft-id", "Walk", ViewFilter(minDuration = 1800.0, maxDuration = 600.0), ViewSort.PublishedDesc, null)

@@ -32,7 +32,7 @@ internal fun WelcomeScreen(model: AppModel) {
         Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
             Box(Modifier.padding(padding)) { ServerScreen(model, null) }
         }
-    } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Text(stringResource(R.string.app_name), Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineLarge)
         Text(stringResource(R.string.welcome_phone), style = MaterialTheme.typography.bodyLarge)
         Button(onClick = model::startOnPhone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.start_phone)) }
@@ -75,8 +75,8 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
             Column {
                 OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
                     singleLine = true, enabled = !busy, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
-                Button(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.find_podcasts))
+                CommitActions(Modifier.padding(horizontal = 16.dp)) {
+                    CommitButton(onClick = ::find, enabled = input.isNotBlank() && !busy) { Text(stringResource(R.string.find_podcasts)) }
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
                 error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }

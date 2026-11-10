@@ -56,4 +56,17 @@ class UiRoundFourTest {
         assertEquals("Last %1\$d days", resources.getValue("published_days"))
         assertEquals("Newest first", resources.getValue("newest_first"))
     }
+    @Test fun `a View summary is omitted only when it repeats the entire name`() {
+        assertEquals("", ViewSummary.distinctSummary("Starred", "Starred"))
+        assertEquals("", ViewSummary.distinctSummary("  STARRED ", "Starred"))
+        assertEquals("Unplayed · Starred", ViewSummary.distinctSummary("Starred", "Unplayed · Starred"))
+        assertEquals("Starred", ViewSummary.distinctSummary("Favourites", "Starred"))
+    }
+
+    @Test fun `Listening Timeline uses one Position when the displayed ends match`() {
+        assertEquals("12:34", TimelinePresentation.positionLabel("12:34", "12:34"))
+        assertEquals("12:34–13:00", TimelinePresentation.positionLabel("12:34", "13:00"))
+        assertEquals("0:00", TimelinePresentation.positionLabel("0:00", "0:00"))
+        assertEquals("Listened 12:34 · until 14:00", resources.getValue("m4_listened_stretch").format("12:34", "14:00"))
+    }
 }

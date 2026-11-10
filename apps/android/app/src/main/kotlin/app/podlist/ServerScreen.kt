@@ -20,7 +20,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
     val checking by model.connecting.collectAsState()
     val error by model.connectionError.collectAsState()
     Column(Modifier.fillMaxSize().imePadding()
-        .verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
         OutlinedTextField(value = input, onValueChange = { model.setServerAddressDraft(it); model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
@@ -34,11 +34,13 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
             ConnectionError.Server -> R.string.server_error
             ConnectionError.Response -> R.string.response_error
         }), modifier = Modifier.errorAnnouncement(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {
-            Text(stringResource(if (checking) R.string.checking else R.string.connect))
-        }
-        if (draft != null) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking) {
-            Text(stringResource(R.string.discard_draft))
+        CommitActions {
+            if (draft != null) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.discard_draft))
+            }
+            CommitButton(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {
+                Text(stringResource(if (checking) R.string.checking else R.string.connect))
+            }
         }
         if (checking) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.connect_to_server)))
         Text(stringResource(R.string.server_scope), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

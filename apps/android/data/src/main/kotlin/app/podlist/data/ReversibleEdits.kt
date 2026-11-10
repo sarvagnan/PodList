@@ -7,7 +7,14 @@ data class NamedViewEdit(val problem: Names.Problem?, val inverse: List<Change>)
 /** Naming is checked against current local State, atomically with the accepted edit. */
 fun LocalDatabase.reversibleNamedView(view: View, at: Long): NamedViewEdit = transaction {
     val problem = ViewNames.validate(view.name, loadState().views, view.id)
-    NamedViewEdit(problem, if (problem == null) reversibleEdit(listOf(Change.SaveView(view.copy(name = view.name.trim()))), at) else emptyList())
+    val inverse = if (problem == null) {
+        val inverse = reversibleEdit(listOf(Change.SaveView(view.copy(name = view.name.trim()))), at)
+        val drafts = FormDraftStore(this)
+        // Creation and releasing its pending identity commit together, including process death.
+        if (drafts.load()["new-view/id"] == view.id) drafts.finishNewView(view.id)
+        inverse
+    } else emptyList()
+    NamedViewEdit(problem, inverse)
 }
 
 /** Capture each inverse from current State and commit the whole edit atomically. */
