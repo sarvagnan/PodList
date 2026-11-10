@@ -70,7 +70,7 @@ internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (S
         Surface(tonalElevation = 3.dp) {
             CommitActions(Modifier.padding(16.dp)) {
                 TextButton(enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
-                TextButton(enabled = !busy, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
+                CommitButton(enabled = !busy, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
             }
         }
     }

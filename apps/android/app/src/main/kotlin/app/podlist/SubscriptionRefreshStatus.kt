@@ -30,7 +30,8 @@ internal fun EditHistoryMenu() {
     val redo by model.latestRedo.collectAsState()
     val undoDescription by model.undoDescription.collectAsState()
     val redoDescription by model.redoDescription.collectAsState()
-    if (undo != null) ActionIcon(R.drawable.ic_undo, undoDescription?.let { stringResource(R.string.undo_specific, appMessageText(it)) } ?: stringResource(R.string.undo)) { undo?.invoke() }
+    val snackbarUndo = LocalSheetFeedback.current?.snackbar?.currentSnackbarData?.visuals?.actionLabel == stringResource(R.string.undo)
+    if (undo != null && !snackbarUndo) ActionIcon(R.drawable.ic_undo, undoDescription?.let { stringResource(R.string.undo_specific, appMessageText(it)) } ?: stringResource(R.string.undo)) { undo?.invoke() }
     if (redo != null) ActionIcon(R.drawable.ic_redo, redoDescription?.let { stringResource(R.string.redo_specific, appMessageText(it)) } ?: stringResource(R.string.m4_redo)) { redo?.invoke() }
 }
 

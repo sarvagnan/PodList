@@ -201,7 +201,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                 defaultBackBehavior = BackNavigationBehavior.PopLatest,
                 listPane = {
                     AnimatedPane {
-                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, add = { when (destination) {
+                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, selectSubscriptions = if (destination == Destination.Library) ({ open("select-subscriptions") }) else null, add = { when (destination) {
                             Destination.Library -> open("add-podcasts")
                             Destination.Playlists -> open("new-playlist")
                             Destination.Views -> open("new-view:${java.util.UUID.randomUUID()}")
@@ -219,6 +219,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                     AnimatedPane {
                         val loaded = data
                         val title = when {
+                            route == "appearance" -> stringResource(R.string.appearance)
                             route == "settings" -> stringResource(R.string.settings)
                             route == "new-playlist" -> stringResource(R.string.new_playlist)
                             route == "search" -> stringResource(R.string.m4_search_library)
@@ -267,7 +268,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
 }
 
 @Composable
-private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.m4_create, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, content: @Composable () -> Unit) {
+private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.m4_create, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, selectSubscriptions: (() -> Unit)? = null, content: @Composable () -> Unit) {
     val selection = LocalEpisodeSelection.current
     Scaffold(topBar = {
         if (selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null) {
@@ -278,10 +279,19 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
             TopAppBar(title = { Text(title, Modifier.semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                 if (back != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
             }, actions = {
-                if (route?.startsWith("view-edit:") != true && route?.startsWith("new-view:") != true) EditHistoryMenu()
+                EditHistoryMenu()
                 if (edit != null) ActionIcon(R.drawable.ic_edit, stringResource(R.string.m4_edit), action = edit)
                 if (add != null) ActionIcon(R.drawable.ic_add, stringResource(addLabel), action = add)
                 if (settings != null) ActionIcon(R.drawable.ic_settings, stringResource(R.string.settings), action = settings)
+                if (selectSubscriptions != null) {
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
+                        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.m4_select_subscriptions)) }, onClick = { expanded = false; selectSubscriptions() })
+                        }
+                    }
+                }
             })
             if (status == SyncStatus.Offline || status == SyncStatus.Error) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(if (status == SyncStatus.Offline) R.string.offline else R.string.sync_error), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -315,14 +325,12 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
             Destination.Library -> {
                 add("search")
                 if (subscriptions.isEmpty()) add("no-subscriptions")
-                for (mode in DownloadMode.entries.filter { subscriptions.isNotEmpty() }) {
+                for (mode in DownloadMode.entries.filter { group(it).isNotEmpty() }) {
                     add("rule:$mode")
                     val rows = group(mode)
-                    if (rows.isEmpty()) add("empty-rule:$mode")
                     addAll(rows.map { "subscription:${it["id"]}" })
                 }
                 if (subscriptions.isNotEmpty()) add("add-podcasts")
-                add("select-subscriptions")
             }
         }
         add("end")
@@ -351,10 +359,9 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                         Text(stringResource(R.string.add_podcasts))
                     }
                 }
-                for ((mode, title) in if (subscriptions.isEmpty()) emptyList() else listOf(DownloadMode.Never to R.string.stream, DownloadMode.OnEntry to R.string.on_entry, DownloadMode.AllNew to R.string.all_new)) {
+                for ((mode, title) in if (subscriptions.isEmpty()) emptyList() else listOf(DownloadMode.Never to R.string.library_downloads_stream, DownloadMode.OnEntry to R.string.library_downloads_entry, DownloadMode.AllNew to R.string.library_downloads_published).filter { group(it.first).isNotEmpty() }) {
                     item(key = "rule:$mode") { Section(stringResource(title)) }
                     val group = group(mode)
-                    if (group.isEmpty()) item(key = "empty-rule:$mode") { Hint(stringResource(R.string.empty_rule)) }
                     items(group, key = { "subscription:${it["id"]}" }) { subscription ->
                         NameRow(subscription["title"] as String, pluralStringResource(R.plurals.episode_count, (subscription["episode_count"] as Number).toInt(), (subscription["episode_count"] as Number).toInt()),
                             artwork = subscription["artwork_url"] as? String, session = session) { open("subscription:${subscription["id"]}") }
@@ -362,7 +369,6 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     }
                 }
                 if (subscriptions.isNotEmpty()) item(key = "add-podcasts") { NameRow(stringResource(R.string.add_podcasts), stringResource(R.string.m4_add_podcasts_hint)) { open("add-podcasts") } }
-                item(key = "select-subscriptions") { NameRow(stringResource(R.string.m4_select_subscriptions), stringResource(R.string.m4_select_subscriptions_help)) { open("select-subscriptions") } }
             }
         }
         item(key = "end") { Spacer(Modifier.height(16.dp)) }
@@ -373,6 +379,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
 private fun Detail(route: String?, data: ScreenData, session: Session, open: (String) -> Unit, back: () -> Unit) {
     val id = route?.substringAfter(':')
     when {
+        route == "appearance" -> AppearanceScreen()
         route == "settings" -> SettingsScreen(data, session, open)
         route == "trash" -> TrashScreen(data)
         route == "search" -> SearchScreen(data, session, open)
@@ -422,7 +429,7 @@ internal fun EpisodeList(rows: List<Row>, data: ScreenData, session: Session, op
 }
 
 @Composable
-internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, showArtwork: Boolean = true, actionsEnabled: Boolean = true, actionBusy: Boolean = false, rowModifier: Modifier = Modifier, addAction: (() -> Unit)? = null, playAction: (() -> Unit)? = null, onClick: (() -> Unit)? = null) {
+internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: Double? = null, entryPlaylist: String? = null, showActions: Boolean = true, showArtwork: Boolean = true, showPodcast: Boolean = true, detail: Boolean = false, actionsEnabled: Boolean = true, actionBusy: Boolean = false, rowModifier: Modifier = Modifier, addAction: (() -> Unit)? = null, playAction: (() -> Unit)? = null, onClick: (() -> Unit)? = null) {
     val model = LocalAppModel.current
     val add = LocalAddEpisode.current
     val started = LocalPlaybackStarted.current
@@ -449,9 +456,9 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
             else if (entryPlaylist != null) EntryDragHandle(data.state.playlists.first { it.id == entryPlaylist }, id)
             else if (showArtwork) ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(row["title"] as String, style = if (showArtwork) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall, maxLines = if (showArtwork) 3 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+                Text(row["title"] as String, style = if (detail) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = if (detail) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
                 val published = shortDate((row["published"] as Number).toLong())
-                Text(listOfNotNull(row["podcast"] as String, published, duration?.let { lengthLabel(it) }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(listOfNotNull((row["podcast"] as? String).takeIf { showPodcast }, published, duration?.let { lengthLabel(it) }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 val played = row["played_at"] != null
                 val state = when {
                     played -> stringResource(R.string.played)
@@ -467,7 +474,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
         }
         if (showActions && !selecting && stacked) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) { actions() }
 
-        if (showArtwork) HorizontalDivider()
+        if (!detail) HorizontalDivider()
     }
 }
 
@@ -487,26 +494,38 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                 ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 112.dp)
             }
-            EpisodeRow(row, data, session, showActions = false, showArtwork = false)
+            EpisodeRow(row, data, session, showActions = false, showArtwork = false, detail = true)
             Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { model.playNow(id); started() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Icon(painterResource(R.drawable.ic_play), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.play_now)) }
-                BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    val columns = if (LocalDensity.current.fontScale >= 1.5f) 2 else 3
-                    val width = (maxWidth - 8.dp * (columns - 1)) / columns
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EpisodeAction(R.drawable.ic_add, stringResource(R.string.add_to_playlist), Modifier.width(width)) { add(id) }
-                        val played = data.state.episodeStates[id]?.played != null
-                        EpisodeAction(if (played) R.drawable.ic_unplayed else R.drawable.ic_check, stringResource(if (played) R.string.mark_unplayed else R.string.mark_played), Modifier.width(width)) { model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User)) }
-                        val starred = data.state.episodeStates[id]?.starred == true
-                        EpisodeAction(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (starred) R.string.unstar else R.string.star), Modifier.width(width)) { model.edit(Change.SetStar(id, !starred)) }
-                        val context = LocalContext.current
-                        val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
-                        EpisodeAction(R.drawable.ic_share, stringResource(R.string.share_episode), Modifier.width(width), enabled = shareLink != null) {
-                            context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String) }, null))
+                FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { add(id) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.add_to_playlist)) }
+                    val starred = data.state.episodeStates[id]?.starred == true
+                    TextButton(onClick = { model.edit(Change.SetStar(id, !starred)) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(painterResource(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline), null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(if (starred) R.string.unstar else R.string.star))
+                    }
+                    Box {
+                        var expanded by remember { mutableStateOf(false) }
+                        TextButton(onClick = { expanded = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.more_actions)) }
+                        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+                            val played = data.state.episodeStates[id]?.played != null
+                            DropdownMenuItem(text = { Text(stringResource(if (played) R.string.mark_unplayed else R.string.mark_played)) }, onClick = {
+                                expanded = false
+                                model.edit(if (played) Change.MarkUnplayed(id) else Change.MarkPlayed(id, PlayedSource.User))
+                            })
+                            DownloadMenuItem(id, session) { expanded = false }
+                            val context = LocalContext.current
+                            val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
+                            DropdownMenuItem(text = { Text(stringResource(R.string.share_episode)) }, enabled = shareLink != null, onClick = {
+                                expanded = false
+                                context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String) }, null))
+                            })
                         }
-                        DownloadAction(id, session, Modifier.width(width))
                     }
                 }
+                DownloadStatus(id, session, Modifier.padding(horizontal = 16.dp))
             }
 
         }
@@ -533,8 +552,8 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
 }
 
 @Composable
-internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, onClick: () -> Unit) {
-    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(subtitle) },
+internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, titleStyle: androidx.compose.ui.text.TextStyle? = null, onClick: () -> Unit) {
+    ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = titleStyle ?: MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(subtitle) },
         leadingContent = if (session != null) { { ArtworkImage(session, artwork) } } else icon?.let { { Icon(painterResource(it), null) } })
     HorizontalDivider()
 }

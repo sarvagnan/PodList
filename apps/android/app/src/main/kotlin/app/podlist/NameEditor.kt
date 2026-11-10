@@ -81,7 +81,7 @@ internal fun RenameableName(
                 modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus).then(textFieldHistoryShortcuts()))
             CommitActions(Modifier.padding(top = 8.dp)) {
                 TextButton(onClick = close, enabled = !saving, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
-                Button(onClick = ::commit, enabled = canSave, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.save)) }
+                CommitButton(onClick = ::commit, enabled = canSave) { Text(stringResource(R.string.save)) }
             }
             LaunchedEffect(Unit) { fieldFocus.requestFocus(); keyboard?.show() }
         }

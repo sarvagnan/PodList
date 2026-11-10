@@ -56,7 +56,7 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
             }
             CommitActions(Modifier.padding(16.dp)) {
                 TextButton(onClick = { target = null }) { Text(stringResource(R.string.cancel)) }
-                Button(onClick = { model.rewind(playlist.id, to); target = null; rewound() }) { Text(stringResource(R.string.m4_rewind)) }
+                CommitButton(onClick = { model.rewind(playlist.id, to); target = null; rewound() }) { Text(stringResource(R.string.m4_rewind)) }
             }
         }
     }
