@@ -3,7 +3,9 @@ package app.podlist
 import android.content.res.Configuration
 import android.os.SystemClock
 import android.util.Log
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
@@ -39,7 +41,12 @@ class FlowRunSmokeTest {
     private var appearance = "Light"
     private var pass = 0
     private var flow = "setup"
+    private var actionStep = ""
     private var inputAt = Long.MIN_VALUE
+    private fun dispatched(field: String? = null) {
+        inputAt = SystemClock.uptimeMillis()
+        report.dispatched(field)
+    }
     private val device by lazy { UiDevice.getInstance(instrumentation) }
     private fun nodes() = compose.onAllNodes(isRoot(), useUnmergedTree = true)
         .fetchSemanticsNodes().flatMap { root -> root.flatten() }
@@ -61,26 +68,37 @@ class FlowRunSmokeTest {
         val target = if (index == null) compose.onNode(matcher) else compose.onAllNodes(matcher)[index]
         // Focus/scroll are deliberate preparation inputs, separately recorded when necessary.
         if (!runCatching { target.assertIsDisplayed() }.isSuccess) {
-            inputAt = SystemClock.uptimeMillis()
+            report.beginAction("reveal-target")
+            dispatched()
             target.performScrollTo()
             capture("reveal-${report.nextSequence()}")
+            report.beginAction(actionStep)
         }
-        inputAt = SystemClock.uptimeMillis()
-        target.performClick()
+        target.performSemanticsAction(SemanticsActions.OnClick) { click ->
+            dispatched()
+            click()
+        }
     }
     private fun type(label: String, value: String) {
         val target = compose.onNode(field(label))
-        inputAt = SystemClock.uptimeMillis()
-        target.performClick()
-        target.performTextReplacement(value)
+        target.performSemanticsAction(SemanticsActions.OnClick) { click -> dispatched(); click() }
+        target.performSemanticsAction(SemanticsActions.SetText) { setText ->
+            dispatched(label)
+            setText(AnnotatedString(value))
+        }
     }
     private fun value(label: String) = compose.onAllNodes(field(label)).fetchSemanticsNodes().firstOrNull()
         ?.config?.getOrNull(SemanticsProperties.EditableText)?.text
     private fun busy() = nodes().any { it.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo) == androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate && it.boundsInWindow.width > 0 }
-    private fun capture(step: String) = report.capture(flow, step, appearance, pass, inputAt, nodes(), compose.activity.window)
+    private fun capture(step: String) {
+        if (FlowRunClassification.phase(step) != FlowRunClassification.Phase.INPUT) compose.waitForIdle()
+        report.capture(flow, step, appearance, pass, inputAt, nodes(), compose.activity.window, DebugNetworkDelay.pending.get() > 0 || busy())
+    }
 
     /** Input, pending UI and async completion are distinct captures, including fast local edits. */
     private fun act(step: String, done: () -> Boolean = { true }, action: () -> Unit) {
+        actionStep = step
+        report.beginAction(step)
         val clock = if (pass > 0) report.startTiming(flow, step, appearance, pass, compose.activity.window) else null
         try {
             action()
@@ -118,7 +136,7 @@ class FlowRunSmokeTest {
         if (!keyboardVisible()) return
         capture("keyboard-before-dismiss-${report.nextSequence()}")
         act("dismiss-keyboard", { !keyboardVisible() }) {
-            inputAt = SystemClock.uptimeMillis()
+            dispatched()
             device.pressBack()
         }
     }
@@ -183,6 +201,7 @@ class FlowRunSmokeTest {
         root("Views")
         tap("settings", "Settings", { present(control("Appearance")) || present(hasText("Playback Settings")) })
         // Settings is a LazyColumn; offscreen labels do not exist in semantics until scrolled to.
+        dispatched()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Appearance"))
         tap("appearance", "Appearance", { present(control(mode)) })
         tap("choose-$mode", mode)
@@ -234,13 +253,14 @@ class FlowRunSmokeTest {
         val pause = control("Pause")
         if (present(pause)) act("pause", { !present(pause) && present(control("Play")) }) { click(pause) }
         // A reveal can retain the old scroll anchor. Compare the same rows before/after a move.
-        act("reveal-entries") { compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0) }
+        act("reveal-entries") { dispatched(); compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0) }
         val before = entryOrder()
         check(before.size >= 2 && before.distinct().size == before.size) { "Expected distinct accessible Entry rows: $before" }
         act("entry-menu", { present(control("Move down")) }) { click(control("Entry actions"), index = 0) }
         tap("move-down", "Move down", { present(hasText("Undo") and hasClickAction()) && entryOrder() != before })
         // Move's reveal may scroll the row. Verify order at the same anchor, not just changed visibility.
         act("verify-reorder", { entryOrder().take(2) == before.take(2).reversed() }) {
+            dispatched()
             compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
         }
         capture("follow-up")
@@ -266,6 +286,7 @@ class FlowRunSmokeTest {
         tap("open-podcast", "Long listening", { present(control("Subscribe")) && present(hasScrollToIndexAction()) })
         // The eight flings persist the scroll anchor. Lazy headers may not exist until revealed.
         act("reveal-podcast-header", { present(field("Search Episodes")) && !busy() }) {
+            dispatched()
             compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
         }
         // Re-opened Podcast pages retain the previous query/scroll through ordinary browsing state.
@@ -293,13 +314,15 @@ class FlowRunSmokeTest {
         dismissKeyboard()
         if (pass == 0) {
             val list = compose.onNode(hasScrollToIndexAction())
+            report.beginAction("long-list-fling")
             report.scrollFrames(flow, appearance, compose.activity.window) {
-                repeat(8) { list.performTouchInput { swipeUp(durationMillis = 180) } }
+                repeat(8) { dispatched(); list.performTouchInput { swipeUp(durationMillis = 180) } }
             }
-            inputAt = SystemClock.uptimeMillis()
+            compose.waitForIdle()
             capture("long-list-fling")
             // Leave a loaded header anchor for the next visit, before async feed reload/restoration.
             act("return-podcast-header", { present(field("Search Episodes")) }) {
+                dispatched()
                 list.performScrollToIndex(0)
             }
         }
@@ -331,6 +354,7 @@ class FlowRunSmokeTest {
         enter("type-rice", "Search the Library", "rice")
         // The unfiltered list also contains this Episode; await the fixture's filtered count too.
         waitFor("search results") { present(hasText("1 Episode")) && present(hasText("Who sets the price of rice?")) }
+        compose.waitForIdle()
         capture("results-completion")
         tap("save-as-view", "Save as a View", { present(field("Name")) })
         enter("type-view-name", "Name", "Rice ${report.runId.takeLast(8)} $appearance $pass")

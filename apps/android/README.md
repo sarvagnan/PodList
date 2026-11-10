@@ -688,25 +688,60 @@ a `navigation:<tab>` row with its selected state. Switching tabs first restores 
 stack (`select-<tab>`); a separate tap on that selected tab returns to its root
 (`start-<tab>`). A failed run includes `failure-semantics.txt` with the unmerged tree.
 
-Response timing samples rendered UiAutomation screenshots on a background thread
-at 16 ms plus capture cost; a 4 px pixel grid excludes system bars and the bottom
-140 dp of persistent chrome. Time to the first changed image is an **upper bound**,
-with measured maximum sampling gap in `timings.csv`. It includes dispatch and
-Compose synchronization overhead; no sub-frame accuracy is claimed. Busy-indicator
-time is its first semantic observation; blank means unobserved. Settle is the
-explicit UI completion plus Compose idle, not background sync completion. The
-summary gives nearest-rank p75 over five runs per step/appearance, flags 200 ms
-response/1 s busy/10 s progress limits, and documents transient/caret/chrome timing
-limitations. Pixel sampling itself adds overhead; investigate borderline results
-on representative hardware.
+The summary starts with a verdicts table, then findings (each with measurement
+rows and both PNGs), the raw-candidate exclusion audit, per-step timings, and method.
+FLOW-01 compares settled states after `waitForIdle` on the same heading/screen,
+plus pending → settled async completions without intervening input. `-input`
+captures stay in the strip but cannot establish layout failures. Only the main
+input/action, headings and navigation count as core, with a 2 dp top/left tolerance.
+Requested navigation, scrolling, keyboard/focus and typing are excluded; a late
+completion after 500 ms remains unprompted. Capture age alone cannot establish
+change onset: ambiguous action effects are N/O. FLOW-02 distinguishes requested
+focus/scroll from unsolicited changes and ignores replaced semantic scroll node IDs.
+FLOW-03 protects newer unsubmitted typing during completion, allowing deliberate
+edits and clearing a submitted field on success. Additional CSV metadata records
+screen identity, phase, input serial/intent, pending state and submitted fields.
+
+Response timing uses `ViewTreeObserver.OnDrawListener` timestamps, armed inside
+the dispatched semantics action after Compose synchronization, with asynchronous
+`PixelCopy` confirmation of changed task-content pixels. No repeated UiAutomation
+screenshots run on timed passes. A copy spanning multiple draws gives an interval;
+only uninterrupted unchanged frame confirmations establish a lower bound. CSVs
+retain response upper/busy/settle/gap columns and add response lower bound, draw,
+confirmed-frame and unresolved-frame counts. Precision is a draw interval (usually
+one refresh period when consecutive copies resolve it), not a GPU presentation
+clock. The nearest-rank p75 needs at least five resolved runs: ≤200 ms upper bound
+passes, >200 ms lower bound fails, ambiguous or missing evidence is N/O. The bottom
+140 dp and system bars are excluded; caret/unrelated animation, transient pressed
+states and chrome-only responses still need review. Busy/settle observations are
+upper bounds and cannot prove the 1 s busy deadline was missed. Debug/emulator
+performance verdicts are N/O for audience hardware.
 
 The 500-Episode Podcast page is verified, then flung eight times in each appearance.
-Android `Window.OnFrameMetricsAvailableListener` records total durations and platform
-deadlines, refresh rate, estimated missed vsyncs, and callback drops separately.
-`summary.md` lists measured FLOW-01/02/03/04, RESP-01 and FOOT-02 findings with CSV
-rows or frame records. Guideline violations **do not fail JUnit**; missing arguments,
-incomplete UI flows, wrong fixtures, or evidence-write failures do. Device execution
-is required to verify selectors, keyboard/overlay geometry and rendering timings.
+`Window.OnFrameMetricsAvailableListener` retains raw total/deadline durations,
+refresh rate, estimated missed vsyncs and callback drops in `frames.csv`. FOOT-02
+is **N/O: debug build on emulator; not audience hardware** for the normal run.
+It becomes eligible only on a non-debuggable build on a physical device. Optional
+`-e footBuild release-like` annotates a later real-device run; it never overrides
+the actual build/device checks. That later run needs a dedicated non-debuggable
+instrumentation variant with the test transport hooks (the shipping release
+transport deliberately has none), the physical device's reachable demo-server
+address, and the same fling/FrameMetrics capture. The default harness remains debug.
+
+Replay an existing strip without touching its raw CSVs/PNGs:
+
+```sh
+./gradlew --offline :domain:reclassifyFlowRun -PflowEvidence=/absolute/path/to/run
+```
+
+This replaces `summary.md` using the same plain Kotlin classifier, preserving the
+original once as `summary-original.md` (also used for repeatable later replays).
+Legacy strips lack dispatch/async metadata; the replay recovers scripted intents
+and the explicit held Subscribe probe, marking unresolved onset N/O. JVM tests use
+a small fixture of original measurement rows, including all 17 original text-change
+candidates and both delayed Subscribe completion pairs. Guideline violations do
+not fail JUnit; missing arguments, incomplete UI flows, wrong fixtures or evidence
+write failures do. Device execution is still required to verify the new capture path.
 
 Offline build check (no emulator needed):
 

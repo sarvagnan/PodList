@@ -13,6 +13,13 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+kotlin.sourceSets.getByName("test").kotlin.srcDir("../app/src/flowRun/kotlin")
+tasks.register<JavaExec>("reclassifyFlowRun") {
+    dependsOn("testClasses")
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("app.podlist.FlowRunReplayKt")
+    providers.gradleProperty("flowEvidence").orNull?.let { args(it) }
+}
 tasks.test {
     useJUnitPlatform()
     systemProperty("podlist.protocol", rootProject.file("../../packages/domain/protocol").absolutePath)
