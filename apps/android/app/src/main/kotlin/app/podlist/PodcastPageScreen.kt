@@ -324,9 +324,11 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     }
                 }
             })
-            if (busy) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)))
-                Text(stringResource(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode), Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall)
+            // A fixed 4 dp slot: the bar appears and goes without moving the page under the person's typing
+            // (FLOW-01). The status is announced from the same slot instead of a line of text that comes and goes.
+            val status = if (!busy) null else stringResource(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)
+            Box(Modifier.fillMaxWidth().height(4.dp).semantics { if (status != null) { liveRegion = LiveRegionMode.Polite; contentDescription = status } }) {
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (subscribed) R.string.unsubscribing else R.string.subscribing } else R.string.podcast_bringing_episode)))
             }
             actionFailure?.let {
                 Column(Modifier.padding(horizontal = 16.dp)) {

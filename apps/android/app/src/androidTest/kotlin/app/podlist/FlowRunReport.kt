@@ -165,9 +165,10 @@ internal class FlowRunReport(private val instrumentation: Instrumentation, priva
             // Ancestors of the follow-up (its own snackbar) are not occluders.
             val box = element.window
             val inViewport = box.left >= viewport.left - 2 && box.top >= viewport.top - 2 && box.right <= viewport.right + 2 && box.bottom <= viewport.bottom + 2
-            val covered = occluders.any { bar ->
-                bar.id != element.id && !(bar.id == "snackbar" && snackbar?.flatten()?.any { it.id == element.node?.id } == true) && overlaps(box, bar.window)
-            }
+            // The snackbar host draws above the navigation bar, mini player and sheets, so a snackbar or anything
+            // inside it is never under them; only the viewport and keyboard can hide it.
+            val inSnackbar = element.id == "snackbar" || snackbar?.flatten()?.any { it.id == element.node?.id } == true
+            val covered = !inSnackbar && occluders.any { bar -> bar.id != element.id && overlaps(box, bar.window) }
             element.id to (inViewport && !covered)
         }
         val screenshot = "$flow-${row.toString().padStart(4, '0')}-$step-${appearance.lowercase()}.png"
