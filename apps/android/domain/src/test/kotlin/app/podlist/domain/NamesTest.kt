@@ -53,4 +53,10 @@ class NamesTest {
             assertEquals(listOf(change), PlaylistRestores.changes(state, change, 31L * 86_400_000))
         }
     }
+
+    @Test
+    fun `a collision names the taken spelling`() {
+        assertEquals("Starred", Names.match(" starred ", listOf("New this week", "Starred")))
+        assertEquals(null, Names.match("Fresh", listOf("Starred")))
+    }
 }

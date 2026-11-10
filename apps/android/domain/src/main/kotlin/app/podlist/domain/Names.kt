@@ -10,6 +10,9 @@ object Names {
         else -> null
     }
 
+    /** The taken name that [name] collides with, as it is spelled there. */
+    fun match(name: String, taken: Iterable<String>): String? = taken.firstOrNull { it.trim().equals(name.trim(), ignoreCase = true) }?.trim()
+
     fun nextFreeName(base: String, taken: Iterable<String>): String {
         val name = base.trim()
         val names = taken.toList()

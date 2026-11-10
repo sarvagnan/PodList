@@ -111,10 +111,10 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
             if (creating) item {
                 var name by creationName!!
-                OutlinedTextField(name, { name = it; rejectedName = null; update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ Text(viewNameProblem(error, name), Modifier.errorAnnouncement()) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
+                OutlinedTextField(name, { name = it; rejectedName = null; update(draft.copy(name = it.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ Text(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier.errorAnnouncement()) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
             } else item {
                 RenameableName(saved.name, renamePrefix + "name",
-                    problem = { text -> (ViewNames.validate(text, data.state.views, view.id) ?: rejectedName?.takeIf { it.first == text.trim() }?.second)?.let { viewNameProblem(it, text) } },
+                    problem = { text -> (ViewNames.validate(text, data.state.views, view.id) ?: rejectedName?.takeIf { it.first == text.trim() }?.second)?.let { viewNameProblem(it, text, data.state.views.map { it.name }) } },
                     save = ::rename)
             }
             if (problem != null || hasInvalidNumber || hasInvalidName) item { Hint(stringResource(R.string.draft_kept)) }
@@ -207,5 +207,5 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
 }
 
 @Composable
-internal fun viewNameProblem(problem: Names.Problem, name: String): String =
-    stringResource(if (problem == Names.Problem.Empty) R.string.m4_view_name_error else R.string.view_name_duplicate, name.trim())
+internal fun viewNameProblem(problem: Names.Problem, name: String, taken: List<String> = emptyList()): String =
+    stringResource(if (problem == Names.Problem.Empty) R.string.m4_view_name_error else R.string.view_name_duplicate, Names.match(name, taken) ?: name.trim())

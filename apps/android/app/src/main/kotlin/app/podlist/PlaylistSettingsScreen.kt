@@ -47,7 +47,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
 private fun PlaylistName(playlist: Playlist, data: ScreenData) {
     val model = LocalAppModel.current
     RenameableName(playlist.name, "playlist:${playlist.id}/rename",
-        problem = { text -> PlaylistNames.validate(text, data.state.playlists, playlist.id)?.let { playlistProblem(it, text) } },
+        problem = { text -> PlaylistNames.validate(text, data.state.playlists, playlist.id)?.let { playlistProblem(it, text, data.state.playlists.map { it.name }) } },
         save = { name, close ->
             model.changeWithUndo(listOf(Change.RenamePlaylist(playlist.id, name)), R.string.playlist_renamed_to, formatArgs = listOf(name)) { before ->
                 listOf(Change.RenamePlaylist(playlist.id, before.playlists.first { it.id == playlist.id }.name))
@@ -76,7 +76,8 @@ internal fun NewPlaylistScreen(model: AppModel, discard: () -> Unit, created: (S
     }
 }
 
-@Composable internal fun playlistProblem(problem: Names.Problem, name: String): String = stringResource(if (problem == Names.Problem.Empty) R.string.m4_playlist_empty else R.string.m4_playlist_duplicate, name.trim())
+// A duplicate names the existing Playlist as it is spelled, not as typed.
+@Composable internal fun playlistProblem(problem: Names.Problem, name: String, taken: List<String> = emptyList()): String = stringResource(if (problem == Names.Problem.Empty) R.string.m4_playlist_empty else R.string.m4_playlist_duplicate, Names.match(name, taken) ?: name.trim())
 
 @Composable
 internal fun TrashScreen(data: ScreenData) {
