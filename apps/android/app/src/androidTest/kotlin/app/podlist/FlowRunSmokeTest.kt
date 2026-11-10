@@ -31,6 +31,7 @@ class FlowRunSmokeTest {
             context.databaseList().filter { it.startsWith("library-") && it.endsWith(".sqlite") }.forEach { check(context.deleteDatabase(it)) }
             context.filesDir.listFiles()?.filter { it.name.endsWith(".properties") }?.forEach { check(it.delete()) }
             DebugNetworkDelay.millis = 0
+            DebugNetworkDelay.holdSubscriptionCompletion = false
         }
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(freshInstall).around(compose)
@@ -44,18 +45,20 @@ class FlowRunSmokeTest {
         .fetchSemanticsNodes().flatMap { root -> root.flatten() }
     private fun present(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
     private fun label(text: String, substring: Boolean = false) = hasText(text, substring = substring) or hasContentDescription(text, substring = substring)
-    private fun control(text: String, substring: Boolean = false) = label(text, substring) and hasClickAction()
+    private fun control(text: String, substring: Boolean = false) = label(text, substring) and hasClickAction() and isEnabled()
     private fun field(text: String) = hasSetTextAction() and hasText(text)
     private fun nav(text: String) = label(text) and hasClickAction() and SemanticsMatcher("navigation item") {
-        it.config.getOrNull(SemanticsProperties.Selected) != null && it.config.getOrNull(SemanticsProperties.Role) != Role.RadioButton
+        it.config.getOrNull(SemanticsProperties.Selected) != null && it.config.getOrNull(SemanticsProperties.Role) == Role.Tab
     }
+    private fun selectedTab(tab: String) = present(nav(tab) and isSelected())
     private fun waitFor(why: String, condition: () -> Boolean) {
         try { compose.waitUntil(90_000, condition) }
         catch (error: Throwable) { throw AssertionError("$flow/$why ($appearance pass $pass); inspect ${report.directory}", error) }
     }
-    private fun click(matcher: SemanticsMatcher, index: Int = 0) {
+    private fun click(matcher: SemanticsMatcher, index: Int? = null) {
         waitFor("click target $matcher") { present(matcher) }
-        val target = compose.onAllNodes(matcher)[index]
+        // Single controls must be unique in the merged tree. Repeated row actions opt in to an index.
+        val target = if (index == null) compose.onNode(matcher) else compose.onAllNodes(matcher)[index]
         // Focus/scroll are deliberate preparation inputs, separately recorded when necessary.
         if (!runCatching { target.assertIsDisplayed() }.isSuccess) {
             inputAt = SystemClock.uptimeMillis()
@@ -99,9 +102,11 @@ class FlowRunSmokeTest {
     private fun root(tab: String) {
         dismissKeyboard()
         val marker = control(when (tab) { "Views" -> "New View"; "Playlists" -> "New Playlist"; else -> "Add podcasts" })
-        val selected = compose.onAllNodes(nav(tab)).fetchSemanticsNodes().any { it.config.getOrNull(SemanticsProperties.Selected) == true }
-        if (selected && present(marker)) { capture("start-$tab"); return }
-        act("start-$tab", { present(marker) }) { click(nav(tab)) }
+        // Switching tabs restores that tab's stack; only tapping the selected tab resets it.
+        // Add/Undo can leave another tab selected (A returns from Default in Playlists).
+        if (!selectedTab(tab)) act("select-$tab", { selectedTab(tab) }) { click(nav(tab)) }
+        if (present(marker)) { capture("start-$tab"); return }
+        act("start-$tab", { selectedTab(tab) && present(marker) }) { click(nav(tab) and isSelected()) }
     }
     private fun keyboardVisible(): Boolean {
         var visible = false
@@ -121,8 +126,8 @@ class FlowRunSmokeTest {
         dismissKeyboard()
 
         // Only the snackbar's text button; the toolbar's icon Undo must not stand in for it.
-        val snackbarUndo = hasText("Undo") and hasClickAction()
-        act(step, { done() && present(hasText("Redo") and hasClickAction()) }) { click(snackbarUndo) }
+        val snackbarUndo = control("Undo") and hasText("Undo")
+        act(step, { done() && present(control("Redo") and hasText("Redo")) }) { click(snackbarUndo) }
     }
 
     @Test fun mainTasksProduceFlowEvidence() {
@@ -156,6 +161,11 @@ class FlowRunSmokeTest {
             success = true
         } catch (error: Throwable) {
             report.failure(error)
+            runCatching {
+                java.io.File(report.directory, "failure-semantics.txt").writeText(
+                    compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString()
+                )
+            }
             runCatching { capture("FAILED-${report.nextSequence()}") }
             throw error
         } finally {
@@ -201,12 +211,14 @@ class FlowRunSmokeTest {
         tap("open-view", "New this week", { present(control("Add to a Playlist")) })
         // Episode title is discovered from the real row's semantics, not a date-sensitive fixture title.
         val title = rowTitle(compose.onAllNodes(control("Add to a Playlist")).fetchSemanticsNodes().first())
-        tap("open-episode", title, { present(hasText("Add to a Playlist") and hasClickAction()) })
+        tap("open-episode", title, { present(hasText("Show notes")) && present(control("Add to a Playlist")) })
         tap("add", "Add to a Playlist", { present(control("Play Last")) })
-        tap("target-default", "Default", substring = true)
+        // The mini-player's Active Playlist button also starts with "Default" behind this sheet.
+        val defaultTarget = control("Default", true) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)
+        act("target-default", { selectedTab("Views") && present(defaultTarget and isSelected()) }) { click(defaultTarget) }
         tap("submit-add", "Play Last", { present(hasText("Undo") and hasClickAction()) })
         capture("follow-up")
-        undo("undo-add") { !present(control("Play Last")) }
+        undo("undo-add") { selectedTab("Views") && !present(control("Play Last")) && !present(hasText("Default")) }
         root("Views")
         capture("next-item")
     }
@@ -215,15 +227,22 @@ class FlowRunSmokeTest {
         flow = "B"
         root("Playlists")
         tap("default", "Default", { present(control("Play from here")) })
-        act("play-entry", { present(control("Now Playing:", true)) && present(control("Pause")) }) { click(control("Play from here")) }
+        act("play-entry", { present(control("Now Playing:", true)) && present(control("Pause")) }) { click(control("Play from here"), index = 0) }
         tap("open-now-playing", "Now Playing:", { present(control("Collapse Now Playing")) }, substring = true)
-        tap("collapse", "Collapse Now Playing", { present(control("Entry actions")) })
+        tap("collapse", "Collapse Now Playing", { !present(control("Collapse Now Playing")) && present(control("Entry actions")) })
         // Pause stops the live progress clock from contaminating later pixel-response observations.
-        val pause = control("Pause", true)
-        if (present(pause)) act("pause") { click(pause) }
+        val pause = control("Pause")
+        if (present(pause)) act("pause", { !present(pause) && present(control("Play")) }) { click(pause) }
+        // A reveal can retain the old scroll anchor. Compare the same rows before/after a move.
+        act("reveal-entries") { compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0) }
         val before = entryOrder()
-        act("entry-menu", { present(control("Move down")) }) { click(control("Entry actions")) }
+        check(before.size >= 2 && before.distinct().size == before.size) { "Expected distinct accessible Entry rows: $before" }
+        act("entry-menu", { present(control("Move down")) }) { click(control("Entry actions"), index = 0) }
         tap("move-down", "Move down", { present(hasText("Undo") and hasClickAction()) && entryOrder() != before })
+        // Move's reveal may scroll the row. Verify order at the same anchor, not just changed visibility.
+        act("verify-reorder", { entryOrder().take(2) == before.take(2).reversed() }) {
+            compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+        }
         capture("follow-up")
         undo("undo-reorder") { entryOrder() == before }
         capture("next-item")
@@ -244,7 +263,11 @@ class FlowRunSmokeTest {
         if (!value("Podcast name or feed address").isNullOrEmpty()) enter("clear-feed", "Podcast name or feed address", "")
         enter("type-feed", "Podcast name or feed address", feed)
         tap("find", "Find podcasts", { present(control("Long listening")) })
-        tap("open-podcast", "Long listening", { present(field("Search Episodes")) && !busy() })
+        tap("open-podcast", "Long listening", { present(control("Subscribe")) && present(hasScrollToIndexAction()) })
+        // The eight flings persist the scroll anchor. Lazy headers may not exist until revealed.
+        act("reveal-podcast-header", { present(field("Search Episodes")) && !busy() }) {
+            compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+        }
         // Re-opened Podcast pages retain the previous query/scroll through ordinary browsing state.
         enter("clear-query", "Search Episodes", "")
         if (!present(control("Subscribe"))) error("Feed must start unsubscribed; use the default demo seed, without large:true")
@@ -267,6 +290,7 @@ class FlowRunSmokeTest {
         undo("undo-subscribe") { present(control("Subscribe")) && !busy() }
         enter("next-item", "Search Episodes", "")
         waitFor("500 Episode feed") { present(hasText("500 Episodes")) }
+        dismissKeyboard()
         if (pass == 0) {
             val list = compose.onNode(hasScrollToIndexAction())
             report.scrollFrames(flow, appearance, compose.activity.window) {
@@ -274,6 +298,10 @@ class FlowRunSmokeTest {
             }
             inputAt = SystemClock.uptimeMillis()
             capture("long-list-fling")
+            // Leave a loaded header anchor for the next visit, before async feed reload/restoration.
+            act("return-podcast-header", { present(field("Search Episodes")) }) {
+                list.performScrollToIndex(0)
+            }
         }
         root("Library")
     }
@@ -301,7 +329,8 @@ class FlowRunSmokeTest {
         tap("search", "Search the Library", { present(field("Search the Library")) })
         if (!value("Search the Library").isNullOrEmpty()) enter("clear-search", "Search the Library", "")
         enter("type-rice", "Search the Library", "rice")
-        waitFor("search results") { present(hasText("Who sets the price of rice?")) }
+        // The unfiltered list also contains this Episode; await the fixture's filtered count too.
+        waitFor("search results") { present(hasText("1 Episode")) && present(hasText("Who sets the price of rice?")) }
         capture("results-completion")
         tap("save-as-view", "Save as a View", { present(field("Name")) })
         enter("type-view-name", "Name", "Rice ${report.runId.takeLast(8)} $appearance $pass")

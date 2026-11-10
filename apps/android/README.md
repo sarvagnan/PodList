@@ -615,21 +615,44 @@ publication dates around **6 November 2026**; run with the device date within se
 days of that date so New this week contains Episodes. A missing Episode is an
 explicit flow failure, not a skipped check.
 
-From `apps/android`, with the demo running and emulator ready:
+From `apps/android`, with the demo running and emulator ready, install both APKs
+and invoke instrumentation directly so the evidence survives the run. Close any
+other automation tool/session holding the device's UiAutomation connection first;
+otherwise UI Automator can fail with “UiAutomationService … already registered”.
+Runner 1.7 / Espresso 3.7 are required on Android 16 (older Espresso calls the removed
+`InputManager.getInstance`).
 
 ```sh
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 export PODLIST_JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$HOME/Library/Android/sdk"
 export GRADLE_RO_DEP_CACHE="$HOME/.gradle/caches" GRADLE_USER_HOME="$PWD/.gradle-worktree"
-./gradlew --offline :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.server=http://10.0.2.2:PORT \
-  -Pandroid.testInstrumentationRunnerArguments.feed=http://10.0.2.2:FPORT/feeds/long-list.xml
+./gradlew --offline :app:installDebug :app:installDebugAndroidTest
+adb reverse tcp:FPORT tcp:FPORT
+adb shell am instrument -w \
+  -e server http://10.0.2.2:PORT \
+  -e feed http://127.0.0.1:FPORT/feeds/long-list.xml \
+  -e class app.podlist.FlowRunSmokeTest \
+  app.podlist.test/androidx.test.runner.AndroidJUnitRunner
+adb pull /sdcard/Android/data/app.podlist/files/flow-run ./flow-run
 ```
 
-Replace PORT and FPORT. The test converts `feed`'s `10.0.2.2` host to `127.0.0.1`
+Replace PORT and FPORT. `adb reverse tcp:FPORT tcp:FPORT` makes the fixture feed's
+`127.0.0.1:FPORT` reachable from the device as well as the Mac demo server. The test converts `feed`'s `10.0.2.2` host to `127.0.0.1`
 when `server` uses `10.0.2.2`: **the Mac demo server performs feed lookups**, so it
 needs its own loopback address. The original and typed URLs are reported. Other
-feed hosts are typed unchanged. Port-reverse setup remains the caller's job.
+feed hosts are typed unchanged.
+
+Alternatively, Gradle can run instrumentation, but `connectedDebugAndroidTest`
+uninstalls the app afterwards and deletes its external files, including evidence.
+Use the direct invocation above when collecting reports; a pull after the Gradle
+task returns cannot recover the deleted folder.
+
+```sh
+./gradlew --offline :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=app.podlist.FlowRunSmokeTest \
+  -Pandroid.testInstrumentationRunnerArguments.server=http://10.0.2.2:PORT \
+  -Pandroid.testInstrumentationRunnerArguments.feed=http://127.0.0.1:FPORT/feeds/long-list.xml
+```
 
 Each appearance is selected via Settings → Appearance and verified with the
 Activity's night qualifier. There is one delayed pass plus **five undelayed passes
@@ -651,8 +674,8 @@ Evidence is under the target app's external files directory:
   summary.md
 ```
 
-`Log.i("FlowRun", "Output: …")` prints the actual path. Pull that directory with
-your normal device tooling. Each delayed step records float semantics bounds in
+`Log.i("FlowRun", "Output: …")` prints the actual path. The `adb pull` above copies
+all retained runs; you can also pull that individual directory. Each delayed step records float semantics bounds in
 root/window physical px and dp, changes, input age/person-caused status, focused
 label, semantic scroll axis and visible-first-item text, typed values, and follow-up
 visibility against window/IME/navigation/player/snackbar geometry. The flow captures
@@ -660,7 +683,10 @@ follow-ups before deliberately dismissing the keyboard for Undo/navigation, so
 obscured controls are reported while the remaining flow can continue. Android's guide
 tolerance is **2 dp**; physical deltas are also provided. Screenshots follow each
 semantics snapshot. Timed passes write per-input timings instead of screenshot
-strips. Missing kinds have explicit `present=false` rows.
+strips. Missing kinds have explicit `present=false` rows. Each bottom tab also has
+a `navigation:<tab>` row with its selected state. Switching tabs first restores its
+stack (`select-<tab>`); a separate tap on that selected tab returns to its root
+(`start-<tab>`). A failed run includes `failure-semantics.txt` with the unmerged tree.
 
 Response timing samples rendered UiAutomation screenshots on a background thread
 at 16 ms plus capture cost; a 4 px pixel grid excludes system bars and the bottom

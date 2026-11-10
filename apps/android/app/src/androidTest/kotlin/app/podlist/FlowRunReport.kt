@@ -94,9 +94,14 @@ internal class FlowRunReport(private val instrumentation: Instrumentation, priva
             val index = elements.count { it.id.startsWith("action:$handle:") }
             elements += Element("action:$handle:$index", text(node), node.boundsInRoot, node.boundsInWindow, node)
         }
-        block("bottom-navigation", visibleNodes.filter { node ->
-            text(node) in setOf("Views", "Playlists", "Library") && node.config.getOrNull(SemanticsProperties.Selected) != null
-        })?.let(elements::add)
+        val navigation = visibleNodes.filter { node ->
+            text(node) in setOf("Views", "Playlists", "Library") && node.config.getOrNull(SemanticsProperties.Role) == Role.Tab && node.config.getOrNull(SemanticsProperties.Selected) != null
+        }
+        block("bottom-navigation", navigation)?.let(elements::add)
+        navigation.forEach { node ->
+            val label = text(node)
+            elements += Element("navigation:$label", "$label; selected=${node.config[SemanticsProperties.Selected]}", node.boundsInRoot, node.boundsInWindow, node)
+        }
         // Now Playing's labelled artwork has a stable clickable ancestor for the 72dp mini player.
         val mini = visibleNodes.firstOrNull { text(it).startsWith("Now Playing:") }
         mini?.let { n ->
