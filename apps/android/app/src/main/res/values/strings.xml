@@ -11,7 +11,7 @@
     <string name="connect_help">Enter the HTTPS address of your PodList server. If it uses a private network, connect to that network first.</string>
     <string name="server_scope">Each server address keeps its own Library on this Device. Returning to a saved address reopens its local data.</string>
     <string name="server_address">Server address</string>
-    <string name="server_example">https://podlist.example</string>
+    <string name="server_example">For example, https://podlist.example</string>
     <string name="connect">Check and connect</string>
     <string name="checking">Checking server…</string>
     <string name="address_error">Enter an HTTPS server address without a path, credentials or query.</string>
@@ -25,12 +25,12 @@
     <string name="sync_error">Sync error · Showing local data.</string>
     <string name="retry">Try again</string>
     <string name="no_synced_data">No synced data on this Device yet.</string>
-    <string name="no_views">No Views yet</string>
-    <string name="no_playlists">No Playlists yet</string>
-    <string name="no_subscriptions">No Subscriptions yet</string>
+    <string name="no_views">No Views yet. Create a View to find Episodes by your conditions.</string>
+    <string name="no_playlists">No Playlists yet. Create a Playlist to collect Episodes to play.</string>
+    <string name="no_subscriptions">No Subscriptions yet. Subscribe to podcasts to fill Views with their Episodes.</string>
     <string name="no_episodes">No Episodes yet. New Episodes appear here when this podcast publishes them.</string>
-    <string name="no_matches">No Episodes match this View</string>
-    <string name="no_entries">No Entries in this Playlist</string>
+    <string name="no_matches">No Episodes match this View. Change its conditions to find more.</string>
+    <string name="no_entries">No Entries in this Playlist. Find Episodes and add them here.</string>
     <string name="no_cursor">No current Entry</string>
     <string name="stream">Stream</string>
     <string name="on_entry">When Episodes become an Entry</string>
@@ -394,7 +394,6 @@
     <string name="listening_chart">Daily listening over the last 30 days. Tap a day, use the day buttons, or show the table for details.</string>
     <string name="previous_day">Previous day</string>
     <string name="next_day">Next day</string>
-    <string name="select_subscriptions_empty">Add podcasts to your Library, then select Subscriptions to change their Download Rules together.</string>
     <plurals name="more_conditions">
         <item quantity="one">%d more condition</item>
         <item quantity="other">%d more conditions</item>
@@ -420,7 +419,6 @@
     <string name="hide_podcast_details">Hide podcast details</string>
     <string name="timeline_rewind_hint">Tap a listening moment to review what Rewind would change. You can cancel before applying it.</string>
     <string name="undo_specific">Undo: %1$s</string>
-    <string name="redo_specific">Redo: %1$s</string>
     <string name="chart_minutes">Time listened in minutes</string>
     <string name="chart_tick">%1$d</string>
     <string name="playback_settings_changed">Updated Playback Settings</string>
@@ -520,4 +518,7 @@
         <item quantity="one">%1$d podcast failed</item>
         <item quantity="other">%1$d podcasts failed</item>
     </plurals>
+    <string name="delete_view_help">Episodes stay in your Library.</string>
+    <string name="timeline_tab">Timeline</string>
+    <string name="add">Add</string>
 </resources>

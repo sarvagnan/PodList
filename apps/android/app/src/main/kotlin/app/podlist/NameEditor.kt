@@ -57,7 +57,7 @@ internal fun RenameableName(
             }
         } else {
             // The persisted text owns this field even if Undo or another Device changes the saved name.
-            var value by remember(draftKey) { mutableStateOf(TextFieldValue(draft, TextRange(0, draft.length))) }
+            var value by remember(draftKey) { mutableStateOf(TextFieldValue(draft, TextRange(draft.length))) }
             val fieldFocus = remember { FocusRequester() }
             val validationProblem = problem(value.text)
             var saveFailed by remember { mutableStateOf(false) }

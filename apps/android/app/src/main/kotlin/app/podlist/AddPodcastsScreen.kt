@@ -36,18 +36,17 @@ internal fun WelcomeScreen(model: AppModel) {
         Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = { PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
             Box(Modifier.padding(padding)) { ServerScreen(model, null) }
         }
-    } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)) {
         Text(stringResource(R.string.app_name), Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineLarge)
         Text(stringResource(R.string.welcome_phone), style = MaterialTheme.typography.bodyLarge)
         Button(onClick = model::startOnPhone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.start_phone)) }
-        OutlinedButton(onClick = { server = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.connect_to_server)) }
+        ContentActionButton(onClick = { server = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.connect_to_server)) }
         Text(stringResource(R.string.server_later), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String) -> Unit) {
-    val drafts = LocalFormDrafts.current
     var input by rememberDraftText("add-podcasts/query")
     val incomingFeed by model.incomingFeed.collectAsState()
     LaunchedEffect(incomingFeed) { incomingFeed?.let { input = it; model.incomingFeed.compareAndSet(it, null) } }
@@ -85,14 +84,14 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
     LazyColumn(Modifier.fillMaxSize().imePadding()) {
         item {
             Column {
-                OutlinedTextField(input, onValueChange = { cancelSearch(); input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
+                var fieldValue by rememberFieldValue(input)
+                OutlinedTextField(fieldValue, onValueChange = { cancelSearch(); fieldValue = it; input = it.text; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
                     singleLine = true, isError = error != null,
                     supportingText = error?.let { message -> ({ InlineError(stringResource(message)) }) }, trailingIcon = { SearchClearButton(input) { cancelSearch(); input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
                 CommitActions(Modifier.padding(horizontal = 16.dp)) {
-                    if (input.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("add-podcasts/"); results = emptyList(); error = null }) { Text(stringResource(R.string.discard_draft)) }
-                    CommitButton(onClick = ::find, enabled = input.isNotBlank() && !busy) { Text(stringResource(R.string.find_podcasts)) }
+                    FilledTonalButton(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.find_podcasts)) }
                 }
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
+                LoadingLine(busy, R.string.find_podcasts, Modifier.padding(16.dp))
             }
         }
         items(results, key = { it.feedUrl }) { result ->

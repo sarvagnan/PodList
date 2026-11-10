@@ -37,25 +37,6 @@ internal fun UndoAction() {
 }
 
 @Composable
-internal fun RedoMenuItem(close: () -> Unit) {
-    val model = LocalAppModel.current
-    val redo by model.latestRedo.collectAsState()
-    val description by model.redoDescription.collectAsState()
-    DropdownMenuItem(text = { Text(description?.let { stringResource(R.string.redo_specific, appMessageText(it)) } ?: stringResource(R.string.m4_redo)) }, enabled = redo != null,
-        leadingIcon = { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_redo), null) },
-        onClick = { close(); redo?.invoke() })
-}
-
-@Composable
-internal fun HistoryOverflow() {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
-        DropdownMenu(expanded, onDismissRequest = { expanded = false }) { RedoMenuItem { expanded = false } }
-    }
-}
-
-@Composable
 internal fun appMessageText(message: AppMessage): String = message.quantity?.let {
     androidx.compose.ui.res.pluralStringResource(message.resource, it, *message.formatArgs.toTypedArray())
 } ?: stringResource(message.resource, *message.formatArgs.toTypedArray())

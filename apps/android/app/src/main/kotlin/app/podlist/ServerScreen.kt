@@ -23,17 +23,17 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
     Column(Modifier.fillMaxSize().imePadding()
         .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
-        OutlinedTextField(value = input, onValueChange = { model.setServerAddressDraft(it); model.connectionError.value = null },
+        var fieldValue by rememberFieldValue(input)
+        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerAddressDraft(it.text); model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
-            placeholder = { Text(stringResource(R.string.server_example)) },
             singleLine = true, enabled = !checking, isError = error != null,
-            supportingText = error?.let { problem -> ({ InlineError(stringResource(when (problem) {
+            supportingText = { val problem = error; if (problem == null) Text(stringResource(R.string.server_example)) else InlineError(stringResource(when (problem) {
                 ConnectionError.Address -> if (BuildConfig.DEBUG) R.string.address_error_debug else R.string.address_error
                 ConnectionError.Offline -> R.string.offline_error
                 ConnectionError.Tls -> R.string.tls_error
                 ConnectionError.Server -> R.string.server_error
                 ConnectionError.Response -> R.string.response_error
-            })) }) },
+            })) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { if (!checking && input.isNotBlank()) model.connect(input) { connected?.invoke() } }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
         CommitActions {
             if (draft != null && draft != current.orEmpty()) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {

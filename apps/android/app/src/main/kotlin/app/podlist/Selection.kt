@@ -102,7 +102,7 @@ internal fun SelectionActionBar(selection: EpisodeSelection, data: ScreenData, s
     val allStarred = ordered.isNotEmpty() && ordered.all { data.state.episodeStates[it]?.starred == true }
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
         ActionGrid {
-            LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { adding = true }
+            LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add), accessibilityLabel = stringResource(R.string.add_to_playlist)) { adding = true }
             LabelledAction(if (allPlayed) R.drawable.ic_unplayed else R.drawable.ic_played, stringResource(if (allPlayed) R.string.mark_unplayed else R.string.mark_played)) {
                 model.changeWithUndo(ordered.map { if (allPlayed) Change.MarkUnplayed(it) else Change.MarkPlayed(it, PlayedSource.User) }, if (allPlayed) R.plurals.episodes_unplayed else R.plurals.episodes_played, formatArgs = listOf(ordered.size), quantity = ordered.size) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
                 selection.ids = emptySet()
@@ -129,11 +129,7 @@ internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session, addPo
     val subscriptions = data.subscriptions.filter { it["unsubscribed_at"] == null }
     SideEffect { selection.order = subscriptions.map { it["id"] as String }; selection.ids = selection.ids.intersect(selection.order.toSet()) }
     if (subscriptions.isEmpty()) {
-        Column {
-            EmptyMessage(R.string.no_subscriptions)
-            Hint(stringResource(R.string.select_subscriptions_empty))
-            FilledTonalButton(onClick = addPodcasts, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.add_podcasts)) }
-        }
+        EmptyState(R.string.no_subscriptions, R.string.add_podcasts, onAction = addPodcasts)
         return
     }
     LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.listSelectionKeys(selection)) {

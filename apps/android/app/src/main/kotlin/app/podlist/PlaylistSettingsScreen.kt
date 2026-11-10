@@ -14,8 +14,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
 import androidx.compose.foundation.text.KeyboardActions
@@ -50,7 +48,7 @@ internal fun PlaylistSettingsScreen(playlist: Playlist, data: ScreenData, done: 
                 model.changeWithUndo(listOf(Change.DeletePlaylist(playlist.id)), R.string.m4_playlist_deleted, playbackPlaylist = playlist.id, formatArgs = listOf(playlist.name)) { before -> listOfNotNull(Change.RestorePlaylist(playlist.id), Change.SetActivePlaylist(playlist.id).takeIf { before.activePlaylistId == playlist.id }) }
                 done()
             }) { Text(stringResource(R.string.m4_delete_playlist), color = MaterialTheme.colorScheme.error) }
-            Text(stringResource(R.string.m4_trash_help, data.state.trashDays ?: 30), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.m4_trash_help, data.state.trashDays ?: 30), Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -88,7 +86,8 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () ->
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(name, { if (!busy) { name = it; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = busy, isError = shownProblem != null, supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, data.state.playlists.map { it.name })) }) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
+            var fieldValue by rememberFieldValue(name)
+            OutlinedTextField(fieldValue, { if (!busy) { fieldValue = it; name = it.text; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = busy, isError = shownProblem != null, supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, data.state.playlists.map { it.name })) }) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
             CommitActions {
                 if (name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
                 CommitButton(enabled = !busy && problem == null, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
@@ -106,9 +105,8 @@ internal fun TrashScreen(data: ScreenData, openPlaylists: () -> Unit) {
     val trash = PlaylistRules.availableTrash(data.state, System.currentTimeMillis())
     LazyColumn(state = rememberBrowsingListState("trash")) {
         if (trash.isEmpty()) item {
-            EmptyMessage(R.string.no_trash)
-            Hint(stringResource(R.string.empty_trash_help, data.state.trashDays ?: 30))
-            FilledTonalButton(onClick = openPlaylists, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.back_to_playlists)) }
+            EmptyState(R.string.no_trash, R.string.back_to_playlists,
+                message = stringResource(R.string.no_trash) + ". " + stringResource(R.string.empty_trash_help, data.state.trashDays ?: 30), onAction = openPlaylists)
         }
         items(trash, key = { it.playlist.id }) { trash ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(trash.playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.deleted, date(trash.deletedAt))) }, trailingContent = {

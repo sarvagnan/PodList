@@ -20,7 +20,7 @@ class UiWordingTest {
         val message = text("m4_playlist_deleted").format("Commute")
         assertEquals("Playlist Commute moved to Trash", message)
         assertEquals("Undo: Playlist Commute moved to Trash", text("undo_specific").format(message))
-        assertEquals("Redo: Playlist Commute moved to Trash", text("redo_specific").format(message))
+        assertEquals("Redid: $message", text("edit_redone_specific").format(message))
         assertEquals("Playlist 100% listening moved to Trash", text("m4_playlist_deleted").format("100% listening"))
     }
 
@@ -28,7 +28,7 @@ class UiWordingTest {
         val message = text("playlist_renamed_to").format("Commute")
         assertEquals("Renamed Playlist to “Commute”", message)
         assertEquals("Undo: Renamed Playlist to “Commute”", text("undo_specific").format(message))
-        assertEquals("Redo: Renamed Playlist to “Commute”", text("redo_specific").format(message))
+        assertEquals("Redid: $message", text("edit_redone_specific").format(message))
         assertEquals("Renamed Playlist to “100% listening”", text("playlist_renamed_to").format("100% listening"))
         assertEquals("Rename", text("rename"))
         assertEquals("Cancel", text("cancel"))
@@ -39,7 +39,7 @@ class UiWordingTest {
         val message = text("view_renamed_to").format("Commute")
         assertEquals("Renamed View to “Commute”", message)
         assertEquals("Undo: Renamed View to “Commute”", text("undo_specific").format(message))
-        assertEquals("Redo: Renamed View to “Commute”", text("redo_specific").format(message))
+        assertEquals("Redid: $message", text("edit_redone_specific").format(message))
         assertEquals("Renamed View to “100% listening”", text("view_renamed_to").format("100% listening"))
         assertEquals("A View needs a name.", text("m4_view_name_error"))
     }
@@ -218,6 +218,18 @@ class UiWordingTest {
         assertEquals("Exported 12 podcasts", plural("podcasts_exported", 12))
         assertEquals("Imported 12 podcasts · 2 podcasts already subscribed · 1 podcast failed",
             text("m4_import_summary").format(plural("import_added", 12), plural("import_existing", 2), plural("import_failed", 1)))
+    }
+
+    @Test fun `compact labels preserve the full domain command for accessibility`() {
+        assertEquals("Add", text("add"))
+        assertEquals("Add to a Playlist", text("add_to_playlist"))
+        assertEquals("Timeline", text("timeline_tab"))
+        assertEquals("Listening Timeline", text("timeline"))
+        assertEquals("For example, https://podlist.example", text("server_example"))
+        assertEquals("Subscribed to Deep Field. Activate to show Unsubscribe.", text("podcast_subscribed_unsubscribe").format("Deep Field"))
+        assertEquals("Episodes stay in your Library.", text("delete_view_help"))
+        assertTrue(text("no_subscriptions").contains("fill Views with their Episodes"))
+        assertTrue(text("no_matches").contains("Change its conditions"))
     }
 
 }

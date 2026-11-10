@@ -26,12 +26,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, enabled: Boolean = true, compact: Boolean = false, onClick: () -> Unit) {
     val valueColor = MaterialTheme.colorScheme.onSurfaceVariant
     val shownValue = if (changed) stringResource(R.string.changed_value, value) else value
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, onClick = onClick).padding(16.dp),
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, onClick = onClick).padding(horizontal = 16.dp, vertical = if (compact) 12.dp else 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp)) {
             Text(label, style = MaterialTheme.typography.bodyLarge)
             Text(shownValue, style = MaterialTheme.typography.bodyMedium, color = valueColor)
             help?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = valueColor) }
@@ -164,7 +164,8 @@ internal fun NumberField(label: String, value: Double?, integer: Boolean = false
     val model = LocalAppModel.current
     val currentValid by rememberUpdatedState(valid)
     DisposableEffect(Unit) { onDispose { if (!currentValid) model.messages.trySend(AppMessage(R.string.invalid_number_not_applied)) } }
-    OutlinedTextField(text, { text = it; val n = NumberInput.parse(it); if (it.isBlank()) changed(null) else if (n != null && n.isFinite() && n >= minimum && (!integer || n % 1 == 0.0 && n <= Int.MAX_VALUE)) changed(n) },
+    var fieldValue by rememberFieldValue(text)
+    OutlinedTextField(fieldValue, { fieldValue = it; text = it.text; val n = NumberInput.parse(it.text); if (it.text.isBlank()) changed(null) else if (n != null && n.isFinite() && n >= minimum && (!integer || n % 1 == 0.0 && n <= Int.MAX_VALUE)) changed(n) },
         label = { Text(label) }, placeholder = { Text(stringResource(R.string.any)) }, singleLine = true,
         isError = !valid, supportingText = if (!valid) ({ InlineError(if (integer) stringResource(when (problem) {
             NumberInput.Problem.WholeNumber -> R.string.number_whole_error
@@ -247,4 +248,12 @@ internal fun SearchClearButton(text: String, clear: () -> Unit) {
 internal fun InlineError(message: String, modifier: Modifier = Modifier) {
     Text(message, modifier.padding(vertical = 4.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.bodySmall)
+}
+
+/** Loading draws inside a permanent seam, so existing content keeps its position. */
+@Composable
+internal fun LoadingLine(loading: Boolean, label: Int, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(4.dp)) {
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(label)))
+    }
 }
