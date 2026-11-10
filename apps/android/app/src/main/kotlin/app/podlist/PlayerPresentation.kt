@@ -60,7 +60,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     val sheet = rememberBottomSheetScaffoldState()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    val feedback = remember(snackbar) { SheetFeedback(snackbar) }
+    val feedback = remember(snackbar, model) { SheetFeedback(snackbar) { model.feedbackSheet = it } }
     val resources = androidx.compose.ui.platform.LocalResources.current
     val expanded = sheet.bottomSheetState.currentValue == SheetValue.Expanded || sheet.bottomSheetState.targetValue == SheetValue.Expanded
     var lastCollapse by rememberSaveable { mutableIntStateOf(collapseNavigation) }
@@ -77,7 +77,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
         model.messages.receiveAsFlow().collectLatest { message ->
             val text = message.quantity?.let { resources.getQuantityString(message.resource, it, *message.formatArgs.toTypedArray()) }
                 ?: resources.getString(message.resource, *message.formatArgs.toTypedArray())
-            val result = snackbar.showSnackbar(text, actionLabel = message.undo?.let { resources.getString(message.actionResource) }, duration = SnackbarDuration.Long)
+            val result = feedback.show(message, text, actionLabel = message.undo?.let { resources.getString(message.actionResource) })
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }
@@ -125,7 +125,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                         }
                     }
                 },
-                snackbarHost = { if (feedback.openSheets == 0) FeedbackSnackbarHost(feedback, Modifier.imePadding()) }
+                snackbarHost = { if (feedback.openSheets == 0) FeedbackSnackbarHost(snackbar, Modifier.imePadding()) }
             ) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()).then(if (contextual) Modifier.navigationBarsPadding() else Modifier)) { content() } }
             // Register on expansion, after the current tab’s stack handlers, including restored tabs.
             key(expanded) {

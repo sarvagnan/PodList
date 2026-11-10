@@ -13,6 +13,7 @@ import java.util.UUID
 /** Capture inverses against the latest local State, in the same transaction as the edit. */
 internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, formatArgs: List<Any> = emptyList(), notify: Boolean = true, inverse: (State) -> List<Change>) {
     val current = session.value ?: return
+    val sheet = feedbackSheet
     val action: suspend () -> Unit = {
         editLock.withLock {
             if (session.value !== current) return@withLock
@@ -22,7 +23,7 @@ internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playba
                 recordAll(changes, System.currentTimeMillis())
                 result to restoredMessage(before, loadState(), changes)
             } }
-            recordHistory(current, result.second ?: AppMessage(message, formatArgs = formatArgs), changesStep(current, result.first, playbackPlaylist), notify = notify)
+            recordHistory(current, (result.second ?: AppMessage(message, formatArgs = formatArgs)).copy(feedbackSheet = sheet), changesStep(current, result.first, playbackPlaylist), notify = notify)
         }
     }
     if (playbackPlaylist != null) playbackEdit(playbackPlaylist, action)

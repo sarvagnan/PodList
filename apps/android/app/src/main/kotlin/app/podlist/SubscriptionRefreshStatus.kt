@@ -29,7 +29,7 @@ internal fun UndoAction() {
     val model = LocalAppModel.current
     val undo by model.latestUndo.collectAsState()
     val description by model.undoDescription.collectAsState()
-    val snackbarUndo = LocalSheetFeedback.current?.snackbar?.currentSnackbarData?.visuals?.actionLabel == stringResource(R.string.undo)
+    val snackbarUndo = LocalSheetFeedback.current?.visibleSnackbar?.currentSnackbarData?.visuals?.actionLabel == stringResource(R.string.undo)
     // Reserve the slot even before the first edit and while snackbar Undo owns the command.
     // No invisible clickable/focusable node is left in the accessibility tree.
     if (undo != null && !snackbarUndo) ActionIcon(R.drawable.ic_undo, description?.let { stringResource(R.string.undo_specific, appMessageText(it)) } ?: stringResource(R.string.undo)) { undo?.invoke() }

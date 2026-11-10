@@ -11,8 +11,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
+
+// Exact live anchor for instrumentation; the axis range encodes index/offset approximately.
+internal val SettingsScrollPosition = SemanticsPropertyKey<Pair<Int, Int>>("SettingsScrollPosition")
 
 @Composable
 internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -> Unit, initialAppearance: Boolean = false) {
@@ -45,7 +50,9 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
             revealed = reveal!!.token
         }
     }
-    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(modifier = Modifier.semantics {
+        this[SettingsScrollPosition] = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+    }, state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         item { Section(stringResource(R.string.playback_settings)) }
         item { Hint(stringResource(R.string.settings_inheritance)) }
         playbackKeys.forEach { key -> item(key = key) { PlaybackSettingsEditor(data.state.playbackSettings, key) } }

@@ -25,7 +25,8 @@ internal fun rememberBrowsingListState(name: String = "list", keys: List<String>
     val key = "$route/$name"
     val anchor = remember(key) { browsing?.context?.scrolls?.get(key) ?: ScrollAnchor() }
     val list = rememberLazyListState(anchor.index, anchor.offset)
-    // LazyListState already saves the live anchor across Activity recreation (including night mode).
+    // LazyListState already saves the live anchor across Activity recreation.
+    // Appearance is handled in place, so it retains this very same list and measured viewport.
     // Do not replay the older database anchor over that saved position.
     var restored by rememberSaveable(key) { mutableStateOf(false) }
     LaunchedEffect(list, key, ready) {

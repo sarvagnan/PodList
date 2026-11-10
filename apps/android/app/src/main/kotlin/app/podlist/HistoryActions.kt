@@ -69,6 +69,7 @@ internal fun AppModel.redoEdit() = traverseHistory(true)
 
 private fun AppModel.traverseHistory(redo: Boolean) {
     val current = session.value ?: return
+    val sheet = feedbackSheet
     val expected = (if (redo) history.redo else history.undo) ?: return
     if (expected.subscriptionTargets.keys.any { subscriptionTransitions.value[it]?.pending == true }) return
     subscriptionFailures.value -= expected.subscriptionTargets.keys
@@ -91,11 +92,12 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 undoRevision.value++
                 updateHistoryActions()
                 messages.trySend((feedback ?: AppMessage(if (redo) R.string.edit_redone else R.string.edit_undone)).copy(
-                    actionResource = if (redo) R.string.undo else R.string.m4_redo, undo = if (redo) ::undoEdit else ::redoEdit))
+                    actionResource = if (redo) R.string.undo else R.string.m4_redo, undo = if (redo) ::undoEdit else ::redoEdit,
+                    feedbackSheet = sheet))
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
                 subscriptionTransitions.value -= expected.subscriptionTargets.keys
-                val failure = AppMessage(R.string.edit_reverse_failed, R.string.retry_action, undo = if (redo) ::redoEdit else ::undoEdit)
+                val failure = AppMessage(R.string.edit_reverse_failed, R.string.retry_action, undo = if (redo) ::redoEdit else ::undoEdit, feedbackSheet = sheet)
                 subscriptionFailures.value += expected.subscriptionTargets.mapValues { failure }
                 messages.trySend(failure)
             }

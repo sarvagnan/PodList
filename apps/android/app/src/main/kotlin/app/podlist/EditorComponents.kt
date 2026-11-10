@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -45,13 +44,14 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
 // The primary commit is trailing and filled; secondary actions are text. Actions wrap before they crowd.
 @Composable
 internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
-    val commitHeight = LocalSheetCommitHeight.current
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    FlowRow(Modifier.onSizeChanged { size ->
-        commitHeight?.value = with(density) { size.height.toDp() }
-    }.then(modifier).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        content = content)
+    val local = LocalSheetSnackbar.current
+    Column(modifier.fillMaxWidth()) {
+        // Reserve real space above the actions. An overlay padded only by the action height
+        // still covers the final option/field, especially when text is enlarged.
+        if (local?.snackbar?.currentSnackbarData != null) FeedbackSnackbarHost(local.snackbar)
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
 }
 
 /** Primary commits share filled emphasis and a minimum 48 dp target inside CommitActions. */
