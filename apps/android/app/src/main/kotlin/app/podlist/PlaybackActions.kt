@@ -73,32 +73,38 @@ internal fun EntryMenu(playlist: Playlist, episode: String) {
 }
 
 @Composable
-internal fun DownloadAction(episode: String, session: Session, modifier: Modifier = Modifier) {
-    val model = LocalAppModel.current
-    val downloads = model.downloads(session)
+internal fun DownloadMenuItem(episode: String, session: Session, close: () -> Unit) {
+    val downloads = LocalAppModel.current.downloads(session)
     val statuses by downloads.status.collectAsState()
     val status = statuses[episode]
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        EpisodeAction(R.drawable.ic_download, stringResource(when (status?.phase) {
-            DownloadPhase.Stored -> R.string.remove_download
-            DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download
-            DownloadPhase.Failed -> R.string.retry_download
-            null -> R.string.download
-        }), Modifier.fillMaxWidth()) {
-            when (status?.phase) {
-                DownloadPhase.Stored -> downloads.removeWithUndo(episode)
-                DownloadPhase.Queued, DownloadPhase.Transferring -> { downloads.cancel(episode); downloads.offerRequestUndo(listOf(episode), true, R.string.download_stopped) }
-                else -> { downloads.download(episode); downloads.offerRequestUndo(listOf(episode), false, R.string.m4_downloads_requested) }
-            }
+    DropdownMenuItem(text = { Text(stringResource(when (status?.phase) {
+        DownloadPhase.Stored -> R.string.remove_download
+        DownloadPhase.Queued, DownloadPhase.Transferring -> R.string.cancel_download
+        DownloadPhase.Failed -> R.string.retry_download
+        null -> R.string.download
+    })) }, onClick = {
+        close()
+        when (status?.phase) {
+            DownloadPhase.Stored -> downloads.removeWithUndo(episode)
+            DownloadPhase.Queued, DownloadPhase.Transferring -> { downloads.cancel(episode); downloads.offerRequestUndo(listOf(episode), true, R.string.download_stopped) }
+            else -> { downloads.download(episode); downloads.offerRequestUndo(listOf(episode), false, R.string.m4_downloads_requested) }
         }
-        if (status != null) Text(stringResource(when (status.phase) {
+    })
+}
+
+@Composable
+internal fun DownloadStatus(episode: String, session: Session, modifier: Modifier = Modifier) {
+    val statuses by LocalAppModel.current.downloads(session).status.collectAsState()
+    val status = statuses[episode] ?: return
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(when (status.phase) {
             DownloadPhase.Stored -> R.string.download_stored
             DownloadPhase.Failed -> R.string.download_failed
             DownloadPhase.Queued -> R.string.download_queued
             DownloadPhase.Transferring -> R.string.download_in_progress
         }), style = MaterialTheme.typography.bodyMedium,
             modifier = if (status.phase == DownloadPhase.Failed) Modifier.errorAnnouncement() else Modifier)
-        if (status?.phase == DownloadPhase.Transferring) {
+        if (status.phase == DownloadPhase.Transferring) {
             val progressModifier = Modifier.fillMaxWidth().then(ProgressModifier(R.string.download_in_progress))
             if (status.total > 0) LinearProgressIndicator(progress = { (status.received.toFloat() / status.total).coerceIn(0f, 1f) }, modifier = progressModifier)
             else LinearProgressIndicator(modifier = progressModifier)

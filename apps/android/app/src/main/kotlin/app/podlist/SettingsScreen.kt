@@ -25,11 +25,12 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
     val error = opml.error
     val summary = opml.summary
     val bringOver by model.bringOver.collectAsState()
+    val appearance by model.appearance.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) actions.read(uri) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-opml")) { uri -> if (uri != null) actions.export(uri) }
     LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item { Section(stringResource(R.string.playback_settings)); PlaybackSettingsEditor(data.state.playbackSettings) }
-        item { Section(stringResource(R.string.m4_your_listening)); NameRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
+        item { Section(stringResource(R.string.m4_your_listening)); SettingsRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
         item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }); HorizontalDivider() }
         item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, leadingContent = { Icon(painterResource(R.drawable.ic_export_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }); HorizontalDivider() }
@@ -56,13 +57,37 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
             }
         } }
         item { Section(stringResource(R.string.playlists)); ValueRow(stringResource(R.string.m4_keep_deleted), stringResource(R.string.m4_days, data.state.trashDays ?: 30)) { retention = true } }
-        item { Section(stringResource(R.string.this_device)); NameRow(stringResource(R.string.server), session.source.server?.origin ?: stringResource(R.string.server_none)) { open("server") } }
+        item { Section(stringResource(R.string.this_device)); SettingsRow(stringResource(R.string.server), session.source.server?.origin ?: stringResource(R.string.server_none)) { open("server") } }
+        item { SettingsRow(stringResource(R.string.appearance), stringResource(appearanceLabel(appearance))) { open("appearance") } }
         if (bringOver?.origin == session.source.key && bringOver?.job?.complete != true) item {
-            NameRow(stringResource(R.string.bring_over_title), stringResource(if (bringOver?.job == null) R.string.bring_over_available else R.string.bring_over_in_settings)) { model.showBringOver() }
+            SettingsRow(stringResource(R.string.bring_over_title), stringResource(if (bringOver?.job == null) R.string.bring_over_available else R.string.bring_over_in_settings)) { model.showBringOver() }
         }
-        item { Section(stringResource(R.string.m4_help)); NameRow(stringResource(R.string.m4_getting_started), stringResource(R.string.m4_getting_started_hint)) { open("getting-started") } }
+        item { Section(stringResource(R.string.m4_help)); SettingsRow(stringResource(R.string.m4_getting_started), stringResource(R.string.m4_getting_started_hint)) { open("getting-started") } }
     }
     if (retention) EditorSheet(stringResource(R.string.m4_keep_deleted), { retention = false }) {
         ChoiceRows(listOf(7L, 14L, 30L, 60L, 90L).map { it to stringResource(R.string.m4_days, it) }, data.state.trashDays ?: 30) { model.edit(Change.SetTrashDays(it)) }
+    }
+}
+
+@Composable
+private fun SettingsRow(title: String, subtitle: String, onClick: () -> Unit) {
+    NameRow(title, subtitle, titleStyle = MaterialTheme.typography.bodyLarge, onClick = onClick)
+}
+
+internal fun appearanceLabel(appearance: app.podlist.data.Appearance): Int = when (appearance) {
+    app.podlist.data.Appearance.System -> R.string.appearance_system
+    app.podlist.data.Appearance.Light -> R.string.appearance_light
+    app.podlist.data.Appearance.Dark -> R.string.appearance_dark
+}
+
+@Composable
+internal fun AppearanceScreen() {
+    val model = LocalAppModel.current
+    val appearance by model.appearance.collectAsState()
+    LazyColumn(contentPadding = PaddingValues(16.dp)) {
+        item {
+            ChoiceRows(app.podlist.data.Appearance.entries.map { it to stringResource(appearanceLabel(it)) },
+                appearance, choose = model::setAppearance)
+        }
     }
 }

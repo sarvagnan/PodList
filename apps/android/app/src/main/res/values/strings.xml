@@ -36,7 +36,6 @@
     <string name="views_hint">Saved conditions over your Library</string>
     <string name="playlists_hint">Each Playlist keeps its own place</string>
     <string name="library_hint">Download Rules on this Device</string>
-    <string name="empty_rule">No Subscriptions use this Download Rule.</string>
     <string name="stream">Stream</string>
     <string name="on_entry">When Episodes become an Entry</string>
     <string name="all_new">As Episodes are published</string>
@@ -401,7 +400,7 @@
     <string name="playlist_created">Playlist created</string>
     <string name="download_removed">Download removed</string>
     <string name="download_stopped">Download stopped</string>
-    <string name="draft_kept">Your unfinished conditions are kept here. Valid edits apply as made.</string>
+    <string name="draft_kept">Valid condition edits apply as made. Unfinished conditions are kept here.</string>
     <string name="view_created">View created</string>
     <string name="invalid_number_not_applied">That number wasn’t applied. Other edits are kept.</string>
     <plurals name="import_added">
@@ -478,4 +477,14 @@
     <string name="subscription_settings_changed">Subscription settings changed</string>
     <string name="trash_retention_changed">Deleted Playlist retention changed</string>
     <string name="clear_on_played_changed">Clear on Played changed</string>
+    <string name="new_view_draft_kept">Your conditions are kept until you create the View.</string>
+    <string name="library_downloads_stream">Download Rule: Stream only</string>
+    <string name="library_downloads_entry">Download Rule: When Episodes become Entries</string>
+    <string name="library_downloads_published">Download Rule: As Episodes are published</string>
+    <string name="more_actions">More actions</string>
+    <string name="selection_actions">Actions</string>
+    <string name="appearance">Appearance</string>
+    <string name="appearance_system">System default</string>
+    <string name="appearance_light">Light</string>
+    <string name="appearance_dark">Dark</string>
 </resources>

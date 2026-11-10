@@ -69,7 +69,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
         model.messages.receiveAsFlow().collectLatest { message ->
             val text = message.quantity?.let { resources.getQuantityString(message.resource, it, *message.formatArgs.toTypedArray()) }
                 ?: resources.getString(message.resource, *message.formatArgs.toTypedArray())
-            val result = snackbar.showSnackbar(text, actionLabel = message.undo?.takeUnless { feedback.editorUndo && message.actionResource == R.string.undo }?.let { resources.getString(message.actionResource) }, duration = SnackbarDuration.Long)
+            val result = snackbar.showSnackbar(text, actionLabel = message.undo?.let { resources.getString(message.actionResource) }, duration = SnackbarDuration.Long)
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }
@@ -97,7 +97,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     if (page != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { pages = pages.dropLast(1) }
                                     Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else stringResource(when { page.startsWith("episode:") -> R.string.episode; page == "chapters" -> R.string.chapters; else -> R.string.entries }), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                                    if (!feedback.editorUndo) EditHistoryMenu()
+                                    EditHistoryMenu()
                                     ActionIcon(R.drawable.ic_collapse, stringResource(R.string.collapse_player)) { pages = emptyList(); scope.launch { sheet.bottomSheetState.partialExpand() } }
                                 }
                                 when {

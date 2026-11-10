@@ -18,8 +18,10 @@ Graded as its own target against the guide's Android phone signals, with two fre
 | 4 | 9 Nov 2026 | 91e5def | 7.8 | 6.8 | `docs/ui-grade/android-round-4.md`, `docs/ui-grade/android-round-4-codex.md` |
 | 5 | 10 Nov 2026 | 9c7713d | 7.4 | 6.9 | `docs/ui-grade/android-round-5.md`, `docs/ui-grade/android-round-5-codex.md` |
 | 6 | 10 Nov 2026 | 17bc122 | 7.8 | 6.9 | `docs/ui-grade/android-round-6.md`, `docs/ui-grade/android-round-6-codex.md` |
+| 7 | 10 Nov 2026 | ffd096c | 8.1 | 6.9 | `docs/ui-grade/android-round-7.md`, `docs/ui-grade/android-round-7-codex.md` |
+| 8 | 10 Nov 2026 | a5aa0b7 | 7.9 | 6.9 | `docs/ui-grade/android-round-8.md`, `docs/ui-grade/android-round-8-codex.md` |
 
-Round 1's failures were fixed in pod-apx.4.15; the owner then removed the confirmation before Delete Playlist. Round 2's were fixed in pod-apx.4.17, including multi-step Undo and Redo. Round 3's were fixed in pod-apx.4.19, round 4's in pod-apx.4.21, round 5's in pod-apx.4.23 and round 6's in pod-apx.4.25. The owner keeps a plain confirmation before Unsubscribe for now; both graders marked it as DLG-01 in round 4, which caps Platform fit at 6.9 and Overall at 8.9.
+Round 1's failures were fixed in pod-apx.4.15; the owner then removed the confirmation before Delete Playlist. Round 2's were fixed in pod-apx.4.17, including multi-step Undo and Redo. Round 3's were fixed in pod-apx.4.19, round 4's in pod-apx.4.21, round 5's in pod-apx.4.23 and round 6's in pod-apx.4.25. Rounds 4 to 6 marked the confirmation before Unsubscribe as DLG-01, which capped Overall at 8.9; for round 7 the owner replaced it with two taps on the same control (pod-apx.4.26), along with explicit rename and unique names. Round 7's Codex 6.9 is a cap from one blocker (the first-run server address is lost on Back). Round 7's were fixed in pod-apx.4.27; hiding the selection actions behind one Actions menu in that fix cost both graders a CTRL-06 major in round 8, and Codex capped round 8 at 6.9 for New View drafts that Back left unreachable.
 
 ## Method
 

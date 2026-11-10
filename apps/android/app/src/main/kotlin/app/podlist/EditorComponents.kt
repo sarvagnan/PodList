@@ -13,7 +13,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
 import app.podlist.domain.NumberInput
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,10 +44,15 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
 // Sheets and create forms finish at the bottom trailing edge; actions wrap before they crowd.
 @Composable
 internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
-    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
     FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        maxItemsInEachRow = if (largeText) 1 else Int.MAX_VALUE, content = content)
+        content = content)
+}
+
+/** Primary commits share filled emphasis and a minimum 48 dp target inside CommitActions. */
+@Composable
+internal fun CommitButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp), content = content)
 }
 
 @Composable
@@ -74,7 +78,7 @@ internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? =
                 content()
             }
             CommitActions(Modifier.padding(16.dp)) {
-                TextButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
+                CommitButton(onClick = done ?: close, enabled = doneEnabled) { Text(stringResource(doneLabel)) }
             }
         }
     }
@@ -177,15 +181,4 @@ internal fun ProgressModifier(label: Int): Modifier {
 @Composable
 internal fun SearchClearButton(text: String, clear: () -> Unit) {
     if (text.isNotEmpty()) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search), action = clear)
-}
-
-@Composable
-internal fun EpisodeAction(icon: Int, label: String, modifier: Modifier = Modifier, enabled: Boolean = true, action: () -> Unit) {
-    FilledTonalButton(onClick = action, enabled = enabled, modifier = modifier.heightIn(min = 72.dp),
-        shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(8.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(androidx.compose.ui.res.painterResource(icon), null)
-            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        }
-    }
 }

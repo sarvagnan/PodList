@@ -32,7 +32,7 @@ import java.time.ZoneId
     }
 }
 
-private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
+private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()).replace('\u00a0', ' ')
 
 @Composable private fun PeriodTiles(values: List<String>) {
     val labels = listOf(R.string.m4_this_week, R.string.m4_this_month, R.string.m4_all_time)
@@ -77,25 +77,31 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
             val unselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = ListeningPresentation.unselectedBarAlpha)
             Text(stringResource(R.string.chart_minutes), style = MaterialTheme.typography.labelMedium)
             val chartLabel = stringResource(R.string.listening_chart)
-            Row(Modifier.fillMaxWidth().height(144.dp)) {
-                Column(Modifier.fillMaxHeight().width(IntrinsicSize.Max).padding(end = 8.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            val baseline = MaterialTheme.colorScheme.outlineVariant
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.height(144.dp).width(IntrinsicSize.Max).padding(end = 8.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.chart_tick, (max / 60).toLong()), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
                     if (androidx.compose.ui.platform.LocalDensity.current.fontScale < 1.5f) Text(stringResource(R.string.chart_tick, (max / 120).toLong()), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
                     Text(stringResource(R.string.chart_tick, 0L), style = MaterialTheme.typography.labelSmall, softWrap = false, maxLines = 1)
                 }
-                androidx.compose.foundation.Canvas(Modifier.weight(1f).fillMaxHeight().pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
-                    val cell = size.width / stats.days.size
-                    stats.days.forEachIndexed { index, day ->
-                        val left = index * cell + cell * .18f
-                        val width = cell * .64f
-                        val height = ListeningPresentation.barFraction(day.seconds, max) * size.height
-                        if (height > 0f) drawRect(if (index == chosen) selectedColor else unselectedColor, androidx.compose.ui.geometry.Offset(left, size.height - height), androidx.compose.ui.geometry.Size(width, height))
+                Column(Modifier.weight(1f)) {
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(144.dp).pointerInput(stats.days) { detectTapGestures { offset -> chosen = (offset.x / (size.width.toFloat() / stats.days.size)).toInt().coerceIn(stats.days.indices) } }.semantics { contentDescription = chartLabel }) {
+                        drawLine(baseline, androidx.compose.ui.geometry.Offset(0f, size.height),
+                            androidx.compose.ui.geometry.Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+                        val cell = size.width / stats.days.size
+                        stats.days.forEachIndexed { index, day ->
+                            val left = index * cell + cell * .18f
+                            val width = cell * .64f
+                            val height = ListeningPresentation.barFraction(day.seconds, max) * size.height
+                            if (height > 0f) drawRect(if (index == chosen) selectedColor else unselectedColor, androidx.compose.ui.geometry.Offset(left, size.height - height), androidx.compose.ui.geometry.Size(width, height))
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(chartDate(stats.days.first().day), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                        Text(chartDate(stats.days.last().day), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     }
                 }
-            }
-            FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(chartDate(stats.days.first().day), style = MaterialTheme.typography.labelSmall)
-                Text(chartDate(stats.days.last().day), style = MaterialTheme.typography.labelSmall)
             }
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {

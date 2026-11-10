@@ -36,7 +36,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -144,7 +143,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     } ?: localRows
     val filtered = filterPodcastEpisodes(rows, query)
     val count = podcastEpisodeCount(rows, query)
-    val list = rememberBrowsingListState("podcast:${result.feedUrl}", listOf("about", "header") + filtered.map { it["guid"] as String }, ready = localLoaded && !loading && (subscribed || feed != null || localRows.isNotEmpty()))
+    val list = rememberBrowsingListState("podcast:${result.feedUrl}", listOf("header") + filtered.map { it["guid"] as String }, ready = localLoaded && !loading && (subscribed || feed != null || localRows.isNotEmpty()))
     LaunchedEffect(list) {
         snapshotFlow { list.isScrollInProgress }.collect { if (it) confirmation = confirmation.disarm() }
     }
@@ -206,7 +205,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 item { Box(Modifier.padding(16.dp)) { ArtworkImage(session, inspected["artwork_url"] as? String ?: artwork, size = 224.dp, direct = true) } }
                 item {
-                    EpisodeRow(inspected, data, session, showArtwork = false, actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"],
+                    EpisodeRow(inspected, data, session, showArtwork = false, detail = true, actionsEnabled = !busy, actionBusy = resolvingGuid == inspected["guid"],
                         addAction = { resolve(inspected, add) }, playAction = { resolve(inspected) { model.playNow(it); started() } })
                 }
                 item { actionFailure?.let {
@@ -287,7 +286,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                 }) {
                             if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.unsubscribing)), strokeWidth = 2.dp)
                             else if (armed) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
-                            else Icon(painterResource(R.drawable.ic_check), null, tint = colorResource(R.color.on_subscribed), modifier = Modifier.background(colorResource(R.color.subscribed), CircleShape).padding(4.dp).size(24.dp))
+                            else Icon(painterResource(R.drawable.ic_check), null, tint = LocalSubscribedColors.current.foreground, modifier = Modifier.background(LocalSubscribedColors.current.background, CircleShape).padding(4.dp).size(24.dp))
                         }
                     }
                 } else Button(onClick = { changeSubscription(false) }, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {
@@ -304,16 +303,14 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).imePadding().nestedScroll(pull).semantics {
             customActions = listOf(CustomAccessibilityAction(detailsLabel) { toggleDetails(); true })
         }) {
-            item(key = "about") {
-                if (expanded) Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ArtworkImage(session, artwork, size = 120.dp, direct = true)
-                    description?.let { SelectionContainer { Text(showNotes(it)) } }
-                }
-            }
             item(key = "header") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                     author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (expanded) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        ArtworkImage(session, artwork, size = 120.dp, direct = true)
+                        description?.let { SelectionContainer { Text(showNotes(it)) } }
+                    }
                     ContentTextButton(onClick = ::toggleDetails) { Text(stringResource(if (expanded) R.string.hide_podcast_details else R.string.show_podcast_details)) }
                     if (subscribed && subscription != null) SubscriptionRefreshStatus(subscription, session, onRefresh = { confirmation = confirmation.disarm() })
                     OutlinedTextField(query, onValueChange = { confirmation = confirmation.disarm(); query = it }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) confirmation = confirmation.disarm() })
@@ -337,7 +334,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             }
             items(filtered, key = { it["guid"] as String }) { row ->
                 CompositionLocalProvider(LocalEpisodeSelection provides selection) {
-                    EpisodeRow(row, data, session, actionsEnabled = !busy, actionBusy = resolvingGuid == row["guid"],
+                    EpisodeRow(row, data, session, showArtwork = false, showPodcast = false, actionsEnabled = !busy, actionBusy = resolvingGuid == row["guid"],
                         addAction = { resolve(row, add) },
                         playAction = { resolve(row) { model.playNow(it); started() } }) {
                         val stored = localRows.find { it["guid"] == row["guid"] }

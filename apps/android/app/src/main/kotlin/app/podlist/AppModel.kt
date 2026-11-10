@@ -128,6 +128,21 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val preferences = application.getSharedPreferences("connection", 0)
+    private val deviceSettings = DeviceSettingsStore(File(application.filesDir, "device-settings.properties"))
+    private val _serverAddressDraft = MutableStateFlow(deviceSettings.serverAddressDraft)
+    val serverAddressDraft = _serverAddressDraft.asStateFlow()
+    private val _appearance = MutableStateFlow(deviceSettings.appearance)
+    val appearance = _appearance.asStateFlow()
+
+    fun setServerAddressDraft(value: String?) {
+        deviceSettings.serverAddressDraft = value
+        _serverAddressDraft.value = value
+    }
+
+    fun setAppearance(value: Appearance) {
+        deviceSettings.appearance = value
+        _appearance.value = value
+    }
     private val _session = MutableStateFlow<Session?>(null)
     val session = _session.asStateFlow()
     val starting = MutableStateFlow(true)
@@ -208,6 +223,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             if (_session.value?.source?.server?.origin != address.origin) activate(address)
             withContext(Dispatchers.IO) { check(preferences.edit().putString("server", address.origin).commit()) }
             if (fromStandalone && _bringOver.value != null && _bringOver.value?.job?.complete != true) bringOverVisible.value = true
+            setServerAddressDraft(null)
             requestSync()
             true
         } catch (error: Exception) {

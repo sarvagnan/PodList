@@ -12,7 +12,6 @@ import androidx.compose.ui.semantics.semantics
 
 @Stable
 internal class SheetFeedback(val snackbar: SnackbarHostState) {
-    var editorUndo by mutableStateOf(false)
     var openSheets by mutableIntStateOf(0)
 }
 
@@ -41,10 +40,9 @@ internal fun FeedbackSheet(
 
 @Composable
 internal fun FeedbackSnackbarHost(feedback: SheetFeedback, modifier: Modifier = Modifier) {
-    val undoLabel = androidx.compose.ui.res.stringResource(R.string.undo)
     SnackbarHost(feedback.snackbar, modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { data ->
         val label = data.visuals.actionLabel
-        Snackbar(action = if (label != null && !(feedback.editorUndo && label == undoLabel)) ({
+        Snackbar(action = if (label != null) ({
             ContentTextButton(onClick = data::performAction, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) { Text(label) }
         }) else null) { Text(data.visuals.message) }
     }

@@ -6,6 +6,7 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
@@ -28,7 +29,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val model = (application as PodListApplication).model
         if (savedInstanceState == null) handleIncoming(intent)
-        setContent { PodListTheme { PodListShell(model) } }
+        setContent {
+            val appearance by model.appearance.collectAsState()
+            val dark = appearance.isDark(isSystemInDarkTheme())
+            SideEffect {
+                val style = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
+            PodListTheme(appearance) { PodListShell(model) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -65,7 +74,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Tonal roles derived from the PodList blue seed. System fonts; the system selects dark mode.
+// The subscribed state follows the selected app appearance too, rather than resource night mode.
+internal data class SubscribedColors(val background: Color, val foreground: Color)
+internal val LocalSubscribedColors = staticCompositionLocalOf { SubscribedColors(Color(0xff176b39), Color.White) }
+
+// Tonal roles derived from the PodList blue seed. System fonts and independently toned dark roles.
 private val LightColors = lightColorScheme(
     primary = Color(0xff2b50c8), onPrimary = Color.White,
     primaryContainer = Color(0xffdde1ff), onPrimaryContainer = Color(0xff001551),
@@ -123,7 +136,7 @@ private val PodListTypography = Typography(
 )
 
 @Composable
-fun PodListTheme(content: @Composable () -> Unit) {
+fun PodListTheme(appearance: app.podlist.data.Appearance = app.podlist.data.Appearance.System, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val manager = remember(context) { context.getSystemService(UiModeManager::class.java) }
     var contrast by remember(manager) { mutableFloatStateOf(manager.contrast) }
@@ -132,7 +145,7 @@ fun PodListTheme(content: @Composable () -> Unit) {
         manager.addContrastChangeListener(ContextCompat.getMainExecutor(context), listener)
         onDispose { manager.removeContrastChangeListener(listener) }
     }
-    val dark = isSystemInDarkTheme()
+    val dark = appearance.isDark(isSystemInDarkTheme())
     val base = if (dark) DarkColors else LightColors
     val amount = contrast.coerceIn(0f, 1f)
     val colors = base.copy(
@@ -141,9 +154,9 @@ fun PodListTheme(content: @Composable () -> Unit) {
         outline = lerp(base.outline, base.onSurface, amount),
         outlineVariant = lerp(base.outlineVariant, base.onSurfaceVariant, amount)
     )
-    MaterialTheme(
-        colorScheme = colors,
-        typography = PodListTypography,
-        content = content
-    )
+    val subscribed = if (dark) SubscribedColors(Color(0xff80db9a), Color(0xff00391a))
+        else SubscribedColors(Color(0xff176b39), Color.White)
+    CompositionLocalProvider(LocalSubscribedColors provides subscribed) {
+        MaterialTheme(colorScheme = colors, typography = PodListTypography, content = content)
+    }
 }

@@ -3,6 +3,8 @@ package app.podlist
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,7 +16,6 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.*
 import kotlinx.serialization.encodeToString
 import app.podlist.domain.ProtocolJson
@@ -31,7 +32,7 @@ internal fun WelcomeScreen(model: AppModel) {
         Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
             Box(Modifier.padding(padding)) { ServerScreen(model, null) }
         }
-    } else Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Text(stringResource(R.string.app_name), Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineLarge)
         Text(stringResource(R.string.welcome_phone), style = MaterialTheme.typography.bodyLarge)
         Button(onClick = model::startOnPhone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.start_phone)) }
@@ -69,45 +70,47 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
             finally { busy = false }
         }
     }
-    Column(Modifier.fillMaxSize().imePadding()) {
-        OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
-            singleLine = true, enabled = !busy, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
-        Button(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.find_podcasts))
-        }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
-        error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
-        LazyColumn(Modifier.weight(1f)) {
-            items(results, key = { it.feedUrl }) { result ->
-                ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
-                    leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
-                    trailingContent = {
-                        val done = result.feedUrl in subscribed
-                        ContentTextButton(onClick = {
-                            scope.launch {
-                                subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
-                                try {
-                                    withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
-                                    subscribed = subscribed + result.feedUrl
-                                    model.requestSync()
-                                    model.offerUnsubscribe(session, result.feedUrl)
-                                } catch (e: CancellationException) { throw e }
-                                catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
-                                finally { subscribing = subscribing - result.feedUrl }
-                            }
-                        }, enabled = !done && result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
-                            if (result.feedUrl in subscribing) {
-                                CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(8.dp))
-                            }
-                            Text(stringResource(if (done) R.string.subscribed else if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
-                        }
-                    })
-                failures[result.feedUrl]?.let { failure ->
-                    Text(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+    LazyColumn(Modifier.fillMaxSize().imePadding()) {
+        item {
+            Column {
+                OutlinedTextField(input, onValueChange = { input = it; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
+                    singleLine = true, enabled = !busy, trailingIcon = { SearchClearButton(input) { input = ""; error = null } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { find() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
+                Button(onClick = ::find, enabled = input.isNotBlank() && !busy, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.find_podcasts))
                 }
-                HorizontalDivider()
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).then(ProgressModifier(R.string.find_podcasts)))
+                error?.let { Text(stringResource(it), Modifier.padding(16.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error) }
             }
+        }
+        items(results, key = { it.feedUrl }) { result ->
+            ListItem(modifier = Modifier.clickable { open(podcastRoute(result)) }, colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), headlineContent = { Text(result.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { result.author?.let { Text(it) } },
+                leadingContent = { ArtworkImage(session, result.artworkUrl, direct = true) },
+                trailingContent = {
+                    val done = result.feedUrl in subscribed
+                    ContentTextButton(onClick = {
+                        scope.launch {
+                            subscribing = subscribing + result.feedUrl; failures.remove(result.feedUrl)
+                            try {
+                                withContext(Dispatchers.IO) { session.source.subscribe(result.feedUrl) }
+                                subscribed = subscribed + result.feedUrl
+                                model.requestSync()
+                                model.offerUnsubscribe(session, result.feedUrl)
+                            } catch (e: CancellationException) { throw e }
+                            catch (failure: Exception) { failures[result.feedUrl] = classifyLookup(failure) }
+                            finally { subscribing = subscribing - result.feedUrl }
+                        }
+                    }, enabled = !done && result.feedUrl !in subscribing, modifier = Modifier.heightIn(min = 48.dp)) {
+                        if (result.feedUrl in subscribing) {
+                            CircularProgressIndicator(Modifier.size(20.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(stringResource(if (done) R.string.subscribed else if (result.feedUrl in subscribing) R.string.subscribing else R.string.subscribe))
+                    }
+                })
+            failures[result.feedUrl]?.let { failure ->
+                Text(stringResource(R.string.subscribe_failed_named, result.title, stringResource(lookupErrorResource(failure))), Modifier.padding(horizontal = 16.dp, vertical = 8.dp).errorAnnouncement(), color = MaterialTheme.colorScheme.error)
+            }
+            HorizontalDivider()
         }
     }
 }
