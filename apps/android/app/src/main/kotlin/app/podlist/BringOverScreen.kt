@@ -36,11 +36,11 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
                 when {
                     complete -> Button(onClick = model::dismissBringOver, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_step_done)) }
                     job == null -> {
-                        OutlinedButton(onClick = model::dismissBringOver, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.bring_over_not_now)) }
+                        ContentActionButton(onClick = model::dismissBringOver, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.bring_over_not_now)) }
                         Button(onClick = model::beginBringOver, enabled = !ui.running, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.bring_over_action)) }
                     }
                     else -> {
-                        OutlinedButton(onClick = model::dismissBringOver, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.bring_over_keep_using)) }
+                        ContentActionButton(onClick = model::dismissBringOver, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.bring_over_keep_using)) }
                         if (!ui.running) Button(onClick = model::retryBringOver, modifier = Modifier.heightIn(min = 48.dp)) {
                             val feeds = job.issues.map { it.feedUrl }.distinct().size
                             Text(if (feeds > 0) pluralStringResource(R.plurals.bring_over_retry_feeds, feeds, feeds) else stringResource(R.string.retry))

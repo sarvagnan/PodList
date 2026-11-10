@@ -20,7 +20,7 @@ internal fun TimelineScreen(playlist: Playlist, data: ScreenData, session: Sessi
     var target by remember { mutableStateOf<Long?>(null) }
     val byId = data.episodes.associateBy { it["id"] }
     LazyColumn(Modifier.fillMaxSize(), state = rememberBrowsingListState()) {
-        if (events.isEmpty()) item { EmptyMessage(R.string.no_timeline); FilledTonalButton(onClick = rewound, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+        if (events.isEmpty()) item { EmptyState(R.string.no_timeline, R.string.show_entries, onAction = rewound) }
         if (events.any { TimelineRules.pointAt(playlist, it.moment) != null }) item {
             Hint(stringResource(R.string.timeline_rewind_hint))
         }

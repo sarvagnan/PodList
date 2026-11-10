@@ -11,6 +11,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -43,11 +45,17 @@ internal fun PlaylistPage(playlist: Playlist, data: ScreenData, session: Session
             pluralStringResource(R.plurals.entry_count, playlist.entries.size, playlist.entries.size), stringResource(if (playlist.clearOnPlayed) R.string.clear_on_played else R.string.keeps_entries)).joinToString(" · "))
         if (PlaylistRules.hasNoCurrentEntry(playlist)) Hint(stringResource(R.string.no_cursor))
         if (playlist.id != data.state.activePlaylistId) ContentTextButton(onClick = { model.switchPlaylist(playlist.id); started() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.switch_playlist)) }
-        PrimaryTabRow(selectedTabIndex = tab) { listOf(R.string.entries, R.string.history, R.string.timeline).forEachIndexed { index, label -> Tab(unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) }) } }
+        PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 16.dp) {
+            listOf(R.string.entries, R.string.history, R.string.timeline_tab).forEachIndexed { index, label ->
+                val spokenLabel = stringResource(if (index == 2) R.string.timeline else label)
+                Tab(unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, selected = tab == index,
+                    onClick = { tab = index }, text = { Text(stringResource(label), Modifier.clearAndSetSemantics { contentDescription = spokenLabel }, softWrap = false) })
+            }
+        }
         if (tab == 2) TimelineScreen(playlist, data, session, open) { tab = 0 }
         else if (tab == 0) EntryList(playlist, data, session, { id -> open("episode:$id") }, reveal = revealEpisode?.let { Reveal("playlist:${playlist.id}", it, revealToken) }, revealConsumed = { revealEpisode = null })
         else LazyColumn(state = rememberBrowsingListState("history")) {
-            if (playlist.history.isEmpty()) item { EmptyMessage(R.string.no_history); FilledTonalButton(onClick = { tab = 0 }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.show_entries)) } }
+            if (playlist.history.isEmpty()) item { EmptyState(R.string.no_history, R.string.show_entries) { tab = 0 } }
             items(playlist.history) { history -> ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { open("episode:${history.episodeId}") }, headlineContent = { Text(data.episodes.find { it["id"] == history.episodeId }?.get("title") as? String ?: stringResource(R.string.metadata_pending), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(stringResource(R.string.finished_at, dateTime(history.finishedAt))) }) }
         }
     }

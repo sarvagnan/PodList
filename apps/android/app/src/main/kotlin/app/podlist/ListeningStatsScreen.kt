@@ -66,10 +66,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
         if (browsing != null && chosen >= 0) browsing.context = browsing.context.copy(statsDay = days[chosen].toString())
     }
     if (stats.totals.all { it.seconds == 0.0 && it.finished == 0 }) {
-        Column {
-            EmptyMessage(R.string.m4_no_listening)
-            FilledTonalButton(onClick = findEpisodes, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_something_to_play)) }
-        }
+        EmptyState(R.string.m4_no_listening, R.string.find_something_to_play, onAction = findEpisodes)
         return
     }
     LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

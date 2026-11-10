@@ -2,6 +2,8 @@ package app.podlist
 
 import androidx.compose.runtime.*
 import app.podlist.data.FormDraftStore
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 
 @Stable
 internal class FormDraftState(private val store: FormDraftStore, initial: Map<String, String>) {
@@ -51,4 +53,12 @@ internal fun rememberDraftText(key: String, initial: String = ""): MutableState<
             override fun component2(): (String) -> Unit = { value = it }
         }
     }
+}
+
+/** String-backed persisted text restores at its end; live cursor/IME composition stays local. */
+@Composable
+internal fun rememberFieldValue(text: String): MutableState<TextFieldValue> {
+    val state = remember { mutableStateOf(TextFieldValue(text, TextRange(text.length))) }
+    if (state.value.text != text) state.value = TextFieldValue(text, TextRange(text.length))
+    return state
 }

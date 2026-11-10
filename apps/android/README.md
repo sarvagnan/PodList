@@ -748,3 +748,12 @@ Offline build check (no emulator needed):
 ```sh
 ./gradlew --offline :domain:test :data:test :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
 ```
+
+`UiStabilityTest` covers idle → loading → idle row geometry in Light/Dark at
+100%/200% text, plus end-of-text restoration and deliberate caret movement.
+Run it alongside the flow and `SheetFeedbackTest` device checks after UI changes:
+
+```sh
+./gradlew --offline :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=app.podlist.UiStabilityTest,app.podlist.SheetFeedbackTest
+```

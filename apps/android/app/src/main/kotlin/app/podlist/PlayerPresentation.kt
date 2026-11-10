@@ -111,7 +111,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                                     Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else if (page.startsWith("episode:")) (if (episodeTitle.headlineVisible) null else episodeData?.episodes?.firstOrNull()?.get("title") as? String) ?: stringResource(R.string.episode) else stringResource(if (page == "chapters") R.string.chapters else R.string.entries), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                                     UndoAction()
                                     ActionIcon(R.drawable.ic_collapse, stringResource(R.string.collapse_player)) { pages = emptyList(); scope.launch { sheet.bottomSheetState.partialExpand() } }
-                                    if (episodeData != null) EpisodeOverflow(episodeData!!, session) else HistoryOverflow()
+                                    if (episodeData != null) EpisodeOverflow(episodeData!!, session)
                                 }
                                 when {
                                     page?.startsWith("episode:") == true -> {
@@ -310,7 +310,7 @@ private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composabl
 
 @Composable private fun ChapterPage(now: PlaybackUi, session: Session, model: AppModel, started: () -> Unit) {
     LazyColumn {
-        if (now.metadata.chapters.isEmpty()) item { EmptyMessage(R.string.no_chapters) }
+        if (now.metadata.chapters.isEmpty()) item { EmptyState(R.string.no_chapters) }
         items(now.metadata.chapters, key = { it.start }) { chapter ->
             ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable { model.seek(chapter.start); started() }, headlineContent = { Text(chapter.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, supportingContent = { Text(duration(chapter.start)) }, leadingContent = { ArtworkImage(session, chapter.artwork?.url ?: now.metadata.episodeArtwork ?: now.metadata.podcastArtwork, placeholderTitle = now.metadata.podcast) })
         }
@@ -361,7 +361,9 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
                     ChoiceRows(listOf(playlist.id as String? to if (playlist.id == state.activePlaylistId) stringResource(R.string.m4_active_target, playlist.name) else playlist.name), target, enabled = !submitting) { target = it; rejected = null }
                 }
                 item { ChoiceRows(listOf(null to stringResource(R.string.new_playlist)), target, enabled = !submitting) { target = null; rejected = null } }
-                if (target == null) item { OutlinedTextField(name, { if (!submitting) { name = it; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, readOnly = submitting, isError = shownProblem != null,
+                if (target == null) item {
+                    var fieldValue by rememberFieldValue(name)
+                    OutlinedTextField(fieldValue, { if (!submitting) { fieldValue = it; name = it.text; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, readOnly = submitting, isError = shownProblem != null,
                     supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, state.playlists.map { it.name })) }) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
             }
             CommitActions(Modifier.padding(vertical = 16.dp)) {

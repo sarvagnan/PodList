@@ -106,29 +106,32 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
             if (creating) item {
                 var name by creationName!!
-                var input by remember(view.id) { mutableStateOf(TextFieldValue(name, TextRange(0, name.length))) }
-                LaunchedEffect(name) { if (input.text != name) input = TextFieldValue(name, TextRange(0, name.length)) }
+                var input by remember(view.id) { mutableStateOf(TextFieldValue(name, TextRange(name.length))) }
+                LaunchedEffect(name) { if (input.text != name) input = TextFieldValue(name, TextRange(name.length)) }
                 OutlinedTextField(input, { input = it; name = it.text; rejectedName = null; update(draft.copy(name = it.text.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ InlineError(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
             } else item {
                 RenameableName(saved.name, renamePrefix + "name",
                     problem = { text -> (ViewNames.validate(text, data.state.views, view.id) ?: rejectedName?.takeIf { it.first == text.trim() }?.second)?.let { viewNameProblem(it, text, data.state.views.map { it.name }) } },
                     save = ::rename)
             }
-            item { Section(stringResource(R.string.m4_conditions)) }
-            item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != initial.filter.published) { sheet = 0 } }
-            item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != initial.filter.podcasts) { sheet = 1 } }
-            item { ValueRow(stringResource(R.string.m4_mentions), draft.filter.text ?: any, draft.filter.text != initial.filter.text) { sheet = 2 } }
-            item { ValueRow(stringResource(R.string.played), stringResource(when(draft.filter.played) { PlayedFilter.Played -> R.string.played; PlayedFilter.Unplayed -> R.string.unplayed; PlayedFilter.InProgress -> R.string.in_progress_condition; null -> R.string.any }), draft.filter.played != initial.filter.played) { sheet = 3 } }
-            item { ValueRow(stringResource(R.string.starred), stringResource(when(draft.filter.starred) { true -> R.string.starred; false -> R.string.m4_not_starred; null -> R.string.any }), draft.filter.starred != initial.filter.starred) { sheet = 4 } }
-            item { ValueRow(stringResource(R.string.m4_in_playlist), if (draft.filter.notInAnyPlaylist == true) stringResource(R.string.not_in_playlist) else any, draft.filter.notInAnyPlaylist != initial.filter.notInAnyPlaylist) { sheet = 5 } }
-            item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, lengthLabel(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, lengthLabel(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != initial.filter.minDuration || draft.filter.maxDuration != initial.filter.maxDuration) { sheet = 6 } }
+            item {
+                Section(stringResource(R.string.m4_conditions))
+                Text(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept), Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item { ValueRow(stringResource(R.string.m4_published), when(val p = draft.filter.published) { is PublishedFilter.LastDays -> stringResource(R.string.published_days, p.days); is PublishedFilter.Between -> stringResource(R.string.published_between, p.from?.let(::date) ?: any, p.to?.let(::date) ?: any); null -> any }, draft.filter.published != initial.filter.published, compact = true) { sheet = 0 } }
+            item { ValueRow(stringResource(R.string.m4_podcasts), draft.filter.podcasts?.let { f -> stringResource(if (f.mode == PodcastMode.Include) R.string.podcasts_include else R.string.podcasts_exclude, f.subscriptionIds.joinToString(", ") { id -> data.subscriptions.find { it["id"] == id }?.get("title") as? String ?: id }) } ?: any, draft.filter.podcasts != initial.filter.podcasts, compact = true) { sheet = 1 } }
+            item { ValueRow(stringResource(R.string.m4_mentions), draft.filter.text ?: any, draft.filter.text != initial.filter.text, compact = true) { sheet = 2 } }
+            item { ValueRow(stringResource(R.string.played), stringResource(when(draft.filter.played) { PlayedFilter.Played -> R.string.played; PlayedFilter.Unplayed -> R.string.unplayed; PlayedFilter.InProgress -> R.string.in_progress_condition; null -> R.string.any }), draft.filter.played != initial.filter.played, compact = true) { sheet = 3 } }
+            item { ValueRow(stringResource(R.string.starred), stringResource(when(draft.filter.starred) { true -> R.string.starred; false -> R.string.m4_not_starred; null -> R.string.any }), draft.filter.starred != initial.filter.starred, compact = true) { sheet = 4 } }
+            item { ValueRow(stringResource(R.string.m4_in_playlist), if (draft.filter.notInAnyPlaylist == true) stringResource(R.string.not_in_playlist) else any, draft.filter.notInAnyPlaylist != initial.filter.notInAnyPlaylist, compact = true) { sheet = 5 } }
+            item { ValueRow(stringResource(R.string.m4_length), listOfNotNull(draft.filter.minDuration?.let { stringResource(R.string.min_duration, lengthLabel(it)) }, draft.filter.maxDuration?.let { stringResource(R.string.max_duration, lengthLabel(it)) }).joinToString(" · ").ifEmpty { any }, draft.filter.minDuration != initial.filter.minDuration || draft.filter.maxDuration != initial.filter.maxDuration, compact = true) { sheet = 6 } }
             if (problem != null) item { InlineError(stringResource(if (problem == ViewEdits.Problem.LengthRange) R.string.m4_length_range_error else R.string.m4_date_range_error), Modifier.padding(16.dp)) }
             item { Section(stringResource(R.string.m4_then)) }
-            item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort)) { sheet = 7 } }
-            item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
-            // A permanent note at the end of the form never inserts space above the conditions.
-            if (!creating) item { ContentActionButton(destructive = true, onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted, formatArgs = listOf(saved.name)) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
-            item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
+            item { ValueRow(stringResource(R.string.m4_sort), sortLabel(draft.sort), compact = true) { sheet = 7 } }
+            item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches), compact = true) { sheet = 8 } }
+            if (!creating) item { ContentActionButton(destructive = true, onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted, formatArgs = listOf(saved.name)) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) }
+                Text(stringResource(R.string.delete_view_help), Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
@@ -167,7 +170,10 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                         CheckRow(sub["title"] as String, id in selectedIds) { checked -> update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(podcastMode, if (checked) selectedIds + id else selectedIds - id)))) }
                     } }
                 }
-                2 -> OutlinedTextField(mentions, { mentions = it; update(draft.copy(filter = f.copy(text = it.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
+                2 -> {
+                    var fieldValue by rememberFieldValue(mentions)
+                    OutlinedTextField(fieldValue, { fieldValue = it; mentions = it.text; update(draft.copy(filter = f.copy(text = it.text.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
+                }
                 3 -> ChoiceRows(listOf(null to any, PlayedFilter.Unplayed to stringResource(R.string.unplayed), PlayedFilter.InProgress to stringResource(R.string.in_progress_condition), PlayedFilter.Played to stringResource(R.string.played)), f.played) { update(draft.copy(filter = f.copy(played = it))) }
                 4 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.starred), false to stringResource(R.string.m4_not_starred)), f.starred) { update(draft.copy(filter = f.copy(starred = it))) }
                 5 -> ChoiceRows(listOf(null to any, true to stringResource(R.string.not_in_playlist)), f.notInAnyPlaylist?.takeIf { it }) { update(draft.copy(filter = f.copy(notInAnyPlaylist = it))) }
@@ -185,7 +191,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
 
 @Composable private fun DateBoundary(label: Int, value: Long?, end: Boolean, changed: (Long?) -> Unit) {
     var picking by rememberSaveable(label) { mutableStateOf(false) }
-    ValueRow(stringResource(label), value?.let(::date) ?: stringResource(R.string.any)) { picking = true }
+    ValueRow(stringResource(label), value?.let(::date) ?: stringResource(R.string.any), compact = true) { picking = true }
     if (value != null) ContentTextButton(onClick = { changed(null) }) { Text(stringResource(R.string.any)) }
     if (picking) {
         // Material's picker uses UTC date labels; convert the chosen date to this Device's boundaries.

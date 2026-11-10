@@ -52,9 +52,11 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
-        OutlinedTextField(text, { if (!saving) text = it; selection?.ids = emptySet() }, label = { Text(stringResource(R.string.m4_search_library)) }, singleLine = true, readOnly = saving, trailingIcon = { if (text.isNotEmpty() && !saving) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search)) { text = ""; selection?.ids = emptySet() } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submitted++; keyboard?.hide() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
+        var fieldValue by rememberFieldValue(text)
+        OutlinedTextField(fieldValue, { if (!saving) { fieldValue = it; text = it.text }; selection?.ids = emptySet() }, label = { Text(stringResource(R.string.m4_search_library)) }, singleLine = true, readOnly = saving, trailingIcon = { if (text.isNotEmpty() && !saving) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search)) { text = ""; selection?.ids = emptySet() } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submitted++; keyboard?.hide() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
         if (naming && text.isNotBlank()) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { if (!saving) { name = it; rejected = null } },
+            var nameValue by rememberFieldValue(name)
+            OutlinedTextField(nameValue, { if (!saving) { nameValue = it; name = it.text; rejected = null } },
                 label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = saving,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { saveView() }),
                 modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), isError = problem != null,
@@ -66,8 +68,8 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
         } else if (text.isNotBlank()) ContentTextButton(modifier = Modifier.padding(horizontal = 16.dp), enabled = rows != null, onClick = { drafts.put("search-view/open", "true"); naming = true; if (name.isEmpty()) name = text }) { Text(stringResource(R.string.m4_save_as_view)) }
         rows?.let { Text(pluralStringResource(R.plurals.episode_count, it.size, it.size), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall) }
         if (rows == null) Loading()
-        else if (data.subscriptions.none { it["unsubscribed_at"] == null } && rows!!.isEmpty()) Column { EmptyMessage(R.string.no_subscriptions); FilledTonalButton(modifier = Modifier.padding(horizontal = 16.dp), onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
-        else if (rows!!.isEmpty()) Column { EmptyMessage(R.string.no_search_matches); FilledTonalButton(enabled = !saving, modifier = Modifier.padding(horizontal = 16.dp), onClick = { text = "" }) { Text(stringResource(R.string.clear_search)) } }
+        else if (data.subscriptions.none { it["unsubscribed_at"] == null } && rows!!.isEmpty()) EmptyState(R.string.no_subscriptions, R.string.add_podcasts) { open("add-podcasts") }
+        else if (rows!!.isEmpty()) EmptyState(R.string.no_search_matches, R.string.clear_search, actionEnabled = !saving) { text = "" }
         else EpisodeList(rows!!, data, session, open, R.string.no_search_matches)
     }
 }

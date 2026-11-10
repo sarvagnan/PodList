@@ -315,14 +315,14 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                 .height(48.dp).widthIn(min = 48.dp).then(flowSlot("podcast-subscription"))
                                 .semantics {
                                     contentDescription = label
-                                    stateDescription = if (armed) armedAnnouncement else ""
+                                    if (armed) stateDescription = armedAnnouncement
                                     liveRegion = LiveRegionMode.Polite
                                 }) {
                             Box(contentAlignment = Alignment.Center) {
                                 // An invisible, non-semantic label reserves the armed width in both states.
                                 Text(stringResource(R.string.unsubscribe), Modifier.graphicsLayer { alpha = if (armed && !changingSubscription) 1f else 0f }.clearAndSetSemantics {})
                                 if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
-                                else if (!armed) SubscribedIndicator()
+                                else if (!armed) Box(Modifier.clearAndSetSemantics {}) { SubscribedIndicator() }
                             }
                         }
                     }
@@ -335,7 +335,6 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 Box {
                     ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions), enabled = !armed) { confirmation = confirmation.disarm(); shareMenu = true }
                     DropdownMenu(shareMenu, onDismissRequest = { shareMenu = false }) {
-                        RedoMenuItem { shareMenu = false }
                         DropdownMenuItem(text = { Text(stringResource(R.string.share_podcast)) }, onClick = {
                             shareMenu = false
                             shareText(context, title, app.podlist.domain.ShareLinks.podcast(feed?.link ?: subscription?.get("website_url") as? String, result.feedUrl))
@@ -385,12 +384,13 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                         ContentTextButton(onClick = ::toggleDetails) { Text(stringResource(if (expanded) R.string.hide_podcast_details else R.string.show_podcast_details)) }
                         if (subscribed && subscription != null) SubscriptionRefreshStatus(subscription, session, onRefresh = { confirmation = confirmation.disarm() })
-                        OutlinedTextField(query, onValueChange = { confirmation = confirmation.disarm(); query = it }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) confirmation = confirmation.disarm() })
+                        var fieldValue by rememberFieldValue(query)
+                        OutlinedTextField(fieldValue, onValueChange = { confirmation = confirmation.disarm(); fieldValue = it; query = it.text }, singleLine = true, label = { Text(stringResource(R.string.podcast_search_episodes)) }, trailingIcon = { SearchClearButton(query) { query = "" } }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) confirmation = confirmation.disarm() })
                         Spacer(Modifier.height(16.dp))
                         Text(if (count.filtered) pluralStringResource(R.plurals.podcast_filtered_count, count.total, count.shown, count.total)
                         else pluralStringResource(R.plurals.episode_count, count.total, count.total), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
-                    if (loading || !localLoaded) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.podcast_loading)))
+                    LoadingLine(loading || !localLoaded, R.string.podcast_loading)
                     failure?.let {
                         InlineError(stringResource(R.string.podcast_load_failed), Modifier)
                         InlineError(stringResource(podcastErrorResource(it)))
@@ -399,12 +399,13 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                 }
             }
             if (filtered.isEmpty() && !loading && localLoaded && failure == null) item {
-                EmptyMessage(if (query.isBlank()) R.string.no_episodes else R.string.no_search_matches)
-                FilledTonalButton(onClick = if (query.isBlank()) ::load else ({ query = "" }), modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(if (query.isBlank()) R.string.refresh_podcast else R.string.clear_search)) }
+                EmptyState(if (query.isBlank()) R.string.no_episodes else R.string.no_search_matches,
+                    if (query.isBlank()) R.string.refresh_podcast else R.string.clear_search,
+                    onAction = if (query.isBlank()) ::load else ({ query = "" }))
             }
             items(filtered, key = { it["guid"] as String }) { row ->
                 CompositionLocalProvider(LocalEpisodeSelection provides selection) {
-                    EpisodeRow(row, data, session, showArtwork = false, showPodcast = false, actionsEnabled = !busy, actionBusy = resolvingGuid == row["guid"],
+                    EpisodeRow(row, data, session, showArtwork = false, showPodcast = false, actionsEnabled = !busy, actionBusy = resolvingGuid == row["guid"], reserveBusySlot = true,
                         addAction = { resolve(row, add) },
                         playAction = { resolve(row) { model.playNow(it); started() } },
                         actionError = {
