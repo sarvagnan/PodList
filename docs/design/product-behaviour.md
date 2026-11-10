@@ -34,7 +34,7 @@ Show **In your Playlists** with each Entry's own Position and Resume action. Pos
 
 ## Playlists and Entries
 
-- List Playlists with Entry counts, whether they are Active and whether they use Clear on Played. Create and open a Playlist. The Default Playlist always exists and cannot be renamed or deleted.
+- List Playlists with Entry counts, whether they are Active and whether they use Clear on Played. Create and open a Playlist. Renaming a Playlist is an explicit step with Save and Cancel, never applied while typing (owner, 10 Nov 2026). The Default Playlist always exists and cannot be renamed or deleted.
 - A Playlist exposes Entries, History and Listening Timeline. Mark its Cursor, distinguish the Active Playlist from another Playlist and display each Entry's Position. The old layout's NOW/HERE labels are presentation; the underlying distinction must remain available.
 - Open an Entry's Episode, Play from here, reorder Entries, remove an Entry, Star/Unstar and mark Played/Unplayed. Reordering is undoable; support discrete move actions as well as the platform's direct manipulation.
 - **Play this** on an inactive Playlist switches the Active Playlist and resumes its Cursor (or starts its first Entry if there is no Cursor). An empty Playlist can become Active without starting audio. Switching Playlists resumes their independent playback state.
