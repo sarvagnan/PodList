@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -52,8 +51,8 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         playbackKeys.forEach { key -> item(key = key) { PlaybackSettingsEditor(data.state.playbackSettings, key) } }
         item { Section(stringResource(R.string.m4_your_listening)); SettingsRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
-        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }); HorizontalDivider() }
-        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, leadingContent = { Icon(painterResource(R.drawable.ic_export_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }); HorizontalDivider() }
+        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }); ContentDivider() }
+        item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { export.launch("podlist-subscriptions.opml") }, headlineContent = { Text(stringResource(R.string.m4_export_opml)) }, supportingContent = { Text(stringResource(R.string.m4_export_help)) }); ContentDivider() }
         if (busy) item {
             Column(Modifier.padding(16.dp)) {
                 val progress = opml.progress

@@ -236,7 +236,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         val episodeScroll = TopAppBarDefaults.pinnedScrollBehavior()
         val episodeTitle = remember(inspectingGuid) { CollapsingTitle() }
         Scaffold(modifier = Modifier.nestedScroll(episodeScroll.nestedScrollConnection), topBar = {
-            TopAppBar(scrollBehavior = episodeScroll, title = { Text(if (episodeTitle.headlineVisible) stringResource(R.string.episode) else inspected["title"] as? String ?: stringResource(R.string.episode), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            PodListTopAppBar(scrollBehavior = episodeScroll, title = { Text(if (episodeTitle.headlineVisible) stringResource(R.string.episode) else inspected["title"] as? String ?: stringResource(R.string.episode), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { inspectingGuid = null }
             }, actions = { EpisodeOverflow(data.copy(episodes = listOf(inspected)), session) })
         }) { padding ->
@@ -289,15 +289,15 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     Scaffold(modifier = disarmOnOtherTap.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         Column {
             if (selection != null && selection.ids.isNotEmpty()) SelectionToolbar(selection)
-            else TopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (collapsingTitle.headlineVisible) stringResource(R.string.podcast) else title.ifBlank { stringResource(R.string.podcast) }, Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
+            else PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (collapsingTitle.headlineVisible) stringResource(R.string.podcast) else title.ifBlank { stringResource(R.string.podcast) }, Modifier.semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
-                if (!armed) EditHistoryMenu(overflow = false) else Spacer(Modifier.size(48.dp))
+                if (!armed) UndoAction() else Spacer(Modifier.size(48.dp))
                 if (shownSubscribed) {
-                    if (!armed || LocalDensity.current.fontScale < 1.5f) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy && !changingSubscription && id != null) { openPage("subscription-settings:$id") }
+                    ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy && !changingSubscription && id != null) { openPage("subscription-settings:$id") }
                     val label = if (changingSubscription) stringResource(R.string.subscribing) else if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
                     val armedAnnouncement = stringResource(R.string.podcast_unsubscribe_armed, title)
-                    // A single semantics/click node retains focus and its trailing edge as it grows left.
+                    // A single fixed-width semantics/click node retains focus while its label changes.
                     ActionTooltip(label) {
                         TextButton(onClick = {
                             val now = SystemClock.uptimeMillis()
@@ -310,7 +310,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                 confirmation = confirmation.arm(now, timeout.toLong())
                             }
                         }, enabled = !busy && !changingSubscription, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            contentPadding = PaddingValues(horizontal = if (armed) 12.dp else 0.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp),
                             modifier = Modifier.padding(end = 12.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }
                                 .height(48.dp).widthIn(min = 48.dp).then(flowSlot("podcast-subscription"))
                                 .semantics {
@@ -318,9 +318,12 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                     stateDescription = if (armed) armedAnnouncement else ""
                                     liveRegion = LiveRegionMode.Polite
                                 }) {
-                            if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
-                            else if (armed) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
-                            else SubscribedIndicator()
+                            Box(contentAlignment = Alignment.Center) {
+                                // An invisible, non-semantic label reserves the armed width in both states.
+                                Text(stringResource(R.string.unsubscribe), Modifier.graphicsLayer { alpha = if (armed && !changingSubscription) 1f else 0f }.clearAndSetSemantics {})
+                                if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
+                                else if (!armed) SubscribedIndicator()
+                            }
                         }
                     }
                 } else Button(onClick = { changeSubscription(false) }, enabled = !busy && !changingSubscription, modifier = Modifier.padding(end = 12.dp).heightIn(min = 48.dp).then(flowSlot("podcast-subscription"))) {

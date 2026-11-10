@@ -57,7 +57,7 @@ internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, ses
         item { val value = secondsSetting(overrides.skipIntro ?: global.skipIntro); ValueRow(stringResource(R.string.m4_skip_intro), if (overrides.skipIntro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipIntro != null) { sheet = 3 } }
         item { val value = secondsSetting(overrides.skipOutro ?: global.skipOutro); ValueRow(stringResource(R.string.m4_skip_outro), if (overrides.skipOutro == null) stringResource(R.string.m4_default_value, value) else value, overrides.skipOutro != null) { sheet = 4 } }
         item { val value = stringResource(if (overrides.volumeBoost ?: global.volumeBoost) R.string.m4_on else R.string.m4_off); ValueRow(stringResource(R.string.volume_boost), if (overrides.volumeBoost == null) stringResource(R.string.m4_default_value, value) else value, overrides.volumeBoost != null) { sheet = 5 } }
-        item { ContentTextButton(onClick = { model.markSubscriptionPlayed(id) }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
+        item { ContentActionButton(onClick = { model.markSubscriptionPlayed(id) }, modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.m4_mark_all_played)) } }
     }
     val drafts = LocalFormDrafts.current
     val close = {

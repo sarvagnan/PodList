@@ -43,7 +43,7 @@ const podcasts = [
     slug: "market-hours",
     title: "Market Hours",
     author: "Dev Raman",
-    color: "#b5791a",
+    color: "#8a5a10",
     episodes: [
       ["Who sets the price of rice?", 1534],
       ["The long life of a shipping container", 1748],

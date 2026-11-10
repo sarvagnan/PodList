@@ -204,12 +204,17 @@ class FlowRunSmokeTest {
         dispatched()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Appearance"))
         tap("appearance", "Appearance", { present(control(mode)) })
+        fun settingsScroll() = compose.onNode(hasScrollToIndexAction()).fetchSemanticsNode()
+            .config[SemanticsProperties.VerticalScrollAxisRange].value()
+        val before = settingsScroll()
         tap("choose-$mode", mode)
-        device.pressBack() // dismiss Appearance sheet
         waitFor("appearance applied") {
             val dark = compose.activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             dark == (mode == "Dark")
         }
+        compose.waitForIdle()
+        check(kotlin.math.abs(settingsScroll() - before) <= 1f) { "Appearance changed the Settings scroll position" }
+        device.pressBack() // dismiss Appearance sheet
         appearance = mode
         root("Views")
         report.note("$mode selected through Settings → Appearance; resource night qualifier verified.")

@@ -49,7 +49,7 @@ internal fun RenameableName(
                 Text(stringResource(R.string.m4_name), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(name, style = MaterialTheme.typography.bodyLarge)
             }
-            ContentTextButton(onClick = { drafts.put(draftKey, name) }, modifier = Modifier.focusRequester(renameFocus).heightIn(min = 48.dp)) {
+            ContentActionButton(onClick = { drafts.put(draftKey, name) }, modifier = Modifier.focusRequester(renameFocus).heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.rename))
             }
             LaunchedEffect(returnFocus) {

@@ -128,17 +128,19 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             item { ValueRow(stringResource(R.string.m4_show), draft.limit?.let { stringResource(R.string.show_limit, it) } ?: stringResource(R.string.m4_all_matches)) { sheet = 8 } }
             // A permanent note at the end of the form never inserts space above the conditions.
             item { Hint(stringResource(if (creating) R.string.new_view_draft_kept else R.string.draft_kept)) }
-            if (!creating) item { ContentTextButton(onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted, formatArgs = listOf(saved.name)) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
+            if (!creating) item { ContentActionButton(destructive = true, onClick = { if (recorded) model.changeWithUndo(listOf(Change.DeleteView(draft.id)), R.string.m4_view_deleted, formatArgs = listOf(saved.name)) { before -> before.views.find { it.id == draft.id }?.let { listOf(Change.SaveView(it)) }.orEmpty() }; drafts.clear(draftPrefix); drafts.clear(renamePrefix); deleted() }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.m4_delete_view), color = MaterialTheme.colorScheme.error) } }
         }
         Surface(tonalElevation = 3.dp) {
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
-            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(fullCount, style = MaterialTheme.typography.bodyMedium)
-                if (creating || problem != null || hasInvalidNumber) TextButton(enabled = !completing, modifier = Modifier.heightIn(min = 48.dp), onClick = {
-                    if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix)
-                    done()
-                }) { Text(stringResource(R.string.discard_draft)) }
-                CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
+                CommitActions {
+                    if (creating || problem != null || hasInvalidNumber) TextButton(enabled = !completing, modifier = Modifier.heightIn(min = 48.dp), onClick = {
+                        if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix)
+                        done()
+                    }) { Text(stringResource(R.string.discard_draft)) }
+                    CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
+                }
             }
         }
     }

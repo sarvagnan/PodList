@@ -16,6 +16,8 @@ internal class SheetFeedback(val snackbar: SnackbarHostState) {
     var openSheets by mutableIntStateOf(0)
 }
 
+internal val LocalSheetCommitHeight = staticCompositionLocalOf<MutableState<androidx.compose.ui.unit.Dp>?> { null }
+
 internal val LocalSheetFeedback = staticCompositionLocalOf<SheetFeedback?> { null }
 
 @Composable
@@ -32,9 +34,13 @@ internal fun FeedbackSheet(
         onDispose { feedback?.let { it.openSheets-- } }
     }
     ModalBottomSheet(modifier = modifier, onDismissRequest = onDismissRequest, sheetState = sheetState, dragHandle = dragHandle) {
-        Box(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) { content() }
-            feedback?.let { FeedbackSnackbarHost(it, Modifier.align(Alignment.BottomCenter)) }
+        val commitHeight = remember { mutableStateOf(80.dp) }
+        CompositionLocalProvider(LocalSheetCommitHeight provides commitHeight) {
+            Box(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth()) { content() }
+                // Offset by the measured action region, including wrapped actions at enlarged text.
+                feedback?.let { FeedbackSnackbarHost(it, Modifier.align(Alignment.BottomCenter).imePadding().padding(bottom = commitHeight.value)) }
+            }
         }
     }
 }
