@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        (application as PodListApplication).model.flushDrafts()
         (application as PodListApplication).model.flushPlayback()
         super.onStop()
     }

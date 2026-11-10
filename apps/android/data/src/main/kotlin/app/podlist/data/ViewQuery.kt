@@ -54,7 +54,7 @@ object ViewQuery {
             ViewSort.DurationDesc -> "e.duration DESC NULLS LAST, e.id"
         }
         var sql = """SELECT e.id, e.subscription_id, e.title, e.published, e.duration, e.artwork_url,
-            s.title AS podcast, s.artwork_url AS podcast_artwork_url,
+            s.title AS podcast, s.artwork_url AS podcast_artwork_url, s.website_url AS podcast_website_url, s.feed_url AS feed_url,
             st.played_at, COALESCE(st.starred, 0) AS starred
             FROM episode e JOIN subscription s ON s.id = e.subscription_id
             LEFT JOIN episode_state st ON st.episode_id = e.id

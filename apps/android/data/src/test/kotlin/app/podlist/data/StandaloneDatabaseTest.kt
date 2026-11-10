@@ -56,7 +56,7 @@ class StandaloneDatabaseTest {
                 assertEquals("opaque preserved bytes", db.query("SELECT operation FROM outbox").single()["operation"])
                 assertTrue(db.query("SELECT * FROM feed_state").isEmpty())
                 assertTrue(db.query("SELECT * FROM local_operation").isEmpty())
-                assertEquals(7L, db.query("SELECT count(*) AS n FROM android_migration").single()["n"])
+                assertEquals(8L, db.query("SELECT count(*) AS n FROM android_migration").single()["n"])
             }
         } finally { Files.deleteIfExists(path) }
     }

@@ -159,7 +159,7 @@ internal fun FocusedInputModifier(once: Boolean = false): Modifier {
             focus.requestFocus()
         }
     }
-    return Modifier.focusRequester(focus)
+    return Modifier.focusRequester(focus).then(textFieldHistoryShortcuts())
 }
 
 @Composable

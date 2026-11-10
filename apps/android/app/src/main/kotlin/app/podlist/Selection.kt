@@ -2,7 +2,8 @@
 package app.podlist
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,7 @@ import app.podlist.domain.*
 @Stable internal class EpisodeSelection {
     var order by mutableStateOf(emptyList<String>())
     var ids by mutableStateOf(setOf<String>())
+    fun toggleAll() { ids = ListSelection.toggleAll(order, ids) }
     fun toggle(id: String) { ids = if(id in ids) ids - id else ids + id }
 }
 internal val LocalEpisodeSelection = staticCompositionLocalOf<EpisodeSelection?> { null }
@@ -30,7 +32,7 @@ internal val LocalEpisodeSelection = staticCompositionLocalOf<EpisodeSelection?>
 @Composable
 internal fun SelectionProvider(key: String?, data: ScreenData?, session: Session, content: @Composable () -> Unit) {
     val selection = rememberSaveable(key, saver = Saver<EpisodeSelection, ArrayList<String>>(save = { ArrayList(it.ids) }, restore = { EpisodeSelection().apply { ids = it.toSet() } })) { EpisodeSelection() }
-    ContextualMode(selection.ids.isNotEmpty() || key?.startsWith("view-edit:") == true || key?.startsWith("new-view:") == true)
+    ContextualMode(key == "select-subscriptions" || selection.ids.isNotEmpty() || key?.startsWith("view-edit:") == true || key?.startsWith("new-view:") == true)
     CompositionLocalProvider(LocalEpisodeSelection provides selection) { content() }
     BackHandler(selection.ids.isNotEmpty()) { selection.ids = emptySet() }
 }
@@ -40,8 +42,22 @@ internal fun SelectionProvider(key: String?, data: ScreenData?, session: Session
 internal fun SelectionToolbar(selection: EpisodeSelection) {
     TopAppBar(title = { Text(pluralStringResource(R.plurals.m4_selected_count, selection.ids.size, selection.ids.size), Modifier.semantics { heading() }) }, navigationIcon = {
         ActionIcon(R.drawable.ic_close, stringResource(R.string.cancel)) { selection.ids = emptySet() }
-    })
+    }, actions = { SelectAllAction(selection) })
 }
+
+@Composable
+internal fun SelectAllAction(selection: EpisodeSelection) {
+    TextButton(onClick = selection::toggleAll, enabled = selection.order.isNotEmpty(), modifier = Modifier.heightIn(min = 48.dp)) {
+        Text(stringResource(if (ListSelection.allSelected(selection.order, selection.ids)) R.string.select_none else R.string.select_all))
+    }
+}
+
+/** Bubble from list rows, after native text controls have handled their own Ctrl+A. */
+internal fun Modifier.listSelectionKeys(selection: EpisodeSelection?): Modifier = onKeyEvent { event ->
+    if (selection != null && selection.order.isNotEmpty() && event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.A) {
+        selection.ids = selection.order.toSet(); true
+    } else false
+}.focusable()
 
 /** Two equal columns at enlarged text sizes give every word room without hiding commands. */
 @Composable
@@ -57,10 +73,7 @@ internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean 
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
         modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(painterResource(icon), contentDescription = null,
-                modifier = if (icon == R.drawable.ic_check) Modifier.background(LocalSubscribedColors.current.background,
-                    androidx.compose.foundation.shape.CircleShape).padding(4.dp) else Modifier,
-                tint = if (icon == R.drawable.ic_check) LocalSubscribedColors.current.foreground else LocalContentColor.current)
+            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
             Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
         }
     }
@@ -75,7 +88,7 @@ internal fun SelectionActionBar(selection: EpisodeSelection, data: ScreenData, s
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
         ActionGrid {
             LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { adding = true }
-            LabelledAction(R.drawable.ic_check, stringResource(R.string.mark_played)) {
+            LabelledAction(R.drawable.ic_played, stringResource(R.string.mark_played)) {
                 model.changeWithUndo(ordered.map { Change.MarkPlayed(it, PlayedSource.User) }, R.string.episodes_played) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }
                 selection.ids = emptySet()
             }
@@ -108,7 +121,7 @@ internal fun SelectSubscriptionsScreen(data: ScreenData, session: Session, addPo
         }
         return
     }
-    LazyColumn(state = rememberBrowsingListState()) {
+    LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.listSelectionKeys(selection)) {
         item { Hint(stringResource(R.string.m4_select_subscriptions_help)) }
         items(subscriptions, key = { it["id"] as String }) { subscription ->
             val id = subscription["id"] as String

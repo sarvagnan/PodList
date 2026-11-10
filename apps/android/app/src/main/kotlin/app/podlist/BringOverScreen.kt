@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.res.painterResource
@@ -22,9 +23,10 @@ internal fun BringOverScreen(model: AppModel, ui: BringOverUi) {
     val job = ui.job
     val counts = ui.counts
     val complete = job?.complete == true
-    Scaffold(
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.bring_over_title), Modifier.semantics { heading() }) }, navigationIcon = {
+            TopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.bring_over_title), Modifier.semantics { heading() }) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = model::dismissBringOver)
             })
         },

@@ -30,6 +30,11 @@ private val artworkMemory = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
 }
 
+private val artworkRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+
+private fun availableArtwork(identity: String): Bitmap? = artworkMemory.snapshot()
+    .filterKeys { it.startsWith("$identity#") }.values.maxByOrNull { it.width * it.height }
+
 private const val ArtworkByteLimit = 16 * 1024 * 1024
 
 /** Decodes at the smallest size that still covers the drawn size, so 3000px Artwork can't exhaust memory. */
@@ -47,15 +52,19 @@ private fun decodeArtwork(bytes: ByteArray, pixels: Int): Bitmap? {
 internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose.ui.unit.Dp = 40.dp, direct: Boolean = false) {
     val context = LocalContext.current
     val pixels = with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
-    val bitmap by produceState<Bitmap?>(null, session.source.key, url, direct, pixels) {
-        value = null
+    val identity = "${session.source.key}#$url"
+    val revision by artworkRevision.collectAsState()
+    val available = remember(identity, revision) { availableArtwork(identity) }
+    val bitmap by key(identity) { produceState<Bitmap?>(available, session.source.key, url, direct, pixels) {
+        value = availableArtwork(identity)
         if (url == null) return@produceState
         val publisherSource = direct || pixels > 512
         val endpoint = if (publisherSource) url else session.source.artwork(url, pixels)
         // Publisher Artwork arrives full size, so one URL has an entry for each size drawn.
         val cacheKey = "$endpoint#$pixels"
-        value = withContext(Dispatchers.IO) {
-            artworkMemory.get(cacheKey) ?: runCatching {
+        val memoryKey = "$identity#$pixels"
+        val loaded = withContext(Dispatchers.IO) {
+            artworkMemory.get(memoryKey) ?: runCatching {
                 val key = MessageDigest.getInstance("SHA-256").digest(cacheKey.toByteArray()).joinToString("") { "%02x".format(it) }
                 val directory = File(context.cacheDir, "artwork").also { it.mkdirs() }
                 val file = File(directory, key)
@@ -84,11 +93,16 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
                         decoded
                     } finally { connection.disconnect() }
                 }
-            }.getOrNull()?.also { artworkMemory.put(cacheKey, it) }
+            }.getOrNull()?.also { artworkMemory.put(memoryKey, it) }
         }
-    }
+        if (loaded != null) {
+            value = loaded
+            artworkRevision.value++
+        }
+    } }
+    val shown = bitmap ?: available
     Box(Modifier.size(size).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-        if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
+        if (shown != null) Image(shown.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
         else Icon(painterResource(R.drawable.ic_artwork), contentDescription = null, modifier = Modifier.size(size * .5f), tint = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }

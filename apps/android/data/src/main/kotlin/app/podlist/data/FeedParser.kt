@@ -15,8 +15,8 @@ import javax.xml.parsers.SAXParserFactory
 const val FeedSizeLimit = 32 * 1024 * 1024
 private const val DocumentSizeLimit = 8 * 1024 * 1024
 private val forbiddenDeclaration = Regex("<!\\s*(DOCTYPE|ENTITY)", RegexOption.IGNORE_CASE)
-@Serializable data class ParsedEpisode(val guid: String, val title: String, val description: String, val published: Long, val duration: Double?, val audioUrl: String, val artworkUrl: String?, val chaptersUrl: String?)
-@Serializable data class ParsedFeed(val title: String, val author: String?, val description: String?, val artworkUrl: String?, val episodes: List<ParsedEpisode>)
+@Serializable data class ParsedEpisode(val guid: String, val title: String, val description: String, val published: Long, val duration: Double?, val audioUrl: String, val artworkUrl: String?, val chaptersUrl: String?, val link: String? = null)
+@Serializable data class ParsedFeed(val title: String, val author: String?, val description: String?, val artworkUrl: String?, val episodes: List<ParsedEpisode>, val link: String? = null)
 
 /** For small documents such as OPML. No DTD, entity declarations, external resources or unbounded XML. */
 internal fun safeXml(xml: String): Element {
@@ -92,8 +92,8 @@ private class Fields(private val wanted: Set<String>, private val attributes: Ma
     fun set(name: String, value: String) { if (value.isNotEmpty()) values[name] = value }
     operator fun get(name: String): String? = values[name]
 }
-private val channelText = setOf("title", "itunes:author", "itunes:owner", "description", "itunes:summary")
-private val itemText = setOf("guid", "title", "itunes:title", "content:encoded", "description", "itunes:summary", "pubDate", "itunes:duration")
+private val channelText = setOf("link", "title", "itunes:author", "itunes:owner", "description", "itunes:summary")
+private val itemText = setOf("link", "guid", "title", "itunes:title", "content:encoded", "description", "itunes:summary", "pubDate", "itunes:duration")
 private class FeedHandler : DefaultHandler() {
     private var root: String? = null
     private var depth = 0
@@ -142,7 +142,7 @@ private class FeedHandler : DefaultHandler() {
         val audio = item["enclosure"] ?: return
         episodes += ParsedEpisode(item["guid"] ?: audio, item["title"] ?: item["itunes:title"] ?: "Untitled episode",
             item["content:encoded"] ?: item["description"] ?: item["itunes:summary"] ?: "",
-            parseDate(item["pubDate"]), parseDuration(item["itunes:duration"]), audio, item["itunes:image"], item["podcast:chapters"])
+            parseDate(item["pubDate"]), parseDuration(item["itunes:duration"]), audio, item["itunes:image"], item["podcast:chapters"], item["link"])
     }
     override fun resolveEntity(publicId: String?, systemId: String?): InputSource = throw IllegalArgumentException("External entities are forbidden")
     fun feed(): ParsedFeed {
@@ -150,6 +150,6 @@ private class FeedHandler : DefaultHandler() {
         require(channelSeen) { "No channel" }
         val title = requireNotNull(channel["title"]) { "The feed has no title" }
         return ParsedFeed(title, channel["itunes:author"] ?: channel["itunes:owner"], channel["description"] ?: channel["itunes:summary"],
-            channel["itunes:image"] ?: image["url"], episodes)
+            channel["itunes:image"] ?: image["url"], episodes, channel["link"])
     }
 }

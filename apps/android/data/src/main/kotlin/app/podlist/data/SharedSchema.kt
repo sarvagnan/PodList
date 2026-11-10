@@ -86,6 +86,12 @@ object SharedSchema {
             "CREATE TABLE download (episode_id TEXT PRIMARY KEY, manual INTEGER NOT NULL, bytes INTEGER NOT NULL, saved_at INTEGER NOT NULL)"
         ))
     )
+    val androidMigrations = listOf(
+        Migration(1, "publisher_links", listOf(
+            "ALTER TABLE subscription ADD COLUMN website_url TEXT",
+            "ALTER TABLE episode ADD COLUMN website_url TEXT"
+        ))
+    )
     val deviceMigrations = listOf(
         Migration(1, "device_feeds", listOf(
             "CREATE TABLE feed_state (subscription_id TEXT PRIMARY KEY REFERENCES subscription(id), etag TEXT, last_modified TEXT, checked_at INTEGER, failures INTEGER NOT NULL DEFAULT 0, last_error TEXT)",

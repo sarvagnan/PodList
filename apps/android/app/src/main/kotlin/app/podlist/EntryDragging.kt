@@ -78,14 +78,20 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
             delay(16)
         }
     }
+    val selection = LocalEpisodeSelection.current
+    SideEffect {
+        selection?.order = playlist.entries.map { it.episodeId }
+        if (selection != null) selection.ids = selection.ids.intersect(selection.order.toSet())
+    }
     CompositionLocalProvider(LocalEntryDrag provides drag) {
-        LazyColumn(state = list, modifier = Modifier.fillMaxSize().onGloballyPositioned { drag.viewportTop = it.positionInWindow().y }) {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().listSelectionKeys(selection).onGloballyPositioned { drag.viewportTop = it.positionInWindow().y }) {
             header?.invoke(this)
             if (playlist.entries.isEmpty()) item { EmptyMessage(R.string.no_entries); FilledTonalButton(onClick = { model.requestReveal(Reveal("search")) }, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_episodes)) } }
             itemsIndexed(playlist.entries, key = { _, entry -> entry.episodeId }) { index, entry ->
                 val focus = remember { FocusRequester() }
                 val moving = drag.source == entry.episodeId
                 val marked = drag.retained == entry.episodeId
+                val currentLabel = stringResource(if (playlist.id == data.state.activePlaylistId) R.string.cursor_now else R.string.cursor_here)
                 val movedLabel = stringResource(R.string.entry_destination, index + 1, playlist.entries.size)
                 val row = data.episodes.find { it["id"] == entry.episodeId }
                 LaunchedEffect(marked, playlist.entries, row != null) { if (marked && drag.source == null && row != null) focus.requestFocus() }
@@ -95,10 +101,10 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                         translationY = drag.pointer - drag.grabOffset - top
                         shadowElevation = 8.dp.toPx()
                     } else { translationY = 0f; shadowElevation = 0f }
-                }.background(if (moving || marked) MaterialTheme.colorScheme.primaryContainer else if (playlist.cursor == entry.episodeId) MaterialTheme.colorScheme.surfaceContainerHighest else androidx.compose.ui.graphics.Color.Transparent)
-                    .semantics { if (marked) { stateDescription = movedLabel; liveRegion = LiveRegionMode.Polite } }) {
+                }.background(if (moving || marked) MaterialTheme.colorScheme.primaryContainer else if (playlist.cursor == entry.episodeId) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                    .semantics { if (playlist.cursor == entry.episodeId) stateDescription = currentLabel; if (marked) { stateDescription = movedLabel; liveRegion = LiveRegionMode.Polite } }) {
                     if (drag.source != null && drag.boundary == index) HorizontalDivider(thickness = 3.dp, color = MaterialTheme.colorScheme.primary)
-                    if (playlist.cursor == entry.episodeId) Section(stringResource(if (playlist.id == data.state.activePlaylistId) R.string.cursor_now else if (entry.position > 0) R.string.cursor_resume else R.string.cursor_here))
+                    if (playlist.cursor == entry.episodeId) Text(currentLabel, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                     if (row == null) Hint(stringResource(R.string.metadata_pending))
                     else EpisodeRow(row, data, session, entry.position, playlist.id, rowModifier = Modifier.focusRequester(focus)) { openEpisode(entry.episodeId) }
                     if (drag.source != null && index == playlist.entries.lastIndex && drag.boundary == playlist.entries.size) HorizontalDivider(thickness = 3.dp, color = MaterialTheme.colorScheme.primary)

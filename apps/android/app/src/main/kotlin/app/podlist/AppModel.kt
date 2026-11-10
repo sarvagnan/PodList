@@ -87,6 +87,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val settingReveal = MutableStateFlow<SettingReveal?>(null)
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
     internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
+    internal var flushFormDrafts: (() -> Unit)? = null
     internal val undoRevision = MutableStateFlow(0L)
     internal val undoDescription = MutableStateFlow<AppMessage?>(null)
     internal val redoDescription = MutableStateFlow<AppMessage?>(null)
@@ -103,7 +104,14 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { editLock.withLock {
             if (session.value !== current) return@withLock
             val inverse = withContext(Dispatchers.IO) { current.db.reversibleEdit(listOf(change), System.currentTimeMillis()) }
-            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(message, formatArgs = formatArgs),
+            val namedArgs = if (formatArgs.isNotEmpty()) formatArgs else withContext(Dispatchers.IO) { when (change) {
+                is Change.SaveView -> listOf(change.view.name)
+                is Change.SetStar -> listOf(current.db.query("SELECT title FROM episode WHERE id = ?", listOf(change.episodeId)).firstOrNull()?.get("title") ?: getApplication<Application>().getString(R.string.episode))
+                is Change.MarkPlayed -> listOf(current.db.query("SELECT title FROM episode WHERE id = ?", listOf(change.episodeId)).firstOrNull()?.get("title") ?: getApplication<Application>().getString(R.string.episode))
+                is Change.MarkUnplayed -> listOf(current.db.query("SELECT title FROM episode WHERE id = ?", listOf(change.episodeId)).firstOrNull()?.get("title") ?: getApplication<Application>().getString(R.string.episode))
+                else -> emptyList()
+            } }
+            if (inverse.isNotEmpty()) recordHistory(current, AppMessage(message, formatArgs = namedArgs),
                 ReversibleEdit((change as? Change.SaveView)?.view?.id) { changesStep(current, inverse).apply() }, typingGroup,
                 notify = change !is Change.SetPlaybackSettings && change !is Change.SetSubscriptionOverrides && change !is Change.SetTrashDays && change !is Change.SetDownloadRule && change !is Change.SetClearOnPlayed)
             finished?.invoke()
@@ -131,13 +139,18 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     private val preferences = application.getSharedPreferences("connection", 0)
     private val deviceSettings = DeviceSettingsStore(File(application.filesDir, "device-settings.properties"))
+    private val serverDraftWriter = app.podlist.data.DraftWriteBuffer { batch ->
+        batch["address"]?.let { deviceSettings.serverAddressDraft = it }
+    }
+    fun flushDrafts() { serverDraftWriter.flush(); flushFormDrafts?.invoke() }
     private val _serverAddressDraft = MutableStateFlow(deviceSettings.serverAddressDraft)
     val serverAddressDraft = _serverAddressDraft.asStateFlow()
     private val _appearance = MutableStateFlow(deviceSettings.appearance)
     val appearance = _appearance.asStateFlow()
 
     fun setServerAddressDraft(value: String?) {
-        deviceSettings.serverAddressDraft = value
+        if (value == null) { serverDraftWriter.flush(); deviceSettings.serverAddressDraft = null }
+        else serverDraftWriter.put("address", value)
         _serverAddressDraft.value = value
     }
 
@@ -200,11 +213,13 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun subscriptionName(current: Session, feed: String): String = current.db.query("SELECT title FROM subscription WHERE feed_url = ?", listOf(feed)).firstOrNull()?.get("title") as? String ?: feed
+
     fun offerUnsubscribe(current: Session, feed: String) {
-        offerSubscriptionHistory(current, listOf(feed), subscribe = false, AppMessage(R.string.subscribed))
+        offerSubscriptionHistory(current, listOf(feed), subscribe = false, AppMessage(R.string.subscribed_message, formatArgs = listOf(subscriptionName(current, feed))))
     }
     fun offerResubscribe(current: Session, feed: String) {
-        offerSubscriptionHistory(current, listOf(feed), subscribe = true, AppMessage(R.string.unsubscribed))
+        offerSubscriptionHistory(current, listOf(feed), subscribe = true, AppMessage(R.string.unsubscribed_message, formatArgs = listOf(subscriptionName(current, feed))))
     }
 
     fun startOnPhone() {
@@ -370,6 +385,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        serverDraftWriter.close()
         connectivity.unregisterNetworkCallback(callback)
         // viewModelScope cancellation waits for the blocking IO call before the database closes.
         val databases = sessions.values.map { it.db }

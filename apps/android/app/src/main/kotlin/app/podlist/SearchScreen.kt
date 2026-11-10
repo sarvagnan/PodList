@@ -7,6 +7,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import app.podlist.data.Row
 import app.podlist.domain.*
@@ -40,7 +41,7 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
     val revision by model.revision.collectAsState()
     LaunchedEffect(text, revision, submitted) { rows = withContext(Dispatchers.IO) { session.db.evaluate(search, System.currentTimeMillis()) } }
     fun saveView() {
-        if (problem != null || saving) return
+        if (problem != null || saving || text.isBlank()) return
         val id = UUID.randomUUID().toString()
         val submittedDraft = drafts.snapshot("search-view/")
         saving = true
@@ -51,7 +52,7 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         OutlinedTextField(text, { if (!saving) text = it; selection?.ids = emptySet() }, label = { Text(stringResource(R.string.m4_search_library)) }, singleLine = true, readOnly = saving, trailingIcon = { if (text.isNotEmpty() && !saving) ActionIcon(R.drawable.ic_close, stringResource(R.string.clear_search)) { text = ""; selection?.ids = emptySet() } }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submitted++; keyboard?.hide() }), modifier = Modifier.fillMaxWidth().padding(16.dp).then(FocusedInputModifier(once = true)))
-        if (naming) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (naming && text.isNotBlank()) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { if (!saving) { name = it; rejected = null } },
                 label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = saving,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { saveView() }),
@@ -59,9 +60,10 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
                 supportingText = problem?.let { error -> ({ InlineError(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier) }) })
             CommitActions {
                 TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !saving, onClick = { drafts.clear("search-view/"); naming = false }) { Text(stringResource(R.string.cancel)) }
-                CommitButton(enabled = problem == null && !saving, onClick = ::saveView) { Text(stringResource(R.string.create_view)) }
+                CommitButton(enabled = text.isNotBlank() && problem == null && !saving, onClick = ::saveView) { Text(stringResource(R.string.create_view)) }
             }
-        } else ContentTextButton(modifier = Modifier.padding(horizontal = 16.dp), enabled = rows != null, onClick = { drafts.put("search-view/open", "true"); naming = true; if (name.isEmpty()) name = text }) { Text(stringResource(R.string.m4_save_as_view)) }
+        } else if (text.isNotBlank()) ContentTextButton(modifier = Modifier.padding(horizontal = 16.dp), enabled = rows != null, onClick = { drafts.put("search-view/open", "true"); naming = true; if (name.isEmpty()) name = text }) { Text(stringResource(R.string.m4_save_as_view)) }
+        rows?.let { Text(pluralStringResource(R.plurals.episode_count, it.size, it.size), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall) }
         if (rows == null) Loading()
         else if (data.subscriptions.none { it["unsubscribed_at"] == null } && rows!!.isEmpty()) Column { EmptyMessage(R.string.no_subscriptions); FilledTonalButton(modifier = Modifier.padding(horizontal = 16.dp), onClick = { open("add-podcasts") }) { Text(stringResource(R.string.add_podcasts)) } }
         else if (rows!!.isEmpty()) Column { EmptyMessage(R.string.no_search_matches); FilledTonalButton(enabled = !saving, modifier = Modifier.padding(horizontal = 16.dp), onClick = { text = "" }) { Text(stringResource(R.string.clear_search)) } }

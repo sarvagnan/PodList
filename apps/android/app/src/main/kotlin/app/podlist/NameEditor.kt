@@ -33,6 +33,7 @@ internal fun RenameableName(
     modifier: Modifier = Modifier,
 ) {
     val drafts = LocalFormDrafts.current
+    DisposableEffect(drafts, draftKey) { onDispose { drafts.flush() } }
     val draft = drafts.get(draftKey)
     val renameFocus = remember(draftKey) { FocusRequester() }
     var returnFocus by remember(draftKey) { mutableStateOf(false) }
@@ -42,7 +43,7 @@ internal fun RenameableName(
         keyboard?.hide()
         returnFocus = true
     }
-    Column(modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (draft == null) {
             Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
                 Text(stringResource(R.string.m4_name), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)

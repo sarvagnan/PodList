@@ -19,6 +19,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
     val input = draft ?: current.orEmpty()
     val checking by model.connecting.collectAsState()
     val error by model.connectionError.collectAsState()
+    DisposableEffect(model) { onDispose { model.flushDrafts() } }
     Column(Modifier.fillMaxSize().imePadding()
         .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
@@ -35,7 +36,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
             })) }) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { if (!checking && input.isNotBlank()) model.connect(input) { connected?.invoke() } }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
         CommitActions {
-            if (draft != null) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
+            if (draft != null && draft != current.orEmpty()) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.discard_draft))
             }
             CommitButton(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {

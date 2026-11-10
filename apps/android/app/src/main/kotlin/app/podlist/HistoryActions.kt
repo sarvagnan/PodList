@@ -80,6 +80,7 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 return@withLock
             }
             try {
+                withContext(Dispatchers.IO) { flushFormDrafts?.invoke() }
                 var feedback: AppMessage? = null
                 history.reverse(redo) { step -> step.apply().also { it.description = step.description; feedback = it.feedback } }
                 undoRevision.value++
@@ -131,5 +132,5 @@ internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onKeyEvent {
 // Let the field handle text Undo first, then consume unhandled Ctrl+Z (including Redo).
 // Otherwise a field with no text history can fall through to a sheet or MainActivity's app Undo.
 internal fun textFieldHistoryShortcuts(): Modifier = Modifier.onKeyEvent { event ->
-    event.isCtrlPressed && event.key == Key.Z
+    event.isCtrlPressed && (event.key == Key.Z || event.key == Key.A)
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.foundation.text.KeyboardActions
@@ -29,7 +30,8 @@ internal fun WelcomeScreen(model: AppModel) {
     var server by rememberSaveable { mutableStateOf(false) }
     BackHandler(server) { server = false }
     if (server) {
-        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
+        val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+        Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = { TopAppBar(scrollBehavior = scrollBehavior, title = { Text(stringResource(R.string.connect_title), Modifier.semantics { heading() }) }, navigationIcon = { ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { server = false } }) }) { padding ->
             Box(Modifier.padding(padding)) { ServerScreen(model, null) }
         }
     } else Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
