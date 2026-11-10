@@ -6,5 +6,9 @@ import android.app.Application
  * Databases outlive Activities so rotating or leaving the UI never stops playback.
  */
 class PodListApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        applyLaunchAppearance(app.podlist.data.DeviceSettingsStore(java.io.File(filesDir, "device-settings.properties")).appearance)
+    }
     val model: AppModel by lazy { AppModel(this) }
 }

@@ -5,6 +5,7 @@ package app.podlist
 import android.os.SystemClock
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -94,18 +95,19 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
                             })
                             else {
                                 Box(Modifier.fillMaxWidth().height(20.dp), contentAlignment = Alignment.Center) { HorizontalDivider(Modifier.width(32.dp), thickness = 4.dp) }
+                                val episode = page?.takeIf { it.startsWith("episode:") }?.substringAfter(':')
+                                var episodeData by remember(episode) { mutableStateOf<ScreenData?>(null) }
+                                LaunchedEffect(revision, episode) { episodeData = episode?.let { withContext(Dispatchers.IO) { readScreen(session.db, "episode:$it") } } }
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     if (page != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back)) { pages = pages.dropLast(1) }
                                     Text(if (page == null) stringResource(R.string.now_playing_playlist, current.playlistName) else stringResource(when { page.startsWith("episode:") -> R.string.episode; page == "chapters" -> R.string.chapters; else -> R.string.entries }), Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                                     EditHistoryMenu()
+                                    episodeData?.let { EpisodeOverflow(it, session) }
                                     ActionIcon(R.drawable.ic_collapse, stringResource(R.string.collapse_player)) { pages = emptyList(); scope.launch { sheet.bottomSheetState.partialExpand() } }
                                 }
                                 when {
                                     page?.startsWith("episode:") == true -> {
-                                        val episode = page.substringAfter(':')
-                                        var data by remember(episode) { mutableStateOf<ScreenData?>(null) }
-                                        LaunchedEffect(revision, episode) { data = withContext(Dispatchers.IO) { readScreen(session.db, "episode:$episode") } }
-                                        data?.let { EpisodeDetail(it, session) }
+                                        episodeData?.let { EpisodeDetail(it, session) }
                                     }
                                     page == "chapters" -> ChapterPage(current, session, model) { pages = emptyList() }
                                     page == "entries" -> PlayerEntries(current, session, model, revision, openEpisode = { pages = pages + "episode:$it" }) { pages = emptyList() }
@@ -135,7 +137,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
 private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expand: () -> Unit, openPlaylist: () -> Unit) {
     val accessible = stringResource(R.string.open_now_playing, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
     val progressLabel = stringResource(R.string.playback_position)
-    Column(Modifier.fillMaxWidth().height(72.dp).clickable(onClickLabel = accessible, onClick = expand)) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).clickable(onClickLabel = accessible, onClick = expand)) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clickable(onClick = expand).semantics { contentDescription = accessible }, contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp) }
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -338,10 +340,10 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
     val draftPrefix = "add-playlist:${ids.joinToString(":")}/"
     var name by rememberDraftText(draftPrefix + "name")
     LaunchedEffect(Unit) { if (name.isNotEmpty()) target = null }
-    val abandon = { drafts.clear(draftPrefix); dismiss() }
-    var invalid by rememberSaveable { mutableStateOf(false) }
+    var rejected by remember { mutableStateOf<Names.Problem?>(null) }
+    val problem = if (target == null) PlaylistNames.validate(name, state.playlists) ?: rejected else null
     var submitting by remember { mutableStateOf(false) }
-    FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = abandon, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    FeedbackSheet(modifier = historyShortcuts(model), onDismissRequest = { if (!submitting) dismiss() }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         val screen = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
         val density = androidx.compose.ui.platform.LocalDensity.current
         val height = with(density) { screen.toDp() / 2 } - 24.dp - WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -349,16 +351,22 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
             Text(stringResource(R.string.add_to_playlist), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
             LazyColumn(Modifier.weight(1f, fill = false)) {
                 items(state.playlists, key = { it.id }) { playlist ->
-                    ChoiceRows(listOf(playlist.id as String? to if (playlist.id == state.activePlaylistId) stringResource(R.string.m4_active_target, playlist.name) else playlist.name), target) { target = it; invalid = false }
+                    ChoiceRows(listOf(playlist.id as String? to if (playlist.id == state.activePlaylistId) stringResource(R.string.m4_active_target, playlist.name) else playlist.name), target, enabled = !submitting) { target = it; rejected = null }
                 }
-                item { ChoiceRows(listOf(null to stringResource(R.string.new_playlist)), target) { target = null; invalid = false } }
-                if (target == null) item { OutlinedTextField(name, { name = it; invalid = false }, label = { Text(stringResource(R.string.playlist_name)) }, isError = invalid,
-                    supportingText = if (invalid) ({ Text(stringResource(R.string.playlist_name_error), Modifier.errorAnnouncement()) }) else null, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
+                item { ChoiceRows(listOf(null to stringResource(R.string.new_playlist)), target, enabled = !submitting) { target = null; rejected = null } }
+                if (target == null) item { OutlinedTextField(name, { if (!submitting) { name = it; rejected = null } }, label = { Text(stringResource(R.string.playlist_name)) }, readOnly = submitting, isError = problem != null,
+                    supportingText = problem?.let { error -> ({ Text(playlistProblem(error, name, state.playlists.map { it.name }), Modifier.errorAnnouncement()) }) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
             }
             CommitActions(Modifier.padding(vertical = 16.dp)) {
-                for ((placement, label) in listOf(Placement.Next to R.string.play_next, Placement.Last to R.string.play_last)) FilledTonalButton(enabled = !submitting, onClick = {
+                if (target == null) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting, onClick = { drafts.clear(draftPrefix); dismiss() }) { Text(stringResource(R.string.discard_draft)) }
+                for ((placement, label) in listOf(Placement.Next to R.string.play_next, Placement.Last to R.string.play_last)) FilledTonalButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting && problem == null, onClick = {
+                    val submittedDraft = drafts.snapshot(draftPrefix)
                     submitting = true
-                    model.addSeveral(ids, target, name.takeIf { target == null }, placement) { success -> submitting = false; if (success) { drafts.clear(draftPrefix); added() } else invalid = true }
+                    model.addSeveral(ids, target, name.takeIf { target == null }, placement) { success, error ->
+                        submitting = false
+                        if (success) { if (drafts.clearIfUnchanged(draftPrefix, submittedDraft)) added() }
+                        else rejected = error
+                    }
                 }) { Text(stringResource(label)) }
             }
         }

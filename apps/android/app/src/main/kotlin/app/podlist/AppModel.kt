@@ -84,6 +84,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun sleep(timer: SleepTimer?) = withPlayback { it.sleep(timer) }
     fun flushPlayback() { playbackHost?.flush() }
     internal val reveal = MutableStateFlow<OneShotEvent<Reveal>?>(null)
+    internal val settingReveal = MutableStateFlow<SettingReveal?>(null)
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
     internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
     internal val undoRevision = MutableStateFlow(0L)
@@ -143,11 +144,16 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     private fun applyAppearance(value: Appearance) {
         deviceSettings.appearance = value
         _appearance.value = value
+        getApplication<Application>().applyLaunchAppearance(value)
     }
     private fun appearanceStep(value: Appearance): ReversibleEdit = ReversibleEdit {
         val before = _appearance.value
         applyAppearance(value)
-        appearanceStep(before)
+        settingReveal.value = SettingReveal(SettingKey.Appearance)
+        appearanceStep(before).also {
+            val context = getApplication<Application>()
+            it.feedback = AppMessage(R.string.setting_back_to, formatArgs = listOf(context.getString(R.string.appearance), context.getString(appearanceLabel(value))))
+        }
     }
     fun setAppearance(value: Appearance) {
         val before = _appearance.value

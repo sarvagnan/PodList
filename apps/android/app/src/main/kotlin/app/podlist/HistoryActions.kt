@@ -15,16 +15,20 @@ internal class ReversibleEdit(val viewId: String? = null, val playbackPlaylist: 
 
 internal fun AppModel.changesStep(current: Session, changes: List<Change>, playbackPlaylist: String? = null): ReversibleEdit =
     ReversibleEdit(changes.filterIsInstance<Change.SaveView>().firstOrNull()?.view?.id, playbackPlaylist, changes.any { it is Change.SetActivePlaylist }) {
+        var scopeNames = emptyMap<String, String>()
         val result = withContext(Dispatchers.IO) {
             current.db.transaction {
                 val before = loadState()
                 val inverse = reversibleEdit(changes, System.currentTimeMillis())
                 app.podlist.data.FormDraftStore(this).reconcile(changes)
-                inverse to restoredMessage(before, loadState(), changes)
+                if (changes.any { it is Change.SetSubscriptionOverrides || it is Change.SetDownloadRule }) {
+                    scopeNames = query("SELECT id, title FROM subscription").associate { it["id"] as String to it["title"] as String }
+                }
+                Triple(inverse, before, loadState())
             }
         }
         revealChanges(changes)
-        changesStep(current, result.first, playbackPlaylist).also { it.feedback = result.second }
+        changesStep(current, result.first, playbackPlaylist).also { it.feedback = restoredSettingsMessage(result.second, result.third, changes, result.first, scopeNames) ?: restoredMessage(result.second, result.third, changes) }
     }
 
 internal fun AppModel.recordHistory(current: Session, message: AppMessage, step: ReversibleEdit, typingGroup: String? = null, notify: Boolean = true) {

@@ -28,8 +28,27 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
     val appearance by model.appearance.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) actions.read(uri) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-opml")) { uri -> if (uri != null) actions.export(uri) }
-    LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { Section(stringResource(R.string.playback_settings)); PlaybackSettingsEditor(data.state.playbackSettings) }
+    val listState = rememberBrowsingListState()
+    val reveal by model.settingReveal.collectAsState()
+    var revealed by rememberSaveable { mutableLongStateOf(0L) }
+    val playbackKeys = listOf(SettingKey.Speed, SettingKey.SkipIntro, SettingKey.SkipOutro, SettingKey.VolumeBoost)
+    LaunchedEffect(reveal) {
+        if (reveal != null && reveal!!.token != revealed && reveal!!.route == "settings") {
+            val key = reveal!!.key
+            val index = if (key in playbackKeys) playbackKeys.indexOf(key) + 2 else {
+                val retentionIndex = 10 + (if (busy) 1 else 0) +
+                    (if (!busy && opml.progress?.remaining?.isNotEmpty() == true) 1 else 0) +
+                    (if (error) 1 else 0) + (if (summary != null) 1 else 0)
+                if (key == SettingKey.TrashRetention) retentionIndex else retentionIndex + 2
+            }
+            if (index >= 0) listState.animateScrollToItem(index)
+            revealed = reveal!!.token
+        }
+    }
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+        item { Section(stringResource(R.string.playback_settings)) }
+        item { Hint(stringResource(R.string.settings_inheritance)) }
+        playbackKeys.forEach { key -> item(key = key) { PlaybackSettingsEditor(data.state.playbackSettings, key) } }
         item { Section(stringResource(R.string.m4_your_listening)); SettingsRow(stringResource(R.string.m4_listening_stats), stringResource(R.string.m4_stats_hint)) { open("listening-stats") } }
         item { Section(stringResource(R.string.m4_your_podcasts)) }
         item { ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) }, leadingContent = { Icon(painterResource(R.drawable.ic_import_opml), null) }, headlineContent = { Text(stringResource(R.string.m4_import_opml)) }, supportingContent = { Text(stringResource(R.string.m4_import_help)) }); HorizontalDivider() }
@@ -56,9 +75,9 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
                 if (result.failed.isNotEmpty()) ContentTextButton(enabled = !busy, onClick = actions::retryFailed) { Text(stringResource(R.string.m4_retry_failed)) }
             }
         } }
-        item { Section(stringResource(R.string.playlists)); ValueRow(stringResource(R.string.m4_keep_deleted), stringResource(R.string.m4_days, data.state.trashDays ?: 30)) { retention = true } }
+        item(key = SettingKey.TrashRetention) { Section(stringResource(R.string.playlists)); ValueRow(stringResource(R.string.m4_keep_deleted), stringResource(R.string.m4_days, data.state.trashDays ?: 30)) { retention = true } }
         item { Section(stringResource(R.string.this_device)); SettingsRow(stringResource(R.string.server), session.source.server?.origin ?: stringResource(R.string.server_none)) { open("server") } }
-        item { SettingsRow(stringResource(R.string.appearance), stringResource(appearanceLabel(appearance))) { open("appearance") } }
+        item(key = SettingKey.Appearance) { SettingsRow(stringResource(R.string.appearance), stringResource(appearanceLabel(appearance))) { open("appearance") } }
         if (bringOver?.origin == session.source.key && bringOver?.job?.complete != true) item {
             SettingsRow(stringResource(R.string.bring_over_title), stringResource(if (bringOver?.job == null) R.string.bring_over_available else R.string.bring_over_in_settings)) { model.showBringOver() }
         }

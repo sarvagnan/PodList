@@ -86,10 +86,10 @@ internal fun EditorSheet(title: String, close: () -> Unit, done: (() -> Unit)? =
 }
 
 @Composable
-internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, supporting: ((T) -> String)? = null, choose: (T) -> Unit) {
+internal fun <T> ChoiceRows(choices: List<Pair<T, String>>, selected: T, supporting: ((T) -> String)? = null, enabled: Boolean = true, choose: (T) -> Unit) {
     choices.forEach { (value, label) ->
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected == value, role = Role.RadioButton, onClick = { choose(value) }).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected == value, onClick = null)
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected == value, enabled = enabled, role = Role.RadioButton, onClick = { choose(value) }).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected == value, onClick = null, enabled = enabled)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
                 Text(label)

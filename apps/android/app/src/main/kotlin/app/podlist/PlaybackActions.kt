@@ -132,16 +132,16 @@ internal fun DownloadStatus(episode: String, session: Session, modifier: Modifie
 }
 
 @Composable
-internal fun PlaybackSettingsEditor(settings: PlaybackSettings) {
+internal fun PlaybackSettingsEditor(settings: PlaybackSettings, field: SettingKey? = null) {
     val model = LocalAppModel.current
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
     val save = { next: PlaybackSettings -> model.edit(Change.SetPlaybackSettings(next)) }
     Column(Modifier.fillMaxWidth()) {
-        Hint(stringResource(R.string.settings_inheritance))
-        ValueRow(stringResource(R.string.speed), speedSetting(settings.speed)) { sheet = 0 }
-        ValueRow(stringResource(R.string.m4_skip_intro), secondsSetting(settings.skipIntro)) { sheet = 1 }
-        ValueRow(stringResource(R.string.m4_skip_outro), secondsSetting(settings.skipOutro)) { sheet = 2 }
-        SwitchRow(stringResource(R.string.volume_boost), settings.volumeBoost) { model.edit(Change.SetPlaybackSettings(settings.copy(volumeBoost = it))) }
+        if (field == null) Hint(stringResource(R.string.settings_inheritance))
+        if (field == null || field == SettingKey.Speed) ValueRow(stringResource(R.string.speed), speedSetting(settings.speed)) { sheet = 0 }
+        if (field == null || field == SettingKey.SkipIntro) ValueRow(stringResource(R.string.m4_skip_intro), secondsSetting(settings.skipIntro)) { sheet = 1 }
+        if (field == null || field == SettingKey.SkipOutro) ValueRow(stringResource(R.string.m4_skip_outro), secondsSetting(settings.skipOutro)) { sheet = 2 }
+        if (field == null || field == SettingKey.VolumeBoost) SwitchRow(stringResource(R.string.volume_boost), settings.volumeBoost) { model.edit(Change.SetPlaybackSettings(settings.copy(volumeBoost = it))) }
     }
     val seconds = listOf(0.0, 15.0, 30.0, 45.0, 60.0, 90.0, 120.0)
     sheet?.let { which -> EditorSheet(stringResource(listOf(R.string.speed, R.string.m4_skip_intro, R.string.m4_skip_outro)[which]), { sheet = null }) {

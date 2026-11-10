@@ -89,4 +89,31 @@ class UiWordingTest {
         assertEquals("Downloaded when added to a Playlist", text("library_downloads_entry"))
         assertEquals("Downloaded as published", text("library_downloads_published"))
     }
+    @Test fun `restored settings feedback names the setting and restored value`() {
+        assertEquals("Speed back to 1.0×", text("setting_back_to").format(text("speed"), text("speed_value").format("1.0")))
+        assertEquals("Appearance back to System default", text("setting_back_to").format(text("appearance"), text("appearance_system")))
+        assertEquals("Keep deleted Playlists back to 30 days", text("setting_back_to").format(text("m4_keep_deleted"), text("m4_days").format(30)))
+        assertEquals("Clear on Played for Commute back to On", text("setting_back_to").format(text("setting_for").format(text("clear_on_played"), "Commute"), text("m4_on")))
+        assertEquals("Download Rule for A podcast back to Stream", text("setting_back_to").format(text("setting_for").format(text("m4_download_rule"), "A podcast"), text("stream")))
+        assertEquals("Skip intro back to Off", text("setting_back_to").format(text("m4_skip_intro"), text("m4_off")))
+        assertEquals("Volume boost back to On", text("setting_back_to").format(text("volume_boost"), text("m4_on")))
+    }
+
+    @Test fun `Play commands use glossary capitalisation in controls and help`() {
+        assertEquals("Play Now", text("play_now"))
+        assertEquals("Play Next", text("play_next"))
+        assertEquals("Play Last", text("play_last"))
+        assertTrue(text("m4_step_playlists_help").contains("“Play Next” or “Play Last”"))
+        assertEquals("Playlist settings", text("playlist_settings"))
+        assertEquals("The Default Playlist can’t be renamed or deleted.", text("default_playlist_limits"))
+    }
+
+    @Test fun `empty Trash explains its contents retention setting and next step`() {
+        assertEquals("Trash holds deleted Playlists, together with their History and Listening Timeline, for 30 days, changeable in Settings.", text("empty_trash_help").format(30))
+        assertTrue(text("empty_trash_help").format(7).contains("7 days"))
+        assertEquals("Back to Playlists", text("back_to_playlists"))
+        assertEquals("Find something to play", text("find_something_to_play"))
+        assertEquals("A Playlist needs a name.", text("m4_playlist_empty"))
+    }
+
 }

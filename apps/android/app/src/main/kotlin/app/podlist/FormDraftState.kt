@@ -7,6 +7,12 @@ import app.podlist.data.FormDraftStore
 internal class FormDraftState(private val store: FormDraftStore, initial: Map<String, String>) {
     private val values = initial.toList().toMutableStateMap()
     fun get(key: String): String? = values[key]
+    fun snapshot(prefix: String): Map<String, String> = values.filterKeys { it.startsWith(prefix) }
+    fun clearIfUnchanged(prefix: String, submitted: Map<String, String>): Boolean {
+        if (snapshot(prefix) != submitted || !store.clearIfUnchanged(prefix, submitted)) return false
+        values.keys.filter { it.startsWith(prefix) }.forEach(values::remove)
+        return true
+    }
     fun reload() { values.clear(); values.putAll(store.load()) }
     fun put(key: String, text: String) {
         if (values[key] == text) return

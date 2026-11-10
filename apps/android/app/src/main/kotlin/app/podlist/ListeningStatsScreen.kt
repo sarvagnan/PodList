@@ -53,13 +53,19 @@ private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartO
 }
 
 @Composable
-internal fun ListeningStatsScreen(data: ScreenData, session: Session) {
+internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisodes: () -> Unit) {
     val stats = remember(data) { ListeningStats.calculate(data.state.listeningLog.orEmpty(), data.state.episodeStates.filterKeys { id -> data.episodes.any { it["id"] == id } }.values.mapNotNull { it.played }, Instant.now(), ZoneId.systemDefault()) }
     val browsing = LocalBrowsingState.current
     var table by rememberSaveable { mutableStateOf(browsing?.context?.statsTable ?: false) }
     LaunchedEffect(table) { if (browsing != null) browsing.context = browsing.context.copy(statsTable = table) }
     var chosen by rememberSaveable { mutableIntStateOf(stats.days.lastIndex) }
-    if (stats.totals.all { it.seconds == 0.0 && it.finished == 0 }) { EmptyMessage(R.string.m4_no_listening); return }
+    if (stats.totals.all { it.seconds == 0.0 && it.finished == 0 }) {
+        Column {
+            EmptyMessage(R.string.m4_no_listening)
+            FilledTonalButton(onClick = findEpisodes, modifier = Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.find_something_to_play)) }
+        }
+        return
+    }
     LazyColumn(state = rememberBrowsingListState(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Section(stringResource(R.string.m4_time_listened), inset = 0.dp); PeriodTiles(stats.totals.map { listened(it.seconds) }) }
         item { Section(stringResource(R.string.m4_episodes_finished), inset = 0.dp); PeriodTiles(stats.totals.map { it.finished.toString() }) }

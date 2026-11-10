@@ -41,7 +41,14 @@ internal fun SelectionToolbar(selection: EpisodeSelection) {
     })
 }
 
-/** Equal, expanding slots: labels wrap at large text sizes, never clip or ellipsize. */
+/** Two equal columns at enlarged text sizes give every word room without hiding commands. */
+@Composable
+internal fun ActionGrid(content: @Composable FlowRowScope.() -> Unit) {
+    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        maxItemsInEachRow = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 2 else 4,
+        verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
+}
+
 @Composable
 internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, action: () -> Unit) {
     TextButton(onClick = action, enabled = enabled,
@@ -61,7 +68,7 @@ internal fun SelectionActionBar(selection: EpisodeSelection, data: ScreenData, s
     val playlist = data.state.playlists.find { route == "playlist:${it.id}" }
     val ordered = (playlist?.entries?.map { it.episodeId } ?: selection.order).filter { it in selection.ids }
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, tonalElevation = 3.dp) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.Top) {
+        ActionGrid {
             LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { adding = true }
             LabelledAction(R.drawable.ic_check, stringResource(R.string.mark_played)) {
                 model.changeWithUndo(ordered.map { Change.MarkPlayed(it, PlayedSource.User) }, R.string.episodes_played) { before -> EpisodeActions.undoPlayed(before, ordered, System.currentTimeMillis() + 1) }

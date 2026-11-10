@@ -255,7 +255,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                             when {
                                 route == "add-podcasts" -> AddPodcastsScreen(model, session, open)
                                 route == "server" -> ServerScreen(model, session.source.server?.origin, back)
-                                route == "new-playlist" -> NewPlaylistScreen(model, discard = back) { id -> scope.launch { navigator.navigateBack(BackNavigationBehavior.PopLatest); navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "playlist:$id") } }
+                                route == "new-playlist" && loaded != null -> NewPlaylistScreen(model, loaded, discard = back) { id -> scope.launch { navigator.navigateBack(BackNavigationBehavior.PopLatest); navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "playlist:$id") } }
                                 loaded == null -> Loading()
                                 else -> pages.SaveableStateProvider(route ?: "detail") {
                                     Detail(route, loaded, session, open, back)
@@ -281,7 +281,9 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
                 if (back != null) ActionIcon(R.drawable.ic_back, stringResource(R.string.back), action = back)
             }, actions = {
                 EditHistoryMenu()
-                if (edit != null) ActionIcon(R.drawable.ic_edit, stringResource(R.string.m4_edit), action = edit)
+                if (edit != null) ActionIcon(if (route?.startsWith("playlist:") == true) R.drawable.ic_tune else R.drawable.ic_edit,
+                    stringResource(if (route?.startsWith("playlist:") == true) R.string.playlist_settings else R.string.m4_edit_view), action = edit)
+                if (route?.startsWith("episode:") == true && selectionData != null && selectionSession != null) EpisodeOverflow(selectionData, selectionSession)
                 if (add != null) ActionIcon(R.drawable.ic_add, stringResource(addLabel), action = add)
                 if (settings != null) ActionIcon(R.drawable.ic_settings, stringResource(R.string.settings), action = settings)
                 if (selectSubscriptions != null) {
@@ -374,7 +376,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                         SubscriptionRefreshStatus(subscription, session)
                     }
                 }
-                if (subscriptions.isNotEmpty()) item(key = "add-podcasts") { NameRow(stringResource(R.string.add_podcasts), stringResource(R.string.m4_add_podcasts_hint)) { open("add-podcasts") } }
+                if (subscriptions.isNotEmpty()) item(key = "add-podcasts") { NameRow(stringResource(R.string.add_podcasts), stringResource(R.string.m4_add_podcasts_hint), icon = R.drawable.ic_add) { open("add-podcasts") } }
             }
         }
         item(key = "end") { Spacer(Modifier.height(16.dp)) }
@@ -384,12 +386,13 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
 @Composable
 private fun Detail(route: String?, data: ScreenData, session: Session, open: (String) -> Unit, back: () -> Unit) {
     val id = route?.substringAfter(':')
+    val model = LocalAppModel.current
     when {
         route == "appearance" -> AppearanceScreen()
         route == "settings" -> SettingsScreen(data, session, open)
-        route == "trash" -> TrashScreen(data)
+        route == "trash" -> TrashScreen(data) { model.requestReveal(Reveal("playlists-root")) }
         route == "search" -> SearchScreen(data, session, open)
-        route == "listening-stats" -> ListeningStatsScreen(data, session)
+        route == "listening-stats" -> ListeningStatsScreen(data, session) { model.requestReveal(Reveal("views-root")) }
         route == "select-subscriptions" -> SelectSubscriptionsScreen(data, session) { open("add-podcasts") }
         route?.startsWith("view-edit:") == true || route?.startsWith("new-view:") == true -> {
             val view = data.state.views.find { it.id == id } ?: if (route.startsWith("new-view:")) View(id!!, stringResource(R.string.m4_new_view), ViewFilter(), ViewSort.PublishedDesc, null) else null
@@ -446,7 +449,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
     val duration = (row["duration"] as? Number)?.toDouble()
     val stacked = LocalDensity.current.fontScale >= 1.5f
     val actions: @Composable () -> Unit = {
-        if (entryPlaylist == null) ActionIcon(R.drawable.ic_add, stringResource(R.string.add_to_playlist), enabled = actionsEnabled) { if (addAction != null) addAction() else add(id) }
+        if (entryPlaylist == null) ActionIcon(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist), enabled = actionsEnabled) { if (addAction != null) addAction() else add(id) }
         ActionIcon(R.drawable.ic_play, stringResource(if (entryPlaylist == null) R.string.play_now else R.string.play_from_here), enabled = actionsEnabled) {
             if (playAction != null) playAction() else {
                 if (entryPlaylist == null) model.playNow(id) else model.playEntry(entryPlaylist, id)
@@ -485,6 +488,27 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
 }
 
 @Composable
+internal fun EpisodeOverflow(data: ScreenData, session: Session) {
+    val row = data.episodes.firstOrNull() ?: return
+    val id = row["id"] as String
+    var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    Box {
+        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+            DownloadMenuItem(id, session) { expanded = false }
+            val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
+            DropdownMenuItem(text = { Text(stringResource(R.string.share_episode)) }, enabled = shareLink != null, onClick = {
+                expanded = false
+                context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String)
+                }, null))
+            })
+        }
+    }
+}
+
+@Composable
 internal fun EpisodeDetail(data: ScreenData, session: Session) {
     val row = data.episodes.firstOrNull()
     if (row == null) { EmptyMessage(R.string.metadata_pending); return }
@@ -498,27 +522,12 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
     LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.fillMaxSize()) {
         item {
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 112.dp)
-                    Box {
-                        var expanded by remember { mutableStateOf(false) }
-                        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
-                        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-                            DownloadMenuItem(id, session) { expanded = false }
-                            val context = LocalContext.current
-                            val shareLink = (row["guid"] as? String)?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: row["audio_url"] as? String
-                            DropdownMenuItem(text = { Text(stringResource(R.string.share_episode)) }, enabled = shareLink != null, onClick = {
-                                expanded = false
-                                context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, shareLink); putExtra(android.content.Intent.EXTRA_TITLE, row["title"] as String) }, null))
-                            })
-                        }
-                    }
-                }
+                ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, 112.dp)
             }
             EpisodeRow(row, data, session, showActions = false, showArtwork = false, detail = true)
             Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { model.playNow(id); started() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Icon(painterResource(R.drawable.ic_play), null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.play_now)) }
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                ActionGrid {
                     LabelledAction(R.drawable.ic_playlist_add, stringResource(R.string.add_to_playlist)) { add(id) }
                     val starred = data.state.episodeStates[id]?.starred == true
                     LabelledAction(if (starred) R.drawable.ic_star else R.drawable.ic_star_outline, stringResource(if (starred) R.string.unstar else R.string.star)) {
@@ -559,7 +568,7 @@ internal fun EpisodeDetail(data: ScreenData, session: Session) {
 @Composable
 internal fun NameRow(title: String, subtitle: String, artwork: String? = null, session: Session? = null, icon: Int? = null, titleStyle: androidx.compose.ui.text.TextStyle? = null, onClick: () -> Unit) {
     ListItem(colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent), modifier = Modifier.clickable(onClick = onClick), headlineContent = { Text(title, style = titleStyle ?: MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis) }, supportingContent = subtitle.takeIf { it.isNotBlank() }?.let { { Text(it) } },
-        leadingContent = if (session != null) { { ArtworkImage(session, artwork) } } else icon?.let { { Icon(painterResource(it), null) } })
+        leadingContent = if (session != null) { { ArtworkImage(session, artwork) } } else icon?.let { { Box(Modifier.size(48.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { Icon(painterResource(it), null) } } })
     HorizontalDivider()
 }
 

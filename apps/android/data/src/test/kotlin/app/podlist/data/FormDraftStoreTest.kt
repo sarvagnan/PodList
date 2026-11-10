@@ -299,4 +299,26 @@ class FormDraftStoreTest {
             assertTrue(db.loadState().playlists.none { it.id == "walk" })
         }
     }
+    @Test fun `late save clears only the submitted raw draft in every naming flow`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            val store = FormDraftStore(db)
+            for (prefix in listOf("new-playlist/", "add-playlist:episode/", "search-view/")) {
+                store.put(prefix + "name", " Morning ")
+                store.put(prefix + "open", "true")
+                val submitted = store.snapshot(prefix)
+                store.put(prefix + "name", " Morning walk ")
+                assertFalse(store.clearIfUnchanged(prefix, submitted))
+                assertEquals(" Morning walk ", store.load()[prefix + "name"])
+                val latest = store.snapshot(prefix)
+                store.put("unrelated/name", "Keep")
+                assertTrue(store.clearIfUnchanged(prefix, latest))
+                assertTrue(store.snapshot(prefix).isEmpty())
+                assertEquals("Keep", store.load()["unrelated/name"])
+                store.put(prefix + "name", "Evening")
+                assertFalse(store.clearIfUnchanged(prefix, latest))
+            }
+        }
+    }
+
 }
