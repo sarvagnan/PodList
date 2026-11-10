@@ -40,7 +40,7 @@ Show **In your Playlists** with each Entry's own Position and Resume action. Pos
 - **Play this** on an inactive Playlist switches the Active Playlist and resumes its Cursor (or starts its first Entry if there is no Cursor). An empty Playlist can become Active without starting audio. Switching Playlists resumes their independent playback state.
 - Empty Playlists and Playlists past their end must clearly say there is no current Entry. An empty Playlist offers a route to find Episodes. History records Entries finished through that Playlist's playback; a manual Played mark creates no History.
 - Playlist settings have their own screen, where people can change the name, Clear on Played and Delete. Clear on Played removes an Entry as soon as its Episode becomes Played, wherever that happened. It is on by default for the Default Playlist; enabling it does not retroactively remove already Played Entries. Star does not prevent Clear on Played.
-- Delete sends a Playlist, its History and its Listening Timeline to Trash. Deleting the Active Playlist makes the Default Playlist Active. Trash supports Restore and retains deleted Playlists for 30 days by default, changeable in Settings. Deletion and restoration offer Undo.
+- Delete sends a Playlist, its History and its Listening Timeline to Trash. Deleting the Active Playlist makes the Default Playlist Active. Trash supports Restore and retains deleted Playlists for 30 days by default, changeable in Settings. Deletion and restoration offer Undo; the deletion message names the Playlist ("Playlist Commute moved to Trash", owner, 10 Nov 2026).
 
 ## Listening Timeline and Rewind
 
@@ -72,7 +72,7 @@ Played uses the Subscription's threshold or 30 seconds before the end by default
 
 ### Unsubscribe
 
-Ask for confirmation first, with a plain "are you sure" dialog and no explanation (owner, 9 Nov 2026). Afterwards stay on the Podcast page and let the person navigate back (owner, 10 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
+No confirmation dialog (owner, 10 Nov 2026). Unsubscribe takes two taps on the same control: tapping the subscribed control (the green check on the Podcast page) turns it into an Unsubscribe button, and tapping that unsubscribes. The button turns back into the check after a few seconds, or on any other interaction, scroll, Back or leaving the page. Afterwards stay on the Podcast page and let the person navigate back (owner, 10 Nov 2026). Episodes leave the Library except Orphaned Episodes that remain Entries or Starred. Downloads stay on their Devices. After success still offer Undo; Redo repeats the action. Undo re-subscribes to the same feed.
 
 The server retains Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices' Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals those retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Do not silently queue Subscribe or Unsubscribe as an offline State edit.
 
