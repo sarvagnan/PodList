@@ -17,6 +17,7 @@ struct PodListMac: App {
             SidebarCommands()
             PodListCommands()
             PlaybackCommands(app: model)
+            PlaylistEditingCommands(app: model)
             CommandGroup(replacing: .help) {
                 Button("PodList Help") { openWindow(id: "help") }
             }

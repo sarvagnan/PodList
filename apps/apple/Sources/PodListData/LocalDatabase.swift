@@ -147,6 +147,47 @@ public actor LocalDatabase {
             return operations
         }
     }
+    /// Validate names, capture inverses and write all Operations in one local transaction.
+    /// The builder sees current State, including edits arriving while UI work was queued.
+    public func reversibleEdit(at: Int64, validateNames: Bool = true,
+                               build: @Sendable (State) throws -> [Change]) throws -> [Change] {
+        try storage.transaction {
+            let changes = try build(loadState())
+            var inverse: [Change] = []
+            for (index, requested) in changes.enumerated() {
+                let before = try loadState()
+                let deletedLater: Bool
+                if case let .renamePlaylist(id, _) = requested {
+                    deletedLater = changes.dropFirst(index + 1).contains(.deletePlaylist(playlistId: id))
+                } else { deletedLater = false }
+                if validateNames && !deletedLater {
+                    switch requested {
+                    case let .createPlaylist(_, name, _):
+                        if let problem = PlaylistNames.problem(name, playlists: before.playlists) { throw DatabaseFailure(description: problem) }
+                    case let .renamePlaylist(id, name):
+                        guard let playlist = before.playlists.first(where: { $0.id == id }), !playlist.isDefault else {
+                            throw DatabaseFailure(description: "This Playlist cannot be renamed.")
+                        }
+                        if let problem = PlaylistNames.problem(name, playlists: before.playlists, excluding: id) { throw DatabaseFailure(description: problem) }
+                    default: break
+                    }
+                }
+                if !deletedLater { inverse = EditUndo.inverse(before, change: requested, at: at) + inverse }
+                let expanded: [Change]
+                if case let .restorePlaylist(id) = requested {
+                    expanded = PlaylistNames.restoreChanges(before, id: id, at: at)
+                    guard PlaylistRules.availableTrash(before, at: at).contains(where: { $0.playlist.id == id }) else {
+                        throw DatabaseFailure(description: "This Playlist is no longer in Trash.")
+                    }
+                } else if case let .reportPosition(id, episode, position, _, listening) = requested {
+                    expanded = [.reportPosition(playlistId: id, episodeId: episode, position: position, listenedAt: at, listening: listening)]
+                } else { expanded = [requested] }
+                try recordAll(expanded, at: at)
+            }
+            return inverse
+        }
+    }
+
     public func outbox() throws -> [Operation] {
         try storage.query("SELECT operation FROM outbox ORDER BY seq").map { try ProtocolJSON.decode(Operation.self, from: $0["operation"]!.string!) }
     }

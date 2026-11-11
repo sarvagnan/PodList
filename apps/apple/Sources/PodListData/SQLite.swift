@@ -14,6 +14,7 @@ public typealias StateRows = [String: [Row]]
 
 public struct DatabaseFailure: Error, Sendable, CustomStringConvertible {
     public let description: String
+    public init(description: String) { self.description = description }
 }
 
 /// Owned exclusively by LocalDatabase's actor. Never escapes its isolation boundary.

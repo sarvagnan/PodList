@@ -1,6 +1,6 @@
 # PodList Apple
 
-Phase 2, milestones 1–3: shared domain/data, the Mac Library, playback and downloads. Swift 6 language mode,
+Phase 2, milestones 1–4a: shared domain/data, the Mac Library, playback, downloads and Playlist editing. Swift 6 language mode,
 macOS 26 and iOS 26 minimums, no third-party packages. The installed Swift 6.4 toolchain
 builds this package. The Mac window follows variant B in `docs/design/mac.md`.
 
@@ -209,3 +209,31 @@ Standalone feed polling, directory search, Subscribe/Unsubscribe, OPML, bringing
 server remain later work. RSS parsing and the persistent schema are ready for that work.
 Saved Playback Settings are consumed here; their global/Subscription editing UI remains with
 the remaining settings screens in milestone 4.
+
+## Playlist editing (milestone 4a)
+
+Episode rows, the Inspector, the selection toolbar and the Episode menu share Play Now,
+Play Next/Last, Add to a Playlist, Star and Played actions. Add targets the Active Playlist
+by default; the submenu or Add sheet chooses another, or creates a Playlist and adds the
+selection atomically. Multi-selections keep their displayed order. Return opens the Inspector
+from an Episode table. The Playlist menu exposes Play this, settings, Delete and Trash.
+
+Create a Playlist with File > New Playlist (⌘⇧N). Playlist settings keeps the full name on
+its own line, with explicit Rename, Cancel and Save below it, plus Clear on Played and Delete.
+Names ignore case and surrounding spaces; restore chooses the next available name. Closing
+New Playlist, Add or Rename keeps the draft in server-scoped UserDefaults, including an open
+Rename with empty text. Delete immediately moves the Playlist to Trash; status names it and
+Edit > Undo Move to Trash restores it. Trash shows retention and offers Restore.
+
+Playlists have Entries, History and Listening Timeline sections. Drag rows to insertion
+boundaries to move one or the selected block; Episode > Move Up/Down (⌘⌥↑/↓) and Remove from
+Playlist (⌘⌫) are keyboard alternatives. Play from here changes the Cursor and Active Playlist.
+An empty Playlist can become Active without playing. Timeline stretches, finishes and edits
+offer Rewind with a summary sheet listing the target, Unplayed Episodes, restored Entries and
+what stays. Rewind keeps the permanent Listening log.
+
+Edit > Undo/Redo (⌘Z/⇧⌘Z) has named actions. Native text fields keep their own text Undo.
+The session-wide domain edit history uses new protocol Operations; a failed reversal stays
+available to retry. Sync and playback reports do not create Undo steps. Edits flush playback
+reporting before capturing inverses, and leave unrelated playing audio and transient speed
+alone. Quitting keeps form drafts; the Undo stack lasts for the current connection session.

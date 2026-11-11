@@ -46,3 +46,18 @@ Native menu bar with the standard App, File, Edit, View, Controls (playback), Wi
 ## Carried over from the other clients
 
 Delete Playlist asks nothing and offers Undo; Unsubscribe takes two clicks on the subscribed control; renaming is an explicit Rename with Cancel and Save; Playlist and View names are unique; drafts survive quitting. Exact Mac presentation of each is settled while building milestone 2 and recorded here.
+
+## Milestone 4a editing presentation
+
+File > New Playlist uses ⌘⇧N. Episode actions are available in the Episode menu, row context
+menus, the selection toolbar and Inspector; the Add sheet preselects the Active Playlist,
+with New Playlist as its last choice. Playlist settings is a sheet with the full name on its
+own lines and Rename/Cancel/Save beneath it; New Playlist, Add and open Rename drafts are
+kept per server when a sheet closes or the app quits. Delete has no confirmation: the status
+says “Playlist <name> moved to Trash” and offers the named Undo action.
+
+Playlist Entries, History and Listening Timeline use a segmented control. Entries use native
+table row dragging with insertion boundaries, with Move Up/Down (⌘⌥↑/↓) and Remove (⌘⌫) in
+the Episode menu. Rewind opens a summary sheet before committing. Edit > Undo/Redo names the
+latest domain edit; editable text retains native text Undo. A compact status line provides
+feedback and Undo, and Trash includes Restore and its retention period.

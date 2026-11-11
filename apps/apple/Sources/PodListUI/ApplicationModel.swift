@@ -59,6 +59,7 @@ public final class ApplicationModel {
     public private(set) var syncing = false
     public private(set) var library: LibraryModel?
     public private(set) var lastSync: Date?
+    public private(set) var editing: PlaylistEditingModel?
     public private(set) var playback: PlaybackController?
     public private(set) var downloadStatuses: [String: DownloadStatus] = [:]
     public private(set) var downloadError: String?
@@ -167,6 +168,12 @@ public final class ApplicationModel {
             guard let self, self.generation == token else { return }
             await self.reloadLocal(); self.requestSync()
         }
+        editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: address.origin.absoluteString),
+            player: { [weak self] in self?.generation == token ? self?.playback : nil },
+            changed: { [weak self] in
+                guard let self, self.generation == token else { return }
+                await self.reloadLocal(); self.requestSync()
+            })
         playback?.refresh()
         scheduleRules()
         startAutomaticSync(token: token)
@@ -270,7 +277,7 @@ public final class ApplicationModel {
     public func disconnect() {
         let oldPlayback = playback, oldDownloads = downloads
         cleanupTask = Task { await oldPlayback?.shutdown(); await oldDownloads?.suspend() }
-        playback = nil; downloads = nil; downloadStatuses = [:]; ruleTask?.cancel()
+        editing = nil; playback = nil; downloads = nil; downloadStatuses = [:]; ruleTask?.cancel()
         generation = UUID()
         periodicTask?.cancel(); triggerTask?.cancel(); monitor?.cancel()
         periodicTask = nil; triggerTask = nil; monitor = nil

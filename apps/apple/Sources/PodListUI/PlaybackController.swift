@@ -123,6 +123,39 @@ public final class PlaybackController {
             else { try await $0.follow(force: true, play: true) }
         }
     }
+    /// Serialize user edits with reporting and track loads. Flush before capturing an inverse,
+    /// then reload only for edits that deliberately change the current playback context.
+    public func performUserEdit(reload: Bool, start: Bool = false,
+                                action: @escaping @MainActor () async throws -> Void) async throws {
+        guard !closed else { throw CancellationError() }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            enqueue { controller in
+                let before: State
+                do {
+                    try await controller.sample(); try await controller.event(.flush)
+                    before = try await controller.db.loadState()
+                    try await action()
+                } catch { continuation.resume(throwing: error); return }
+                // Audio failure after a successful durable edit must not make the form retry it.
+                do {
+                    let after = try await controller.db.loadState()
+                    let previous = PlaybackPolicy.target(before), next = PlaybackPolicy.target(after)
+                    let targetChanged = previous?.playlist.id != next?.playlist.id || previous?.entry != next?.entry
+                    let playedChanged = controller.episodeID.map { before.episodeStates[$0]?.played != after.episodeStates[$0]?.played } ?? false
+                    if start && !targetChanged && !controller.ended && controller.error == nil && controller.session?.finished == false {
+                        try await controller.start()
+                    } else if start || (reload && (targetChanged || playedChanged)) {
+                        try await controller.follow(force: true, play: start || controller.wantsPlayback)
+                    } else { try await controller.refreshState() }
+                } catch {
+                    controller.audio.pause(); controller.wantsPlayback = false
+                    controller.error = "Playback could not continue: \(error)"; controller.publish()
+                }
+                continuation.resume()
+            }
+        }
+    }
+
     public func flush() { enqueue { try await $0.sample(); try await $0.event(.flush) } }
     public func shutdown() async {
         enqueue { try await $0.sample(); try await $0.event(.pause) }
