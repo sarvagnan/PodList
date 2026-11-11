@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Observation
+import PodListAutomation
 import PodListData
 import PodListDomain
 
@@ -51,6 +52,10 @@ public enum ConnectionValidation {
 @MainActor @Observable
 public final class ApplicationModel {
     @ObservationIgnored public lazy var actions = AutomationActions(app: self)
+    @ObservationIgnored public lazy var automation = AutomationSettings { [weak self] name, arguments in
+        guard let self else { throw AutomationFailure("PodList is not running.") }
+        return try await self.actions.perform(name, arguments: arguments)
+    }
     public var serverInput = ""
     public private(set) var origin: String?
     public private(set) var connecting = false

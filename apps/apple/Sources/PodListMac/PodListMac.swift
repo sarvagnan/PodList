@@ -44,28 +44,20 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
     weak var model: ApplicationModel?
     private var keyboard: PlaybackKeyboardGuard?
     private var terminating = false
-    private var mcp: LocalMCPServer?
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating else { return .terminateNow }
         terminating = true
-        mcp?.stop()
+        (model ?? AutomationRuntime.app)?.automation.stop()
         Task { await (model ?? AutomationRuntime.app)?.shutdownPlayback(); sender.reply(toApplicationShouldTerminate: true) }
         return .terminateLater
     }
-    func applicationWillTerminate(_ notification: Notification) { mcp?.stop() }
+    func applicationWillTerminate(_ notification: Notification) { (model ?? AutomationRuntime.app)?.automation.stop() }
     func applicationDidResignActive(_ notification: Notification) { model?.playback?.flush() }
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = AutomationRuntime.app
         keyboard = PlaybackKeyboardGuard()
-        do {
-            let server = LocalMCPServer(url: try LocalSocket.defaultURL()) {
-                MCPHandler(tools: AutomationActions.tools) { name, arguments in
-                    try await AutomationRuntime.perform(name, arguments)
-                }
-            }
-            try server.start(); mcp = server
-        } catch { NSLog("PodList MCP: %@", error.localizedDescription) }
+        model?.automation.start()
         PodListShortcuts.updateAppShortcutParameters()
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate()

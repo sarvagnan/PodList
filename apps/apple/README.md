@@ -291,8 +291,12 @@ swift build --scratch-path .build --disable-sandbox --product podlist-mcp
 swift build --scratch-path .build --disable-sandbox --show-bin-path
 ```
 
-Open PodList first and open a Library. Copy the printed binary directory into your
-client's MCP configuration. Use an absolute path; clients do not expand `~` consistently.
+Open PodList first, open a Library, then turn on **Enable MCP server** in
+**Settings > Automation**. MCP is off by default. This preference applies only to this Mac
+and is not synced; App Intents and Shortcuts remain available independently. The Automation
+pane shows the bridge path and a copyable client configuration. For a bare SwiftPM build,
+copy the printed binary directory into your client's MCP configuration. Use an absolute path;
+clients do not expand `~` consistently.
 For example, replace `/path/to/checkout` with your checkout path:
 
 ```json
@@ -307,17 +311,26 @@ For example, replace `/path/to/checkout` with your checkout path:
 ```
 
 On this toolchain `.build/debug` points to the printed build directory. The bridge reports
-a clear error on stderr if PodList is not running. stdout contains only MCP messages.
+a clear error on stderr if PodList is not running or MCP is turned off in PodList Settings.
+stdout contains only MCP messages.
 The app listens at `~/Library/Application Support/PodList/Automation/mcp.sock`, with mode
 0600 in a 0700 directory. Both ends check the peer's user id. There is no TCP port.
-Any local process running as your user can use the tools. Quit stops the listener;
-closing every window keeps it available. Only one PodList instance can own the socket.
-Startup errors are logged as `PodList MCP` in the system log.
+When enabled, any local app running as your user can read the Library and control playback.
+Turning MCP off stops the listener, closes open connections and removes the socket immediately.
+Quit stops it while remembering the preference; closing every window keeps an enabled listener
+available. Only one PodList instance can own the socket. Startup errors appear in the Automation pane.
 
-The server supports the MCP 2025-11-25 handshake, `notifications/initialized`, `ping`,
-`tools/list` and `tools/call` over newline-delimited JSON-RPC 2.0. A connection must
-initialize before calling tools. Tools return text plus `structuredContent`; action
-failures return `isError: true`. Protocol errors use JSON-RPC errors.
+The server supports only MCP **2026-07-28**, with `server/discover`, `tools/list` and
+`tools/call` over newline-delimited JSON-RPC 2.0. Every request must carry
+`params._meta["io.modelcontextprotocol/protocolVersion"]: "2026-07-28"` and
+`params._meta["io.modelcontextprotocol/clientCapabilities"]: {}` (or the client’s capabilities).
+Client identity in `_meta["io.modelcontextprotocol/clientInfo"]` is optional. There is no
+initialization handshake: `initialize` is rejected with an error naming the supported revision,
+and `ping` is not supported. Every result has `resultType: "complete"` and server identity in
+`_meta`. Discovery and the name-sorted tool catalog include `ttlMs: 300000` and
+`cacheScope: "private"`. Tools return text plus `structuredContent`; action failures return
+`isError: true`. Malformed parameters and unknown tools/methods use JSON-RPC errors.
+The bridge relays messages unchanged.
 
 Tools: `play`, `pause`, `toggle`, `skip_back` (15 seconds), `skip_forward` (30 seconds),
 `now_playing`, `play_episode`, `add_episodes`, `add_current`, `list_views`, `list_playlists`,
@@ -363,7 +376,9 @@ visibility still needs a manual run. Distribution signing and notarization are n
 
 `AutomationTests` covers Active Playlist defaults, shared Undo names and reversal, Search,
 paging, Now Playing, id/argument validation, MCP lifecycle/schema/success/error handling,
-malformed JSON, socket permissions, exclusive ownership, round trips and stop/restart.
+malformed JSON, required per-request metadata, discovery, unsupported versions, legacy
+initialization rejection, default-off Settings, preference persistence, socket permissions,
+exclusive ownership, round trips and disabling/stop/restart (including closing open connections).
 The socket test needs permission to bind a local Unix socket in the enclosing sandbox.
 
 ## Next

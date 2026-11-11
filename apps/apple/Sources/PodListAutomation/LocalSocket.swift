@@ -6,6 +6,25 @@ public enum LocalSocket {
         try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("PodList/Automation/mcp.sock")
     }
+    /// Disabled launches also clean up sockets left by a crash or the earlier always-on server.
+    /// Take the same ownership lock as the listener so another running app is never unlinked.
+    public static func removeStaleSocket(at url: URL) throws {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { return }
+        let directory = url.deletingLastPathComponent()
+        guard lstat(directory.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, info.st_uid == geteuid() else {
+            throw AutomationFailure("The MCP directory must be owned by this user.")
+        }
+        let lock = open(directory.appendingPathComponent("server.lock").path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard lock >= 0 else { throw AutomationFailure("Could not lock the MCP directory.") }
+        defer { close(lock) }
+        guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { return }
+        guard lstat(url.path, &info) == 0 else { return }
+        guard info.st_mode & S_IFMT == S_IFSOCK, info.st_uid == geteuid() else {
+            throw AutomationFailure("An unexpected file occupies the MCP socket path.")
+        }
+        guard unlink(url.path) == 0 else { throw AutomationFailure("Could not remove the old MCP socket.") }
+    }
     static func address(_ url: URL) throws -> sockaddr_un {
         let bytes = Array(url.path.utf8) + [0]
         var address = sockaddr_un()
@@ -32,7 +51,7 @@ public enum LocalSocket {
         _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
         guard withAddress(&address, { Darwin.connect(fd, $0, $1) }) == 0 else {
             close(fd)
-            throw AutomationFailure("Could not connect to PodList. Open the PodList Mac app, then retry. Socket: \(url.path)")
+            throw AutomationFailure("Could not connect to PodList: the app is not running or MCP is turned off in PodList Settings. Open PodList and enable the MCP server in Settings > Automation, then retry. Socket: \(url.path)")
         }
         var uid: uid_t = 0, gid: gid_t = 0
         guard getpeereid(fd, &uid, &gid) == 0, uid == geteuid() else {

@@ -5,10 +5,12 @@ cd "$(dirname "$0")/.."
 export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
 swift build --scratch-path .build --disable-sandbox --product PodListMac
+swift build --scratch-path .build --disable-sandbox --product podlist-mcp
 bin_dir="$(swift build --scratch-path .build --disable-sandbox --show-bin-path)"
 app="$PWD/.build/PodList.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" .build/app-intents
 cp -f "$bin_dir/PodListMac" "$app/Contents/MacOS/PodListMac"
+cp -f "$bin_dir/podlist-mcp" "$app/Contents/MacOS/podlist-mcp"
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

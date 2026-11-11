@@ -1,9 +1,38 @@
 #if os(macOS)
 import SwiftUI
+import AppKit
 import Charts
 import UniformTypeIdentifiers
 import PodListDomain
 import PodListData
+
+struct AutomationSettingsScreen: SwiftUI.View {
+    @Bindable var settings: AutomationSettings
+    var body: some SwiftUI.View {
+        Form {
+            Section("MCP") {
+                Toggle("Enable MCP server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
+                Text("Any app running as this user on this Mac can then read the Library and control playback.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let error = settings.error {
+                    Text(error).foregroundStyle(.red)
+                    if settings.isEnabled { Button("Retry starting MCP") { settings.start() } }
+                }
+                if settings.isEnabled {
+                    LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
+                    Text("MCP client configuration").font(.headline)
+                    Text(settings.clientConfiguration).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    Button("Copy configuration") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(settings.clientConfiguration, forType: .string)
+                    }
+                }
+            }
+        }.formStyle(.grouped).frame(width: 600, height: 690)
+    }
+}
 
 public struct LibrarySettingsScreen: SwiftUI.View {
     @Bindable var app: ApplicationModel

@@ -65,8 +65,7 @@ feedback and Undo, and Trash includes Restore and its retention period.
 
 ## Agents and automation
 
-Milestone 4c defaults (11 Nov 2026). No owner design existed for these controls.
-The owner can revise these defaults after trying them.
+Milestone 4c automation, with the owner’s decisions of 11 Nov 2026 recorded below.
 
 App Intents and the Mac MCP tools share `AutomationActions` in PodListUI.
 It resolves ids in the open Library. It uses the existing Episode and Playlist editing
@@ -89,17 +88,45 @@ the live session and its Undo history. Listing Episodes accepts a Playlist or a 
 from List Library. The development app bundle includes extracted App Intents metadata.
 The bare SwiftPM executable alone does not register actions with Shortcuts.
 
-The Mac app starts one MCP listener at launch and stops it on Quit. Closing every window
-leaves it running in the Dock. It uses a Unix socket at
-`~/Library/Application Support/PodList/Automation/mcp.sock`. Its directory has mode 0700;
-the socket has mode 0600. Both ends check the peer's user id. A lock prevents a second
-app from taking the live socket. The next launch removes a stale socket after a crash.
-There is no TCP listener. Any process running as this user can use these tools.
+By the owner’s decision of 11 Nov 2026, the MCP server is opt-in and off by default.
+Settings > Automation has a plain toggle, with an explanation that any app running as
+this user on this Mac can read the Library and control playback. The preference is stored
+in this Mac’s UserDefaults, outside Library State, and is not synced. App Intents and
+Shortcuts remain available by default, independently of MCP.
 
-An MCP client starts `podlist-mcp`, a stdio bridge. The app must already be running.
-The bridge relays newline-delimited JSON-RPC 2.0. The server implements the MCP
-2025-11-25 initialization handshake, Ping, List Tools and Call Tool without external
-packages. Tools advertise JSON Schema inputs and return concise structured results.
-Invalid actions and failed edits return tool errors. Malformed messages return protocol
-errors. Each connection has its own handshake. Messages are capped at 1 MiB, connections
-at eight, and blocked writes time out after five minutes. Idle connections stay open.
+Enabling MCP starts one listener immediately. Disabling it stops the listener, closes
+open connections and removes the socket; Quit does the same while retaining the preference.
+When enabled, the Automation pane shows the bridge path and a copyable MCP client config.
+Closing every window leaves the enabled listener running in the Dock. It uses a Unix socket
+at `~/Library/Application Support/PodList/Automation/mcp.sock`. Its directory has mode 0700;
+the socket has mode 0600. Both ends check the peer's user id. A lock prevents a second
+app from taking the live socket. Startup removes a stale socket after a crash, including
+when MCP is disabled, without disturbing another app’s live listener. There is no TCP listener.
+
+An MCP client starts `podlist-mcp`, a transparent stdio bridge. The app must already be
+running with MCP enabled. Without a listener the bridge reports that PodList is not
+running or MCP is turned off in PodList Settings; the missing socket cannot distinguish
+those cases reliably. The development bundle includes the bridge beside the app executable.
+
+By the owner’s decision of 11 Nov 2026, only MCP **2026-07-28** is supported. The older
+handshake protocol is heavier and is not wanted. There is no per-connection handshake
+state: every request supplies its protocol version and client capabilities in `params._meta`,
+with optional client identity. `initialize` is rejected with code -32022, the requested
+revision and the sole supported revision, and a message explaining that PodList requires
+MCP 2026-07-28. `notifications/initialized` and `ping` have no handlers. Other unsupported
+revisions receive `UnsupportedProtocolVersionError` with the same single supported revision.
+
+The server implements `server/discover`, `tools/list` and `tools/call` over newline-delimited
+JSON-RPC 2.0 without external packages. Discovery advertises supported versions, capabilities
+and identity. Every result includes `resultType: "complete"` and server identity in `_meta`.
+Discovery and the deterministic, name-sorted tool catalog use a five-minute `ttlMs` freshness
+hint and `cacheScope: "private"`. Tools advertise JSON Schema inputs and return concise
+structured results. Failed actions return tool errors; malformed protocol parameters,
+unknown tools and unknown methods return JSON-RPC errors. No application errors use the
+spec-reserved -32020 through -32099 range. Messages are capped at 1 MiB, connections at eight,
+and blocked writes time out after five minutes. Idle connections stay open.
+
+Protocol references: [versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning),
+[stdio](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio),
+[discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) and
+[schema](https://modelcontextprotocol.io/specification/2026-07-28/schema).
