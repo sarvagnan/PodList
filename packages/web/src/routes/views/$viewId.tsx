@@ -16,6 +16,7 @@ import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { untouched, useViewActions } from "../../components/views/useViewActions.ts"
 import { ViewForm } from "../../components/views/ViewForm.tsx"
 import { firstRunDone } from "../../lib/remembered.ts"
+import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { describeView } from "../../lib/viewSummary.ts"
 
@@ -41,7 +42,8 @@ function ViewDetail() {
     readonly ids: ReadonlySet<string>
   }>({ viewId, ids: new Set() })
   const result = useAtomValue(viewEpisodesAtom(viewId))
-  const episodes = AsyncResult.getOrElse(result, () => [])
+  const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
+  const episodes = paging.items
   // Only rows still in the View count: Mark Played can take them out (the bar's count).
   const checked: ReadonlySet<string> =
     selection.viewId === viewId
@@ -137,7 +139,7 @@ function ViewDetail() {
   }
   // Until the catalogue has arrived once, an empty list is still loading, not empty.
   const loading = AsyncResult.isInitial(result) || (!ready && episodes.length === 0)
-  const count = `${episodes.length} ${episodes.length === 1 ? "Episode" : "Episodes"}`
+  const count = `${paging.total} ${paging.total === 1 ? "Episode" : "Episodes"}`
   const form = <ViewForm key={view.id} view={view} onDelete={() => void remove(view)} />
 
   // Phone and narrow windows: the editor is a screen of its own, with a live count.
@@ -221,6 +223,7 @@ function ViewDetail() {
             </EmptyState>
           ) : (
             <EpisodeList
+              paging={paging}
               episodes={episodes}
               label={`${view.name} Episodes`}
               ready={!loading}

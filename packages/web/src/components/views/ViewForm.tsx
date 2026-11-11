@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useJournaledRecord } from "../../app/journal.ts"
 import { useDebounced } from "../../lib/useDebounced.ts"
+import { usePagedItems } from "../../lib/usePagedItems.ts"
 import {
   type Filter,
   type PublishedChoice,
@@ -18,6 +19,7 @@ import {
   withPublished
 } from "../../lib/viewEdit.ts"
 import { useConfirm } from "../feedback/useConfirm.ts"
+import { ListContinuation } from "../lists/ListContinuation.tsx"
 import { fieldControl } from "../lists/SettingsRow.tsx"
 
 // The View editor's form (docs/design/ui-layout.md › View editor): every condition is a
@@ -110,7 +112,8 @@ export function ViewFormFields({
   /** Search: no Name row, no Mentions row (its field is above), no Delete. */
   readonly unsaved?: boolean
 }) {
-  const subscriptions = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => [])
+  const podcasts = usePagedItems(AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => []))
+  const subscriptions = podcasts.items
   const current = data
   const id = useId()
   const [name, setName] = useState(current.name)
@@ -352,6 +355,7 @@ export function ViewFormFields({
                     <span className="truncate">{s.title}</span>
                   </label>
                 ))}
+                <ListContinuation {...podcasts} />
               </fieldset>
             )}
           </Row>

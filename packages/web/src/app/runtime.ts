@@ -1,17 +1,16 @@
 import { type Operation, PlaybackSettings, Units } from "@podlist/domain"
 import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
+import { clientLayer, playerLayer } from "#client"
 import { DataLayer } from "../data/DataLayer.ts"
-import { localClientLayer } from "../data/LocalClient.ts"
-import { Downloads } from "../downloads/Downloads.ts"
+import { Downloads } from "../downloads/DownloadService.ts"
 import { artworkSrc } from "../lib/artwork.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
-import { Player } from "../platform/Player.ts"
 import { Playback, type SleepRequest } from "../playback/Playback.ts"
 import { Transport } from "../sync/Transport.ts"
 
-// The app's Effect runtime: local database, server transport and sync engine, exposed to
-// React through atoms. Built only once this tab owns the database (see TabGate).
+// The app runtime selects its platform data and playback services at build time.
+// Only Electron waits for the local database gate.
 
 const defaults = new PlaybackSettings.PlaybackSettings({
   speed: 1,
@@ -43,10 +42,12 @@ const PlaybackLive = Layer.unwrap(
   })
 )
 
-// Milestone 1: both builds still select the local client.
+// Vite selects the platform adapter and excludes local storage from web.
 export const AppLayer = PlaybackLive.pipe(
-  Layer.provideMerge(localClientLayer({ defaults, deviceName: deviceName(), audioUrl })),
-  Layer.provide(Player.layerWeb),
+  Layer.provideMerge(
+    clientLayer({ defaults, deviceName: deviceName(), audioUrl, origin: location.origin })
+  ),
+  Layer.provide(playerLayer),
   Layer.provide(Transport.layerHttp(location.origin)),
   Layer.provideMerge(LibraryClient.layerHttp(location.origin))
 )
@@ -54,8 +55,7 @@ export const AppLayer = PlaybackLive.pipe(
 export const runtime = Atom.runtime(AppLayer)
 
 /**
- * The local (optimistic) user State; updates on every edit and sync. It stays Initial
- * until the local database has loaded, so screens never show a made-up empty State.
+ * The optimistic user State; updates on accepted edits and server catch-up.
  */
 export const stateAtom = runtime.atom(
   Stream.unwrap(
@@ -157,3 +157,5 @@ export const downloadAtom = runtime.fn(
       return yield* downloads[command._tag](command.episodeId)
     })
 )
+
+export const retrySyncAtom = runtime.fn(() => Effect.flatMap(DataLayer, (data) => data.sync))

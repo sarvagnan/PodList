@@ -262,17 +262,17 @@ test("idle Search has no blank action band and checkboxes keep their centre and 
   ).toBe(true)
 })
 
-test("one pending change uses singular sync copy (COPY-01)", async ({ page, context }) => {
+test("known offline disables new edits", async ({ page, context }) => {
   await page.goto(`${demo.base}/playlists/commute`)
-  await page.evaluate(() => navigator.serviceWorker.ready)
   const remove = page.getByRole("button", { name: /^Remove .* from Commute$/ }).first()
-  await expect(remove).toBeVisible()
-  // Visible Entry actions stay inert until their Episode details arrive.
-  await expect.poll(() => remove.evaluate((el) => el.closest("[inert]") === null)).toBe(true)
-  await remove.focus()
+  await expect(remove).toBeEnabled()
   await context.setOffline(true)
-  await page.keyboard.press("Delete")
-  await expect(page.getByText(/1 change is kept\. It’ll sync/).first()).toBeVisible()
+  await expect(remove).toBeDisabled()
+  await expect(page.getByRole("status").filter({ hasText: "Offline" }).first()).toContainText(
+    "New edits need a connection"
+  )
+  await context.setOffline(false)
+  await expect(remove).toBeEnabled()
 })
 
 for (const width of [412, 1440]) {

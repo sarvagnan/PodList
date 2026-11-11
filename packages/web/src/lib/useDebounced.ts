@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { localClient } from "#client"
 
 /**
  * Commits a typed value a moment after typing stops, at once on `now` (blur), and on
@@ -37,6 +38,10 @@ export function useDebounced(commit: (value: string) => void, waitMillis = 500) 
   }
   return {
     schedule: (value: string) => {
+      if (!localClient) {
+        flush(value)
+        return
+      }
       clearTimeout(timer.current)
       pending.current = { value }
       timer.current = setTimeout(() => flush(value), waitMillis)

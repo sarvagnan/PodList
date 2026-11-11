@@ -1,7 +1,7 @@
 import type { PlaybackSettings } from "@podlist/domain"
 import { Layer } from "effect"
 import { DownloadRulesLive } from "../downloads/DownloadRules.ts"
-import { Downloads } from "../downloads/Downloads.ts"
+import { downloadsLayer } from "../downloads/Downloads.ts"
 import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
@@ -14,7 +14,7 @@ export const localClientLayer = (options: {
   readonly audioUrl: (id: string) => string
 }) =>
   Layer.merge(LocalDataLayer, DownloadRulesLive).pipe(
-    Layer.provideMerge(Downloads.layer({ audioUrl: options.audioUrl })),
+    Layer.provideMerge(downloadsLayer({ audioUrl: options.audioUrl })),
     Layer.provide(SyncEngine.layer(options)),
     Layer.provide(LocalDb.layerWeb()),
     Layer.provide(DownloadStore.layerWeb)

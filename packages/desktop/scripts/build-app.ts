@@ -38,9 +38,11 @@ const makeIcon = async () => {
 rmSync(out, { recursive: true, force: true })
 mkdirSync(build, { recursive: true })
 // The app carries its own copy of the web app (ADR 0005).
-execFileSync("pnpm", ["--filter", "@podlist/web", "build"], { stdio: "inherit" })
+execFileSync("pnpm", ["--filter", "@podlist/web", "build", "--mode", "desktop"], {
+  stdio: "inherit"
+})
 const web = join(build, "web")
-cpSync(join(root, "../web/dist"), web, { recursive: true })
+cpSync(join(root, "../web/dist-desktop"), web, { recursive: true })
 const icon = await makeIcon()
 const electronVersion = JSON.parse(
   readFileSync(join(root, "node_modules/electron/package.json"), "utf8")

@@ -1,6 +1,7 @@
 import { ContextMenu } from "@base-ui/react/context-menu"
 import { Check } from "lucide-react"
 import { cloneElement, type ReactElement, type ReactNode, useEffect, useId, useRef } from "react"
+import { useCanEdit } from "../../app/hooks.ts"
 import { inMacApp } from "../../lib/share.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { useCopyLink } from "../feedback/useCopyLink.ts"
@@ -50,6 +51,7 @@ export function RowMenuItems({
   readonly commands: ReadonlyArray<RowCommand>
   readonly link?: string
 }) {
+  const canEdit = useCanEdit()
   const copy = useCopyLink()
   const all: ReadonlyArray<RowCommand> =
     link === undefined
@@ -60,13 +62,19 @@ export function RowMenuItems({
       // biome-ignore lint/suspicious/noArrayIndexKey: separators have no identity of their own.
       <ContextMenu.Separator key={`separator-${index}`} className="my-1 h-px bg-border" />
     ) : command.checked === undefined ? (
-      <ContextMenu.Item key={command.label} onClick={command.run} className={itemClass}>
+      <ContextMenu.Item
+        key={command.label}
+        disabled={!canEdit && !/^(Open|Copy)/.test(command.label)}
+        onClick={command.run}
+        className={itemClass}
+      >
         {command.label}
       </ContextMenu.Item>
     ) : (
       <ContextMenu.CheckboxItem
         key={command.label}
         checked={command.checked}
+        disabled={!canEdit}
         onCheckedChange={command.run}
         // A choice made from a right-click menu is the whole errand: the menu goes.
         closeOnClick

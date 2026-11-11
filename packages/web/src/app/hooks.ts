@@ -30,3 +30,9 @@ export function useNextLastTarget() {
     state?.playlists.find((p) => p.id === state.activePlaylistId)
   )
 }
+
+/** Local clients allow offline edits. Web waits for State and server reachability. */
+export const useCanEdit = () => {
+  const status = AsyncResult.getOrElse(useAtomValue(syncStatusAtom), () => null)
+  return status?.writable === undefined ? true : status.ready && status.writable
+}

@@ -6,6 +6,7 @@ import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight } from "lucide-react"
 import { useId, useState } from "react"
+import { localClient } from "#client"
 import { filterEpisodesAtom, subscriptionAtom } from "../../app/data.ts"
 import { bulkActionAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
@@ -22,6 +23,7 @@ import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { serverUnavailable } from "../../lib/connectionMessage.ts"
 import { ruleNames } from "../../lib/downloadRules.ts"
 import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
+import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 
 // One Subscription (docs/design/ui-layout.md › Library and Subscriptions): its settings —
@@ -50,24 +52,37 @@ function SubscriptionScreen() {
       })
     )
   )
-  const episodes = AsyncResult.getOrElse(episodesResult, () => [])
+  const paging = usePagedItems(AsyncResult.getOrElse(episodesResult, () => []))
+  const episodes = paging.items
   // One step with Undo, like other reversible edits: Undo also returns the Entries that
   // Playlists with Clear on Played let go (the bulk action works that out).
   const runBulk = useAtomSet(bulkActionAtom, { mode: "promise" })
   const confirm = useConfirm()
   const toasts = Toast.useToastManager()
+  const [marking, setMarking] = useState(false)
   const markAllPlayed = async () => {
-    if (subscription === null) return
-    const actions = episodes
-      .filter((e) => !e.played)
-      .map((e) => ({ _tag: "Played" as const, episodeId: e.id, played: true }))
-    if (actions.length === 0) {
-      toasts.add({ description: "Every Episode is already Played", timeout: 3000 })
-      return
+    if (subscription === null || marking || AsyncResult.isInitial(episodesResult)) return
+    setMarking(true)
+    try {
+      const allEpisodes = await paging.all()
+      const actions = allEpisodes
+        .filter((e) => !e.played)
+        .map((e) => ({ _tag: "Played" as const, episodeId: e.id, played: true }))
+      if (actions.length === 0) {
+        toasts.add({ description: "Every Episode is already Played", timeout: 3000 })
+        return
+      }
+      const again = () => runBulk({ actions, message: `Marked ${subscription.title} Played` })
+      // Undo puts focus back here, where the step was taken.
+      confirm(await again(), again, () => document.querySelector<HTMLElement>("[data-mark-all]"))
+    } catch {
+      toasts.add({
+        description: "Couldn’t load every Episode. Try Mark all Played again.",
+        timeout: 4000
+      })
+    } finally {
+      setMarking(false)
     }
-    const again = () => runBulk({ actions, message: `Marked ${subscription.title} Played` })
-    // Undo puts focus back here, where the step was taken.
-    confirm(await again(), again, () => document.querySelector<HTMLElement>("[data-mark-all]"))
   }
   const record = useAtomSet(recordAtom)
   const state = useAppState()
@@ -188,7 +203,7 @@ function SubscriptionScreen() {
                 />
                 <span className="text-row font-medium">Settings for this podcast</span>
                 <span className="ml-auto text-small text-muted-foreground">
-                  {ruleNames[rule.mode]}
+                  {localClient ? ruleNames[rule.mode] : "Playback settings"}
                 </span>
               </button>
             </h2>
@@ -198,48 +213,53 @@ function SubscriptionScreen() {
             hidden={!wide && !showSettings}
             className="rounded-xl border bg-card"
           >
-            <SettingsRow
-              label="Downloads on this Device"
-              htmlFor={`${id}-rule`}
-              help={
-                rule.mode === "never"
-                  ? "Episodes play from the internet"
-                  : rule.mode === "onEntry"
-                    ? "Stored while they’re in a Playlist"
-                    : "Stored as they’re published, until Played"
-              }
-            >
-              <select
-                id={`${id}-rule`}
-                disabled={deviceId === ""}
-                value={rule.mode}
-                onChange={(event) =>
-                  setRule(event.target.value as "never" | "onEntry" | "allNew", rule.keepAtMost)
+            {localClient && (
+              <SettingsRow
+                label="Downloads on this Device"
+                htmlFor={`${id}-rule`}
+                help={
+                  rule.mode === "never"
+                    ? "Episodes play from the internet"
+                    : rule.mode === "onEntry"
+                      ? "Stored while they’re in a Playlist"
+                      : "Stored as they’re published, until Played"
                 }
-                className={fieldControl}
               >
-                <option value="never">{ruleNames.never}</option>
-                <option value="onEntry">{ruleNames.onEntry}</option>
-                <option value="allNew">{ruleNames.allNew}</option>
-              </select>
-              {rule.mode === "allNew" && (
                 <select
-                  aria-label="Keep at most"
-                  value={rule.keepAtMost === null ? "" : String(rule.keepAtMost)}
+                  id={`${id}-rule`}
+                  disabled={deviceId === ""}
+                  value={rule.mode}
                   onChange={(event) =>
-                    setRule("allNew", event.target.value === "" ? null : Number(event.target.value))
+                    setRule(event.target.value as "never" | "onEntry" | "allNew", rule.keepAtMost)
                   }
-                  className={`${fieldControl} mt-2`}
+                  className={fieldControl}
                 >
-                  {[3, 5, 10, 20].map((n) => (
-                    <option key={n} value={n}>
-                      Keep the newest {n}
-                    </option>
-                  ))}
-                  <option value="">Keep all new ones</option>
+                  <option value="never">{ruleNames.never}</option>
+                  <option value="onEntry">{ruleNames.onEntry}</option>
+                  <option value="allNew">{ruleNames.allNew}</option>
                 </select>
-              )}
-            </SettingsRow>
+                {rule.mode === "allNew" && (
+                  <select
+                    aria-label="Keep at most"
+                    value={rule.keepAtMost === null ? "" : String(rule.keepAtMost)}
+                    onChange={(event) =>
+                      setRule(
+                        "allNew",
+                        event.target.value === "" ? null : Number(event.target.value)
+                      )
+                    }
+                    className={`${fieldControl} mt-2`}
+                  >
+                    {[3, 5, 10, 20].map((n) => (
+                      <option key={n} value={n}>
+                        Keep the newest {n}
+                      </option>
+                    ))}
+                    <option value="">Keep all new ones</option>
+                  </select>
+                )}
+              </SettingsRow>
+            )}
             <SettingsRow
               label="Played"
               htmlFor={`${id}-threshold`}
@@ -358,7 +378,8 @@ function SubscriptionScreen() {
               data-mark-all=""
               // Dimmed, not disabled, once nothing is left: disabling the focused button
               // would drop focus to the page (WKEY-03). Pressed again, it says why.
-              aria-disabled={subscription.unplayed === 0}
+              disabled={AsyncResult.isInitial(episodesResult)}
+              aria-disabled={subscription.unplayed === 0 || marking}
               onClick={() => void markAllPlayed()}
               className="h-10 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input aria-disabled:opacity-60"
             >
@@ -383,6 +404,7 @@ function SubscriptionScreen() {
           ) : (
             <div className="-mx-5 md:-mx-8">
               <EpisodeList
+                paging={paging}
                 episodes={episodes}
                 label={`${subscription.title} Episodes`}
                 ready={!AsyncResult.isInitial(episodesResult)}
@@ -427,7 +449,7 @@ function SubscriptionScreen() {
         }}
       >
         Its Episodes leave your Library, except ones in a Playlist or Starred, which stay until you
-        remove them. Downloads stay on your Devices.
+        remove them. {localClient ? "Downloads stay on your Devices." : ""}
       </ConfirmDialog>
     </>
   )

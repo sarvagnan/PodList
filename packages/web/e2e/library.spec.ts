@@ -88,32 +88,6 @@ test("Settings keep the default speed and how long the Trash keeps Playlists", a
   await expect(page.getByRole("combobox", { name: "Keep deleted Playlists" })).toHaveValue("14")
 })
 
-test("a Download Rule stores Entries on this Device and Stream lets them go", async ({ page }) => {
-  // Two downloads to wait for, one each way.
-  test.setTimeout(60_000)
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(`${demo.base}/library`)
-  await page.evaluate(() => navigator.serviceWorker.ready)
-  await page.getByRole("link", { name: "Market Hours", exact: true }).click()
-  await page.getByRole("combobox", { name: /^Downloads on this Device/ }).selectOption("onEntry")
-  await page.getByRole("link", { name: "Library" }).first().click()
-  await expect(page.getByRole("combobox", { name: "Downloads for Market Hours" })).toHaveValue(
-    "onEntry"
-  )
-
-  // Market Hours' Entry in Default ends up stored, without anyone pressing Download.
-  // Use a View without a date cutoff: the fixture Published dates are fixed.
-  await page.goto(`${demo.base}/views/short`)
-  const row = page.getByRole("row").filter({ hasText: "The long life of a shipping container" })
-  await expect(row.getByLabel("Downloaded").first()).toBeVisible({ timeout: 20_000 })
-
-  await page.goto(`${demo.base}/library`)
-  await page.getByRole("link", { name: "Market Hours", exact: true }).click()
-  await page.getByRole("combobox", { name: /^Downloads on this Device/ }).selectOption("never")
-  await page.goto(`${demo.base}/views/short`)
-  await expect(row.getByLabel("Downloaded")).toHaveCount(0, { timeout: 20_000 })
-})
-
 test("?add=true opens Add podcasts once, and Esc closes it", async ({ page }) => {
   await page.goto(`${demo.base}/library?add=true`)
   const sheet = page.getByRole("dialog", { name: "Add podcasts" })
@@ -126,67 +100,30 @@ test("?add=true opens Add podcasts once, and Esc closes it", async ({ page }) =>
   await expect(sheet).toBeHidden()
 })
 
-test("right-click on a Subscription changes its Download Rule", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(`${demo.base}/library`)
-  const rule = page.getByRole("combobox", { name: "Downloads for Deep Field" })
-  await expect(rule).toHaveValue("never")
-  // Away from the title link, which keeps the browser's own menu.
-  await page
-    .getByRole("row", { name: /Deep Field/ })
-    .getByRole("cell")
-    .nth(2)
-    .click({ button: "right" })
-  const menu = page.getByRole("menu")
-  await expect(menu.getByRole("menuitemcheckbox", { name: "Stream" })).toBeChecked()
-  await menu.getByRole("menuitemcheckbox", { name: "Download Entries" }).click()
-  await expect(rule).toHaveValue("onEntry")
-})
-
-test("on desktop, selected podcasts change Download Rule together, with Undo", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(`${demo.base}/library`)
-  await page.getByRole("checkbox", { name: "Select Deep Field" }).check()
-  await page.getByRole("checkbox", { name: "Select Slow Build" }).check()
-  const bar = page.getByRole("region", { name: "2 podcasts selected" })
-  await bar.getByRole("combobox").selectOption("allNew")
-  await bar.getByRole("button", { name: "Apply to 2" }).click()
-  const deep = page.getByRole("combobox", { name: "Downloads for Deep Field" })
-  const slow = page.getByRole("combobox", { name: "Downloads for Slow Build" })
-  await expect(deep).toHaveValue("allNew")
-  await expect(slow).toHaveValue("allNew")
-  await expect(page.getByRole("combobox", { name: "Downloads for Market Hours" })).toHaveValue(
-    "never"
-  )
-  await page.getByRole("button", { name: "Undo" }).click()
-  await expect(deep).toHaveValue("never")
-  await expect(slow).toHaveValue("never")
-})
-
-test("on the phone, the Library is grouped by Download Rule", async ({ page }) => {
+test("the web Library lists podcasts without Download Rules", async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 915 })
   await page.goto(`${demo.base}/library`)
-  await expect(page.getByRole("heading", { name: "Stream · 3" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Podcasts · 3" })).toBeVisible()
+  await expect(page.getByRole("combobox", { name: /Downloads/ })).toHaveCount(0)
 })
 
-test("Unsubscribe that fails says so in its dialog, with Try again", async ({ page, context }) => {
+test("Unsubscribe that fails says so in its dialog, with Try again", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await page.getByRole("link", { name: "Slow Build", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Slow Build", level: 1 })).toBeVisible()
-  await context.setOffline(true)
   await page.getByRole("button", { name: "Unsubscribe" }).click()
+  await page.route("**/api/subscriptions/*", (route) => route.abort())
   const dialog = page.getByRole("alertdialog")
   await dialog.getByRole("button", { name: "Unsubscribe" }).click()
   await expect(dialog.getByRole("alert")).toContainText("Couldn’t unsubscribe")
-  await context.setOffline(false)
+  await page.unroute("**/api/subscriptions/*")
   await dialog.getByRole("button", { name: "Try again" }).click()
   await expect(page).toHaveURL(/\/library$/)
 })
 
 test("a feed address shows its podcast before Subscribe, or says it isn't one", async ({
-  page,
-  context
+  page
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
@@ -215,7 +152,7 @@ test("a feed address shows its podcast before Subscribe, or says it isn't one", 
   await field.fill(target?.feedUrl ?? "")
   const subscribe = sheet.getByRole("button", { name: "Subscribe to Deep Field" })
   await expect(subscribe).toBeVisible()
-  await context.setOffline(true)
+  await page.route("**/api/subscriptions", (route) => route.abort())
   await subscribe.click()
   await expect(sheet.getByRole("alert")).toBeVisible()
   // Focus stays with the button, inside the sheet (WKEY-03).

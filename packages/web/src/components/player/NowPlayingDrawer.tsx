@@ -607,7 +607,11 @@ export function NowPlayingDrawer() {
           ? document.querySelector<HTMLElement>(`[data-sheet=drawer] [data-opens-page="${left}"]`)
           : null
     let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => target()?.focus({ preventScroll: true }))
+      frame = requestAnimationFrame(() => {
+        // A fast reader may already have focused a row while the new page mounts.
+        if (document.activeElement?.closest("[data-sheet=drawer] [data-cell]")) return
+        target()?.focus({ preventScroll: true })
+      })
     })
     return () => cancelAnimationFrame(frame)
   }, [page, drawer.open])

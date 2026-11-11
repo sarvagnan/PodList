@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router"
 import { ArrowDown, ArrowUp, Settings, X } from "lucide-react"
 import { useId, useState } from "react"
+import { localClient } from "#client"
 import type { SubscriptionSummary } from "../../app/data.ts"
 import { ruleNames } from "../../lib/downloadRules.ts"
 import { Tip } from "../feedback/Tip.tsx"
@@ -51,6 +52,7 @@ export function LibraryBulkBar({
   readonly onClear: () => void
 }) {
   const [bulkMode, setBulkMode] = useState<Mode>("onEntry")
+  if (!localClient) return null
   // The same pill as a View's bulk bar (components/episodes/BulkBar.tsx).
   return (
     <section
@@ -106,7 +108,8 @@ export function LibraryTable({
   setTicked,
   sort,
   setSort,
-  showExtras
+  showExtras,
+  complete = true
 }: {
   readonly subscriptions: ReadonlyArray<SubscriptionSummary>
   readonly ruleOf: (subscriptionId: string) => {
@@ -124,23 +127,33 @@ export function LibraryTable({
   readonly setSort: (sort: LibrarySort) => void
   /** Keep at most and Speed, when there's room for them beside the podcast's name. */
   readonly showExtras: boolean
+  /** Server continuation pages have a global order. Sort only once all rows are here. */
+  readonly complete?: boolean
 }) {
   const id = useId()
   // Keep at most and Speed where there's room for them beside the podcast's name.
   const roomy = showExtras
   // Sorted by a column's header, A–Z by name until one is chosen.
   const rank: Record<Mode, number> = { allNew: 0, onEntry: 1, never: 2 }
-  const sorted = [...subscriptions].sort((a, b) => {
-    const order =
-      sort.key === "unplayed"
-        ? a.unplayed - b.unplayed
-        : sort.key === "rule"
-          ? rank[ruleOf(a.id).mode] - rank[ruleOf(b.id).mode]
-          : byName(a, b)
-    // Equal by the chosen column: A–Z by name.
-    return (sort.ascending ? order : -order) || byName(a, b)
-  })
+  const sorted = !complete
+    ? subscriptions
+    : [...subscriptions].sort((a, b) => {
+        const order =
+          sort.key === "unplayed"
+            ? a.unplayed - b.unplayed
+            : sort.key === "rule"
+              ? rank[ruleOf(a.id).mode] - rank[ruleOf(b.id).mode]
+              : byName(a, b)
+        // Equal by the chosen column: A–Z by name.
+        return (sort.ascending ? order : -order) || byName(a, b)
+      })
   const header = (key: SortKey, label: string, className: string, end = false) => {
+    if (!complete)
+      return (
+        <th scope="col" className={className}>
+          {label}
+        </th>
+      )
     const active = sort.key === key
     return (
       <th
@@ -184,8 +197,8 @@ export function LibraryTable({
             <col className="w-[3rem]" />
             <col />
             <col className="w-[7rem]" />
-            <col className="w-[13rem]" />
-            {roomy && <col className="w-[8rem]" />}
+            {localClient && <col className="w-[13rem]" />}
+            {roomy && localClient && <col className="w-[8rem]" />}
             {roomy && <col className="w-[5rem]" />}
             <col className="w-[3.5rem]" />
           </colgroup>
@@ -194,7 +207,7 @@ export function LibraryTable({
               <th scope="col" className="py-2 pl-2">
                 <input
                   type="checkbox"
-                  aria-label="Select every podcast"
+                  aria-label={complete ? "Select every podcast" : "Select loaded podcasts"}
                   checked={all}
                   // Some, not all: the box says so (mixed), as the platform's do (CTRL-02).
                   ref={(box) => {
@@ -209,12 +222,14 @@ export function LibraryTable({
               </th>
               {header("title", "Podcast", "py-2")}
               {header("unplayed", "Unplayed", "py-2 text-right", true)}
-              {header("rule", "Downloads", "py-2 pl-6")}
+              {localClient && header("rule", "Downloads", "py-2 pl-6")}
               {roomy && (
                 <>
-                  <th scope="col" className="py-2 pl-4">
-                    Keep at most
-                  </th>
+                  {localClient && (
+                    <th scope="col" className="py-2 pl-4">
+                      Keep at most
+                    </th>
+                  )}
                   <th scope="col" className="py-2 text-right">
                     Speed
                   </th>
@@ -270,30 +285,34 @@ export function LibraryTable({
                     </span>
                   </td>
                   <td className="py-2 text-right tabular-nums">{s.unplayed}</td>
-                  <td className="py-2 pl-6">
-                    <select
-                      id={`${id}-${s.id}`}
-                      aria-label={`Downloads for ${s.title}`}
-                      value={rule.mode}
-                      onChange={(event) => setRules([s.id], event.target.value as Mode)}
-                      className={select}
-                    >
-                      {ruleOptions.map(([mode, label]) => (
-                        <option key={mode} value={mode}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
+                  {localClient && (
+                    <td className="py-2 pl-6">
+                      <select
+                        id={`${id}-${s.id}`}
+                        aria-label={`Downloads for ${s.title}`}
+                        value={rule.mode}
+                        onChange={(event) => setRules([s.id], event.target.value as Mode)}
+                        className={select}
+                      >
+                        {ruleOptions.map(([mode, label]) => (
+                          <option key={mode} value={mode}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
                   {roomy && (
                     <>
-                      <td className="py-2 pl-4 text-muted-foreground">
-                        {rule.mode !== "allNew"
-                          ? "—"
-                          : rule.keepAtMost === null
-                            ? "No limit"
-                            : `${rule.keepAtMost} Episodes`}
-                      </td>
+                      {localClient && (
+                        <td className="py-2 pl-4 text-muted-foreground">
+                          {rule.mode !== "allNew"
+                            ? "—"
+                            : rule.keepAtMost === null
+                              ? "No limit"
+                              : `${rule.keepAtMost} Episodes`}
+                        </td>
+                      )}
                       <td
                         className={`py-2 text-right tabular-nums ${s.speed === null ? "text-muted-foreground" : ""}`}
                       >

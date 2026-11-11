@@ -14,6 +14,7 @@ import {
   useState
 } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
+import { useCanEdit } from "../../app/hooks.ts"
 import { directorySearchAtom, importOpmlAtom, subscribeAtom } from "../../app/library.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { serverNeeded } from "../../lib/connectionMessage.ts"
@@ -45,6 +46,7 @@ function SubscribeButton({
   /** Says what went wrong next to the podcast, not in a passing toast (COPY-02). */
   readonly onProblem: (problem: string | null) => void
 }) {
+  const canEdit = useCanEdit()
   const subscribed = AsyncResult.getOrElse(useAtomValue(subscriptionsAtom), () => []).some(
     (s) => s.feedUrl === feedUrl
   )
@@ -75,10 +77,11 @@ function SubscribeButton({
       type="button"
       // Busy without `disabled`, which would push focus out of the sheet (WKEY-03).
       data-subscribe=""
+      disabled={!canEdit}
       aria-disabled={busy}
       aria-label={`Subscribe to ${title}`}
       onClick={async () => {
-        if (busy) return
+        if (busy || !canEdit) return
         setBusy(true)
         onProblem(null)
         const exit = await subscribe(feedUrl)
@@ -347,6 +350,7 @@ function AddressTab({
 }
 
 function OpmlTab() {
+  const canEdit = useCanEdit()
   const id = useId()
   const saved = useContext(DraftSaved)
   const importOpml = useAtomSet(importOpmlAtom, { mode: "promiseExit" })
@@ -355,6 +359,7 @@ function OpmlTab() {
   // A file held over the drop area (DRAG-01).
   const [over, setOver] = useState(false)
   const importFile = async (file: File) => {
+    if (!canEdit) return
     setBusy(true)
     setSummary("Importing…")
     const exit = await importOpml(await file.text())
@@ -417,6 +422,7 @@ function OpmlTab() {
         <input
           id={`${id}-file`}
           type="file"
+          disabled={!canEdit}
           accept=".opml,.xml,text/xml,text/x-opml,application/xml"
           aria-disabled={busy}
           onClick={(event) => {

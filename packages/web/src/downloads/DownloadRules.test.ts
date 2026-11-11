@@ -6,7 +6,7 @@ import { SqlClient } from "effect/sql"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 import { DownloadRulesLive } from "./DownloadRules.ts"
-import { Downloads } from "./Downloads.ts"
+import { Downloads } from "./DownloadService.ts"
 
 const defaults = new PlaybackSettings.PlaybackSettings({
   speed: 1,

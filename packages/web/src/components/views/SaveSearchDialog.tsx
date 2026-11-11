@@ -3,6 +3,7 @@ import { useAtomSet } from "@effect/atom-react"
 import { useNavigate } from "@tanstack/react-router"
 import { X } from "lucide-react"
 import { useId, useRef, useState } from "react"
+import { useCanEdit } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
@@ -21,6 +22,7 @@ export function SaveSearchDialog({
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
+  const canEdit = useCanEdit()
   const id = useId()
   const {
     draft: saved,
@@ -40,6 +42,7 @@ export function SaveSearchDialog({
   const navigate = useNavigate()
   useBackLayers(open ? 1 : 0, () => close(false))
   const save = async () => {
+    if (!canEdit) return
     const trimmed = name.trim()
     if (trimmed === "") {
       setError(true)
@@ -107,6 +110,7 @@ export function SaveSearchDialog({
             </Dialog.Close>
             <button
               type="button"
+              disabled={!canEdit}
               onClick={() => void save()}
               className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
             >

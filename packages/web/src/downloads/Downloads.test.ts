@@ -4,7 +4,7 @@ import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
-import { Downloads } from "./Downloads.ts"
+import { Downloads, downloadsLayer } from "./Downloads.ts"
 
 const bytes = new Uint8Array(120_000).map((_, i) => i % 251)
 const source = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }))
@@ -13,7 +13,7 @@ const audioUrl = (episodeId: string) =>
 
 const newDatabase = Layer.build(LocalDb.layerMemory.pipe(Layer.provideMerge(Reactivity.layer)))
 const onDevice = (db: Effect.Success<typeof newDatabase>) =>
-  Downloads.layer({ audioUrl }).pipe(
+  downloadsLayer({ audioUrl }).pipe(
     Layer.provideMerge(Layer.succeedContext(db)),
     Layer.provideMerge(DownloadStore.layerWeb)
   )

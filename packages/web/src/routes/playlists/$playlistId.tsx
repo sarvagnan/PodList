@@ -51,6 +51,7 @@ function PlaylistDetail() {
   const ready = useLibraryReady()
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   const record = useAtomSet(recordAtom)
+  const recordMove = useAtomSet(recordAtom, { mode: "promise" })
   const control = useAtomSet(playbackAtom)
   const playing = useNowPlaying()
   const act = useEpisodeActions()
@@ -131,7 +132,7 @@ function PlaylistDetail() {
   }
 
   // One step that Undo takes back: the Entry returns after its old neighbour.
-  const moveEntry = (episodeId: string, after: string | null) => {
+  const moveEntry = (episodeId: string, after: string | null, fromMenu = false) => {
     const index = entries.findIndex((e) => e.episodeId === episodeId)
     const before = index > 0 ? (entries[index - 1]?.episodeId ?? null) : null
     const move = (to: string | null) =>
@@ -145,7 +146,36 @@ function PlaylistDetail() {
       message: `Moved “${episodes.get(episodeId)?.title ?? "Entry"}”`,
       undo: [move(before)]
     }
-    record(move(after))
+    void recordMove(move(after)).then(() => {
+      if (!fromMenu) return
+      // Online edits can commit before a portaled menu restores focus. Keep the
+      // moved Entry reachable even when its new position is outside the viewport.
+      const rest = entries.filter((entry) => entry.episodeId !== episodeId)
+      const destination =
+        after === null ? 0 : rest.findIndex((entry) => entry.episodeId === after) + 1
+      let frames = 30
+      let stable = 0
+      const land = () => {
+        const row = document.querySelector<HTMLElement>(
+          `[data-entry-id="${CSS.escape(episodeId)}"]`
+        )
+        const target = window.matchMedia("(min-width: 64rem)").matches
+          ? row?.querySelector<HTMLElement>("[data-cell=title]")
+          : row?.querySelector<HTMLElement>('button[aria-label^="More actions for"]')
+        if (target) {
+          if (document.activeElement === target) stable++
+          else {
+            stable = 0
+            target.focus()
+          }
+        } else scroller.current?.scrollToIndex(destination)
+        if (stable < 3 && --frames > 0) requestAnimationFrame(land)
+      }
+      requestAnimationFrame(() => {
+        scroller.current?.scrollToIndex(destination)
+        requestAnimationFrame(land)
+      })
+    })
     confirm(
       step,
       async () => {
@@ -369,11 +399,11 @@ function PlaylistDetail() {
                   // Every move a drag makes, without a drag (AX-04).
                   ...(index > 0
                     ? [
-                        { label: "Move to top", run: () => moveEntry(entry.episodeId, null) },
+                        { label: "Move to top", run: () => moveEntry(entry.episodeId, null, true) },
                         {
                           label: "Move up",
                           run: () =>
-                            moveEntry(entry.episodeId, entries[index - 2]?.episodeId ?? null)
+                            moveEntry(entry.episodeId, entries[index - 2]?.episodeId ?? null, true)
                         }
                       ]
                     : []),
@@ -382,9 +412,12 @@ function PlaylistDetail() {
                         {
                           label: "Move down",
                           run: () =>
-                            moveEntry(entry.episodeId, entries[index + 1]?.episodeId ?? null)
+                            moveEntry(entry.episodeId, entries[index + 1]?.episodeId ?? null, true)
                         },
-                        { label: "Move to bottom", run: () => moveEntry(entry.episodeId, last) }
+                        {
+                          label: "Move to bottom",
+                          run: () => moveEntry(entry.episodeId, last, true)
+                        }
                       ]
                     : []),
                   { separator: true },

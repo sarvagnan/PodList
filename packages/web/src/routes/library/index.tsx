@@ -6,6 +6,7 @@ import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Plus, Settings } from "lucide-react"
 import type * as React from "react"
 import { useEffect, useRef, useState } from "react"
+import { localClient } from "#client"
 import { type SubscriptionSummary, subscriptionsAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
@@ -19,12 +20,14 @@ import {
   ruleOptions,
   sortParam
 } from "../../components/library/LibraryTable.tsx"
+import { ListContinuation } from "../../components/lists/ListContinuation.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
 import { librarySort } from "../../lib/remembered.ts"
+import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
 
 // The Library (docs/design/ui-layout.md › Library and Subscriptions): every Subscription,
@@ -56,7 +59,8 @@ export const Route = createFileRoute("/library/")({
 
 function LibraryScreen() {
   const result = useAtomValue(subscriptionsAtom)
-  const subscriptions = AsyncResult.getOrElse(result, () => [])
+  const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
+  const subscriptions = paging.items
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
   // ?add=true (File › Add Podcasts in the Mac app) opens the sheet once, then leaves the
@@ -153,7 +157,7 @@ function LibraryScreen() {
       run: () => void navigate({ to: "/library/$subscriptionId", params: { subscriptionId: s.id } })
     },
     { separator: true },
-    ...rules.map(([ruleMode, label]) => ({
+    ...(localClient ? rules : []).map(([ruleMode, label]) => ({
       label,
       checked: modeOf(s.id) === ruleMode,
       run: () => setRules([s.id], ruleMode)
@@ -170,7 +174,11 @@ function LibraryScreen() {
   ).map(([mode, title]) => ({
     mode,
     title,
-    items: subscriptions.filter((s) => modeOf(s.id) === mode)
+    items: localClient
+      ? subscriptions.filter((s) => modeOf(s.id) === mode)
+      : mode === "never"
+        ? subscriptions
+        : []
   }))
   const add = (
     <button
@@ -190,7 +198,7 @@ function LibraryScreen() {
         title="Library"
         {...(subscriptions.length > 0
           ? {
-              subtitle: `${subscriptions.length} ${subscriptions.length === 1 ? "Subscription" : "Subscriptions"}${wide ? " · downloads and settings for this Device" : ""}`
+              subtitle: `${paging.total} ${paging.total === 1 ? "Subscription" : "Subscriptions"}${wide && localClient ? " · downloads and settings for this Device" : ""}`
             }
           : {})}
         actions={
@@ -225,6 +233,7 @@ function LibraryScreen() {
       ) : wide && state !== null ? (
         <LibraryTable
           subscriptions={subscriptions}
+          complete={!paging.more}
           ruleOf={ruleOf}
           defaultSpeed={state.playbackSettings.speed}
           setRules={setRules}
@@ -255,7 +264,7 @@ function LibraryScreen() {
                   id={`group-${mode}`}
                   className="px-2 pb-1 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
                 >
-                  {title} · {items.length}
+                  {localClient ? title : "Podcasts"} · {items.length}
                 </h2>
                 <ul>
                   {items.map((s) => (
@@ -309,6 +318,12 @@ function LibraryScreen() {
           )}
         </div>
       )}
+      {paging.more && (
+        <p className="px-6 text-small text-muted-foreground">
+          Load the remaining podcasts to sort the whole Library.
+        </p>
+      )}
+      <ListContinuation {...paging} />
       {adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />}
     </div>
   )
