@@ -276,6 +276,10 @@ public struct PodListWindow: SwiftUI.View {
                 Text(row.podcast).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }.padding(.vertical, 5)
             Spacer(minLength: 4)
+            // A status mark beside the row actions, never drawn over them.
+            if app.downloadStatuses[row.id]?.phase == .stored {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(.secondary).accessibilityLabel("Downloaded")
+            }
             if let editing = app.editing {
                 Button("Add", systemImage: "plus") { playlistPresentation.sheet = .add([row.id], false) }
                     .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Add \(row.title) to a Playlist")
@@ -293,9 +297,6 @@ public struct PodListWindow: SwiftUI.View {
             Button(app.downloadStatuses[row.id]?.phase == .stored ? "Remove download" : "Download") {
                 if app.downloadStatuses[row.id]?.phase == .stored { app.removeDownload(row.id) } else { app.download(row.id) }
             }
-        }
-        .overlay(alignment: .trailing) {
-            if app.downloadStatuses[row.id]?.phase == .stored { Image(systemName: "arrow.down.circle.fill").foregroundStyle(.secondary).accessibilityLabel("Downloaded") }
         }
     }
 
