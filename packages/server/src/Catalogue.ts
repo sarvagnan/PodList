@@ -4,7 +4,7 @@ import { SqlClient } from "effect/sql"
 import { toSubscription } from "./Subscriptions.ts"
 
 // Clients mirror the Library catalogue (subscription and episode tables) so Views run
-// offline. Triggers stamp every inserted or updated row with a rising change number;
+// offline. Triggers stamp every inserted, updated or deleted row with a rising change number;
 // a client asks for everything changed since the last number it saw. The trigger
 // deletes then inserts rather than relying on ON CONFLICT REPLACE, because SQLite
 // applies the outer statement's conflict policy inside triggers.
@@ -27,6 +27,19 @@ export const migrations = {
             INSERT INTO catalogue_change (kind, row_id) VALUES ('${table}', NEW.id);
           END`)
       }
+    }
+  }),
+  "0004_catalogue_deletes": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    // Keep a tombstone even for provisional Subscribe cleanup. The log's high-water
+    // mark must advance when a visible row disappears, including its last row.
+    for (const table of ["subscription", "episode"]) {
+      yield* sql.unsafe(`CREATE TRIGGER ${table}_delete_change
+        AFTER DELETE ON ${table}
+        BEGIN
+          DELETE FROM catalogue_change WHERE kind = '${table}' AND row_id = OLD.id;
+          INSERT INTO catalogue_change (kind, row_id) VALUES ('${table}', OLD.id);
+        END`)
     }
   })
 } satisfies Record<string, Effect.Effect<void, unknown, SqlClient.SqlClient>>

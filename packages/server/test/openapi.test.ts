@@ -58,6 +58,65 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
       })
     )
     expect(tooMany.status).toBe(400)
+    // Both schema length and word budgets reject before any SQL is prepared.
+    for (const q of [
+      "a".repeat(1025),
+      Array(33).fill("a").join(" "),
+      Array(1000).fill("a").join(" ")
+    ]) {
+      for (const [path, payload] of [
+        ["search", { q }],
+        ["filter", { filter: { text: q }, sort: "publishedDesc", limit: null }]
+      ] as const) {
+        const response = await handler(
+          new Request(`http://podlist.test/api/reads/${path}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+        )
+        expect(response.status).toBe(400)
+      }
+    }
+    for (const subscriptionIds of [Array(201).fill("s"), ["s".repeat(257)]]) {
+      const response = await handler(
+        new Request("http://podlist.test/api/reads/filter", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            filter: { podcasts: { mode: "include", subscriptionIds } },
+            sort: "publishedDesc",
+            limit: null
+          })
+        })
+      )
+      expect(response.status).toBe(400)
+    }
+    for (const q of ["a".repeat(1024), Array(32).fill("a").join(" "), "   "]) {
+      const response = await handler(
+        new Request("http://podlist.test/api/reads/search", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ q })
+        })
+      )
+      expect(response.status).toBe(200)
+    }
+    // Extra keys and escaped JSON cannot bypass the total byte budget.
+    const hugeBody = JSON.stringify({ q: "ok", extra: "a".repeat(65536) })
+    for (const withLength of [true, false]) {
+      const response = await handler(
+        new Request("http://podlist.test/api/reads/search", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(withLength ? { "content-length": String(Buffer.byteLength(hugeBody)) } : {})
+          },
+          body: hugeBody
+        })
+      )
+      expect(response.status).toBe(413)
+    }
     const token = await handler(
       new Request("http://podlist.test/api/reads/subscriptions?continuation=invalid")
     )

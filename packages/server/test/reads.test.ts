@@ -342,3 +342,24 @@ it.effect("bounds pages and keeps LastDays fixed while continuing", () => {
     Effect.provideService(ReadTime, () => at)
   )
 })
+
+it.effect("fails closed for oversized persisted Views and direct query-builder callers", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const reads = yield* make
+    const view = {
+      id: "huge",
+      name: "Huge",
+      filter: { text: Array(1000).fill("a").join(" ") },
+      sort: "publishedDesc",
+      limit: null
+    }
+    yield* sql`INSERT INTO view (id, ordinal, doc) VALUES ('huge', 0, ${JSON.stringify(view)})`
+    expect((yield* Effect.flip(reads.view("huge", {})))._tag).toBe("InvalidReadQuery")
+    expect((yield* Effect.flip(reads.counts))._tag).toBe("InvalidReadQuery")
+    // Typed callers and old stored State must pass the same pre-compilation budget.
+    expect((yield* Effect.flip(reads.filter({ ...view } as Reads.FilterRequest)))._tag).toBe(
+      "InvalidReadQuery"
+    )
+  }).pipe(Effect.provide(services))
+)
