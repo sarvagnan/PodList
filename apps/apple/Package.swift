@@ -8,17 +8,20 @@ let package = Package(
         .library(name: "PodListDomain", targets: ["PodListDomain"]),
         .library(name: "PodListData", targets: ["PodListData"]),
         .library(name: "PodListUI", targets: ["PodListUI"]),
-        .executable(name: "PodListMac", targets: ["PodListMac"])
+        .executable(name: "PodListMac", targets: ["PodListMac"]),
+        .executable(name: "podlist-mcp", targets: ["PodListMCPBridge"])
     ],
     targets: [
         .target(name: "PodListDomain"),
         .target(name: "PodListData", dependencies: ["PodListDomain"], linkerSettings: [.linkedLibrary("sqlite3")]),
-        .target(name: "PodListUI", dependencies: ["PodListDomain", "PodListData"]),
+        .target(name: "PodListAutomation"),
+        .target(name: "PodListUI", dependencies: ["PodListDomain", "PodListData", "PodListAutomation"]),
+        .executableTarget(name: "PodListMCPBridge", dependencies: ["PodListAutomation"]),
         .executableTarget(name: "PodListMac", dependencies: ["PodListUI"]),
         .target(name: "ProtocolTestSupport", path: "Tests/ProtocolTestSupport"),
         .testTarget(name: "PodListDomainTests", dependencies: ["PodListDomain", "ProtocolTestSupport"]),
         .testTarget(name: "PodListDataTests", dependencies: ["PodListData", "ProtocolTestSupport"]),
-        .testTarget(name: "PodListUITests", dependencies: ["PodListUI", "PodListData", "PodListDomain"])
+        .testTarget(name: "PodListUITests", dependencies: ["PodListUI", "PodListData", "PodListDomain", "PodListAutomation"])
     ],
     swiftLanguageModes: [.v6]
 )

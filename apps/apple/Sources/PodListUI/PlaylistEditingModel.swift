@@ -116,11 +116,13 @@ public final class PlaylistEditingModel {
         if success, let p = try? await database.loadState().playlists.first(where: { $0.id == id }) { status = "Restored Playlist “\(p.name)”" }
         return success
     }
-    public func setStar(_ ids: [String], starred: Bool) async {
-        _ = await edit(ids.map { .setStar(episodeId: $0, starred: starred) }, name: starred ? "Star" : "Unstar")
+    @discardableResult
+    public func setStar(_ ids: [String], starred: Bool) async -> Bool {
+        await edit(ids.map { .setStar(episodeId: $0, starred: starred) }, name: starred ? "Star" : "Unstar")
     }
-    public func markPlayed(_ ids: [String], played: Bool) async {
-        _ = await edit(ids.map { played ? .markPlayed(episodeId: $0, source: .user) : .markUnplayed(episodeId: $0) }, name: played ? "Mark Played" : "Mark Unplayed", reload: true)
+    @discardableResult
+    public func markPlayed(_ ids: [String], played: Bool) async -> Bool {
+        await edit(ids.map { played ? .markPlayed(episodeId: $0, source: .user) : .markUnplayed(episodeId: $0) }, name: played ? "Mark Played" : "Mark Unplayed", reload: true)
     }
     public func remove(_ ids: [String], playlistID: String) async {
         _ = await edit(ids.map { .removeEntry(playlistId: playlistID, episodeId: $0) }, name: "Remove from Playlist", reload: true)

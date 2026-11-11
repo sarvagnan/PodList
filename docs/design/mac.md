@@ -61,3 +61,72 @@ table row dragging with insertion boundaries, with Move Up/Down (⌘⌥↑/↓) 
 the Episode menu. Rewind opens a summary sheet before committing. Edit > Undo/Redo names the
 latest domain edit; editable text retains native text Undo. A compact status line provides
 feedback and Undo, and Trash includes Restore and its retention period.
+
+
+## Agents and automation
+
+Milestone 4c automation, with the owner’s decisions of 11 Nov 2026 recorded below.
+
+App Intents and the Mac MCP tools share `AutomationActions` in PodListUI.
+It resolves ids in the open Library. It uses the existing Episode and Playlist editing
+model for every edit, including Play Now. These edits have the same named Edit > Undo
+steps as the UI. Playback commands go through PlaybackController. Automation works on
+a Standalone Device and on a server connection, including while the server is offline.
+
+The actions are Play, Pause, Toggle, Back 15, Forward 30, Now Playing, Play Episode Now,
+Add Episodes, Add Current Episode, list Views, list Playlists, list Episodes, Search,
+Star/Unstar and Mark Played/Unplayed. Add uses the Active Playlist unless a Playlist is
+chosen. Play Next and Play Last keep the supplied Episode order. Now Playing returns the
+Episode, podcast, Position in seconds and Active Playlist. Lists return stable ids, counts
+and pages of up to 200 results; the default page has 100. View results and Search use the
+same Library rules as the UI. Playlist results keep Entry order and per-Entry Positions.
+Agents cannot change connections, Empty Trash, Delete Playlist or Unsubscribe.
+
+Episode and Playlist App Entities support lookup and text queries in Shortcuts.
+App Shortcuts offer Play, Pause and Add Current Episode. Intents open the app so they use
+the live session and its Undo history. Listing Episodes accepts a Playlist or a View id
+from List Library. The development app bundle includes extracted App Intents metadata.
+The bare SwiftPM executable alone does not register actions with Shortcuts.
+
+By the owner’s decision of 11 Nov 2026, the MCP server is opt-in and off by default.
+Settings > Automation has a plain toggle, with an explanation that any app running as
+this user on this Mac can read the Library and control playback. The preference is stored
+in this Mac’s UserDefaults, outside Library State, and is not synced. App Intents and
+Shortcuts remain available by default, independently of MCP.
+
+Enabling MCP starts one listener immediately. Disabling it stops the listener, closes
+open connections and removes the socket; Quit does the same while retaining the preference.
+When enabled, the Automation pane shows the bridge path and a copyable MCP client config.
+Closing every window leaves the enabled listener running in the Dock. It uses a Unix socket
+at `~/Library/Application Support/PodList/Automation/mcp.sock`. Its directory has mode 0700;
+the socket has mode 0600. Both ends check the peer's user id. A lock prevents a second
+app from taking the live socket. Startup removes a stale socket after a crash, including
+when MCP is disabled, without disturbing another app’s live listener. There is no TCP listener.
+
+An MCP client starts `podlist-mcp`, a transparent stdio bridge. The app must already be
+running with MCP enabled. Without a listener the bridge reports that PodList is not
+running or MCP is turned off in PodList Settings; the missing socket cannot distinguish
+those cases reliably. The development bundle includes the bridge beside the app executable.
+
+By the owner’s decision of 11 Nov 2026, only MCP **2026-07-28** is supported. The older
+handshake protocol is heavier and is not wanted. There is no per-connection handshake
+state: every request supplies its protocol version and client capabilities in `params._meta`,
+with optional client identity. `initialize` is rejected with code -32022, the requested
+revision and the sole supported revision, and a message explaining that PodList requires
+MCP 2026-07-28. `notifications/initialized` and `ping` have no handlers. Other unsupported
+revisions receive `UnsupportedProtocolVersionError` with the same single supported revision.
+
+The server implements `server/discover`, `tools/list` and `tools/call` over newline-delimited
+JSON-RPC 2.0 without external packages. Discovery advertises supported versions, capabilities
+and identity. Every result includes `resultType: "complete"` and server identity in `_meta`.
+Discovery and the deterministic, name-sorted tool catalog use a five-minute `ttlMs` freshness
+hint and `cacheScope: "private"`. Tools advertise JSON Schema inputs and return concise
+structured results. Failed actions return tool errors; malformed protocol parameters,
+unknown tools and unknown methods return JSON-RPC errors. No application errors use the
+spec-reserved -32020 through -32099 range. Messages are capped at 1 MiB, connections at eight,
+and blocked writes time out after five minutes. Idle connections stay open.
+
+Protocol references: [versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning),
+[stdio](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio),
+[discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) and
+[schema](https://modelcontextprotocol.io/specification/2026-07-28/schema).

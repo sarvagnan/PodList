@@ -47,7 +47,12 @@ public struct PodListSettings: SwiftUI.View {
     @Bindable private var app: ApplicationModel
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
-        LibrarySettingsScreen(app: app)
+        TabView {
+            LibrarySettingsScreen(app: app)
+                .tabItem { Label("General", systemImage: "gearshape") }
+            AutomationSettingsScreen(settings: app.automation)
+                .tabItem { Label("Automation", systemImage: "terminal") }
+        }
     }
 }
 
