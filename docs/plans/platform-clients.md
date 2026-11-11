@@ -67,7 +67,7 @@ Native apps are only worth their cost if they feel native, so each one follows i
 
 Shared behaviour lives in `docs/design/product-behaviour.md`, and each platform has its own layout document, starting with `web-layout.md`. Each platform's first screens are mocked and chosen the same way the web layout was.
 
-**Look (owner, 8 Nov 2026):** native apps use platform components and system fonts (Roboto, San Francisco), keep PodList's blue as the accent, and have dark mode from the start. Inter, Space Grotesk and light-only remain web decisions.
+**Look (owner, 8 Nov 2026):** native apps use platform components and system fonts (Roboto, San Francisco), keep PodList's blue as the accent, and have dark mode from the start. Inter and Space Grotesk remain web decisions. The web dark theme is not designed yet; that is an open design item, not a decision to stay light (corrected 12 Nov 2026).
 
 Each client gets its own UI grading, as its own target. The brief names that platform's guidelines, so Platform fit means fit with Material or the HIG, and the flow runs cover every screen size below.
 

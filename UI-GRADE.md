@@ -4,7 +4,7 @@ PodList graded against `~/Documents/UI_Guidelines` (`CRITIQUE.md`), as a **web a
 
 **Goal:** 9.0 overall (set by the owner, 7 Nov). Work through the checklist failures in the guide's order: blockers, then majors in the lowest-scoring category, then the lowest category, re-grading with a fresh agent after each batch.
 
-**Owner decisions (graded, not targeted):** Light appearance only until a dark theme is designed. Layout variant A (Views and Playlists as equal halves; lists, never capsules). Inter and Space Grotesk; blue primary #2b50c8; dark player bar. Unsubscribe asks for confirmation first, and can still be undone afterwards (8 Nov). A Playlist's Entries have a side panel like a View's (the open Episode, else the current one); Library, Trash and the other list pages stop at a reading width (8 Nov). "Rewind to here" shows on hover or focus, and always on touch (8 Nov).
+**Owner decisions (graded, not targeted):** (Correction, 12 Nov 2026: “light only” was never an owner decision; the web dark theme is simply not designed yet, so grading covers light appearance only.) Layout variant A (Views and Playlists as equal halves; lists, never capsules). Inter and Space Grotesk; blue primary #2b50c8; dark player bar. Unsubscribe asks for confirmation first, and can still be undone afterwards (8 Nov). A Playlist's Entries have a side panel like a View's (the open Episode, else the current one); Library, Trash and the other list pages stop at a reading width (8 Nov). "Rewind to here" shows on hover or focus, and always on touch (8 Nov).
 
 ## Android phone
 
