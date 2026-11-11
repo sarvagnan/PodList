@@ -163,7 +163,7 @@ export class SyncStore extends Context.Service<
             snapshot: null,
             operations: rows.map((r) => decodeOperation(r.operation))
           }
-        }).pipe(Effect.orDie)
+        }).pipe(sql.withTransaction, Effect.orDie)
 
       return SyncStore.of({ registerDevice, push, pull })
     })

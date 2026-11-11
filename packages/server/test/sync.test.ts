@@ -45,9 +45,15 @@ describe("sync API", () => {
 
       const ops = [add("phone", "A"), add("phone", "B")]
       const first = yield* api.sync.push({ payload: new Sync.PushRequest({ operations: ops }) })
-      assert.deepStrictEqual({ ...first }, { cursor: 2, accepted: 2 })
+      assert.deepStrictEqual(
+        { ...first },
+        { cursor: 2, accepted: 2, acknowledged: ops.map((o) => o.id) }
+      )
       const again = yield* api.sync.push({ payload: new Sync.PushRequest({ operations: ops }) })
-      assert.deepStrictEqual({ ...again }, { cursor: 2, accepted: 0 })
+      assert.deepStrictEqual(
+        { ...again },
+        { cursor: 2, accepted: 0, acknowledged: ops.map((o) => o.id) }
+      )
 
       const pulled = yield* api.sync.pull({ query: { since: 0 } })
       assert.deepStrictEqual(order(pulled.snapshot as State.State), ["A", "B"])

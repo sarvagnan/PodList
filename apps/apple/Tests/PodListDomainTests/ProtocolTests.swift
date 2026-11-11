@@ -43,7 +43,7 @@ func serverLog(_ vector: JSON) throws {
 
 @Test func contractCoverage() throws {
     let names = Set(try FileManager.default.contentsOfDirectory(atPath: Fixtures.protocolURL.path))
-    #expect(names == ["operation.schema.json", "openapi.json", "views.json", "listening.json", "server.json", "feeds.json", "vectors"])
+    #expect(names == ["operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "vectors"])
     let vectors = try FileManager.default.contentsOfDirectory(atPath: Fixtures.protocolURL.appendingPathComponent("vectors").path)
     #expect(!vectors.isEmpty)
     #expect(vectors.allSatisfy { $0.hasSuffix(".json") })
@@ -122,4 +122,10 @@ func memoryView(_ example: JSON) throws {
     let actual = try ViewRules.evaluate(view, subscriptions: fixture["subscriptions"].decode(), episodes: episodes,
                                         state: fixture["state"].decode(), now: (example.object["now"] ?? fixture["now"]).int)
     #expect(actual.map(\.id) == (try example["expected"].decode([String].self)))
+}
+
+@Test(arguments: try Fixtures.document("devices.json")["devices"].array)
+func deviceRegistration(_ vector: JSON) throws {
+    let device = try vector.decode(Device.self)
+    #expect(try JSON.encoded(device) == vector)
 }

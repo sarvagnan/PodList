@@ -1,0 +1,29 @@
+{
+  "protocolVersion": 4,
+  "devices": [
+    {
+      "id": "device-pwa",
+      "name": "PodList pwa",
+      "kind": "pwa",
+      "registeredAt": 1
+    },
+    {
+      "id": "device-desktop",
+      "name": "PodList desktop",
+      "kind": "desktop",
+      "registeredAt": 1
+    },
+    {
+      "id": "device-android",
+      "name": "PodList android",
+      "kind": "android",
+      "registeredAt": 1
+    },
+    {
+      "id": "device-web",
+      "name": "PodList web",
+      "kind": "web",
+      "registeredAt": 1
+    }
+  ]
+}

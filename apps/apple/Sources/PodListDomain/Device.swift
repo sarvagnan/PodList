@@ -57,5 +57,5 @@ public enum DownloadMode: String, Codable, CaseIterable, Sendable {
 }
 
 public enum DeviceKind: String, Codable, CaseIterable, Sendable {
-    case pwa, desktop, android
+    case pwa, desktop, android, web
 }

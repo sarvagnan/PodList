@@ -3,6 +3,7 @@
 import { writeFileSync } from "node:fs"
 import { openApiDocument } from "../../api/src/OpenApi.ts"
 import { operationCoverage } from "./coverage.ts"
+import { buildDeviceVectors } from "./device-vectors.ts"
 import { buildFeedVectors } from "./feed-vectors.ts"
 import { buildListeningVectors } from "./listening-vectors.ts"
 import { buildVectors, operationJsonSchema } from "./protocol.ts"
@@ -22,6 +23,7 @@ for (const vector of buildVectors()) {
 }
 
 for (const [file, value] of Object.entries({
+  "devices.json": buildDeviceVectors(),
   "openapi.json": openApiDocument(),
   "views.json": buildViewVectors(),
   "listening.json": buildListeningVectors(),

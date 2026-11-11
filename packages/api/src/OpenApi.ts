@@ -8,8 +8,9 @@ import {
   forwardedRequestHeaders,
   forwardedResponseHeaders
 } from "./Media.ts"
+import { livePath, Notification } from "./Reads.ts"
 
-// The two raw streaming routes use HttpRouter, rather than JSON handlers. Keep their
+// Raw streaming and WebSocket routes use HttpRouter, rather than JSON handlers. Keep their
 // contract alongside the typed API; no streaming body is buffered by an API codec.
 const text = (status: number) =>
   Schema.String.pipe(HttpApiSchema.asText(), HttpApiSchema.status(status))
@@ -68,10 +69,35 @@ const media = HttpApiGroup.make("media")
     )
   )
 
+const live = HttpApiGroup.make("live").add(
+  HttpApiEndpoint.get("notifications", livePath, {
+    query: {
+      state: Schema.optionalKey(
+        Schema.NumberFromString.pipe(Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)))
+      ),
+      library: Schema.optionalKey(
+        Schema.NumberFromString.pipe(Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)))
+      )
+    },
+    success: Schema.Void.pipe(HttpApiSchema.status(101)),
+    error: [400, 403, 426].map((status) => Schema.Void.pipe(HttpApiSchema.status(status)))
+  }).annotate(OpenApi.Transform, (operation) => ({
+    ...operation,
+    description:
+      "Same-origin WebSocket. Origin is required and must equal the request origin (the HTTPS proxy preserves Host and sets X-Forwarded-Proto). State and Library query cursors are nonnegative safe integers, default 0. On connect, sends current cursors immediately, coalescing all changes since the client's last cursors. Sends changed cursors within 500ms and a heartbeat every 15s. Notifications invalidate reads; pull State and refetch reads, rather than replaying messages. reset=true means a cursor moved backwards: pull since=0. Always refresh on reconnect and tab return. If the socket cannot connect, poll GET /api/live/cursors and compare both cursors. No application authentication (ADR 0004).",
+    parameters: [
+      ...(operation.parameters ?? []),
+      { name: "Origin", in: "header", required: true, schema: { type: "string" } }
+    ],
+    "x-websocket-message": Schema.toJsonSchemaDocument(Notification).schema
+  }))
+)
+
 /** Generated from the API definitions plus the raw streaming route contracts. */
 export const openApiDocument = () => {
   const spec = OpenApi.fromApi(
     PodListApi.add(media)
+      .add(live)
       .annotate(OpenApi.Title, "PodList HTTP API")
       .annotate(OpenApi.Version, String(Protocol.version))
   )
@@ -88,7 +114,7 @@ export const openApiDocument = () => {
     ] as const) {
       const operation = path[method]
       if (operation === undefined) continue
-      if (operation.tags?.includes("media")) continue
+      if (operation.tags?.includes("media") || operation.tags?.includes("live")) continue
       if (operation.requestBody || operation.parameters?.length) {
         const declared = operation.responses["400"]
         operation.responses["400"] = {
@@ -104,7 +130,7 @@ export const openApiDocument = () => {
       title: "PodList HTTP API",
       version: String(Protocol.version),
       description:
-        "Single-user API. Authentication and authorization are provided by reachability over the user's Tailscale tailnet (ADR 0004). There is no application login, bearer token, API key or cookie requirement. Keep the server private to the tailnet. Protocol version is also returned by GET /api/health. Paths include /api; use the server origin as the base URL. JSON endpoints return an empty 400 response for malformed input (HttpApiSchemaError); infrastructure failures may return 5xx. The two streaming endpoints are implemented with raw HttpRouter handlers."
+        "Single-user API. Authentication and authorization are provided by reachability over the user's Tailscale tailnet (ADR 0004). There is no application login, bearer token, API key or cookie requirement. Keep the server private to the tailnet. Protocol version is also returned by GET /api/health. Paths include /api; use the server origin as the base URL. JSON endpoints return an empty 400 response for malformed input (HttpApiSchemaError); infrastructure failures may return 5xx. The media streams and WebSocket endpoint use raw HttpRouter handlers. Online read pages default to 100 rows, maximum 200. Continuations are opaque, bound to query, page size and State/Library cursors, and freeze relative dates. A 409 ReadChanged requires restarting from the first page; malformed or expired tokens return 400 InvalidContinuation. Server restart invalidates tokens. View limits apply across the entire result, including counts. Listening metadata includes removed Subscriptions and stored Episodes; combine it with State using Listening.stats on the viewing Device."
     },
     security: []
   }
