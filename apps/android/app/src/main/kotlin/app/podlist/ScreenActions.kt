@@ -1,6 +1,7 @@
 package app.podlist
 
 import androidx.lifecycle.viewModelScope
+import app.podlist.data.reopenGettingStarted
 import app.podlist.data.reversibleNamedView
 import app.podlist.data.reversibleNamedPlaylist
 import app.podlist.domain.*
@@ -151,7 +152,7 @@ internal fun AppModel.revealChanges(changes: List<Change>) {
 internal fun AppModel.showGettingStarted() {
     val current = session.value ?: return
     viewModelScope.launch {
-        withContext(Dispatchers.IO) { current.db.transaction { setMeta("gettingStartedHidden", "false"); setMeta("gettingStartedBegun", "true") }; current.db.notifyChanged() }
+        withContext(Dispatchers.IO) { current.db.reopenGettingStarted(); current.db.notifyChanged() }
         gettingStartedRequest.value = OneShotEvent(Unit)
     }
 }

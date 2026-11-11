@@ -3,13 +3,15 @@ import PodListDomain
 
 /// A consistent read of State and Library, including retained metadata for Orphaned Entries.
 public struct LibrarySnapshot: Equatable, Sendable {
+    public let isReady: Bool
     public let state: State
     public let subscriptions: [Subscription]
     public let episodes: [Episode]
     public let episodeLinks: [String: String]
     public let podcastLinks: [String: String]
 
-    public init(state: State, subscriptions: [Subscription], episodes: [Episode], episodeLinks: [String: String] = [:], podcastLinks: [String: String] = [:]) {
+    public init(state: State, subscriptions: [Subscription], episodes: [Episode], episodeLinks: [String: String] = [:], podcastLinks: [String: String] = [:], isReady: Bool = true) {
+        self.isReady = isReady
         self.state = state; self.subscriptions = subscriptions; self.episodes = episodes; self.episodeLinks = episodeLinks; self.podcastLinks = podcastLinks
     }
 }
@@ -43,6 +45,6 @@ extension LocalDatabase {
         }
         let episodeLinks = try query("SELECT id, website_url FROM episode WHERE website_url IS NOT NULL").reduce(into: [String: String]()) { $0[$1["id"]!.string!] = $1["website_url"]!.string! }
         let podcastLinks = try query("SELECT id, website_url FROM subscription WHERE website_url IS NOT NULL").reduce(into: [String: String]()) { $0[$1["id"]!.string!] = $1["website_url"]!.string! }
-        return LibrarySnapshot(state: try loadState(), subscriptions: subscriptions, episodes: episodes, episodeLinks: episodeLinks, podcastLinks: podcastLinks)
+        return LibrarySnapshot(state: try loadState(), subscriptions: subscriptions, episodes: episodes, episodeLinks: episodeLinks, podcastLinks: podcastLinks, isReady: try hasLoadedLibrary())
     }
 }

@@ -210,7 +210,8 @@ publisher feeds without a server. A restarted Standalone Device reuses its Devic
 State and cached metadata. Feed refresh runs at startup, foreground/network recovery and
 periodically while the app runs. Streaming and downloads use publisher audio; there is no
 server fallback on a Standalone Device. New Libraries get three starter Views once and a
-skippable Getting started checklist on Views; Settings can reopen the completed checklist.
+skippable Getting started introduction on the first View. It hides after the first Subscription once
+any Add flow closes; Settings can reopen it until dismissed.
 
 Use the Library sidebar + or File ▸ Add Podcasts… (⌘⇧A) for one name/feed-address field.
 Standalone directory search uses Apple's public directory; server connections use the existing

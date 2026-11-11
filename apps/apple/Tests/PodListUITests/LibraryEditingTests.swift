@@ -120,12 +120,12 @@ private actor PublisherFixture: PublisherReader {
     let defaults = UserDefaults(suiteName: UUID().uuidString)!
     let source = PodcastLibrary(database: db, publisher: PublisherFixture())
     let first = LibraryEditingModel(database: db, source: source, scope: "one", defaults: defaults)
-    first.setDraft("Unfinished", field: "rename.v"); first.completeStep(2); first.showGettingStarted = false
+    first.setDraft("Unfinished", field: "rename.v"); first.showGettingStarted = false
     try await first.initialize()
     #expect(try await db.loadState().views.count == 3)
     try await db.record(.deleteView(viewId: "starter-week"), at: 1)
     let next = LibraryEditingModel(database: db, source: source, scope: "one", defaults: defaults)
-    #expect(next.draft("rename.v") == "Unfinished" && next.steps == 2 && !next.showGettingStarted)
+    #expect(next.draft("rename.v") == "Unfinished" && !next.showGettingStarted)
     try await next.initialize()
     #expect(try await db.loadState().views.count == 2)
     let separate = LibraryEditingModel(database: db, source: source, scope: "two", defaults: defaults)
@@ -325,4 +325,97 @@ private actor SubscriptionTransport: SyncTransport {
     try await editor.cancelViewEdits(initial: draft, creating: true, sessionID: UUID())
     #expect(try await db.loadState().views == before)
     #expect(!editor.hasDraft("newViewID") && !editor.hasDraft("view.\(draft.id)"))
+}
+
+@MainActor @Test func gettingStartedWaitsForLoadedLibraryThenHidesAfterSubscription() async throws {
+    let db = try LocalDatabase(path: ":memory:"); try await db.ensureState()
+    let editor = editing(db)
+    editor.reconcile(try await db.readLibrary())
+    #expect(!editor.showGettingStarted)
+    try await editor.initialize()
+    #expect(try await db.loadState().views.isEmpty)
+    try await db.setMeta("userCursor", "0")
+    editor.reconcile(try await db.readLibrary())
+    #expect(!editor.showGettingStarted)
+    try await db.setMeta("catalogueCursor", "0")
+    editor.reconcile(try await db.readLibrary())
+    #expect(editor.showGettingStarted)
+    try await editor.subscribe("https://example.com/rss")
+    editor.reconcile(try await db.readLibrary())
+    #expect(!editor.showGettingStarted)
+}
+
+@MainActor @Test func gettingStartedWaitsForAllAddFlowsWithoutErasingInput() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let editor = editing(db)
+    editor.reconcile(try await db.readLibrary())
+    #expect(editor.showGettingStarted)
+    editor.beginAddingPodcasts(); editor.beginAddingPodcasts()
+    editor.setDraft("another unfinished feed", field: "addPodcasts")
+    try await editor.subscribe("https://example.com/rss")
+    editor.reconcile(try await db.readLibrary())
+    #expect(editor.showGettingStarted)
+    #expect(editor.draft("addPodcasts") == "another unfinished feed")
+    editor.endAddingPodcasts()
+    #expect(editor.showGettingStarted)
+    editor.endAddingPodcasts()
+    #expect(!editor.showGettingStarted)
+    #expect(editor.draft("addPodcasts") == "another unfinished feed")
+}
+
+@MainActor @Test func reopenedGettingStartedStaysAndRemembersDismissal() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let source = PodcastLibrary(database: db, publisher: PublisherFixture())
+    let editor = LibraryEditingModel(database: db, source: source, scope: "reopened", defaults: defaults)
+    try await editor.subscribe("https://example.com/rss")
+    let snapshot = try await db.readLibrary()
+    editor.reconcile(snapshot)
+    #expect(!editor.showGettingStarted)
+    editor.showGettingStarted = true
+    editor.reconcile(snapshot)
+    editor.beginAddingPodcasts(); editor.endAddingPodcasts()
+    #expect(editor.showGettingStarted)
+    let recreated = LibraryEditingModel(database: db, source: source, scope: "reopened", defaults: defaults)
+    recreated.reconcile(snapshot)
+    #expect(recreated.showGettingStarted)
+    recreated.showGettingStarted = false
+    recreated.reconcile(snapshot)
+    #expect(!recreated.showGettingStarted)
+    let dismissed = LibraryEditingModel(database: db, source: source, scope: "reopened", defaults: defaults)
+    dismissed.reconcile(snapshot)
+    #expect(!dismissed.showGettingStarted)
+}
+
+@MainActor @Test func gettingStartedKeepsLastDecisionDuringTemporaryLoading() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let editor = editing(db)
+    let loading = LibrarySnapshot(state: .initial(), subscriptions: [], episodes: [], isReady: false)
+    editor.reconcile(loading)
+    #expect(!editor.showGettingStarted)
+    editor.reconcile(try await db.readLibrary())
+    #expect(editor.showGettingStarted)
+    editor.reconcile(loading)
+    #expect(editor.showGettingStarted)
+    try await editor.subscribe("https://example.com/rss")
+    editor.reconcile(try await db.readLibrary())
+    #expect(!editor.showGettingStarted)
+    editor.reconcile(loading)
+    #expect(!editor.showGettingStarted)
+}
+
+
+@MainActor @Test func gettingStartedOnlyAppearsOnTheFirstView() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let editor = editing(db)
+    try await editor.initialize()
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
+    editor.reconcile(library.snapshot)
+    let first = library.state.views[0].id, second = library.state.views[1].id
+    #expect(editor.showsGettingStarted(on: .view(first), in: library))
+    #expect(!editor.showsGettingStarted(on: .view(second), in: library))
+    #expect(!editor.showsGettingStarted(on: .views, in: library))
+    editor.showGettingStarted = true
+    #expect(!editor.showsGettingStarted(on: .view(second), in: library))
+    #expect(editor.showsGettingStarted(on: .view(first), in: library))
 }

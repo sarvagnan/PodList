@@ -81,7 +81,9 @@ The server retains Subscription and Episode ids, settings (Played threshold and 
 
 Apps with a local database open without needing a server: people can start as a Standalone Device or connect to a server (ADR 0012). Connecting a Standalone Device later offers to bring its Library over, showing what will move first. Declining keeps the two separate.
 
-First run then shows a skippable introduction on Views with three points: adding podcasts; what Views do; what Playlists hold. They explain the app; they are not tasks, so nothing is ticked (owner, 12 Nov 2026). For a fresh Library without Views, create the starter Views once: **New this week** (Published in the last seven days, Unplayed), **Under 30 minutes** (Unplayed, up to 30 minutes, shortest first), and **Starred**. The Default Playlist is ready from the start.
+First run then shows a skippable introduction on the screen the app opens to with three points: adding podcasts; what Views do; what Playlists hold. They explain the app; they are not tasks, so nothing is ticked (owner, 12 Nov 2026). For a fresh Library without Views, create the starter Views once: **New this week** (Published in the last seven days, Unplayed), **Under 30 minutes** (Unplayed, up to 30 minutes, shortest first), and **Starred**. The Default Playlist is ready from the start.
+
+Other Views show their own short empty state, with **Add podcasts** when the Library is empty and the existing empty-View wording otherwise.
 
 The introduction goes away by itself once the Library has a Subscription, but not while an Add flow is open: adding the first Subscription never dismisses an open Add flow or erases input, and the introduction leaves when that flow closes. It can also be skipped. Settings can reopen Getting started; a reopened introduction stays until dismissed. Never mistake a temporarily loading Library for a fresh one.
 
@@ -95,4 +97,4 @@ Listening stats shows time listened, Episodes finished, top podcasts, daily list
 
 Split from ui-layout.md on 8 Nov 2026 without changing the selected web layout. Its presentation decisions, prototype provenance and outstanding web design notes remain in web-layout.md. This document also makes existing screen behaviour explicit from routes and components.
 
-The former “Not yet designed” note for global Playback Settings is stale: the Settings screen exists. FirstRun.tsx's introductory comments disagree with its later implementation: the checklist now stays while steps advance. The former generic “drawer” and toast/keyboard instructions were web presentation, not requirements for native clients. The platform plan already requires native dark mode; the old open dark-theme item applies to web. No Android variant has been selected yet.
+The former “Not yet designed” note for global Playback Settings is stale: the Settings screen exists. The former checklist and ticked-step behaviour is superseded by the 12 Nov 2026 introduction rule above. The former generic “drawer” and toast/keyboard instructions were web presentation, not requirements for native clients. The platform plan already requires native dark mode; the old open dark-theme item applies to web. No Android variant has been selected yet.

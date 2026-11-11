@@ -35,6 +35,7 @@ function ViewDetail() {
   const { episode: selected, edit: editing = false } = Route.useSearch()
   const navigate = Route.useNavigate()
   const wide = useMinWidth("64rem")
+  const opensFirstView = useMinWidth("44rem")
   const { remove, discard } = useViewActions()
   // Desktop bulk selection, kept per View: another View starts with none. Escape clears it.
   const [selection, setSelection] = useState<{
@@ -200,7 +201,12 @@ function ViewDetail() {
             it (FLOW-05). */}
         <div className="min-w-0">
           <div data-page-notice="" />
-          {!loading && episodes.length === 0 && noPodcasts && !firstRunDone.get() ? (
+          {!loading &&
+          episodes.length === 0 &&
+          noPodcasts &&
+          !firstRunDone.get() &&
+          opensFirstView &&
+          state.views[0]?.id === viewId ? (
             // The welcome card above already offers Add podcasts: no second one here.
             <div />
           ) : !loading && episodes.length === 0 && noPodcasts ? (

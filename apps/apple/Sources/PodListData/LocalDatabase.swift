@@ -72,6 +72,12 @@ public actor LocalDatabase {
     public func execute(_ sql: String, _ params: [SQLValue] = []) throws { try storage.execute(sql, params) }
     public func query(_ sql: String, _ params: [SQLValue] = []) throws -> [Row] { try storage.query(sql, params) }
 
+    /// Both independent server reads must have committed before empty means fresh.
+    func hasLoadedLibrary() throws -> Bool {
+        if standalone { return true }
+        return try getMeta("userCursor") != nil && getMeta("catalogueCursor") != nil
+    }
+
     private func replaceState(_ state: State) throws {
         try ProtocolValidation.validateDownloadRules(state)
         let rows = try StateIndex.stateToRows(state)

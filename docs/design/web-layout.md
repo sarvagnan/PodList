@@ -65,6 +65,10 @@ The historical “Not yet designed” line is retained above so the split loses 
 
 Inter and Space Grotesk, a light appearance and the dark player remain web choices, as recorded in the platform plan.
 
+## Getting started
+
+Getting started appears only on the screen the app opens to, not on other Views. It is a skippable introduction with three numbered points: adding podcasts, what Views do and what Playlists hold. The wording stays visible, with no completed states, check marks or “(done)” labels. It hides once the loaded Library has a Subscription, after any open Add flow closes; subscribing never closes that flow or clears its input. Settings can reopen it until dismissed, even with Subscriptions. Loading preserves the last visibility decision and never counts as an empty Library. On wide screens, the card sits below the first View’s title; on narrow screens it sits on the opening Views overview. Other empty Views show **Add podcasts** when the Library is empty, or the existing empty-View wording otherwise. Electron shares this presentation.
+
 ## Electron automation
 
 The owner settled these choices on 11 Nov 2026. The Mac app is the reference.

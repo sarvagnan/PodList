@@ -464,8 +464,6 @@
     <string name="number_whole_error">Use a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
     <string name="number_minimum_error">That number is too small. Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
     <string name="number_maximum_error">That number is too large. Enter a whole number from %1$d to %2$d, or leave blank for unlimited.</string>
-    <string name="show_completed_steps">Show help for completed steps</string>
-    <string name="hide_completed_steps">Hide help for completed steps</string>
     <string name="select_all">Select all</string>
     <string name="select_none">Select none</string>
     <string name="share_podcast">Share podcast</string>

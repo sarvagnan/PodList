@@ -3,12 +3,12 @@ package app.podlist
 import app.podlist.data.*
 import app.podlist.domain.*
 
-internal data class ScreenData(val state: State, val subscriptions: List<Row>, val episodes: List<Row>, val hasState: Boolean, val hasLibrary: Boolean, val gettingStarted: Boolean = false, val gettingStartedSteps: Int = 0)
+internal data class ScreenData(val state: State, val subscriptions: List<Row>, val episodes: List<Row>, val hasState: Boolean, val hasLibrary: Boolean, val gettingStarted: Boolean = false)
 
-/** One consistent local read. Saved Views always execute the shared compiler, never a cached id list. */
-internal fun readScreen(db: LocalDatabase, route: String?): ScreenData = db.transaction {
+/** One consistent local read. Saved Views always execute the shared compiler, never a cached id list.
+ * Background player reads cannot declare an Add flow closed; navigation supplies its actual state. */
+internal fun readScreen(db: LocalDatabase, route: String?, addFlowOpen: Boolean? = null): ScreenData = db.transaction {
     initializeGettingStarted()
-    updateGettingStartedProgress()
     val state = loadState()
     val subscriptionRows = query("SELECT s.*, f.failures AS refresh_failures, f.checked_at AS refresh_checked_at, (SELECT count(*) FROM episode e WHERE e.subscription_id = s.id) AS episode_count FROM subscription s LEFT JOIN feed_state f ON f.subscription_id = s.id ORDER BY s.title COLLATE NOCASE, s.id")
     val overrides = pendingSubscriptionOverrides()
@@ -30,7 +30,9 @@ internal fun readScreen(db: LocalDatabase, route: String?): ScreenData = db.tran
         route?.startsWith("episode:") == true -> episodeRows(listOf(id!!))
         else -> emptyList()
     }
-    ScreenData(state, subscriptions, episodes, getMeta("starterViewsMade") != null || getMeta("userCursor") != null, getMeta("starterViewsMade") != null || getMeta("catalogueCursor") != null, getMeta("gettingStartedBegun") == "true" && getMeta("gettingStartedHidden") != "true", getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0)
+    // Android opens the Views overview. Its detail Views keep their own empty states.
+    val introduction = gettingStartedVisible(addFlowOpen = addFlowOpen != false) && (route == null || addFlowOpen == true)
+    ScreenData(state, subscriptions, episodes, getMeta("starterViewsMade") != null || getMeta("userCursor") != null, getMeta("starterViewsMade") != null || getMeta("catalogueCursor") != null, introduction)
 }
 
 private fun LocalDatabase.episodeRows(ids: List<String>): List<Row> = query("""

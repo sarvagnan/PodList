@@ -21,14 +21,26 @@ fun LocalDatabase.initializeGettingStarted() = transaction {
     setMeta("gettingStartedChecked", "true")
 }
 
-/** Completion is remembered even when later listening empties a Playlist or a Subscription leaves. */
-fun LocalDatabase.updateGettingStartedProgress() = transaction {
-    if (getMeta("starterViewsMade") == null && (getMeta("userCursor") == null || getMeta("catalogueCursor") == null)) return@transaction
-    val previous = getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0
-    var steps = previous
-    if (query("SELECT id FROM subscription WHERE unsubscribed_at IS NULL LIMIT 1").isNotEmpty()) steps = steps or 1
-    val state = loadState()
-    if (steps and 1 != 0 && getMeta("gettingStartedExploredView") == "true") steps = steps or 2
-    if (steps and 3 == 3 && state.playlists.any { it.entries.isNotEmpty() }) steps = steps or 4
-    if (steps != previous) setMeta("gettingStartedSteps", steps.toString())
+/** Reopened help is explicit; automatic help waits for Add (including its Podcast pages). */
+fun LocalDatabase.gettingStartedVisible(addFlowOpen: Boolean = false): Boolean = transaction {
+    initializeGettingStarted()
+    if (getMeta("gettingStartedHidden") == "true") return@transaction false
+    if (getMeta("gettingStartedReopened") == "true") return@transaction true
+    val begun = getMeta("gettingStartedBegun") == "true"
+    val ready = getMeta("starterViewsMade") != null || (getMeta("userCursor") != null && getMeta("catalogueCursor") != null)
+    if (!ready || !begun || addFlowOpen) return@transaction begun
+    val subscribed = query("SELECT id FROM subscription WHERE unsubscribed_at IS NULL LIMIT 1").isNotEmpty()
+    if (subscribed) setMeta("gettingStartedBegun", "false")
+    !subscribed
+}
+
+fun LocalDatabase.reopenGettingStarted() = transaction {
+    setMeta("gettingStartedHidden", "false")
+    setMeta("gettingStartedBegun", "true")
+    setMeta("gettingStartedReopened", "true")
+}
+
+fun LocalDatabase.hideGettingStarted() = transaction {
+    setMeta("gettingStartedHidden", "true")
+    setMeta("gettingStartedReopened", "false")
 }

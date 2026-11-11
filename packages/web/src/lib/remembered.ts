@@ -36,7 +36,7 @@ export const nextLastTarget = {
   set: (playlistId: string | null) => write("next-last-target", playlistId)
 }
 
-/** This Device has shown (or been told to skip) the first-run checklist. */
+/** This Device has shown (or been told to skip) the first-run introduction. */
 export const firstRunDone = {
   get: () => read("first-run-done") === "1",
   set: () => write("first-run-done", "1"),

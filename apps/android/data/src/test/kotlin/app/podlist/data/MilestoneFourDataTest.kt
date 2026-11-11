@@ -5,31 +5,42 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class MilestoneFourDataTest {
-    @Test fun `fresh starter Views do not complete the exploration step before podcasts`() {
+    private fun subscribe(db: LocalDatabase) {
+        db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())), emptyList())
+    }
+    @Test fun `introduction hides after first Subscription and stays gone when it is removed`() {
         LocalDatabase(":memory:", standalone = true).use { db ->
-            db.ensureState(); db.initializeStandalone(); db.initializeGettingStarted(); db.updateGettingStartedProgress()
-            assertTrue(db.loadState().views.isNotEmpty())
-            assertEquals(0, db.getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0)
-            db.setMeta("gettingStartedExploredView", "true")
-            db.updateGettingStartedProgress()
-            assertEquals(0, db.getMeta("gettingStartedSteps")?.toIntOrNull() ?: 0)
-            db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())), emptyList())
-            db.updateGettingStartedProgress()
-            assertEquals("3", db.getMeta("gettingStartedSteps"))
+            db.ensureState(); db.initializeStandalone()
+            assertTrue(db.gettingStartedVisible())
+            subscribe(db)
+            assertFalse(db.gettingStartedVisible())
+            db.execute("UPDATE subscription SET unsubscribed_at = 300")
+            assertFalse(db.gettingStartedVisible())
+            assertNull(db.getMeta("gettingStartedSteps"))
         }
     }
-    @Test fun `Getting started remembers completed steps after Entries leave and Subscriptions are removed`() {
+    @Test fun `Add flow keeps introduction and drafts until it closes`() {
         LocalDatabase(":memory:", standalone = true).use { db ->
-            db.ensureState(); db.initializeStandalone(); db.initializeGettingStarted()
-            db.upsertLibrary(listOf(Subscription("s", "https://podcast.test/rss", "Podcast", null, null, null, 0, null, null, PlaybackSettingsOverride())), emptyList())
-            db.setMeta("gettingStartedExploredView", "true")
-            db.record(Change.AddEntry("default", "e", Placement.Last), 100)
-            db.updateGettingStartedProgress()
-            assertEquals("7", db.getMeta("gettingStartedSteps"))
-            db.record(Change.RemoveEntry("default", "e"), 200)
-            db.execute("UPDATE subscription SET unsubscribed_at = 300")
-            db.updateGettingStartedProgress()
-            assertEquals("7", db.getMeta("gettingStartedSteps"))
+            db.ensureState(); db.initializeStandalone()
+            assertTrue(db.gettingStartedVisible())
+            db.setMeta("draft.addPodcasts", "unfinished feed")
+            subscribe(db)
+            repeat(2) { assertTrue(db.gettingStartedVisible(addFlowOpen = true)) }
+            assertEquals("unfinished feed", db.getMeta("draft.addPodcasts"))
+            assertFalse(db.gettingStartedVisible(addFlowOpen = false))
+        }
+    }
+    @Test fun `reopened introduction persists with Subscriptions until hidden`() {
+        LocalDatabase(":memory:", standalone = true).use { db ->
+            db.ensureState(); db.initializeStandalone(); subscribe(db)
+            assertFalse(db.gettingStartedVisible())
+            db.reopenGettingStarted()
+            repeat(2) { assertTrue(db.gettingStartedVisible()) }
+            db.hideGettingStarted()
+            assertFalse(db.gettingStartedVisible())
+            assertEquals("true", db.getMeta("gettingStartedHidden"))
+            db.reopenGettingStarted()
+            assertTrue(db.gettingStartedVisible())
         }
     }
     @Test fun `pending server overrides work without sync and Default clears the override`() {
@@ -90,16 +101,22 @@ class MilestoneFourDataTest {
             assertTrue(db.query("SELECT * FROM subscription").isEmpty())
         }
     }
-    @Test fun `loading and partially loaded Libraries never create starter Views or begin checklist`() {
+    @Test fun `loading and partially loaded Libraries never create starter Views or begin introduction`() {
         LocalDatabase(":memory:").use { db ->
             db.ensureState()
             db.initializeGettingStarted()
+            assertFalse(db.gettingStartedVisible())
             assertTrue(db.loadState().views.isEmpty())
             assertNull(db.getMeta("gettingStartedBegun"))
             db.setMeta("userCursor", "0")
             db.initializeGettingStarted()
             assertTrue(db.loadState().views.isEmpty())
             assertNull(db.getMeta("gettingStartedChecked"))
+            assertFalse(db.gettingStartedVisible())
+            db.setMeta("catalogueCursor", "0")
+            assertTrue(db.gettingStartedVisible())
+            // Repeated reads retain the loaded decision.
+            assertTrue(db.gettingStartedVisible())
         }
     }
     @Test fun `fresh server Library seeds once and deleted starter Views stay deleted`() {

@@ -197,8 +197,8 @@ session, creates its Default Playlist and creates the three FirstRun.tsx starter
 Views once. Their creation and once-only marker commit atomically; deleting them
 does not recreate them on restart. A fresh server Library also creates the starter
 Views once, only after both State and Library have loaded. Getting started sits above
-the Views, remembers its three completed steps, stays until Hide, and reopens on Views
-from Settings → Help. A previously used Library becoming empty does not restart it.
+the Views as three numbered introductory points. It hides after the first Subscription once
+any Add flow closes, and reopens until dismissed from Settings → Help. A previously used Library becoming empty does not restart it.
 Connecting a Standalone Device now offers to bring its Library over, with real
 counts and saved, resumable progress (see below).
 
@@ -464,7 +464,7 @@ were performed in this worktree.
    Playlist, and Getting started above Views. Subscribe, open a View, add Entries,
    then remove Entries and relaunch: completed steps stay ticked. Hide, reopen from
    Settings → Help, delete a starter View and relaunch. On a server, delay the initial
-   Library response and confirm it never creates starter Views or a fresh checklist
+   Library response and confirm it never creates starter Views or a fresh introduction
    while loading; an existing Library must keep its Views.
 2. Open a View's pencil. Exercise all seven conditions, Sort and Show, Published
    date selection, both podcast modes, Any, text, reversed dates/lengths and their

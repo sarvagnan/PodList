@@ -88,7 +88,7 @@ public struct PodListWindow: SwiftUI.View {
             VStack(spacing: 0) {
                 syncStatus
                 if let editor = app.libraryEditing {
-                    if editor.showGettingStarted, case .view = window.destination { GettingStartedScreen(editor: editor, add: { showAddPodcasts = true }) }
+                    if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { showAddPodcasts = true }) }
                     LibraryFeedback(editor: editor)
                     if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
                     if !editor.importFailed.isEmpty { Button("Retry failed imports") { Task { await editor.retryImport() } } }
@@ -154,7 +154,6 @@ public struct PodListWindow: SwiftUI.View {
         }
         .onChange(of: window.destination) { _, destination in
             podcastFeed = nil
-            if case .view = destination { app.libraryEditing?.completeStep(2) }
             if destination == .search { window.search = app.libraryEditing?.draft("librarySearch") ?? "" }
         }
         .focusedSceneValue(\.podListInspector, $inspectorVisible)
