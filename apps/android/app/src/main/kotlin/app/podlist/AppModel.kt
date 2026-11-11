@@ -439,10 +439,9 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         serverDraftWriter.close()
         connectivity.unregisterNetworkCallback(callback)
-        // viewModelScope cancellation waits for the blocking IO call before the database closes.
+        // Wait for every model/download child, including blocking IO, before closing their DBs.
         val databases = sessions.values.map { it.db }
-        worker?.invokeOnCompletion { databases.forEach { it.close() } }
-        if (worker == null) databases.forEach { it.close() }
+        checkNotNull(viewModelScope.coroutineContext[Job]).invokeOnCompletion { databases.forEach { it.close() } }
         super.onCleared()
     }
 }

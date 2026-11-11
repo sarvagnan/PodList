@@ -10,5 +10,7 @@ class PodListApplication : Application() {
         super.onCreate()
         applyLaunchAppearance(app.podlist.data.DeviceSettingsStore(java.io.File(filesDir, "device-settings.properties")).appearance)
     }
-    val model: AppModel by lazy { AppModel(this) }
+    private val modelOwner = lazy { AppModel(this) }
+    internal val modelInitialized: Boolean get() = modelOwner.isInitialized()
+    val model: AppModel by modelOwner
 }

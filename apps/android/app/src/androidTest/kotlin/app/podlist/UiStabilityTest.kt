@@ -14,11 +14,18 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ApplicationProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.test.platform.app.InstrumentationRegistry
 import app.podlist.data.*
 import app.podlist.domain.State
 import app.podlist.domain.Entry
 import app.podlist.domain.PlaybackSettingsOverride
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withTimeout
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.TextRange
@@ -31,10 +38,21 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.ExternalResource
+import org.junit.rules.RuleChain
 
 @RunWith(AndroidJUnit4::class)
 class UiStabilityTest {
-    @get:Rule val compose = createComposeRule()
+    private val compose = createComposeRule()
+    private val models = ViewModelStore()
+    private val modelJobs = mutableListOf<Job>()
+    private val modelLifetime = object : ExternalResource() {
+        override fun after() {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { models.clear() }
+            runBlocking { withTimeout(30_000) { modelJobs.joinAll() } }
+        }
+    }
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(modelLifetime).around(compose)
 
     @Test fun lightLoadingKeepsExistingRowsStill() = loading(Appearance.Light, 1f)
     @Test fun darkLoadingKeepsExistingRowsStill() = loading(Appearance.Dark, 1f)
@@ -93,7 +111,14 @@ class UiStabilityTest {
     @Test fun enlargedEpisodeEntryAndMiniPlayerButtonsStayIndependentInBothTrees() = independentControls(2f)
 
     private fun independentControls(fontScale: Float) {
-        val model = ApplicationProvider.getApplicationContext<PodListApplication>().model
+        // Never initialise the process-wide owner in a component test: FlowRun must still
+        // start before its first session. Dispose this model after Compose has torn down.
+        lateinit var model: AppModel
+        compose.runOnUiThread {
+            model = ViewModelProvider(models, ViewModelProvider.AndroidViewModelFactory.getInstance(
+                ApplicationProvider.getApplicationContext()))[AppModel::class.java]
+            modelJobs += checkNotNull(model.viewModelScope.coroutineContext[Job])
+        }
         val session = runBlocking { model.sessionFor(null) }
         val row: Row = mapOf("id" to "accessibility-episode", "title" to "Episode", "podcast" to "Podcast", "published" to 0L, "duration" to 1800.0)
         val playlist = State.initial().playlists.single().copy(entries = listOf(Entry("accessibility-episode", 0.0, 0)))

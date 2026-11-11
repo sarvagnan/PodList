@@ -25,14 +25,21 @@ import org.junit.runner.RunWith
 class FlowRunSmokeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val compose = createAndroidComposeRule<MainActivity>()
-    // Runs BEFORE ActivityScenario launches and before PodListApplication's lazy model is created.
-    // Equivalent to the relevant part of clear-data, without pm clear killing instrumentation.
+    // PodListTestRunner clears ALL storage before Application/providers initialise. This rule
+    // removes app-owned data from preceding component tests, before ActivityScenario launches.
+    // Keep WorkManager's live framework database: deleting it here would corrupt its singleton.
     private val freshInstall = object : ExternalResource() {
         override fun before() {
+            check(instrumentation is PodListTestRunner) { "Run with app.podlist.PodListTestRunner for fresh-install isolation" }
             val context = instrumentation.targetContext
-            check(context.getSharedPreferences("connection", 0).edit().clear().commit())
+            val application = context.applicationContext as PodListApplication
+            check(!application.modelInitialized) { "An earlier test initialised the Application model; use a test-owned AppModel" }
+            val preferences = java.io.File(context.dataDir, "shared_prefs")
+            preferences.listFiles().orEmpty().filter { it.extension == "xml" }.forEach {
+                check(context.getSharedPreferences(it.nameWithoutExtension, 0).edit().clear().commit())
+            }
             context.databaseList().filter { it.startsWith("library-") && it.endsWith(".sqlite") }.forEach { check(context.deleteDatabase(it)) }
-            context.filesDir.listFiles()?.filter { it.name.endsWith(".properties") }?.forEach { check(it.delete()) }
+            context.filesDir.listFiles().orEmpty().forEach { check(it.deleteRecursively()) }
             DebugNetworkDelay.millis = 0
             DebugNetworkDelay.holdSubscriptionCompletion = false
         }

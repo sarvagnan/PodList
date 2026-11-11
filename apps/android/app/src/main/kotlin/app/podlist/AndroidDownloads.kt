@@ -10,6 +10,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import androidx.core.app.NotificationCompat
 import androidx.work.*
+import androidx.lifecycle.viewModelScope
 import app.podlist.data.*
 import app.podlist.domain.*
 import kotlinx.coroutines.*
@@ -33,7 +34,7 @@ internal data class DownloadUi(val phase: DownloadPhase, val received: Long = 0,
  */
 class AndroidDownloads(private val context: Context, private val model: AppModel, val session: Session) {
     @Volatile internal var rulesSuspended = session.source.server == null && model.session.value?.source?.server != null
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob(model.viewModelScope.coroutineContext[Job]) + Dispatchers.Main.immediate)
     private val manager = WorkManager.getInstance(context)
     private val tag = "audio:${digest(session.source.key)}"
     private val statuses = MutableStateFlow<Map<String, DownloadUi>>(emptyMap())

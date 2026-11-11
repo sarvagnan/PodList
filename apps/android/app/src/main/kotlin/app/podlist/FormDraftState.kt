@@ -82,15 +82,17 @@ internal fun rememberDraftFieldValue(key: String, text: String): MutableState<Te
         mutableStateOf(TextFieldValue(text, draftSelection(drafts.get(selectionKey), text.length)))
     }
     if (state.value.text != text) state.value = TextFieldValue(text, draftSelection(drafts.get(selectionKey), text.length))
-    return object : MutableState<TextFieldValue> {
-        override var value: TextFieldValue
-            get() = state.value
-            set(value) {
-                state.value = value
-                drafts.put(selectionKey, "${value.selection.start},${value.selection.end}")
-            }
-        override fun component1() = value
-        override fun component2(): (TextFieldValue) -> Unit = { value = it }
+    return remember(drafts, key, state) {
+        object : MutableState<TextFieldValue> {
+            override var value: TextFieldValue
+                get() = state.value
+                set(value) {
+                    state.value = value
+                    drafts.put(selectionKey, "${value.selection.start},${value.selection.end}")
+                }
+            override fun component1() = value
+            override fun component2(): (TextFieldValue) -> Unit = { value = it }
+        }
     }
 }
 

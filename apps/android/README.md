@@ -632,7 +632,7 @@ adb shell am instrument -w \
   -e server http://10.0.2.2:PORT \
   -e feed http://127.0.0.1:FPORT/feeds/long-list.xml \
   -e class app.podlist.FlowRunSmokeTest \
-  app.podlist.test/androidx.test.runner.AndroidJUnitRunner
+  app.podlist.test/app.podlist.PodListTestRunner
 adb pull /sdcard/Android/data/app.podlist/files/flow-run ./flow-run
 ```
 
@@ -641,6 +641,12 @@ Replace PORT and FPORT. `adb reverse tcp:FPORT tcp:FPORT` makes the fixture feed
 when `server` uses `10.0.2.2`: **the Mac demo server performs feed lookups**, so it
 needs its own loopback address. The original and typed URLs are reported. Other
 feed hosts are typed unchanged.
+
+`PodListTestRunner` clears internal app storage (including device-protected storage)
+before Application and provider initialisation. Use this runner for direct invocations;
+the FlowRun rule also removes app data left by preceding component tests and rejects
+an already initialised Application model. Component tests own and dispose their models
+instead. External flow-run reports remain available for collection across runs.
 
 Alternatively, Gradle can run instrumentation, but `connectedDebugAndroidTest`
 uninstalls the app afterwards and deletes its external files, including evidence.

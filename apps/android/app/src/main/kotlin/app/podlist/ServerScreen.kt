@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> Unit)? = null) {
     val draft by model.serverAddressDraft.collectAsState()
+    val selection by model.serverAddressSelection.collectAsState()
     val input = draft ?: current.orEmpty()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -29,8 +30,8 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
     Column(Modifier.fillMaxSize().imePadding()
         .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
-        var fieldValue by remember { mutableStateOf(TextFieldValue(input, draftSelection(model.serverAddressSelection.value, input.length))) }
-        if (fieldValue.text != input) fieldValue = TextFieldValue(input, draftSelection(model.serverAddressSelection.value, input.length))
+        var fieldValue by remember { mutableStateOf(TextFieldValue(input, draftSelection(selection, input.length))) }
+        if (fieldValue.text != input) fieldValue = TextFieldValue(input, draftSelection(selection, input.length))
         OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerAddressDraft(it.text); model.setServerAddressSelection("${it.selection.start},${it.selection.end}"); model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
             singleLine = true, enabled = !checking, isError = error != null,
