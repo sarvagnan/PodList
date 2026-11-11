@@ -28,7 +28,7 @@ public struct PodListWindow: SwiftUI.View {
         .frame(minWidth: 760, minHeight: 500)
         .tint(.podListAccent)
         .task { await app.start() }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } else { app.playback?.flush() } }
         .onChange(of: app.origin) { _, _ in window.navigate(to: .subscriptions) }
     }
 
@@ -79,16 +79,28 @@ public struct PodListWindow: SwiftUI.View {
             }
             .searchable(text: $window.search, placement: .toolbar, prompt: "Search this list")
             .inspector(isPresented: $inspectorVisible) {
-                EpisodeInspector(row: selectedRow(library), library: library)
+                EpisodeInspector(row: selectedRow(library), library: library, app: app)
                     .inspectorColumnWidth(min: 260, ideal: 310, max: 440)
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let player = library.player {
-                PlayerBar(player: player) { window.navigate(to: .playlist(player.playlistID)) }
+            if let playback = app.playback, playback.display != nil {
+                PlayerBar(controller: playback, library: library,
+                          openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
+                          openNowPlaying: { window.showNowPlaying = true })
             }
         }
         .focusedSceneValue(\.podListInspector, $inspectorVisible)
+        .focusedSceneValue(\.podListOpenPlaylist, { window.showNowPlaying = false; window.navigate(to: .playlist(library.state.activePlaylistId)) })
+        .focusedSceneValue(\.podListNowPlaying, { window.showNowPlaying = true })
+        .sheet(isPresented: $window.showNowPlaying) {
+            if let controller = app.playback {
+                NowPlayingView(controller: controller, library: library) {
+                    window.showNowPlaying = false
+                    window.navigate(to: .playlist(library.state.activePlaylistId))
+                }
+            }
+        }
         .onChange(of: app.library?.snapshot) { _, _ in
             if let library = app.library { window.reconcile(in: library) }
         }
@@ -163,6 +175,14 @@ public struct PodListWindow: SwiftUI.View {
                 Text(ViewDescription.text(view, library: library)).font(.subheadline).foregroundStyle(.secondary)
                     .padding(.horizontal, 16).padding(.vertical, 10)
             }
+            if case let .subscription(id) = window.destination { DownloadRuleEditor(subscriptionID: id, library: library, app: app).padding(12) }
+            if case let .playlist(id) = window.destination {
+                Button("Play this Playlist", systemImage: "play.fill") {
+                    if let p = library.state.playlists.first(where: { $0.id == id }), let entry = p.cursor ?? p.entries.first?.episodeId {
+                        app.playback?.playEntry(playlist: id, episode: entry)
+                    }
+                }.padding(10).disabled(rows.isEmpty)
+            }
             if playlist, !rows.contains(where: \.isCursor) {
                 Text(rows.isEmpty ? "This Playlist has no Entries." : "No current Entry. This Playlist is past its end.")
                     .foregroundStyle(.secondary).padding(12)
@@ -203,6 +223,18 @@ public struct PodListWindow: SwiftUI.View {
             }.padding(.vertical, 5)
         }
         .accessibilityElement(children: .combine)
+        .contextMenu {
+            Button("Play Now") {
+                if case let .playlist(id) = window.destination { app.playback?.playEntry(playlist: id, episode: row.id) }
+                else { app.playback?.playNow(row.id) }
+            }
+            Button(app.downloadStatuses[row.id]?.phase == .stored ? "Remove download" : "Download") {
+                if app.downloadStatuses[row.id]?.phase == .stored { app.removeDownload(row.id) } else { app.download(row.id) }
+            }
+        }
+        .overlay(alignment: .trailing) {
+            if app.downloadStatuses[row.id]?.phase == .stored { Image(systemName: "arrow.down.circle.fill").foregroundStyle(.secondary).accessibilityLabel("Downloaded") }
+        }
     }
 
     private var syncStatus: some SwiftUI.View {
@@ -246,8 +278,18 @@ public struct PodListWindow: SwiftUI.View {
     }
 }
 
+private struct NowPlayingKey: FocusedValueKey { typealias Value = () -> Void }
+private struct OpenPlaylistKey: FocusedValueKey { typealias Value = () -> Void }
 private struct InspectorKey: FocusedValueKey { typealias Value = Binding<Bool> }
 public extension FocusedValues {
+    var podListNowPlaying: (() -> Void)? {
+        get { self[NowPlayingKey.self] }
+        set { self[NowPlayingKey.self] = newValue }
+    }
+    var podListOpenPlaylist: (() -> Void)? {
+        get { self[OpenPlaylistKey.self] }
+        set { self[OpenPlaylistKey.self] = newValue }
+    }
     var podListInspector: Binding<Bool>? {
         get { self[InspectorKey.self] }
         set { self[InspectorKey.self] = newValue }
