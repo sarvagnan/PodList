@@ -3,7 +3,7 @@
 Reviewed 11 November 2026 at `ed46a1dc4eb3993468a9859f6533e122e4b89118`.
 Phase 2, milestone 5. Review task: `pod-apx.5.11`.
 
-The requested blocker and major action fixes are implemented on `mac-parity-fixes` (11 November 2026). Standalone bring-over (M07) and conditional feed polling are implemented on `mac-standalone`, based on `ab5d5f6` (11 November 2026). Other minor findings and live checks remain open. This is a source audit with model tests, not a live UI grade.
+The requested blocker and major action fixes are implemented on `mac-parity-fixes` (11 November 2026). Standalone bring-over (M07) and conditional feed polling are implemented on `mac-standalone`, based on `ab5d5f6` (11 November 2026). The code-fixable minor findings are implemented on `mac-minors` (11 November 2026). Five live-only rows remain open. This is a source audit with model tests, not a live UI grade.
 
 ## Scope and reading rules
 
@@ -28,13 +28,13 @@ Each source citation is `file:line`. For an absent action, the citation identifi
 
 | Scope | Done | Partial | Missing | Blocker rows | Major rows | Minor rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Product behaviour | 87 | 8 | 0 | 0 | 0 | 8 |
-| Client duties | 46 | 2 | 0 | 0 | 0 | 2 |
-| Mac decisions and live checks | 7 | 7 | 0 | 0 | 0 | 7 |
-| **Total: 157 checks** | **140** | **17** | **0** | **0** | **0** | **17** |
+| Product behaviour | 93 | 2 | 0 | 0 | 0 | 2 |
+| Client duties | 48 | 0 | 0 | 0 | 0 | 0 |
+| Mac decisions and live checks | 11 | 3 | 0 | 0 | 0 | 3 |
+| **Total: 157 checks** | **152** | **5** | **0** | **0** | **0** | **5** |
 
 The original audit found one blocker and 11 major findings. B01 and M01–M11
-are now done in source. The 140 done rows still
+are now done in source. The 152 done rows still
 need the applicable live presentation and accessibility checks.
 
 ## Blocker and major findings
@@ -79,8 +79,8 @@ need the applicable live presentation and accessibility checks.
 | [x] P14 | Apply condition edits immediately; show live count; offer Undo. | done | `UI/ViewEditorScreen.swift:30`; `UI/ViewEditorScreen.swift:105`; `UI/ViewEditorScreen.swift:140`; `UI/LibraryEditingModel.swift:125` | — | — |
 | [x] P15 | Rename with Save and Cancel; delete; finish editing. | done | `UI/ViewEditorScreen.swift:41`; `UI/ViewEditorScreen.swift:104`; `UI/ViewEditorScreen.swift:162` | — | — |
 | [x] P16 | Search uses Mentions over title, podcast and notes; saving asks for a name. | done | `UI/LibraryModel.swift:150`; `UI/LibraryModel.swift:163`; `UI/SearchViewCreation.swift:20`; `UI/SearchViewCreation.swift:36` | — | — |
-| [ ] P17 | Distinguish loading, no Subscriptions and no matches; offer the relevant recovery. | partial | `UI/MacWindow.swift:247`; `UI/MacWindow.swift:204`; `UI/ApplicationModel.swift:175` | Empty View/Search results always say “No Episodes” and do not offer Add podcasts when there are no Subscriptions. | minor |
-| [ ] P18 | With no Views, offer creation; a missing View provides a way back to Views. | partial | `UI/MacWindow.swift:48`; `UI/LibraryModel.swift:225` | Creation exists, but a missing View sends the window to Subscriptions instead of Views. | minor |
+| [x] P17 | Distinguish loading, no Subscriptions and no matches; offer the relevant recovery. | done | `UI/MacWindow.swift:282`; `UI/LibraryModel.swift:171`; `Tests/PodListUITests/MacParityTests.swift:56` (`emptyEpisodesDistinguishLoadingSubscriptionsAndMatches`). Loading, Add podcasts, Edit View and Clear Search have distinct states. | — | — |
+| [x] P18 | With no Views, offer creation; a missing View provides a way back to Views. | done | `UI/MacWindow.swift:191`; `UI/LibraryModel.swift:242`; `Tests/PodListUITests/MacParityTests.swift:67` (`missingViewReturnsToViewsAndClearOnPlayedStatusTracksEdits`). All Views offers creation and is the missing-View fallback. | — | — |
 
 ### Play Now, Play Next and Play Last
 
@@ -107,7 +107,7 @@ need the applicable live presentation and accessibility checks.
 
 | Check | Behaviour | Mac status | Evidence | Gap | Severity |
 | --- | --- | --- | --- | --- | --- |
-| [ ] P30 | List counts, Active status and Clear on Played status; create and open. | partial | `UI/LibraryModel.swift:127`; `UI/MacWindow.swift:58`; `UI/PlaylistSettingsViews.swift:113` | The Playlist list omits Clear on Played status; it is visible only in settings. | minor |
+| [x] P30 | List counts, Active status and Clear on Played status; create and open. | done | `UI/MacWindow.swift:66`; `UI/LibraryModel.swift:129`; `Tests/PodListUITests/MacParityTests.swift:67`. Sidebar Playlists show count, Active and Clear on Played on/off. | — | — |
 | [x] P31 | Rename explicitly with Save/Cancel; protect the Default Playlist. | done | `UI/PlaylistSettingsViews.swift:99`; `Domain/StateRules.swift:49`; `Domain/StateRules.swift:51` | — | — |
 | [x] P32 | Expose Entries, History and Listening Timeline; identify Cursor and Active; show Entry Positions. | done | `UI/PlaylistContentView.swift:18`; `UI/PlaylistContentView.swift:49`; `UI/PlaylistContentView.swift:72`; `UI/MacWindow.swift:359` | — | — |
 | [x] P33 | Open an Entry's Episode and Play from here. | done | `UI/MacWindow.swift:117`; `UI/PlaylistContentView.swift:79` | — | — |
@@ -129,7 +129,7 @@ need the applicable live presentation and accessibility checks.
 
 | Check | Behaviour | Mac status | Evidence | Gap | Severity |
 | --- | --- | --- | --- | --- | --- |
-| [ ] P47 | Show dated and timed listening, finishes and deliberate edits for 30 days. | partial | `Domain/TimelineRules.swift:8`; `Domain/TimelinePresentation.swift:20`; `Domain/TimelinePresentation.swift:32`; `UI/PlaylistContentView.swift:129` | Sampling prunes relative to the newest sample, but presentation has no current-date cutoff and includes all retained History finishes. | minor |
+| [x] P47 | Show dated and timed listening, finishes and deliberate edits for 30 days. | done | `Domain/TimelinePresentation.swift:20`; `Tests/PodListDomainTests/EditHistoryTests.swift:114` (`timelineHidesOldSamplesFinishesAndEditsAgainstCurrentDate`). Samples, finishes and edits use a current-date 30-day cutoff. History and the Listening log stay intact. | — | — |
 | [x] P48 | Every eligible displayed moment offers Rewind. | done | `UI/PlaylistContentView.swift:143`; `Domain/TimelineRules.swift:17` | — | — |
 | [x] P49 | Confirm Entry, Position, exact Unplayed/restored Episodes and what stays. | done | `UI/PlaylistContentView.swift:177`; `Domain/TimelinePresentation.swift:40` | — | — |
 | [x] P50 | Rewind restores Cursor/Position and playback-finished Entries near old neighbours; clears later gained Positions. | done | `Domain/Rewind.swift:4`; `Tests/PodListDomainTests/ProtocolTests.swift:13` (`syncVector`) | — | — |
@@ -157,10 +157,10 @@ need the applicable live presentation and accessibility checks.
 | [x] P62 | Group Subscriptions by this Device's Download Rule; open Episodes and settings. | done | `UI/LibraryModel.swift:169`; `UI/MacWindow.swift:201`; `UI/PodcastScreens.swift:148` | — | — |
 | [x] P63 | Change multiple Subscriptions' Download Rules together. | done | `UI/MacWindow.swift:218`; `UI/DownloadViews.swift:81`; `UI/ApplicationModel.swift:322`; `Tests/PodListUITests/MacParityTests.swift:41` (`bulkDownloadRulesAreOneUndoStepAndRejectInvalidBatchAtomically`) | — | — |
 | [x] P64 | Add through directory search or feed address, distinct from Library Search. | done | `Data/PodcastLibrary.swift:48`; `UI/PodcastScreens.swift:37`; `UI/LibraryCommands.swift:31`; server URL resolution: `packages/server/src/Directory.ts:168` | — | — |
-| [ ] P65 | Explain invalid feed addresses/server failures and allow retry. | partial | `UI/PodcastScreens.swift:42`; `Data/PodcastLibrary.swift:51`; `UI/LibraryEditingModel.swift:10` | Connected discovery receives an empty result for a failed feed lookup, so the Mac says “No podcasts found” instead of explaining the feed failure. | minor |
+| [x] P65 | Explain invalid feed addresses/server failures and allow retry. | done | `Data/PodcastLibrary.swift:89`; `UI/PodcastScreens.swift:42`; `Tests/PodListDataTests/PodcastLibraryTests.swift:123` (`failedConnectedFeedLookupExplainsFailureAndCanRetry`). An empty feed-address lookup falls back to the read endpoint, preserving failures and Retry. | — | — |
 | [x] P66 | Open results as Podcast pages and Subscribe directly from each result. | done | `UI/PodcastScreens.swift:46`; `UI/PodcastScreens.swift:55` | — | — |
 | [x] P67 | Podcast page works before/after subscribing, searches Episodes, and shows the subscribed green check and settings gear. | done | `UI/PodcastScreens.swift:87`; `UI/PodcastScreens.swift:118`; `UI/PodcastScreens.swift:143` | — | — |
-| [ ] P68 | Reveal podcast Artwork and description by pulling down. | partial | `UI/PodcastScreens.swift:123`; `UI/PodcastScreens.swift:129` | The header is always above the list with a description button; no pull-down reveal is implemented, and its Mac fit needs live check. | minor |
+| [ ] P68 | Reveal podcast Artwork and description by pulling down. | partial | `UI/PodcastScreens.swift:133`; `UI/PodcastScreens.swift:134` | The header is always above the list with a description button; no pull-down reveal is implemented, and its Mac fit needs live check. | minor |
 | [x] P69 | Play/add before subscribing imports one Orphaned Episode; subscribing reuses its identity. | done | `Data/PodcastLibrary.swift:96`; `Data/PodcastLibrary.swift:123`; `Tests/PodListDataTests/PodcastLibraryTests.swift:11` | — | — |
 | [x] P70 | OPML lives in Settings; explain partial import and retry failures. | done | `UI/LibrarySettingsScreens.swift:55`; `UI/LibraryEditingModel.swift:211`; `Tests/PodListUITests/LibraryEditingTests.swift:135` | — | — |
 | [x] P71 | Subscription supports Mark all Played and Unsubscribe. | done | `UI/PodcastScreens.swift:134`; `UI/PodcastScreens.swift:227`; `Data/LocalDatabase.swift:130` | — | — |
@@ -168,7 +168,7 @@ need the applicable live presentation and accessibility checks.
 | [x] P73 | New Subscriptions start Stream; overrides are per Subscription, never per Playlist. | done | `UI/DownloadViews.swift:42`; `Data/PodcastLibrary.swift:126`; `Domain/PlaybackPolicy.swift:37` | — | — |
 | [x] P74 | Offer Stream, Entries and All New with a valid optional cap. | done | `UI/DownloadViews.swift:61`; `Domain/ProtocolValidation.swift:13`; `Tests/PodListDataTests/ProtocolValidationTests.swift:25` (`invalidDownloadRulesCannotRecordOperationsOrState`) | — | — |
 | [x] P75 | Manual Downloads are independent; Stars protect stored downloads but do not request them. | done | `Domain/DownloadPlanner.swift:37`; `Data/DownloadStore.swift:65`; `Tests/PodListDomainTests/DownloadPlannerTests.swift:15` | — | — |
-| [ ] P76 | Distinguish no Subscriptions, no Episodes yet, loading, failed downloads and unavailable actions. | partial | `UI/MacWindow.swift:204`; `UI/PodcastScreens.swift:153`; `UI/PodcastScreens.swift:155`; `UI/DownloadViews.swift:20` | A zero-Episode Podcast page has only a zero count and empty List, with no “no Episodes yet” or no-match explanation. | minor |
+| [x] P76 | Distinguish no Subscriptions, no Episodes yet, loading, failed downloads and unavailable actions. | done | `UI/MacWindow.swift:229`; `UI/PodcastScreens.swift:165`; `UI/DownloadViews.swift:11`. Podcast pages distinguish reading, failure, no Episodes yet and no matches, with Refresh or Clear Search. | — | — |
 | [x] P77 | Keep local data, pending edits and downloads usable offline; expose failed sync without claiming server success. | done | `UI/ApplicationModel.swift:175`; `UI/ApplicationModel.swift:242`; `UI/MacWindow.swift:303`; `Tests/PodListUITests/ApplicationModelTests.swift:124` | — | — |
 
 ### Unsubscribe
@@ -176,7 +176,7 @@ need the applicable live presentation and accessibility checks.
 | Check | Behaviour | Mac status | Evidence | Gap | Severity |
 | --- | --- | --- | --- | --- | --- |
 | [x] P78 | Two clicks on the subscribed control; no confirmation dialog; expire after a few seconds. | done | `UI/LibraryEditingModel.swift:41`; `UI/PodcastScreens.swift:132`; `Tests/PodListUITests/LibraryEditingTests.swift:23` | — | — |
-| [ ] P79 | Disarm on any other interaction, scroll, Back or leaving. | partial | `UI/PodcastScreens.swift:152`; `UI/PodcastScreens.swift:170`; `UI/PodcastScreens.swift:174` | Needs live check for mouse-wheel scrolling, keyboard focus moves and toolbar interactions; source resets cover taps, drag, text changes and departure only. | minor |
+| [ ] P79 | Disarm on any other interaction, scroll, Back or leaving. | partial | `UI/PodcastScreens.swift:213`; `UI/PodcastScreens.swift:221`; `UI/PodcastScreens.swift:223` | Needs live check for mouse-wheel scrolling, keyboard focus moves and toolbar interactions; source resets cover taps, drag, text changes and departure only. | minor |
 | [x] P80 | Stay on the Podcast page after success; offer Undo and Redo to the same feed. | done | `UI/PodcastScreens.swift:137`; `UI/LibraryEditingModel.swift:146`; `UI/PodcastScreens.swift:6` | — | — |
 | [x] P81 | Hide unsubscribed Episodes except Entry/Starred Orphans; keep downloads. | done | `Domain/ViewRules.swift:14`; `Data/PodcastLibrary.swift:88`; `Tests/PodListUITests/LibraryEditingTests.swift:98` | — | — |
 | [x] P82 | Retain ids, overrides, all Devices' rules, facts, Entries and Positions; reveal them on re-subscribe. | done | `Data/PodcastLibrary.swift:77`; `Data/PodcastLibrary.swift:88`; `Data/PodcastLibrary.swift:123`; `Tests/PodListUITests/LibraryEditingTests.swift:98` | — | — |
@@ -229,8 +229,8 @@ The browser-only DOM, OPFS, service-worker, mixed-content and Electron-bridge ad
 | [x] D10 | Pull from saved user cursor; adopt a snapshot or replay server order, including expanded intentions. | done | `Data/SyncClient.swift:91`; `Data/LocalDatabase.swift:201`; `Domain/StateRules.swift:11` | — | — |
 | [x] D11 | Commit pull/ack only sent ids, rebuild with concurrent edits; failed requests retain the exact retry work. | done | `Data/LocalDatabase.swift:199`; `Tests/PodListDataTests/SyncTests.swift:89`; `Tests/PodListDataTests/SyncTests.swift:181` | — | — |
 | [x] D12 | Library has its own cursor; atomically upsert Subscription before Episode; follow more using returned cursors. | done | `Data/SyncClient.swift:96`; `Data/LocalDatabase.swift:72`; `Tests/PodListDataTests/SyncTests.swift:136` | — | — |
-| [ ] D13 | Notify readers after each committed Library page and re-evaluate Views; missing metadata remains temporary. | partial | `Data/SyncClient.swift:107`; `UI/ApplicationModel.swift:242`; `UI/EpisodeInspector.swift:67` | Pages commit durably, but readers reload only after the full sync finishes or fails, rather than after each page. | minor |
-| [ ] D14 | Startup, edits, network recovery, foreground and periodic sync coalesce with the specified scheduling semantics. | partial | `UI/ApplicationModel.swift:124`; `UI/ApplicationModel.swift:257`; `UI/ApplicationModel.swift:266`; `UI/MacWindow.swift:39` | All triggers exist, but edit-triggered syncs do not restart the independent periodic timer's one-minute wait. | minor |
+| [x] D13 | Notify readers after each committed Library page and re-evaluate Views; missing metadata remains temporary. | done | `Data/SyncClient.swift:113`; `UI/ApplicationModel.swift:364`; `Tests/PodListDataTests/SyncTests.swift:210` (`notifiesReadersAfterEachDurableLibraryPageBeforeRequestingTheNext`). Each committed page refreshes readers before the next request, even if a later page fails. | — | — |
+| [x] D14 | Startup, edits, network recovery, foreground and periodic sync coalesce with the specified scheduling semantics. | done | `UI/ApplicationModel.swift:346`; `UI/SyncSchedule.swift:3`; `Tests/PodListUITests/MacParityTests.swift:82` (`syncScheduleCoalescesBurstsAndRestartsTimeoutAfterEveryPass`). The first trigger or one-minute timeout starts a fixed two-second settle. Each pass restarts the timeout; triggers during a pass request one more pass. | — | — |
 | [x] D15 | Failure retains local data, outbox, downloads and cursors; show error and retry; preserve independent successful State/Library work. | done | `Data/SyncClient.swift:79`; `UI/ApplicationModel.swift:244`; `UI/MacWindow.swift:308`; `Tests/PodListDataTests/SyncTests.swift:74` | — | — |
 | [x] D16 | Server Subscribe/Unsubscribe/discovery/OPML are requests, not queued State edits; offline failures remain failures. | done | `Data/PodcastLibrary.swift:48`; `Data/PodcastLibrary.swift:72`; `Data/PodcastLibrary.swift:88`; `UI/LibraryEditingModel.swift:219` | — | — |
 
@@ -298,23 +298,25 @@ These rows supplement the shared checklist. They also record checks that require
 | Check | Mac decision | Mac status | Evidence | Gap | Severity |
 | --- | --- | --- | --- | --- | --- |
 | [x] C01 | Native split view, Inspector, blue accent, system font and system light/dark default. | done | `UI/MacWindow.swift:5`; `UI/MacWindow.swift:18`; `UI/MacWindow.swift:44`; `UI/MacWindow.swift:117` | — | — |
-| [ ] C02 | Sidebar section controls, counts and Active mark; + creates a Playlist in its section. | partial | `UI/MacWindow.swift:46`; `UI/MacWindow.swift:93` | New Playlist is in the toolbar and File menu, but the Playlists sidebar section has no + control. | minor |
-| [ ] C03 | Episode lists have sortable columns and per-row Add/Play; Subscription rule/cap sits above its table. | partial | `UI/MacWindow.swift:185`; `UI/PodcastScreens.swift:152`; `UI/PodcastScreens.swift:156`; `UI/MacWindow.swift:245` | Subscription navigation now uses PodcastPageScreen's unsortable List, so the old table and above-table Download Rule editor are unreachable there. | minor |
-| [ ] C04 | Mac selection, Return opens, Space plays the selected Episode; shortcuts do not steal text input. | partial | `UI/MacWindow.swift:249`; `UI/PlaylistContentView.swift:62`; `UI/PlaybackCommands.swift:12`; `UI/PlaybackCommands.swift:32` | Space toggles the current player rather than playing selection, Playlist primary action starts audio, and Return/focus/text routing needs live check. | minor |
+| [x] C02 | Sidebar section controls, counts and Active mark; + creates a Playlist in its section. | done | `UI/MacWindow.swift:48`; `UI/MacWindow.swift:66`. Each sidebar section has its creation control. Playlist counts, Active and Clear on Played status stay visible. | — | — |
+| [x] C03 | Episode lists have sortable columns and per-row Add/Play; Subscription rule/cap sits above its table. | done | `UI/PodcastScreens.swift:162`; `UI/PodcastScreens.swift:177`; `UI/MacWindow.swift:301`. Podcast pages use sortable Episode, Published, Length and State columns, row Add/Play and the subscribed podcast’s Download Rule above the table. | — | — |
+| [ ] C04 | Mac selection, Return opens, Space plays the selected Episode; shortcuts do not steal text input. | partial | `UI/MacWindow.swift:403`; `UI/PlaylistContentView.swift:65`; `UI/PodcastScreens.swift:205`; `UI/PlaybackCommands.swift:22` | Space now plays the selected Episode. Playlist primary action opens the Inspector. Needs live check for Return, selection, focus and editable-text routing. | minor |
 | [x] C05 | Remember Inspector and expose its toolbar button and ⌘⌥I. | done | `UI/MacWindow.swift:20`; `UI/MacWindow.swift:108`; `UI/MacWindow.swift:397` | — | — |
 | [x] C06 | Restore paused bar at Cursor Position, three middle lines, Now Playing sheet, Chapter Artwork precedence and dismiss without pausing. | done | `UI/PlaybackController.swift:234`; `UI/PlayerViews.swift:34`; `UI/MacWindow.swift:151`; `Domain/PlaybackPolicy.swift:42` | — | — |
-| [ ] C07 | Correct bar centering, truncation, resizable layout, table stripes, light/dark contrast and focus order. | partial | `UI/PlayerViews.swift:14`; `UI/PlayerViews.swift:34`; `UI/MacWindow.swift:35`; `UI/MacWindow.swift:249` | Needs live check at narrow and wide windows in both appearances; empty stripes are already tracked by `pod-apx.5.10`. | minor |
+| [ ] C07 | Correct bar centering, truncation, resizable layout, table stripes, light/dark contrast and focus order. | partial | `UI/PlayerViews.swift:14`; `UI/PlayerViews.swift:34`; `UI/MacWindow.swift:311`; `UI/PodcastScreens.swift:195` | Episode, Entry and Podcast tables disable alternating row backgrounds. Needs live check for empty filler, bar centering, truncation, narrow/wide layout, both appearances and focus order. | minor |
 | [x] C08 | App survives closing all windows; Quit flushes; system media keys/Now Playing are wired. | done | `Mac/PodListMac.swift:47`; `UI/PlaybackController.swift:160`; `UI/SystemPlayback.swift:38` | — | — |
-| [ ] C09 | Native menus expose every command with unambiguous shortcuts. | partial | `UI/LibraryCommands.swift:23`; `UI/EpisodeEditingViews.swift:128`; `UI/EpisodeEditingViews.swift:139`; `UI/PlaybackCommands.swift:11` | New Window and New Playlist both use ⌘⇧N, while Download and View editing/deletion lack menu commands. | minor |
+| [x] C09 | Native menus expose every command with unambiguous shortcuts. | done | `UI/LibraryCommands.swift:26`; `UI/LibraryCommands.swift:32`; `UI/EpisodeEditingViews.swift:41`. New View uses ⌘N, New Playlist uses ⌘⇧N and New Window uses ⌘⌥⇧N. View editing/deletion and Episode Download are in native menus. | — | — |
 | [x] C10 | Edit > Undo/Redo names and reverses the latest domain edit; text keeps native Undo. | done | `UI/LibraryEditingModel.swift:63`; `UI/PlaylistEditingModel.swift:34`; `UI/EpisodeEditingViews.swift:140`; `Tests/PodListUITests/LibraryEditingTests.swift:200` (`sharedHistoryOrdersPlaylistViewAndSubscriptionEdits`); `Tests/PodListUITests/LibraryEditingTests.swift:241` (`subscriptionRequestsShareUndoOrderWithViewsAndPlaylists`) | — | — |
 | [x] C11 | Persist New Playlist, Add, Rename and View drafts per Library; immediate Delete and named Undo; segmented Playlist sections and Rewind summary. | done | `UI/PlaylistEditingModel.swift:161`; `UI/LibraryEditingModel.swift:88`; `UI/ViewEditorScreen.swift:22`; `UI/PlaylistContentView.swift:18`; `UI/PlaylistContentView.swift:166` | — | — |
-| [ ] C12 | Podcast-page Add/Play edits use the same named Undo steps as other Episode edits. | partial | `UI/PodcastScreens.swift:189`; `UI/LibraryEditingModel.swift:152`; `UI/PlaylistEditingModel.swift:76` | Podcast-page actions call raw edit/playNow paths and bypass PlaylistEditingModel's named Undo history. | minor |
+| [x] C12 | Podcast-page Add/Play edits use the same named Undo steps as other Episode edits. | done | `UI/PodcastScreens.swift:252`; `UI/PlaylistSettingsViews.swift:49`; `UI/PlaylistEditingModel.swift:103`; `Tests/PodListUITests/MacParityTests.swift:114` (`podcastPagePreparationAndChooserShareNamedUndoBeforeAndAfterSubscribe`). Add and Play already use named history. Regression tests cover Undo/Redo before and after Subscribe, including creating a target Playlist. | — | — |
 | [x] C13 | App Intents/MCP share actions; MCP is opt-in, per Mac, local socket only, and supports the chosen protocol. | done | `Mac/AppIntents.swift:1`; `UI/AutomationActions.swift:1`; `UI/AutomationSettings.swift:14`; `Automation/LocalSocket.swift:1`; `Automation/MCPHandler.swift:1`; `Tests/PodListUITests/AutomationTests.swift:118`; `Tests/PodListUITests/AutomationTests.swift:173` | — | — |
 | [ ] C14 | Settings, panels, VoiceOver, Shortcuts registration, media keys and background playback behave correctly in the running app. | partial | `Mac/PodListMac.swift:34`; `Mac/PodListMac.swift:57`; `UI/LibrarySettingsScreens.swift:194`; `UI/SystemPlayback.swift:38` | Needs live check; model/socket tests do not establish system UI behaviour or extracted Shortcuts metadata in an installed bundle. | minor |
 
-The Podcast page also has two Search Episodes fields: the toolbar's `.searchable` at `UI/MacWindow.swift:115` and the in-page field at `UI/PodcastScreens.swift:152`. Reference `pod-apx.5.10`; do not file it again.
+The Podcast page now has one Search Episodes field, in the toolbar. It filters only that page and keeps its per-feed draft. Episode, Entry and Podcast tables disable alternating row backgrounds. The rendered result needs live check under C07. These changes address `pod-apx.5.10`.
 
-`pod-apx.5.10` also asks Getting started to hide or collapse after all steps complete. The current code keeps it until Dismiss (`UI/LibraryEditingModel.swift:64`; `UI/LibrarySettingsScreens.swift:144`). That **matches the authoritative product behaviour**. Resolve the issue's requested change against that decision before changing it. It is not counted as a parity failure.
+Getting started stays until Dismiss, including after all three steps complete. This matches product-behaviour.md. The contradictory request in `pod-apx.5.10` has been corrected. No checklist behaviour changed.
+
+The remaining live-only rows are P68 (Podcast header presentation), P79 (Unsubscribe disarming), C04 (keyboard and selection), C07 (layout, appearance and focus), and C14 (system integration and VoiceOver). Each needs live check.
 
 ## Android features absent on Mac — not in spec
 
@@ -335,7 +337,7 @@ Bring-over, direct Standalone Chapter resolution, per-Entry Resume, bulk Downloa
 
 ## Validation and handoff
 
-Implementation scope: B01, M01–M06 and M08–M11. Beads `pod-apx.5.12` and
+Major-fix scope: B01, M01–M06 and M08–M11. Minor-fix scope on `mac-minors`: P17, P18, P30, P47, P65, P76, D13, D14, C02, C03, C09 and C12. C04 and C07 have code fixes and still need live check. Beads `pod-apx.5.12` and
 `pod-apx.5.13` remain in progress for owner review. M07 is unchanged.
 The Inspector follows the owner's final 11 November decision: a centred 44-point
 Play/Pause row above five 28-point icon actions. See `docs/design/mac.md`.
@@ -349,10 +351,10 @@ swift build --scratch-path .build --disable-sandbox
 ```
 
 Both exact commands passed with no warnings on 11 November 2026.
-All **140 test functions** passed: **64 UI/model, 27 Domain and 49 Data**, including
+All **147 test functions** passed: **68 UI/model, 28 Domain and 51 Data**, including
 parameterized vectors. Validation used Swift 6 strict concurrency. No packages were added.
 The tests exercise models and protocol/data behaviour. They do not prove layout or native
 menu routing. Live checks remain: narrow Inspector and VoiceOver labels, Download progress,
 native Share/Copy Link, text-field Undo, sheet/Add/Entries round trips, and real publisher
-Chapter fetching and audio output. Known minor follow-ups stay on `pod-apx.5.14`.
+Chapter fetching and audio output. The five live-only rows stay on `pod-apx.5.14`. Both `pod-apx.5.14` and `pod-apx.5.10` remain open.
 Bring-over preview layout/VoiceOver, real-server transfer interruption and publisher conditional polling across Mac sleep/wake still need live checks. Bring-over and polling issues `pod-apx.5.6` / `pod-apx.5.7` remain in progress for handoff as requested; other follow-ups stay on their current issues.

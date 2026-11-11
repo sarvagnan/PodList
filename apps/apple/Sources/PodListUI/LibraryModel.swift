@@ -4,7 +4,7 @@ import PodListData
 import PodListDomain
 
 public enum Destination: Hashable, Sendable {
-    case view(String), playlist(String), subscriptions, subscription(String), search, trash
+    case view(String), playlist(String), views, subscriptions, subscription(String), search, trash
 }
 
 public struct SidebarItem: Identifiable, Equatable, Sendable {
@@ -12,6 +12,7 @@ public struct SidebarItem: Identifiable, Equatable, Sendable {
     public let name: String
     public let count: Int
     public var active = false
+    public var clearOnPlayed: Bool? = nil
     public var id: Destination { destination }
 }
 
@@ -125,7 +126,7 @@ public struct LibraryModel: Sendable {
         [SidebarSection(name: "Views", items: state.views.map {
             SidebarItem(destination: .view($0.id), name: $0.name, count: viewEpisodes($0).count)
         }), SidebarSection(name: "Playlists", items: state.playlists.map {
-            SidebarItem(destination: .playlist($0.id), name: $0.name, count: $0.entries.count, active: $0.id == state.activePlaylistId)
+            SidebarItem(destination: .playlist($0.id), name: $0.name, count: $0.entries.count, active: $0.id == state.activePlaylistId, clearOnPlayed: $0.clearOnPlayed)
         } + [SidebarItem(destination: .trash, name: "Trash", count: trash.count)]),
         SidebarSection(name: "Library", items: [SidebarItem(destination: .subscriptions, name: "Subscriptions", count: subscriptions.count),
                                                SidebarItem(destination: .search, name: "Search", count: libraryEpisodes.count)])]
@@ -135,6 +136,7 @@ public struct LibraryModel: Sendable {
         case let .view(id): state.views.first { $0.id == id }?.name ?? "View unavailable"
         case let .playlist(id): state.playlists.first { $0.id == id }?.name ?? "Playlist unavailable"
         case let .subscription(id): subscriptionsByID[id]?.title ?? "Subscription unavailable"
+        case .views: "Views"
         case .subscriptions: "Subscriptions"
         case .search: "Search"
         case .trash: "Trash"
@@ -165,6 +167,11 @@ public struct LibraryModel: Sendable {
             let fields = [row.title, row.podcast, row.episode?.description ?? ""].map(Mentions.fold)
             return words.allSatisfy { word in fields.contains { $0.contains(word) } }
         }
+    }
+    public enum EmptyEpisodes: Equatable, Sendable { case loading, noSubscriptions, noMatches }
+    public func emptyEpisodes(syncing: Bool) -> EmptyEpisodes {
+        if syncing { return .loading }
+        return subscriptions.isEmpty ? .noSubscriptions : .noMatches
     }
     public func subscriptionGroups(search: String = "") -> [SubscriptionGroup] {
         DownloadMode.allCases.compactMap { mode in
@@ -233,7 +240,7 @@ public final class WindowModel {
         return sortOrder.isEmpty ? rows : rows.sorted(using: sortOrder)
     }
     public func reconcile(in library: LibraryModel) {
-        if case let .view(id) = destination, !library.state.views.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
+        if case let .view(id) = destination, !library.state.views.contains(where: { $0.id == id }) { navigate(to: .views) }
         if case let .playlist(id) = destination, !library.state.playlists.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
         selection.formIntersection(Set(rows(in: library).map(\.id)))
     }

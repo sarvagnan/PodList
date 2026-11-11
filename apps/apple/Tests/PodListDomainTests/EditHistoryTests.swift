@@ -95,7 +95,7 @@ private func editState() -> State {
     state = applying(state, [.reportPosition(playlistId: "default", episodeId: "b", position: 80, listenedAt: 70_000)], at: 70_000)
     state = applying(state, [.markPlayed(episodeId: "b", source: .playback(playlistId: "default"))], at: 80_000)
     state = applying(state, [.markPlayed(episodeId: "a", source: .user), .addEntry(playlistId: "default", episodeId: "x", placement: .last)], at: 90_000)
-    let events = TimelinePresentation.events(state.playlists[0])
+    let events = TimelinePresentation.events(state.playlists[0], now: 100_000)
     let stretch = try #require(events.first { $0.kind == "listened" })
     #expect(stretch.from == 12 && stretch.to == 80 && stretch.end == 70_000)
     #expect(events.first { $0.kind == "finished" }?.moment == 79_999)
@@ -109,4 +109,18 @@ private func editState() -> State {
     #expect(reversed.playlists[0].entries.map(\.episodeId) == state.playlists[0].entries.map(\.episodeId))
     #expect(reversed.playlists[0].cursor == state.playlists[0].cursor)
     #expect(reversed.episodeStates["b"]?.played?.source == .playback(playlistId: "default"))
+}
+
+@Test func timelineHidesOldSamplesFinishesAndEditsAgainstCurrentDate() {
+    let now: Int64 = 50 * 86_400_000
+    let cutoff = now - TimelineRules.retentionMillis
+    var playlist = State.initial().playlists[0]
+    playlist.timeline = [TimelinePoint(at: cutoff - 1, episodeId: "old", position: 10), TimelinePoint(at: cutoff, episodeId: "edge", position: 20)]
+    playlist.history = [.init(episodeId: "old", finishedAt: cutoff - 1), .init(episodeId: "edge", finishedAt: cutoff)]
+    playlist.edits = [.init(at: cutoff - 1, kind: "added", episodeId: "old"), .init(at: cutoff, kind: "added", episodeId: "edge")]
+    let events = TimelinePresentation.events(playlist, now: now)
+    #expect(events.count == 3)
+    #expect(events.allSatisfy { $0.episodeID == "edge" && $0.at == cutoff })
+    #expect(TimelinePresentation.events(playlist, now: now + 1).isEmpty)
+    #expect(playlist.history.count == 2) // History and the permanent log are not pruned by presentation.
 }

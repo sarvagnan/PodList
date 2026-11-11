@@ -81,7 +81,13 @@ public actor PodcastLibrary {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return [] }
         if let transport {
-            return try ProtocolJSON.decode([DirectoryPodcast].self, from: await transport.request(method: "GET", path: "/api/directory/search?q=" + escaped(text), body: nil))
+            let results = try ProtocolJSON.decode([DirectoryPodcast].self, from: await transport.request(method: "GET", path: "/api/directory/search?q=" + escaped(text), body: nil))
+            if results.isEmpty, text.lowercased().hasPrefix("http://") || text.lowercased().hasPrefix("https://") {
+                // Directory lookup can swallow feed failures. The read endpoint preserves them.
+                let feed = try await readPodcast(text)
+                return [DirectoryPodcast(title: feed.title, author: feed.author, feedUrl: text, artworkUrl: feed.artworkUrl)]
+            }
+            return results
         }
         if text.lowercased().hasPrefix("http://") || text.lowercased().hasPrefix("https://") {
             let feed = try await readPodcast(text)

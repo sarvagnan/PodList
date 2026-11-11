@@ -11,6 +11,7 @@ struct PlaylistContentView: SwiftUI.View {
     let app: ApplicationModel
     let editing: PlaylistEditingModel
     @Bindable var presentation: PlaylistPresentation
+    let openEpisode: () -> Void
     @State private var rewindTarget: TimelineEvent?
 
     var body: some SwiftUI.View {
@@ -58,10 +59,11 @@ struct PlaylistContentView: SwiftUI.View {
                         _ = drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
                     }
             }
+            .tableStyle(.inset(alternatesRowBackgrounds: false))
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
             } primaryAction: { selection in
-                if let id = ordered(selection).first { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: id) } }
+                window.selection = selection; openEpisode()
             }
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 

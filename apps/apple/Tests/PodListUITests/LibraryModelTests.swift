@@ -85,7 +85,7 @@ func fixtureModel() async throws -> LibraryModel {
     #expect(first.rows(in: library).map(\.id) == ["a"])
     first.navigate(to: .view("missing"))
     first.reconcile(in: library)
-    #expect(first.destination == .subscriptions)
+    #expect(first.destination == .views)
 }
 
 @MainActor @Test func playlistKeepsOrderCursorAndPerEntryPosition() async throws {

@@ -89,8 +89,8 @@ public final class ApplicationModel {
     @ObservationIgnored private var deviceID = ""
     @ObservationIgnored private var generation = UUID()
     @ObservationIgnored private var started = false
-    @ObservationIgnored private var periodicTask: Task<Void, Never>?
-    @ObservationIgnored private var triggerTask: Task<Void, Never>?
+    @ObservationIgnored private var syncTask: Task<Void, Never>?
+    @ObservationIgnored private var syncSchedule = SyncSchedule()
     @ObservationIgnored private var monitor: NWPathMonitor?
     @ObservationIgnored private let automaticSync: Bool
 
@@ -169,7 +169,7 @@ public final class ApplicationModel {
                 if let database {
                     bringOverSnapshot = try await database.bringOverSnapshot(downloads: downloads?.bringOverDownloads() ?? [])
                 }
-                periodicTask?.cancel(); triggerTask?.cancel(); monitor?.cancel(); ruleTask?.cancel()
+                syncTask?.cancel(); monitor?.cancel(); ruleTask?.cancel()
                 downloads = nil; downloadStatuses = [:]
             }
             try await install(db: db, address: address, token: token, checkedClient: client)
@@ -190,6 +190,10 @@ public final class ApplicationModel {
         guard generation == token else { return }
         database = db; deviceID = device.id
         client = address.map { checkedClient ?? SyncClient(db: db, transport: transportFactory($0)) }
+        await client?.observeLibraryPages { [weak self] in
+            guard let self else { return }
+            await self.libraryPageCommitted(token: token)
+        }
         origin = address?.origin.absoluteString
         let source = PodcastLibrary(database: db, transport: address.map { transportFactory($0) })
         library = LibraryModel(snapshot: snapshot, deviceID: device.id)
@@ -237,7 +241,14 @@ public final class ApplicationModel {
     }
 
     public func sync(forceRefresh: Bool = false) async {
-        guard !syncing else { return }
+        guard !syncing, library != nil else { return }
+        let scheduleToken = generation
+        syncTask?.cancel(); syncSchedule.begin()
+        defer {
+            if generation == scheduleToken, automaticSync {
+                scheduleSync(after: syncSchedule.finish(), token: scheduleToken)
+            }
+        }
         if isStandalone, let libraryEditing {
             let token = generation
             syncing = true
@@ -332,25 +343,35 @@ public final class ApplicationModel {
     }
 
     public func requestSync() {
-        guard library != nil else { return }
-        triggerTask?.cancel()
-        triggerTask = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(2)) } catch { return }
-            await self?.sync()
+        guard library != nil, automaticSync else { return }
+        if syncSchedule.trigger() { scheduleSync(after: SyncSchedule.settle, token: generation) }
+    }
+
+    private func scheduleSync(after delay: Duration, token: UUID) {
+        syncTask?.cancel()
+        syncTask = Task { [weak self] in
+            do { try await Task.sleep(for: delay) } catch { return }
+            guard let self, self.generation == token else { return }
+            // Release the timer before sync, so a pass never cancels its own network work.
+            self.syncTask = nil
+            if self.syncSchedule.phase == .waiting {
+                self.syncSchedule.timeoutReached()
+                self.scheduleSync(after: SyncSchedule.settle, token: token)
+            } else { await self.sync() }
         }
+    }
+
+    private func libraryPageCommitted(token: UUID) async {
+        guard generation == token else { return }
+        await reloadLocal()
+        guard generation == token else { return }
+        playback?.refresh()
     }
 
     private func startAutomaticSync(token: UUID) {
         guard automaticSync else { return }
-        periodicTask?.cancel()
-        periodicTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .seconds(60)) } catch { return }
-                guard let self, self.generation == token else { return }
-                do { try await Task.sleep(for: .seconds(2)) } catch { return }
-                await self.sync()
-            }
-        }
+        syncSchedule = SyncSchedule()
+        scheduleSync(after: SyncSchedule.timeout, token: token)
         monitor?.cancel()
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
@@ -441,8 +462,8 @@ public final class ApplicationModel {
         cleanupTask = Task { await oldBringOver?.suspend(); await oldPlayback?.shutdown(); await oldDownloads?.suspend() }
         editing = nil; playback = nil; downloads = nil; downloadStatuses = [:]; ruleTask?.cancel()
         generation = UUID()
-        periodicTask?.cancel(); triggerTask?.cancel(); monitor?.cancel()
-        periodicTask = nil; triggerTask = nil; monitor = nil
+        syncTask?.cancel(); monitor?.cancel()
+        syncTask = nil; syncSchedule = SyncSchedule(); monitor = nil
         store.currentOrigin = nil
         database = nil; client = nil; library = nil; libraryEditing = nil; origin = nil
         bringOver = nil; bringOverSnapshot = nil; bringOverPreview = nil; bringOverJob = nil; bringOverError = nil; bringOverAvailable = false

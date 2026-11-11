@@ -17,6 +17,7 @@ public struct PodListWindow: SwiftUI.View {
     @State private var subscriptionSelection = Set<String>()
     @State private var showBulkRules = false
     @State private var podcastFeed: String?
+    @State private var podcastEpisodeIDs: [String] = []
     @AppStorage("PodList.appearance") private var appearance = "System"
     @State private var columns = NavigationSplitViewVisibility.all
     @AppStorage("PodList.inspectorVisible") private var inspectorVisible = true
@@ -47,7 +48,11 @@ public struct PodListWindow: SwiftUI.View {
             List(selection: Binding(get: { window.destination }, set: { window.navigate(to: $0) })) {
                 ForEach(library.sidebar) { section in
                     Section {
-                        if section.name == "Views" { Button("New View", systemImage: "plus") { newView() } }
+                        if section.name == "Views" {
+                            Button("All Views", systemImage: "line.3.horizontal.decrease") { window.navigate(to: .views) }
+                            Button("New View", systemImage: "plus") { newView() }
+                        }
+                        if section.name == "Playlists" { Button("New Playlist", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist } }
                         if section.name == "Library" { Button("Add podcasts", systemImage: "plus") { showAddPodcasts = true } }
                         if section.items.isEmpty {
                             Text("No \(section.name)").foregroundStyle(.secondary)
@@ -61,11 +66,17 @@ public struct PodListWindow: SwiftUI.View {
                                     Image(systemName: "speaker.wave.2.fill").font(.caption)
                                         .foregroundStyle(Color.podListAccent).accessibilityLabel("Active Playlist")
                                 }
+                                if let clear = item.clearOnPlayed {
+                                    Image(systemName: clear ? "checkmark.circle" : "minus.circle")
+                                        .foregroundStyle(.secondary)
+                                        .help(clear ? "Clear on Played on" : "Clear on Played off")
+                                        .accessibilityLabel(clear ? "Clear on Played on" : "Clear on Played off")
+                                }
                                 Text(item.count, format: .number).foregroundStyle(.secondary).monospacedDigit()
                             }
                             .tag(item.destination)
                             .accessibilityElement(children: .combine)
-                            .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")")
+                            .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
                     } header: { Text(section.name) }
                 }
@@ -85,7 +96,7 @@ public struct PodListWindow: SwiftUI.View {
                 }
                 if let podcastFeed, let editor = app.libraryEditing {
                     HStack { Button("Back to Library") { self.podcastFeed = nil; window.search = "" }; Spacer() }.padding(.horizontal)
-                    PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search).id(podcastFeed)
+                    PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)
                 } else { content(library) }
             }
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
@@ -129,8 +140,8 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
-        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation))
-        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }))
+        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }))
+        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }))
         .sheet(isPresented: $showAddPodcasts) {
             if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { podcastFeed = $0 }) }
         }
@@ -168,7 +179,7 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .onChange(of: window.search) { _, text in
-            if window.destination == .search { app.libraryEditing?.setDraft(text, field: "librarySearch") }
+            if !isPodcastPage, window.destination == .search { app.libraryEditing?.setDraft(text, field: "librarySearch") }
             reconcileSelection(library)
         }
         .onChange(of: app.playback?.userPlaybackRevision) { _, _ in window.didStartPlayback() }
@@ -177,17 +188,30 @@ public struct PodListWindow: SwiftUI.View {
 
     @ViewBuilder private func content(_ library: LibraryModel) -> some SwiftUI.View {
         switch window.destination {
+        case .views:
+            if library.state.views.isEmpty {
+                ContentUnavailableView {
+                    Label("No Views", systemImage: "line.3.horizontal.decrease")
+                } description: { Text("Create a View to find Episodes.") }
+                actions: { Button("New View") { newView() } }
+            } else {
+                List(library.state.views, id: \.id) { view in
+                    Button { window.navigate(to: .view(view.id)) } label: {
+                        HStack { Text(view.name); Spacer(); Text("\(library.viewEpisodes(view).count) Episodes").foregroundStyle(.secondary) }
+                    }.buttonStyle(.plain)
+                }
+            }
         case .subscriptions:
             subscriptions(library)
         case .trash:
             if let editing = app.editing { PlaylistTrashView(library: library, editing: editing, search: window.search) }
         case let .playlist(id):
             if let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing {
-                PlaylistContentView(playlist: playlist, library: library, window: window, app: app, editing: editing, presentation: playlistPresentation)
+                PlaylistContentView(playlist: playlist, library: library, window: window, app: app, editing: editing, presentation: playlistPresentation, openEpisode: { inspectorVisible = true })
             }
         case let .subscription(id):
             if let sub = library.snapshot.subscriptions.first(where: { $0.id == id }), let editor = app.libraryEditing {
-                PodcastPageScreen(feedURL: sub.feedUrl, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search).id(sub.feedUrl)
+                PodcastPageScreen(feedURL: sub.feedUrl, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(sub.feedUrl)
             }
         case .view:
             episodeTable(library)
@@ -205,8 +229,13 @@ public struct PodListWindow: SwiftUI.View {
         let groups = library.subscriptionGroups(search: window.search)
         return Group {
             if groups.isEmpty {
-                ContentUnavailableView(window.search.isEmpty ? "No Subscriptions" : "No matching Subscriptions", systemImage: "rectangle.stack",
-                    description: Text(window.search.isEmpty ? "Use Add podcasts to search by name or feed address." : "Try another search."))
+                ContentUnavailableView {
+                    Label(window.search.isEmpty ? "No Subscriptions" : "No matching Subscriptions", systemImage: "rectangle.stack")
+                } description: { Text("Search by name or feed address, or clear Search.") }
+                actions: {
+                    Button("Add podcasts") { showAddPodcasts = true }
+                    if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
+                }
             } else {
                 VStack(alignment: .leading) {
                     HStack {
@@ -253,7 +282,22 @@ public struct PodListWindow: SwiftUI.View {
             }
             if case let .subscription(id) = window.destination { DownloadRuleEditor(subscriptionID: id, library: library, app: app).padding(12) }
             if rows.isEmpty {
-                ContentUnavailableView("No Episodes", systemImage: "list.bullet", description: Text(app.syncing ? "Syncing the Library…" : "No Episodes match this list. Try another View or clear Search."))
+                switch library.emptyEpisodes(syncing: app.syncing) {
+                case .loading: ProgressView("Loading Episodes…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .noSubscriptions:
+                    ContentUnavailableView {
+                        Label("No Subscriptions", systemImage: "rectangle.stack")
+                    } description: { Text("Add podcasts to find Episodes.") }
+                    actions: { Button("Add podcasts") { showAddPodcasts = true } }
+                case .noMatches:
+                    ContentUnavailableView {
+                        Label("No matching Episodes", systemImage: "magnifyingglass")
+                    } description: { Text("Change this View or Search to find Episodes.") }
+                    actions: {
+                        if case .view = window.destination { Button("Edit View") { editCurrentView(library) } }
+                        if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
+                    }
+                }
             } else {
                 Table(rows, selection: $window.selection, sortOrder: $window.sortOrder) {
                     TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }
@@ -264,6 +308,7 @@ public struct PodListWindow: SwiftUI.View {
                     TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
                     TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
                 }
+                .tableStyle(.inset(alternatesRowBackgrounds: false))
                 .contextMenu(forSelectionType: String.self) { selection in
                     if let editing = app.editing {
                         EpisodeActionItems(ids: rows.map(\.id).filter { selection.contains($0) }, library: library, editing: editing, presentation: playlistPresentation, app: app)
@@ -326,6 +371,9 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     private func selectionRows(_ library: LibraryModel) -> [EpisodeRow] {
+        if isPodcastPage {
+            return podcastEpisodeIDs.filter { id in library.snapshot.episodes.contains { $0.id == id } }.map { library.row($0) }
+        }
         if case let .playlist(id) = window.destination, playlistPresentation.playlistTab == .history {
             var seen = Set<String>()
             return (library.state.playlists.first { $0.id == id }?.history.reversed().map(\.episodeId) ?? [])
@@ -334,6 +382,7 @@ public struct PodListWindow: SwiftUI.View {
         return window.rows(in: library)
     }
     private func reconcileSelection(_ library: LibraryModel) {
+        if isPodcastPage { return } // The page reconciles its publisher and local Episode ids.
         if case let .playlist(id) = window.destination, playlistPresentation.playlistTab == .history,
            library.state.playlists.contains(where: { $0.id == id }) {
             window.selection.formIntersection(Set(selectionRows(library).map(\.id)))
@@ -345,6 +394,17 @@ public struct PodListWindow: SwiftUI.View {
     private var isPodcastPage: Bool {
         if case .subscription = window.destination { return true }
         return podcastFeed != nil
+    }
+    private func editCurrentView(_ library: LibraryModel) {
+        guard case let .view(id) = window.destination,
+              let view = library.state.views.first(where: { $0.id == id }) else { return }
+        creatingView = false; editingView = view
+    }
+    private func playSelection(_ library: LibraryModel) async {
+        guard let id = selectedIDs(library).first, let editing = app.editing else { app.playback?.toggle(); return }
+        if case let .playlist(playlistID) = window.destination {
+            await editing.playFromHere(playlistID: playlistID, episodeID: id)
+        } else { await editing.add([id], placement: .now) }
     }
     private func newView(text: String? = nil) {
         guard let editor = app.libraryEditing else { return }
@@ -370,7 +430,7 @@ public struct PodListWindow: SwiftUI.View {
     }
     private func symbol(_ destination: Destination) -> String {
         switch destination {
-        case .view: "line.3.horizontal.decrease"
+        case .view, .views: "line.3.horizontal.decrease"
         case .playlist: "music.note.list"
         case .subscriptions, .subscription: "rectangle.stack"
         case .search: "magnifyingglass"

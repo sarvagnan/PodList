@@ -52,10 +52,15 @@ public actor SyncClient {
     private let db: LocalDatabase
     private let transport: any SyncTransport
     private let onFailure: @Sendable (any Error) async -> Void
+    private var onLibraryPage: @Sendable () async -> Void
     private var inFlight: Task<Void, any Error>?
 
-    public init(db: LocalDatabase, transport: any SyncTransport, onFailure: @escaping @Sendable (any Error) async -> Void = { _ in }) {
-        self.db = db; self.transport = transport; self.onFailure = onFailure
+    public init(db: LocalDatabase, transport: any SyncTransport, onFailure: @escaping @Sendable (any Error) async -> Void = { _ in },
+                onLibraryPage: @escaping @Sendable () async -> Void = {}) {
+        self.db = db; self.transport = transport; self.onFailure = onFailure; self.onLibraryPage = onLibraryPage
+    }
+    public func observeLibraryPages(_ handler: @escaping @Sendable () async -> Void) {
+        onLibraryPage = handler
     }
     public func health() async throws -> Health {
         let health: Health = try ProtocolJSON.decode(from: await transport.request(method: "GET", path: "/api/health", body: nil))
@@ -105,6 +110,7 @@ public actor SyncClient {
             let ready = all.filter { known.contains($0.subscriptionId) }
             waiting = all.filter { !known.contains($0.subscriptionId) }
             try await db.upsertLibrary(subscriptions: page.subscriptions, episodes: ready, cursor: waiting.isEmpty ? page.cursor : nil)
+            await onLibraryPage()
             cursor = page.cursor
             if !page.more { break }
         }

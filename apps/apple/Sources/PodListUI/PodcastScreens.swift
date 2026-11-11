@@ -90,9 +90,12 @@ struct PodcastPageScreen: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     let library: LibraryModel
     var selection: Binding<Set<String>> = .constant([])
-    @State private var feed: ParsedFeed?
     @Binding var search: String
-    @State private var loading = false
+    let openEpisode: () -> Void
+    let displayed: ([String]) -> Void
+    @State private var sortOrder = [KeyPathComparator<PageEpisode>(\.published, order: .reverse)]
+    @State private var feed: ParsedFeed?
+    @State private var loading = true
     @State private var error: String?
     @State private var control = UnsubscribeControl()
     @State private var subscriptionBusy = false
@@ -106,19 +109,21 @@ struct PodcastPageScreen: SwiftUI.View {
     private var title: String { feed?.title ?? subscription?.title ?? "Podcast" }
     private struct PageEpisode: Identifiable {
         let guid: String; let title: String; let description: String; let published: Int64; let duration: Double?; let localID: String?
+        let stateText: String
         var id: String { localID ?? guid }
+        var length: Double { duration ?? .infinity }
     }
     private var episodes: [PageEpisode] {
         let local = library.snapshot.episodes.filter { $0.subscriptionId == subscription?.id }.map {
-            PageEpisode(guid: $0.guid, title: $0.title, description: $0.description, published: $0.published, duration: $0.duration, localID: $0.id)
+            PageEpisode(guid: $0.guid, title: $0.title, description: $0.description, published: $0.published, duration: $0.duration, localID: $0.id, stateText: library.row($0.id).stateText)
         }
         let remote = (feed?.episodes ?? []).map { episode in
-            PageEpisode(guid: episode.guid, title: episode.title, description: episode.description, published: episode.published, duration: episode.duration, localID: local.first { $0.guid == episode.guid }?.localID)
+            PageEpisode(guid: episode.guid, title: episode.title, description: episode.description, published: episode.published, duration: episode.duration, localID: local.first { $0.guid == episode.guid }?.localID, stateText: local.first { $0.guid == episode.guid }?.stateText ?? "Unplayed")
         }
         let guids = Set(remote.map(\.guid))
         return (remote + local.filter { !guids.contains($0.guid) }).filter { e in
             Mentions.words(search).allSatisfy { word in [e.title, e.description].contains { Mentions.fold($0).contains(word) } }
-        }.sorted { $0.published > $1.published }
+        }.sorted(using: sortOrder)
     }
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
@@ -154,50 +159,95 @@ struct PodcastPageScreen: SwiftUI.View {
                     }
                 }
             }
-            TextField("Search Episodes", text: $search).textFieldStyle(.roundedBorder).onChange(of: search) { _, text in control.reset(); editor.setDraft(text, field: "podcast.\(feedURL).search") }
+            if subscribed, let subscription {
+                DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
+            }
             if loading { ProgressView("Reading Episodes…") }
             if let error { Text(error).foregroundStyle(.red); Button("Try again") { control.reset(); load() } }
             Text("\(episodes.count) Episodes").foregroundStyle(.secondary)
-            List(episodes, selection: selection) { episode in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(episode.title)
-                        Text("\(Date(timeIntervalSince1970: Double(episode.published) / 1000).formatted(date: .abbreviated, time: .omitted)) · \(episode.duration.map(Presentation.time) ?? "Unknown length")").font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Add", systemImage: "plus") { bring(episode, play: false) }.labelStyle(.iconOnly).accessibilityLabel("Add \(episode.title) to a Playlist")
-                    Button("Play", systemImage: "play.fill") { bring(episode, play: true) }.labelStyle(.iconOnly).accessibilityLabel("Play \(episode.title) now")
-                }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4).tag(episode.id)
-                .contextMenu {
-                    if let localID = episode.localID, let editing = app.editing {
-                        let ids = selection.wrappedValue.contains(episode.id)
-                            ? episodes.filter { selection.wrappedValue.contains($0.id) }.compactMap(\.localID) : [localID]
-                        EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: addPresentation, app: app)
-                            .disabled(editing.busy)
-                    } else {
-                        Button("Play Now") { bring(episode, play: true) }
-                        Button("Add to a Playlist…") { bring(episode, play: false) }
-                    }
+            if episodes.isEmpty, !loading, error == nil {
+                ContentUnavailableView {
+                    Label(search.isEmpty ? "No Episodes yet" : "No matching Episodes", systemImage: "list.bullet")
+                } description: { Text(search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.") }
+                actions: {
+                    if search.isEmpty { Button("Refresh Episodes") { load() } }
+                    else { Button("Clear Search") { search = "" } }
                 }
-            }.simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
+            } else {
+                Table(episodes, selection: selection, sortOrder: $sortOrder) {
+                    TableColumn("Episode", value: \.title) { episode in
+                        HStack {
+                            Text(episode.title).lineLimit(2)
+                            Spacer()
+                            Button("Add", systemImage: "plus") { bring(episode, play: false) }
+                                .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Add \(episode.title) to a Playlist")
+                            Button("Play", systemImage: "play.fill") { bring(episode, play: true) }
+                                .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Play \(episode.title) now")
+                        }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
+                    }
+                    TableColumn("Published", value: \.published) { episode in
+                        Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
+                    }.width(min: 95, ideal: 110, max: 150)
+                    TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
+                        .width(min: 60, ideal: 70, max: 100)
+                    TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                }
+                .tableStyle(.inset(alternatesRowBackgrounds: false))
+                .contextMenu(forSelectionType: String.self) { ids in
+                    let chosen = episodes.filter { ids.contains($0.id) }
+                    if let editing = app.editing, !chosen.isEmpty, chosen.allSatisfy({ $0.localID != nil }) {
+                        EpisodeActionItems(ids: chosen.compactMap(\.localID), library: library, editing: editing, presentation: addPresentation, app: app)
+                            .disabled(editing.busy)
+                    } else if let first = chosen.first {
+                        Button("Play Now") { bring(first, play: true) }
+                        Button("Add to a Playlist…") { bring(first, play: false) }
+                    }
+                } primaryAction: { ids in
+                    selection.wrappedValue = ids
+                    if let episode = episodes.first(where: { ids.contains($0.id) }) { inspect(episode) }
+                }
+                .onKeyPress(.space) {
+                    guard let episode = episodes.first(where: { selection.wrappedValue.contains($0.id) }) else { return .ignored }
+                    bring(episode, play: true); return .handled
+                }
+                .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
+                .accessibilityLabel("Podcast Episodes, sortable columns")
+            }
             LibraryFeedback(editor: editor)
         }.padding(18)
+        .focusedSceneValue(\.podListPlaySelection, selectedEpisode.map { episode in { bring(episode, play: true) } })
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
         .simultaneousGesture(SpatialTapGesture().onEnded { if !subscribedBounds.contains($0.location) { control.reset() } })
         .task(id: feedURL) { control.reset(); search = editor.draft("podcast.\(feedURL).search"); await read() }
+        .onChange(of: search) { _, text in control.reset(); editor.setDraft(text, field: "podcast.\(feedURL).search") }
+        .onChange(of: episodes.map(\.id), initial: true) { _, ids in
+            selection.wrappedValue.formIntersection(Set(ids)); displayed(ids)
+        }
         .onDisappear { control.reset() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in control.reset() }
         .sheet(isPresented: $settings) {
             if let subscription { SubscriptionSettingsScreen(subscription: subscription, library: library, app: app, editor: editor) }
         }
     }
+    private var selectedEpisode: PageEpisode? { episodes.first { selection.wrappedValue.contains($0.id) } }
     private func load() { Task { await read() } }
     private func read() async {
         loading = true; error = nil
         do { feed = try await editor.source.readPodcast(feedURL); await app.reloadLocal() }
         catch { self.error = LibraryMessages.failure(error) }
         loading = false
+    }
+    private func inspect(_ episode: PageEpisode) {
+        control.reset()
+        Task {
+            do {
+                let id: String
+                if let local = episode.localID { id = local }
+                else { id = try await editor.prepareEpisode(feedURL, guid: episode.guid) }
+                selection.wrappedValue = [id]; openEpisode()
+            } catch { editor.error = LibraryMessages.failure(error) }
+        }
     }
     private func bring(_ episode: PageEpisode, play: Bool) {
         control.reset(); bringing.insert(episode.guid)
