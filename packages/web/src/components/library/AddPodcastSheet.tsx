@@ -385,6 +385,7 @@ function OpmlTab() {
     )
   }
   const holdsFile = (event: React.DragEvent) => event.dataTransfer.types.includes("Files")
+  const fileInput = useRef<HTMLInputElement>(null)
   return (
     <div>
       <label htmlFor={`${id}-file`} className="text-row font-medium">
@@ -419,7 +420,23 @@ function OpmlTab() {
       >
         <p className="text-row font-medium">{over ? "Drop to import" : "Drop an OPML file here"}</p>
         <p className="mt-0.5 text-small text-muted-foreground">or</p>
+        {/* PodList's own button opens the picker: the browser's file field puts its
+            "No file selected" text beside the button. Importing starts as soon as a file
+            is chosen, and the result shows below, so no file name is shown. */}
+        <button
+          type="button"
+          disabled={!canEdit}
+          aria-disabled={busy}
+          onClick={() => {
+            if (!busy) fileInput.current?.click()
+          }}
+          className="mx-auto mt-2 flex h-10 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input disabled:opacity-50"
+        >
+          Choose a file…
+        </button>
         <input
+          ref={fileInput}
+          tabIndex={-1}
           id={`${id}-file`}
           type="file"
           disabled={!canEdit}
@@ -432,7 +449,7 @@ function OpmlTab() {
             const file = event.target.files?.[0]
             if (file !== undefined) void importFile(file)
           }}
-          className="mx-auto mt-2 block max-w-full text-row file:mr-3 file:h-10 file:rounded-full file:border-0 file:bg-secondary file:px-4 file:font-medium"
+          className="sr-only"
         />
       </div>
       <p aria-live="polite" className="mt-3 text-row">
