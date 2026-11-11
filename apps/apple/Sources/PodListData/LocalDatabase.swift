@@ -24,6 +24,32 @@ public actor LocalDatabase {
         }
         self.storage = storage
         self.standalone = standalone
+        try storage.transaction {
+            // Pre-validation clients offered zero. Preserve All New intent by removing the cap.
+            try storage.execute("UPDATE download_rule SET keep_at_most = NULL WHERE keep_at_most < 1 OR keep_at_most > 9007199254740991")
+            for table in ["outbox", "local_operation"] {
+                for row in try storage.query("SELECT id, operation FROM \(table) ORDER BY seq") {
+                    guard var operation = try? ProtocolJSON.decode(Operation.self, from: row["operation"]!.string!) else {
+                        try storage.execute("DELETE FROM \(table) WHERE id = ?", [row["id"]!]); continue
+                    }
+                    if case var .setDownloadRule(rule) = operation.change, let cap = rule.keepAtMost, cap < 1 || cap > 9_007_199_254_740_991 {
+                        rule.keepAtMost = nil; operation.change = .setDownloadRule(rule: rule)
+                    }
+                    if (try? ProtocolValidation.validate(operation)) != nil {
+                        try storage.execute("UPDATE \(table) SET operation = ? WHERE id = ?", [.text(try ProtocolJSON.encode(operation)), row["id"]!])
+                    } else { try storage.execute("DELETE FROM \(table) WHERE id = ?", [row["id"]!]) }
+                }
+            }
+            if let raw = try storage.query("SELECT value FROM sync_meta WHERE key = 'confirmedState'").first?["value"]?.string,
+               var confirmed = try? ProtocolJSON.decode(State.self, from: raw) {
+                confirmed.downloadRules = confirmed.downloadRules.compactMap { original in
+                    var rule = original
+                    if let cap = rule.keepAtMost, cap < 1 || cap > 9_007_199_254_740_991 { rule.keepAtMost = nil }
+                    return (try? ProtocolValidation.validate(rule)) != nil ? rule : nil
+                }
+                try storage.execute("UPDATE sync_meta SET value = ? WHERE key = 'confirmedState'", [.text(try ProtocolJSON.encode(confirmed))])
+            }
+        }
     }
 
     private static func backfillMentions(_ storage: SQLite) throws {
@@ -46,6 +72,7 @@ public actor LocalDatabase {
     public func query(_ sql: String, _ params: [SQLValue] = []) throws -> [Row] { try storage.query(sql, params) }
 
     private func replaceState(_ state: State) throws {
+        try ProtocolValidation.validateDownloadRules(state)
         let rows = try StateIndex.stateToRows(state)
         for table in StateIndex.tables {
             try storage.execute("DELETE FROM \(table)")
@@ -121,6 +148,7 @@ public actor LocalDatabase {
             var operations: [Operation] = []
             for (change, id) in zip(changes, ids) {
                 let operation = Operation(id: id, deviceId: device.id, sequence: sequence, recordedAt: at, change: change)
+                try ProtocolValidation.validate(operation)
                 sequence += 1
                 try storage.execute("INSERT INTO \(standalone ? "local_operation" : "outbox") (id, operation) VALUES (?, ?)", [.text(id), .text(try ProtocolJSON.encode(operation))])
                 if standalone {
@@ -193,6 +221,7 @@ public actor LocalDatabase {
     }
     public func confirmedState() throws -> State? { try getMeta("confirmedState").map { try ProtocolJSON.decode(State.self, from: $0) } }
     public func saveConfirmed(_ state: State, cursor: Int64) throws {
+        try ProtocolValidation.validateDownloadRules(state)
         try storage.transaction { try setMeta("confirmedState", ProtocolJSON.encode(state)); try setMeta("userCursor", String(cursor)) }
     }
     /// Only the outbox snapshot actually sent is acknowledged; edits made during HTTP are replayed.

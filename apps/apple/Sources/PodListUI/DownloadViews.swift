@@ -51,8 +51,8 @@ struct DownloadRuleEditor: SwiftUI.View {
                     app.setDownloadRule(subscription: subscriptionID, mode: .allNew, cap: $0 < 0 ? nil : $0)
                 })) {
                     Text("All").tag(Int64(-1))
-                    ForEach([0, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag($0) }
-                    if let cap = rule?.keepAtMost, ![0, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(cap) }
+                    ForEach([1, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag($0) }
+                    if let cap = rule?.keepAtMost, cap > 0, ![1, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(cap) }
                 }.frame(maxWidth: 190)
             }
         }.font(.subheadline)
