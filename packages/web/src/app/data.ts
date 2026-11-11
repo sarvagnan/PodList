@@ -93,7 +93,9 @@ export const viewCountsAtom = runtime
 export const episodeDetailAtom = Atom.family((episodeId: string) =>
   runtime
     .atom(Effect.flatMap(DataLayer, (data) => data.episodeDetail(episodeId)))
-    .pipe(Atom.withReactivity([catalogueKey]))
+    // Hover/focus warms this same atom. Keep it briefly after leaving the row so the
+    // panel reuses the pending request or result, without retaining the whole Library.
+    .pipe(Atom.withReactivity([catalogueKey]), Atom.setIdleTTL("30 seconds"))
 )
 
 /** Stats include stored Episodes and names of former Subscriptions. */

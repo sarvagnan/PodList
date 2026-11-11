@@ -18,7 +18,10 @@ export function Tip({
       <Tooltip.Trigger render={children} />
       <Tooltip.Portal>
         <Tooltip.Positioner sideOffset={6} className="z-50">
-          <Tooltip.Popup className="max-w-64 rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background shadow-md">
+          <Tooltip.Popup
+            role="tooltip"
+            className="max-w-64 rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background shadow-md"
+          >
             {label}
           </Tooltip.Popup>
         </Tooltip.Positioner>

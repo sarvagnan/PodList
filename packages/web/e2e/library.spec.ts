@@ -414,9 +414,13 @@ test("OPML confirmation, progress after Close, retry and duplicate skipping shar
 
 test("unreadable OPML has a reason and no Import button", async ({ page }) => {
   await page.goto(`${demo.base}/settings`)
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({ name: "Broken.opml", mimeType: "text/xml", buffer: Buffer.from("<broken>") })
+  const file = page.locator('input[type="file"]')
+  await expect(file).toBeEnabled()
+  await file.setInputFiles({
+    name: "Broken.opml",
+    mimeType: "text/xml",
+    buffer: Buffer.from("<broken>")
+  })
   await expect(page.getByRole("alert")).toContainText("not valid OPML")
   await expect(page.getByRole("button", { name: "Import", exact: true })).toHaveCount(0)
 })
