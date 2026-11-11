@@ -246,26 +246,31 @@ class UiStabilityTest {
                 "boundsInScreen=$bounds childCount=${node.childCount}")
             repeat(node.childCount) { index -> node.getChild(index)?.let { walk(it, depth + 1) } }
         }
-        fun textButtonChild(node: AccessibilityNodeInfo): Boolean {
-            // Only standard Material text Buttons may speak a Text descendant. Never accept
-            // a descendant contentDescription: that would bless the icon-button regression.
-            // Compose may put the Button role on a synthetic child beside the Text child.
-            val buttonRole = node.className == "android.widget.Button" || (0 until node.childCount).any { index ->
-                node.getChild(index)?.let { !it.isClickable && it.className == "android.widget.Button" } == true
+        fun speakableDescendants(node: AccessibilityNodeInfo): List<AccessibilityNodeInfo> = buildList {
+            // TalkBack can collect a row/tile's label from its passive children, but a
+            // separately focusable or actionable subtree has its own announcement.
+            repeat(node.childCount) { index ->
+                val child = node.getChild(index) ?: return@repeat
+                if (!child.isVisibleToUser || child.isFocusable || child.isClickable || child.isLongClickable) return@repeat
+                if (!child.text.isNullOrBlank() || !child.contentDescription.isNullOrBlank()) add(child)
+                // A contentDescription replaces the spoken contents of this subtree.
+                if (child.contentDescription.isNullOrBlank()) addAll(speakableDescendants(child))
             }
-            if (!buttonRole) return false
-            fun hasTextChild(parent: AccessibilityNodeInfo): Boolean = (0 until parent.childCount).any { index ->
-                parent.getChild(index)?.let { child ->
-                    !child.isClickable && (!child.text.isNullOrBlank() || hasTextChild(child))
-                } == true
-            }
-            return hasTextChild(node)
         }
         walk(root, 0)
         val appNodes = nodes.filter { it.packageName == instrumentation.targetContext.packageName && it.isVisibleToUser }
+        val descendantLabels = appNodes.filter { it.isClickable }.associateWith(::speakableDescendants)
         val unnamed = appNodes.filter { it.isClickable && it.text.isNullOrBlank() &&
-            it.contentDescription.isNullOrBlank() && !textButtonChild(it) }
+            it.contentDescription.isNullOrBlank() && descendantLabels.getValue(it).isEmpty() }
         assertTrue("$stage has unnamed clickable platform nodes: $unnamed (see PodListAX log)", unnamed.isEmpty())
+        // Described images alone must not bless round 19's unnamed icon-button parent.
+        // Text containers may inherit labels; icon-only controls need their own name/role.
+        val iconOnly = appNodes.filter { it.isClickable && it.text.isNullOrBlank() &&
+            descendantLabels.getValue(it).none { child -> !child.text.isNullOrBlank() } }
+        for (node in iconOnly) {
+            assertTrue("$stage: icon control must carry its own contentDescription: $node", !node.contentDescription.isNullOrBlank())
+            assertEquals("$stage: icon control must retain its own button role: $node", "android.widget.Button", node.className?.toString())
+        }
         for (label in iconLabels) {
             val labelled = appNodes.filter { it.contentDescription?.toString() == label }
             assertEquals("$stage: one announcement for $label", 1, labelled.size)
