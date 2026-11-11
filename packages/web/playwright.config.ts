@@ -3,8 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { defineConfig, devices } from "@playwright/test"
 
-// Browser tests run against the production build (vite preview), since the service
-// worker only exists there. Artifacts stay out of the repo.
+// Browser tests run the production build against seeded demo servers.
+// Artifacts stay out of the repo.
 // Each checkout (a worktree too) gets its own preview port and results folder, so two
 // suites running at once never test each other's build or overwrite each other's files.
 const checkout = createHash("sha256")
@@ -24,8 +24,8 @@ export default defineConfig({
   use: { baseURL: `http://127.0.0.1:${port}`, trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `pnpm build && pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`,
+    command: `node ui-flows/test-server.mjs ${port}`,
     url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: true
+    reuseExistingServer: false
   }
 })

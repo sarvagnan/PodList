@@ -2,6 +2,7 @@ import { useAtomSet } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
 import { Schema } from "effect"
 import { useCallback, useEffect } from "react"
+import { localClient } from "#client"
 import { recordAtom } from "./runtime.ts"
 
 // Typed edits (a name, a View's words) are kept in browser storage, synchronously, the
@@ -36,6 +37,7 @@ export function useJournaledRecord() {
   const record = useAtomSet(recordAtom, { mode: "promise" })
   return useCallback(
     (change: Operation.Change) => {
+      if (!localClient) return record(change)
       const id = crypto.randomUUID()
       write([...read(), { id, change: encode(change) }])
       return record(change).finally(() => write(read().filter((e) => e.id !== id)))
@@ -48,6 +50,10 @@ export function useJournaledRecord() {
 export function useReplayJournal() {
   const record = useAtomSet(recordAtom, { mode: "promise" })
   useEffect(() => {
+    if (!localClient) {
+      localStorage.removeItem(key)
+      return
+    }
     const left = read()
     if (left.length === 0) return
     write([])

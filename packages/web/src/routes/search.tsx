@@ -4,6 +4,7 @@ import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Search as SearchIcon, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 import { filterEpisodesAtom } from "../app/data.ts"
+import { useCanEdit } from "../app/hooks.ts"
 import { BulkBar } from "../components/episodes/BulkBar.tsx"
 import { EpisodeDetail } from "../components/episodes/EpisodeDetail.tsx"
 import { EpisodeList } from "../components/episodes/EpisodeList.tsx"
@@ -13,6 +14,7 @@ import { SaveSearchDialog } from "../components/views/SaveSearchDialog.tsx"
 import { ViewFormFields } from "../components/views/ViewForm.tsx"
 import { searchRefineOpen } from "../lib/remembered.ts"
 import { isReturn } from "../lib/returnFocus.ts"
+import { usePagedItems } from "../lib/usePagedItems.ts"
 import { useMinWidth } from "../lib/useWide.ts"
 import type { Filter, ViewData } from "../lib/viewEdit.ts"
 
@@ -179,6 +181,7 @@ export const Route = createFileRoute("/search")({
 })
 
 function SearchPage() {
+  const canEdit = useCanEdit()
   const search = Route.useSearch()
   const { q = "", episode: selected } = search
   const navigate = Route.useNavigate()
@@ -216,7 +219,8 @@ function SearchPage() {
       )
     )
   )
-  const episodes = active ? AsyncResult.getOrElse(result, () => []) : []
+  const paging = usePagedItems(active ? AsyncResult.getOrElse(result, () => []) : [])
+  const episodes = paging.items
 
   // The address follows the words a moment after typing stops, so Back and reload keep them.
   useEffect(() => {
@@ -232,8 +236,11 @@ function SearchPage() {
   // A fresh Search starts in its field; coming back to one (Back from an Episode) puts focus
   // on the Episode that was opened instead, as other lists do (KEY-04).
   useEffect(() => {
-    if (!isReturn(router.history.location.state.__TSR_key ?? "initial")) input.current?.focus()
-  }, [router])
+    const active = document.activeElement
+    const unattended = active === null || active.matches("body, main, main h1, nav a")
+    if (canEdit && unattended && !isReturn(router.history.location.state.__TSR_key ?? "initial"))
+      input.current?.focus()
+  }, [router, canEdit])
 
   const refine = (next: ViewData) => {
     const { text: _, ...filter } = next.filter
@@ -248,7 +255,7 @@ function SearchPage() {
   }
   const form = <ViewFormFields data={draft} onChange={refine} unsaved />
 
-  const count = `${episodes.length} ${episodes.length === 1 ? "Episode" : "Episodes"}`
+  const count = `${paging.total} ${paging.total === 1 ? "Episode" : "Episodes"}`
   return (
     <>
       <PageHeader
@@ -338,6 +345,7 @@ function SearchPage() {
           </EmptyState>
         ) : (
           <EpisodeList
+            paging={paging}
             episodes={episodes}
             label="Search results"
             ready={!AsyncResult.isInitial(result)}

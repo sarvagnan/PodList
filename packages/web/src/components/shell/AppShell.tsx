@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
-import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
+import { useAppState, useCanEdit, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { useReplayJournal } from "../../app/journal.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
@@ -373,6 +373,7 @@ function SidebarSkeleton() {
 }
 
 function Sidebar() {
+  const canEdit = useCanEdit()
   const now = useNowPlaying()
   const state = useAppState()
   const { create: createView } = useViewActions()
@@ -382,13 +383,14 @@ function Sidebar() {
   useEffect(() => {
     const onCommand = (event: Event) => {
       const command = (event as CustomEvent<string>).detail
+      if (!canEdit && (command === "newPlaylist" || command === "newView")) return
       if (command === "newPlaylist") setNewPlaylist(true)
       if (command === "newView") void createView()
       if (command === "gettingStarted") showGettingStarted((to) => router.navigate({ to }))
     }
     document.addEventListener("podlist:command", onCommand)
     return () => document.removeEventListener("podlist:command", onCommand)
-  }, [createView, router])
+  }, [createView, router, canEdit])
   const ready = useLibraryReady()
   // An Episode keeps the highlight of the list it was opened from (LIST-06).
   const path = useRouterState({ select: (r) => r.location.pathname })
@@ -426,6 +428,7 @@ function Sidebar() {
         <Tip label="New View">
           <button
             type="button"
+            disabled={!canEdit}
             aria-label="New View"
             onClick={() => void createView()}
             className="mt-4 grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
@@ -455,6 +458,7 @@ function Sidebar() {
         <Tip label="New Playlist">
           <button
             type="button"
+            disabled={!canEdit}
             aria-label="New Playlist"
             onClick={() => setNewPlaylist(true)}
             className="mt-4 grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
@@ -811,6 +815,15 @@ function usePlayPauseKey() {
   }, [control])
 }
 
+function EditRegion() {
+  const canEdit = useCanEdit()
+  return (
+    <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0 m-0">
+      <Outlet />
+    </fieldset>
+  )
+}
+
 export function AppShell() {
   useAtomMount(backgroundSyncAtom)
   useFocusOnNavigation()
@@ -848,7 +861,7 @@ export function AppShell() {
       >
         <VersionNotice />
         <FirstRun />
-        <Outlet />
+        <EditRegion />
       </main>
       <div ref={bottomStack} className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">
         <SyncIndicator variant="phone" />

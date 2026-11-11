@@ -4,6 +4,7 @@ import { AsyncResult } from "effect/reactivity"
 import { X } from "lucide-react"
 import { useRef, useState } from "react"
 import { bulkActionAtom, createAndAddAtom } from "../../app/episodeActions.ts"
+import { useCanEdit } from "../../app/hooks.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
@@ -29,6 +30,7 @@ export function AddToPlaylist({
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
+  const canEdit = useCanEdit()
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
   const act = useEpisodeActions()
   const { draft, update, clear, unsaved, retry } = useDialogDraft({
@@ -58,7 +60,7 @@ export function AddToPlaylist({
     : []
   const target = chosen ?? state?.activePlaylistId ?? null
   const add = async (placement: "next" | "last") => {
-    if (target === null || busy) return
+    if (target === null || busy || !canEdit) return
     if (target === "new") {
       const trimmed = name.trim()
       if (!trimmed || playlists.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
@@ -201,6 +203,7 @@ export function AddToPlaylist({
             {/* The filled primary on the right, as in every other dialog (FLOW-07). */}
             <button
               type="button"
+              disabled={!canEdit}
               aria-disabled={busy}
               onClick={() => void add("last")}
               className="h-11 rounded-full bg-secondary font-semibold text-secondary-foreground hover:bg-input active:bg-input/70"
@@ -209,6 +212,7 @@ export function AddToPlaylist({
             </button>
             <button
               type="button"
+              disabled={!canEdit}
               aria-disabled={busy}
               onClick={() => void add("next")}
               className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"

@@ -160,6 +160,7 @@ test("the empty Views overview and card share the reading edge", async ({ page }
 test("Subscription content and header share their right edge", async ({ page }) => {
   await page.goto(`${demo.base}/library`)
   await page.getByRole("link", { name: "Slow Build", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Slow Build", level: 1 })).toBeVisible()
   const widths = await page
     .locator("main")
     .evaluate((main) => [

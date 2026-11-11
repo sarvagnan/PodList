@@ -4,8 +4,9 @@ import { AsyncResult } from "effect/reactivity"
 import { AlertCircle, ArrowDownToLine, CircleArrowDown, Square } from "lucide-react"
 import type * as React from "react"
 import type { ReactNode } from "react"
+import { localClient } from "#client"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
-import type { DownloadStatus } from "../../downloads/Downloads.ts"
+import type { DownloadStatus } from "../../downloads/DownloadService.ts"
 
 /** This Device's download of an Episode: none, in progress, stored, or failed. */
 export function useDownloadStatus(episodeId: string): DownloadStatus | undefined {
@@ -71,6 +72,8 @@ export function DownloadButton({
 }) {
   const status = useDownloadStatus(episodeId)
   const run = useAtomSet(downloadAtom)
+
+  if (!localClient) return null
 
   if (status?._tag === "Stored") {
     return (

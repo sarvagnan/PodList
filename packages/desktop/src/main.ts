@@ -40,12 +40,12 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-/** The built web app: inside the app bundle, or packages/web/dist when run from source. */
+/** The built web app: inside the app bundle, or packages/web/dist-desktop when run from source. */
 const webRoot = normalize(
   process.env.PODLIST_WEB_ROOT ??
     (app.isPackaged
       ? join(process.resourcesPath, "web")
-      : join(import.meta.dirname, "../../web/dist"))
+      : join(import.meta.dirname, "../../web/dist-desktop"))
 )
 
 const configFile = () => join(app.getPath("userData"), "config.json")

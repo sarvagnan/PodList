@@ -5,6 +5,7 @@ import { AsyncResult } from "effect/reactivity"
 import { ArrowDownToLine, Check, Ellipsis, Play, Plus, Star } from "lucide-react"
 import type * as React from "react"
 import { Fragment, type ReactNode, useState } from "react"
+import { localClient } from "#client"
 import type { ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { downloadAtom, stateAtom } from "../../app/runtime.ts"
@@ -118,6 +119,10 @@ export function EpisodeRow({
   const [adding, setAdding] = useState(false)
   const [creating, setCreating] = useState(false)
   const state = AsyncResult.getOrElse(useAtomValue(stateAtom), () => null)
+  const starred = state?.episodeStates[episode.id]?.starred ?? episode.starred
+  const played = state?.episodeStates[episode.id]
+    ? state.episodeStates[episode.id]?.played != null
+    : episode.played
   const chosen = useAtomValue(nextLastTargetAtom)
   const target =
     state?.playlists.find((p) => p.id === chosen) ??
@@ -187,28 +192,42 @@ export function EpisodeRow({
     },
     { separator: true },
     {
-      label: episode.starred ? "Unstar" : "Star",
-      run: () => void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
+      label: starred ? "Unstar" : "Star",
+      run: () =>
+        void act({
+          _tag: "Star",
+          episodeId: episode.id,
+          starred: !starred
+        })
     },
     {
-      label: episode.played ? "Mark Unplayed" : "Mark Played",
-      run: () => void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
+      label: played ? "Mark Unplayed" : "Mark Played",
+      run: () =>
+        void act({
+          _tag: "Played",
+          episodeId: episode.id,
+          played: !played
+        })
     },
     // Download, as the row's own button offers it, so the menu has the row's every command.
-    downloaded
-      ? {
-          label: "Remove Download",
-          run: () => runDownload({ _tag: "remove", episodeId: episode.id })
-        }
-      : downloadStatus?._tag === "Downloading"
-        ? {
-            label: "Stop Download",
-            run: () => runDownload({ _tag: "cancel", episodeId: episode.id })
-          }
-        : {
-            label: "Download",
-            run: () => runDownload({ _tag: "download", episodeId: episode.id })
-          },
+    ...(localClient
+      ? [
+          downloaded
+            ? {
+                label: "Remove Download",
+                run: () => runDownload({ _tag: "remove", episodeId: episode.id })
+              }
+            : downloadStatus?._tag === "Downloading"
+              ? {
+                  label: "Stop Download",
+                  run: () => runDownload({ _tag: "cancel", episodeId: episode.id })
+                }
+              : {
+                  label: "Download",
+                  run: () => runDownload({ _tag: "download", episodeId: episode.id })
+                }
+        ]
+      : []),
     { separator: true },
     { label: "Open Episode", run: open }
   ]
@@ -255,14 +274,14 @@ export function EpisodeRow({
           // Phone: stretched over the row, so the whole row opens the Episode (controls sit
           // above). Desktop: just the title, so it keeps the browser's link menu and text
           // can be selected; the row opens the Episode from its empty space instead.
-          className={`line-clamp-3 text-row leading-snug font-medium after:absolute after:inset-0 after:content-[''] hover:underline lg:after:hidden ${episode.played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
+          className={`line-clamp-3 text-row leading-snug font-medium after:absolute after:inset-0 after:content-[''] hover:underline lg:after:hidden ${played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
         >
           {episode.title}
         </Link>
         {/* One run of text, so a wrapped line starts at the edge, not under a badge; it
             wraps rather than cut off at large text sizes (WTYPE-02). */}
         <p className="mt-0.5 line-clamp-2 text-small text-muted-foreground">
-          {episode.played && (
+          {played && (
             <>
               <span className="font-medium whitespace-nowrap text-positive">
                 <Check aria-hidden="true" className="mr-0.5 inline size-3.5 align-[-2px]" />
@@ -270,7 +289,7 @@ export function EpisodeRow({
               </span>{" "}
             </>
           )}
-          {episode.starred && (
+          {starred && (
             <>
               <Star
                 aria-label="Starred"
@@ -338,24 +357,33 @@ export function EpisodeRow({
           </IconButton>
           <IconButton
             label="Star"
-            pressed={episode.starred}
+            pressed={state?.episodeStates[episode.id]?.starred ?? episode.starred}
             onClick={() =>
-              void act({ _tag: "Star", episodeId: episode.id, starred: !episode.starred })
+              void act({
+                _tag: "Star",
+                episodeId: episode.id,
+                starred: !starred
+              })
             }
-            className={episode.starred ? "text-star hover:text-star" : ""}
+            className={starred ? "text-star hover:text-star" : ""}
           >
-            <Star
-              aria-hidden="true"
-              className={`size-[18px] ${episode.starred ? "fill-current" : ""}`}
-            />
+            <Star aria-hidden="true" className={`size-[18px] ${starred ? "fill-current" : ""}`} />
           </IconButton>
           <IconButton
             label="Played"
-            pressed={episode.played}
-            onClick={() =>
-              void act({ _tag: "Played", episodeId: episode.id, played: !episode.played })
+            pressed={
+              state?.episodeStates[episode.id]
+                ? state.episodeStates[episode.id]?.played != null
+                : episode.played
             }
-            className={episode.played ? "text-positive hover:text-positive" : ""}
+            onClick={() =>
+              void act({
+                _tag: "Played",
+                episodeId: episode.id,
+                played: !played
+              })
+            }
+            className={played ? "text-positive hover:text-positive" : ""}
           >
             <Check aria-hidden="true" className="size-[18px]" />
           </IconButton>

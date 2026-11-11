@@ -198,10 +198,10 @@ const waitFor = async (url) => {
 
 /** Starts the fixture host and a seeded PodList server; returns its URL and a stop function. */
 /** A demo server; `{ empty: true }` skips the seed, for first-run tests. */
-export const startDemo = async ({ empty = false, large = false } = {}) => {
+export const startDemo = async ({ empty = false, large = false, port: requestedPort } = {}) => {
   const fixtures = await startFixtures()
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
-  const port = await freePort()
+  const port = requestedPort ?? (await freePort())
   const base = `http://127.0.0.1:${port}`
   const server = spawn(process.execPath, [join(repo, "packages/server/src/main.ts")], {
     env: {

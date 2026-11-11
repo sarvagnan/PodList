@@ -87,6 +87,8 @@ export interface DataStatus {
   readonly error: string | null
   /** State and Library have loaded at least once, including in an earlier session. */
   readonly ready: boolean
+  /** Web user edits need a reachable server. Local adapters always allow edits. */
+  readonly writable?: boolean
 }
 
 /** The screens and player depend on this service, never on SQL or sync bookkeeping. */

@@ -5,7 +5,7 @@ import { Check, ListEnd, ListStart, Pause, Play, Plus, Share, Star } from "lucid
 import type * as React from "react"
 import { type ReactNode, useState } from "react"
 import { episodeDetailAtom } from "../../app/data.ts"
-import { useAppState, useNextLastTarget, useNowPlaying } from "../../app/hooks.ts"
+import { useAppState, useCanEdit, useNextLastTarget, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt } from "../../lib/chapters.ts"
 import { episodeLink } from "../../lib/share.ts"
@@ -63,9 +63,11 @@ function Action({
   readonly children: ReactNode
   readonly buttonProps?: React.ComponentProps<"button">
 }) {
+  const canEdit = useCanEdit()
   return (
     <button
       type="button"
+      disabled={!canEdit && label !== "Pause" && label !== "Play"}
       data-action=""
       {...buttonProps}
       aria-pressed={buttonProps ? undefined : pressed}

@@ -1,6 +1,6 @@
 # Client duties
 
-This is the implementation order and observable behavior for clients using protocol version 4. “Shared” means every client must preserve the contract. “Offline clients” means the planned Kotlin and Swift clients and Electron. “Browser adapter” identifies existing web implementation details which native clients should implement through platform APIs. The currently shipped web client still uses local SQLite and offline behavior; the online-only web client in ADR 0011 has not been implemented. Server read APIs and live notifications are implemented for milestone 2; the web adapter follows in milestone 3. [Sources: platform plan](../plans/platform-clients.md), [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md), [API definitions](../../packages/api/src/index.ts), [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts).
+This is the implementation order and observable behavior for clients using protocol version 4. “Shared” means every client must preserve the contract. “Offline clients” means the planned Kotlin and Swift clients and Electron. “Browser adapter” identifies existing web implementation details which native clients should implement through platform APIs. The online web build uses server reads and tab-memory pending edits. Electron retains local SQLite and offline behavior. The adapter split is implemented but has not been deployed. [Sources: platform plan](../plans/platform-clients.md), [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md), [API definitions](../../packages/api/src/index.ts), [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts).
 
 ## 1. Establish the Device and connection
 
@@ -23,7 +23,7 @@ Offline clients should preserve the current triggers using platform lifecycle/ne
 
 On transport failure, keep local edits and downloads usable, retain pending operations and both cursors, expose the sync error, and retry on the next trigger/periodic pass. If State sync succeeded but Library sync failed, keep the committed State sync and resume Library paging from its last committed page. There is no exponential retry backoff in SyncEngine and no special conflict-status protocol. The browser transport maps request/decode failures to Offline. Discovery, Subscribe, Unsubscribe, OPML import, refresh and uncached Chapter resolution need the server; these are HTTP requests, not queued State operations. [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts), [Transport.ts](../../packages/web/src/sync/Transport.ts), [LibraryClient.ts](../../packages/web/src/library/LibraryClient.ts), [API definitions](../../packages/api/src/index.ts), [SyncIndicator.tsx](../../packages/web/src/components/shell/SyncIndicator.tsx).
 
-Browser adapter only: DOM `online` and `visibilitychange` callbacks drive the above triggers. The present web build also uses a single-tab database lock, a service worker, and OPFS. Those are not native requirements. The later online-only web client will use server APIs and tab coordination instead. [TabGate.tsx](../../packages/web/src/app/TabGate.tsx), [TabLock.ts](../../packages/web/src/platform/TabLock.ts), [main.tsx](../../packages/web/src/main.tsx), [DownloadStore.ts](../../packages/web/src/platform/DownloadStore.ts), [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md).
+Browser adapter only: DOM `online` and `visibilitychange` callbacks drive the above triggers. Electron keeps the local database lock and OPFS downloads. The retired PWA also used a service worker. Those are not native requirements. The online web build uses server APIs and browser-profile sequence allocation instead. [TabGate.tsx](../../packages/web/src/app/TabGate.tsx), [TabLock.ts](../../packages/web/src/platform/TabLock.ts), [main.tsx](../../packages/web/src/main.tsx), [DownloadStore.ts](../../packages/web/src/platform/DownloadStore.ts), [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md).
 
 ## 3. Report Position and Played
 
@@ -100,3 +100,24 @@ connect. The tailnet remains the authentication boundary.
 Successful pushes include `acknowledged` operation ids, including duplicate retries.
 Only `accepted` counts new intentions. Older servers can omit `acknowledged`.
 Keep operation ids unchanged when a response is lost or delivery is uncertain.
+
+## Online web lifetime
+
+Web registers one `web` Device per browser profile and origin. IndexedDB stores only
+its opaque id, registration time and next sequence. Read/write transactions reserve
+sequences across tabs. No pending Operation or State is stored there.
+
+Web uses server reads instead of the Library replication stream. WebSocket messages
+refresh changed reads and State. Reconnect and tab return force catch-up. Polling
+continues while the socket is unavailable. A reset requests State from zero.
+
+Web `record` accepts an optimistic edit into tab memory. Failed deliveries stay
+pending with Retry and the same Operation ids. New user edits are disabled while
+known offline. Position and Listening reports can keep the playing tail pending.
+Acceptance into this memory replaces the offline client's persistence boundary for
+clearing measured amounts. Closing the tab drops unsent work. `beforeunload` asks
+before that loss. Lifecycle reporting remains best effort.
+
+Playback uses the same Position, Played, Listening, Chapters and audio-source rules.
+Web has no downloads or Download Rules. Play in one tab pauses peer tabs through
+`BroadcastChannel`, using the normal pause/report path. Other Devices stay independent.

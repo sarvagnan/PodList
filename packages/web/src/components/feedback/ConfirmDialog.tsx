@@ -1,6 +1,7 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog"
 import { X } from "lucide-react"
 import { type ReactNode, useState } from "react"
+import { useCanEdit } from "../../app/hooks.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 
@@ -25,6 +26,7 @@ export function ConfirmDialog({
    * so beside its button, where Try again is (WDATA-04). */
   readonly onConfirm: () => Promise<string | null | undefined> | undefined
 }) {
+  const canEdit = useCanEdit()
   useBackLayers(open ? 1 : 0, () => onOpenChange(false))
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -73,6 +75,7 @@ export function ConfirmDialog({
             </AlertDialog.Close>
             <button
               type="button"
+              disabled={!canEdit}
               aria-disabled={busy}
               onClick={async () => {
                 if (busy) return

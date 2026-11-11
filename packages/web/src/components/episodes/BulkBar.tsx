@@ -3,6 +3,7 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { AsyncResult } from "effect/reactivity"
 import { ArrowDownToLine, Check, ListEnd, ListPlus, ListStart, Star, X } from "lucide-react"
 import { type ReactNode, useState } from "react"
+import { localClient } from "#client"
 import { bulkActionAtom, nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { useAppState } from "../../app/hooks.ts"
 import { downloadAtom, downloadsAtom } from "../../app/runtime.ts"
@@ -143,16 +144,18 @@ export function BulkBar({
       >
         {allStarred ? "Unstar" : "Star"}
       </BulkButton>
-      <BulkButton
-        onClick={() => {
-          const missing = selected.filter((id) => downloads.get(id)?._tag !== "Stored")
-          for (const episodeId of missing) download({ _tag: "download", episodeId })
-          toasts.add({ description: `Downloading ${episodes(missing.length)}`, timeout: 4000 })
-        }}
-        icon={<ArrowDownToLine aria-hidden="true" className="size-4" />}
-      >
-        Download
-      </BulkButton>
+      {localClient && (
+        <BulkButton
+          onClick={() => {
+            const missing = selected.filter((id) => downloads.get(id)?._tag !== "Stored")
+            for (const episodeId of missing) download({ _tag: "download", episodeId })
+            toasts.add({ description: `Downloading ${episodes(missing.length)}`, timeout: 4000 })
+          }}
+          icon={<ArrowDownToLine aria-hidden="true" className="size-4" />}
+        >
+          Download
+        </BulkButton>
+      )}
       <Tip label={"Clear selection"}>
         <button
           type="button"

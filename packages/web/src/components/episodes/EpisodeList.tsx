@@ -3,7 +3,9 @@ import { useLayoutEffect, useRef, useState } from "react"
 import type { ViewEpisode } from "../../app/data.ts"
 import { useRowGrid } from "../../lib/rowGrid.ts"
 import { useScrollMemory } from "../../lib/scrollMemory.ts"
+import type { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
+import { ListContinuation } from "../lists/ListContinuation.tsx"
 import { EpisodeRow } from "./EpisodeRow.tsx"
 
 /** A row's height at the default font size; rows are measured as they render. */
@@ -16,6 +18,7 @@ const rowHeight = 76
  */
 export function EpisodeList({
   episodes,
+  paging,
   label,
   ready,
   selected,
@@ -25,6 +28,7 @@ export function EpisodeList({
   showPodcast = true
 }: {
   readonly episodes: ReadonlyArray<ViewEpisode>
+  readonly paging?: ReturnType<typeof usePagedItems<ViewEpisode>>
   readonly label: string
   /** The list has loaded, so a saved scroll position can be restored. */
   readonly ready: boolean
@@ -90,47 +94,52 @@ export function EpisodeList({
     })
   }
   return (
-    // biome-ignore lint/a11y/useSemanticElements: a virtualised grid of flex rows (components/lists/Grid.tsx).
-    <div
-      ref={listRef}
-      role="grid"
-      aria-label={label}
-      aria-rowcount={episodes.length}
-      aria-multiselectable="true"
-      onKeyDown={grid.onKeyDown}
-      onFocus={grid.onFocus}
-      onBlur={grid.onBlur}
-      className="relative mx-3 md:mx-6"
-      style={{ height: virtualizer.getTotalSize() }}
-    >
-      {virtualizer.getVirtualItems().map((item) => {
-        const episode = episodes[item.index]
-        if (episode === undefined) return null
-        return (
-          // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
-          <div
-            key={episode.id}
-            ref={virtualizer.measureElement}
-            role="row"
-            data-index={item.index}
-            data-row={item.index}
-            aria-rowindex={item.index + 1}
-            aria-selected={checked.has(episode.id)}
-            aria-current={episode.id === selected ? "true" : undefined}
-            className="absolute inset-x-0 top-0"
-            style={{ transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)` }}
-          >
-            <EpisodeRow
-              episode={episode}
-              checked={checked.has(episode.id)}
-              onCheck={(on, range) => tick(item.index, on, range)}
-              selected={episode.id === selected}
-              onOpen={onOpen}
-              showPodcast={showPodcast}
-            />
-          </div>
-        )
-      })}
-    </div>
+    <>
+      {/* biome-ignore lint/a11y/useSemanticElements: a virtualised grid of flex rows. */}
+      <div
+        ref={listRef}
+        role="grid"
+        aria-label={label}
+        aria-rowcount={paging?.total ?? episodes.length}
+        aria-multiselectable="true"
+        onKeyDown={grid.onKeyDown}
+        onFocus={grid.onFocus}
+        onBlur={grid.onBlur}
+        className="relative mx-3 md:mx-6"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((item) => {
+          const episode = episodes[item.index]
+          if (episode === undefined) return null
+          return (
+            // biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: a row of the grid above.
+            <div
+              key={episode.id}
+              ref={virtualizer.measureElement}
+              role="row"
+              data-index={item.index}
+              data-row={item.index}
+              aria-rowindex={item.index + 1}
+              aria-selected={checked.has(episode.id)}
+              aria-current={episode.id === selected ? "true" : undefined}
+              className="absolute inset-x-0 top-0"
+              style={{
+                transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`
+              }}
+            >
+              <EpisodeRow
+                episode={episode}
+                checked={checked.has(episode.id)}
+                onCheck={(on, range) => tick(item.index, on, range)}
+                selected={episode.id === selected}
+                onOpen={onOpen}
+                showPodcast={showPodcast}
+              />
+            </div>
+          )
+        })}
+      </div>
+      {paging && <ListContinuation {...paging} />}
+    </>
   )
 }

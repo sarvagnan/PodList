@@ -1,7 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog"
 import { X } from "lucide-react"
 import { useId, useRef, useState } from "react"
-import { useAppState } from "../../app/hooks.ts"
+import { useAppState, useCanEdit } from "../../app/hooks.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
@@ -16,6 +16,7 @@ export function NewPlaylistDialog({
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
+  const canEdit = useCanEdit()
   const id = useId()
   const {
     draft: saved,
@@ -36,6 +37,7 @@ export function NewPlaylistDialog({
   const state = useAppState()
   useBackLayers(open ? 1 : 0, () => close(false))
   const save = async () => {
+    if (!canEdit) return
     const trimmed = name.trim()
     if (trimmed === "") {
       setError("A Playlist needs a name.")
@@ -114,6 +116,7 @@ export function NewPlaylistDialog({
             </Dialog.Close>
             <button
               type="button"
+              disabled={!canEdit}
               onClick={() => void save()}
               className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
             >

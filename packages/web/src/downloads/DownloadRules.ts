@@ -2,7 +2,7 @@ import { Duration, Effect, Layer, Stream, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
-import { Downloads } from "./Downloads.ts"
+import { Downloads } from "./DownloadService.ts"
 import { type EpisodeFacts, planDownloads, type RuleFacts } from "./plan.ts"
 
 // Carries out this Device's Download Rules (downloads/plan.ts) in the background: after

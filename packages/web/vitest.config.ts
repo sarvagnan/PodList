@@ -18,6 +18,9 @@ export default defineProject({
       instances: [{ browser: "chromium" }]
     }
   },
+  resolve: {
+    alias: { "#client": new URL("./src/data/DesktopClient.tsx", import.meta.url).pathname }
+  },
   worker: { format: "es" },
   optimizeDeps: { exclude: ["@effect/wa-sqlite", "@effect/sql-sqlite-wasm"] }
 })

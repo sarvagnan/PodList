@@ -2,7 +2,8 @@
 
 Phase 4 of [the platform plan](../plans/platform-clients.md), under `pod-apx.2`.
 [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md) sets the split.
-Milestones 1 and 2 are implemented. Web and Electron still use local SQLite.
+Milestones 1–3 are implemented. Web uses server reads and in-memory pending edits.
+Electron keeps local SQLite. This change has not been deployed.
 
 ## Seam
 
@@ -120,9 +121,10 @@ receive 403 before upgrade.
 Decided (owner, 11 Nov 2026): one Device per browser profile, kind `web`.
 The generated schema and registration vectors include `web`. Swift and Kotlin
 accept it alongside `pwa`, `desktop` and `android`. Protocol version stays 4; no
-Operation or reducer changes were made. Milestone 3 must persist the opaque profile
-id and coordinate operation sequences across tabs. Do not register each tab or
-reuse Electron's Device.
+Operation or reducer changes were made. The web adapter stores the opaque profile
+id and next sequence in IndexedDB. Read/write transactions serialize allocations
+across tabs. Sequence reservations commit before an Operation is sent. A crash may
+leave a gap. It cannot reuse a sequence. Electron keeps its own Device.
 
 Decided (owner, 11 Nov 2026): failed edits stay in the tab with visible retry.
 Use stable operation ids with `/api/sync/push`. Its `acknowledged` array reports all
@@ -130,27 +132,36 @@ submitted ids committed by the server, including retries. `accepted` still count
 only new intentions. A missing response leaves delivery unknown; retry the same ids.
 The whole push is transactional. Older servers may omit `acknowledged`.
 
-Milestone 3 will keep optimistic edits in memory while the tab is open. `record`
-accepts the edit; status tracks delivery. Disable new edits while known offline.
-Keep no durable offline outbox. Adapt the typed-edit journal and Listening reports
-to this lifetime. Today's local `record` still returns after persistence.
+The web adapter keeps optimistic edits in memory while the tab is open. `record`
+accepts the edit; status tracks delivery. Failed edits show Pending and Retry. New
+user edits are disabled while known offline. There is no durable outbox. A
+`beforeunload` warning protects departures with unsent edits. Leaving still drops
+them. The web typed-edit journal records directly into this memory. It does not
+replay the old browser journal. Electron still persists before returning.
 
-`pod-apx.3` owns many-tab playback. Use `BroadcastChannel`: Play in one tab pauses
-its peers in the same browser. Other Devices stay independent. This must be ready
-before removing the web tab lock.
+Playback keeps the shared Position, Played and Listening rules. A web report is
+accepted into tab memory before its measured amounts are cleared. Reports can keep
+the playing tail pending while disconnected. They use the same stable-id retry.
+Closing the tab can lose this tail. Page lifecycle upload remains best effort.
+
+The `pod-apx.3` behavior is integrated here. `BroadcastChannel` makes Play in one
+tab pause its peers in the same browser. Pausing uses normal Position and Listening
+flushes. Other Devices stay independent. The web tab lock is removed.
 
 ## Build split
 
-At cutover, web selects the server service at the composition root. Remove its SQLite
-worker, OPFS downloads and Download Rules. Hide download controls and offline promises.
-Remove service worker registration, precache, install manifest and install prompts.
-Remove `TabGate` and the database tab lock from web. Keep icons and navigation.
-Retire old service workers and caches so returning browsers receive the new client.
+Vite selects `WebClient` for web and `DesktopClient` for `--mode desktop`. The web
+bundle excludes the SQLite worker, OPFS downloads, Download Rules and `TabGate`.
+Download controls and offline promises are hidden. Icons and navigation stay.
+There is no install manifest, precache or service worker registration. A retirement
+script at the old `/sw.js` path unregisters old workers, clears app caches and
+reloads their pages. The new entry point also clears old workers and app caches.
 
 Electron keeps the React screens, `LocalClient`, SQLite, downloads and sync.
 Its private `app://podlist` origin and server bridge stay. Keep its database lock
 while its OPFS database needs one. Select adapters at build time so web excludes
-local code. Milestones 1 and 2 make no build selection or PWA changes.
+local code. Desktop output is `packages/web/dist-desktop`; web output stays
+`packages/web/dist`. The desktop packaging script selects its own build.
 
 Decided (standing rule): every deployment needs owner approval. No deploy was run.
 
@@ -164,7 +175,22 @@ Decided (standing rule): every deployment needs owner approval. No deploy was ru
    and all 452 Android domain/data tests pass. Changed TypeScript and JSON files
    pass Biome. Root lint has six existing errors and three warnings in untouched
    files. No requested check remains blocked.
-3. Add the server adapter and online failure handling. Split builds and retire the PWA.
-   Integrate `pod-apx.3` before removing the lock. Check web and Electron separately.
-4. Run client reconnect checks and approved rollout checks. Obtain owner approval
-   for deployment. No further owner decision is needed for milestone 2.
+3. Implemented: server reads, in-memory optimistic edits, stable-id retry, shared
+   browser Device sequences, WebSocket catch-up and polling fallback. Builds select
+   separate adapters. Web removes downloads, installation and the database lock.
+   Peer playback pausing is included. No server implementation changed.
+   Long Episode and Subscription lists load continuation pages as they scroll.
+   `ReadChanged` and expired tokens restart from page one to the loaded depth.
+   Rows replace together, preserving scroll range and id-based selection where possible.
+   Subscription sorting waits until all pages load, so it never sorts only part of
+   the Library. Listening metadata is read in bounded pages before computing stats.
+   Validation: all-package typecheck passes. All 452 Vitest tests pass. The web
+   production build and all 178 end-to-end tests pass against demo servers.
+   The desktop build and all 10 Electron tests pass. All 64 changed TypeScript,
+   JavaScript and JSON files pass Biome. `git diff --check` passes.
+   Local dependency copies and local-listener access were needed for these checks.
+   No requested check remains blocked.
+4. Run approved rollout checks against the real proxy and returning installed PWAs.
+   Check legacy unsent PWA edits before cutover. Old SQLite files are left intact;
+   the web adapter does not import their outbox or downloads. Obtain owner approval
+   for deployment. No new product decision is needed for this implementation.
