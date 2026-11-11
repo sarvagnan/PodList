@@ -33,7 +33,7 @@ class PodcastDirectory(private val http: PublisherTransport = PublisherHttp()) {
 object Opml {
     fun parse(xml: String): List<String> {
         val root = safeXml(xml)
-        require(root.tagName == "opml") { "Not OPML" }
+        require(root.tagName == "opml" && root.children("body").isNotEmpty()) { "Not OPML" }
         val urls = linkedSetOf<String>()
         fun walk(element: org.w3c.dom.Element) {
             element.getAttribute("xmlUrl").takeIf { it.isNotEmpty() }?.let(urls::add)

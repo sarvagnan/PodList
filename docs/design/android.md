@@ -91,3 +91,11 @@ Success confirmations lead with the past-tense action and identify what changed:
 Loading indicators in lists keep a permanent footprint, including the Podcast header’s 4dp indicator inside the shared 8dp heading-to-row gap, so existing rows stay put. Empty states share one message and optional tonal recovery action. View condition rows use a 4dp label/value gap and 12dp vertical padding; their live-edit helper belongs under “Show Episodes where”, and Delete helpers sit 8dp below the button. Playlist tabs scroll at enlarged text sizes, with “Listening Timeline” visible and spoken.
 
 Show notes retain publisher headings, paragraphs, numbered/bulleted lists, bold, italic and accessible links using app typography. Only http, https and mailto links are actionable. Never render remote images, scripts, embedded content or publisher styling.
+
+## OPML import (12 Nov 2026)
+
+Choose or drop a file to select it. Show its name, podcast count and how many are already in the Library. Allow another file or Cancel. Show unreadable-file errors without Import. Import starts only after pressing Import.
+
+Show “Importing 12 of 40” and each podcast’s result: Added, Already in the Library, or Failed with a reason. Retry failed podcasts. Skip duplicates. Import and export live in Settings.
+
+Closing Add podcasts or leaving Settings does not stop importing. Keep progress visible in Library, with access to results and retry. Say to keep the app running. Save confirmed work locally. Resume unfinished imports on next launch, skipping podcasts already in the Library.

@@ -111,3 +111,11 @@ with the cached Library while the server is offline. Edits enter the same named 
 history as UI edits, including Play Now. Agents cannot change connections, Empty Trash,
 Delete Playlist or Unsubscribe. Lists use the UI's View and text matching rules, preserve
 Playlist Entry order and Positions, and return up to 200 rows per page, 100 by default.
+
+## OPML import (12 Nov 2026)
+
+Choose or drop a file to select it. Show its name, podcast count and how many are already in the Library. Allow another file or Cancel. Show unreadable-file errors without Import. Import starts only after pressing Import.
+
+Show “Importing 12 of 40” and each podcast’s result: Added, Already in the Library, or Failed with a reason. Retry failed podcasts. Skip duplicates. Import and export live in Settings. Add podcasts uses the same import flow. Keep the Choose a file… button.
+
+Closing Add podcasts does not stop importing. Keep progress and results in Library. Say to keep the tab open. Warn before leaving during import. Closing the tab stops it. Importing the same file again finishes the rest. Electron keeps importing while its app runs; after quitting, import the same file again.

@@ -20,6 +20,7 @@ import {
   ruleOptions,
   sortParam
 } from "../../components/library/LibraryTable.tsx"
+import { OpmlStatus } from "../../components/library/OpmlFlow.tsx"
 import { ListContinuation } from "../../components/lists/ListContinuation.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
@@ -223,6 +224,7 @@ function LibraryScreen() {
           )
         }
       />
+      <OpmlStatus />
       {AsyncResult.isInitial(result) || (subscriptions.length === 0 && !ready) ? (
         <LoadingRows label="Loading your Library" />
       ) : subscriptions.length === 0 ? (

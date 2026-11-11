@@ -356,8 +356,8 @@
     <string name="podcast_tls">Couldn’t make a secure connection. Check the address and try again.</string>
     <string name="podcast_server">Couldn’t complete the podcast request. Try again.</string>
     <plurals name="import_progress">
-        <item quantity="one">%1$d of %2$d feed processed</item>
-        <item quantity="other">%1$d of %2$d feeds processed</item>
+        <item quantity="one">Importing %1$d of %2$d</item>
+        <item quantity="other">Importing %1$d of %2$d</item>
     </plurals>
     <string name="import_stop">Stop after current feed</string>
     <string name="import_stopping">Stopping after current feed…</string>
@@ -533,4 +533,13 @@
     <string name="delete_view_help">Episodes stay in your Library.</string>
     <string name="timeline_tab">Listening Timeline</string>
     <string name="add">Add</string>
+    <string name="opml_lifecycle">Choosing a file only selects it. Closing Add podcasts or leaving Settings does not stop an import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch. Podcasts already in the Library are skipped.</string>
+    <string name="opml_preview">%1$s: %2$d podcasts; %3$d already in the Library.</string>
+    <string name="opml_confirm">Import</string>
+    <string name="opml_result">%1$s: %2$s</string>
+    <string name="opml_failed">Failed: %1$s</string>
+    <string name="opml_added">Added</string>
+    <string name="opml_existing">Already in the Library</string>
+    <string name="opml_library_progress">Importing %1$d of %2$d</string>
+    <string name="opml_library_finished">Imported %1$d of %2$d. Open Settings for results and retry.</string>
 </resources>

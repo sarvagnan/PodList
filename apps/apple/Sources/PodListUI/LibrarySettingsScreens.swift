@@ -55,10 +55,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     Button("Import OPML…") { LibraryFileActions.importOPML(app) }
                     Button("Export OPML…") { LibraryFileActions.exportOPML(app) }
                     if let editor = app.libraryEditing {
-                        if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)", value: Double(editor.importCompleted), total: Double(max(1, editor.importTotal))) }
-                        LibraryFeedback(editor: editor)
-                        ForEach(editor.importFailed, id: \.self) { feed in Text("\(feed): \(editor.importFailureReasons[feed] ?? "Could not import this feed")").font(.caption).foregroundStyle(.red).textSelection(.enabled) }
-                        if !editor.importFailed.isEmpty { Button("Retry failed imports") { Task { await editor.retryImport() } } }
+                        OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
                     }
                     Button("Listening stats") { openWindow(id: "listening-stats") }
                     Button("Getting started") { app.libraryEditing?.showGettingStarted = true; gettingStarted = true }
@@ -252,8 +249,8 @@ public struct ListeningStatsScreen: SwiftUI.View {
                     let file = try FileHandle(forReadingFrom: url); defer { try? file.close() }
                     let bytes = try file.read(upToCount: 8 * 1024 * 1024 + 1) ?? Data()
                     guard bytes.count <= 8 * 1024 * 1024, let text = String(data: bytes, encoding: .utf8) else { throw SyncResponseFailure("Choose UTF-8 OPML under 8 MiB") }
-                    await editor.importOPML(text)
-                } catch { editor.error = LibraryMessages.failure(error) }
+                    await editor.selectOPML(text, name: url.lastPathComponent)
+                } catch { editor.cancelImportSelection(); editor.importName = url.lastPathComponent; editor.importPresented = true; editor.error = "Could not read this OPML file. " + LibraryMessages.failure(error) }
             }
         }
     }

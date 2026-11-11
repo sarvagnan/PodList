@@ -82,6 +82,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
         }
     }
     LazyColumn(Modifier.fillMaxSize().imePadding()) {
+        item { Hint(stringResource(R.string.opml_lifecycle)) }
         item {
             Column {
                 var fieldValue by rememberFieldValue(input)

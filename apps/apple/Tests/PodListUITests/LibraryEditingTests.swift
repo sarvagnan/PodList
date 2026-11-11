@@ -137,7 +137,10 @@ private actor PublisherFixture: PublisherReader {
     let http = PublisherFixture(), actions = editing(db, publisher: http)
     let good = "https://example.com/good", bad = "https://example.com/bad"
     await http.setFailure(bad, true)
-    await actions.importOPML("<opml><body><outline xmlUrl='\(good)'/><outline xmlUrl='\(bad)'/><outline xmlUrl='\(good)'/></body></opml>")
+    await actions.selectOPML("<opml><body><outline xmlUrl='\(good)'/><outline xmlUrl='\(bad)'/><outline xmlUrl='\(good)'/></body></opml>", name: "My podcasts.opml")
+    #expect(actions.importName == "My podcasts.opml" && actions.importTotal == 2 && actions.importExisting == 0 && actions.importReady)
+    #expect(try await db.readLibrary().subscriptions.isEmpty)
+    await actions.importSelected()
     #expect(actions.importCompleted == 2 && actions.importTotal == 2 && actions.importFailed == [bad] && !actions.busy)
     #expect(try await db.readLibrary().subscriptions.count == 1)
     await http.setFailure(bad, false); await actions.retryImport()
@@ -418,4 +421,72 @@ private actor SubscriptionTransport: SyncTransport {
     editor.showGettingStarted = true
     #expect(!editor.showsGettingStarted(on: .view(second), in: library))
     #expect(editor.showsGettingStarted(on: .view(first), in: library))
+}
+
+@MainActor @Test func opmlSelectionCancelErrorsAndDuplicatesNeverSubscribeBeforeImport() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let actions = editing(db)
+    let feed = "https://example.com/known"
+    try await actions.subscribe(feed)
+    let xml = "<opml><body><outline xmlUrl='\(feed)'/><outline xmlUrl='\(feed)'/></body></opml>"
+    await actions.selectOPML(xml, name: "Known.opml")
+    #expect(actions.importTotal == 1 && actions.importExisting == 1)
+    #expect(try await db.readLibrary().subscriptions.count == 1)
+    actions.cancelImportSelection()
+    await actions.importSelected()
+    #expect(actions.importTotal == 0 && actions.importCompleted == 0)
+    await actions.selectOPML("<broken>", name: "Broken.opml")
+    #expect(!actions.importReady && actions.error != nil)
+    await actions.selectOPML(xml, name: "Known.opml")
+    await actions.importSelected()
+    #expect(actions.importResults[feed] == "Already in the Library")
+    #expect(actions.importCompleted == 1)
+    #expect(try await db.readLibrary().subscriptions.count == 1)
+}
+
+private actor PausedImportPublisher: PublisherReader {
+    var waiting: CheckedContinuation<Void, Never>?
+    var started = false
+    func read(_ url: URL) async throws -> Data {
+        started = true
+        await withCheckedContinuation { waiting = $0 }
+        return Data(feedXML.utf8)
+    }
+    func release() { waiting?.resume(); waiting = nil }
+}
+@MainActor @Test func closingImportSheetKeepsAppOwnedTaskAndCountProgress() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let publisher = PausedImportPublisher()
+    let actions = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: publisher), scope: UUID().uuidString, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+    let feed = "https://example.com/one"
+    await actions.selectOPML("<opml><body><outline xmlUrl='\(feed)'/></body></opml>", name: "One.opml")
+    actions.startImport()
+    while !(await publisher.started) { await Task.yield() }
+    #expect(actions.busy && actions.importCompleted == 0 && actions.importTotal == 1)
+    actions.importPresented = false
+    await publisher.release()
+    while actions.busy { await Task.yield() }
+    #expect(actions.importCompleted == 1 && actions.importResults[feed] == "Added")
+    #expect(try await db.readLibrary().subscriptions.count == 1)
+}
+
+@MainActor @Test func confirmedImportJournalResumesOnLaunchAndSkipsAlreadyAddedPodcasts() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!, scope = UUID().uuidString
+    let publisher = PublisherFixture(), source = PodcastLibrary(database: db, publisher: publisher)
+    let known = "https://example.com/known", pending = "https://example.com/pending"
+    _ = try await source.subscribe(known)
+    let actions = LibraryEditingModel(database: db, source: source, scope: scope, defaults: defaults)
+    await actions.selectOPML("<opml><body><outline xmlUrl='\(pending)'/></body></opml>", name: "Pending.opml")
+    #expect(defaults.data(forKey: "PodList.\(scope).opmlImport") == nil)
+    // A previous process stopped after Subscribe succeeded, before recording its result.
+    defaults.set(try JSONSerialization.data(withJSONObject: ["name": "Resume.opml", "feeds": [known, pending], "results": [:] as [String: String], "failures": [:] as [String: String]]), forKey: "PodList.\(scope).opmlImport")
+    let relaunched = LibraryEditingModel(database: db, source: source, scope: scope, defaults: defaults)
+    relaunched.resumeImport()
+    while relaunched.busy { await Task.yield() }
+    #expect(relaunched.importName == "Resume.opml" && relaunched.importCompleted == 2)
+    #expect(relaunched.importResults[known] == "Already in the Library")
+    #expect(relaunched.importResults[pending] == "Added")
+    #expect(defaults.data(forKey: "PodList.\(scope).opmlImport") == nil)
+    #expect(try await db.readLibrary().subscriptions.count == 2)
 }

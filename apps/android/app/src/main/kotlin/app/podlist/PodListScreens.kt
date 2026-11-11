@@ -334,6 +334,7 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
 
 @Composable
 private fun Directory(destination: Destination, data: ScreenData, session: Session, open: (String) -> Unit) {
+    val opml by LocalAppModel.current.opml(session).state.collectAsState()
     val subscriptions = data.subscriptions.filter { it["unsubscribed_at"] == null }
     fun group(mode: DownloadMode) = subscriptions.filter { subscription ->
         (data.state.downloadRules.find { it.deviceId == session.deviceId && it.subscriptionId == subscription["id"] }?.mode ?: DownloadMode.Never) == mode
@@ -351,6 +352,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 add("trash")
             }
             Destination.Library -> {
+                if (opml.progress != null) add("opml-progress")
                 if (subscriptions.isNotEmpty()) add("subscriptions")
                 if (subscriptions.isEmpty()) add("no-subscriptions")
                 for (mode in DownloadMode.entries) {
@@ -382,6 +384,9 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 item(key = "trash") { NameRow(stringResource(R.string.trash), pluralStringResource(R.plurals.playlist_count, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size)) { open("trash") } }
             }
             Destination.Library -> {
+                opml.progress?.let { progress -> item(key = "opml-progress") {
+                    ValueRow(stringResource(if (opml.busy) R.string.opml_library_progress else R.string.opml_library_finished, progress.processed, progress.total), stringResource(R.string.opml_lifecycle)) { open("settings") }
+                } }
                 if (subscriptions.isNotEmpty()) item(key = "subscriptions") {
                     Text(stringResource(R.string.subscriptions), Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).semantics { heading() },
                         style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)

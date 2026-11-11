@@ -402,6 +402,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             _session.value = next
         }
         loadBringOver(next)
+        opml(next).resumeSaved()
         status.value = if (address == null) SyncStatus.Ready else SyncStatus.Loading
         downloads(next)
         if (address == null) scheduleFeedRefresh(getApplication())

@@ -54,6 +54,14 @@ public final class LibraryEditingModel {
     public var error: String?
     public var notice: String?
     public var busy = false
+    public var importName = ""
+    public var importFeeds: [String] = []
+    public var importExisting = 0
+    public var importReady = false
+    public var importPresented = false
+    public var importResults: [String: String] = [:]
+    @ObservationIgnored private var importSelectionVersion = 0
+    @ObservationIgnored private var importTask: Task<Void, Never>?
     public var importCompleted = 0
     public var importTotal = 0
     public var importFailed: [String] = []
@@ -213,26 +221,83 @@ public final class LibraryEditingModel {
     public func run(_ action: @escaping @MainActor () async throws -> Void) {
         Task { do { try await action(); error = nil } catch { self.error = LibraryMessages.failure(error) } }
     }
-    public func importOPML(_ xml: String) async {
+    public func selectOPML(_ xml: String, name: String) async {
         guard !busy else { return }
-        busy = true; error = nil; importCompleted = 0; importFailed = []; importFailureReasons = [:]
+        cancelImportSelection(); importName = name; importPresented = true; error = nil
+        let version = importSelectionVersion
+        do {
+            let feeds = try OPML.parse(xml)
+            let known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
+            guard version == importSelectionVersion, !busy else { return }
+            importFeeds = feeds; importTotal = feeds.count
+            importExisting = feeds.filter { known.contains($0) }.count; importReady = true
+        } catch { if version == importSelectionVersion { self.error = LibraryMessages.failure(error) } }
+    }
+    public func cancelImportSelection() {
+        guard !busy else { return }
+        importSelectionVersion += 1
+        importReady = false; importName = ""; importFeeds = []; importResults = [:]
+        importTotal = 0; importCompleted = 0; importFailed = []; importFailureReasons = [:]
+    }
+    private struct ImportJournal: Codable {
+        let name: String
+        let feeds: [String]
+        let results: [String: String]
+        let failures: [String: String]
+    }
+    private func saveImport() {
+        if let data = try? JSONEncoder().encode(ImportJournal(name: importName, feeds: importFeeds, results: importResults, failures: importFailureReasons)) {
+            defaults.set(data, forKey: key("opmlImport"))
+        }
+    }
+    public func resumeImport() {
+        guard !busy, importTask == nil, let data = defaults.data(forKey: key("opmlImport")),
+              let job = try? JSONDecoder().decode(ImportJournal.self, from: data) else { return }
+        importName = job.name; importFeeds = job.feeds; importResults = job.results
+        importFailureReasons = job.failures; importFailed = job.feeds.filter { job.failures[$0] != nil }
+        importTotal = job.feeds.count; importCompleted = job.results.count
+        startImport(resuming: true)
+    }
+    public func startImport(resuming: Bool = false) {
+        guard !busy, importTask == nil, resuming || importReady else { return }
+        // This unstructured task belongs to the editor, not the sheet's lifetime.
+        importReady = false; busy = true; saveImport()
+        importTask = Task { await performImport(); importTask = nil }
+    }
+    public func importSelected() async {
+        guard !busy, importReady else { return }
+        busy = true; importReady = false
+        await performImport()
+    }
+    private func performImport() async {
+        error = nil; saveImport()
         defer { busy = false }
         do {
-            let feeds = try OPML.parse(xml); importTotal = feeds.count
-            let known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
-            var added = 0
-            for feed in feeds {
-                if !known.contains(feed) {
-                    do { _ = try await source.subscribe(feed); added += 1 }
-                    catch { importFailed.append(feed); importFailureReasons[feed] = LibraryMessages.failure(error) }
+            var known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
+            for feed in importFeeds where importResults[feed] == nil {
+                if known.contains(feed) { importResults[feed] = "Already in the Library" }
+                else {
+                    do { try await subscribe(feed); known.insert(feed); importResults[feed] = "Added" }
+                    catch {
+                        importResults[feed] = "Failed"; importFailed.append(feed)
+                        importFailureReasons[feed] = LibraryMessages.failure(error)
+                    }
                 }
-                importCompleted += 1
+                importCompleted = importResults.count; saveImport()
             }
-            notice = "Imported \(added); already subscribed \(feeds.filter { known.contains($0) }.count); failed \(importFailed.count)."
+            notice = "Imported \(importResults.values.filter { $0 == "Added" }.count); already in the Library \(importResults.values.filter { $0 == "Already in the Library" }.count); failed \(importFailed.count)."
+            defaults.removeObject(forKey: key("opmlImport"))
             await changed()
         } catch { self.error = LibraryMessages.failure(error) }
     }
-    public func retryImport() async { let feeds = importFailed; await importOPML(OPML.generate(feeds.map { Subscription(id: $0, feedUrl: $0, title: $0, author: nil, description: nil, artwork: nil, subscribedAt: 0, unsubscribedAt: nil, playedThreshold: nil, playbackSettings: .init()) })) }
+    public func retryImport() async {
+        guard !busy else { return }
+        for feed in importFailed { importResults.removeValue(forKey: feed) }
+        importFailed = []; importFailureReasons = [:]; importReady = true
+        importCompleted = importResults.count
+        await importSelected()
+    }
+
 }
 
 extension LocalDatabase {
