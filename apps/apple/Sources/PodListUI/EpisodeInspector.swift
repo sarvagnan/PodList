@@ -22,6 +22,7 @@ struct ArtworkView: SwiftUI.View {
 struct EpisodeInspector: SwiftUI.View {
     let row: EpisodeRow?
     let library: LibraryModel
+    @Bindable var app: ApplicationModel
     var body: some SwiftUI.View {
         if let row {
             ScrollView {
@@ -35,7 +36,8 @@ struct EpisodeInspector: SwiftUI.View {
                             LabeledContent("Published", value: row.publishedDate.formatted(date: .abbreviated, time: .omitted))
                             LabeledContent("Length", value: row.durationText)
                             LabeledContent("State", value: row.stateText)
-                            LabeledContent("Download", value: "Not downloaded on this Device")
+                            DownloadActions(id: row.id, app: app)
+                            Button("Play Now", systemImage: "play.fill") { app.playback?.playNow(row.id) }.buttonStyle(.borderedProminent)
                             if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
                         }.font(.subheadline)
                         Divider()
@@ -62,81 +64,4 @@ struct EpisodeInspector: SwiftUI.View {
     }
 }
 
-struct PlayerBar: SwiftUI.View {
-    let player: PlayerPresentation
-    let openPlaylist: () -> Void
-    var body: some SwiftUI.View {
-        VStack(spacing: 0) {
-            Divider()
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 18) {
-                    transport
-                    position.frame(minWidth: 220, maxWidth: .infinity)
-                    extras
-                }
-                VStack(spacing: 10) {
-                    HStack(alignment: .center, spacing: 14) { transport; position }
-                    extras.frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
-            .padding(.horizontal, 18).padding(.vertical, 14)
-            .frame(minHeight: 92)
-        }
-        .background(.bar)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Player, paused")
-    }
-    private var transport: some SwiftUI.View {
-        HStack(spacing: 10) {
-            ArtworkView(url: player.artworkURL, title: player.row.podcast, size: 48)
-            playbackButton("Back 15 seconds", symbol: "gobackward.15")
-            playbackButton("Play", symbol: "play.fill")
-            playbackButton("Forward 30 seconds", symbol: "goforward.30")
-        }
-    }
-    private func playbackButton(_ label: String, symbol: String) -> some SwiftUI.View {
-        Button(label, systemImage: symbol) {}.labelStyle(.iconOnly)
-            .buttonStyle(.borderless).font(.title3).frame(width: 30, height: 34)
-            .disabled(true).help("Playback comes later").accessibilityLabel(label + ", playback comes later")
-    }
-    private var position: some SwiftUI.View {
-        VStack(alignment: .center, spacing: 5) {
-            ForEach(Array(player.headingLines.enumerated()), id: \.offset) { index, text in
-                Text(text)
-                    .font(index == 0 ? .headline : .caption)
-                    .foregroundStyle(index == 0 ? Color.primary : Color.secondary)
-                    .lineLimit(1).truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .multilineTextAlignment(.center).help(text)
-                    .accessibilitySortPriority(Double(2 - index))
-            }
-            HStack(spacing: 10) {
-                Text(player.elapsed)
-                    .accessibilityHidden(true)
-                Slider(value: .constant(player.fraction), in: 0...1)
-                    .disabled(true).controlSize(.mini).help("Playback comes later")
-                    .accessibilityLabel("Position").accessibilityValue("\(player.elapsed) elapsed, \(player.remaining) remaining")
-                Text(player.remaining)
-                    .accessibilityHidden(true)
-            }.font(.caption2).foregroundStyle(.secondary).monospacedDigit()
-        }
-        .accessibilityElement(children: .contain)
-    }
-    private var extras: some SwiftUI.View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Speed \(player.speed.formatted())×")
-                Text("Sleep Off").foregroundStyle(.secondary)
-            }.font(.caption).help("Playback comes later")
-            Button(action: openPlaylist) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(player.playlistName, systemImage: "music.note.list").lineLimit(1)
-                    Text("\(player.entriesAfter) after current").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: 170, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open Active Playlist, " + player.queueText)
-        }
-    }
-}
 #endif

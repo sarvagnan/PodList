@@ -27,6 +27,18 @@ Left to right: **Artwork · back 15 · Play/Pause · forward 30**, then the midd
 
 The middle is three centred lines (owner, 11 Nov 2026): the **Episode name** on top (truncated with an ellipsis only if it doesn't fit the full middle width), the **podcast name** below it in secondary text, then the **seek bar** with elapsed and remaining time. Clicking the artwork opens Now Playing. Media keys and the system Now Playing widget control playback.
 
+Milestone 3 decision (11 Nov 2026): **Now Playing is a sheet**, opened from the player Artwork
+or Controls menu. It shows large resolved Artwork, Episode and podcast names, the current
+Chapter, larger transport controls, a scrubbable seek bar with Chapter ticks, Speed and Sleep
+menus, previous/next Chapter and a Chapter list. Done/Escape dismisses it without pausing.
+Open Active Playlist dismisses the sheet and navigates the owning window. The player middle
+keeps exactly the three centred lines above. Chapter Artwork overrides Episode, then podcast.
+
+Downloads appear as a down-arrow in Episode lists and with progress/cancel/retry/remove actions
+in the Inspector. A Subscription's Episode list has this Device's Download Rule and optional
+All New cap above the table. Closing all windows keeps the app in the Dock and playing;
+explicit Quit flushes local Position/listening before termination.
+
 ## Menus and shortcuts
 
 Native menu bar with the standard App, File, Edit, View, Controls (playback), Window and Help menus; every command reachable from a menu, with the usual shortcuts shown there (⌘N new View/Playlist, ⌘Z / ⇧⌘Z Undo and Redo, Space play/pause, ⌘→ / ⌘← skip, ⌘, Settings, ⌘⌥I Inspector). Settings is the standard Settings window.
