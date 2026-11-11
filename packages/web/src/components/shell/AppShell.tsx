@@ -20,6 +20,7 @@ import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useCanEdit, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { useReplayJournal } from "../../app/journal.ts"
 import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
+import { Automation } from "../../automation/Automation.tsx"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { cameFrom, sectionOf } from "../../lib/cameFrom.ts"
 import { chapterAt, nextChapterStart, previousChapterStart } from "../../lib/chapters.ts"
@@ -872,6 +873,7 @@ export function AppShell() {
       <NowPlayingDrawer />
       <Toasts />
       <UndoShortcut />
+      <Automation />
       <Shortcuts />
       <RestoreDialog />
     </div>

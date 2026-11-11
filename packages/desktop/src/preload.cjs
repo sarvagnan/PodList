@@ -12,6 +12,30 @@ if (location.protocol === "file:") {
 } else if (location.protocol === "app:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
+    automation: {
+      status: () => ipcRenderer.invoke("podlist:automation-status"),
+      setEnabled: (enabled) => ipcRenderer.invoke("podlist:automation-enabled", enabled),
+      onCall: (call) => {
+        const listener = async (_event, id, name, args) => {
+          try {
+            ipcRenderer.send("podlist:automation-reply", id, await call(name, args), null)
+          } catch (error) {
+            ipcRenderer.send(
+              "podlist:automation-reply",
+              id,
+              null,
+              error instanceof Error ? error.message : String(error)
+            )
+          }
+        }
+        ipcRenderer.on("podlist:automation-call", listener)
+        ipcRenderer.send("podlist:automation-ready", true)
+        return () => {
+          ipcRenderer.removeListener("podlist:automation-call", listener)
+          ipcRenderer.send("podlist:automation-ready", false)
+        }
+      }
+    },
     setUndoRedo: (undo, redo, editing) => ipcRenderer.send("podlist:undo-redo", undo, redo, editing)
   })
 }

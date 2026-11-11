@@ -86,9 +86,15 @@ export const undoFor = (
       return restoreEntries(before, after, action.episodeId, at)
     }
     case "Star":
-      return [change({ _tag: "SetStar", episodeId: action.episodeId, starred: !action.starred })]
+      return [
+        change({
+          _tag: "SetStar",
+          episodeId: action.episodeId,
+          starred: before.episodeStates[action.episodeId]?.starred === true
+        })
+      ]
     case "Played":
-      return action.played
+      return before.episodeStates[action.episodeId]?.played == null
         ? [
             change({ _tag: "MarkUnplayed", episodeId: action.episodeId }),
             // Clear on Played took it out of Playlists: put it back as it was.
@@ -99,13 +105,22 @@ export const undoFor = (
               _tag: "MarkPlayed",
               episodeId: action.episodeId,
               source: before.episodeStates[action.episodeId]?.played?.source ?? { _tag: "User" }
-            })
+            }),
+            ...restoreEntries(before, after, action.episodeId, at)
           ]
     case "Remove":
       // Back in its place, with its Position and Cursor.
       return restoreEntries(before, after, action.episodeId, at)
-    case "PlayNow":
-      return []
+    case "PlayNow": {
+      const p = before.playlists.find((p) => p.id === before.activePlaylistId)
+      if (!p) return []
+      return [
+        ...(!p.entries.some((e) => e.episodeId === action.episodeId)
+          ? [change({ _tag: "RemoveEntry", playlistId: p.id, episodeId: action.episodeId })]
+          : restoreEntries(before, after, action.episodeId, at)),
+        change({ _tag: "SetCursor", playlistId: p.id, episodeId: p.cursor })
+      ]
+    }
   }
 }
 

@@ -4,6 +4,17 @@
 declare global {
   interface Window {
     readonly podlistApp?: {
+      readonly automation?: {
+        readonly status: () => Promise<
+          import("../automation/AutomationSettings.tsx").AutomationStatus
+        >
+        readonly setEnabled: (
+          enabled: boolean
+        ) => Promise<import("../automation/AutomationSettings.tsx").AutomationStatus>
+        readonly onCall: (
+          call: (name: string, args: Record<string, unknown>) => Promise<unknown>
+        ) => () => void
+      }
       readonly server: () => Promise<string | null>
       /** Names the steps Edit › Undo and Redo will act on, in the Mac app's menu. */
       readonly setUndoRedo?: (undo: string | null, redo: string | null, editing: boolean) => void

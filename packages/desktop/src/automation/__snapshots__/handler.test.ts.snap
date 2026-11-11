@@ -1,0 +1,221 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Mac-compatible stateless MCP > discovers and lists a deterministic, private five-minute catalog with complete results 1`] = `
+[
+  {
+    "additionalProperties": false,
+    "properties": {
+      "playlist_id": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "episode_ids": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array",
+      },
+      "placement": {
+        "enum": [
+          "next",
+          "last",
+        ],
+        "type": "string",
+      },
+      "playlist_id": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [
+      "episode_ids",
+    ],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "offset": {
+        "maximum": 1000000,
+        "minimum": 0,
+        "type": "integer",
+      },
+      "playlist_id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "view_id": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "offset": {
+        "maximum": 1000000,
+        "minimum": 0,
+        "type": "integer",
+      },
+    },
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "offset": {
+        "maximum": 1000000,
+        "minimum": 0,
+        "type": "integer",
+      },
+    },
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "episode_id": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [
+      "episode_id",
+    ],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "offset": {
+        "maximum": 1000000,
+        "minimum": 0,
+        "type": "integer",
+      },
+      "text": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [
+      "text",
+    ],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "episode_ids": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array",
+      },
+      "played": {
+        "type": "boolean",
+      },
+    },
+    "required": [
+      "episode_ids",
+      "played",
+    ],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {
+      "episode_ids": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array",
+      },
+      "starred": {
+        "type": "boolean",
+      },
+    },
+    "required": [
+      "episode_ids",
+      "starred",
+    ],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object",
+  },
+  {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object",
+  },
+]
+`;

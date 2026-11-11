@@ -5,6 +5,7 @@ import { Schema } from "effect"
 import { useId, useState } from "react"
 import { useAppState } from "../app/hooks.ts"
 import { recordAtom } from "../app/runtime.ts"
+import { AutomationSettings } from "../automation/AutomationSettings.tsx"
 import { LoadingRows } from "../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../components/lists/SettingsRow.tsx"
 import { showGettingStarted } from "../components/shell/FirstRun.tsx"
@@ -178,6 +179,7 @@ function SettingsScreen() {
             </label>
           </div>
         </section>
+        <AutomationSettings />
         <section aria-labelledby={`${id}-help`}>
           <h2 id={`${id}-help`} className={heading}>
             Help

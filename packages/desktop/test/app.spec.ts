@@ -1,8 +1,11 @@
 import { spawn } from "node:child_process"
-import { mkdtempSync } from "node:fs"
+import { once } from "node:events"
+import { existsSync, mkdtempSync } from "node:fs"
 import { createRequire } from "node:module"
+import { connect } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { createInterface } from "node:readline"
 import { _electron as electron, expect, test } from "@playwright/test"
 // @ts-expect-error: a plain .mjs helper shared with the web flow runs
 import { startDemo } from "../../web/ui-flows/demo.mjs"
@@ -28,6 +31,76 @@ test("runs its own copy of the web app, with a local database, and opens offline
     await expect(page.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
     // Synced through the app's pass-through into SQLite on OPFS inside Electron.
     await expect(sidebar.getByRole("link", { name: /^Commute/ })).toBeVisible()
+
+    // Exercise MCP in this existing launch; no extra Electron windows.
+    expect(existsSync(join(profile, "mcp.sock"))).toBe(false)
+    await sidebar.getByRole("link", { name: "Settings", exact: true }).click()
+    const toggle = page.getByRole("checkbox", { name: "Enable MCP server" })
+    await expect(toggle).not.toBeChecked()
+    await expect(
+      page.getByText(
+        "Any app running as this user on this computer can then read the Library and control playback",
+        { exact: true }
+      )
+    ).toBeVisible()
+    await toggle.check()
+    await expect(page.getByRole("button", { name: "Copy configuration" })).toBeVisible()
+    const config = await page.evaluate(
+      async () =>
+        JSON.parse(
+          (
+            await (
+              globalThis as {
+                podlistApp?: { automation?: { status: () => Promise<{ configuration: string }> } }
+              }
+            ).podlistApp?.automation?.status()
+          )?.configuration ?? "{}"
+        ).mcpServers.podlist
+    )
+    expect(Object.keys(config).sort()).toEqual(["args", "command"])
+    const socket = connect(config.args[1])
+    socket.on("error", () => {})
+    await once(socket, "connect")
+    const lines = createInterface({ input: socket })
+    const mcp = async (name: string, args: Record<string, unknown> = {}) => {
+      const response = once(lines, "line")
+      socket.write(
+        `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} }, name, arguments: args } })}\n`
+      )
+      return JSON.parse((await response)[0]).result
+    }
+    expect((await mcp("list_playlists")).structuredContent.playlists).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Commute" })])
+    )
+    const episodes = (await mcp("list_episodes", { playlist_id: "default" })).structuredContent
+      .episodes
+    const changed = await mcp("set_starred", { episode_ids: [episodes[0].id], starred: true })
+    expect(changed.structuredContent.undo).toBe("Undo Star")
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ Menu }) =>
+            Menu.getApplicationMenu()?.items.find((item) => item.label === "Edit")?.submenu
+              ?.items[0]?.label
+        )
+      )
+      .toBe("Undo “Star”")
+    await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu()
+        ?.items.find((item) => item.label === "Edit")
+        ?.submenu?.items[0]?.click()
+    )
+    await expect
+      .poll(
+        async () =>
+          (await mcp("list_episodes", { playlist_id: "default" })).structuredContent.episodes[0]
+            .starred
+      )
+      .toBe(episodes[0].starred)
+    const closed = once(socket, "close")
+    await toggle.uncheck()
+    await closed
+    expect(existsSync(join(profile, "mcp.sock"))).toBe(false)
 
     // Audio streams directly from the podcast host.
     await sidebar.getByRole("link", { name: /^Default/ }).click()

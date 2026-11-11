@@ -60,3 +60,46 @@ The original paragraphs above are retained as the selected web presentation, inc
 The historical “Not yet designed” line is retained above so the split loses no decision. Global Playback Settings now exists in `packages/web/src/routes/settings.tsx`, including Speed, Skip intro, Skip outro and Volume boost; that part of the note is stale. Dark theme remains an open web design item; native dark mode is already required by the platform plan. The drawer’s “Queue” label is retained as historical web wording; its domain object is the Active Playlist’s Entries. Swipe-down dismissal is still qualified in the original decision; it must not be inferred to be an implemented native gesture.
 
 Inter and Space Grotesk, a light appearance and the dark player remain web choices, as recorded in the platform plan.
+
+## Electron automation
+
+The owner settled these choices on 11 Nov 2026. The Mac app is the reference.
+Electron Settings has an Automation section. Enable MCP server is off by default.
+The setting stays in this computer's app config. It is not part of Library State or sync.
+The warning says: “Any app running as this user on this computer can then read the Library and control playback”.
+When enabled, the section shows the bridge command and a copyable MCP client config.
+The config contains `command` and `args` only. Open PodList before starting a client.
+
+Turning MCP on starts the listener immediately. Turning it off closes connections and
+removes the endpoint. Closing the window while MCP is enabled hides it and keeps the
+Library and player alive. Reopening PodList shows that window. Quit stops MCP and keeps
+the preference for next time. A disabled launch removes stale sockets without taking
+another instance's lock. No TCP port is opened.
+
+macOS and Linux use `mcp.sock` in Electron's user-data directory. That directory has
+mode 0700 and the socket has mode 0600. The listener and bridge check peer user ids.
+A file lock prevents two listeners from replacing one another. Windows uses a local
+named pipe with a protected DACL granting access only to the current token's user SID.
+The pipe rejects remote clients. Its name is derived from the user-data directory.
+
+Each package includes a native `podlist-mcp` executable, or `podlist-mcp.exe` on Windows,
+in Electron's resources directory. It is both the transport helper and the stdio bridge.
+It needs no separate Node installation. Settings supplies `--socket` and the endpoint.
+The bridge reserves stdout for newline-delimited JSON-RPC and sends diagnostics to stderr.
+It explains when the app is not running or MCP is off, and when PodList closes the connection.
+The development bridge is built by `pnpm --filter @podlist/desktop build:mcp`.
+Packaging builds it for the host OS and architecture with C++17. Windows uses MSVC
+and a static C runtime. macOS and Linux use the platform C++ compiler. Cross-compilation
+is not supported. `build:app` packages the host platform; `--install` is macOS only.
+
+The 15 tool names, descriptions, input schemas and result shapes match the Mac.
+Only stateless MCP 2026-07-28 is supported. Every request carries protocol version and
+client capabilities in `_meta`. Discovery and the name-sorted catalog use a five-minute
+private cache hint. Results have `resultType: "complete"`. `initialize` and other versions
+receive error -32022 with the sole supported version. There is no ping handler.
+
+Actions use the renderer's existing local DataLayer and Playback controller. They work
+with the cached Library while the server is offline. Edits enter the same named Undo
+history as UI edits, including Play Now. Agents cannot change connections, Empty Trash,
+Delete Playlist or Unsubscribe. Lists use the UI's View and text matching rules, preserve
+Playlist Entry order and Positions, and return up to 200 rows per page, 100 by default.
