@@ -301,7 +301,10 @@ test("an OPML file can be dropped on Add podcasts, and a stray drop is refused",
       new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true })
     )
   })
-  await expect(sheet.getByText(/Added 0|couldn’t be read/).first()).toBeVisible({ timeout: 20_000 })
+  await expect(sheet.getByText("subs.opml: 1 podcasts; 0 already in the Library.")).toBeVisible()
+  await expect(sheet.getByRole("button", { name: "Import", exact: true })).toBeVisible()
+  await sheet.getByRole("button", { name: "Import", exact: true }).click()
+  await expect(sheet.getByText(/Failed:/).first()).toBeVisible({ timeout: 20_000 })
   // The app's own button opens the picker; the browser's "No file selected" text isn't shown.
   await expect(sheet.getByText("No file selected", { exact: false })).toHaveCount(0)
   const chooser = page.waitForEvent("filechooser")
@@ -313,5 +316,107 @@ test("an OPML file can be dropped on Add podcasts, and a stray drop is refused",
       '<?xml version="1.0"?><opml version="2.0"><head/><body><outline type="rss" text="Nothing" xmlUrl="http://127.0.0.1:1/other.xml"/></body></opml>'
     )
   })
-  await expect(sheet.getByText(/other\.xml/).first()).toBeVisible({ timeout: 20_000 })
+  await expect(sheet.getByText("more.opml: 1 podcasts; 0 already in the Library.")).toBeVisible()
+  await sheet.getByRole("button", { name: "Import", exact: true }).click()
+  await expect(sheet.getByText(/Failed:/).first()).toBeVisible({ timeout: 20_000 })
+})
+
+test("OPML confirmation, progress after Close, retry and duplicate skipping share Settings flow", async ({
+  page
+}) => {
+  const subscriptions = (await (await fetch(`${demo.base}/api/subscriptions`)).json()) as Array<{
+    id: string
+    feedUrl: string
+    title: string
+  }>
+  const [known, good, bad] = subscriptions
+  if (!known || !good || !bad) throw new Error("Expected three fixture podcasts")
+  for (const sub of [good, bad])
+    await fetch(`${demo.base}/api/subscriptions/${sub.id}`, { method: "DELETE" })
+  const xml = `<opml><body>${[known, good, bad, good].map((s) => `<outline text="${s.title}" xmlUrl="${s.feedUrl}"/>`).join("")}</body></opml>`
+  let requests = 0
+  let fail = true
+  const blocked = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  await page.route("**/api/subscriptions", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue()
+      return
+    }
+    requests++
+    const feed = route.request().postDataJSON().feedUrl
+    if (feed === good.feedUrl) {
+      blocked.resolve()
+      await release.promise
+    }
+    if (feed === bad.feedUrl && fail) await route.abort()
+    else await route.continue()
+  })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("button", { name: "Add podcasts" }).click()
+  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
+  await sheet.getByRole("button", { name: "OPML file", exact: true }).click()
+  const select = () =>
+    sheet
+      .locator('input[type="file"]')
+      .setInputFiles({ name: "Library.opml", mimeType: "text/xml", buffer: Buffer.from(xml) })
+  await select()
+  await expect(sheet.getByText("Library.opml: 3 podcasts; 1 already in the Library.")).toBeVisible()
+  expect(requests).toBe(0)
+  await sheet.getByRole("button", { name: "Cancel", exact: true }).click()
+  await expect(sheet.getByRole("button", { name: "Import", exact: true })).toHaveCount(0)
+  await select()
+  await sheet.getByRole("button", { name: "Import", exact: true }).click()
+  await blocked.promise
+  try {
+    await expect(sheet.getByRole("status")).toContainText("Importing 1 of 3")
+    await sheet.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(sheet).toBeHidden()
+    const progress = page.getByRole("region", { name: "OPML import progress" })
+    await expect(progress.getByRole("status")).toContainText("Importing 1 of 3")
+    expect(
+      await page.evaluate(() => {
+        const event = new Event("beforeunload", { cancelable: true })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      })
+    ).toBe(true)
+    release.resolve()
+    await expect(progress.getByRole("status")).toContainText("Imported 3 of 3")
+    await expect(progress.getByText(/Already in the Library/).last()).toBeVisible()
+    await expect(progress.getByText(/Failed:/)).toBeVisible()
+    expect(requests).toBe(2)
+    fail = false
+    // Navigating away retains both the job and its per-podcast results.
+    await page
+      .getByRole("navigation", { name: "Library and lists" })
+      .getByRole("link", { name: "Settings" })
+      .click()
+    await page.getByRole("button", { name: "Retry failed imports" }).click()
+    await expect(
+      page.getByRole("region", { name: "OPML import progress" }).getByText(/Failed:/)
+    ).toHaveCount(0)
+    await expect(page.getByRole("status")).toContainText("Imported 3 of 3")
+    expect(requests).toBe(3)
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles({ name: "Library.opml", mimeType: "text/xml", buffer: Buffer.from(xml) })
+    await expect(
+      page.getByText("Library.opml: 3 podcasts; 3 already in the Library.")
+    ).toBeVisible()
+    await page.getByRole("button", { name: "Import", exact: true }).click()
+    await expect(page.getByRole("status")).toContainText("Imported 3 of 3")
+    expect(requests).toBe(3)
+  } finally {
+    release.resolve()
+  }
+})
+
+test("unreadable OPML has a reason and no Import button", async ({ page }) => {
+  await page.goto(`${demo.base}/settings`)
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "Broken.opml", mimeType: "text/xml", buffer: Buffer.from("<broken>") })
+  await expect(page.getByRole("alert")).toContainText("not valid OPML")
+  await expect(page.getByRole("button", { name: "Import", exact: true })).toHaveCount(0)
 })

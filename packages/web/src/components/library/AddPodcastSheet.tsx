@@ -4,24 +4,17 @@ import type { Directory } from "@podlist/api"
 import { Cause, Exit } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { Check, X } from "lucide-react"
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState
-} from "react"
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
 import { useCanEdit } from "../../app/hooks.ts"
-import { directorySearchAtom, importOpmlAtom, subscribeAtom } from "../../app/library.ts"
+import { directorySearchAtom, subscribeAtom } from "../../app/library.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { serverNeeded } from "../../lib/connectionMessage.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
+import { OpmlFlow } from "./OpmlFlow.tsx"
 
 // Add podcasts (docs/design/ui-layout.md › Library): Search through Podcast Index, a feed
 // address resolved directly, or an OPML file from another app.
@@ -349,116 +342,6 @@ function AddressTab({
   )
 }
 
-function OpmlTab() {
-  const canEdit = useCanEdit()
-  const id = useId()
-  const saved = useContext(DraftSaved)
-  const importOpml = useAtomSet(importOpmlAtom, { mode: "promiseExit" })
-  const [summary, setSummary] = useState<ReactNode>(null)
-  const [busy, setBusy] = useState(false)
-  // A file held over the drop area (DRAG-01).
-  const [over, setOver] = useState(false)
-  const importFile = async (file: File) => {
-    if (!canEdit) return
-    setBusy(true)
-    setSummary("Importing…")
-    const exit = await importOpml(await file.text())
-    setBusy(false)
-    if (Exit.isFailure(exit)) {
-      setSummary(<span className="text-destructive">{messageOf(exit)}</span>)
-      return
-    }
-    saved()
-    const { added, alreadySubscribed, failed } = exit.value
-    setSummary(
-      <>
-        <span className="block">
-          Added {added}
-          {alreadySubscribed > 0 ? `; ${alreadySubscribed} already subscribed` : ""}.
-        </span>
-        {failed.length > 0 && (
-          <span className="mt-1 block text-destructive">
-            {failed.length} couldn’t be read: {failed.map((f) => f.feedUrl).join(", ")}
-          </span>
-        )}
-      </>
-    )
-  }
-  const holdsFile = (event: React.DragEvent) => event.dataTransfer.types.includes("Files")
-  const fileInput = useRef<HTMLInputElement>(null)
-  return (
-    <div>
-      <label htmlFor={`${id}-file`} className="text-row font-medium">
-        OPML file
-      </label>
-      <p className="mt-0.5 text-small text-muted-foreground">
-        Export it from your other podcast app; every podcast in it is subscribed.
-      </p>
-      {/* Drop the file here, or choose it: the area takes a file dragged from the Finder or
-          the desktop, and shows it will. */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: a pointer-only drop area; the file field inside it is the keyboard's way in. */}
-      <div
-        data-file-drop=""
-        onDragEnter={(event) => {
-          if (holdsFile(event)) setOver(true)
-        }}
-        onDragOver={(event) => {
-          if (!holdsFile(event)) return
-          event.preventDefault()
-          event.dataTransfer.dropEffect = busy ? "none" : "copy"
-        }}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false)
-        }}
-        onDrop={(event) => {
-          event.preventDefault()
-          setOver(false)
-          const file = event.dataTransfer.files[0]
-          if (file !== undefined && !busy) void importFile(file)
-        }}
-        className={`mt-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors motion-reduce:transition-none ${over ? "border-primary bg-accent" : "border-input"}`}
-      >
-        <p className="text-row font-medium">{over ? "Drop to import" : "Drop an OPML file here"}</p>
-        <p className="mt-0.5 text-small text-muted-foreground">or</p>
-        {/* PodList's own button opens the picker: the browser's file field puts its
-            "No file selected" text beside the button. Importing starts as soon as a file
-            is chosen, and the result shows below, so no file name is shown. */}
-        <button
-          type="button"
-          disabled={!canEdit}
-          aria-disabled={busy}
-          onClick={() => {
-            if (!busy) fileInput.current?.click()
-          }}
-          className="mx-auto mt-2 flex h-10 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input disabled:opacity-50"
-        >
-          Choose a file…
-        </button>
-        <input
-          ref={fileInput}
-          tabIndex={-1}
-          id={`${id}-file`}
-          type="file"
-          disabled={!canEdit}
-          accept=".opml,.xml,text/xml,text/x-opml,application/xml"
-          aria-disabled={busy}
-          onClick={(event) => {
-            if (busy) event.preventDefault()
-          }}
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            if (file !== undefined) void importFile(file)
-          }}
-          className="sr-only"
-        />
-      </div>
-      <p aria-live="polite" className="mt-3 text-row">
-        {summary}
-      </p>
-    </div>
-  )
-}
-
 export function AddPodcastSheet({
   open,
   onOpenChange
@@ -538,7 +421,7 @@ export function AddPodcastSheet({
               ) : tab === "address" ? (
                 <AddressTab text={draft.address} setText={(address) => update({ address })} />
               ) : (
-                <OpmlTab />
+                <OpmlFlow />
               )}
             </div>
             <DraftNotice unsaved={unsaved} retry={retry} />

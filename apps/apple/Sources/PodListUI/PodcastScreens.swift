@@ -31,6 +31,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                     .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
                 Button("Search") { search() }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            Text("OPML import is in Settings. Closing Add podcasts does not stop an import; progress stays in Library.").font(.caption).foregroundStyle(.secondary)
             if loading { ProgressView("Finding podcasts…") }
             if let error { Text(error).foregroundStyle(.red); Button("Try again") { search() } }
             if searched && !loading && results.isEmpty && error == nil { Text("No podcasts found. Try a name or a feed address.") }

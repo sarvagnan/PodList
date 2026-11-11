@@ -244,3 +244,11 @@ Protocol references: [versioning](https://modelcontextprotocol.io/specification/
 [stdio](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio),
 [discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) and
 [schema](https://modelcontextprotocol.io/specification/2026-07-28/schema).
+
+## OPML import (12 Nov 2026)
+
+Choose or drop a file to select it. Show its name, podcast count and how many are already in the Library. Allow another file or Cancel. Show unreadable-file errors without Import. Import starts only after pressing Import.
+
+Show “Importing 12 of 40” and each podcast’s result: Added, Already in the Library, or Failed with a reason. Retry failed podcasts. Skip duplicates. Import and export live in Settings.
+
+Closing Add podcasts or leaving Settings does not stop importing. Keep progress visible in Library, with access to results and retry. Say to keep the app running. Save confirmed work locally. Resume unfinished imports on next launch, skipping podcasts already in the Library.

@@ -41,7 +41,7 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         if (reveal != null && reveal!!.token != revealed && reveal!!.route == "settings") {
             val key = reveal!!.key
             val index = if (key in playbackKeys) playbackKeys.indexOf(key) + 2 else {
-                val retentionIndex = 10 + (if (busy) 1 else 0) +
+                val retentionIndex = 11 + (if (opml.selection != null) 1 else 0) + (if (opml.progress != null) 1 else 0) + (if (busy) 1 else 0) +
                     (if (!busy && opml.progress?.remaining?.isNotEmpty() == true) 1 else 0) +
                     (if (error != null) 1 else 0) + (if (summary != null) 1 else 0)
                 if (key == SettingKey.TrashRetention) retentionIndex else retentionIndex + 2
@@ -60,8 +60,17 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
         item { Section(stringResource(R.string.m4_your_podcasts)) }
         item { ValueRow(stringResource(R.string.m4_import_opml), stringResource(R.string.m4_import_help), enabled = !busy) { picker.launch(arrayOf("text/*", "application/xml", "application/octet-stream")) } }
         item { ValueRow(stringResource(R.string.m4_export_opml), stringResource(R.string.m4_export_help), enabled = !busy) { export.launch("podlist-subscriptions.opml") } }
+        item { Hint(stringResource(R.string.opml_lifecycle)) }
+        opml.selection?.let { selection -> item {
+            Column(Modifier.padding(16.dp)) {
+                Text(stringResource(R.string.opml_preview, selection.name, selection.urls.size, selection.existing))
+                ContentTextButton(onClick = actions::confirm, enabled = !busy && selection.urls.isNotEmpty()) { Text(stringResource(R.string.opml_confirm)) }
+                ContentTextButton(onClick = actions::cancelSelection, enabled = !busy) { Text(stringResource(R.string.cancel)) }
+            }
+        } }
         if (busy) item {
             Column(Modifier.padding(16.dp)) {
+                Text(opml.name)
                 val progress = opml.progress
                 if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(R.string.opml_progress)))
                 else {
@@ -75,6 +84,14 @@ internal fun SettingsScreen(data: ScreenData, session: Session, open: (String) -
             Column(Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.import_stopped)); ContentTextButton(onClick = actions::resume) { Text(stringResource(R.string.import_resume)) } }
         }
         if (error != null) item { Column(Modifier.padding(16.dp)) { InlineError(stringResource(error), modifier = Modifier); ContentTextButton(onClick = actions::retry, enabled = !busy) { Text(stringResource(R.string.retry_action)) } } }
+        opml.progress?.results?.let { results -> item {
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                results.forEach { result ->
+                    Text(stringResource(R.string.opml_result, result.feedUrl, result.error?.let { stringResource(R.string.opml_failed, stringResource(lookupErrorResource(it))) }
+                        ?: stringResource(if (result.added) R.string.opml_added else R.string.opml_existing)))
+                }
+            }
+        } }
         summary?.let { result -> item {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.m4_import_summary, pluralStringResource(R.plurals.import_added, result.added, result.added), pluralStringResource(R.plurals.import_existing, result.alreadySubscribed, result.alreadySubscribed), pluralStringResource(R.plurals.import_failed, result.failed.size, result.failed.size)))

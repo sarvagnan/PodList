@@ -142,6 +142,7 @@ public final class ApplicationModel {
             guard generation == token else { return }
             store.currentOrigin = "standalone"
             try await libraryEditing?.initialize()
+            libraryEditing?.resumeImport()
             if automaticSync { requestSync() }
         } catch {
             guard generation == token else { return }
@@ -289,7 +290,7 @@ public final class ApplicationModel {
         } catch { failure = ConnectionValidation.message(for: error) }
         guard generation == token else { return }
         syncing = false; syncError = failure
-        if failure == nil { lastSync = Date(); try? await libraryEditing?.initialize() }
+        if failure == nil { lastSync = Date(); try? await libraryEditing?.initialize(); libraryEditing?.resumeImport() }
     }
 
     nonisolated private static func audioDirectory(_ key: String) throws -> URL {

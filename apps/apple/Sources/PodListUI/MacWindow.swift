@@ -90,7 +90,11 @@ public struct PodListWindow: SwiftUI.View {
                 if let editor = app.libraryEditing {
                     if editor.showGettingStarted, case .view = window.destination { GettingStartedScreen(editor: editor, add: { showAddPodcasts = true }) }
                     LibraryFeedback(editor: editor)
-                    if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
+                    if editor.busy { VStack {
+                        ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)")
+                        Text("Closing Add podcasts does not stop the import. Keep PodList running. Unfinished imports resume on next launch.").font(.caption)
+                        Button("Show import results") { editor.importPresented = true }
+                    } }
                     if !editor.importFailed.isEmpty { Button("Retry failed imports") { Task { await editor.retryImport() } } }
                 } else if let editing = app.editing { EditingFeedback(editing: editing) }
                 if let podcastFeed, let editor = app.libraryEditing {
@@ -141,6 +145,13 @@ public struct PodListWindow: SwiftUI.View {
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }))
+        .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
+            if let editor = app.libraryEditing { VStack(alignment: .leading) {
+                Text("Import OPML").font(.title2).bold()
+                OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
+                Button("Done") { editor.importPresented = false }.keyboardShortcut(.cancelAction)
+            }.padding(24).frame(width: 600) }
+        }
         .sheet(isPresented: $showAddPodcasts) {
             if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { podcastFeed = $0 }) }
         }

@@ -6,6 +6,8 @@ import { useId, useState } from "react"
 import { useAppState } from "../app/hooks.ts"
 import { recordAtom } from "../app/runtime.ts"
 import { AutomationSettings } from "../automation/AutomationSettings.tsx"
+import { ExportOpml } from "../components/library/ExportOpml.tsx"
+import { OpmlFlow } from "../components/library/OpmlFlow.tsx"
 import { LoadingRows } from "../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../components/lists/SettingsRow.tsx"
 import { showGettingStarted } from "../components/shell/FirstRun.tsx"
@@ -178,6 +180,11 @@ function SettingsScreen() {
               </span>
             </label>
           </div>
+        </section>
+        <section aria-label="OPML import and export">
+          <h2 className={heading}>Your podcasts</h2>
+          <OpmlFlow />
+          <ExportOpml />
         </section>
         <AutomationSettings />
         <section aria-labelledby={`${id}-help`}>
