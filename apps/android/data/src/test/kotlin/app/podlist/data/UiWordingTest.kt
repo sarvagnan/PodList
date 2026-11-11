@@ -46,7 +46,7 @@ class UiWordingTest {
 
     @Test fun `duplicate names identify the taken name and restore feedback names both versions`() {
         assertEquals("There’s already a View called Commute.", text("view_name_duplicate").format("Commute"))
-        assertEquals("There’s already a Playlist called Commute.", text("m4_playlist_duplicate").format("Commute"))
+        assertEquals("There’s already a Playlist called “Commute”.", text("m4_playlist_duplicate").format("Commute"))
         val message = text("playlist_restored_as").format("Commute", "Commute 2")
         assertEquals("Restored Playlist “Commute” as “Commute 2”", message)
         assertEquals("Undo: Restored Playlist “Commute” as “Commute 2”", text("undo_specific").format(message))
@@ -76,7 +76,7 @@ class UiWordingTest {
         assertEquals(text("connect_to_server"), text("connect_title"))
         assertEquals("Playback Settings", text("playback_settings"))
         assertEquals("Playback Settings", text("m4_playback_overrides"))
-        assertEquals("Settings for Commute", text("playlist_settings_for").format("Commute"))
+        assertEquals("Settings for “Commute”", text("playlist_settings_for").format("Commute"))
         assertEquals("Discard draft", text("discard_draft"))
         assertEquals("Cancel", text("cancel"))
         assertFalse(text("connect_help").contains("tailnet"))
@@ -142,7 +142,7 @@ class UiWordingTest {
         assertEquals("Marked “Galaxies” Starred", text("episode_starred").format("Galaxies"))
         assertEquals("Marked “Galaxies” Not Starred", text("episode_unstarred").format("Galaxies"))
         assertEquals("Unsubscribed from Deep Field", text("unsubscribed_message").format("Deep Field"))
-        assertEquals("Moved “Galaxies” in Commute", text("entry_moved").format("Galaxies", "Commute"))
+        assertEquals("Moved “Galaxies” in “Commute”", text("entry_moved").format("Galaxies", "Commute"))
         assertEquals("Select all", text("select_all"))
         assertEquals("Select none", text("select_none"))
         assertTrue(text("clear_on_played_on_help").contains("already Played"))
@@ -150,7 +150,7 @@ class UiWordingTest {
     }
 
     @Test fun `diagnostics and the owner fixed Trash message keep bare names`() {
-        listOf("view_name_duplicate", "m4_playlist_duplicate", "m4_playlist_deleted", "subscribe_failed_named", "setting_for").forEach { key ->
+        listOf("view_name_duplicate", "m4_playlist_deleted", "subscribe_failed_named", "setting_for").forEach { key ->
             assertFalse(text(key).contains("“"), key)
             assertFalse(text(key).contains("”"), key)
         }
@@ -185,14 +185,24 @@ class UiWordingTest {
         val plurals = resources.getElementsByTagName("plurals")
         val entries = (0 until plurals.length).map { plurals.item(it) as Element }
             .single { it.getAttribute("name") == "entries_added_to_playlist" }.getElementsByTagName("item")
-        assertEquals("Added 1 Entry to Commute", entries.item(0).textContent.format(1, "Commute"))
-        assertEquals("Added 3 Entries to Commute", entries.item(1).textContent.format(3, "Commute"))
+        assertEquals("Added 1 Entry to “Commute”", entries.item(0).textContent.format(1, "Commute"))
+        assertEquals("Added 3 Entries to “Commute”", entries.item(1).textContent.format(3, "Commute"))
     }
 
     @Test fun `history feedback always carries the original named action`() {
-        assertEquals("Undid: Marked “100% listening” Starred", text("edit_undone_specific").format(text("episode_starred").format("100% listening")))
+        assertEquals("Undone: Marked “100% listening” Starred", text("edit_undone_specific").format(text("episode_starred").format("100% listening")))
         assertEquals("Redid: Created View “Walk”", text("edit_redone_specific").format(text("view_created").format("Walk")))
         assertEquals("Speed 1.0×", text("speed_accessibility").format("1.0×"))
+    }
+
+    @Test fun `draft discard and incomplete rename explain the available recovery`() {
+        assertEquals("Draft discarded", text("draft_discarded"))
+        assertEquals("Save or cancel the name first", text("finish_rename_first"))
+        assertTrue(text("podcast_search_help").contains("name or feed address"))
+        assertTrue(text("podcast_search_help").contains("https://"))
+        assertTrue(text("offline").startsWith("Server unreachable."))
+        assertTrue(text("sync_signed_out").startsWith("Signed out"))
+        assertTrue(text("sync_server_error").contains("server"))
     }
 
     @Test fun `OPML failures distinguish access size format connection and destination`() {
@@ -224,7 +234,7 @@ class UiWordingTest {
     @Test fun `compact labels preserve the full domain command for accessibility`() {
         assertEquals("Add", text("add"))
         assertEquals("Add to a Playlist", text("add_to_playlist"))
-        assertEquals("Timeline", text("timeline_tab"))
+        assertEquals("Listening Timeline", text("timeline_tab"))
         assertEquals("Listening Timeline", text("timeline"))
         assertEquals("For example, https://podlist.example", text("server_example"))
         assertEquals("Subscribed to Deep Field. Activate to show Unsubscribe.", text("podcast_subscribed_unsubscribe").format("Deep Field"))

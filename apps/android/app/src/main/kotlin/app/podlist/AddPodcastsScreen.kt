@@ -87,7 +87,7 @@ internal fun AddPodcastsScreen(model: AppModel, session: Session, open: (String)
                 var fieldValue by rememberFieldValue(input)
                 OutlinedTextField(fieldValue, onValueChange = { cancelSearch(); fieldValue = it; input = it.text; error = null }, label = { Text(stringResource(R.string.podcast_name_address)) },
                     singleLine = true, isError = error != null,
-                    supportingText = error?.let { message -> ({ InlineError(stringResource(message)) }) }, trailingIcon = {
+                    supportingText = { if (error != null) InlineError(stringResource(error!!)) else Text(stringResource(R.string.podcast_search_help)) }, trailingIcon = {
                         Row {
                             SearchClearButton(input) { cancelSearch(); input = ""; error = null }
                             ActionIcon(R.drawable.ic_search, stringResource(R.string.find_podcasts), enabled = input.isNotBlank() && !busy) { find() }

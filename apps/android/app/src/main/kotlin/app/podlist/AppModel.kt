@@ -86,6 +86,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun speed(value: Float) = withPlayback { it.speed(value) }
     fun sleep(timer: SleepTimer?) = withPlayback { it.sleep(timer) }
     fun flushPlayback() { playbackHost?.flush() }
+    internal val restorePlaylistDraft = MutableStateFlow<OneShotEvent<List<String>>?>(null)
     internal val reveal = MutableStateFlow<OneShotEvent<Reveal>?>(null)
     internal val settingReveal = MutableStateFlow<SettingReveal?>(null)
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
@@ -151,15 +152,44 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     private val deviceSettings = DeviceSettingsStore(File(application.filesDir, "device-settings.properties"))
     private val serverDraftWriter = app.podlist.data.DraftWriteBuffer { batch ->
         batch["address"]?.let { deviceSettings.serverAddressDraft = it }
+        batch["selection"]?.let { deviceSettings.serverAddressSelection = it }
     }
     fun flushDrafts() { serverDraftWriter.flush(); flushFormDrafts?.invoke() }
     private val _serverAddressDraft = MutableStateFlow(deviceSettings.serverAddressDraft)
     val serverAddressDraft = _serverAddressDraft.asStateFlow()
+    internal val serverAddressSelection = MutableStateFlow(deviceSettings.serverAddressSelection)
+    fun setServerAddressSelection(value: String) { serverAddressSelection.value = value; serverDraftWriter.put("selection", value) }
+    private fun replaceServerDraft(next: app.podlist.data.ServerDraft): app.podlist.data.ServerDraft {
+        serverDraftWriter.flush()
+        val before = deviceSettings.replaceServerDraft(next)
+        serverAddressSelection.value = next.selection
+        _serverAddressDraft.value = next.address
+        connectionError.value = null
+        return before
+    }
+    private fun serverDraftStep(snapshot: app.podlist.data.ServerDraft): ReversibleEdit = ReversibleEdit {
+        val before = replaceServerDraft(snapshot)
+        requestReveal(Reveal("server"))
+        serverDraftStep(before)
+    }
+    /** Before first connection there is no Library history; the form owns that snackbar's Undo. */
+    fun discardServerDraft(): (() -> Unit)? {
+        val before = replaceServerDraft(app.podlist.data.ServerDraft(null, null))
+        val current = session.value
+        if (current == null) return { replaceServerDraft(before) }
+        recordHistory(current, AppMessage(R.string.draft_discarded), serverDraftStep(before))
+        return null
+    }
     private val _appearance = MutableStateFlow(deviceSettings.appearance)
     val appearance = _appearance.asStateFlow()
 
     fun setServerAddressDraft(value: String?) {
-        if (value == null) { serverDraftWriter.flush(); deviceSettings.serverAddressDraft = null }
+        if (value == null) {
+            serverDraftWriter.flush()
+            deviceSettings.serverAddressDraft = null
+            deviceSettings.serverAddressSelection = null
+            serverAddressSelection.value = null
+        }
         else serverDraftWriter.put("address", value)
         _serverAddressDraft.value = value
     }
@@ -191,6 +221,17 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     val session = _session.asStateFlow()
     val starting = MutableStateFlow(true)
     val status = MutableStateFlow(SyncStatus.Loading)
+    internal val syncFailureResource = MutableStateFlow(R.string.sync_server_error)
+    private fun syncFailed(error: Exception) {
+        syncFailureResource.value = when {
+            error is HttpFailure && error.status in listOf(401, 403) -> R.string.sync_signed_out
+            error is HttpFailure -> R.string.sync_server_error
+            error is SSLException -> R.string.sync_tls_error
+            error is IOException -> R.string.offline
+            else -> R.string.sync_response_error
+        }
+        status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+    }
     val revision = MutableStateFlow(0L)
     val connecting = MutableStateFlow(false)
     val connectionError = MutableStateFlow<ConnectionError?>(null)
@@ -295,7 +336,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             }
         }
         val source = if (address == null) DeviceLibrary(db) else ServerLibrary(db, address, http = flowRunTransport(address)) { error ->
-            status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+            syncFailed(error)
         }
         Session(source, db, withContext(Dispatchers.IO) { db.installation().id }).also { sessions[key] = it }
     }
@@ -379,7 +420,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                     status.value = SyncStatus.Ready
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
-                    status.value = if (address == null) SyncStatus.Ready else if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+                    if (address == null) status.value = SyncStatus.Ready else syncFailed(error)
                     if (_bringOver.value?.job?.let { !it.complete } == true) {
                         withContext(Dispatchers.IO) { next.db.setMeta("bringOverError", "true") }
                         _bringOver.update { it?.copy(error = true) }

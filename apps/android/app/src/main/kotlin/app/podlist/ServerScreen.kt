@@ -12,19 +12,26 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> Unit)? = null) {
     val draft by model.serverAddressDraft.collectAsState()
     val input = draft ?: current.orEmpty()
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val discarded = stringResource(R.string.draft_discarded)
+    val undoLabel = stringResource(R.string.undo)
     val checking by model.connecting.collectAsState()
     val error by model.connectionError.collectAsState()
     DisposableEffect(model) { onDispose { model.flushDrafts() } }
     Column(Modifier.fillMaxSize().imePadding()
         .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
-        var fieldValue by rememberFieldValue(input)
-        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerAddressDraft(it.text); model.connectionError.value = null },
+        var fieldValue by remember { mutableStateOf(TextFieldValue(input, draftSelection(model.serverAddressSelection.value, input.length))) }
+        if (fieldValue.text != input) fieldValue = TextFieldValue(input, draftSelection(model.serverAddressSelection.value, input.length))
+        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerAddressDraft(it.text); model.setServerAddressSelection("${it.selection.start},${it.selection.end}"); model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
             singleLine = true, enabled = !checking, isError = error != null,
             supportingText = { val problem = error; if (problem == null) Text(stringResource(R.string.server_example)) else InlineError(stringResource(when (problem) {
@@ -35,8 +42,14 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
                 ConnectionError.Response -> R.string.response_error
             })) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { if (!checking && input.isNotBlank()) model.connect(input) { connected?.invoke() } }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
-        CommitActions {
-            if (draft != null && draft != current.orEmpty()) TextButton(onClick = { model.setServerAddressDraft(null); model.connectionError.value = null }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
+        if (snackbar.currentSnackbarData != null) FeedbackSnackbarHost(snackbar)
+        CommitActions(gap = 24.dp) {
+            if (draft != null && draft != current.orEmpty()) TextButton(onClick = {
+                val undo = model.discardServerDraft()
+                if (undo != null) scope.launch {
+                    if (snackbar.showSnackbar(discarded, undoLabel, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) undo()
+                }
+            }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.discard_draft))
             }
             CommitButton(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {

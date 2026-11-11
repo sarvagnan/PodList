@@ -321,4 +321,73 @@ class FormDraftStoreTest {
         }
     }
 
+    @Test fun `discard Undo and Redo keep exact View fields conditions and selections durable`() {
+        val file = directory.resolve("discard.sqlite").toString()
+        lateinit var expected: Map<String, String>
+        val id = LocalDatabase(file).use { db ->
+            db.ensureState()
+            val store = FormDraftStore(db)
+            val id = store.pendingNewViewId()
+            val invalid = View(id, "Walk", ViewFilter(text = "  space  ", starred = true, minDuration = 1800.0, maxDuration = 600.0), ViewSort.DurationAsc, 20)
+            store.putAll(mapOf("view:$id/view" to ProtocolJson.encodeToString(invalid), "view:$id/name" to "  Walk  ",
+                "view:$id/name/selection" to "2,6", "view:$id/mentions" to "  space  ",
+                "view:$id/number/Length" to "3,", "view:$id/number/Length/selection" to "1,1",
+                "view:$id/invalid/Length" to "true"))
+            expected = store.load()
+            store.put("unrelated/name", "Keep")
+            val removed = store.replaceDraft(listOf("view:$id/", "new-view/"), emptyMap(), id)
+            assertEquals(expected, removed)
+            assertEquals(mapOf("unrelated/name" to "Keep"), store.load())
+            assertEquals(expected, store.retainedDraft(id)!!.values)
+            assertTrue(db.outbox().isEmpty())
+            id
+        }
+        LocalDatabase(file).use { db ->
+            val store = FormDraftStore(db)
+            val retained = store.retainedDraft(id)!!
+            val redo = store.replaceDraft(retained.prefixes, retained.values, id)
+            assertTrue(redo.isEmpty())
+            assertEquals(expected + ("unrelated/name" to "Keep"), store.load())
+            assertEquals(id, store.pendingNewViewId())
+            store.replaceDraft(retained.prefixes, redo, id)
+            assertEquals(expected, store.retainedDraft(id)!!.values)
+            assertEquals(mapOf("unrelated/name" to "Keep"), store.load())
+            assertTrue(db.loadState().views.isEmpty())
+            assertTrue(db.outbox().isEmpty())
+        }
+    }
+
+    @Test fun `discarding invalid saved View conditions preserves open Rename and the saved View`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            val view = View("walk", "Walk", ViewFilter(starred = true), ViewSort.PublishedDesc, null)
+            db.record(Change.SaveView(view), 100)
+            val store = FormDraftStore(db)
+            store.put("view:walk/number/Length", "oops")
+            store.put("view-rename:walk/name", "  Morning  ")
+            val snapshot = store.replaceDraft(listOf("view:walk/"), emptyMap(), "walk")
+            assertEquals("  Morning  ", store.load()["view-rename:walk/name"])
+            store.replaceDraft(listOf("view:walk/"), snapshot, "walk")
+            assertEquals("oops", store.load()["view:walk/number/Length"])
+            assertEquals(view, db.loadState().views.single())
+        }
+    }
+
+    @Test fun `all Playlist draft discard paths retain fields and selection until Undo restores them`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            val store = FormDraftStore(db)
+            for (prefix in listOf("new-playlist/", "add-playlist:one:two/")) {
+                val expected = mapOf(prefix + "name" to "  Morning  ", prefix + "interacted" to "true", prefix + "name/selection" to "2,9")
+                store.putAll(expected)
+                val snapshot = store.replaceDraft(listOf(prefix), emptyMap(), prefix)
+                assertEquals(expected, store.retainedDraft(prefix)!!.values)
+                assertTrue(store.snapshot(prefix).isEmpty())
+                store.replaceDraft(listOf(prefix), snapshot, prefix)
+                assertEquals(expected, store.snapshot(prefix))
+                assertTrue(db.outbox().isEmpty())
+            }
+        }
+    }
+
 }

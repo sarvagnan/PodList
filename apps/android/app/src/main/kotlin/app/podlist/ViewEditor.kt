@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import kotlinx.serialization.encodeToString
 import androidx.compose.ui.Modifier
@@ -24,8 +23,6 @@ import java.time.ZoneId
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 
 @Composable
 internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: () -> Unit, deleted: () -> Unit) {
@@ -36,11 +33,11 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
     val renamePrefix = "view-rename:${view.id}/"
     val restored = remember(view.id) { drafts.get(draftPrefix + "view")?.let { runCatching { ProtocolJson.decodeFromString<View>(it) }.getOrNull() } ?: view }
     val creating = remember(view.id) { data.state.views.none { it.id == view.id } }
-    var recorded by rememberSaveable(view.id) { mutableStateOf(!creating) }
+    var recorded by remember(view.id) { mutableStateOf(!creating) }
     val initial = remember(view.id) { view }
-    var draft by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(restored) }
-    var saved by rememberSaveable(view.id, stateSaver = Saver<View, String>(save = { ProtocolJson.encodeToString(it) }, restore = { ProtocolJson.decodeFromString(it) })) { mutableStateOf(view) }
-    var podcastMode by rememberSaveable(view.id) { mutableStateOf(restored.filter.podcasts?.mode) }
+    var draft by remember(view.id) { mutableStateOf(restored) }
+    var saved by remember(view.id) { mutableStateOf(view) }
+    var podcastMode by remember(view.id) { mutableStateOf(drafts.get(draftPrefix + "podcast-mode")?.let { raw -> PodcastMode.entries.find { it.name == raw } } ?: restored.filter.podcasts?.mode) }
     val hasInvalidNumber = drafts.hasInvalid(draftPrefix)
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
     val creationName = if (creating) rememberDraftText(draftPrefix + "name", restored.name) else null
@@ -85,6 +82,10 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         }
     }
     fun finish() {
+        if (drafts.get(renamePrefix + "name") != null) {
+            model.messages.trySend(AppMessage(R.string.finish_rename_first))
+            return
+        }
         if (completing || hasInvalidNumber || ViewEdits.problem(draft.filter) != null || hasInvalidName) return
         model.finishTyping()
         drafts.flush()
@@ -106,8 +107,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         LazyColumn(Modifier.weight(1f), state = rememberBrowsingListState(), contentPadding = PaddingValues(bottom = 16.dp)) {
             if (creating) item {
                 var name by creationName!!
-                var input by remember(view.id) { mutableStateOf(TextFieldValue(name, TextRange(name.length))) }
-                LaunchedEffect(name) { if (input.text != name) input = TextFieldValue(name, TextRange(name.length)) }
+                var input by rememberDraftFieldValue(draftPrefix + "name", name)
                 OutlinedTextField(input, { input = it; name = it.text; rejectedName = null; update(draft.copy(name = it.text.trim())) }, label = { Text(stringResource(R.string.m4_name)) }, isError = nameProblem != null, supportingText = nameProblem?.let { error -> ({ InlineError(viewNameProblem(error, name, data.state.views.map { it.name }), Modifier) }) }, modifier = Modifier.fillMaxWidth().padding(16.dp).onFocusChanged { if (!it.isFocused) model.finishTyping() }.then(FocusedInputModifier()), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (problem == null && !hasInvalidNumber && !hasInvalidName) finish() }))
             } else item {
                 RenameableName(saved.name, renamePrefix + "name",
@@ -137,12 +137,17 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
             val fullCount = count?.let { pluralStringResource(R.plurals.m4_matching, it, it) } ?: stringResource(R.string.counting)
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(fullCount, style = MaterialTheme.typography.bodyMedium)
-                CommitActions {
+                CommitActions(gap = 24.dp) {
                     if (creating || problem != null || hasInvalidNumber) TextButton(enabled = !completing, modifier = Modifier.heightIn(min = 48.dp), onClick = {
-                        if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix)
+                        // Retain every raw field before navigating away; Undo reveals this exact editor.
+                        model.finishTyping()
+                        val prefixes = listOf(draftPrefix) + if (creating) listOf("new-view/") else emptyList()
+                        val snapshot = drafts.replaceDraft(prefixes, emptyMap(), view.id)
+                        val route = if (creating) "new-view:${view.id}" else "view-edit:${view.id}"
+                        model.recordHistory(session, AppMessage(R.string.draft_discarded), model.draftStep(drafts, prefixes, snapshot, view.id, restored = { model.requestReveal(Reveal(route)) }, discarded = { model.requestReveal(Reveal(if (creating) "views-root" else "view:${view.id}")) }))
                         done()
                     }) { Text(stringResource(R.string.discard_draft)) }
-                    CommitButton(enabled = drafts.get(renamePrefix + "name") == null && !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
+                    CommitButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
                 }
             }
         }
@@ -162,7 +167,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                     }
                 }
                 1 -> {
-                    ChoiceRows(listOf(null to any, PodcastMode.Include to stringResource(R.string.m4_only_these), PodcastMode.Exclude to stringResource(R.string.m4_except_these)), podcastMode) { mode -> podcastMode = mode; update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(mode, f.podcasts?.subscriptionIds.orEmpty())))) }
+                    ChoiceRows(listOf(null to any, PodcastMode.Include to stringResource(R.string.m4_only_these), PodcastMode.Exclude to stringResource(R.string.m4_except_these)), podcastMode) { mode -> podcastMode = mode; drafts.put(draftPrefix + "podcast-mode", mode?.name.orEmpty()); update(draft.copy(filter = f.copy(podcasts = ViewEdits.podcasts(mode, f.podcasts?.subscriptionIds.orEmpty())))) }
                     val podcasts = f.podcasts
                     val selectedIds = podcasts?.subscriptionIds.orEmpty()
                     if (podcastMode != null) LazyColumn(Modifier.heightIn(max = 280.dp)) { items(data.subscriptions) { sub ->
@@ -171,7 +176,7 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                     } }
                 }
                 2 -> {
-                    var fieldValue by rememberFieldValue(mentions)
+                    var fieldValue by rememberDraftFieldValue(draftPrefix + "mentions", mentions)
                     OutlinedTextField(fieldValue, { fieldValue = it; mentions = it.text; update(draft.copy(filter = f.copy(text = it.text.takeUnless(String::isBlank))), "view-mentions:${view.id}") }, label = { Text(stringResource(R.string.m4_mentions)) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()).onFocusChanged { if (!it.isFocused) model.finishTyping() })
                 }
                 3 -> ChoiceRows(listOf(null to any, PlayedFilter.Unplayed to stringResource(R.string.unplayed), PlayedFilter.InProgress to stringResource(R.string.in_progress_condition), PlayedFilter.Played to stringResource(R.string.played)), f.played) { update(draft.copy(filter = f.copy(played = it))) }

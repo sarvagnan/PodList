@@ -113,9 +113,8 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                     .drawBehind { if (current) drawRect(indicator, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
                     .semantics { if (playlist.cursor == entry.episodeId) stateDescription = currentLabel; if (marked) { stateDescription = movedLabel; liveRegion = LiveRegionMode.Polite } }) {
                     if (drag.source != null && drag.boundary == index) HorizontalDivider(thickness = 3.dp, color = MaterialTheme.colorScheme.primary)
-                    if (playlist.cursor == entry.episodeId) Text(currentLabel, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                     if (row == null) Hint(stringResource(R.string.metadata_pending))
-                    else EpisodeRow(row, data, session, entry.position, playlist.id, rowModifier = Modifier.focusRequester(focus)) { openEpisode(entry.episodeId) }
+                    else EpisodeRow(row, data, session, entry.position, playlist.id, entryLabel = currentLabel.takeIf { current }, rowModifier = Modifier.focusRequester(focus)) { openEpisode(entry.episodeId) }
                     if (drag.source != null && index == playlist.entries.lastIndex && drag.boundary == playlist.entries.size) HorizontalDivider(thickness = 3.dp, color = MaterialTheme.colorScheme.primary)
                 }
             }

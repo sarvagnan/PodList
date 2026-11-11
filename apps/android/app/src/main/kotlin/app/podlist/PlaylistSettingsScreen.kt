@@ -65,7 +65,7 @@ private fun PlaylistName(playlist: Playlist, data: ScreenData) {
 }
 
 @Composable
-internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () -> Unit, created: (String) -> Unit) {
+internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, created: (String) -> Unit) {
     val drafts = LocalFormDrafts.current
     var name by rememberDraftText("new-playlist/name")
     var rejected by remember { mutableStateOf<Names.Problem?>(null) }
@@ -86,10 +86,10 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, discard: () ->
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            var fieldValue by rememberFieldValue(name)
+            var fieldValue by rememberDraftFieldValue("new-playlist/name", name)
             OutlinedTextField(fieldValue, { if (!busy) { fieldValue = it; name = it.text; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, singleLine = true, readOnly = busy, isError = shownProblem != null, supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, data.state.playlists.map { it.name })) }) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
-            CommitActions {
-                if (name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { drafts.clear("new-playlist/"); discard() }) { Text(stringResource(R.string.discard_draft)) }
+            CommitActions(gap = 24.dp) {
+                if (name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !busy, onClick = { model.discardDraft(drafts, "new-playlist/", restored = { model.requestReveal(Reveal("new-playlist")) }, discarded = { model.requestReveal(Reveal("playlists-root")) }) }) { Text(stringResource(R.string.discard_draft)) }
                 CommitButton(enabled = !busy && problem == null, onClick = ::submit) { Text(stringResource(R.string.m4_create_playlist)) }
             }
         }
