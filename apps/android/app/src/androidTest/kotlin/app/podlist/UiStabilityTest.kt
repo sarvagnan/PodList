@@ -185,8 +185,12 @@ class UiStabilityTest {
             compose.waitUntil(10_000) {
                 compose.onAllNodes(hasContentDescription(artwork) and hasClickAction()).fetchSemanticsNodes().size == 1
             }
-            val mainActions = listOf(R.string.m4_search_library, R.string.m4_new_view, R.string.settings).map(resources::getString) +
-                resources.getQuantityString(R.plurals.active_playlist_next, 0, now.activePlaylistName, 0)
+            // The connected shell counts Entries from the session's real Playlist, so read the queue label it shows
+            // and check that it names the Active Playlist, rather than assuming an empty queue.
+            val queueLabel = compose.onAllNodes(hasClickAction(), useUnmergedTree = true).fetchSemanticsNodes()
+                .mapNotNull { it.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull() }
+                .first { it.startsWith("“${now.activePlaylistName}”") }
+            val mainActions = listOf(R.string.m4_search_library, R.string.m4_new_view, R.string.settings).map(resources::getString) + queueLabel
             assertPlatformControls("mini-player", transport + artwork + mainActions)
             compose.runOnIdle { model.playback.value = now.copy(playing = true) }
             assertPlatformControls("mini-player-pause", transport - resources.getString(R.string.play) + resources.getString(R.string.pause) + artwork)
