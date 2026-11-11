@@ -11,6 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
+import android.graphics.Rect
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ApplicationProvider
@@ -22,6 +25,8 @@ import app.podlist.data.*
 import app.podlist.domain.State
 import app.podlist.domain.Entry
 import app.podlist.domain.PlaybackSettingsOverride
+import app.podlist.domain.BrowsingContext
+import app.podlist.domain.SleepTimer
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
@@ -35,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.podlist.data.Appearance
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -109,6 +115,146 @@ class UiStabilityTest {
     }
     @Test fun episodeEntryAndMiniPlayerButtonsStayIndependentInBothTrees() = independentControls(1f)
     @Test fun enlargedEpisodeEntryAndMiniPlayerButtonsStayIndependentInBothTrees() = independentControls(2f)
+
+    @Test fun playerIconNamesBelongToClickablePlatformNodes() = platformPlayerControls(1f)
+    @Test fun enlargedPlayerIconNamesBelongToClickablePlatformNodes() = platformPlayerControls(2f)
+
+    private fun platformPlayerControls(fontScale: Float) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var model: AppModel
+        compose.runOnUiThread {
+            model = ViewModelProvider(models, ViewModelProvider.AndroidViewModelFactory.getInstance(
+                ApplicationProvider.getApplicationContext()))[AppModel::class.java]
+            modelJobs += checkNotNull(model.viewModelScope.coroutineContext[Job])
+        }
+        val session = runBlocking { model.sessionFor(null) }
+        val playlist = State.initial().playlists.single()
+        val metadata = PlaybackMetadata("accessibility-episode", null, "Episode", "Podcast", null,
+            1800.0, null, null, emptyList(), PlaybackSettingsOverride(), null)
+        val now = PlaybackUi(playlist.id, playlist.name, metadata, 60.0, 1800.0, false, 1f, 0, null)
+        // Use the real shell and sheet, but never initialise the process-wide Application model
+        // or start Media3/network playback. FlowRun can still run later in this instrumentation.
+        model.playbackHost = object : PlaybackHost {
+            override fun restore() {}
+            override fun flush() {}
+            override fun close() {}
+            override fun playNow(episode: String) = error("Unexpected playback")
+            override fun playEntry(playlist: String, episode: String) = error("Unexpected playback")
+            override fun switchPlaylist(playlist: String) = error("Unexpected playback")
+            override fun toggle() = error("Unexpected playback")
+            override fun seek(seconds: Double) = error("Unexpected playback")
+            override fun speed(value: Float) = error("Unexpected playback")
+            override fun sleep(timer: SleepTimer?) = error("Unexpected playback")
+            override fun playlistAction(affected: String?, action: suspend () -> Unit) = error("Unexpected playback")
+        }
+        val previousState = session.db.loadState()
+        val previousHidden = session.db.getMeta("gettingStartedHidden")
+        val previousBrowsing = session.db.loadBrowsingContext()
+        // An empty Views root keeps this regression independent of previously created content.
+        session.db.saveState(previousState.copy(views = emptyList()))
+        session.db.setMeta("gettingStartedHidden", "true")
+        session.db.saveBrowsingContext(BrowsingContext())
+        var visible by mutableStateOf(true)
+        try {
+            compose.runOnIdle { model.playback.value = now; model.status.value = SyncStatus.Ready }
+            compose.setContent {
+                if (visible) {
+                    val density = LocalDensity.current
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                        PodListTheme(Appearance.Light) { ConnectedShell(model, session) }
+                    }
+                }
+            }
+            val resources = instrumentation.targetContext.resources
+            val artwork = resources.getString(R.string.open_now_playing, "Podcast", "Episode")
+            val transport = listOf(R.string.back_15, R.string.play, R.string.forward_30).map(resources::getString)
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasContentDescription(artwork) and hasClickAction()).fetchSemanticsNodes().size == 1
+            }
+            val mainActions = listOf(R.string.m4_search_library, R.string.m4_new_view, R.string.settings).map(resources::getString) +
+                resources.getQuantityString(R.plurals.active_playlist_next, 0, now.activePlaylistName, 0)
+            assertPlatformControls("mini-player", transport + artwork + mainActions)
+            compose.runOnIdle { model.playback.value = now.copy(playing = true) }
+            assertPlatformControls("mini-player-pause", transport - resources.getString(R.string.play) + resources.getString(R.string.pause) + artwork)
+            compose.runOnIdle { model.playback.value = now.copy(buffering = true) }
+            assertPlatformControls("mini-player-buffering", transport - resources.getString(R.string.play) + resources.getString(R.string.buffering) + artwork)
+            compose.runOnIdle { model.playback.value = now.copy(error = true) }
+            assertPlatformControls("mini-player-retry", transport - resources.getString(R.string.play) + resources.getString(R.string.retry_playback) + artwork)
+            compose.runOnIdle { model.playback.value = now }
+
+            // A real long press must still show the Material tooltip on the labelled control.
+            compose.onNode(hasContentDescription(transport.first()) and hasClickAction())
+                .performTouchInput { longClick() }
+            compose.onNodeWithText(transport.first()).assertIsDisplayed()
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithText(transport.first()).fetchSemanticsNodes().isEmpty()
+            }
+
+            val miniNodes = assertPlatformControls("mini-player-after-tooltip", transport + artwork)
+            assertTrue(miniNodes.getValue(artwork).performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            val collapse = resources.getString(R.string.collapse_player)
+            compose.onNode(hasContentDescription(collapse) and hasClickAction()).assertIsDisplayed()
+            assertPlatformControls("now-playing", transport + collapse)
+            compose.runOnIdle { model.playback.value = now.copy(playing = true) }
+            assertPlatformControls("now-playing-pause", transport - resources.getString(R.string.play) + resources.getString(R.string.pause) + collapse)
+        } finally {
+            compose.runOnIdle { visible = false }
+            compose.waitForIdle()
+            model.playbackHost = null
+            session.db.saveState(previousState)
+            session.db.setMeta("gettingStartedHidden", previousHidden ?: "false")
+            session.db.saveBrowsingContext(previousBrowsing)
+        }
+    }
+
+    private fun assertPlatformControls(stage: String, iconLabels: List<String>): Map<String, AccessibilityNodeInfo> {
+        compose.waitForIdle()
+        compose.onRoot(useUnmergedTree = true).printToLog("PodListAX-$stage")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.waitForIdleSync()
+        val automation = instrumentation.uiAutomation
+        automation.clearCache()
+        val root = checkNotNull(automation.rootInActiveWindow) { "No active accessibility window" }
+        val nodes = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            nodes += node
+            val bounds = Rect().also(node::getBoundsInScreen)
+            Log.i("PodListAX", "${"  ".repeat(depth)}$stage ${node.className} clickable=${node.isClickable} " +
+                "longClickable=${node.isLongClickable} text=${node.text} description=${node.contentDescription} bounds=$bounds")
+            repeat(node.childCount) { index -> node.getChild(index)?.let { walk(it, depth + 1) } }
+        }
+        fun textButtonChild(node: AccessibilityNodeInfo): Boolean {
+            // Only standard Material text Buttons may speak a Text descendant. Never accept
+            // a descendant contentDescription: that would bless the icon-button regression.
+            // Compose may put the Button role on a synthetic child beside the Text child.
+            val buttonRole = node.className == "android.widget.Button" || (0 until node.childCount).any { index ->
+                node.getChild(index)?.let { !it.isClickable && it.className == "android.widget.Button" } == true
+            }
+            if (!buttonRole) return false
+            fun hasTextChild(parent: AccessibilityNodeInfo): Boolean = (0 until parent.childCount).any { index ->
+                parent.getChild(index)?.let { child ->
+                    !child.isClickable && (!child.text.isNullOrBlank() || hasTextChild(child))
+                } == true
+            }
+            return hasTextChild(node)
+        }
+        walk(root, 0)
+        val appNodes = nodes.filter { it.packageName == instrumentation.targetContext.packageName && it.isVisibleToUser }
+        val unnamed = appNodes.filter { it.isClickable && it.text.isNullOrBlank() &&
+            it.contentDescription.isNullOrBlank() && !textButtonChild(it) }
+        assertTrue("$stage has unnamed clickable platform nodes: $unnamed (see PodListAX log)", unnamed.isEmpty())
+        for (label in iconLabels) {
+            val labelled = appNodes.filter { it.contentDescription?.toString() == label }
+            assertEquals("$stage: one announcement for $label", 1, labelled.size)
+            assertTrue("$stage: $label must label its own clickable node", labelled.single().isClickable)
+            assertEquals("$stage: icon controls must be semantic leaves", 0, labelled.single().childCount)
+            if (label != InstrumentationRegistry.getInstrumentation().targetContext.getString(
+                    R.string.open_now_playing, "Podcast", "Episode")) {
+                assertTrue("$stage: tooltip action belongs to $label", labelled.single().isLongClickable)
+            }
+        }
+        return iconLabels.associateWith { label -> appNodes.single { it.contentDescription?.toString() == label } }
+    }
 
     private fun independentControls(fontScale: Float) {
         // Never initialise the process-wide owner in a component test: FlowRun must still

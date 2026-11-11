@@ -72,7 +72,7 @@ fun PodListShell(model: AppModel) {
 }
 
 @Composable
-private fun ConnectedShell(model: AppModel, session: Session) {
+internal fun ConnectedShell(model: AppModel, session: Session) {
     val restored by produceState<BrowsingState?>(null, session) {
         value = BrowsingState(withContext(Dispatchers.IO) { session.db.loadBrowsingContext() })
     }
@@ -95,6 +95,7 @@ private fun ConnectedShell(model: AppModel, session: Session) {
 
 @Composable
 private fun ConnectedNavigation(model: AppModel, session: Session, browsing: BrowsingState) {
+    val resources = androidx.compose.ui.platform.LocalResources.current
     var destination by rememberSaveable { mutableStateOf(Destination.valueOf(browsing.context.destination)) }
     LaunchedEffect(destination) { browsing.context = browsing.context.copy(destination = destination.name) }
     var collapseNavigation by rememberSaveable { mutableIntStateOf(0) }
@@ -140,10 +141,12 @@ private fun ConnectedNavigation(model: AppModel, session: Session, browsing: Bro
     CompositionLocalProvider(LocalContextualChrome provides chrome) {
         NavigationSuiteScaffold(state = navigation, navigationSuiteItems = {
             Destination.entries.forEach { target ->
+                val label = resources.getString(target.title)
                 item(selected = destination == target, onClick = { if (destination == target) requestedRoot = target; destination = target; collapseNavigation++ },
+                    modifier = Modifier.semantics { text = androidx.compose.ui.text.AnnotatedString(label) },
                     icon = { Icon(painterResource(if (destination == target) target.selectedIcon else target.icon), contentDescription = null) },
                     colors = navigationItemColors,
-                    label = { Text(stringResource(target.title)) })
+                    label = { Text(label, Modifier.clearAndSetSemantics {}) })
             }
         }) {
             PlayerContainer(model, session, openPlaylist = { requestedPlaylist = it; destination = Destination.Playlists }, collapseNavigation = collapseNavigation) {

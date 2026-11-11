@@ -10,6 +10,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
 import app.podlist.domain.NumberInput
@@ -24,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun ValueRow(label: String, value: String, changed: Boolean = false, help: String? = null, enabled: Boolean = true, compact: Boolean = false, onClick: () -> Unit) {
@@ -222,14 +224,43 @@ internal fun FocusedInputModifier(once: Boolean = false): Modifier {
 
 @Composable
 internal fun ActionIcon(icon: Int, label: String, modifier: Modifier = Modifier, enabled: Boolean = true, action: () -> Unit) {
-    TooltipBox(positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above), tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) {
-        IconButton(onClick = action, enabled = enabled, modifier = modifier.size(48.dp).semantics { contentDescription = label }) { Icon(androidx.compose.ui.res.painterResource(icon), null) }
+    ActionTooltip(label) {
+        IconButton(onClick = action, enabled = enabled, modifier = modifier.size(48.dp).iconControlSemantics(label, enabled, action)) { Icon(androidx.compose.ui.res.painterResource(icon), null) }
+    }
+}
+
+private val LocalActionTooltip = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/** A platform semantic leaf, even when decorative content contains Text/progress semantics.
+ * Compose's Android bridge moves descriptions onto synthetic children of merging nodes.
+ * Clearing here prevents those children; restore the real button's actions and focus state
+ * because Material appends its clickable/focus semantics after the caller's modifier.
+ */
+@Composable
+internal fun Modifier.iconControlSemantics(label: String, enabled: Boolean = true, action: () -> Unit): Modifier {
+    val focus = remember { FocusRequester() }
+    var isFocused by remember { mutableStateOf(false) }
+    val tooltip = LocalActionTooltip.current
+    return focusRequester(focus).onFocusChanged { isFocused = it.isFocused }.clearAndSetSemantics {
+        contentDescription = label
+        role = Role.Button
+        if (enabled) {
+            focused = isFocused
+            requestFocus { focus.requestFocus() }
+        } else disabled()
+        onClick { if (enabled) action(); enabled }
+        if (enabled && tooltip != null) onLongClick { tooltip(); true }
     }
 }
 
 @Composable
 internal fun ActionTooltip(label: String, content: @Composable () -> Unit) {
-    TooltipBox(positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above), tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) { content() }
+    val state = rememberTooltipState()
+    val scope = rememberCoroutineScope()
+    val showTooltip: () -> Unit = { scope.launch { state.show() } }
+    TooltipBox(positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above), tooltip = { PlainTooltip { Text(label) } }, state = state) {
+        CompositionLocalProvider(LocalActionTooltip provides showTooltip) { content() }
+    }
 }
 
 @Composable

@@ -147,14 +147,16 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
 internal fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expand: () -> Unit, openPlaylist: () -> Unit) {
     val accessible = stringResource(R.string.open_now_playing, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
     val progressLabel = stringResource(R.string.playback_position)
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = ripple(), onClickLabel = accessible, onClick = expand).semantics { isTraversalGroup = true }) {
+    // Keep taps on the player background, with one accessible Open Now Playing target.
+    // A clickable parent would merge identity/transport descriptions into another focus stop.
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).pointerInput(expand) { detectTapGestures(onTap = { expand() }) }.semantics { isTraversalGroup = true }) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(48.dp).clickable(onClickLabel = accessible, onClick = expand).semantics { contentDescription = accessible; traversalIndex = 0f }, contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp, placeholderTitle = now.metadata.podcast) }
+            Box(Modifier.size(48.dp).semantics { traversalIndex = 0f }.iconControlSemantics(accessible, action = expand).clickable(onClick = expand), contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp, placeholderTitle = now.metadata.podcast) }
             Row(Modifier.weight(1f).semantics { isTraversalGroup = true; traversalIndex = 1f }, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 SkipButton(false, false) { model.seek(now.position - 15) }
                 val actionLabel = stringResource(if (now.error) R.string.retry_playback else if (now.buffering) R.string.buffering else if (now.playing) R.string.pause else R.string.play)
                 ActionTooltip(actionLabel) {
-                    FilledTonalIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp).semantics { contentDescription = actionLabel }, colors = if (now.error) IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) else IconButtonDefaults.filledTonalIconButtonColors()) {
+                    FilledTonalIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp).iconControlSemantics(actionLabel, action = model::togglePlayback), colors = if (now.error) IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) else IconButtonDefaults.filledTonalIconButtonColors()) {
                         if (now.buffering) CircularProgressIndicator(Modifier.size(24.dp).clearAndSetSemantics {}, strokeWidth = 2.dp)
                         else Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), null)
                     }
@@ -194,7 +196,8 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         Box {
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                 SkipButton(false, true) { model.seek(now.position - 15) }
-                ActionTooltip(stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
+                val playLabel = stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play)
+                ActionTooltip(playLabel) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp).iconControlSemantics(playLabel, action = model::togglePlayback), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), null, Modifier.size(40.dp)) } }
                 SkipButton(true, true) { model.seek(now.position + 30) }
             }
         }
@@ -270,7 +273,7 @@ private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composabl
 @Composable private fun SkipButton(forward: Boolean, large: Boolean, action: () -> Unit) {
     val label = stringResource(if (forward) R.string.forward_30 else R.string.back_15)
     ActionTooltip(label) {
-        IconButton(onClick = action, modifier = Modifier.size(if (large) 80.dp else 48.dp).semantics { contentDescription = label }) {
+        IconButton(onClick = action, modifier = Modifier.size(if (large) 80.dp else 48.dp).iconControlSemantics(label, action = action)) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(painterResource(if (forward) R.drawable.ic_skip_forward else R.drawable.ic_skip_back), null, Modifier.size(if (large) 60.dp else 30.dp))
                 val density = androidx.compose.ui.platform.LocalDensity.current

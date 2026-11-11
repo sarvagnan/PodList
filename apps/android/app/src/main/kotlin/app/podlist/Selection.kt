@@ -84,7 +84,7 @@ internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean 
     TextButton(onClick = action, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 4.dp else 8.dp),
         modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp).then(
-            if (accessibilityLabel == null) Modifier else Modifier.semantics { contentDescription = accessibilityLabel })) {
+            if (accessibilityLabel == null) Modifier else Modifier.iconControlSemantics(accessibilityLabel, enabled, action))) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
             Text(label, modifier = if (accessibilityLabel == null) Modifier else Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelLarge, color = labelColor, textAlign = TextAlign.Center)
