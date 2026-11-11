@@ -231,26 +231,29 @@ internal fun ActionIcon(icon: Int, label: String, modifier: Modifier = Modifier,
 
 private val LocalActionTooltip = staticCompositionLocalOf<(() -> Unit)?> { null }
 
-/** A platform semantic leaf, even when decorative content contains Text/progress semantics.
- * Compose's Android bridge moves descriptions onto synthetic children of merging nodes.
- * Clearing here prevents those children; restore the real button's actions and focus state
- * because Material appends its clickable/focus semantics after the caller's modifier.
+/** A separately focusable button with no decorative semantic children.
+ * Clearing resets Material's later clickable semantics, including its merge boundary. Put
+ * that boundary BEFORE the clear so tooltip, sheet and episode-row ancestors cannot absorb
+ * this button (and lose its role). Clearing descendants also keeps the Android bridge from
+ * moving the label/role onto synthetic children. Restore the click and focus actions below.
  */
 @Composable
 internal fun Modifier.iconControlSemantics(label: String, enabled: Boolean = true, action: () -> Unit): Modifier {
     val focus = remember { FocusRequester() }
     var isFocused by remember { mutableStateOf(false) }
     val tooltip = LocalActionTooltip.current
-    return focusRequester(focus).onFocusChanged { isFocused = it.isFocused }.clearAndSetSemantics {
-        contentDescription = label
-        role = Role.Button
-        if (enabled) {
-            focused = isFocused
-            requestFocus { focus.requestFocus() }
-        } else disabled()
-        onClick { if (enabled) action(); enabled }
-        if (enabled && tooltip != null) onLongClick { tooltip(); true }
-    }
+    return focusRequester(focus).onFocusChanged { isFocused = it.isFocused }
+        .semantics(mergeDescendants = true) {}
+        .clearAndSetSemantics {
+            contentDescription = label
+            role = Role.Button
+            if (enabled) {
+                focused = isFocused
+                requestFocus { focus.requestFocus() }
+            } else disabled()
+            onClick { if (enabled) action(); enabled }
+            if (enabled && tooltip != null) onLongClick { tooltip(); true }
+        }
 }
 
 @Composable

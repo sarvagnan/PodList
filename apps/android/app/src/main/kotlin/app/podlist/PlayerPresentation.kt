@@ -149,7 +149,7 @@ internal fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expa
     val progressLabel = stringResource(R.string.playback_position)
     // Keep taps on the player background, with one accessible Open Now Playing target.
     // A clickable parent would merge identity/transport descriptions into another focus stop.
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).pointerInput(expand) { detectTapGestures(onTap = { expand() }) }.semantics { isTraversalGroup = true }) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).pointerInput(expand) { detectTapGestures(onTap = { expand() }) }.semantics(mergeDescendants = false) { isTraversalGroup = true }) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).semantics { traversalIndex = 0f }.iconControlSemantics(accessible, action = expand).clickable(onClick = expand), contentAlignment = Alignment.Center) { ArtworkImage(session, now.artwork, 48.dp, placeholderTitle = now.metadata.podcast) }
             Row(Modifier.weight(1f).semantics { isTraversalGroup = true; traversalIndex = 1f }, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {

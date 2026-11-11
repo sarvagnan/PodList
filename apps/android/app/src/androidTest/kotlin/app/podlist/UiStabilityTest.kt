@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import android.graphics.Rect
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.semantics.Role
@@ -53,9 +54,22 @@ class UiStabilityTest {
     private val models = ViewModelStore()
     private val modelJobs = mutableListOf<Job>()
     private val modelLifetime = object : ExternalResource() {
+        private var accessibilityFlags = 0
+        override fun before() {
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            accessibilityFlags = automation.serviceInfo.flags
+            automation.serviceInfo = automation.serviceInfo.apply {
+                flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            }
+        }
         override fun after() {
-            InstrumentationRegistry.getInstrumentation().runOnMainSync { models.clear() }
-            runBlocking { withTimeout(30_000) { modelJobs.joinAll() } }
+            try {
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { models.clear() }
+                runBlocking { withTimeout(30_000) { modelJobs.joinAll() } }
+            } finally {
+                val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+                automation.serviceInfo = automation.serviceInfo.apply { flags = accessibilityFlags }
+            }
         }
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(modelLifetime).around(compose)
@@ -213,14 +227,23 @@ class UiStabilityTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.waitForIdleSync()
         val automation = instrumentation.uiAutomation
-        automation.clearCache()
-        val root = checkNotNull(automation.rootInActiveWindow) { "No active accessibility window" }
+        var activeRoot: AccessibilityNodeInfo? = null
+        compose.waitUntil(10_000) {
+            automation.clearCache()
+            activeRoot = automation.rootInActiveWindow?.takeIf {
+                it.packageName == instrumentation.targetContext.packageName
+            }
+            activeRoot != null
+        }
+        val root = checkNotNull(activeRoot)
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         fun walk(node: AccessibilityNodeInfo, depth: Int) {
             nodes += node
             val bounds = Rect().also(node::getBoundsInScreen)
-            Log.i("PodListAX", "${"  ".repeat(depth)}$stage ${node.className} clickable=${node.isClickable} " +
-                "longClickable=${node.isLongClickable} text=${node.text} description=${node.contentDescription} bounds=$bounds")
+            Log.i("PodListAX", "${"  ".repeat(depth)}$stage className=${node.className} clickable=${node.isClickable} " +
+                "focusable=${node.isFocusable} importantForAccessibility=${node.isImportantForAccessibility} " +
+                "longClickable=${node.isLongClickable} text=${node.text} contentDescription=${node.contentDescription} " +
+                "boundsInScreen=$bounds childCount=${node.childCount}")
             repeat(node.childCount) { index -> node.getChild(index)?.let { walk(it, depth + 1) } }
         }
         fun textButtonChild(node: AccessibilityNodeInfo): Boolean {
@@ -247,6 +270,9 @@ class UiStabilityTest {
             val labelled = appNodes.filter { it.contentDescription?.toString() == label }
             assertEquals("$stage: one announcement for $label", 1, labelled.size)
             assertTrue("$stage: $label must label its own clickable node", labelled.single().isClickable)
+            assertEquals("$stage: $label must retain its button role", "android.widget.Button", labelled.single().className?.toString())
+            assertTrue("$stage: $label must be independently focusable", labelled.single().isFocusable)
+            assertTrue("$stage: $label must remain accessible", labelled.single().isImportantForAccessibility)
             assertEquals("$stage: icon controls must be semantic leaves", 0, labelled.single().childCount)
             if (label != InstrumentationRegistry.getInstrumentation().targetContext.getString(
                     R.string.open_now_playing, "Podcast", "Episode")) {
@@ -300,6 +326,7 @@ class UiStabilityTest {
             }
             assertEquals("Every command must have its own focus target", labels.size, ids.toSet().size)
         }
+        assertPlatformControls("episode-entry-mini-player-$fontScale", labels)
     }
 
     @Test fun discardUndoRestoresRawDraftAndCaretAfterEditorRemoval() {
