@@ -17,10 +17,11 @@ public struct RewindPreview: Equatable, Sendable {
     public let restored: [String]
 }
 public enum TimelinePresentation {
-    public static func events(_ playlist: Playlist) -> [TimelineEvent] {
+    public static func events(_ playlist: Playlist, now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) -> [TimelineEvent] {
+        let cutoff = now - TimelineRules.retentionMillis
         var events: [TimelineEvent] = []
         var run: TimelineEvent?
-        for point in playlist.timeline {
+        for point in playlist.timeline where point.at >= cutoff {
             if var current = run, current.episodeID == point.episodeId, point.at - current.end <= 600_000 {
                 current.end = point.at; current.to = point.position; run = current
             } else {
@@ -29,9 +30,9 @@ public enum TimelinePresentation {
             }
         }
         if let run { events.append(run) }
-        events += playlist.history.map { TimelineEvent(kind: "finished", episodeID: $0.episodeId, at: $0.finishedAt, end: $0.finishedAt, from: 0, to: 0) }
+        events += playlist.history.filter { $0.finishedAt >= cutoff }.map { TimelineEvent(kind: "finished", episodeID: $0.episodeId, at: $0.finishedAt, end: $0.finishedAt, from: 0, to: 0) }
         var seen = Set<String>()
-        for edit in playlist.edits ?? [] {
+        for edit in playlist.edits ?? [] where edit.at >= cutoff {
             let event = TimelineEvent(kind: edit.kind, episodeID: edit.episodeId, at: edit.at, end: edit.at, from: 0, to: 0)
             if seen.insert(event.id).inserted { events.append(event) }
         }

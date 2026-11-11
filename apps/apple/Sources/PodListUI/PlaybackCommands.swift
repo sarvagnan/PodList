@@ -2,14 +2,28 @@
 import SwiftUI
 import AppKit
 
+private struct PlaySelectionKey: FocusedValueKey { typealias Value = () -> Void }
+extension FocusedValues {
+    var podListPlaySelection: (() -> Void)? {
+        get { self[PlaySelectionKey.self] }
+        set { self[PlaySelectionKey.self] = newValue }
+    }
+}
+
 public struct PlaybackCommands: Commands {
     @Bindable var app: ApplicationModel
+    @FocusedValue(\.podListPlaySelection) private var playSelection
+    @FocusedValue(\.podListEpisodes) private var context
     @FocusedValue(\.podListNowPlaying) private var nowPlaying
     @FocusedValue(\.podListOpenPlaylist) private var openPlaylist
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
         CommandMenu("Controls") {
-            Button(app.playback?.wantsPlayback == true ? "Pause" : "Play") { app.playback?.toggle() }
+            Button(playSelection != nil || context?.ids.isEmpty == false ? "Play Selected Episode" : app.playback?.wantsPlayback == true ? "Pause" : "Play") {
+                if let playSelection { playSelection() }
+                else if let context, !context.ids.isEmpty { Task { await context.playSelection() } }
+                else { app.playback?.toggle() }
+            }
                 .keyboardShortcut(.space, modifiers: []).disabled(app.library == nil)
             Button("Back 15 Seconds") { app.playback?.skip(-15) }.keyboardShortcut(.leftArrow, modifiers: .command)
             Button("Forward 30 Seconds") { app.playback?.skip(30) }.keyboardShortcut(.rightArrow, modifiers: .command)

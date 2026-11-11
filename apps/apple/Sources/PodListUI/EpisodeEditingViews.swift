@@ -119,6 +119,7 @@ struct EpisodeCommandContext {
     let library: LibraryModel
     let window: WindowModel
     let presentation: PlaylistPresentation
+    let playSelection: @MainActor () async -> Void
 }
 private struct EpisodeContextKey: FocusedValueKey { typealias Value = EpisodeCommandContext }
 extension FocusedValues {

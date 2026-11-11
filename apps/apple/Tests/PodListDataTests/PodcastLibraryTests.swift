@@ -107,3 +107,26 @@ private actor PausedPublisher: PublisherReader {
     #expect(try await db.readLibrary().subscriptions.first?.unsubscribedAt != nil)
     #expect(try await db.readLibrary().episodes.count == 2)
 }
+
+private actor EmptyFeedLookup: SyncTransport {
+    private var failed = true
+    private(set) var paths: [String] = []
+    func recover() { failed = false }
+    func request(method: String, path: String, body: String?) async throws -> String {
+        paths.append(path)
+        if path.hasPrefix("/api/directory/search") { return "[]" }
+        if failed { throw SyncResponseFailure("Could not read the feed. Try again") }
+        return try ProtocolJSON.encode(FeedParser.parse("<rss><channel><title>Recovered</title></channel></rss>"))
+    }
+}
+
+@Test func failedConnectedFeedLookupExplainsFailureAndCanRetry() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let transport = EmptyFeedLookup()
+    let source = PodcastLibrary(database: db, transport: transport)
+    await #expect(throws: SyncResponseFailure.self) { try await source.search("https://example.com/rss") }
+    await transport.recover()
+    #expect(try await source.search("https://example.com/rss").first?.title == "Recovered")
+    #expect(try await source.search("no directory matches").isEmpty)
+    #expect(await transport.paths.filter { $0 == "/api/podcasts/read" }.count == 2)
+}

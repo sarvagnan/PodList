@@ -206,3 +206,26 @@ private func episode() -> Episode {
         await transport.assertFinished()
     }
 }
+
+@Test func notifiesReadersAfterEachDurableLibraryPageBeforeRequestingTheNext() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    try await db.ensureState(); try await db.setMeta("registered", "true")
+    let notifications = Flag()
+    var followed = subscription(); followed.unsubscribedAt = nil
+    let transport = try ScriptedTransport([
+        Step("/api/sync/pull?since=0", pull(1, snapshot: .initial())),
+        Step("/api/library/changes?since=0", library(10, subscriptions: [followed], episodes: [episode()], more: true)),
+        Step("/api/library/changes?since=10", .offline, before: {
+            #expect(await notifications.value)
+            #expect((try? await db.getMeta("catalogueCursor")) == "10")
+        })
+    ])
+    let sync = SyncClient(db: db, transport: transport, onLibraryPage: {
+        #expect((try? await db.readLibrary().episodes.map(\.id)) == ["e"])
+        #expect((try? await db.getMeta("catalogueCursor")) == "10")
+        await notifications.set()
+    })
+    await #expect(throws: Offline.self) { try await sync.sync() }
+    #expect(await notifications.value)
+    await transport.assertFinished()
+}

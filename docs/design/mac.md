@@ -67,7 +67,7 @@ explicit Quit flushes local Position/listening before termination.
 
 ## Menus and shortcuts
 
-Native menu bar with the standard App, File, Edit, View, Controls (playback), Window and Help menus; every command reachable from a menu, with the usual shortcuts shown there (⌘N new View/Playlist, ⌘Z / ⇧⌘Z Undo and Redo, Space play/pause, ⌘→ / ⌘← skip, ⌘, Settings, ⌘⌥I Inspector). Settings is the standard Settings window.
+Native menu bar with the standard App, File, Edit, View, Controls (playback), Window and Help menus; every command reachable from a menu, with the usual shortcuts shown there (⌘N new View/Playlist, ⌘Z / ⇧⌘Z Undo and Redo, Space play selection or toggle playback, ⌘→ / ⌘← skip, ⌘, Settings, ⌘⌥I Inspector). Settings is the standard Settings window.
 
 ## Carried over from the other clients
 
@@ -75,7 +75,7 @@ Delete Playlist asks nothing and offers Undo; Unsubscribe takes two clicks on th
 
 ## Milestone 4a editing presentation
 
-File > New Playlist uses ⌘⇧N. Episode actions are available in the Episode menu, row context
+File > New Playlist uses ⌘⇧N. New View uses ⌘N. New Window uses ⌘⌥⇧N. Episode actions are available in the Episode menu, row context
 menus, the selection toolbar and Inspector; the Add sheet preselects the Active Playlist,
 with New Playlist as its last choice. Podcast-page Add uses this same sheet before or after subscribing.
 Each fresh Add sheet preselects the current Active Playlist.
@@ -92,6 +92,34 @@ latest domain edit across Playlists, Views and Subscription changes.
 These edits share one session history. Failed reversals stay available for retry.
 Editable text retains native text Undo. A compact status line provides
 feedback and Undo, and Trash includes Restore and its retention period.
+
+
+## Minor parity decisions
+
+The Views section offers All Views and New View. A missing View returns to All Views.
+An empty Views page offers New View. Empty results distinguish loading, no Subscriptions
+and no matches. They offer Add podcasts, Edit View or Clear Search as appropriate.
+The Playlists section has New Playlist. Each Playlist shows Clear on Played on or off.
+
+The Podcast page uses one Search Episodes field in the toolbar. It searches only that
+podcast and keeps a separate draft for each feed. Its Episodes use sortable columns,
+with Add and Play on each row. A subscribed podcast has its Download Rule above the table.
+No Episodes yet offers Refresh. No matches offers Clear Search.
+Episode, Entry and Podcast tables disable alternating row backgrounds, including filler rows.
+
+Return opens Episode detail. Space plays the selected Episode, using Play from Here in a
+Playlist. With no Episode selected, Space toggles playback. Editable text keeps its spaces.
+View editing and deletion are in the View menu. Download is in the Episode menu.
+Podcast Add and Play use the same named Undo history before and after Subscribe.
+Getting started stays until dismissed, even when all steps are complete.
+
+Library readers refresh after each committed sync page. A sync pass starts after a trigger
+or a one-minute timeout, then a fixed two-second settling window. Each pass restarts the
+timeout. Triggers during a pass request one more pass. The Listening Timeline hides samples,
+finishes and edits older than 30 days from the current date. History and the Listening log stay.
+
+The Podcast header, Unsubscribe disarming, keyboard focus, table appearance, resizing,
+VoiceOver and system integration still need live check.
 
 
 ## Standalone Library and publisher refresh
