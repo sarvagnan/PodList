@@ -24,7 +24,7 @@ public final class PlaybackController {
     @ObservationIgnored private let db: LocalDatabase
     @ObservationIgnored private let audio: any PlayerAudio
     @ObservationIgnored private let clock: PlayerClock
-    @ObservationIgnored private let origin: URL
+    @ObservationIgnored private let origin: URL?
     @ObservationIgnored private let downloads: DownloadStore?
     @ObservationIgnored private let changed: @MainActor () async -> Void
     @ObservationIgnored private var queuedSequence = 0
@@ -58,7 +58,7 @@ public final class PlaybackController {
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var system: SystemPlayback?
 
-    public init(database: LocalDatabase, origin: URL, downloads: DownloadStore? = nil,
+    public init(database: LocalDatabase, origin: URL?, downloads: DownloadStore? = nil,
                 audio: any PlayerAudio = AVPlayerAudio(), clock: PlayerClock = PlayerClock(),
                 systemIntegration: Bool = true, changed: @escaping @MainActor () async -> Void = {}) {
         db = database; self.origin = origin; self.downloads = downloads; self.audio = audio; self.clock = clock; self.changed = changed
@@ -212,7 +212,7 @@ public final class PlaybackController {
     private func chooseSources() async {
         let stored = if let episodeID { await downloads?.stored(episodeID) } else { nil as URL? }
         sources = PlaybackPolicy.sources(stored: stored, host: episode.flatMap { URL(string: $0.audioUrl) },
-            proxy: episodeID.map { AudioSource.proxy(origin, episodeID: $0) })
+            proxy: episodeID.flatMap { id in origin.map { AudioSource.proxy($0, episodeID: id) } })
         sourceIndex = 0
     }
     private func loadSource(play: Bool) {

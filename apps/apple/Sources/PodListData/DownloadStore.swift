@@ -80,7 +80,7 @@ public actor DownloadStore {
         suspended = true; running.values.forEach { $0.1.cancel() }; running = [:]
         await transport.shutdown()
     }
-    public func apply(snapshot: LibrarySnapshot, deviceID: String, origin: URL, now: Int64) throws {
+    public func apply(snapshot: LibrarySnapshot, deviceID: String, origin: URL?, now: Int64) throws {
         let entries = Set(snapshot.state.playlists.flatMap(\.entries).map(\.episodeId))
         let facts = snapshot.episodes.map { episode in
             DownloadEpisode(id: episode.id, subscriptionId: episode.subscriptionId, published: episode.published,
@@ -94,7 +94,7 @@ public actor DownloadStore {
         for id in plan.discard { try remove(id) }
         for id in plan.fetch where manifest.statuses[id] == nil {
             let episode = snapshot.episodes.first { $0.id == id }
-            try request(id, sources: PlaybackPolicy.sources(stored: nil, host: episode.flatMap { URL(string: $0.audioUrl) }, proxy: AudioSource.proxy(origin, episodeID: id)), manual: false)
+            try request(id, sources: PlaybackPolicy.sources(stored: nil, host: episode.flatMap { URL(string: $0.audioUrl) }, proxy: origin.map { AudioSource.proxy($0, episodeID: id) }), manual: false)
         }
         try publish()
     }
