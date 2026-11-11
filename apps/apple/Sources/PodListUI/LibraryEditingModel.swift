@@ -58,8 +58,28 @@ public final class LibraryEditingModel {
     public var importTotal = 0
     public var importFailed: [String] = []
     public var importFailureReasons: [String: String] = [:]
-    public var showGettingStarted: Bool { didSet { defaults.set(showGettingStarted, forKey: key("gettingStarted")) } }
-    public var steps: Int { didSet { defaults.set(steps, forKey: key("steps")) } }
+    // A stored true means Settings reopened it; the default follows the loaded Library.
+    private var gettingStartedEnabled: Bool
+    private var gettingStartedReopened: Bool
+    private var automaticIntroduction = false
+    private var hasSubscriptions = false
+    private var addFlows = 0
+    public var showGettingStarted: Bool {
+        get { gettingStartedEnabled && (gettingStartedReopened || automaticIntroduction) }
+        set {
+            gettingStartedEnabled = newValue; gettingStartedReopened = newValue
+            defaults.set(newValue, forKey: key("gettingStarted"))
+        }
+    }
+    public func showsGettingStarted(on destination: Destination?, in library: LibraryModel) -> Bool {
+        guard let first = library.state.views.first else { return false }
+        return showGettingStarted && destination == .view(first.id)
+    }
+    public func beginAddingPodcasts() { addFlows += 1 }
+    public func endAddingPodcasts() {
+        addFlows = max(0, addFlows - 1)
+        if addFlows == 0 && hasSubscriptions { automaticIntroduction = false }
+    }
     public let edits: PlaylistEditingModel
     public var undoName: String? { edits.history.undo?.name }
     public var redoName: String? { edits.history.redo?.name }
@@ -71,8 +91,9 @@ public final class LibraryEditingModel {
                 changed: @escaping @MainActor @Sendable () async -> Void = {}) {
         self.edits = edits ?? PlaylistEditingModel(database: database, drafts: PlaylistDrafts(scope: scope, defaults: defaults), changed: changed)
         db = database; self.source = source; self.scope = scope; self.defaults = defaults; self.changed = changed
-        showGettingStarted = defaults.object(forKey: "PodList.\(scope).gettingStarted") as? Bool ?? true
-        steps = defaults.integer(forKey: "PodList.\(scope).steps")
+        let remembered = defaults.object(forKey: "PodList.\(scope).gettingStarted") as? Bool
+        gettingStartedEnabled = remembered ?? true
+        gettingStartedReopened = remembered == true
     }
     private func key(_ suffix: String) -> String { "PodList.\(scope).\(suffix)" }
     public func draft(_ field: String) -> String { defaults.string(forKey: key("draft." + field)) ?? "" }
@@ -81,14 +102,16 @@ public final class LibraryEditingModel {
     public func clearDraft(_ field: String) { defaults.removeObject(forKey: key("draft." + field)) }
     public func setDraft(_ value: String, field: String) { defaults.set(value, forKey: key("draft." + field)) }
     public func reconcile(_ snapshot: LibrarySnapshot) {
-        if snapshot.subscriptions.contains(where: { $0.unsubscribedAt == nil }) { completeStep(1) }
-        if snapshot.state.playlists.contains(where: { !$0.entries.isEmpty }) { completeStep(4) }
+        // A partial server read says nothing about emptiness. Keep the previous decision.
+        guard snapshot.isReady else { return }
+        hasSubscriptions = snapshot.subscriptions.contains(where: { $0.unsubscribedAt == nil })
+        automaticIntroduction = !hasSubscriptions || (addFlows > 0 && automaticIntroduction)
     }
-    public func completeStep(_ step: Int) { steps |= step }
     public func initialize() async throws {
         // Only seed after the database is read, once per Library; an empty sync is not first run.
         guard try await db.getMeta("macGettingStartedSeeded") == nil else { return }
         let snapshot = try await db.readLibrary()
+        guard snapshot.isReady else { return }
         if snapshot.state.views.isEmpty && snapshot.subscriptions.isEmpty {
             let starters: [PodListDomain.View] = [
                 .init(id: "starter-week", name: "New this week", filter: .init(published: .lastDays(days: 7), played: .unplayed), sort: .publishedDesc, limit: nil),
@@ -126,7 +149,7 @@ public final class LibraryEditingModel {
                 else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
             }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now) }, sessionID: sessionID)
         }
-        completeStep(2); await changed()
+        await changed()
     }
     /// The sheet waits for its queued live writes before cancelling. A failed restore keeps
     /// both the sheet and its drafts available for retry.
@@ -165,7 +188,7 @@ public final class LibraryEditingModel {
             return NamedEdit(name: "Subscribe", changes: [], reload: true,
                 action: { try await source.unsubscribe(sub.id) }, inverseAction: { _ = try await source.subscribe(feed) })
         }
-        completeStep(1); await changed()
+        await changed()
     }
     public func unsubscribe(_ sub: Subscription) async throws {
         try await edits.performExternal {
@@ -184,7 +207,6 @@ public final class LibraryEditingModel {
     public func bring(_ feed: String, guid: String, play: Bool, app: ApplicationModel) async throws {
         let id = try await prepareEpisode(feed, guid: guid)
         _ = await edits.add([id], placement: play ? .now : .last)
-        completeStep(4)
     }
     public func undo() async { await edits.reverse(); error = edits.error; await changed() }
     public func redo() async { await edits.reverse(redo: true); error = edits.error; await changed() }
@@ -207,7 +229,6 @@ public final class LibraryEditingModel {
                 importCompleted += 1
             }
             notice = "Imported \(added); already subscribed \(feeds.filter { known.contains($0) }.count); failed \(importFailed.count)."
-            if added > 0 { completeStep(1) }
             await changed()
         } catch { self.error = LibraryMessages.failure(error) }
     }

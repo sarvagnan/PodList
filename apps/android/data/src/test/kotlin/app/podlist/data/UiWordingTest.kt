@@ -172,9 +172,7 @@ class UiWordingTest {
             text("podcast_episode_add_error").format(title, "Check your connection."))
     }
 
-    @Test fun `help labels describe the content revealed and threshold help avoids repeating the inherited value`() {
-        assertEquals("Show help for completed steps", text("show_completed_steps"))
-        assertEquals("Hide help for completed steps", text("hide_completed_steps"))
+    @Test fun `threshold help avoids repeating the inherited value`() {
         assertEquals("Current Entry", text("cursor_here"))
         assertEquals("Time before the end that counts as Played.", text("m4_threshold_help"))
         assertFalse(text("m4_threshold_help").contains("30 seconds"))

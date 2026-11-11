@@ -55,8 +55,8 @@ struct AddPodcastsScreen: SwiftUI.View {
             LibraryFeedback(editor: editor)
             HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
         }.padding(20).frame(width: 650, height: 550)
-        .onAppear { query = editor.draft("addPodcasts"); focused = true }
-        .onDisappear { searchTask?.cancel() }
+        .onAppear { editor.beginAddingPodcasts(); query = editor.draft("addPodcasts"); focused = true }
+        .onDisappear { searchTask?.cancel(); editor.endAddingPodcasts() }
     }
     private func search() {
         searchTask?.cancel()
@@ -251,7 +251,6 @@ struct PodcastPageScreen: SwiftUI.View {
                 else { id = try await editor.prepareEpisode(feedURL, guid: episode.guid) }
                 if play { _ = await app.editing?.add([id], placement: .now) }
                 else { addPresentation.sheet = .add([id], false) }
-                editor.completeStep(4)
             } catch { editor.error = LibraryMessages.failure(error) }
             bringing.remove(episode.guid)
         }

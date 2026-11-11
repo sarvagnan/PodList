@@ -100,7 +100,12 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft } }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
         .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
-        .sheet(isPresented: $gettingStarted) { if let editor = app.libraryEditing { GettingStartedScreen(editor: editor, add: nil) .padding(25).frame(width: 500) } }
+        .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
+            if let editor = app.libraryEditing {
+                GettingStartedScreen(editor: editor, add: nil).padding(25).frame(width: 500)
+                    .onChange(of: editor.showGettingStarted) { _, visible in if !visible { gettingStarted = false } }
+            }
+        }
     }
 }
 
@@ -185,13 +190,13 @@ struct GettingStartedScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("Getting started").font(.headline); Spacer(); Button("Dismiss") { editor.showGettingStarted = false } }
-            Label("Add podcasts to your Library", systemImage: editor.steps & 1 != 0 ? "checkmark.circle.fill" : "1.circle")
+            Label("Add podcasts to your Library", systemImage: "1.circle")
             Text("Search by name or enter a feed address.").foregroundStyle(.secondary)
             if let add { Button("Add podcasts…", action: add) }
             else { Text("Use File ▸ Add Podcasts… (⌘⇧A) in the Library window.").font(.caption) }
-            Label("Understand Views", systemImage: editor.steps & 2 != 0 ? "checkmark.circle.fill" : "2.circle")
+            Label("Understand Views", systemImage: "2.circle")
             Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(.secondary)
-            Label("Add Episodes to Playlists", systemImage: editor.steps & 4 != 0 ? "checkmark.circle.fill" : "3.circle")
+            Label("Add Episodes to Playlists", systemImage: "3.circle")
             Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(.secondary)
         }.padding(12)
     }

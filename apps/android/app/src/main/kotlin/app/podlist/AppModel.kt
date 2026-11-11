@@ -392,7 +392,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         previous?.db?.onChanged = null
         previous?.db?.onEdit = null
         if (previous?.source?.server == null && address != null) downloads["standalone"]?.rulesSuspended = true
-        db.onChanged = { db.updateGettingStartedProgress(); revision.update { it + 1 } }
+        db.onChanged = { revision.update { it + 1 } }
         db.onEdit = { if (address != null) requestSync() }
         editLock.withLock {
             typingJob?.cancel(); typingJob = null; typingMessage = null; activeTypingGroup = null
@@ -416,7 +416,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
                         val transfer = transfer(next)
                         withContext(Dispatchers.IO) { transfer.resume(); next.db.setMeta("bringOverError", "false") }
                     } else withContext(Dispatchers.IO) { next.source.refresh() }
-                    withContext(Dispatchers.IO) { next.db.initializeGettingStarted(); next.db.updateGettingStartedProgress() }
+                    withContext(Dispatchers.IO) { next.db.initializeGettingStarted() }
                     status.value = SyncStatus.Ready
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error

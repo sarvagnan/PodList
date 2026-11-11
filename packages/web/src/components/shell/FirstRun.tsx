@@ -1,7 +1,6 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { useRouterState } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { Check } from "lucide-react"
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { subscriptionsAtom } from "../../app/data.ts"
@@ -9,12 +8,12 @@ import { useAppState, useLibraryReady } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { firstRunDone, starterViewsMade } from "../../lib/remembered.ts"
+import { useMinWidth } from "../../lib/useWide.ts"
 import { blankView, saveViewChange } from "../../lib/viewEdit.ts"
 import { AddPodcastSheet } from "../library/AddPodcastSheet.tsx"
 
-// First run (docs/design/ui-layout.md › Library): starter Views, made once for a new
-// Library, and a short checklist that can be skipped. It goes when the person has
-// podcasts or hides it.
+// First run: starter Views, made once for a new Library, and a skippable introduction.
+// See docs/design/product-behaviour.md › First run.
 
 const starterViews = [
   {
@@ -29,8 +28,7 @@ const starterViews = [
   { ...blankView("starter-starred", "Starred"), filter: { starred: true } }
 ]
 
-/** Opens the welcome checklist again (Settings, the Mac app's Help menu): at the top of
- * Views, with the steps already done ticked (START-02). */
+/** Reopens the introduction on Views until the person dismisses it. */
 export const showGettingStarted = (navigate: (to: string) => Promise<unknown>) => {
   firstRunDone.clear()
   void navigate("/views").then(() => {
@@ -53,9 +51,13 @@ export function FirstRun() {
   const [hidden, setHidden] = useState(firstRunDone.get)
   const [reopened, setReopened] = useState(false)
   const [adding, setAdding] = useState(false)
-  // On Views only, where first run starts: the Library and Playlists have their own way
-  // to begin (an Add podcasts button, the Default Playlist), so the card would repeat them.
-  const onViews = useRouterState({ select: (r) => r.location.pathname.startsWith("/views") })
+  // Wide clients open the first View; narrow clients open the Views overview.
+  const wide = useMinWidth("44rem")
+  const path = useRouterState({ select: (r) => r.location.pathname })
+  const first = state?.views[0]?.id
+  const overview = path === "/views" || path === "/views/"
+  const onLanding =
+    overview || (wide && first !== undefined && path === `/views/${encodeURIComponent(first)}`)
   // The current screen's notice slot (under its title), followed as screens come and go.
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
@@ -78,11 +80,12 @@ export function FirstRun() {
     document.addEventListener("podlist:getting-started", reopen)
     return () => document.removeEventListener("podlist:getting-started", reopen)
   }, [])
-  const fresh = ready && subscriptions !== null && subscriptions.length === 0
-  // Once shown, it stays until it's dismissed, ticking steps as they're done, rather than
-  // vanishing as the first podcast arrives (FLOW-06).
-  const [begun, setBegun] = useState(false)
-  if (fresh && !begun && !hidden) setBegun(true)
+  const fresh = ready && state !== null && subscriptions !== null && subscriptions.length === 0
+  // Retain the last loaded decision during re-reads, and while Add holds its input.
+  const [automatic, setAutomatic] = useState(false)
+  const nextAutomatic =
+    ready && state !== null && subscriptions !== null ? fresh || (adding && automatic) : automatic
+  if (nextAutomatic !== automatic) setAutomatic(nextAutomatic)
 
   // A new Library starts with Views to find Episodes in (decided 7 Nov 2026).
   const noViews = state !== null && state.views.length === 0
@@ -96,9 +99,8 @@ export function FirstRun() {
   }, [fresh, noViews, record])
 
   const sheet = adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />
-  // Adding the first podcast ends first run, but the sheet stays open for more: it sits
-  // outside the card, in one place, so it keeps what was typed.
-  if (!(fresh || reopened || begun) || hidden || !onViews)
+  // Keep the Add sheet mounted independently of the card, including when skipped.
+  if (!(automatic || reopened) || hidden || !onLanding)
     return (
       <>
         {null}
@@ -111,24 +113,17 @@ export function FirstRun() {
     firstRunDone.set()
     setHidden(true)
     setReopened(false)
-    setBegun(false)
   }
-  const hasPodcasts = (subscriptions?.length ?? 0) > 0
-  const hasEntries = state?.playlists.some((p) => p.entries.length > 0) ?? false
-  // A step number, not an empty circle (which reads as a radio button); a tick once done.
-  const step = (n: number, done: boolean, title: string, body: string) => (
+  const point = (n: number, title: string, body: string) => (
     <li className="flex gap-3">
       <span
         aria-hidden="true"
-        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${done ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
+        className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground"
       >
-        {done ? <Check className="size-4" /> : n}
+        {n}
       </span>
       <span>
-        <span className="block text-row font-medium">
-          {title}
-          {done && <span className="sr-only"> (done)</span>}
-        </span>
+        <span className="block text-row font-medium">{title}</span>
         <span className="block text-small text-muted-foreground">{body}</span>
       </span>
     </li>
@@ -149,21 +144,18 @@ export function FirstRun() {
         {/* One way to dismiss it: Skip for now (or Done), below. */}
       </div>
       <ol className="mt-3 space-y-3">
-        {step(
+        {point(
           1,
-          hasPodcasts,
           "Add your podcasts",
           "Search by name, paste a feed address, or import an OPML file from another app."
         )}
-        {step(
+        {point(
           2,
-          !noViews,
           "Views find Episodes for you",
           "Three to start with: New this week, Under 30 minutes and Starred. Edit them or make your own."
         )}
-        {step(
+        {point(
           3,
-          hasEntries,
           "Playlists hold what you’ll listen to",
           "Use Next or Last on an Episode; the Default Playlist is ready."
         )}
@@ -181,7 +173,7 @@ export function FirstRun() {
           onClick={hide}
           className="h-10 rounded-full px-4 text-row font-medium hover:bg-secondary"
         >
-          {reopened || hasPodcasts ? "Done" : "Skip for now"}
+          {reopened ? "Done" : "Skip for now"}
         </button>
       </div>
     </section>

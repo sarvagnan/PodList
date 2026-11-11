@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 // @ts-expect-error: a plain .mjs helper shared with the UI flow runs
 import { startDemo } from "../ui-flows/demo.mjs"
 
-// First run: an empty Library gets starter Views and a checklist that can be skipped.
+// First run: an empty Library gets starter Views and an introduction that can be skipped.
 
 let demo: { base: string; stop: () => void; fixtures: string }
 test.beforeEach(async () => {
@@ -10,12 +10,12 @@ test.beforeEach(async () => {
 })
 test.afterEach(() => demo.stop())
 
-test("a new Library starts with Views and a checklist; adding a podcast ends it", async ({
+test("a new Library starts with Views and an introduction; adding a podcast ends it", async ({
   page
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/`)
-  const welcome = page.getByRole("region", { name: "Welcome to PodList" })
+  const welcome = page.getByRole("region", { name: "Welcome to PodList", includeHidden: true })
   await expect(welcome).toBeVisible()
   const sidebar = page.getByRole("navigation", { name: "Library and lists" })
   for (const name of ["New this week", "Under 30 minutes", "Starred"]) {
@@ -29,14 +29,27 @@ test("a new Library starts with Views and a checklist; adding a podcast ends it"
     .fill(`${demo.fixtures}/feeds/deep-field.xml`)
   await sheet.getByRole("button", { name: /^Subscribe to/ }).click()
   await expect(sheet.getByText("Subscribed")).toBeVisible()
+  await expect(welcome).toBeVisible()
+  await expect(sheet.getByRole("textbox", { name: "Feed address" })).toHaveValue(
+    `${demo.fixtures}/feeds/deep-field.xml`
+  )
+  await expect(welcome.locator("svg")).toHaveCount(0)
+  await expect(welcome).not.toContainText("(done)")
   await sheet.getByRole("button", { name: "Close" }).click()
-  // It stays, with the step ticked, until it's dismissed (FLOW-06).
-  await expect(welcome.getByText("Add your podcasts (done)")).toBeAttached()
+  await expect(welcome).toBeHidden()
+  await page.goto(`${demo.base}/settings`)
+  await page.getByRole("button", { name: "Show getting started" }).click()
+  await expect(welcome).toBeVisible()
+  await expect(welcome.locator("svg")).toHaveCount(0)
+  await welcome.getByRole("button", { name: "Add podcasts" }).click()
+  await expect(sheet).toBeVisible()
+  await sheet.getByRole("button", { name: "Close" }).click()
+  await expect(welcome).toBeVisible()
   await welcome.getByRole("button", { name: "Done" }).click()
   await expect(welcome).toBeHidden()
 })
 
-test("Skip hides the checklist on this Device", async ({ page }) => {
+test("Skip hides the introduction on this Device", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`${demo.base}/`)
   const welcome = page.getByRole("region", { name: "Welcome to PodList" })
@@ -57,7 +70,8 @@ test("Settings shows getting started again after Skip", async ({ page }) => {
   await page.getByRole("button", { name: "Show getting started" }).click()
   await expect(page).toHaveURL(/\/views/)
   await expect(welcome).toBeVisible()
-  await expect(welcome.getByText("Views find Episodes for you (done)")).toBeAttached()
+  await expect(welcome.getByText("Views find Episodes for you", { exact: true })).toBeVisible()
+  await expect(welcome.locator("svg")).toHaveCount(0)
   await welcome.getByRole("button", { name: "Done" }).click()
   await expect(welcome).toHaveCount(0)
 })
@@ -85,4 +99,22 @@ test("Skip for now leaves focus on the screen's heading", async ({ page }) => {
   await welcome.getByRole("button", { name: "Skip for now" }).click()
   await expect(welcome).toHaveCount(0)
   await expect(page.locator("main h1")).toBeFocused()
+})
+
+test("other empty Views show their own Add action without repeating the introduction", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/views`)
+  const welcome = page.getByRole("region", { name: "Welcome to PodList" })
+  await expect(welcome).toBeVisible()
+  const sidebar = page.getByRole("navigation", { name: "Library and lists" })
+  for (const name of ["Under 30 minutes", "Starred"]) {
+    await sidebar.getByRole("link", { name }).click()
+    await expect(welcome).toHaveCount(0)
+    await expect(page.getByText("Add podcasts to fill your Views")).toBeVisible()
+    await expect(page.getByRole("main").getByRole("link", { name: "Add podcasts" })).toBeVisible()
+  }
+  await sidebar.getByRole("link", { name: "New this week" }).click()
+  await expect(welcome).toBeVisible()
 })

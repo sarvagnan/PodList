@@ -2,8 +2,6 @@
 
 package app.podlist
 
-import app.podlist.data.updateGettingStartedProgress
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -175,7 +173,10 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
     val data = cache[route ?: "root"]
     BackHandler(route == null && destination != Destination.Views, onBack = rootBack)
     LaunchedEffect(session, revision, route) {
-        val loaded = withContext(Dispatchers.IO) { readScreen(session.db, route) }
+        // Include the Add route's child Podcast pages until Back closes the flow.
+        val stack = browsing?.context?.visiting(destination.name, route)?.stacks?.get(destination.name).orEmpty()
+        val adding = stack.contains("add-podcasts") || route == "add-podcasts" || route?.startsWith("podcast:") == true
+        val loaded = withContext(Dispatchers.IO) { readScreen(session.db, route, addFlowOpen = adding) }
         val id = route?.substringAfter(':')
         val available = when (route?.substringBefore(':')) {
             "view", "view-edit" -> loaded.state.views.any { it.id == id }
@@ -434,9 +435,6 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
         }
         route?.startsWith("view:") == true -> {
             val view = data.state.views.find { it.id == id }
-            LaunchedEffect(view?.id) {
-                if (view != null) withContext(Dispatchers.IO) { session.db.setMeta("gettingStartedExploredView", "true"); session.db.updateGettingStartedProgress(); session.db.notifyChanged() }
-            }
             if (view == null) EmptyState(R.string.missing_view, R.string.views) { open("directory") }
             else if (data.episodes.isEmpty() && data.subscriptions.none { it["unsubscribed_at"] == null }) EmptyState(R.string.no_subscriptions, R.string.add_podcasts) { open("add-podcasts") }
             else if (data.episodes.isEmpty()) EmptyState(R.string.no_matches, R.string.edit_conditions) { open("view-edit:$id") }

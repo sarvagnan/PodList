@@ -117,7 +117,7 @@ Audio callbacks cannot start a paused player. A late end notification after Paus
 Automatic advance continues only while playback is requested.
 View editing and deletion are in the View menu. Download is in the Episode menu.
 Podcast Add and Play use the same named Undo history before and after Subscribe.
-Getting started stays until dismissed, even when all steps are complete.
+Getting started appears only on the screen the app opens to, not on other Views. It is a skippable introduction with three numbered points: adding podcasts, what Views do and what Playlists hold. The wording stays visible, with no completed states, check marks or “(done)” labels. It hides once the loaded Library has a Subscription, after any open Add flow closes; subscribing never closes that flow or clears its input. Settings can reopen it until dismissed, even with Subscriptions. Loading preserves the last visibility decision and never counts as an empty Library. The first View is its landing screen; other empty Views keep their short empty state and offer **Add podcasts** when the Library is empty.
 
 Library readers refresh after each committed sync page. A sync pass starts after a trigger
 or a one-minute timeout, then a fixed two-second settling window. Each pass restarts the
