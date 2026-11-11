@@ -14,6 +14,7 @@ import { Catalogue } from "./Catalogue.ts"
 import { Chapters } from "./Chapters.ts"
 import { Directory } from "./Directory.ts"
 import { Poller } from "./Poller.ts"
+import * as Reads from "./Reads.ts"
 import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
 
@@ -44,7 +45,15 @@ export const SyncHandlers = HttpApiBuilder.group(
     return handlers.handleAll({
       registerDevice: ({ payload }) => store.registerDevice(payload),
       push: ({ payload }) =>
-        store.push(payload.operations).pipe(Effect.map((r) => new Sync.PushResponse(r))),
+        store.push(payload.operations).pipe(
+          Effect.map(
+            (r) =>
+              new Sync.PushResponse({
+                ...r,
+                acknowledged: [...new Set(payload.operations.map((o) => o.id))]
+              })
+          )
+        ),
       pull: ({ query }) => store.pull(query.since).pipe(Effect.map((r) => new Sync.PullResponse(r)))
     })
   })
@@ -131,6 +140,26 @@ export const DirectoryHandlers = HttpApiBuilder.group(
   })
 )
 
+export const ReadHandlers = HttpApiBuilder.group(
+  PodListApi,
+  "reads",
+  Effect.fn(function* (handlers) {
+    const reads = yield* Reads.make
+    return handlers.handleAll({
+      view: ({ params, query }) => reads.view(params.id, query),
+      filter: ({ payload }) => reads.filter(payload),
+      search: ({ payload }) => reads.search(payload),
+      counts: () => reads.counts,
+      summaries: ({ payload }) => reads.summaries(payload.ids),
+      episode: ({ params }) => reads.episode(params.id),
+      subscriptions: ({ query }) => reads.subscriptions(query),
+      subscription: ({ params }) => reads.subscription(params.id),
+      stats: ({ params, query }) => reads.stats(params.kind, query),
+      cursors: () => reads.cursors
+    })
+  })
+)
+
 export const ApiRoutes = HttpApiBuilder.layer(
   PodListApi.annotate(OpenApi.Transform, () => openApiDocument()),
   {
@@ -142,6 +171,7 @@ export const ApiRoutes = HttpApiBuilder.layer(
     SyncHandlers,
     LibraryHandlers,
     SubscriptionsHandlers,
-    DirectoryHandlers
+    DirectoryHandlers,
+    ReadHandlers
   ])
 )

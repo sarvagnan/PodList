@@ -43,6 +43,34 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     )
     expect(malformed.status).toBe(400)
     expect(await malformed.text()).toBe("")
+    for (const query of ["pageSize=0", "pageSize=201", "pageSize=1.5"]) {
+      const invalid = await handler(
+        new Request(`http://podlist.test/api/reads/subscriptions?${query}`)
+      )
+      expect(invalid.status).toBe(400)
+      expect(await invalid.text()).toBe("")
+    }
+    const tooMany = await handler(
+      new Request("http://podlist.test/api/reads/episodes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: Array.from({ length: 201 }, (_, i) => `e${i}`) })
+      })
+    )
+    expect(tooMany.status).toBe(400)
+    const token = await handler(
+      new Request("http://podlist.test/api/reads/subscriptions?continuation=invalid")
+    )
+    expect(token.status).toBe(400)
+    expect(await token.json()).toEqual({ _tag: "InvalidContinuation" })
+    const counts = await handler(new Request("http://podlist.test/api/reads/views/counts"))
+    expect(counts.status).toBe(200)
+    expect(await counts.json()).toEqual({ counts: [], cursors: { state: 0, library: 0 } })
+    const cursors = await handler(new Request("http://podlist.test/api/live/cursors"))
+    expect(cursors.status).toBe(200)
+    expect(await cursors.json()).toEqual({ state: 0, library: 0 })
+    const missing = await handler(new Request("http://podlist.test/api/reads/views/missing"))
+    expect(missing.status).toBe(404)
   } finally {
     await dispose()
   }

@@ -2,8 +2,9 @@ import { readdirSync, readFileSync } from "node:fs"
 import { describe, expect, it } from "@effect/vitest"
 import { Schema } from "effect"
 import { operationCoverage } from "../scripts/coverage.ts"
+import { buildDeviceVectors } from "../scripts/device-vectors.ts"
 import { buildVectors, operationJsonSchema } from "../scripts/protocol.ts"
-import { Operation, State } from "../src/index.ts"
+import { Device, Operation, State } from "../src/index.ts"
 
 const protocolDir = new URL("../protocol/", import.meta.url)
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, protocolDir), "utf8"))
@@ -60,4 +61,14 @@ describe("Sync protocol conformance vectors (ADR 0007)", () => {
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema")
     expect(JSON.stringify(schema)).toContain('"Rewind"')
   })
+})
+
+it("Device registration vectors cover every kind and round-trip", () => {
+  const vectors = read("devices.json")
+  expect(vectors).toEqual(buildDeviceVectors())
+  for (const device of vectors.devices) {
+    expect(
+      Schema.encodeSync(Device.Device)(Schema.decodeUnknownSync(Device.Device)(device))
+    ).toEqual(device)
+  }
 })

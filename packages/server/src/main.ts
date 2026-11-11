@@ -13,6 +13,7 @@ import * as Database from "./Database.ts"
 import { Directory } from "./Directory.ts"
 import { ApiRoutes } from "./Http.ts"
 import { Library } from "./Library.ts"
+import { LiveRoute } from "./Live.ts"
 import { AudioRoute } from "./Media.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
@@ -39,7 +40,7 @@ const Main = Layer.unwrap(
     const artworkDir = Option.getOrElse(config.artworkDir, () =>
       join(dirname(config.databasePath), "artwork")
     )
-    const Routes = Layer.mergeAll(ApiRoutes, AudioRoute, ArtworkRoute(artworkDir))
+    const Routes = Layer.mergeAll(ApiRoutes, LiveRoute, AudioRoute, ArtworkRoute(artworkDir))
     return Layer.mergeAll(
       HttpRouter.serve(
         Option.match(config.webRoot, {

@@ -1,6 +1,7 @@
 import { HttpApi } from "effect/http-api"
 import { DirectoryApi } from "./Directory.ts"
 import { LibraryApi } from "./Library.ts"
+import { ReadsApi } from "./Reads.ts"
 import { SubscriptionsApi } from "./Subscriptions.ts"
 import { SyncApi } from "./Sync.ts"
 import { SystemApi } from "./System.ts"
@@ -8,6 +9,7 @@ import { SystemApi } from "./System.ts"
 export * as Directory from "./Directory.ts"
 export * as Library from "./Library.ts"
 export * as Media from "./Media.ts"
+export * as Reads from "./Reads.ts"
 export * as Subscriptions from "./Subscriptions.ts"
 export * as Sync from "./Sync.ts"
 export * as System from "./System.ts"
@@ -19,4 +21,5 @@ export class PodListApi extends HttpApi.make("podlist")
   .add(LibraryApi)
   .add(SubscriptionsApi)
   .add(DirectoryApi)
+  .add(ReadsApi)
   .prefix("/api") {}

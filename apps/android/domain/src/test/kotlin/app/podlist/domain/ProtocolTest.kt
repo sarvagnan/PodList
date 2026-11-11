@@ -32,7 +32,7 @@ class ProtocolTest {
     @Test
     fun `every contract document has a runner`() {
         val rootFiles = Files.list(protocol).use { paths -> paths.filter { Files.isRegularFile(it) }.map { it.fileName.toString() }.toList().toSet() }
-        assertEquals(setOf("operation.schema.json", "openapi.json", "views.json", "listening.json", "server.json", "feeds.json"), rootFiles)
+        assertEquals(setOf("operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json"), rootFiles)
         val directories = Files.list(protocol).use { paths -> paths.filter { Files.isDirectory(it) }.map { it.fileName.toString() }.toList().toSet() }
         assertEquals(setOf("vectors"), directories)
         Files.walk(protocol.resolve("vectors")).use { paths ->
@@ -41,6 +41,13 @@ class ProtocolTest {
         assertEquals(4, document(protocol.resolve("views.json")).field("protocolVersion").jsonPrimitive.int)
         assertEquals(4, document(protocol.resolve("listening.json")).field("protocolVersion").jsonPrimitive.int)
         assertTrue(document(protocol.resolve("openapi.json")).field("openapi").jsonPrimitive.content.startsWith("3.1"))
+    }
+
+    @TestFactory
+    fun `device registration vectors`() = document(protocol.resolve("devices.json")).field("devices").jsonArray.map { vector ->
+        DynamicTest.dynamicTest("device: ${vector.field("kind").jsonPrimitive.content}") {
+            assertJson(vector, ProtocolJson.encodeToJsonElement(vector.decode<Device>()), "Device round-trip")
+        }
     }
 
     private fun syncFiles(): List<Path> = Files.walk(protocol.resolve("vectors")).use { paths ->

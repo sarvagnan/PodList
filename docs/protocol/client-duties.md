@@ -1,12 +1,12 @@
 # Client duties
 
-This is the implementation order and observable behavior for clients using protocol version 4. “Shared” means every client must preserve the contract. “Offline clients” means the planned Kotlin and Swift clients and Electron. “Browser adapter” identifies existing web implementation details which native clients should implement through platform APIs. The currently shipped web client still uses local SQLite and offline behavior; the online-only web client in ADR 0011 has not been implemented. Do not build against planned server read APIs: they do not exist yet. [Sources: platform plan](../plans/platform-clients.md), [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md), [API definitions](../../packages/api/src/index.ts), [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts).
+This is the implementation order and observable behavior for clients using protocol version 4. “Shared” means every client must preserve the contract. “Offline clients” means the planned Kotlin and Swift clients and Electron. “Browser adapter” identifies existing web implementation details which native clients should implement through platform APIs. The currently shipped web client still uses local SQLite and offline behavior; the online-only web client in ADR 0011 has not been implemented. Server read APIs and live notifications are implemented for milestone 2; the web adapter follows in milestone 3. [Sources: platform plan](../plans/platform-clients.md), [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md), [API definitions](../../packages/api/src/index.ts), [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts).
 
 ## 1. Establish the Device and connection
 
 Shared: reach the single-user server through the user's Tailscale tailnet. There is no application login, bearer token, cookie or API key. Use the server origin plus the `/api` paths in [openapi.json](../../packages/domain/protocol/openapi.json). GET `/api/health` reports `protocolVersion` (currently 4) and optionally the deployed release. The existing client does not negotiate or reject mismatched versions automatically; do not infer a version-upgrade handshake. [ADR 0004](../adr/0004-tailnet-is-the-auth-boundary.md), [System.ts](../../packages/api/src/System.ts), [Http.ts](../../packages/server/src/Http.ts), [Transport.ts](../../packages/web/src/sync/Transport.ts).
 
-Offline clients: create and durably store one opaque Device id for this installation, and reuse it after restarts. Before the first push or pull, POST `/api/devices` with id, nonempty name, kind and `registeredAt` in UTC epoch milliseconds. Persist successful registration; retry after failure. Registration by an existing id updates name and kind, preserving the original stored registration time. The server does not enforce registration before push, but the client workflow does it first. Device.kind accepts `pwa`, `desktop` and the owner-approved `android`. Android registers as `android`; the existing web SyncEngine sends `pwa` even when used by Electron. Apple values wait for the Apple apps. [Device.ts](../../packages/domain/src/Device.ts), [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts), [SyncStore.ts](../../packages/server/src/SyncStore.ts).
+Offline clients: create and durably store one opaque Device id for this installation, and reuse it after restarts. Before the first push or pull, POST `/api/devices` with id, nonempty name, kind and `registeredAt` in UTC epoch milliseconds. Persist successful registration; retry after failure. Registration by an existing id updates name and kind, preserving the original stored registration time. The server does not enforce registration before push, but the client workflow does it first. Device.kind accepts `pwa`, `desktop`, `android` and `web`. Android registers as `android`; the existing web SyncEngine sends `pwa` even when used by Electron. Apple values wait for the Apple apps. [Device.ts](../../packages/domain/src/Device.ts), [SyncEngine.ts](../../packages/web/src/sync/SyncEngine.ts), [SyncStore.ts](../../packages/server/src/SyncStore.ts).
 
 ## 2. Persist edits and synchronize
 
@@ -78,4 +78,25 @@ Mentions ignores case and accents using the pinned Unicode 17 algorithm describe
 
 The owner settled these existing behaviors on 9 November 2026: LastDays includes future Published dates; equal-time Position ties use arrival order while the Timeline keeps the first nearby sample; whitespace-only Mentions matches everything; there is no positive In any Playlist filter; tied Published ordering in server Subscription expansion and All New caps has no secondary ordering. Episodes finished continues including stored Episodes of removed Subscriptions. The ending timezone offset still applies to a whole listening sample, and unannounced small seeks within one second of jitter can count. [contract decisions](README.md#fixes-and-decisions-recorded-by-phase-0), [Listening.ts](../../packages/domain/src/Listening.ts), [SyncStore.ts](../../packages/server/src/SyncStore.ts).
 
-Device.kind includes the owner-approved `android` for Android sync; no Apple values are added. The optional synced Download Rule `since` is additive; protocol version stays 4, with legacy-rule behavior specified above. All clients need the updated behavior to pass the regenerated vectors.
+Device.kind includes `android` for Android sync and `web` for one Device per browser profile. No Apple values are added. Browser tabs share the profile id and coordinate operation sequences. The optional synced Download Rule `since` is additive; protocol version stays 4, with legacy-rule behavior specified above. All clients need the updated behavior to pass the regenerated vectors.
+
+## Online reads and notifications
+
+The web read contract lives in the generated OpenAPI. `/api/reads` serves Views,
+filters, Search, counts, Episode metadata, Subscription summaries and Listening
+metadata. Pages default to 100 rows and allow 1–200. Reuse the opaque continuation
+with the same query and page size. View limits apply across pages and to counts.
+Relative dates stay fixed for the continuation. Restart on `409 ReadChanged`.
+Tokens also expire when the server restarts. Listening metadata includes removed
+Subscriptions and all stored Episodes. Compute Listening stats on the viewing Device.
+
+Use the same-origin `/api/live?state=<last>&library=<last>` WebSocket. The server
+checks Origin before upgrade. It immediately sends current `{ state, library,
+reset }` cursors, then changes and heartbeats. Messages coalesce missed changes.
+Refresh State and affected reads on reconnect and tab return. If reset is true,
+pull State from zero. Fall back to polling `/api/live/cursors` if the socket cannot
+connect. The tailnet remains the authentication boundary.
+
+Successful pushes include `acknowledged` operation ids, including duplicate retries.
+Only `accepted` counts new intentions. Older servers can omit `acknowledged`.
+Keep operation ids unchanged when a response is lost or delivery is uncertain.

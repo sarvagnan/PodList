@@ -11,7 +11,9 @@ export class PushResponse extends Schema.Class<PushResponse>("@podlist/api/PushR
   /** The server log position after this push. */
   cursor: Schema.Int,
   /** How many operations were new; repeats of already-applied ids are skipped. */
-  accepted: Schema.Int
+  accepted: Schema.Int,
+  /** All submitted ids are committed, including previously committed retries. Absent on older servers. */
+  acknowledged: Schema.optionalKey(Schema.Array(Schema.String))
 }) {}
 
 /**

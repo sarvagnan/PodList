@@ -172,7 +172,7 @@ manual validation on the Mac. A local development bundle is available below; dis
 - **ProtocolTestSupport** is an internal test helper target. Fixtures are found by walking
   upward from `#filePath` to `packages/domain/protocol`; no vectors are copied or bundled.
 
-The current contract has only `pwa`, `desktop` and `android` Device kinds. This package
+The current contract accepts `pwa`, `desktop`, `android` and `web` Device kinds. This package
 registers as `desktop` with the name “PodList Apple”; it introduces no Apple-specific wire
 value. `MarkSubscriptionPlayed` and `SetSubscriptionOverrides` remain server intentions in
 shared replay. A Standalone Device database expands them locally and stores local Operations

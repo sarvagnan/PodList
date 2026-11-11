@@ -116,6 +116,17 @@ describe("Language-neutral client contract", () => {
         "/api/health",
         "/api/library/changes",
         "/api/library/refresh",
+        "/api/live",
+        "/api/live/cursors",
+        "/api/reads/views/{id}",
+        "/api/reads/views/counts",
+        "/api/reads/filter",
+        "/api/reads/search",
+        "/api/reads/episodes",
+        "/api/reads/episodes/{id}",
+        "/api/reads/subscriptions",
+        "/api/reads/subscriptions/{id}",
+        "/api/reads/stats/{kind}",
         "/api/podcasts/read",
         "/api/podcasts/episodes",
         "/api/subscriptions",
@@ -128,6 +139,9 @@ describe("Language-neutral client contract", () => {
         "/api/sync/push"
       ].sort()
     )
+    expect(document.paths["/api/live"]?.get?.responses).toHaveProperty("101")
+    expect(document.paths["/api/live"]?.get?.responses).toHaveProperty("403")
+    expect(document.paths["/api/reads/views/{id}"]?.get?.responses).toHaveProperty("409")
     expect(document.paths["/api/episodes/{id}/audio"]?.get?.responses).toHaveProperty("206")
   })
 })
