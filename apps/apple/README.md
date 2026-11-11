@@ -1,6 +1,6 @@
 # PodList Apple
 
-Phase 2, milestones 1–4: shared domain/data, the Mac Library, playback, downloads, Playlist editing, Library, Views and Settings. Swift 6 language mode,
+Phase 2, milestones 1–4: shared domain/data, the Mac Library, playback, downloads, Playlist editing, Library, Views, Settings and automation. Swift 6 language mode,
 macOS 26 and iOS 26 minimums, no third-party packages. The installed Swift 6.4 toolchain
 builds this package. The Mac window follows variant B in `docs/design/mac.md`.
 
@@ -130,7 +130,7 @@ retried after process restart rather than attaching stale callbacks to new reque
 
 The agent sandbox can compile and run unit tests but cannot launch the app or play audio.
 Live audio, media-key routing, Artwork display, VoiceOver and native window behavior require
-manual validation on the Mac. App-bundle packaging/signing remains a later task.
+manual validation on the Mac. A local development bundle is available below; distribution signing remains later work.
 
 ## Modules
 
@@ -164,8 +164,11 @@ manual validation on the Mac. App-bundle packaging/signing remains a later task.
   independent of SwiftUI. The Mac presentation is conditionally compiled; models can be reused
   by the later iPhone/iPad targets. `LocalDatabase.readLibrary()` adds a consistent typed read
   of State and Library without changing sync or domain behavior.
-- **PodListMac** is the minimal SwiftPM executable: `@main App`, WindowGroup, Settings and
-  Help scenes, and native commands. No third-party packages.
+- **PodListAutomation** contains Sendable JSON values, the MCP message handler and the local
+  Unix socket transport. It has no UI or database dependency.
+- **PodListMac** is the SwiftPM executable: `@main App`, WindowGroup, Settings and Help
+  scenes, native commands, App Intents and the app-scoped MCP listener.
+- **podlist-mcp** is a small stdio bridge. It connects to the running Mac app. No third-party packages.
 - **ProtocolTestSupport** is an internal test helper target. Fixtures are found by walking
   upward from `#filePath` to `packages/domain/protocol`; no vectors are copied or bundled.
 
@@ -272,8 +275,100 @@ available to retry. Sync and playback reports do not create Undo steps. Edits fl
 reporting before capturing inverses, and leave unrelated playing audio and transient speed
 alone. Quitting keeps form drafts; the Undo stack lasts for the current connection session.
 
+## Agents and automation (milestone 4c)
+
+App Intents and MCP use the same app actions. Edits go through PlaylistEditingModel and
+appear in Edit > Undo with the same names as UI edits. Playback goes through
+PlaybackController. Both work with a Standalone Device or the current server Library.
+There are no connection changes, Empty Trash, Delete Playlist or Unsubscribe tools.
+
+### Connect an MCP client
+
+Build the bridge from this directory, using the module-cache environment above:
+
+```sh
+swift build --scratch-path .build --disable-sandbox --product podlist-mcp
+swift build --scratch-path .build --disable-sandbox --show-bin-path
+```
+
+Open PodList first and open a Library. Copy the printed binary directory into your
+client's MCP configuration. Use an absolute path; clients do not expand `~` consistently.
+For example, replace `/path/to/checkout` with your checkout path:
+
+```json
+{
+  "mcpServers": {
+    "podlist": {
+      "command": "/path/to/checkout/apps/apple/.build/debug/podlist-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+On this toolchain `.build/debug` points to the printed build directory. The bridge reports
+a clear error on stderr if PodList is not running. stdout contains only MCP messages.
+The app listens at `~/Library/Application Support/PodList/Automation/mcp.sock`, with mode
+0600 in a 0700 directory. Both ends check the peer's user id. There is no TCP port.
+Any local process running as your user can use the tools. Quit stops the listener;
+closing every window keeps it available. Only one PodList instance can own the socket.
+Startup errors are logged as `PodList MCP` in the system log.
+
+The server supports the MCP 2025-11-25 handshake, `notifications/initialized`, `ping`,
+`tools/list` and `tools/call` over newline-delimited JSON-RPC 2.0. A connection must
+initialize before calling tools. Tools return text plus `structuredContent`; action
+failures return `isError: true`. Protocol errors use JSON-RPC errors.
+
+Tools: `play`, `pause`, `toggle`, `skip_back` (15 seconds), `skip_forward` (30 seconds),
+`now_playing`, `play_episode`, `add_episodes`, `add_current`, `list_views`, `list_playlists`,
+`list_episodes`, `search_episodes`, `set_starred` and `set_played`.
+Inspect `tools/list` for their input schemas. Ids come from the current Library.
+Add defaults to the Active Playlist and Play Last; choose `placement: "next"` for Play Next.
+`list_episodes` accepts exactly one `view_id` or `playlist_id`. Lists accept `offset` and
+`limit` (default 100, maximum 200), and return `total` and `has_more`.
+
+### Make App Intents visible
+
+The executable declares nine App Intents, Episode and Playlist App Entities with queries,
+and three App Shortcuts: Play, Pause and Add Current Episode. The other intents cover
+transport controls and Now Playing, Play Episode Now, Add Episodes with Next/Last,
+Search, list Views/Playlists/Episodes, Star and Played marks. Intents open PodList and
+use its live session. Add defaults to the Active Playlist when none is supplied.
+Search returns up to 100 Episode entities. List Library returns JSON with counts and ids;
+use its View id or a Playlist entity to list Episodes. Offset reads later pages.
+
+`swift build` emits App Intents compiler constant values with the installed Xcode
+SwiftPM build engine. It does not package the extracted action metadata into an app.
+The bare `swift run PodListMac` executable is therefore insufficient for Shortcuts discovery.
+Build a development bundle:
+
+```sh
+./scripts/build-mac-app.sh
+open .build/PodList.app
+```
+
+The script builds only under `.build/`. It writes an Info.plist, runs Xcode's
+`appintentsmetadataprocessor`, verifies `Metadata.appintents/extract.actionsdata`, and
+ad-hoc signs `.build/PodList.app`. It never installs into `/Applications` or registers
+the app itself. It needs the selected Xcode toolchain and its SwiftPM compiler constant
+outputs (tested with Xcode 27.2 / Swift 6.4). A toolchain without these outputs stops
+with a diagnostic; an Xcode app target with Extract App Intents Metadata is the alternative.
+Apple describes bundle metadata in
+[Configuring runtime behavior](https://developer.apple.com/documentation/appintents/configuring-the-runtime-behavior-of-your-app-intents).
+
+After opening the bundle, look for PodList in Shortcuts > Add Action > Apps. Launch
+Services and Shortcuts may need time or a Shortcuts restart to refresh their caches.
+Bundle metadata extraction is checked by the script. Actual Shortcuts, Siri and Spotlight
+visibility still needs a manual run. Distribution signing and notarization are not included.
+
+`AutomationTests` covers Active Playlist defaults, shared Undo names and reversal, Search,
+paging, Now Playing, id/argument validation, MCP lifecycle/schema/success/error handling,
+malformed JSON, socket permissions, exclusive ownership, round trips and stop/restart.
+The socket test needs permission to bind a local Unix socket in the enclosing sandbox.
+
 ## Next
 
-App Intents, the Mac MCP server, app-bundle packaging/signing, conditional feed polling and the
-resumable Standalone-to-server bring-over flow remain later work (Beads `pod-apx.5.7` and
-`pod-apx.5.6`). Live platform validation of milestones 2–4 is pending the owner's Mac run.
+Distribution signing and installation, conditional feed polling and the resumable
+Standalone-to-server bring-over flow remain later work (Beads `pod-apx.5.7` and
+`pod-apx.5.6`). Live platform validation of milestones 2–4, Shortcuts discovery and an
+MCP client session are pending the owner's Mac run.

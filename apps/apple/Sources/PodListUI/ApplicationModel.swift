@@ -50,6 +50,7 @@ public enum ConnectionValidation {
 /// One app-wide session, with independent per-server databases and stable Device identities.
 @MainActor @Observable
 public final class ApplicationModel {
+    @ObservationIgnored public lazy var actions = AutomationActions(app: self)
     public var serverInput = ""
     public private(set) var origin: String?
     public private(set) var connecting = false
