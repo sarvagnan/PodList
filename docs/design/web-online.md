@@ -57,6 +57,20 @@ Each page reads its count, rows and cursors in one transaction. Tokens are signe
 and bound to the query and both database cursors. If data changes, `409 ReadChanged`
 requires a fresh first page. Invalid tokens, changed queries or a server restart
 return `400 InvalidContinuation`. No result snapshot is kept in server memory.
+Server migration 0004 also records Subscription and Episode DELETEs in the durable Library change log, including failed
+Subscribe cleanup. A provisional row that was readable before cleanup invalidates
+continuations and live readers when removed. Changes rolled back inside a single
+transaction never become readable and need no separate invalidation.
+
+Read query budgets: Search `q` and `filter.text` allow at most 1,024 characters
+and 32 whitespace-separated words; whitespace-only text keeps its existing meaning.
+Podcast filters allow at most 200 Subscription ids, each at most 256 characters.
+The API schema rejects excess input with 400 before query compilation. The server
+also validates saved Views and direct query-builder calls, returning
+`400 InvalidReadQuery` for over-budget queries or compilation failures (including
+View counts). Native/persisted View schemas keep their existing shape. JSON bodies
+under `/api/reads/` are capped at 64 KiB before parsing, including chunked requests;
+excess bodies return 413. All request and response field names remain compatible.
 
 Reuse `GET /api/sync/pull?since=0` for current State and its operation cursor.
 State and cursor now read in one transaction. Incremental pulls keep existing rules.
@@ -74,8 +88,27 @@ pull State from zero. Each tab can connect independently.
 
 The server checks durable cursors every 500 ms while a socket is open. This covers
 feed refreshes, Subscription overrides and native edits. It sends a heartbeat every
-15 seconds and stops the loop when the peer closes. If a socket cannot connect,
-poll `GET /api/live/cursors`, compare both cursors and refresh changed reads. The
+15 seconds and stops the loop when the peer closes. Transport ping/pong runs every
+15 seconds; a missing pong closes the connection by the next tick (at most 30 seconds).
+Browsers answer these control frames automatically; clients send no application messages.
+
+Live resource budgets are 64 concurrent sockets per server, 8 per browser profile,
+and 32 per direct peer IP. Pass optional `deviceId` (1–128 characters) with the
+profile's existing Device id; omitted ids share the peer's 8-socket bucket for older
+clients. Device ids are self-reported, not authentication; the peer cap also applies
+when ids rotate. Forwarded IP headers are ignored. Admission returns 429 before
+upgrade and releases capacity on every disconnect, failure or cancellation.
+Inbound messages (including reassembled fragments) are capped at 1 KiB by the
+transport; excess closes with 1009. Any application message closes with 1008 and a
+1-second forced-close grace. Outbound sends include queued bytes plus the next UTF-8
+frame under a 16 KiB ceiling; overflow terminates the socket. An outstanding write
+must complete within 5 seconds; newer writes cannot extend that deadline. There is
+no application notification queue: the next cursor check coalesces changes. Slow
+consumers disconnect and catch up from durable cursors after reconnect or polling.
+These limits live in `packages/server/src/LiveSocket.ts`.
+
+If a socket cannot connect, poll `GET /api/live/cursors`, compare both cursors and
+refresh changed reads. The
 client adapter will own reconnection, polling and tab-return handling in milestone 3.
 
 Authentication follows [ADR 0004](../adr/0004-tailnet-is-the-auth-boundary.md): the tailnet is the

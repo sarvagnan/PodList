@@ -114,7 +114,7 @@ export const make = Effect.gen(function* () {
   const page = <R extends object>(
     scope: unknown,
     paging: Paging,
-    query: (at: number) => ViewQuery.CompiledQuery
+    query: (at: number) => Effect.Effect<ViewQuery.CompiledQuery, Api.InvalidReadQuery>
   ) =>
     Effect.gen(function* () {
       const size = paging.pageSize ?? 100
@@ -129,7 +129,7 @@ export const make = Effect.gen(function* () {
       if (token && token.key !== key) return yield* new Api.InvalidContinuation()
       const at = token?.now ?? now()
       const offset = token?.offset ?? 0
-      const compiled = query(at)
+      const compiled = yield* query(at)
       const [count] = yield* sql
         .unsafe<{ total: number }>(`SELECT count(*) AS total FROM (${compiled.sql})`, [
           ...compiled.params
@@ -153,10 +153,20 @@ export const make = Effect.gen(function* () {
             : null
       }
     }).pipe(sql.withTransaction, Effect.catchTag("SqlError", Effect.die))
+  const compile = (input: ViewQuery.ViewQueryInput, at: number) =>
+    Schema.decodeUnknownEffect(Api.ViewInput)(input).pipe(
+      Effect.mapError(() => new Api.InvalidReadQuery()),
+      Effect.flatMap((validated) =>
+        Effect.try({
+          try: () => ViewQuery.compile(validated, Units.EpochMillis.make(at)),
+          catch: () => new Api.InvalidReadQuery()
+        })
+      )
+    )
   const filter = (input: ViewQuery.ViewQueryInput, paging: Paging, scope: unknown = input) =>
-    page<EpisodeRow>(scope, paging, (at) =>
-      ViewQuery.compile(input, Units.EpochMillis.make(at))
-    ).pipe(Effect.map((p) => new Api.EpisodePage({ ...p, items: p.items.map(viewEpisode) })))
+    page<EpisodeRow>(scope, paging, (at) => compile(input, at)).pipe(
+      Effect.map((p) => new Api.EpisodePage({ ...p, items: p.items.map(viewEpisode) }))
+    )
   const savedView = (id: string) =>
     Effect.gen(function* () {
       const [row] = yield* sql<{ doc: string }>`SELECT doc FROM view WHERE id = ${id}`.pipe(
@@ -191,7 +201,7 @@ export const make = Effect.gen(function* () {
       const counts = []
       const at = Units.EpochMillis.make(now())
       for (const row of rows) {
-        const query = ViewQuery.compile(
+        const query = yield* compile(
           Schema.decodeSync(Schema.fromJsonString(View.View))(row.doc),
           at
         )
@@ -241,10 +251,12 @@ export const make = Effect.gen(function* () {
         })
       }),
     subscriptions: (paging: Paging) =>
-      page<SubscriptionRow>("subscriptions", paging, () => ({
-        sql: `${subscriptionQuery} WHERE s.unsubscribed_at IS NULL ORDER BY s.title COLLATE NOCASE, s.id`,
-        params: []
-      })).pipe(
+      page<SubscriptionRow>("subscriptions", paging, () =>
+        Effect.succeed({
+          sql: `${subscriptionQuery} WHERE s.unsubscribed_at IS NULL ORDER BY s.title COLLATE NOCASE, s.id`,
+          params: []
+        })
+      ).pipe(
         Effect.map((p) => new Api.SubscriptionPage({ ...p, items: p.items.map(subscription) }))
       ),
     subscription: (id: string) =>
@@ -256,12 +268,14 @@ export const make = Effect.gen(function* () {
         return subscription(row)
       }),
     stats: (kind: "podcasts" | "episodes", paging: Paging) =>
-      page<{ id: string; title: string | null }>(["stats", kind], paging, () => ({
-        sql:
-          kind === "podcasts"
-            ? "SELECT id, title FROM subscription ORDER BY id"
-            : "SELECT id, NULL AS title FROM episode ORDER BY id",
-        params: []
-      })).pipe(Effect.map((p) => new Api.StatsPage(p)))
+      page<{ id: string; title: string | null }>(["stats", kind], paging, () =>
+        Effect.succeed({
+          sql:
+            kind === "podcasts"
+              ? "SELECT id, title FROM subscription ORDER BY id"
+              : "SELECT id, NULL AS title FROM episode ORDER BY id",
+          params: []
+        })
+      ).pipe(Effect.map((p) => new Api.StatsPage(p)))
   }
 })

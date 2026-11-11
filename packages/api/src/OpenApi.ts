@@ -77,14 +77,17 @@ const live = HttpApiGroup.make("live").add(
       ),
       library: Schema.optionalKey(
         Schema.NumberFromString.pipe(Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)))
+      ),
+      deviceId: Schema.optionalKey(
+        Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(128)))
       )
     },
     success: Schema.Void.pipe(HttpApiSchema.status(101)),
-    error: [400, 403, 426].map((status) => Schema.Void.pipe(HttpApiSchema.status(status)))
+    error: [400, 403, 426, 429].map((status) => Schema.Void.pipe(HttpApiSchema.status(status)))
   }).annotate(OpenApi.Transform, (operation) => ({
     ...operation,
     description:
-      "Same-origin WebSocket. Origin is required and must equal the request origin (the HTTPS proxy preserves Host and sets X-Forwarded-Proto). State and Library query cursors are nonnegative safe integers, default 0. On connect, sends current cursors immediately, coalescing all changes since the client's last cursors. Sends changed cursors within 500ms and a heartbeat every 15s. Notifications invalidate reads; pull State and refetch reads, rather than replaying messages. reset=true means a cursor moved backwards: pull since=0. Always refresh on reconnect and tab return. If the socket cannot connect, poll GET /api/live/cursors and compare both cursors. No application authentication (ADR 0004).",
+      "Same-origin WebSocket. Origin is required and must equal the request origin (the HTTPS proxy preserves Host and sets X-Forwarded-Proto). State and Library query cursors are nonnegative safe integers, default 0. On connect, sends current cursors immediately, coalescing all changes since the client's last cursors. Sends changed cursors within 500ms and a heartbeat every 15s. Notifications invalidate reads; pull State and refetch reads, rather than replaying messages. reset=true means a cursor moved backwards: pull since=0. Always refresh on reconnect and tab return. If the socket cannot connect, poll GET /api/live/cursors and compare both cursors. Limits: 64 concurrent sockets total, 8 per profile (optional deviceId, 1-128 characters; absent ids share a peer bucket), 32 per direct peer IP regardless of deviceId. Device ids are self-reported; forwarded IP headers are ignored. Admission exhaustion returns 429 before upgrade. Transport inbound messages, including fragmented messages, are limited to 1024 bytes (close 1009); any application message closes with 1008 and a 1s forced-close grace. Outbound queued bytes plus each frame are bounded to 16384 bytes; overflow or a write outstanding for 5s terminates the socket. Notifications coalesce at each cursor check without an application queue. Transport ping every 15s requires pong by the next tick (at most 30s). Browsers answer control frames automatically. Always recover through durable cursor catch-up or polling after a disconnect. No application authentication (ADR 0004).",
     parameters: [
       ...(operation.parameters ?? []),
       { name: "Origin", in: "header", required: true, schema: { type: "string" } }
@@ -115,6 +118,12 @@ export const openApiDocument = () => {
       const operation = path[method]
       if (operation === undefined) continue
       if (operation.tags?.includes("media") || operation.tags?.includes("live")) continue
+      if (operation.tags?.includes("reads") && operation.requestBody) {
+        operation.responses["413"] = {
+          description:
+            "Read JSON request body exceeds 65536 bytes (64 KiB), before parsing; empty response body."
+        }
+      }
       if (operation.requestBody || operation.parameters?.length) {
         const declared = operation.responses["400"]
         operation.responses["400"] = {
@@ -130,7 +139,7 @@ export const openApiDocument = () => {
       title: "PodList HTTP API",
       version: String(Protocol.version),
       description:
-        "Single-user API. Authentication and authorization are provided by reachability over the user's Tailscale tailnet (ADR 0004). There is no application login, bearer token, API key or cookie requirement. Keep the server private to the tailnet. Protocol version is also returned by GET /api/health. Paths include /api; use the server origin as the base URL. JSON endpoints return an empty 400 response for malformed input (HttpApiSchemaError); infrastructure failures may return 5xx. The media streams and WebSocket endpoint use raw HttpRouter handlers. Online read pages default to 100 rows, maximum 200. Continuations are opaque, bound to query, page size and State/Library cursors, and freeze relative dates. A 409 ReadChanged requires restarting from the first page; malformed or expired tokens return 400 InvalidContinuation. Server restart invalidates tokens. View limits apply across the entire result, including counts. Listening metadata includes removed Subscriptions and stored Episodes; combine it with State using Listening.stats on the viewing Device."
+        "Single-user API. Authentication and authorization are provided by reachability over the user's Tailscale tailnet (ADR 0004). There is no application login, bearer token, API key or cookie requirement. Keep the server private to the tailnet. Protocol version is also returned by GET /api/health. Paths include /api; use the server origin as the base URL. JSON endpoints return an empty 400 response for malformed input (HttpApiSchemaError); infrastructure failures may return 5xx. The media streams and WebSocket endpoint use raw HttpRouter handlers. Online read pages default to 100 rows, maximum 200. Continuations are opaque, bound to query, page size and State/Library cursors, and freeze relative dates. A 409 ReadChanged requires restarting from the first page; malformed or expired tokens return 400 InvalidContinuation. Server restart invalidates tokens. View limits apply across the entire result, including counts. Search q and filter.text are limited to 1024 characters and 32 whitespace-separated words (400 for excess input). Podcast filters allow 200 ids of up to 256 characters. Read POST JSON bodies are limited to 65536 bytes before parsing (413). Saved Views and direct query compilation enforce the same limits and fail with 400 InvalidReadQuery, including counts. Library deletions, including failed Subscribe cleanup, advance the Library cursor and invalidate pages and live reads. Listening metadata includes removed Subscriptions and stored Episodes; combine it with State using Listening.stats on the viewing Device."
     },
     security: []
   }

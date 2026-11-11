@@ -1,4 +1,4 @@
-import { Library, PlaybackSettings, View } from "@podlist/domain"
+import { Ids, Library, PlaybackSettings, View } from "@podlist/domain"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api"
 
@@ -37,8 +37,40 @@ export class ReadNotFound extends Schema.TaggedError<ReadNotFound>()(
   {},
   { httpApiStatus: 404 }
 ) {}
+// Keep wire limits separate from persisted/native Views. Saved Views are checked
+// again by the server before compilation, so older State cannot bypass the budget.
+export const queryLimits = {
+  textLength: 1024,
+  words: 32,
+  podcastIds: 200,
+  idLength: 256,
+  bodyBytes: 65536
+} as const
+export const QueryText = Schema.NonEmptyString.pipe(
+  Schema.check(
+    Schema.isMaxLength(queryLimits.textLength),
+    Schema.isPattern(/^(?:\s*|\s*\S+(?:\s+\S+){0,31}\s*)$/)
+  )
+)
+export const ReadFilter = Schema.Struct({
+  ...View.ViewFilter.fields,
+  text: Schema.optionalKey(QueryText),
+  podcasts: Schema.optionalKey(
+    Schema.Struct({
+      mode: View.PodcastFilter.fields.mode,
+      subscriptionIds: Schema.NonEmptyArray(
+        Ids.SubscriptionId.pipe(Schema.check(Schema.isMaxLength(queryLimits.idLength)))
+      ).pipe(Schema.check(Schema.isMaxLength(queryLimits.podcastIds)))
+    })
+  )
+})
+export class InvalidReadQuery extends Schema.TaggedError<InvalidReadQuery>()(
+  "InvalidReadQuery",
+  {},
+  { httpApiStatus: 400 }
+) {}
 export const ViewInput = Schema.Struct({
-  filter: View.ViewFilter,
+  filter: ReadFilter,
   sort: View.ViewSort,
   limit: View.View.fields.limit
 })
@@ -47,7 +79,7 @@ export class FilterRequest extends Schema.Class<FilterRequest>("@podlist/api/Fil
   ...Page
 }) {}
 export class SearchRequest extends Schema.Class<SearchRequest>("@podlist/api/SearchRequest")({
-  q: Schema.NonEmptyString,
+  q: QueryText,
   ...Page
 }) {}
 export class EpisodeSummary extends Schema.Class<EpisodeSummary>("@podlist/api/EpisodeSummary")({
@@ -118,7 +150,7 @@ export class StatsPage extends Schema.Class<StatsPage>("@podlist/api/StatsPage")
   continuation: Schema.NullOr(Schema.String),
   cursors: Cursors
 }) {}
-const errors = [InvalidContinuation, ReadChanged, ReadNotFound] as const
+const errors = [InvalidContinuation, ReadChanged, ReadNotFound, InvalidReadQuery] as const
 export class ReadsApi extends HttpApiGroup.make("reads")
   .add(
     HttpApiEndpoint.get("view", "/reads/views/:id", {
@@ -142,7 +174,12 @@ export class ReadsApi extends HttpApiGroup.make("reads")
       error: errors
     })
   )
-  .add(HttpApiEndpoint.get("counts", "/reads/views/counts", { success: ViewCounts }))
+  .add(
+    HttpApiEndpoint.get("counts", "/reads/views/counts", {
+      success: ViewCounts,
+      error: InvalidReadQuery
+    })
+  )
   .add(
     HttpApiEndpoint.post("summaries", "/reads/episodes", {
       payload: SummaryRequest,

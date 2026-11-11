@@ -14,6 +14,7 @@ import { Directory } from "./Directory.ts"
 import { ApiRoutes } from "./Http.ts"
 import { Library } from "./Library.ts"
 import { LiveRoute } from "./Live.ts"
+import { liveWebSocketOptions } from "./LiveSocket.ts"
 import { AudioRoute } from "./Media.ts"
 import { Poller } from "./Poller.ts"
 import { Subscriptions } from "./Subscriptions.ts"
@@ -54,6 +55,7 @@ const Main = Layer.unwrap(
       Layer.provide(
         NodeHttpServer.layer(createServer, {
           port: config.port,
+          websocket: liveWebSocketOptions(),
           ...Option.match(config.host, { onNone: () => ({}), onSome: (host) => ({ host }) })
         })
       ),

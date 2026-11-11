@@ -2,13 +2,15 @@ import {
   Directory as DirectoryApi,
   Library as LibraryApi,
   PodListApi,
+  Reads as ReadsApi,
   Subscriptions as SubscriptionsApi,
   Sync,
   System
 } from "@podlist/api"
 import { openApiDocument } from "@podlist/api/openapi"
 import { Protocol } from "@podlist/domain"
-import { Config, Effect, Layer, Option } from "effect"
+import { ByteSize, Config, Effect, Layer, Option } from "effect"
+import { HttpIncomingMessage, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, OpenApi } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
 import { Chapters } from "./Chapters.ts"
@@ -160,6 +162,27 @@ export const ReadHandlers = HttpApiBuilder.group(
   })
 )
 
+// Buffer read JSON bodies once under a byte budget, before the API JSON codec.
+// The request caches this bounded read; chunked bodies get the same limit as Content-Length.
+const ReadBodyLimit = HttpRouter.middleware((httpEffect) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    if (request.method === "POST" && request.url.startsWith("/api/reads/")) {
+      if (Number(request.headers["content-length"]) > ReadsApi.queryLimits.bodyBytes)
+        return HttpServerResponse.empty({ status: 413 })
+      const body = yield* request.arrayBuffer.pipe(
+        Effect.provideService(
+          HttpIncomingMessage.MaxBodySize,
+          ByteSize.bytes(ReadsApi.queryLimits.bodyBytes)
+        ),
+        Effect.catch(() => Effect.succeed(undefined))
+      )
+      if (body === undefined) return HttpServerResponse.empty({ status: 413 })
+    }
+    return yield* httpEffect
+  })
+)
+
 export const ApiRoutes = HttpApiBuilder.layer(
   PodListApi.annotate(OpenApi.Transform, () => openApiDocument()),
   {
@@ -173,5 +196,6 @@ export const ApiRoutes = HttpApiBuilder.layer(
     SubscriptionsHandlers,
     DirectoryHandlers,
     ReadHandlers
-  ])
+  ]),
+  Layer.provide(ReadBodyLimit.layer)
 )
