@@ -36,7 +36,7 @@ export const clientMigrations = Migrator.fromRecord({
  * worker (or from the tab that handed over with "Use here") are released
  * asynchronously, so the first attempt can find the database still locked.
  */
-const clientWithRetry = (databaseName: string) =>
+export const clientWithRetry = (databaseName: string) =>
   Layer.effectContext(
     Effect.gen(function* () {
       // Each attempt has its own scope: one that fails (or runs out of time) has its

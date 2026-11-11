@@ -18,13 +18,11 @@ export default defineConfig(({ mode }) => ({
               this.emitFile({
                 type: "asset",
                 fileName: "sw.js",
-                source: `self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil((async () => {
-  const names = await caches.keys();
-  await Promise.all(names.filter((name) => name === "artwork" || name.startsWith("workbox-")).map((name) => caches.delete(name)));
-  await self.registration.unregister();
-  for (const client of await self.clients.matchAll({ type: "window" })) await client.navigate(client.url);
-})()));`
+                source: `// Wait for old controlled pages to close before activating. skipWaiting would
+// trigger the old vite-pwa autoUpdate listener to reload and lose its JS tail.
+// Then pass through to the network; the new page carries over local changes
+// before unregistering and clearing caches.
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));`
               })
             }
           } satisfies Plugin
