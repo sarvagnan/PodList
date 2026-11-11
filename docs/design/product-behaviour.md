@@ -81,9 +81,9 @@ The server retains Subscription and Episode ids, settings (Played threshold and 
 
 Apps with a local database open without needing a server: people can start as a Standalone Device or connect to a server (ADR 0012). Connecting a Standalone Device later offers to bring its Library over, showing what will move first. Declining keeps the two separate.
 
-First run then continues as a skippable checklist on Views, with three steps: add podcasts; understand Views; add Episodes to Playlists. For a fresh Library without Views, create the starter Views once: **New this week** (Published in the last seven days, Unplayed), **Under 30 minutes** (Unplayed, up to 30 minutes, shortest first), and **Starred**. The Default Playlist is ready from the start.
+First run then shows a skippable introduction on Views with three points: adding podcasts; what Views do; what Playlists hold. They explain the app; they are not tasks, so nothing is ticked (owner, 12 Nov 2026). For a fresh Library without Views, create the starter Views once: **New this week** (Published in the last seven days, Unplayed), **Under 30 minutes** (Unplayed, up to 30 minutes, shortest first), and **Starred**. The Default Playlist is ready from the start.
 
-The checklist tracks steps as they are completed and stays until dismissed. Adding the first Subscription does not dismiss an open Add flow or erase input. Settings can reopen Getting started with completed steps indicated. Never mistake a temporarily loading Library for a fresh one.
+The introduction goes away by itself once the Library has a Subscription, but not while an Add flow is open: adding the first Subscription never dismisses an open Add flow or erases input, and the introduction leaves when that flow closes. It can also be skipped. Settings can reopen Getting started; a reopened introduction stays until dismissed. Never mistake a temporarily loading Library for a fresh one.
 
 ## Settings and Listening stats
 
