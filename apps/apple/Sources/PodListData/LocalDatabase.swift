@@ -27,6 +27,7 @@ public actor LocalDatabase {
         try storage.transaction {
             // Pre-validation clients offered zero. Preserve All New intent by removing the cap.
             try storage.execute("UPDATE download_rule SET keep_at_most = NULL WHERE keep_at_most < 1 OR keep_at_most > 9007199254740991")
+            try storage.execute("DELETE FROM download_rule WHERE subscription_id = '' OR device_id = '' OR mode NOT IN ('never', 'onEntry', 'allNew') OR since < 0 OR since > 9007199254740991")
             for table in ["outbox", "local_operation"] {
                 for row in try storage.query("SELECT id, operation FROM \(table) ORDER BY seq") {
                     guard var operation = try? ProtocolJSON.decode(Operation.self, from: row["operation"]!.string!) else {
@@ -107,13 +108,18 @@ public actor LocalDatabase {
                 ], upsert: true)
             }
             for e in episodes {
+                let previous = try storage.query("SELECT chapters, chapters_fetched_at, audio_url, audio_updated_at FROM episode WHERE id = ?", [.text(e.id)]).first
+                let sameAudio = previous?["audio_url"]?.string == e.audioUrl && previous?["audio_updated_at"]?.int == e.audioUpdatedAt
+                let chapters = !standalone && sameAudio && e.chapters.isEmpty && previous?["chapters_fetched_at"]?.int != nil
+                    ? previous!["chapters"]!.string! : try ProtocolJSON.encode(e.chapters)
                 try storage.insert("episode", [
                     "id": .text(e.id), "subscription_id": .text(e.subscriptionId), "guid": .text(e.guid), "title": .text(e.title),
                     "title_folded": .text(Mentions.fold(e.title)), "description_folded": .text(Mentions.fold(e.description)),
                     "description": .text(e.description), "published": .integer(e.published), "duration": .optional(e.duration),
                     "audio_url": .text(e.audioUrl), "artwork_url": .optional(e.artwork?.url),
-                    "chapters": .text(try ProtocolJSON.encode(e.chapters)), "audio_updated_at": .optional(e.audioUpdatedAt)
+                    "chapters": .text(chapters), "audio_updated_at": .optional(e.audioUpdatedAt)
                 ], upsert: true)
+                if !sameAudio { try storage.execute("UPDATE episode SET chapters_fetched_at = NULL WHERE id = ?", [.text(e.id)]) }
             }
             if let cursor { try setMeta("catalogueCursor", String(cursor)) }
         }
@@ -153,8 +159,7 @@ public actor LocalDatabase {
                 try storage.execute("INSERT INTO \(standalone ? "local_operation" : "outbox") (id, operation) VALUES (?, ?)", [.text(id), .text(try ProtocolJSON.encode(operation))])
                 if standalone {
                     switch change {
-                    case let .setSubscriptionOverrides(id, playbackSettings, threshold):
-                        try storage.execute("UPDATE subscription SET playback_settings = ?, played_threshold = ? WHERE id = ?", [.text(try ProtocolJSON.encode(playbackSettings)), .optional(threshold), .text(id)])
+                    case .setSubscriptionOverrides: try applySubscriptionMetadata(change)
                     case let .markSubscriptionPlayed(id):
                         for row in try storage.query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published ASC", [.text(id)]) {
                             let episodeId = row["id"]!.string!
@@ -200,7 +205,10 @@ public actor LocalDatabase {
                     default: break
                     }
                 }
-                if !deletedLater { inverse = EditUndo.inverse(before, change: requested, at: at) + inverse }
+                if case let .setSubscriptionOverrides(id, _, _) = requested,
+                   let sub = try readLibrary().subscriptions.first(where: { $0.id == id }) {
+                    inverse.insert(.setSubscriptionOverrides(subscriptionId: id, playbackSettings: sub.playbackSettings, playedThreshold: sub.playedThreshold), at: 0)
+                } else if !deletedLater { inverse = EditUndo.inverse(before, change: requested, at: at) + inverse }
                 let expanded: [Change]
                 if case let .restorePlaylist(id) = requested {
                     expanded = PlaylistNames.restoreChanges(before, id: id, at: at)
@@ -213,6 +221,12 @@ public actor LocalDatabase {
                 try recordAll(expanded, at: at)
             }
             return inverse
+        }
+    }
+
+    private func applySubscriptionMetadata(_ change: Change) throws {
+        if case let .setSubscriptionOverrides(id, settings, threshold) = change {
+            try storage.execute("UPDATE subscription SET playback_settings = ?, played_threshold = ? WHERE id = ?", [.text(try ProtocolJSON.encode(settings)), .optional(threshold), .text(id)])
         }
     }
 
@@ -230,6 +244,10 @@ public actor LocalDatabase {
             let seen: Set<String> = page.snapshot != nil ? [] : try getMeta("seenOperations").map { try ProtocolJSON.decode(Set<String>.self, from: $0) } ?? []
             let base = try page.snapshot ?? confirmedState() ?? .initial()
             let replayed = StateRules.replay(base, operations: page.operations, applied: seen)
+            // Accepted metadata intentions must survive a later catalogue-pull failure too.
+            let returnedIDs = Set(page.operations.map(\.id))
+            for operation in sent where !returnedIDs.contains(operation.id) { try applySubscriptionMetadata(operation.change) }
+            for operation in page.operations { try applySubscriptionMetadata(operation.change) }
             for operation in sent { try storage.execute("DELETE FROM outbox WHERE id = ?", [.text(operation.id)]) }
             try setMeta("confirmedState", ProtocolJSON.encode(replayed.state))
             try setMeta("seenOperations", ProtocolJSON.encode(replayed.applied.sorted()))

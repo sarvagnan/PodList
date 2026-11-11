@@ -30,6 +30,7 @@ func everyRecordedVectorOperationMatchesSchema(_ name: String) async throws {
         await #expect(throws: ProtocolValidationFailure.self) { try await db.record(.setDownloadRule(rule: rule), at: 1) }
         var state = initial; state.downloadRules = [rule]
         await #expect(throws: ProtocolValidationFailure.self) { try await db.saveState(state) }
+        await #expect(throws: ProtocolValidationFailure.self) { try await db.saveConfirmed(state, cursor: 1) }
     }
     #expect(try await db.outbox().isEmpty)
     #expect(try await db.loadState() == initial)
@@ -48,8 +49,11 @@ func everyRecordedVectorOperationMatchesSchema(_ name: String) async throws {
                         change: .setDownloadRule(rule: .init(subscriptionId: "s", deviceId: "d", mode: .allNew, keepAtMost: 0)))
     try await db.execute("INSERT INTO outbox(id, operation) VALUES (?, ?)", [.text(bad.id), .text(try ProtocolJSON.encode(bad))])
     try await db.execute("INSERT INTO download_rule(subscription_id, device_id, mode, keep_at_most) VALUES ('s', 'd', 'allNew', 0)")
+    let later = Operation(id: "later", deviceId: "d", sequence: 1, recordedAt: 2, change: .setStar(episodeId: "e", starred: true))
+    try await db.execute("INSERT INTO outbox(id, operation) VALUES (?, ?)", [.text(later.id), .text(try ProtocolJSON.encode(later))])
+    try await db.execute("INSERT INTO outbox(id, operation) VALUES ('unrecoverable', ?)", [.text("{}")])
+    try await db.execute("INSERT INTO episode_state(episode_id, starred) VALUES ('e', 1)")
     let reopened = try LocalDatabase(path: path.path)
-    try await reopened.record(.setStar(episodeId: "e", starred: true), at: 2)
     let queued = try await reopened.outbox()
     #expect(queued.count == 2)
     #expect(queued.first?.id == "bad")
@@ -58,4 +62,9 @@ func everyRecordedVectorOperationMatchesSchema(_ name: String) async throws {
     #expect(try await reopened.loadState().episodeStates["e"]?.starred == true)
     if case let .setDownloadRule(rule) = queued[0].change { #expect(rule.keepAtMost == nil); #expect(rule.mode == .allNew) }
     else { Issue.record("Rule intent lost") }
+    #expect(queued.last == later)
+    try await reopened.commitPull(PullPage(cursor: 1, snapshot: nil, operations: queued), sent: queued)
+    #expect(try await reopened.outbox().isEmpty)
+    #expect(try await reopened.loadState().downloadRules.first?.keepAtMost == nil)
+    try await reopened.record(.setStar(episodeId: "next", starred: true), at: 3)
 }
