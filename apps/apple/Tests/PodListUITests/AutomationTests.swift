@@ -248,7 +248,7 @@ private let discoveryLine = Data(#"{"jsonrpc":"2.0","id":1,"method":"server/disc
     #expect(!disabled.isEnabled)
     let config = try JSONDecoder().decode(JSONValue.self, from: Data(settings.clientConfiguration.utf8))
     #expect(config["mcpServers"]?["podlist"]?["command"] == .string(settings.bridgePath))
-    #expect(config["mcpServers"]?["podlist"]?["args"] == [])
+    #expect(config["mcpServers"]?["podlist"]?["args"] == nil)
 }
 
 @MainActor @Test func disabledMCPRemovesStaleSocketsWithoutRemovingOtherFiles() throws {
