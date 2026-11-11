@@ -83,11 +83,13 @@ internal fun ActionGrid(content: @Composable FlowRowScope.() -> Unit) {
 internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, accessibilityLabel: String? = null, labelColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified, action: () -> Unit) {
     TextButton(onClick = action, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 4.dp else 8.dp),
-        modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp).then(
-            if (accessibilityLabel == null) Modifier else Modifier.iconControlSemantics(accessibilityLabel, enabled, action))) {
+        // Own the full name and role on the clickable node at every text size. Passive
+        // Text descendants can be clipped out of Android's tree in a scrolling grid.
+        modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp)
+            .iconControlSemantics(accessibilityLabel ?: label, enabled, action)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
-            Text(label, modifier = if (accessibilityLabel == null) Modifier else Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelLarge, color = labelColor, textAlign = TextAlign.Center)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = labelColor, textAlign = TextAlign.Center)
         }
     }
 }

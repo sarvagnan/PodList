@@ -145,7 +145,7 @@ class UiStabilityTest {
         val playlist = State.initial().playlists.single()
         val metadata = PlaybackMetadata("accessibility-episode", null, "Episode", "Podcast", null,
             1800.0, null, null, emptyList(), PlaybackSettingsOverride(), null)
-        val now = PlaybackUi(playlist.id, playlist.name, metadata, 60.0, 1800.0, false, 1f, 0, null)
+        val now = PlaybackUi(playlist.id, playlist.name, metadata, 60.0, 1800.0, false, 1f, 2, null)
         // Use the real shell and sheet, but never initialise the process-wide Application model
         // or start Media3/network playback. FlowRun can still run later in this instrumentation.
         model.playbackHost = object : PlaybackHost {
@@ -211,6 +211,25 @@ class UiStabilityTest {
             assertPlatformControls("now-playing", transport + collapse)
             compose.runOnIdle { model.playback.value = now.copy(playing = true) }
             assertPlatformControls("now-playing-pause", transport - resources.getString(R.string.play) + resources.getString(R.string.pause) + collapse)
+            val speedValue = resources.getString(R.string.speed_value,
+                java.text.NumberFormat.getNumberInstance().apply { minimumFractionDigits = 1 }.format(now.speed))
+            val tiles = listOf(
+                resources.getString(R.string.speed_accessibility, speedValue),
+                resources.getString(R.string.sleep_off_accessibility),
+                resources.getString(R.string.episode),
+                resources.getString(R.string.entries_accessibility, now.nextCount)
+            )
+            for (label in tiles) {
+                val tile = hasContentDescription(label) and hasClickAction()
+                compose.onNode(tile).performScrollTo().assertIsDisplayed()
+                for (unmerged in listOf(false, true)) {
+                    compose.onAllNodes(tile, useUnmergedTree = unmerged).assertCountEquals(1)
+                    compose.onNode(tile, useUnmergedTree = unmerged)
+                        .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+                        .assert(isFocusable())
+                }
+                assertPlatformControls("now-playing-tile-$label", emptyList(), listOf(label))
+            }
         } finally {
             compose.runOnIdle { visible = false }
             compose.waitForIdle()
@@ -221,7 +240,7 @@ class UiStabilityTest {
         }
     }
 
-    private fun assertPlatformControls(stage: String, iconLabels: List<String>): Map<String, AccessibilityNodeInfo> {
+    private fun assertPlatformControls(stage: String, iconLabels: List<String>, tileLabels: List<String> = emptyList()): Map<String, AccessibilityNodeInfo> {
         compose.waitForIdle()
         compose.onRoot(useUnmergedTree = true).printToLog("PodListAX-$stage")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -271,15 +290,15 @@ class UiStabilityTest {
             assertTrue("$stage: icon control must carry its own contentDescription: $node", !node.contentDescription.isNullOrBlank())
             assertEquals("$stage: icon control must retain its own button role: $node", "android.widget.Button", node.className?.toString())
         }
-        for (label in iconLabels) {
+        for (label in iconLabels + tileLabels) {
             val labelled = appNodes.filter { it.contentDescription?.toString() == label }
             assertEquals("$stage: one announcement for $label", 1, labelled.size)
             assertTrue("$stage: $label must label its own clickable node", labelled.single().isClickable)
             assertEquals("$stage: $label must retain its button role", "android.widget.Button", labelled.single().className?.toString())
             assertTrue("$stage: $label must be independently focusable", labelled.single().isFocusable)
             assertTrue("$stage: $label must remain accessible", labelled.single().isImportantForAccessibility)
-            assertEquals("$stage: icon controls must be semantic leaves", 0, labelled.single().childCount)
-            if (label != InstrumentationRegistry.getInstrumentation().targetContext.getString(
+            assertEquals("$stage: named controls must be semantic leaves", 0, labelled.single().childCount)
+            if (label in iconLabels && label != InstrumentationRegistry.getInstrumentation().targetContext.getString(
                     R.string.open_now_playing, "Podcast", "Episode")) {
                 assertTrue("$stage: tooltip action belongs to $label", labelled.single().isLongClickable)
             }

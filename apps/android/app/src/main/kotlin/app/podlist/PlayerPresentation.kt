@@ -206,10 +206,13 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
             LabelledAction(R.drawable.ic_speed, speedSetting(now.speed.toDouble()), accessibilityLabel = speedLabel, labelColor = MaterialTheme.colorScheme.onSurfaceVariant) { speed = true }
-            LabelledAction(R.drawable.ic_sleep, sleepLabel(now)) { sleep = true }
+            val sleepText = sleepLabel(now)
+            LabelledAction(R.drawable.ic_sleep, sleepText,
+                accessibilityLabel = if (now.sleep == null) stringResource(R.string.sleep_off_accessibility) else sleepText) { sleep = true }
             LabelledAction(R.drawable.ic_episode, stringResource(R.string.episode)) { open("episode") }
             if (now.metadata.chapters.isNotEmpty()) LabelledAction(R.drawable.ic_chapters, stringResource(R.string.chapters)) { open("chapters") }
-            LabelledAction(R.drawable.ic_entries, stringResource(R.string.entries_next, now.nextCount)) { open("entries") }
+            LabelledAction(R.drawable.ic_entries, stringResource(R.string.entries_next, now.nextCount),
+                accessibilityLabel = stringResource(R.string.entries_accessibility, now.nextCount)) { open("entries") }
             if (now.metadata.chapters.isNotEmpty()) Spacer(Modifier.weight(1f))
         }
     }
