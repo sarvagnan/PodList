@@ -76,8 +76,7 @@ public enum NowPlayingMapping {
                 artworkTask = Task { [weak self] in
                     guard let (data, _) = try? await URLSession.shared.data(from: url), data.count <= 8 * 1024 * 1024,
                           !Task.isCancelled, let image = NSImage(data: data), let self, self.artworkURL == url else { return }
-                    // NSImage is immutable here; the request callback only returns this retained image.
-                    self.artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                    self.artwork = Self.artwork(image)
                     self.publish()
                 }
             }
@@ -85,6 +84,14 @@ public enum NowPlayingMapping {
         }
         publish()
     }
+    #if os(macOS)
+    /// MediaPlayer calls the request handler on its own queue, so it must not be main-actor isolated.
+    /// NSImage is immutable here; the handler only returns this retained image.
+    nonisolated private static func artwork(_ image: NSImage) -> MPMediaItemArtwork {
+        nonisolated(unsafe) let image = image
+        return MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
+    }
+    #endif
     private func publish() {
         guard let latest else { return }
         var info = NowPlayingMapping.info(latest)
