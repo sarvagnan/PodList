@@ -1,7 +1,7 @@
 import { Operation } from "@podlist/domain"
 import { Effect, Schema, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
-import { SqlClient } from "effect/sql"
+import { DataLayer } from "../data/DataLayer.ts"
 import {
   changesFor,
   confirmation,
@@ -11,14 +11,13 @@ import {
 } from "../lib/episodeActions.ts"
 import { nextLastTarget } from "../lib/remembered.ts"
 import { Playback } from "../playback/Playback.ts"
-import { SyncEngine } from "../sync/SyncEngine.ts"
 import { runtime } from "./runtime.ts"
 
 /** Runs an action from an Episode row; answers with its confirmation and undo. */
 export const episodeActionAtom = runtime.fn(
   (action: EpisodeAction) =>
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       const before = yield* SubscriptionRef.get(engine.state)
       for (const c of changesFor(action, before)) yield* engine.record(c)
       if (action._tag === "PlayNow") {
@@ -36,12 +35,9 @@ export const episodeActionAtom = runtime.fn(
           : confirmation(action, before)
       // A removal names what went, as a move does (one message form).
       if (action._tag === "Remove" && undo.length > 0) {
-        const sql = yield* SqlClient.SqlClient
-        const rows = yield* sql<{ title: string }>`
-          SELECT title FROM episode WHERE id = ${action.episodeId}`.pipe(
-          Effect.orElseSucceed(() => [])
-        )
-        const title = rows[0]?.title
+        const title = yield* engine
+          .episodeTitle(action.episodeId)
+          .pipe(Effect.orElseSucceed(() => undefined))
         if (title)
           return {
             message: `Removed “${title}” from ${message.replace(/^Removed from /, "")}`,
@@ -62,7 +58,7 @@ export const episodeActionAtom = runtime.fn(
 export const bulkActionAtom = runtime.fn(
   (input: { readonly actions: ReadonlyArray<EpisodeAction>; readonly message: string }) =>
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       const undos: Array<ReadonlyArray<Operation.Change>> = []
       for (const action of input.actions) {
         const before = yield* SubscriptionRef.get(engine.state)
@@ -79,7 +75,7 @@ export const bulkActionAtom = runtime.fn(
 export const undoAtom = runtime.fn(
   (changes: ReadonlyArray<Operation.Change>) =>
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       for (const c of changes) yield* engine.record(c)
     }),
   // Two undos in quick succession both happen.
@@ -115,7 +111,7 @@ export const createAndAddAtom = runtime.fn(
     readonly placement: "next" | "last"
   }) =>
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       const state = yield* SubscriptionRef.get(engine.state)
       const name = input.name.trim()
       if (!name || state.playlists.some((p) => p.name.toLowerCase() === name.toLowerCase())) {

@@ -2,11 +2,12 @@ import { Device, Operation, type PlaybackSettings, State, StateStore } from "@po
 import { Context, Duration, Effect, Layer, Queue, Schema, Semaphore, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
+import { catalogueKey, type DataStatus } from "../data/DataLayer.ts"
 import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
 import { type Offline, Transport } from "./Transport.ts"
 
-/** Reactivity key invalidated whenever synced podcasts or Episodes land in the local database. */
-export const catalogueKey = "catalogue"
+export type { DataStatus as SyncStatus } from "../data/DataLayer.ts"
+export { catalogueKey } from "../data/DataLayer.ts"
 
 // Offline-first sync (ADR 0003). Every edit becomes an Operation in a local outbox and is
 // applied at once to the local State, so the UI never waits for the network. A sync
@@ -17,23 +18,12 @@ export const catalogueKey = "catalogue"
 const OperationJson = Schema.fromJsonString(Operation.Operation)
 const StateJson = Schema.fromJsonString(State.State)
 
-export interface SyncStatus {
-  readonly pending: number
-  readonly lastSyncedAt: number | null
-  readonly error: string | null
-  /**
-   * Whether this Device has finished a sync, State and catalogue, at least once (now or
-   * in an earlier session). Until then an empty list means "not here yet", not "none".
-   */
-  readonly ready: boolean
-}
-
 export class SyncEngine extends Context.Service<
   SyncEngine,
   {
     /** The local (optimistic) State the UI renders. */
     readonly state: SubscriptionRef.SubscriptionRef<State.State>
-    readonly status: SubscriptionRef.SubscriptionRef<SyncStatus>
+    readonly status: SubscriptionRef.SubscriptionRef<DataStatus>
     readonly deviceId: string
     /** Records an edit: queued for the server and applied locally straight away. */
     readonly record: (change: Operation.Change) => Effect.Effect<void>
@@ -81,7 +71,7 @@ export class SyncEngine extends Context.Service<
         const countPending = sql<{ n: number }>`SELECT count(*) AS n FROM outbox`.pipe(
           Effect.map(([row]) => row?.n ?? 0)
         )
-        const status = yield* SubscriptionRef.make<SyncStatus>({
+        const status = yield* SubscriptionRef.make<DataStatus>({
           pending: yield* countPending,
           lastSyncedAt: null,
           error: null,

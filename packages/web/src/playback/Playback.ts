@@ -20,17 +20,10 @@ import {
   SubscriptionRef
 } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
-import { SqlClient } from "effect/sql"
-import {
-  fromStoredChapters as fromStored,
-  nextChapterStart,
-  type PlayerChapter,
-  toPlayerChapter
-} from "../lib/chapters.ts"
-import { effectiveSettings, storedOverride } from "../lib/playbackSettings.ts"
+import { catalogueKey, DataLayer } from "../data/DataLayer.ts"
+import { nextChapterStart, type PlayerChapter, toPlayerChapter } from "../lib/chapters.ts"
+import { effectiveSettings } from "../lib/playbackSettings.ts"
 import { Player } from "../platform/Player.ts"
-import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
-import { Transport } from "../sync/Transport.ts"
 
 // Plays the Active Playlist's Cursor Entry through the Player seam and reports where
 // listening got to, as ReportPosition operations, so every Device resumes at the same
@@ -107,10 +100,8 @@ export class Playback extends Context.Service<
       Playback,
       Effect.gen(function* () {
         const player = yield* Player
-        const engine = yield* SyncEngine
-        const sql = yield* SqlClient.SqlClient
+        const engine = yield* DataLayer
         const reactivity = yield* Reactivity.Reactivity
-        const transport = yield* Transport
         const now = yield* SubscriptionRef.make<NowPlaying | null>(null)
         const scope = yield* Effect.scope
         const lockScreenArt = (url: string | null) =>
@@ -129,38 +120,6 @@ export class Playback extends Context.Service<
           skipOutro: 0,
           audioUrl: null as string | null
         }
-
-        /** The Episode's details from the local catalogue, which may not have synced yet. */
-        const lookup = (episodeId: string) =>
-          Effect.gen(function* () {
-            const [row] = yield* sql<{
-              title: string
-              audio_url: string
-              podcast: string
-              duration: number | null
-              artwork_url: string | null
-              podcast_artwork_url: string | null
-              played_threshold: number | null
-              chapters: string
-              subscription_id: string
-              playback_settings: string | null
-            }>`SELECT e.title, e.audio_url, s.title AS podcast, e.duration, e.artwork_url,
-                 s.artwork_url AS podcast_artwork_url, s.played_threshold, e.chapters,
-                 s.id AS subscription_id, s.playback_settings
-               FROM episode e JOIN subscription s ON s.id = e.subscription_id
-               WHERE e.id = ${episodeId}`.pipe(Effect.orDie)
-            return {
-              title: row?.title ?? "",
-              audioUrl: row?.audio_url ?? null,
-              podcast: row?.podcast ?? "",
-              artworkUrl: row?.artwork_url ?? row?.podcast_artwork_url ?? null,
-              duration: row?.duration ?? null,
-              threshold: row?.played_threshold ?? null,
-              subscriptionId: row?.subscription_id ?? null,
-              override: storedOverride(row?.playback_settings ?? null),
-              chapters: row ? fromStored(row.chapters) : []
-            }
-          })
 
         const target = (state: State.State) => {
           const playlist = state.playlists.find((p) => p.id === state.activePlaylistId)
@@ -206,9 +165,8 @@ export class Playback extends Context.Service<
             // Leaving an Entry: keep where it got to.
             if (current !== null) yield* report(current.position)
             sample = null
-            const { threshold, subscriptionId, override, audioUrl, ...info } = yield* lookup(
-              next.entry.episodeId
-            )
+            const { threshold, subscriptionId, override, audioUrl, ...info } =
+              yield* engine.playbackEpisode(next.entry.episodeId)
             const settings = effectiveSettings(state.playbackSettings, override)
             loaded = {
               threshold,
@@ -256,7 +214,7 @@ export class Playback extends Context.Service<
             yield* player.setRate(settings.speed)
             yield* player.setVolumeBoost(settings.volumeBoost)
             // Ask the server too: it finds Chapters the first time anyone asks.
-            yield* transport.chapters(track.episodeId).pipe(
+            yield* engine.chapters(track.episodeId).pipe(
               Effect.flatMap((chapters) =>
                 chapters.length === 0
                   ? Effect.void
@@ -568,7 +526,9 @@ export class Playback extends Context.Service<
             Effect.gen(function* () {
               const current = yield* SubscriptionRef.get(now)
               if (current === null) return
-              const { threshold, audioUrl, ...info } = yield* lookup(current.episodeId)
+              const { threshold, audioUrl, ...info } = yield* engine.playbackEpisode(
+                current.episodeId
+              )
               if (audioUrl !== null && loaded.audioUrl !== audioUrl) {
                 loaded = { ...loaded, audioUrl }
                 const settings = effectiveSettings(

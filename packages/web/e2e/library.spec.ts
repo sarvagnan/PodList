@@ -102,14 +102,15 @@ test("a Download Rule stores Entries on this Device and Stream lets them go", as
   )
 
   // Market Hours' Entry in Default ends up stored, without anyone pressing Download.
-  await page.goto(`${demo.base}/views/new-this-week`)
+  // Use a View without a date cutoff: the fixture Published dates are fixed.
+  await page.goto(`${demo.base}/views/short`)
   const row = page.getByRole("row").filter({ hasText: "The long life of a shipping container" })
   await expect(row.getByLabel("Downloaded").first()).toBeVisible({ timeout: 20_000 })
 
   await page.goto(`${demo.base}/library`)
   await page.getByRole("link", { name: "Market Hours", exact: true }).click()
   await page.getByRole("combobox", { name: /^Downloads on this Device/ }).selectOption("never")
-  await page.goto(`${demo.base}/views/new-this-week`)
+  await page.goto(`${demo.base}/views/short`)
   await expect(row.getByLabel("Downloaded")).toHaveCount(0, { timeout: 20_000 })
 })
 
