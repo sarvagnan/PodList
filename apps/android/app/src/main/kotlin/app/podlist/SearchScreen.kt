@@ -66,7 +66,7 @@ internal fun SearchScreen(data: ScreenData, session: Session, open: (String) -> 
                 CommitButton(enabled = text.isNotBlank() && problem == null && !saving, onClick = ::saveView) { Text(stringResource(R.string.create_view)) }
             }
         } else if (text.isNotBlank()) ContentTextButton(modifier = Modifier.padding(horizontal = 16.dp), enabled = rows != null, onClick = { drafts.put("search-view/open", "true"); naming = true; if (name.isEmpty()) name = text }) { Text(stringResource(R.string.m4_save_as_view)) }
-        rows?.let { Text(pluralStringResource(R.plurals.episode_count, it.size, it.size), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall) }
+        rows?.let { Text(pluralStringResource(R.plurals.episode_count, it.size, it.size), Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = ListHeaderGap), style = MaterialTheme.typography.titleSmall) }
         if (rows == null) Loading()
         else if (data.subscriptions.none { it["unsubscribed_at"] == null } && rows!!.isEmpty()) EmptyState(R.string.no_subscriptions, R.string.add_podcasts) { open("add-podcasts") }
         else if (rows!!.isEmpty()) EmptyState(R.string.no_search_matches, R.string.clear_search, actionEnabled = !saving) { text = "" }

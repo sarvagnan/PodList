@@ -292,12 +292,12 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             else PodListTopAppBar(scrollBehavior = scrollBehavior, title = { Text(if (collapsingTitle.headlineVisible) "" else title, Modifier.semantics { heading() }, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }, navigationIcon = {
                 ActionIcon(R.drawable.ic_back, stringResource(R.string.back), modifier = Modifier.onGloballyPositioned { backBounds = it.boundsInWindow() }, action = ::pageBack)
             }, actions = {
-                if (!armed) UndoAction() else Spacer(Modifier.size(48.dp))
+                if (!armed) UndoAction()
                 if (shownSubscribed) {
-                    ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy && !changingSubscription && id != null) { openPage("subscription-settings:$id") }
+                    if (!armed) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy && !changingSubscription && id != null) { openPage("subscription-settings:$id") }
                     val label = if (changingSubscription) stringResource(R.string.subscribing) else if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
                     val armedAnnouncement = stringResource(R.string.podcast_unsubscribe_armed, title)
-                    // A single fixed-width semantics/click node retains focus while its label changes.
+                    // The check and pending spinner share a 48 dp slot. Only the deliberate armed action expands.
                     ActionTooltip(label) {
                         TextButton(onClick = {
                             val now = SystemClock.uptimeMillis()
@@ -310,17 +310,17 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                                 confirmation = confirmation.arm(now, timeout.toLong())
                             }
                         }, enabled = !busy && !changingSubscription, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            modifier = Modifier.padding(end = 12.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }
-                                .height(48.dp).widthIn(min = 48.dp).then(flowSlot("podcast-subscription"))
+                            contentPadding = PaddingValues(horizontal = if (armed) 12.dp else 0.dp),
+                            modifier = Modifier.widthIn(min = if (armed) 96.dp else 48.dp).then(if (armed) Modifier else Modifier.width(48.dp))
+                                .heightIn(min = 48.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }.then(flowSlot("podcast-subscription"))
                                 .semantics {
                                     contentDescription = label
                                     if (armed) stateDescription = armedAnnouncement
                                     liveRegion = LiveRegionMode.Polite
                                 }) {
                             Box(contentAlignment = Alignment.Center) {
-                                // An invisible, non-semantic label reserves the armed width in both states.
-                                Text(stringResource(R.string.unsubscribe), Modifier.graphicsLayer { alpha = if (armed && !changingSubscription) 1f else 0f }.clearAndSetSemantics {})
+                                // The right edge stays anchored beside overflow; the armed label grows left over the hidden gear.
+                                if (armed && !changingSubscription) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
                                 if (changingSubscription) CircularProgressIndicator(Modifier.size(24.dp).then(ProgressModifier(R.string.subscribing)), strokeWidth = 2.dp)
                                 else if (!armed) Box(Modifier.clearAndSetSemantics {}) { SubscribedIndicator() }
                             }
@@ -374,7 +374,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             customActions = listOf(CustomAccessibilityAction(detailsLabel) { toggleDetails(); true })
         }) {
             item(key = "header") {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(title, headlineVisibility(collapsingTitle).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                     author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     if (expanded) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -389,8 +389,10 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                         Spacer(Modifier.height(16.dp))
                         Text(if (count.filtered) pluralStringResource(R.plurals.podcast_filtered_count, count.total, count.shown, count.total)
                         else pluralStringResource(R.plurals.episode_count, count.total, count.total), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                        Box(Modifier.fillMaxWidth().height(ListHeaderGap), contentAlignment = Alignment.Center) {
+                            LoadingLine(loading || !localLoaded, R.string.podcast_loading)
+                        }
                     }
-                    LoadingLine(loading || !localLoaded, R.string.podcast_loading)
                     failure?.let {
                         InlineError(stringResource(R.string.podcast_load_failed), Modifier)
                         InlineError(stringResource(podcastErrorResource(it)))

@@ -48,10 +48,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-private enum class Destination(val title: Int, val icon: Int) {
-    Views(R.string.views, R.drawable.ic_views),
-    Playlists(R.string.playlists, R.drawable.ic_playlists),
-    Library(R.string.library, R.drawable.ic_library)
+private enum class Destination(val title: Int, val icon: Int, val selectedIcon: Int) {
+    Views(R.string.views, R.drawable.ic_nav_views_outline, R.drawable.ic_nav_views_filled),
+    Playlists(R.string.playlists, R.drawable.ic_nav_playlists_outline, R.drawable.ic_nav_playlists_filled),
+    Library(R.string.library, R.drawable.ic_nav_library_outline, R.drawable.ic_nav_library_filled)
 }
 
 @Composable
@@ -134,11 +134,15 @@ private fun ConnectedNavigation(model: AppModel, session: Session, browsing: Bro
     val chrome = remember { ContextualChrome() }
     val navigation = androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState()
     LaunchedEffect(chrome.hidden) { if (chrome.hidden) navigation.hide() else navigation.show() }
+    val navigationItemColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(selectedTextColor = MaterialTheme.colorScheme.onSurface,
+            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer))
     CompositionLocalProvider(LocalContextualChrome provides chrome) {
         NavigationSuiteScaffold(state = navigation, navigationSuiteItems = {
             Destination.entries.forEach { target ->
                 item(selected = destination == target, onClick = { if (destination == target) requestedRoot = target; destination = target; collapseNavigation++ },
-                    icon = { Icon(painterResource(target.icon), contentDescription = null) },
+                    icon = { Icon(painterResource(if (destination == target) target.selectedIcon else target.icon), contentDescription = null) },
+                    colors = navigationItemColors,
                     label = { Text(stringResource(target.title)) })
             }
         }) {
@@ -373,7 +377,11 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                 item(key = "trash") { NameRow(stringResource(R.string.trash), pluralStringResource(R.plurals.playlist_count, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size, PlaylistRules.availableTrash(data.state, System.currentTimeMillis()).size)) { open("trash") } }
             }
             Destination.Library -> {
-                if (subscriptions.isNotEmpty()) item(key = "subscriptions") { Section(stringResource(R.string.subscriptions)) }
+                if (subscriptions.isNotEmpty()) item(key = "subscriptions") {
+                    Section(stringResource(R.string.subscriptions))
+                    Text(stringResource(R.string.library_grouped_by_rule), Modifier.padding(horizontal = 16.dp),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (subscriptions.isEmpty()) item(key = "no-subscriptions") {
                     EmptyState(R.string.no_subscriptions, R.string.add_podcasts) { open("add-podcasts") }
                 }
@@ -381,13 +389,7 @@ private fun Directory(destination: Destination, data: ScreenData, session: Sessi
                     val group = group(mode)
                     if (group.isNotEmpty()) item(key = "rule:$mode") {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.m4_download_rule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(stringResource(title), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-                            Text(stringResource(when (mode) {
-                                DownloadMode.Never -> R.string.library_stream_help
-                                DownloadMode.OnEntry -> R.string.library_on_entry_help
-                                DownloadMode.AllNew -> R.string.library_all_new_help
-                            }), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     items(group, key = { "subscription:${it["id"]}" }) { subscription ->
@@ -448,12 +450,14 @@ private fun Detail(route: String?, data: ScreenData, session: Session, open: (St
     }
 }
 
+internal val ListHeaderGap = 8.dp
+
 @Composable
 internal fun EpisodeList(rows: List<Row>, data: ScreenData, session: Session, open: (String) -> Unit, empty: Int, summary: (@Composable () -> Unit)? = null) {
     val selection = LocalEpisodeSelection.current
     SideEffect { selection?.order = rows.map { it["id"] as String }; if (selection != null) selection.ids = selection.ids.intersect(selection.order.toSet()) }
     LazyColumn(state = rememberBrowsingListState(keys = (if (summary != null) listOf("summary") else emptyList()) + rows.map { it["id"] as String }), modifier = Modifier.fillMaxSize().listSelectionKeys(selection)) {
-        if (summary != null) item(key = "summary") { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { summary() } }
+        if (summary != null) item(key = "summary") { Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = ListHeaderGap), verticalArrangement = Arrangement.spacedBy(8.dp)) { summary() } }
         if (rows.isEmpty()) item { EmptyState(empty) }
         items(rows, key = { it["id"] as String }) { row -> EpisodeRow(row, data, session) { open("episode:${row["id"]}") } }
     }
@@ -481,8 +485,19 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
         if (entryPlaylist != null) EntryMenu(data.state.playlists.first { it.id == entryPlaylist }, id)
     }
     val progressLabel = stringResource(R.string.playback_position)
+    val downloads by model.downloads(session).status.collectAsState()
+    val played = row["played_at"] != null
+    val playState = when {
+        played -> stringResource(R.string.played)
+        progress > 0 -> stringResource(R.string.in_progress, if (duration != null) "${duration(progress)} / ${duration(duration)}" else duration(progress))
+        else -> null
+    }
+    val stateLabels = listOfNotNull(playState,
+        stringResource(R.string.starred).takeIf { (row["starred"] as? Number)?.toInt() == 1 },
+        stringResource(R.string.download_stored).takeIf { downloads[id]?.phase == DownloadPhase.Stored })
+    val accessibleState = (listOfNotNull(playState ?: stringResource(R.string.unplayed)) + stateLabels.drop(if (playState != null) 1 else 0)).joinToString(" · ")
     Column(Modifier.background(if (selecting && id in selection.ids) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)) {
-        Row(rowModifier.fillMaxWidth().then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null && selection != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection.toggle(id) }) else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = if (entryPlaylist != null) 8.dp else 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(rowModifier.fillMaxWidth().semantics { stateDescription = accessibleState }.then(if (selecting) Modifier.toggleable(id in selection.ids, role = Role.Checkbox) { selection.toggle(id) }.semantics(mergeDescendants = true) {} else if (onClick != null && selection != null) Modifier.combinedClickable(onClick = onClick, onLongClickLabel = stringResource(R.string.select_episode), onLongClick = { selection.toggle(id) }) else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = if (entryPlaylist != null) 8.dp else 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             if (selecting) Checkbox(id in selection.ids, null)
             else if (entryPlaylist != null) EntryDragHandle(data.state.playlists.first { it.id == entryPlaylist }, id)
             else if (showArtwork) ArtworkImage(session, row["artwork_url"] as? String ?: row["podcast_artwork_url"] as? String, placeholderTitle = row["podcast"] as? String)
@@ -490,16 +505,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
                 Text(row["title"] as String, modifier = if (detail) headlineVisibility(LocalCollapsingTitle.current) else Modifier, style = if (detail) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, maxLines = if (detail || (entryPlaylist != null && stacked)) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
                 val published = shortDate((row["published"] as Number).toLong())
                 val metadata = listOfNotNull((row["podcast"] as? String).takeIf { showPodcast }, published, duration?.let { lengthLabel(it) })
-                Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val played = row["played_at"] != null
-                val state = when {
-                    played -> stringResource(R.string.played)
-                    progress > 0 -> stringResource(R.string.in_progress, if (duration != null) "${duration(progress)} / ${duration(duration)}" else duration(progress))
-                    else -> stringResource(R.string.unplayed)
-                }
-                val starred = (row["starred"] as? Number)?.toInt() == 1
-                val stateLabel = if (starred) "$state · ${stringResource(R.string.starred)}" else state
-                Text(stateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text((metadata + stateLabels).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (reserveBusySlot) LoadingLine(actionBusy, R.string.podcast_bringing_episode)
                 if (progress > 0 && duration != null && duration > 0) LinearProgressIndicator(progress = { (progress / duration).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp).semantics { contentDescription = progressLabel; stateDescription = duration(progress) })
             }

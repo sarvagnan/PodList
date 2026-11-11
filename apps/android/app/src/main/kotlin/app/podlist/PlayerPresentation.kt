@@ -152,7 +152,7 @@ private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expan
                 SkipButton(false, false) { model.seek(now.position - 15) }
                 val actionLabel = stringResource(if (now.error) R.string.retry_playback else if (now.buffering) R.string.buffering else if (now.playing) R.string.pause else R.string.play)
                 ActionTooltip(actionLabel) {
-                    FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp), colors = if (now.error) IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) else IconButtonDefaults.filledIconButtonColors()) {
+                    FilledTonalIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp), colors = if (now.error) IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) else IconButtonDefaults.filledTonalIconButtonColors()) {
                         if (now.buffering) CircularProgressIndicator(Modifier.size(24.dp).semantics { contentDescription = actionLabel }, strokeWidth = 2.dp)
                         else Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), actionLabel)
                     }
@@ -190,7 +190,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         }
         ChapterSeek(now, model)
         Box {
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                 SkipButton(false, true) { model.seek(now.position - 15) }
                 ActionTooltip(stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play)) { FilledIconButton(onClick = model::togglePlayback, modifier = Modifier.width(112.dp).height(88.dp), shape = MaterialTheme.shapes.extraLarge) { Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), stringResource(if (now.error) R.string.retry_playback else if (now.playing) R.string.pause else R.string.play), Modifier.size(40.dp)) } }
                 SkipButton(true, true) { model.seek(now.position + 30) }
@@ -227,16 +227,16 @@ private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composabl
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)) { controls() }
             }.single().measure(Constraints(maxWidth = width))
-            val cap = minOf((width - 32.dp.roundToPx()).coerceAtLeast(0), 400.dp.roundToPx())
+            val cap = minOf((width - 32.dp.roundToPx()).coerceAtLeast(0), 320.dp.roundToPx(), (viewportHeight.roundToPx() * .45f).toInt())
             val artworkSize = (viewportHeight.roundToPx() - controlGroup.height - 2 * inset - gap)
                 .coerceIn(minOf(80.dp.roundToPx(), cap), cap)
             val image = subcompose("artwork") { artwork(artworkSize.toDp()) }
                 .single().measure(Constraints.fixed(artworkSize, artworkSize))
             val height = maxOf(viewportHeight.roundToPx(), controlGroup.height + artworkSize + 2 * inset + gap)
             layout(width, height) {
-                val controlsY = height - inset - controlGroup.height
-                image.placeRelative((width - artworkSize) / 2, inset + (controlsY - gap - inset - artworkSize) / 2)
-                controlGroup.placeRelative(0, controlsY)
+                val top = (height - controlGroup.height - artworkSize - gap) / 2
+                image.placeRelative((width - artworkSize) / 2, top)
+                controlGroup.placeRelative(0, top + artworkSize + gap)
             }
         }
     }

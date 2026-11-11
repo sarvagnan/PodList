@@ -45,9 +45,9 @@ internal fun RenameableName(
     }
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (draft == null) {
-            Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-                Text(stringResource(R.string.m4_name), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(name, style = MaterialTheme.typography.bodyLarge)
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.m4_name), style = MaterialTheme.typography.bodyLarge)
+                Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             ContentActionButton(onClick = { drafts.put(draftKey, name) }, modifier = Modifier.focusRequester(renameFocus).heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.rename))

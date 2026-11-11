@@ -99,10 +99,15 @@ internal fun PodListTopAppBar(
     separateActions: Boolean = true
 ) {
     if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f && separateActions) {
-        Surface {
+        val colors = TopAppBarDefaults.topAppBarColors()
+        val fraction = scrollBehavior?.state?.overlappedFraction ?: 0f
+        val container = androidx.compose.ui.graphics.lerp(colors.containerColor, colors.scrolledContainerColor,
+            androidx.compose.animation.core.FastOutLinearInEasing.transform(fraction))
+        Surface(color = container) {
             Column(modifier) {
                 TopAppBar(title = title, navigationIcon = navigationIcon,
                     expandedHeight = with(androidx.compose.ui.platform.LocalDensity.current) { 56.sp.toDp() + 16.dp },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = container, scrolledContainerColor = container),
                     scrollBehavior = scrollBehavior)
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
