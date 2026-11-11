@@ -1,0 +1,170 @@
+import Foundation
+import PodListDomain
+import struct PodListDomain.Operation
+
+/// All connection use and multi-table commits are isolated to this actor; HTTP never holds a transaction.
+public actor LocalDatabase {
+    private let storage: SQLite
+    private let standalone: Bool
+
+    public init(path: String, standalone: Bool = false) throws {
+        let storage = try SQLite(path: path)
+        try storage.execute("PRAGMA foreign_keys = ON")
+        try storage.execute("CREATE TABLE IF NOT EXISTS apple_migration (scope TEXT NOT NULL, id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (scope, id))")
+        for (scope, migrations) in [("shared", SharedSchema.migrations), ("client", SharedSchema.clientMigrations), ("device", SharedSchema.deviceMigrations), ("apple", SharedSchema.platformMigrations)] {
+            for migration in migrations {
+                try storage.transaction {
+                    if try storage.query("SELECT id FROM apple_migration WHERE scope = ? AND id = ?", [.text(scope), .integer(Int64(migration.id))]).isEmpty {
+                        for sql in migration.statements { try storage.execute(sql) }
+                        if scope == "shared" && migration.id == 4 { try Self.backfillMentions(storage) }
+                        try storage.execute("INSERT INTO apple_migration (scope, id, name) VALUES (?, ?, ?)", [.text(scope), .integer(Int64(migration.id)), .text(migration.name)])
+                    }
+                }
+            }
+        }
+        self.storage = storage
+        self.standalone = standalone
+    }
+
+    private static func backfillMentions(_ storage: SQLite) throws {
+        for table in ["subscription", "episode"] {
+            var after: String?
+            while true {
+                let rows = try storage.query("SELECT id, title\(table == "episode" ? ", description" : "") FROM \(table) \(after == nil ? "" : "WHERE id > ?") ORDER BY id LIMIT 128", after.map { [.text($0)] } ?? [])
+                if rows.isEmpty { break }
+                for row in rows {
+                    let title = Mentions.fold(row["title"]!.string!)
+                    if table == "episode" {
+                        try storage.execute("UPDATE episode SET title_folded = ?, description_folded = ? WHERE id = ?", [.text(title), .text(Mentions.fold(row["description"]!.string!)), row["id"]!])
+                    } else { try storage.execute("UPDATE subscription SET title_folded = ? WHERE id = ?", [.text(title), row["id"]!]) }
+                    after = row["id"]!.string!
+                }
+            }
+        }
+    }
+    public func execute(_ sql: String, _ params: [SQLValue] = []) throws { try storage.execute(sql, params) }
+    public func query(_ sql: String, _ params: [SQLValue] = []) throws -> [Row] { try storage.query(sql, params) }
+
+    private func replaceState(_ state: State) throws {
+        let rows = try StateIndex.stateToRows(state)
+        for table in StateIndex.tables {
+            try storage.execute("DELETE FROM \(table)")
+            for row in rows[table] ?? [] { try storage.insert(table, row) }
+        }
+    }
+    public func saveState(_ state: State) throws { try storage.transaction { try replaceState(state) } }
+    public func loadState() throws -> State {
+        var rows: StateRows = [:]
+        for table in StateIndex.tables { rows[table] = try storage.query("SELECT * FROM \(table) ORDER BY rowid") }
+        return try StateIndex.rowsToState(rows)
+    }
+    @discardableResult
+    public func ensureState(settings: PlaybackSettings = State.initial().playbackSettings) throws -> State {
+        try storage.transaction {
+            if try storage.query("SELECT key FROM setting WHERE key = 'activePlaylistId'").isEmpty { try replaceState(.initial(settings: settings)) }
+            return try loadState()
+        }
+    }
+    public func evaluate(_ view: View, now: Int64) throws -> [Row] {
+        let compiled = ViewQuery.compile(view, now: now)
+        return try storage.query(compiled.sql, compiled.params)
+    }
+    public func upsertLibrary(subscriptions: [Subscription], episodes: [Episode], cursor: Int64? = nil) throws {
+        try storage.transaction {
+            for s in subscriptions {
+                try storage.insert("subscription", [
+                    "id": .text(s.id), "feed_url": .text(s.feedUrl), "title": .text(s.title), "title_folded": .text(Mentions.fold(s.title)),
+                    "author": .optional(s.author), "description": .optional(s.description), "artwork_url": .optional(s.artwork?.url),
+                    "subscribed_at": .integer(s.subscribedAt), "unsubscribed_at": .optional(s.unsubscribedAt),
+                    "played_threshold": .optional(s.playedThreshold), "playback_settings": .text(try ProtocolJSON.encode(s.playbackSettings))
+                ], upsert: true)
+            }
+            for e in episodes {
+                try storage.insert("episode", [
+                    "id": .text(e.id), "subscription_id": .text(e.subscriptionId), "guid": .text(e.guid), "title": .text(e.title),
+                    "title_folded": .text(Mentions.fold(e.title)), "description_folded": .text(Mentions.fold(e.description)),
+                    "description": .text(e.description), "published": .integer(e.published), "duration": .optional(e.duration),
+                    "audio_url": .text(e.audioUrl), "artwork_url": .optional(e.artwork?.url),
+                    "chapters": .text(try ProtocolJSON.encode(e.chapters)), "audio_updated_at": .optional(e.audioUpdatedAt)
+                ], upsert: true)
+            }
+            if let cursor { try setMeta("catalogueCursor", String(cursor)) }
+        }
+    }
+    public func getMeta(_ key: String) throws -> String? {
+        try storage.query("SELECT value FROM sync_meta WHERE key = ?", [.text(key)]).first?["value"]?.string
+    }
+    public func setMeta(_ key: String, _ value: String) throws {
+        try storage.execute("INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [.text(key), .text(value)])
+    }
+    public func installation() throws -> Device {
+        try storage.transaction {
+            let id = try getMeta("deviceId") ?? UUID().uuidString
+            let at = try getMeta("registeredAt").flatMap(Int64.init) ?? Int64(Date().timeIntervalSince1970 * 1000)
+            try setMeta("deviceId", id); try setMeta("registeredAt", String(at))
+            // The shared contract currently has no separate Apple kind.
+            return Device(id: id, name: "PodList Apple", kind: .desktop, registeredAt: at)
+        }
+    }
+    @discardableResult
+    public func record(_ change: Change, at: Int64, id: String = UUID().uuidString) throws -> Operation {
+        try recordAll([change], at: at, ids: [id])[0]
+    }
+    @discardableResult
+    public func recordAll(_ changes: [Change], at: Int64, ids: [String]? = nil) throws -> [Operation] {
+        let ids = ids ?? changes.map { _ in UUID().uuidString }
+        guard ids.count == changes.count else { throw DatabaseFailure(description: "Operation ids must match Changes") }
+        return try storage.transaction {
+            let device = try installation()
+            var sequence = try getMeta("sequence").flatMap(Int64.init) ?? 0
+            var state = try loadState()
+            var operations: [Operation] = []
+            for (change, id) in zip(changes, ids) {
+                let operation = Operation(id: id, deviceId: device.id, sequence: sequence, recordedAt: at, change: change)
+                sequence += 1
+                try storage.execute("INSERT INTO \(standalone ? "local_operation" : "outbox") (id, operation) VALUES (?, ?)", [.text(id), .text(try ProtocolJSON.encode(operation))])
+                if standalone {
+                    switch change {
+                    case let .setSubscriptionOverrides(id, playbackSettings, threshold):
+                        try storage.execute("UPDATE subscription SET playback_settings = ?, played_threshold = ? WHERE id = ?", [.text(try ProtocolJSON.encode(playbackSettings)), .optional(threshold), .text(id)])
+                    case let .markSubscriptionPlayed(id):
+                        for row in try storage.query("SELECT id FROM episode WHERE subscription_id = ? ORDER BY published ASC", [.text(id)]) {
+                            let episodeId = row["id"]!.string!
+                            if state.episodeStates[episodeId]?.played == nil {
+                                var concrete = operation
+                                concrete.id += ":\(episodeId)"; concrete.change = .markPlayed(episodeId: episodeId, source: .user)
+                                try storage.execute("INSERT INTO local_operation (id, operation) VALUES (?, ?)", [.text(concrete.id), .text(try ProtocolJSON.encode(concrete))])
+                                state = StateRules.apply(state, change: concrete.change, at: at)
+                            }
+                        }
+                    default: break
+                    }
+                }
+                state = StateRules.apply(state, change: change, at: at)
+                operations.append(operation)
+            }
+            try setMeta("sequence", String(sequence)); try replaceState(state)
+            return operations
+        }
+    }
+    public func outbox() throws -> [Operation] {
+        try storage.query("SELECT operation FROM outbox ORDER BY seq").map { try ProtocolJSON.decode(Operation.self, from: $0["operation"]!.string!) }
+    }
+    public func confirmedState() throws -> State? { try getMeta("confirmedState").map { try ProtocolJSON.decode(State.self, from: $0) } }
+    public func saveConfirmed(_ state: State, cursor: Int64) throws {
+        try storage.transaction { try setMeta("confirmedState", ProtocolJSON.encode(state)); try setMeta("userCursor", String(cursor)) }
+    }
+    /// Only the outbox snapshot actually sent is acknowledged; edits made during HTTP are replayed.
+    public func commitPull(_ page: PullPage, sent: [Operation]) throws {
+        try storage.transaction {
+            let seen: Set<String> = page.snapshot != nil ? [] : try getMeta("seenOperations").map { try ProtocolJSON.decode(Set<String>.self, from: $0) } ?? []
+            let base = try page.snapshot ?? confirmedState() ?? .initial()
+            let replayed = StateRules.replay(base, operations: page.operations, applied: seen)
+            for operation in sent { try storage.execute("DELETE FROM outbox WHERE id = ?", [.text(operation.id)]) }
+            try setMeta("confirmedState", ProtocolJSON.encode(replayed.state))
+            try setMeta("seenOperations", ProtocolJSON.encode(replayed.applied.sorted()))
+            try setMeta("userCursor", String(page.cursor))
+            try replaceState(StateRules.replay(replayed.state, operations: outbox()).state)
+        }
+    }
+}
