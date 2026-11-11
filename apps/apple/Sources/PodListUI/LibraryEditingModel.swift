@@ -116,7 +116,7 @@ public final class LibraryEditingModel {
         }
     }
     public func savedView(_ id: String) async throws -> PodListDomain.View? { try await db.loadState().views.first { $0.id == id } }
-    public func saveView(_ view: PodListDomain.View) async throws {
+    public func saveView(_ view: PodListDomain.View, sessionID: UUID? = nil) async throws {
         try await edits.performExternal {
             let previous = try await self.db.saveUniqueView(view, at: Self.now)
             let clean = PodListDomain.View(id: view.id, name: view.name.trimmingCharacters(in: .whitespacesAndNewlines), filter: view.filter, sort: view.sort, limit: view.limit)
@@ -124,9 +124,29 @@ public final class LibraryEditingModel {
             return NamedEdit(name: "View edit", changes: [], reload: false, action: {
                 if let previous { _ = try await db.saveUniqueView(previous, at: Self.now) }
                 else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
-            }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now) })
+            }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now) }, sessionID: sessionID)
         }
         completeStep(2); await changed()
+    }
+    /// The sheet waits for its queued live writes before cancelling. A failed restore keeps
+    /// both the sheet and its drafts available for retry.
+    public func cancelViewEdits(initial: PodListDomain.View, creating: Bool, sessionID: UUID) async throws {
+        if !creating, edits.history.contains(where: { $0.sessionID == sessionID }) {
+            try await edits.performExternal(recordHistory: false) {
+                _ = try await self.db.saveUniqueView(initial, at: Self.now)
+                return NamedEdit(name: "Cancel View edits", changes: [], reload: false)
+            }
+            await changed()
+        }
+        edits.discardViewSession(sessionID)
+        clearViewDrafts(initial.id, creating: creating)
+        error = nil
+    }
+    public func clearViewDrafts(_ id: String, creating: Bool) {
+        for field in ["view.\(id)", "rename.\(id)", "limit.\(id)", "\(id).Minimum length (minutes)", "\(id).Maximum length (minutes)"] {
+            clearDraft(field)
+        }
+        if creating { clearDraft("newViewID") }
     }
     public func deleteView(_ view: PodListDomain.View) async throws {
         try await edits.performExternal {

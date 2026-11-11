@@ -173,6 +173,7 @@ struct RewindSheet: SwiftUI.View {
     let editing: PlaylistEditingModel
     let done: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var problem: String?
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Rewind Playlist").font(.title2).accessibilityAddTraits(.isHeader)
@@ -190,11 +191,16 @@ struct RewindSheet: SwiftUI.View {
                         Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(maxHeight: 360)
-                EditingFeedback(editing: editing)
+                if let problem { Text(problem).foregroundStyle(.red) }
                 HStack {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                     Spacer()
-                    Button("Rewind") { Task { if await editing.rewind(playlistID, to: target) { done() } } }
+                    Button("Rewind") {
+                        Task {
+                            if await editing.rewind(playlistID, to: target) { done() }
+                            else { problem = editing.error ?? "Could not rewind. Try again." }
+                        }
+                    }
                         .keyboardShortcut(.defaultAction).disabled(editing.busy)
                 }
             } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }

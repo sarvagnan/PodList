@@ -90,8 +90,11 @@ table row dragging with insertion boundaries, with Move Up/Down (⌘⌥↑/↓) 
 the Episode menu. Rewind opens a summary sheet before committing. Edit > Undo/Redo names the
 latest domain edit across Playlists, Views and Subscription changes.
 These edits share one session history. Failed reversals stay available for retry.
-Editable text retains native text Undo. A compact status line provides
-feedback and Undo, and Trash includes Restore and its retention period.
+Editable text retains native text Undo. One 32-point status row is always reserved.
+It shows feedback and named Undo/Redo actions without moving the content below it.
+Long messages stay on one line; their full text is available on hover and to VoiceOver.
+Every screen that shows edit feedback uses this row. Rewind shows only its own summary,
+errors and buttons. Trash includes Restore and its retention period.
 
 
 ## Minor parity decisions
@@ -109,6 +112,9 @@ Episode, Entry and Podcast tables disable alternating row backgrounds, including
 
 Return opens Episode detail. Space plays the selected Episode, using Play from Here in a
 Playlist. With no Episode selected, Space toggles playback. Editable text keeps its spaces.
+Selection, opening detail, changing sections, Undo and Rewind previews never start playback.
+Audio callbacks cannot start a paused player. A late end notification after Pause is ignored.
+Automatic advance continues only while playback is requested.
 View editing and deletion are in the View menu. Download is in the Episode menu.
 Podcast Add and Play use the same named Undo history before and after Subscribe.
 Getting started stays until dismissed, even when all steps are complete.
@@ -120,6 +126,15 @@ finishes and edits older than 30 days from the current date. History and the Lis
 
 The Podcast header, Unsubscribe disarming, keyboard focus, table appearance, resizing,
 VoiceOver and system integration still need live check.
+
+The View editor keeps conditions live and rename explicit, with its own Cancel and Save.
+Empty Mentions and length fields have borders and say Any or No limit. Empty Show says All.
+Done keeps the live changes and clears the sheet's drafts. Cancel waits for pending writes,
+restores the View as it was when this sheet opened, and clears its drafts, including rename.
+Cancel also removes this sheet session's edits from Undo and Redo. Other edits remain.
+Cancelling a new View discards its draft without creating a View.
+If a restore fails, the sheet stays open with its drafts so Cancel can be tried again.
+Quitting without Done or Cancel keeps unfinished drafts for the next launch.
 
 
 ## Standalone Library and publisher refresh
