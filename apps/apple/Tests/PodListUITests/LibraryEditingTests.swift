@@ -197,32 +197,62 @@ private actor SubscriptionTransport: SyncTransport {
     #expect(results.first?.feedUrl == "https://example.com/rss")
 }
 
-@MainActor @Test func nativeUndoAndRedoRecordDurableInverseViewChanges() async throws {
-    let db = try LocalDatabase(path: ":memory:"); try await db.ensureState()
-    let actions = editing(db), manager = UndoManager()
-    manager.groupsByEvent = false; actions.undoManager = manager
-    let view = PodListDomain.View(id: "native", name: "Native", filter: .init(text: "science"), sort: .durationAsc, limit: 2)
-    manager.beginUndoGrouping(); try await actions.saveView(view); manager.endUndoGrouping()
-    #expect(manager.canUndo)
-    manager.undo(); await actions.nativeUndoTask?.value
-    #expect(try await db.loadState().views.isEmpty)
-    #expect(manager.canRedo)
-    manager.redo(); await actions.nativeUndoTask?.value
-    #expect(try await db.loadState().views == [view])
-    #expect(try await db.outbox().count == 3)
-    manager.removeAllActions()
+@MainActor @Test func sharedHistoryOrdersPlaylistViewAndSubscriptionEdits() async throws {
+    let db = try await fixtureDatabase()
+    let actions = editing(db)
+    let history = actions.edits
+    let playlist = try #require(await history.create(name: "Commute"))
+    let view = PodListDomain.View(id: "v-latest", name: "Latest", filter: .init(), sort: .publishedDesc, limit: nil)
+    try await actions.saveView(view)
+    try await actions.edit(.setSubscriptionOverrides(subscriptionId: "s", playbackSettings: .init(speed: 1.75), playedThreshold: 60))
+    #expect(history.undoTitle == "Undo Subscription Settings")
+    await history.reverse()
+    #expect(try await db.readLibrary().subscriptions.first { $0.id == "s" }?.playbackSettings.speed == 1.5)
+    #expect(history.undoTitle == "Undo View edit")
+    await history.reverse()
+    #expect(try await db.loadState().views.contains { $0.id == view.id } == false)
+    #expect(history.undoTitle == "Undo New Playlist")
+    await history.reverse()
+    #expect(try await db.loadState().playlists.contains { $0.id == playlist } == false)
+    #expect(history.redoTitle == "Redo New Playlist")
+    await history.reverse(redo: true)
+    await history.reverse(redo: true)
+    await history.reverse(redo: true)
+    #expect(try await db.readLibrary().subscriptions.first { $0.id == "s" }?.playbackSettings.speed == 1.75)
+    #expect(try await db.loadState().views.contains(view))
+    #expect(try await db.loadState().playlists.contains { $0.id == playlist })
+    await history.reverse()
+    _ = await history.setStar(["a"], starred: true)
+    #expect(history.redoTitle == "Redo")
+    #expect(actions.undoName == "Star")
 }
 
-@MainActor @Test func changingLibraryClearsItsNativeUndoTargets() async throws {
+@MainActor @Test func changingLibraryClearsSharedHistoryAndRejectsLateRegistrations() async throws {
     let db = try LocalDatabase(path: ":memory:"); try await db.ensureState()
-    let actions = editing(db), manager = UndoManager()
-    manager.groupsByEvent = false; actions.undoManager = manager
-    manager.beginUndoGrouping()
+    let actions = editing(db)
     try await actions.saveView(.init(id: "old", name: "Old Library", filter: .init(), sort: .publishedDesc, limit: nil))
-    manager.endUndoGrouping()
-    #expect(manager.canUndo)
+    #expect(actions.undoName == "View edit")
     actions.endSession()
-    #expect(!manager.canUndo && actions.undoName == nil)
+    #expect(actions.undoName == nil)
     try await actions.saveView(.init(id: "pending", name: "Late old edit", filter: .init(), sort: .publishedDesc, limit: nil))
-    #expect(!manager.canUndo)
+    #expect(actions.undoName == nil)
+}
+
+@MainActor @Test func subscriptionRequestsShareUndoOrderWithViewsAndPlaylists() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let actions = editing(db), history = actions.edits
+    _ = await history.create(name: "Commute")
+    try await actions.subscribe("https://example.com/rss")
+    let sub = try #require(try await db.readLibrary().subscriptions.first)
+    try await actions.saveView(.init(id: "v", name: "View", filter: .init(), sort: .publishedDesc, limit: nil))
+    try await actions.unsubscribe(sub)
+    #expect(history.undoTitle == "Undo Unsubscribe")
+    await history.reverse()
+    #expect(try await db.readLibrary().subscriptions.first?.unsubscribedAt == nil)
+    #expect(history.undoTitle == "Undo View edit")
+    await history.reverse()
+    #expect(history.undoTitle == "Undo Subscribe")
+    await history.reverse()
+    #expect(try await db.readLibrary().subscriptions.first?.unsubscribedAt != nil)
+    #expect(history.undoTitle == "Undo New Playlist")
 }

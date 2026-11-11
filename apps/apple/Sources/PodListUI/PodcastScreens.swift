@@ -100,6 +100,7 @@ struct PodcastPageScreen: SwiftUI.View {
     @State private var settings = false
     @State private var subscribedBounds = CGRect.zero
     @State private var bringing = Set<String>()
+    @State private var addPresentation = PlaylistPresentation()
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
     private var subscribed: Bool { subscription?.unsubscribedAt == nil && subscription != nil }
     private var title: String { feed?.title ?? subscription?.title ?? "Podcast" }
@@ -145,6 +146,10 @@ struct PodcastPageScreen: SwiftUI.View {
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
                                 .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
                         }
+                        if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
+                            ShareLink(item: url) { Label("Share podcast", systemImage: "square.and.arrow.up") }
+                            Button("Copy feed address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
+                        }
                         if subscribed { Button("Subscription settings", systemImage: "gearshape") { control.reset(); settings = true }.labelStyle(.iconOnly) }
                     }
                 }
@@ -160,16 +165,24 @@ struct PodcastPageScreen: SwiftUI.View {
                         Text("\(Date(timeIntervalSince1970: Double(episode.published) / 1000).formatted(date: .abbreviated, time: .omitted)) · \(episode.duration.map(Presentation.time) ?? "Unknown length")").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("Add", systemImage: "plus") { bring(episode, play: false) }.labelStyle(.iconOnly).accessibilityLabel("Add \(episode.title) to Active Playlist")
+                    Button("Add", systemImage: "plus") { bring(episode, play: false) }.labelStyle(.iconOnly).accessibilityLabel("Add \(episode.title) to a Playlist")
                     Button("Play", systemImage: "play.fill") { bring(episode, play: true) }.labelStyle(.iconOnly).accessibilityLabel("Play \(episode.title) now")
                 }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4).tag(episode.id)
                 .contextMenu {
-                    Button("Play Now") { bring(episode, play: true) }
-                    Button("Add to Active Playlist") { bring(episode, play: false) }
+                    if let localID = episode.localID, let editing = app.editing {
+                        let ids = selection.wrappedValue.contains(episode.id)
+                            ? episodes.filter { selection.wrappedValue.contains($0.id) }.compactMap(\.localID) : [localID]
+                        EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: addPresentation, app: app)
+                            .disabled(editing.busy)
+                    } else {
+                        Button("Play Now") { bring(episode, play: true) }
+                        Button("Add to a Playlist…") { bring(episode, play: false) }
+                    }
                 }
             }.simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
             LibraryFeedback(editor: editor)
         }.padding(18)
+        .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
         .simultaneousGesture(SpatialTapGesture().onEnded { if !subscribedBounds.contains($0.location) { control.reset() } })
         .task(id: feedURL) { control.reset(); search = editor.draft("podcast.\(feedURL).search"); await read() }
@@ -182,7 +195,7 @@ struct PodcastPageScreen: SwiftUI.View {
     private func load() { Task { await read() } }
     private func read() async {
         loading = true; error = nil
-        do { feed = try await editor.source.readPodcast(feedURL) }
+        do { feed = try await editor.source.readPodcast(feedURL); await app.reloadLocal() }
         catch { self.error = LibraryMessages.failure(error) }
         loading = false
     }
@@ -190,11 +203,12 @@ struct PodcastPageScreen: SwiftUI.View {
         control.reset(); bringing.insert(episode.guid)
         Task {
             do {
-                if let local = library.snapshot.episodes.first(where: { $0.subscriptionId == subscription?.id && $0.guid == episode.guid }) {
-                    if play { app.playback?.playNow(local.id) }
-                    else { try await editor.edit(.addEntry(playlistId: library.state.activePlaylistId, episodeId: local.id, placement: .last)) }
-                    editor.completeStep(4)
-                } else { try await editor.bring(feedURL, guid: episode.guid, play: play, app: app) }
+                let id: String
+                if let local = library.snapshot.episodes.first(where: { $0.subscriptionId == subscription?.id && $0.guid == episode.guid }) { id = local.id }
+                else { id = try await editor.prepareEpisode(feedURL, guid: episode.guid) }
+                if play { _ = await app.editing?.add([id], placement: .now) }
+                else { addPresentation.sheet = .add([id], false) }
+                editor.completeStep(4)
             } catch { editor.error = LibraryMessages.failure(error) }
             bringing.remove(episode.guid)
         }

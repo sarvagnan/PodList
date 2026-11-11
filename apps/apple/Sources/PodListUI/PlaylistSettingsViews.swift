@@ -38,7 +38,7 @@ struct AddPlaylistSheet: SwiftUI.View {
     @State private var target = ""
     @Environment(\.dismiss) private var dismiss
     private var prefix: String { "add/" + ((try? JSONEncoder().encode(ids))?.base64EncodedString() ?? "") }
-    private var name: Binding<String> { Binding(get: { editing.drafts[prefix + "/name"] }, set: { editing.drafts[prefix + "/name"] = $0 }) }
+    private var name: Binding<String> { Binding(get: { editing.drafts[prefix + "/name"] }, set: { editing.drafts[prefix + "/name"] = $0; editing.drafts[prefix + "/open"] = "true" }) }
     private var playlists: [Playlist] { app.library?.state.playlists ?? [] }
     private var problem: String? {
         target == "new" ? PlaylistNames.problem(name.wrappedValue, playlists: playlists) : playlists.contains(where: { $0.id == target }) ? nil : "Choose a Playlist."
@@ -46,13 +46,13 @@ struct AddPlaylistSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Add \(ids.count == 1 ? "Episode" : "\(ids.count) Episodes") to a Playlist").font(.title2).accessibilityAddTraits(.isHeader)
-            Picker("Playlist", selection: $target) {
+            Picker("Playlist", selection: Binding(get: { target }, set: { target = $0; editing.drafts[prefix + "/target"] = $0; editing.drafts[prefix + "/open"] = "true" })) {
                 ForEach(playlists, id: \.id) { playlist in
                     Text(playlist.name + (playlist.id == app.library?.state.activePlaylistId ? " (Active)" : "")).tag(playlist.id)
                 }
                 Divider()
                 Text("New Playlist…").tag("new")
-            }.onChange(of: target) { _, value in editing.drafts[prefix + "/target"] = value }
+            }
             if target == "new" {
                 TextField("Playlist name", text: name).disabled(editing.busy).onSubmit { submit(.next) }
                 if let problem { Text(problem).font(.caption).foregroundStyle(.secondary) }
@@ -67,15 +67,14 @@ struct AddPlaylistSheet: SwiftUI.View {
             }
         }.padding(24).frame(width: 540).interactiveDismissDisabled(editing.busy)
             .onAppear {
-                let saved = editing.drafts[prefix + "/target"]
-                target = preferNew ? "new" : saved == "new" || playlists.contains(where: { $0.id == saved }) ? saved : app.library?.state.activePlaylistId ?? ""
+                target = editing.drafts.addTarget(prefix: prefix, active: app.library?.state.activePlaylistId ?? "", playlists: playlists, preferNew: preferNew)
             }
     }
     private func submit(_ placement: Placement) {
         guard problem == nil, !editing.busy else { return }
         Task {
             if await editing.add(ids, to: target == "new" ? nil : target, newName: target == "new" ? name.wrappedValue : nil, placement: placement) != nil {
-                editing.drafts.remove(prefix + "/name"); editing.drafts.remove(prefix + "/target"); done()
+                editing.drafts.remove(prefix + "/name"); editing.drafts.remove(prefix + "/target"); editing.drafts.remove(prefix + "/open"); done()
             }
         }
     }

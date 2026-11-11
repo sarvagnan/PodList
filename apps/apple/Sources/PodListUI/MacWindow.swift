@@ -14,6 +14,8 @@ public struct PodListWindow: SwiftUI.View {
     @State private var showAddPodcasts = false
     @State private var editingView: PodListDomain.View?
     @State private var creatingView = false
+    @State private var subscriptionSelection = Set<String>()
+    @State private var showBulkRules = false
     @State private var podcastFeed: String?
     @AppStorage("PodList.appearance") private var appearance = "System"
     @State private var columns = NavigationSplitViewVisibility.all
@@ -37,7 +39,7 @@ public struct PodListWindow: SwiftUI.View {
         .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
         .task { await app.start() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } else { app.playback?.flush() } }
-        .onChange(of: app.origin) { _, _ in window.navigate(to: .subscriptions); playlistPresentation.sheet = nil }
+        .onChange(of: app.origin) { _, _ in window.navigate(to: .subscriptions); playlistPresentation.sheet = nil; subscriptionSelection = [] }
     }
 
     private func connected(_ library: LibraryModel) -> some SwiftUI.View {
@@ -96,7 +98,7 @@ public struct PodListWindow: SwiftUI.View {
                         Button("Playlist Settings", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
                     }
                     if let editing = app.editing, !window.selection.isEmpty {
-                        EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation)
+                        EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app)
                     }
                 }
                 ToolbarItem {
@@ -115,7 +117,7 @@ public struct PodListWindow: SwiftUI.View {
             .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
             .searchFocused($searchFocused)
             .inspector(isPresented: $inspectorVisible) {
-                EpisodeInspector(row: selectedRow(library), library: library, app: app, selectedIDs: selectedIDs(library), playlistPresentation: playlistPresentation)
+                EpisodeInspector(row: selectedRow(library), library: library, app: app, playlistPresentation: playlistPresentation)
                     .inspectorColumnWidth(min: 260, ideal: 310, max: 440)
             }
         }
@@ -150,9 +152,8 @@ public struct PodListWindow: SwiftUI.View {
         .focusedSceneValue(\.podListNowPlaying, { window.showNowPlaying = true })
         .sheet(isPresented: $window.showNowPlaying) {
             if let controller = app.playback {
-                NowPlayingView(controller: controller, library: library) {
-                    window.showNowPlaying = false
-                    window.navigate(to: .playlist(library.state.activePlaylistId))
+                NowPlayingView(controller: controller, library: library, app: app) {
+                    window.openNowPlayingEntries(library.state.activePlaylistId)
                 }
             }
         }
@@ -162,6 +163,7 @@ public struct PodListWindow: SwiftUI.View {
                    let first = library.state.views.first, app.libraryEditing?.showGettingStarted == true {
                     window.navigate(to: .view(first.id))
                 }
+                subscriptionSelection.formIntersection(Set(library.subscriptions.map(\.id)))
                 reconcileSelection(library)
             }
         }
@@ -169,6 +171,7 @@ public struct PodListWindow: SwiftUI.View {
             if window.destination == .search { app.libraryEditing?.setDraft(text, field: "librarySearch") }
             reconcileSelection(library)
         }
+        .onChange(of: app.playback?.userPlaybackRevision) { _, _ in window.didStartPlayback() }
         .onChange(of: window.destination) { _, _ in playlistPresentation.playlistTab = .entries }
     }
 
@@ -180,7 +183,7 @@ public struct PodListWindow: SwiftUI.View {
             if let editing = app.editing { PlaylistTrashView(library: library, editing: editing, search: window.search) }
         case let .playlist(id):
             if let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing {
-                PlaylistContentView(playlist: playlist, library: library, window: window, editing: editing, presentation: playlistPresentation)
+                PlaylistContentView(playlist: playlist, library: library, window: window, app: app, editing: editing, presentation: playlistPresentation)
             }
         case let .subscription(id):
             if let sub = library.snapshot.subscriptions.first(where: { $0.id == id }), let editor = app.libraryEditing {
@@ -205,32 +208,38 @@ public struct PodListWindow: SwiftUI.View {
                 ContentUnavailableView(window.search.isEmpty ? "No Subscriptions" : "No matching Subscriptions", systemImage: "rectangle.stack",
                     description: Text(window.search.isEmpty ? "Use Add podcasts to search by name or feed address." : "Try another search."))
             } else {
-                List {
-                    Text("Grouped by Download Rule").font(.subheadline).foregroundStyle(.secondary)
-                    ForEach(groups) { group in
-                        Section(group.name) {
-                            ForEach(group.subscriptions, id: \.id) { subscription in
-                                Button {
-                                    window.navigate(to: .subscription(subscription.id))
-                                } label: {
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Grouped by Download Rule").foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Edit Download Rules for \(subscriptionSelection.count) Subscriptions…") { showBulkRules = true }
+                            .disabled(subscriptionSelection.isEmpty)
+                    }.padding(.horizontal)
+                    List(selection: $subscriptionSelection) {
+                        ForEach(groups) { group in
+                            Section(group.name) {
+                                ForEach(group.subscriptions, id: \.id) { subscription in
                                     HStack(spacing: 12) {
                                         ArtworkView(url: subscription.artwork.flatMap { URL(string: $0.url) }, title: subscription.title, size: 44)
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(subscription.title).font(.headline).foregroundStyle(.primary)
-                                            let count = library.snapshot.episodes.filter { $0.subscriptionId == subscription.id }.count
-                                            Text("\(count) \(count == 1 ? "Episode" : "Episodes")").foregroundStyle(.secondary)
-                                        }
+                                        Text(subscription.title).font(.headline)
                                         Spacer()
-                                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-                                    }
-                                    .padding(.vertical, 5).contentShape(Rectangle())
+                                        Button("Open", systemImage: "chevron.right") { window.navigate(to: .subscription(subscription.id)) }
+                                            .labelStyle(.iconOnly).buttonStyle(.borderless)
+                                            .help("Open \(subscription.title)").accessibilityLabel("Open \(subscription.title), Subscription")
+                                    }.padding(.vertical, 5).contentShape(Rectangle()).tag(subscription.id)
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Open \(subscription.title), Subscription")
                             }
                         }
+                    }.listStyle(.inset)
+                    .contextMenu(forSelectionType: String.self) { ids in
+                        Button("Edit Download Rules…") { subscriptionSelection = ids; showBulkRules = true }.disabled(ids.isEmpty)
+                    } primaryAction: { ids in
+                        if let id = ids.first { window.navigate(to: .subscription(id)) }
                     }
-                }.listStyle(.inset)
+                }
+                .sheet(isPresented: $showBulkRules) {
+                    BulkDownloadRuleSheet(ids: library.subscriptions.map(\.id).filter { subscriptionSelection.contains($0) }, app: app)
+                }
             }
         }
     }
@@ -257,7 +266,7 @@ public struct PodListWindow: SwiftUI.View {
                 }
                 .contextMenu(forSelectionType: String.self) { selection in
                     if let editing = app.editing {
-                        EpisodeActionItems(ids: rows.map(\.id).filter { selection.contains($0) }, library: library, editing: editing, presentation: playlistPresentation)
+                        EpisodeActionItems(ids: rows.map(\.id).filter { selection.contains($0) }, library: library, editing: editing, presentation: playlistPresentation, app: app)
                             .disabled(selection.isEmpty || editing.busy)
                     }
                 } primaryAction: { _ in inspectorVisible = true }
@@ -291,12 +300,10 @@ public struct PodListWindow: SwiftUI.View {
         .contextMenu {
             if let editing = app.editing {
                 EpisodeActionItems(ids: window.selection.contains(row.id) ? selectedIDs(library) : [row.id],
-                    library: library, editing: editing, presentation: playlistPresentation)
+                    library: library, editing: editing, presentation: playlistPresentation, app: app)
                     .disabled(editing.busy)
             }
-            Button(app.downloadStatuses[row.id]?.phase == .stored ? "Remove download" : "Download") {
-                if app.downloadStatuses[row.id]?.phase == .stored { app.removeDownload(row.id) } else { app.download(row.id) }
-            }
+
         }
     }
 

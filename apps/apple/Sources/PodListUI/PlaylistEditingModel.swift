@@ -7,6 +7,8 @@ public struct NamedEdit: Sendable {
     public let name: String
     public let changes: [Change]
     public let reload: Bool
+    public var action: (@MainActor @Sendable () async throws -> Void)? = nil
+    public var inverseAction: (@MainActor @Sendable () async throws -> Void)? = nil
 }
 
 /// App-wide, session-scoped edit history. Playback reporting and sync are never undo steps.
@@ -17,6 +19,7 @@ public final class PlaylistEditingModel {
     public private(set) var status: String?
     public private(set) var error: String?
     public let drafts: PlaylistDrafts
+    @ObservationIgnored private var ended = false
     @ObservationIgnored private let database: LocalDatabase
     @ObservationIgnored private let changed: @MainActor () async -> Void
     @ObservationIgnored private let player: @MainActor () -> PlaybackController?
@@ -25,6 +28,19 @@ public final class PlaylistEditingModel {
                 player: @escaping @MainActor () -> PlaybackController? = { nil },
                 changed: @escaping @MainActor () async -> Void = {}) {
         self.database = database; self.drafts = drafts; self.player = player; self.changed = changed
+    }
+    public func endSession() { ended = true; history.clear() }
+    /// Share the same serialization and history for metadata requests and State edits.
+    public func performExternal(_ apply: @MainActor () async throws -> NamedEdit) async throws {
+        guard !busy else { throw DatabaseFailure(description: "An edit is already in progress. Try again.") }
+        busy = true; error = nil
+        defer { busy = false }
+        do {
+            let step = try await apply()
+            if !ended { history.record(step) }
+            status = step.name
+            await changed()
+        } catch { self.error = String(describing: error); throw error }
     }
     public var undoTitle: String { history.undo.map { "Undo \($0.name)" } ?? "Undo" }
     public var redoTitle: String { history.redo.map { "Redo \($0.name)" } ?? "Redo" }
@@ -36,7 +52,7 @@ public final class PlaylistEditingModel {
     @discardableResult
     public func edit(name: String, message: String? = nil, reload: Bool = false, start: Bool = false,
                      build: @escaping @Sendable (State) throws -> [Change]) async -> Bool {
-        guard !busy else { return false }
+        guard !busy, !ended else { return false }
         busy = true; error = nil
         defer { busy = false }
         do {
@@ -57,6 +73,12 @@ public final class PlaylistEditingModel {
         defer { busy = false }
         do {
             let action: @MainActor () async throws -> Void = {
+                if let external = step.action, let inverse = step.inverseAction {
+                    try await external()
+                    self.history.completeReverse(with: NamedEdit(name: step.name, changes: [], reload: true, action: inverse, inverseAction: external), redo: redo)
+                    self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
+                    return
+                }
                 let inverse = try await self.database.reversibleEdit(at: Self.now) { _ in step.changes }
                 self.history.completeReverse(with: NamedEdit(name: step.name, changes: inverse, reload: step.reload), redo: redo)
                 self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
@@ -68,7 +90,8 @@ public final class PlaylistEditingModel {
                     self.status = "\(self.status ?? "") · Restored Playlist \(names)"
                 }
             }
-            if let player = player() { try await player.performUserEdit(reload: step.reload, action: action) }
+            if step.action != nil { try await action(); player()?.refresh() }
+            else if let player = player() { try await player.performUserEdit(reload: step.reload, action: action) }
             else { try await action() }
             await changed()
         } catch { self.error = "Could not \(redo ? "redo" : "undo"): \(error)"; await changed() }
@@ -171,6 +194,12 @@ public final class PlaylistDrafts {
     public subscript(_ field: String) -> String {
         get { values[field] ?? "" }
         set { values[field] = newValue; defaults.set(values, forKey: key) }
+    }
+    public func addTarget(prefix: String, active: String, playlists: [Playlist], preferNew: Bool) -> String {
+        if preferNew { return "new" }
+        let saved = self[prefix + "/target"]
+        if self[prefix + "/open"] == "true" || (saved == "new" && !self[prefix + "/name"].isEmpty), saved == "new" || playlists.contains(where: { $0.id == saved }) { return saved }
+        return active
     }
     public func remove(_ field: String) { values.removeValue(forKey: field); defaults.set(values, forKey: key) }
 }

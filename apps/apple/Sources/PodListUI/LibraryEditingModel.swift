@@ -1,7 +1,4 @@
 import Foundation
-#if os(macOS)
-import AppKit
-#endif
 import Observation
 import PodListData
 import PodListDomain
@@ -63,37 +60,23 @@ public final class LibraryEditingModel {
     public var importFailureReasons: [String: String] = [:]
     public var showGettingStarted: Bool { didSet { defaults.set(showGettingStarted, forKey: key("gettingStarted")) } }
     public var steps: Int { didSet { defaults.set(steps, forKey: key("steps")) } }
-    public private(set) var undoName: String?
-    public private(set) var redoName: String?
+    public let edits: PlaylistEditingModel
+    public var undoName: String? { edits.history.undo?.name }
+    public var redoName: String? { edits.history.redo?.name }
     @ObservationIgnored private let db: LocalDatabase
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let changed: @MainActor @Sendable () async -> Void
-    #if os(macOS)
-    @ObservationIgnored public weak var undoManager: UndoManager?
-    @ObservationIgnored public private(set) var nativeUndoTask: Task<Void, Never>?
-    private final class WeakUndoManager { weak var value: UndoManager?; init(_ value: UndoManager) { self.value = value } }
-    @ObservationIgnored private var nativeManagers: [WeakUndoManager] = []
-    #endif
-    @ObservationIgnored private var ended = false
-    @ObservationIgnored private var undoAction: (@MainActor () async throws -> Void)?
-    @ObservationIgnored private var redoAction: (@MainActor () async throws -> Void)?
 
-    public init(database: LocalDatabase, source: PodcastLibrary, scope: String, defaults: UserDefaults = .standard,
+    public init(database: LocalDatabase, source: PodcastLibrary, scope: String, defaults: UserDefaults = .standard, edits: PlaylistEditingModel? = nil,
                 changed: @escaping @MainActor @Sendable () async -> Void = {}) {
+        self.edits = edits ?? PlaylistEditingModel(database: database, drafts: PlaylistDrafts(scope: scope, defaults: defaults), changed: changed)
         db = database; self.source = source; self.scope = scope; self.defaults = defaults; self.changed = changed
         showGettingStarted = defaults.object(forKey: "PodList.\(scope).gettingStarted") as? Bool ?? true
         steps = defaults.integer(forKey: "PodList.\(scope).steps")
     }
     private func key(_ suffix: String) -> String { "PodList.\(scope).\(suffix)" }
     public func draft(_ field: String) -> String { defaults.string(forKey: key("draft." + field)) ?? "" }
-    public func endSession() {
-        ended = true; undoAction = nil; redoAction = nil; undoName = nil; redoName = nil
-        #if os(macOS)
-        nativeUndoTask?.cancel()
-        for manager in nativeManagers { manager.value?.removeAllActions(withTarget: self) }
-        nativeManagers = []
-        #endif
-    }
+    public func endSession() { edits.endSession() }
     public func hasDraft(_ field: String) -> Bool { defaults.object(forKey: key("draft." + field)) != nil }
     public func clearDraft(_ field: String) { defaults.removeObject(forKey: key("draft." + field)) }
     public func setDraft(_ value: String, field: String) { defaults.set(value, forKey: key("draft." + field)) }
@@ -119,92 +102,72 @@ public final class LibraryEditingModel {
     }
     private static var now: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
     public func edit(_ change: Change) async throws {
-        try await db.record(change, at: Self.now); await changed()
+        let name: String
+        switch change {
+        case .setSubscriptionOverrides: name = "Subscription Settings"
+        case .markSubscriptionPlayed: name = "Mark Subscription Played"
+        default: name = "Library edit"
+        }
+        if case let .markSubscriptionPlayed(id) = change {
+            let episodes = try await db.readLibrary().episodes.filter { $0.subscriptionId == id }.map(\.id)
+            guard await edits.markPlayed(episodes, played: true) else { throw SyncResponseFailure(edits.error ?? "Could not mark Episodes Played") }
+        } else {
+            guard await edits.edit([change], name: name, reload: true) else { throw SyncResponseFailure(edits.error ?? "Could not save edit") }
+        }
     }
     public func savedView(_ id: String) async throws -> PodListDomain.View? { try await db.loadState().views.first { $0.id == id } }
     public func saveView(_ view: PodListDomain.View) async throws {
-        let previous = try await db.saveUniqueView(view, at: Self.now)
-        let clean = PodListDomain.View(id: view.id, name: view.name.trimmingCharacters(in: .whitespacesAndNewlines), filter: view.filter, sort: view.sort, limit: view.limit)
-        let db = db
-        offerUndo("View edit", undo: { [db] in
-            if let previous { _ = try await db.saveUniqueView(previous, at: Self.now) } else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
-        }, redo: { [db] in _ = try await db.saveUniqueView(clean, at: Self.now) })
+        try await edits.performExternal {
+            let previous = try await self.db.saveUniqueView(view, at: Self.now)
+            let clean = PodListDomain.View(id: view.id, name: view.name.trimmingCharacters(in: .whitespacesAndNewlines), filter: view.filter, sort: view.sort, limit: view.limit)
+            let db = self.db
+            return NamedEdit(name: "View edit", changes: [], reload: false, action: {
+                if let previous { _ = try await db.saveUniqueView(previous, at: Self.now) }
+                else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
+            }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now) })
+        }
         completeStep(2); await changed()
     }
     public func deleteView(_ view: PodListDomain.View) async throws {
-        try await db.record(.deleteView(viewId: view.id), at: Self.now)
-        let db = db
-        offerUndo("Delete View", undo: { [db] in _ = try await db.saveUniqueView(view, at: Self.now) }, redo: { [db] in try await db.record(.deleteView(viewId: view.id), at: Self.now) })
+        try await edits.performExternal {
+            try await self.db.record(.deleteView(viewId: view.id), at: Self.now)
+            let db = self.db
+            return NamedEdit(name: "Delete View", changes: [], reload: false,
+                action: { _ = try await db.saveUniqueView(view, at: Self.now) },
+                inverseAction: { try await db.record(.deleteView(viewId: view.id), at: Self.now) })
+        }
         notice = "View \(view.name) deleted"; await changed()
     }
     public func subscribe(_ feed: String) async throws {
-        let sub = try await source.subscribe(feed)
-        let source = source
-        offerUndo("Subscribe", undo: { [source] in try await source.unsubscribe(sub.id) }, redo: { [source] in _ = try await source.subscribe(feed) })
-        notice = "Subscribed to \(sub.title)"; completeStep(1); await changed()
+        try await edits.performExternal {
+            let sub = try await self.source.subscribe(feed), source = self.source
+            self.notice = "Subscribed to \(sub.title)"
+            return NamedEdit(name: "Subscribe", changes: [], reload: true,
+                action: { try await source.unsubscribe(sub.id) }, inverseAction: { _ = try await source.subscribe(feed) })
+        }
+        completeStep(1); await changed()
     }
     public func unsubscribe(_ sub: Subscription) async throws {
-        try await source.unsubscribe(sub.id)
-        let source = source
-        offerUndo("Unsubscribe", undo: { [source] in _ = try await source.subscribe(sub.feedUrl) }, redo: { [source] in try await source.unsubscribe(sub.id) })
+        try await edits.performExternal {
+            try await self.source.unsubscribe(sub.id)
+            let source = self.source
+            return NamedEdit(name: "Unsubscribe", changes: [], reload: true,
+                action: { _ = try await source.subscribe(sub.feedUrl) }, inverseAction: { try await source.unsubscribe(sub.id) })
+        }
         notice = "Unsubscribed from \(sub.title)"; await changed()
     }
-    public func bring(_ feed: String, guid: String, play: Bool, app: ApplicationModel) async throws {
+    public func prepareEpisode(_ feed: String, guid: String) async throws -> String {
         let id = try await source.bringEpisode(feed, guid: guid)
         await changed()
-        if play { app.playback?.playNow(id) }
-        else { try await edit(.addEntry(playlistId: try await db.loadState().activePlaylistId, episodeId: id, placement: .last)) }
+        return id
+    }
+    public func bring(_ feed: String, guid: String, play: Bool, app: ApplicationModel) async throws {
+        let id = try await prepareEpisode(feed, guid: guid)
+        _ = await edits.add([id], placement: play ? .now : .last)
         completeStep(4)
     }
-    #if os(macOS)
-    private func registerNativeUndo(_ manager: UndoManager, name: String,
-                                    action: @escaping @MainActor () async throws -> Void,
-                                    inverse: @escaping @MainActor () async throws -> Void) {
-        guard !ended else { return }
-        nativeManagers.removeAll { $0.value == nil }
-        if !nativeManagers.contains(where: { $0.value === manager }) { nativeManagers.append(WeakUndoManager(manager)) }
-        manager.registerUndo(withTarget: self) { target in
-            MainActor.assumeIsolated {
-                target.registerNativeUndo(manager, name: name, action: inverse, inverse: action)
-                target.nativeUndoTask = Task { @MainActor [weak target] in
-                    guard let target else { return }
-                    do { try await action(); target.error = nil; target.undoName = nil; target.redoName = nil; await target.changed() }
-                    catch { target.error = "Could not undo or redo. " + LibraryMessages.failure(error) }
-                }
-            }
-        }
-        manager.setActionName(name)
-    }
-    #endif
-    private func offerUndo(_ name: String, undo: @escaping @MainActor () async throws -> Void, redo: @escaping @MainActor () async throws -> Void) {
-        guard !ended else { return }
-        undoName = name; redoName = nil; undoAction = undo; redoAction = redo
-        #if os(macOS)
-        if let manager = undoManager ?? NSApplication.shared.keyWindow?.undoManager { registerNativeUndo(manager, name: name, action: undo, inverse: redo) }
-        #endif
-    }
-    public func undo() async {
-        guard let undoAction, let name = undoName else { return }
-        do {
-            try await undoAction(); undoName = nil; redoName = name; error = nil
-            #if os(macOS)
-            (undoManager ?? NSApplication.shared.keyWindow?.undoManager)?.removeAllActions(withTarget: self)
-            #endif
-            await changed()
-        }
-        catch { self.error = "Could not undo. " + LibraryMessages.failure(error) }
-    }
-    public func redo() async {
-        guard let redoAction, let name = redoName else { return }
-        do {
-            try await redoAction(); redoName = nil; undoName = name; error = nil
-            #if os(macOS)
-            (undoManager ?? NSApplication.shared.keyWindow?.undoManager)?.removeAllActions(withTarget: self)
-            #endif
-            await changed()
-        }
-        catch { self.error = "Could not redo. " + LibraryMessages.failure(error) }
-    }
+    public func undo() async { await edits.reverse(); error = edits.error; await changed() }
+    public func redo() async { await edits.reverse(redo: true); error = edits.error; await changed() }
     public func run(_ action: @escaping @MainActor () async throws -> Void) {
         Task { do { try await action(); error = nil } catch { self.error = LibraryMessages.failure(error) } }
     }

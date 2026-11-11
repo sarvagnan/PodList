@@ -8,6 +8,7 @@ struct PlaylistContentView: SwiftUI.View {
     let playlist: Playlist
     let library: LibraryModel
     @Bindable var window: WindowModel
+    let app: ApplicationModel
     let editing: PlaylistEditingModel
     @Bindable var presentation: PlaylistPresentation
     @State private var rewindTarget: TimelineEvent?
@@ -82,7 +83,7 @@ struct PlaylistContentView: SwiftUI.View {
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {
         if !ids.isEmpty {
-            EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation)
+            EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
             Divider()
             Button("Play from Here") { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: ids.first) } }
             Button("Move Up") { Task { await editing.move(Set(ids), playlistID: playlist.id, down: false) } }
@@ -119,7 +120,7 @@ struct PlaylistContentView: SwiftUI.View {
                         Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(.secondary)
                     }.tag(item.episodeId)
                         .contextMenu {
-                            EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation)
+                            EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation, app: app)
                                 .disabled(editing.busy)
                         }
                 }.accessibilityLabel("Playlist History")

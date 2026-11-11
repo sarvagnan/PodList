@@ -21,6 +21,7 @@ struct EpisodeActionItems: SwiftUI.View {
     let library: LibraryModel
     let editing: PlaylistEditingModel
     let presentation: PlaylistPresentation
+    let app: ApplicationModel
     var body: some SwiftUI.View {
         Button("Play Now") { Task { await editing.add(ids, placement: .now) } }
         Button("Play Next in \(activeName)") { Task { await editing.add(ids, placement: .next) } }
@@ -38,6 +39,11 @@ struct EpisodeActionItems: SwiftUI.View {
         }
         Button("Add to a Playlist…") { presentation.sheet = .add(ids, false) }
         Divider()
+        Button("Download") { app.download(ids) }
+        if ids.count == 1, let id = ids.first, let url = library.episodeShareURL(id) {
+            ShareLink(item: url) { Text("Share Episode…") }
+            Button("Copy Link") { ShareLinks.copy(url) }
+        }
         Button(allStarred ? "Unstar" : "Star") { Task { await editing.setStar(ids, starred: !allStarred) } }
         Button(allPlayed ? "Mark Unplayed" : "Mark Played") { Task { await editing.markPlayed(ids, played: !allPlayed) } }
     }
@@ -51,11 +57,14 @@ struct EpisodeActionButtons: SwiftUI.View {
     let library: LibraryModel
     let editing: PlaylistEditingModel
     let presentation: PlaylistPresentation
+    let app: ApplicationModel
     var body: some SwiftUI.View {
         HStack {
             Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }
             Button("Add", systemImage: "plus") { presentation.sheet = .add(ids, false) }
                 .accessibilityLabel("Add selected Episodes to a Playlist")
+            Button("Download", systemImage: "arrow.down.circle") { app.download(ids) }
+                .labelStyle(.iconOnly).help("Download selected Episodes")
             let starred = ids.allSatisfy { library.state.episodeStates[$0]?.starred == true }
             Button(starred ? "Unstar" : "Star", systemImage: starred ? "star.fill" : "star") { Task { await editing.setStar(ids, starred: !starred) } }
                 .labelStyle(.iconOnly).help(starred ? "Unstar selected Episodes" : "Star selected Episodes")
@@ -63,7 +72,7 @@ struct EpisodeActionButtons: SwiftUI.View {
             Button(played ? "Mark Unplayed" : "Mark Played", systemImage: played ? "arrow.counterclockwise" : "checkmark") { Task { await editing.markPlayed(ids, played: !played) } }
                 .labelStyle(.iconOnly).help(played ? "Mark selected Episodes Unplayed" : "Mark selected Episodes Played")
             Menu("Episode Actions", systemImage: "ellipsis.circle") {
-                EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation)
+                EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
             }.menuStyle(.borderlessButton).fixedSize()
         }.disabled(ids.isEmpty || editing.busy)
     }
@@ -138,7 +147,7 @@ public struct PlaylistEditingCommands: Commands {
         }
         CommandMenu("Episode") {
             if let context, let editing = app.editing {
-                EpisodeActionItems(ids: context.ids, library: context.library, editing: editing, presentation: context.presentation)
+                EpisodeActionItems(ids: context.ids, library: context.library, editing: editing, presentation: context.presentation, app: app)
                     .disabled(context.ids.isEmpty || editing.busy)
                 if case let .playlist(id) = context.window.destination {
                     Divider()
