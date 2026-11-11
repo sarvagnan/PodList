@@ -1,6 +1,8 @@
 #if os(macOS)
 import SwiftUI
 
+/// Resolved artwork, or the podcast's initials when there is none. Callers pass the podcast title, since
+/// Episode artwork falls back to the podcast's.
 struct ArtworkView: SwiftUI.View {
     let url: URL?
     let title: String
@@ -29,7 +31,7 @@ struct EpisodeInspector: SwiftUI.View {
         if let row {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ArtworkView(url: row.artworkURL, title: row.title, size: 180)
+                    ArtworkView(url: row.artworkURL, title: row.podcast, size: 180)
                         .frame(maxWidth: .infinity)
                     Text(row.title).font(.title2).bold().fixedSize(horizontal: false, vertical: true)
                     Text(row.podcast).font(.headline).foregroundStyle(.secondary)
