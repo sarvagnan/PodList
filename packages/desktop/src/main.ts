@@ -432,8 +432,9 @@ const createWindow = () => {
   })
   window = win
   automationReady = false
-  win.webContents.on("did-start-navigation", (_event, _url, _inPlace, mainFrame) => {
-    if (!mainFrame) return
+  win.webContents.on("did-start-navigation", (_event, _url, inPlace, mainFrame) => {
+    // In-page navigation keeps the renderer, and its automation handler, mounted.
+    if (!mainFrame || inPlace) return
     automationReady = false
     for (const [id, call] of calls)
       if (call.contents === win.webContents) {

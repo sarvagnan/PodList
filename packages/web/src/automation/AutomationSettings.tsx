@@ -34,11 +34,16 @@ export function AutomationSettings() {
             checked={status?.enabled ?? false}
             disabled={busy || !status}
             onChange={async (event) => {
+              const enabled = event.target.checked
+              const previous = status
+              // Show the new state at once; starting or stopping the listener takes a moment.
+              setStatus((current) => (current ? { ...current, enabled } : current))
               setBusy(true)
               setError(null)
               try {
-                setStatus(await api.setEnabled(event.target.checked))
+                setStatus(await api.setEnabled(enabled))
               } catch (e) {
+                setStatus(previous)
                 setError(e instanceof Error ? e.message : String(e))
               } finally {
                 setBusy(false)
