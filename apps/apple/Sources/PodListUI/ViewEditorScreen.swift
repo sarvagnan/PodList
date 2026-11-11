@@ -17,6 +17,7 @@ struct ViewEditorScreen: SwiftUI.View {
     @State private var saving = false
     @State private var applying = 0
     @State private var pending: Task<Void, Never>?
+    @State private var sessionID = UUID()
     init(editor: LibraryEditingModel, library: LibraryModel, view: PodListDomain.View, creating: Bool, finished: @escaping (String?) -> Void) {
         self.editor = editor; self.library = library; initial = view; self.creating = creating; self.finished = finished
         let restored = editor.draft("view.\(view.id)").data(using: .utf8).flatMap { try? JSONDecoder().decode(PodListDomain.View.self, from: $0) }
@@ -73,7 +74,8 @@ struct ViewEditorScreen: SwiftUI.View {
                             } }))
                         }
                     }
-                    TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }))
+                    TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
+                        .textFieldStyle(.roundedBorder)
                     Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
                         Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In progress").tag("inProgress"); Text("Played").tag("played")
                     }
@@ -91,23 +93,25 @@ struct ViewEditorScreen: SwiftUI.View {
                         Text("Newest first").tag(ViewSort.publishedDesc); Text("Oldest first").tag(ViewSort.publishedAsc)
                         Text("Shortest first").tag(ViewSort.durationAsc); Text("Longest first").tag(ViewSort.durationDesc)
                     }
-                    TextField("Show (blank for all)", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return raw.isEmpty ? draft.limit.map(String.init) ?? "" : raw }, set: { text in
+                    TextField("Show", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return raw.isEmpty ? draft.limit.map(String.init) ?? "" : raw }, set: { text in
                         editor.setDraft(text, field: "limit.\(draft.id)")
                         if text.isEmpty { update { $0.limit = nil } }
                         else if let limit = Int64(text), limit > 0 { update { $0.limit = limit } }
                         else { problem = "Show must be a positive whole number." }
-                    }))
+                    }), prompt: Text("All")).textFieldStyle(.roundedBorder)
                 }
-            }.formStyle(.grouped)
+            }.formStyle(.grouped).disabled(saving)
             if let problem { Text(problem).foregroundStyle(.red) }
             if let error = editor.error { Text(error).foregroundStyle(.red) }
             HStack {
                 if !creating { Button("Delete View", role: .destructive) { editor.run { try await editor.deleteView(draft); finished(nil) } } }
                 if editor.undoName != nil { Button("Undo edit") { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } } }
                 Spacer()
+                Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
                 Button("Done") { finish() }.keyboardShortcut(.defaultAction).disabled(saving || renaming)
-            }
+            }.disabled(saving)
         }.padding(20).frame(width: 600, height: 730)
+        .interactiveDismissDisabled(saving)
         .onAppear {
             problem = rawNumberProblem ?? ViewEdits.problem(draft)
             rename = editor.draft("rename.\(draft.id)"); renaming = !rename.isEmpty
@@ -135,7 +139,7 @@ struct ViewEditorScreen: SwiftUI.View {
             if text.isEmpty { update { $0[keyPath: path] = nil } }
             else if let n = Double(text), n.isFinite, n >= 0 { update { $0[keyPath: path] = n * (seconds ? 60 : 1) } }
             else { problem = "Enter a nonnegative number of minutes." }
-        }))
+        }), prompt: Text("No limit")).textFieldStyle(.roundedBorder)
     }
     private func update(_ mutation: (inout PodListDomain.View) -> Void) {
         mutation(&draft)
@@ -149,7 +153,7 @@ struct ViewEditorScreen: SwiftUI.View {
         applying += 1
         pending = Task {
             await previous?.value
-            do { try await editor.saveView(view) } catch { editor.error = LibraryMessages.failure(error) }
+            do { try await editor.saveView(view, sessionID: sessionID) } catch { editor.error = LibraryMessages.failure(error) }
             applying -= 1
         }
     }
@@ -165,7 +169,7 @@ struct ViewEditorScreen: SwiftUI.View {
         Task {
             await pending?.value
             var next = draft; next.name = rename
-            do { try await editor.saveView(next); draft = next; renaming = false; editor.setDraft("", field: "rename.\(draft.id)"); problem = nil }
+            do { try await editor.saveView(next, sessionID: sessionID); draft = next; renaming = false; editor.setDraft("", field: "rename.\(draft.id)"); problem = nil }
             catch { problem = LibraryMessages.failure(error) }
             saving = false
         }
@@ -186,12 +190,20 @@ struct ViewEditorScreen: SwiftUI.View {
         Task {
             await pending?.value
             do {
-                if creating { try await editor.saveView(draft) }
-                editor.setDraft("", field: "view.\(draft.id)")
-                for label in ["Minimum length (minutes)", "Maximum length (minutes)"] { editor.setDraft("", field: "\(draft.id).\(label)") }
-                editor.setDraft("", field: "limit.\(draft.id)")
-                if creating { editor.setDraft("", field: "newViewID") }
+                if creating { try await editor.saveView(draft, sessionID: sessionID) }
+                editor.clearViewDrafts(draft.id, creating: creating)
                 finished(draft.id)
+            } catch { problem = LibraryMessages.failure(error) }
+            saving = false
+        }
+    }
+    private func cancel() {
+        saving = true
+        Task {
+            await pending?.value
+            do {
+                try await editor.cancelViewEdits(initial: initial, creating: creating, sessionID: sessionID)
+                finished(nil)
             } catch { problem = LibraryMessages.failure(error) }
             saving = false
         }

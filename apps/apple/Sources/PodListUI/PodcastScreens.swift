@@ -6,14 +6,7 @@ import PodListDomain
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let error = editor.error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
-            if let notice = editor.notice { Text(notice).foregroundStyle(.secondary) }
-            HStack {
-                if let name = editor.undoName { Button("Undo \(name)") { Task { await editor.undo() } } }
-                if let name = editor.redoName { Button("Redo \(name)") { Task { await editor.redo() } } }
-            }
-        }.font(.callout).padding(.horizontal)
+        EditingFeedback(editing: editor.edits, additionalError: editor.error, notice: editor.notice)
     }
 }
 

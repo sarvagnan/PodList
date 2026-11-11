@@ -80,17 +80,27 @@ struct EpisodeActionButtons: SwiftUI.View {
 
 struct EditingFeedback: SwiftUI.View {
     let editing: PlaylistEditingModel
+    var additionalError: String? = nil
+    var notice: String? = nil
+    private var error: String? { additionalError ?? editing.error }
     var body: some SwiftUI.View {
-        if let text = editing.error ?? editing.status {
-            HStack {
-                Text(text).foregroundStyle(editing.error == nil ? Color.secondary : Color.red).textSelection(.enabled)
-                Spacer()
+        HStack {
+            if let text = error ?? editing.status ?? notice {
+                Text(text).foregroundStyle(error == nil ? Color.secondary : Color.red)
+                    .lineLimit(1).truncationMode(.tail).help(text).textSelection(.enabled)
+                if error == nil, let notice, editing.status != nil, notice != editing.status {
+                    Text(notice).foregroundStyle(.secondary).truncationMode(.tail).help(notice)
+                }
+                Spacer(minLength: 8)
                 if editing.history.undo != nil {
                     Button(editing.undoTitle) { Task { await editing.reverse() } }.disabled(editing.busy)
                 }
-            }.font(.caption).padding(.horizontal, 14).padding(.vertical, 6)
-                .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
-        }
+                if editing.history.redo != nil {
+                    Button(editing.redoTitle) { Task { await editing.reverse(redo: true) } }.disabled(editing.busy)
+                }
+            } else { Spacer() }
+        }.font(.caption).lineLimit(1).padding(.horizontal, 14).frame(height: 32)
+            .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
     }
 }
 

@@ -9,6 +9,7 @@ public struct NamedEdit: Sendable {
     public let reload: Bool
     public var action: (@MainActor @Sendable () async throws -> Void)? = nil
     public var inverseAction: (@MainActor @Sendable () async throws -> Void)? = nil
+    public var sessionID: UUID? = nil
 }
 
 /// App-wide, session-scoped edit history. Playback reporting and sync are never undo steps.
@@ -30,14 +31,18 @@ public final class PlaylistEditingModel {
         self.database = database; self.drafts = drafts; self.player = player; self.changed = changed
     }
     public func endSession() { ended = true; history.clear() }
+    func discardViewSession(_ id: UUID) {
+        history.removeAll { $0.sessionID == id }
+        status = "View edits cancelled."; error = nil
+    }
     /// Share the same serialization and history for metadata requests and State edits.
-    public func performExternal(_ apply: @MainActor () async throws -> NamedEdit) async throws {
+    public func performExternal(recordHistory: Bool = true, _ apply: @MainActor () async throws -> NamedEdit) async throws {
         guard !busy else { throw DatabaseFailure(description: "An edit is already in progress. Try again.") }
         busy = true; error = nil
         defer { busy = false }
         do {
             let step = try await apply()
-            if !ended { history.record(step) }
+            if !ended, recordHistory { history.record(step) }
             status = step.name
             await changed()
         } catch { self.error = String(describing: error); throw error }
@@ -75,7 +80,7 @@ public final class PlaylistEditingModel {
             let action: @MainActor () async throws -> Void = {
                 if let external = step.action, let inverse = step.inverseAction {
                     try await external()
-                    self.history.completeReverse(with: NamedEdit(name: step.name, changes: [], reload: true, action: inverse, inverseAction: external), redo: redo)
+                    self.history.completeReverse(with: NamedEdit(name: step.name, changes: [], reload: true, action: inverse, inverseAction: external, sessionID: step.sessionID), redo: redo)
                     self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
                     return
                 }

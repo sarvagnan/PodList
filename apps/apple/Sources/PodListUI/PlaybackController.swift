@@ -294,6 +294,9 @@ public final class PlaybackController {
         try await event(.discontinuity); publish()
     }
     private func audioEvent(_ value: PlayerAudioEvent) async throws {
+        // Notifications already queued by the adapter can arrive after Pause or an edit.
+        // They must never grant playback intent or advance a paused Playlist.
+        if case .playing = value, !wantsPlayback { audio.pause(); return }
         guard prepared else { return }
         switch value {
         case .tick: try await sample(); try await checkBoundary(audioEnded: false)
@@ -305,6 +308,7 @@ public final class PlaybackController {
         case .paused: try await event(.flush); try await event(.discontinuity)
         case .discontinuity: try await event(.flush); try await event(.discontinuity)
         case .ended:
+            guard wantsPlayback else { return }
             position = audio.position; duration = audio.duration ?? duration
             try await event(.position(seconds: position, duration: duration)); try await checkBoundary(audioEnded: true)
         case .failure: try await fallback()
@@ -324,7 +328,7 @@ public final class PlaybackController {
     }
     private func checkBoundary(audioEnded: Bool) async throws {
         let timedSleep: Bool = if case .until = sleep { true } else { false }
-        guard episodeID != nil, !ended, wantsPlayback || audioEnded || timedSleep else { return }
+        guard episodeID != nil, !ended, wantsPlayback || timedSleep else { return }
         let decision = PlaybackPolicy.boundary(position: position, duration: duration, skipOutro: wantsPlayback ? settings.skipOutro : 0, ended: audioEnded, sleep: sleep, uptime: clock.uptime())
         guard decision != .continue else { return }
         let episodeEnd = audioEnded || (wantsPlayback && settings.skipOutro > 0 && duration.map { position >= $0 - settings.skipOutro } == true)

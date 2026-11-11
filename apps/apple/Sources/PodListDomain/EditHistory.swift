@@ -15,6 +15,13 @@ public struct EditHistory<Step> {
     }
     public mutating func endTyping() { group = nil }
     public mutating func clear() { past.removeAll(); future.removeAll(); endTyping() }
+    public func contains(where predicate: (Step) -> Bool) -> Bool {
+        past.contains(where: predicate) || future.contains(where: predicate)
+    }
+    /// Drop a cancelled editor's steps without disturbing edits from other windows.
+    public mutating func removeAll(where predicate: (Step) -> Bool) {
+        past.removeAll(where: predicate); future.removeAll(where: predicate); endTyping()
+    }
     /// Call after the inverse has committed durably; failure leaves both stacks untouched.
     public mutating func completeReverse(with inverse: Step, redo: Bool = false) {
         if redo {

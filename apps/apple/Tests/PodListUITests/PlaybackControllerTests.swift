@@ -276,3 +276,53 @@ private final class FakePlayerClock: Sendable {
     #expect(audio.loads.last?.1 == 45 && player.wantsPlayback)
     await player.shutdown()
 }
+
+@MainActor @Test func delayedAudioEndAfterPauseCannotStartPlayback() async throws {
+    let (db, player, audio, _) = try await playbackFixture()
+    player.play(); await player.settle()
+    player.pause(); await player.settle()
+    let before = try await db.loadState(), loads = audio.loads.count
+    // An AVFoundation notification can already be queued when Pause is requested.
+    audio.event?(.ended); await player.settle()
+    #expect(!player.wantsPlayback && !audio.isPlaying)
+    #expect(audio.loads.count == loads)
+    #expect(try await db.loadState() == before)
+    player.play(); await player.settle()
+    #expect(player.wantsPlayback && audio.isPlaying)
+    await player.shutdown()
+}
+
+@MainActor @Test(arguments: [false, true]) func unexpectedAudioPlayingRequiresPlayIntent(previouslyPrepared: Bool) async throws {
+    let (_, player, audio, _) = try await playbackFixture()
+    if previouslyPrepared {
+        player.play(); await player.settle()
+        player.pause(); await player.settle()
+    }
+    audio.isPlaying = true; audio.event?(.playing); await player.settle()
+    #expect(!audio.isPlaying && !player.wantsPlayback && player.display?.playing == false)
+    await player.shutdown()
+}
+
+@MainActor @Test func moveUndoSelectionAndRewindPreviewNeverRequestPlayback() async throws {
+    let (db, player, audio, _) = try await playbackFixture()
+    var state = try await db.loadState()
+    var commute = state.playlists[0]; commute.id = "commute"; commute.name = "Commute"; commute.isDefault = false
+    commute.entries.append(.init(episodeId: "c", position: 0, positionAt: 0))
+    commute.timeline = [.init(at: Int64(Date().timeIntervalSince1970 * 1000) - 60_000, episodeId: "a", position: 0)]
+    state.playlists.append(commute); try await db.saveState(state)
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString), player: { player })
+    await editing.move(["c"], playlistID: "commute", to: 1)
+    await editing.reverse()
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "d")
+    let window = WindowModel(); window.navigate(to: .playlist("commute")); window.selection = ["b"]
+    #expect(window.rows(in: library).contains { $0.id == "b" })
+    window.selection = [] // Switching to Listening Timeline clears the row selection.
+    let current = try #require(library.state.playlists.first { $0.id == "commute" })
+    let moment = try #require(TimelinePresentation.events(current).first?.moment)
+    #expect(TimelinePresentation.preview(library.state, playlistID: "commute", to: moment, at: moment) != nil)
+    // Opening and cancelling the sheet have no durable or playback action.
+    player.refresh(); player.flush(); await player.settle()
+    #expect(!player.wantsPlayback && !audio.isPlaying && audio.loads.isEmpty)
+    #expect(player.display?.playlistID == "default")
+    await player.shutdown()
+}
