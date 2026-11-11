@@ -5,6 +5,7 @@ import { AsyncResult } from "effect/reactivity"
 import { Trash2 } from "lucide-react"
 import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
+import { useAppState } from "../../app/hooks.ts"
 import { useJournaledRecord } from "../../app/journal.ts"
 import { useDebounced } from "../../lib/useDebounced.ts"
 import { usePagedItems } from "../../lib/usePagedItems.ts"
@@ -20,11 +21,12 @@ import {
 } from "../../lib/viewEdit.ts"
 import { useConfirm } from "../feedback/useConfirm.ts"
 import { ListContinuation } from "../lists/ListContinuation.tsx"
+import { RenameableName } from "../lists/RenameableName.tsx"
 import { fieldControl } from "../lists/SettingsRow.tsx"
 
 // The View editor's form (docs/design/ui-layout.md › View editor): every condition is a
 // row, "Any" until changed, so the "all must match" rule is plain to see. Edits save as
-// they are made; each is one step that Undo takes back.
+// they are made; renaming has its own Save and Cancel. Both offer named Undo.
 
 const minutes = [10, 20, 30, 45, 60, 90, 120]
 const limits = [10, 20, 50, 100]
@@ -74,6 +76,7 @@ export function ViewForm({
   // Typed: journaled until recorded, so closing the page at once can't lose it (DATA-01).
   const record = useJournaledRecord()
   const confirm = useConfirm()
+  const state = useAppState()
   const save = (next: ViewData) => {
     const before = viewData(view)
     if (JSON.stringify(before) === JSON.stringify(next)) return
@@ -92,7 +95,35 @@ export function ViewForm({
       `view:${view.id}`
     )
   }
-  return <ViewFormFields data={viewData(view)} onChange={save} onDelete={onDelete} />
+  const rename = async (name: string) => {
+    const before = viewData(view)
+    const next = { ...before, name }
+    const step = {
+      message: `Renamed View “${view.name}” to “${name}”`,
+      undo: [saveViewChange(before)]
+    }
+    await record(saveViewChange(next))
+    confirm(step, async () => {
+      await record(saveViewChange(next))
+      return step
+    })
+  }
+  return (
+    <ViewFormFields
+      data={viewData(view)}
+      onChange={save}
+      onDelete={onDelete}
+      nameEditor={
+        <RenameableName
+          kind="View"
+          entityId={view.id}
+          name={view.name}
+          names={state?.views ?? []}
+          onSave={rename}
+        />
+      }
+    />
+  )
 }
 
 /**
@@ -104,11 +135,13 @@ export function ViewFormFields({
   data,
   onChange,
   onDelete,
+  nameEditor,
   unsaved = false
 }: {
   readonly data: ViewData
   readonly onChange: (next: ViewData) => void
   readonly onDelete?: () => void
+  readonly nameEditor?: ReactNode
   /** Search: no Name row, no Mentions row (its field is above), no Delete. */
   readonly unsaved?: boolean
 }) {
@@ -116,16 +149,10 @@ export function ViewFormFields({
   const subscriptions = podcasts.items
   const current = data
   const id = useId()
-  const [name, setName] = useState(current.name)
   const [text, setText] = useState(current.filter.text ?? "")
-  const [nameError, setNameError] = useState(false)
   // Replayed and remote edits follow the saved value until typing starts (WDATA-01).
-  const typingName = useRef(false)
   const typingText = useRef(false)
   const savedText = current.filter.text ?? ""
-  useEffect(() => {
-    if (!typingName.current) setName(current.name)
-  }, [current.name])
   useEffect(() => {
     if (!typingText.current) setText(savedText)
   }, [savedText])
@@ -180,11 +207,6 @@ export function ViewFormFields({
     }
   }
 
-  const nameCommit = useDebounced((value) => {
-    const trimmed = value.trim()
-    setNameError(trimmed === "")
-    if (trimmed !== "") save({ ...data, name: trimmed })
-  })
   const textCommit = useDebounced((value) =>
     setFilter(withCondition(f, "text", value.trim() || undefined))
   )
@@ -237,36 +259,7 @@ export function ViewFormFields({
 
   return (
     <div className="space-y-5">
-      {!unsaved && (
-        <div className="rounded-xl border bg-card">
-          <Row label="Name" htmlFor={`${id}-name`}>
-            <input
-              id={`${id}-name`}
-              data-view-name=""
-              type="text"
-              value={name}
-              required
-              aria-invalid={nameError}
-              aria-describedby={nameError ? `${id}-name-error` : undefined}
-              onChange={(event) => {
-                typingName.current = true
-                setName(event.target.value)
-                nameCommit.schedule(event.target.value)
-              }}
-              onBlur={(event) => {
-                nameCommit.now(event.target.value)
-                typingName.current = false
-              }}
-              className={control}
-            />
-            {nameError && (
-              <p id={`${id}-name-error`} className="mt-1 text-small text-destructive">
-                A View needs a name.
-              </p>
-            )}
-          </Row>
-        </div>
-      )}
+      {!unsaved && <div className="rounded-xl border bg-card">{nameEditor}</div>}
 
       <section aria-labelledby={`${id}-where`}>
         <h3

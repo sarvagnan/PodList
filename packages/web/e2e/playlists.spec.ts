@@ -27,9 +27,10 @@ test("creates, renames, deletes to the Trash and restores a Playlist", async ({ 
   await expect(page.getByRole("heading", { name: "Long drives", level: 1 })).toBeVisible()
 
   await page.getByRole("link", { name: "Playlist settings" }).click()
+  await page.getByRole("button", { name: "Rename", exact: true }).click()
   const name = page.getByRole("textbox", { name: "Name" })
   await name.fill("Road trips")
-  await name.blur()
+  await page.getByRole("button", { name: "Save", exact: true }).click()
   const sidebar = page.getByRole("navigation", { name: "Library and lists" })
   await expect(sidebar.getByRole("link", { name: /^Road trips/ })).toBeVisible()
   const clear = page.getByRole("checkbox", { name: /Clear on Played/ })
@@ -48,7 +49,13 @@ test("creates, renames, deletes to the Trash and restores a Playlist", async ({ 
 test("the Default Playlist keeps its name and can't be deleted", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/default/settings`)
-  await expect(page.getByRole("textbox", { name: "Name" })).toBeDisabled()
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("paragraph")
+      .filter({ hasText: /^Default$/ })
+  ).toBeVisible()
+  await expect(page.getByRole("button", { name: "Rename", exact: true })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Delete Playlist" })).toHaveCount(0)
 })
 
@@ -161,6 +168,7 @@ test("a Playlist's name field keeps what's typed, an empty field included (WDATA
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/commute/settings`)
+  await page.getByRole("button", { name: "Rename", exact: true }).click()
   const name = page.getByRole("textbox", { name: "Name" })
   await expect(name).toHaveValue("Commute")
   await name.fill("")
@@ -168,7 +176,7 @@ test("a Playlist's name field keeps what's typed, an empty field included (WDATA
   await expect(name).toHaveValue("")
   await name.pressSequentially("Bus")
   await expect(name).toHaveValue("Bus")
-  await name.blur()
+  await page.getByRole("button", { name: "Save", exact: true }).click()
   await expect(page.getByRole("heading", { name: /Playlist settings/, level: 1 })).toBeVisible()
   await expect(
     page.getByRole("navigation", { name: "Library and lists" }).getByRole("link", { name: /^Bus/ })
@@ -181,6 +189,7 @@ test("a name typed just before the page closes or reloads is kept (DATA-01)", as
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/playlists/commute/settings`)
+  await page.getByRole("button", { name: "Rename", exact: true }).click()
   const name = page.getByRole("textbox", { name: "Name" })
   await expect(name).toHaveValue("Commute")
   // Reloaded 100 ms after typing.

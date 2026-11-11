@@ -12,25 +12,29 @@ export function SyncIndicator({ variant }: { readonly variant: "phone" | "deskto
   const online = useOnline()
   const unreachable = !online || (status?.error ?? null) !== null
   const pending = status?.pending ?? 0
-  if (!unreachable && (localClient || pending === 0)) return null
+  const showing = unreachable || (!localClient && pending > 0)
+  if (localClient && !showing) return null
   const title = unreachable ? (online ? serverUnavailable : "Offline") : "Saving changes…"
   const detail = localClient
     ? `${pending > 0 ? `${pending} ${pending === 1 ? "change is" : "changes are"} kept. ` : "Edits are kept. "}${pending === 1 ? "It’ll" : "They’ll"} sync when your server is reachable. ${online ? "Episodes can stream directly or play from downloads." : "Downloaded Episodes still play."} Searching and adding podcasts need the server.`
     : `${pending ? `${pending} ${pending === 1 ? "change is" : "changes are"} pending in this tab. Closing it drops unsent changes. ` : ""}${unreachable ? "New edits need a connection to your server." : ""}`
+  // Web writes briefly show a status. Reserve its row while idle, and keep the
+  // changing pending count off the visual line so wrapping cannot move the player/toast.
   return (
     <div
       role="status"
-      className={
+      data-sync-feedback={variant}
+      className={`${showing ? "" : "invisible "}${
         variant === "desktop"
-          ? "flex items-start gap-2 px-2.5 py-2 text-small text-muted-foreground"
-          : "mx-2.5 mb-1.5 flex items-center gap-2 rounded-lg bg-secondary px-3 py-1.5 text-small text-muted-foreground"
-      }
+          ? "flex min-h-10 shrink-0 items-start gap-2 px-2.5 py-2 text-small text-muted-foreground"
+          : "mx-2.5 mb-1.5 flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-secondary px-3 py-1.5 text-small text-muted-foreground"
+      }`}
     >
       <CloudOff aria-hidden="true" className="mt-px size-4 shrink-0" />
-      <div>
+      <div className={unreachable ? undefined : "flex flex-1 items-center justify-between gap-2"}>
         <span className="block font-semibold text-foreground">{title}</span>
-        {detail}
-        {!localClient && (unreachable || pending > 0) && (
+        <span className={unreachable ? undefined : "sr-only"}>{detail}</span>
+        {!localClient && (
           <button
             type="button"
             onClick={() => retry()}

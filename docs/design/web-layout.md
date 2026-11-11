@@ -36,8 +36,16 @@ Artwork · back 15 s · **Play/Pause** · forward 30 s · queue badge (number of
 Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist-design-round-2/ (`#view-editor/R-desktop/view`); source on branch `prototype/design-round-2`.
 
 - **Form (from C):** every condition is always a row, set to "Any" until changed: Published, Podcasts, Mentions (text), Played, Starred, In a Playlist, Length; then Sort and Show (limit). Nothing is added or removed, so the "all must match" rule is visible.
-- **Desktop:** reading a View is unchanged: its Episodes, with the target Playlist (or the open Episode) beside them. **Edit View** swaps that panel for the form; the list becomes a live preview. Edits apply as they are made (no Save; Undo takes one back); **Done** puts the panel back. Delete View is at the bottom of the form.
+- **Desktop:** reading a View is unchanged: its Episodes, with the target Playlist (or the open Episode) beside them. **Edit View** swaps that panel for the form; the list becomes a live preview. Condition edits apply as they are made (no Save; Undo takes one back); **Done** puts the panel back. Delete View is at the bottom of the form.
 - **Phone:** the View screen has **Edit**; the form is a full screen that drills into a picker per row, with a live "Matches N Episodes" line.
+
+## Names and edit feedback
+
+A View editor and Playlist settings show the full name as text. Rename opens a name field with Cancel and Save below it. Enter saves. Cancel or Escape discards the name draft and returns focus to Rename. Save is disabled for an unchanged, empty or taken name. A duplicate error names the existing View or Playlist. Case and surrounding spaces do not distinguish names. The Default Playlist shows its name without Rename.
+
+Keep each open rename draft separately in the existing browser draft storage. Leaving the page or reloading keeps it, including an empty field. Save or Cancel clears it. Saved renames offer Undo with both names. View conditions still apply as edited.
+
+Keep the web saving status in a reserved row above the phone player and above Library in the desktop sidebar. Pending counts do not change the row's height. Undo notices share one fixed slot above the player. A replacement occupies the same slot while the old notice fades. View edits and Playlist settings use the same feedback regions.
 
 ## Playlist settings and Rewind (design round 2, variant C)
 

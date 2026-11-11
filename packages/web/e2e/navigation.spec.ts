@@ -196,11 +196,13 @@ test("an Episode opened from a podcast keeps Library selected (LIST-06)", async 
   ).toHaveClass(/(^|\s)active(\s|$)/)
 })
 
-test("New View starts in its Name field", async ({ page }) => {
+test("New View starts at Rename, which opens its Name field", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/views`)
   await page.getByRole("button", { name: "New View" }).first().click()
   await expect(page).toHaveURL(/edit=true/)
+  await expect(page.getByRole("button", { name: "Rename", exact: true })).toBeFocused()
+  await page.getByRole("button", { name: "Rename", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Name" })).toBeFocused()
 })
 

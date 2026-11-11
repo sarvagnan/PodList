@@ -48,13 +48,15 @@ export function Toasts() {
     // Only a real container: null would put the toasts nowhere, not on the page.
     <Toast.Portal {...(drawer ? { container: drawer } : {})}>
       <Toast.Viewport
+        data-feedback-region=""
         hidden={modal}
         className={
           inDrawer
-            ? "absolute inset-x-3 bottom-[max(env(safe-area-inset-bottom),0.75rem)] z-10 mx-auto max-w-md"
-            : "fixed inset-x-3 bottom-[calc(var(--bottom-stack,10.5rem)+0.5rem)] z-[60] mx-auto max-w-md md:right-auto md:bottom-28 md:left-[256px] md:mx-0 md:w-[min(26rem,calc(100vw-288px))]"
+            ? "absolute inset-x-3 bottom-[max(env(safe-area-inset-bottom),0.75rem)] z-10 mx-auto h-0 max-w-md"
+            : "fixed inset-x-3 bottom-[calc(var(--bottom-stack,10.5rem)+0.5rem)] z-[60] mx-auto h-0 max-w-md md:right-auto md:bottom-28 md:left-[256px] md:mx-0 md:w-[min(26rem,calc(100vw-288px))]"
         }
       >
+        {/* Replacements share one slot while the previous toast fades out. */}
         {toasts
           .filter((toast) => !toast.limited)
           .map((toast) => (
@@ -63,7 +65,7 @@ export function Toasts() {
               toast={toast}
               // A toast is announced as a dialog, so it is named by what it says (AX-01).
               aria-label={typeof toast.description === "string" ? toast.description : "Notice"}
-              className={`surface-dark flex items-center gap-2 rounded-xl py-1.5 pr-1.5 pl-4 text-row text-player-foreground shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 ${inDrawer ? "border border-white/25 bg-player-track" : "bg-player"}`}
+              className={`surface-dark absolute inset-x-0 bottom-0 flex items-center gap-2 rounded-xl py-1.5 pr-1.5 pl-4 text-row text-player-foreground shadow-lg transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 ${inDrawer ? "border border-white/25 bg-player-track" : "bg-player"}`}
             >
               <Toast.Description className="line-clamp-3 min-w-0 flex-1" />
               <Toast.Action className="h-10 rounded-lg px-3 font-semibold text-[#9db4ff] hover:bg-white/10" />
