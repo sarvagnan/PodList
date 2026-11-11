@@ -12,7 +12,7 @@ let package = Package(
         .executable(name: "podlist-mcp", targets: ["PodListMCPBridge"])
     ],
     targets: [
-        .target(name: "PodListDomain"),
+        .target(name: "PodListDomain", resources: [.copy("Resources/operation.schema.json")]),
         .target(name: "PodListData", dependencies: ["PodListDomain"], linkerSettings: [.linkedLibrary("sqlite3")]),
         .target(name: "PodListAutomation"),
         .target(name: "PodListUI", dependencies: ["PodListDomain", "PodListData", "PodListAutomation"]),

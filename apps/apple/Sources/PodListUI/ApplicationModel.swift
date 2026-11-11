@@ -181,12 +181,7 @@ public final class ApplicationModel {
         client = address.map { checkedClient ?? SyncClient(db: db, transport: transportFactory($0)) }
         origin = address?.origin.absoluteString
         let source = PodcastLibrary(database: db, transport: address.map { transportFactory($0) })
-        libraryEditing = LibraryEditingModel(database: db, source: source, scope: address?.origin.absoluteString ?? "standalone") { [weak self] in
-            guard let self, self.generation == token else { return }
-            await self.reloadLocal(); self.playback?.refresh(); self.requestSync()
-        }
         library = LibraryModel(snapshot: snapshot, deviceID: device.id)
-        libraryEditing?.reconcile(snapshot)
         await cleanupTask?.value
         guard generation == token else { return }
         if automaticSync {
@@ -213,8 +208,13 @@ public final class ApplicationModel {
             player: { [weak self] in self?.generation == token ? self?.playback : nil },
             changed: { [weak self] in
                 guard let self, self.generation == token else { return }
-                await self.reloadLocal(); self.requestSync()
+                await self.reloadLocal(); self.playback?.refresh(); self.requestSync()
             })
+        libraryEditing = LibraryEditingModel(database: db, source: source, scope: address?.origin.absoluteString ?? "standalone", edits: editing) { [weak self] in
+            guard let self, self.generation == token else { return }
+            await self.reloadLocal(); self.playback?.refresh(); self.requestSync()
+        }
+        libraryEditing?.reconcile(snapshot)
         playback?.refresh()
         scheduleRules()
         startAutomaticSync(token: token)
@@ -299,12 +299,33 @@ public final class ApplicationModel {
         } catch { syncError = ConnectionValidation.message(for: error) }
     }
     public func record(_ change: Change) async {
-        guard let database else { return }
-        do { try await database.record(change, at: Int64(Date().timeIntervalSince1970 * 1000)); await reloadLocal(); playback?.refresh(); requestSync() }
-        catch { syncError = ConnectionValidation.message(for: error) }
+        let name: String = switch change {
+        case .setPlaybackSettings: "Playback Settings"
+        case .setTrashDays: "Trash Retention"
+        default: "Library edit"
+        }
+        _ = await editing?.edit([change], name: name, reload: true)
+    }
+    public func resolveEpisodeDetails(_ id: String) async {
+        guard let database, let library, let episode = library.snapshot.episodes.first(where: { $0.id == id }) else { return }
+        let token = generation
+        if library.snapshot.episodeLinks[id] == nil, let sub = library.snapshot.subscriptions.first(where: { $0.id == episode.subscriptionId }) {
+            _ = try? await libraryEditing?.source.readPodcast(sub.feedUrl)
+        }
+        _ = try? await ChapterResolver.resolve(episodeID: id, origin: origin.flatMap(URL.init(string:)), database: database)
+        guard token == generation else { return }
+        await reloadLocal(); playback?.refresh()
     }
     public func setDownloadRule(subscription: String, mode: DownloadMode, cap: Int64?) {
-        Task { await record(.setDownloadRule(rule: DownloadRule(subscriptionId: subscription, deviceId: deviceID, mode: mode, keepAtMost: cap))) }
+        Task { _ = await setDownloadRules(subscriptions: [subscription], mode: mode, cap: cap) }
+    }
+    public func setDownloadRules(subscriptions: [String], mode: DownloadMode, cap: Int64?) async -> Bool {
+        guard let editing else { return false }
+        var seen = Set<String>()
+        let changes = subscriptions.filter { seen.insert($0).inserted }.map {
+            Change.setDownloadRule(rule: DownloadRule(subscriptionId: $0, deviceId: deviceID, mode: mode, keepAtMost: cap))
+        }
+        return await editing.edit(changes, name: "Download Rules")
     }
     private func scheduleRules() {
         guard let downloads, let library else { return }
@@ -316,6 +337,10 @@ public final class ApplicationModel {
                 try await downloads.apply(snapshot: library.snapshot, deviceID: library.deviceID, origin: origin, now: Int64(Date().timeIntervalSince1970 * 1000))
             } catch is CancellationError {} catch { self?.downloadError = String(describing: error) }
         }
+    }
+    public func download(_ ids: [String]) {
+        var seen = Set<String>()
+        for id in ids where seen.insert(id).inserted { download(id) }
     }
     public func download(_ id: String) {
         guard let downloads else { return }

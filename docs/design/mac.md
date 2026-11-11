@@ -16,8 +16,26 @@ SwiftUI with AppKit conventions: system font, sidebar material, unified toolbar,
 
 - **Sidebar:** sections **Views**, **Playlists** and **Library**, each listing its items with a count. The Active Playlist is marked. Library holds Subscriptions and Search; Trash sits under Playlists. + buttons create a View or Playlist, or open Add podcasts.
 - **Content:** the selected View, Playlist or Library list. Episodes show as a list with sortable columns (title with podcast, Published, length, state), and per-row Add and Play buttons. Selection follows the Mac: click, ⇧-click and ⌘-click; Return opens; Space plays.
-- **Inspector:** the selected Episode's detail (artwork, title, podcast, facts, Play Now as the one filled button, Add, Star, Download, show notes, the Playlists it's in). Shown or hidden with ⌘⌥I and the toolbar button, and remembered.
+- **Inspector:** the selected Episode's detail (Artwork, title, podcast, facts, two rows of icon actions, Chapters, show notes and Playlist memberships). Shown or hidden with ⌘⌥I and the toolbar button, and remembered.
 - **Toolbar:** the current list's title and summary, its edit action (Edit View / Playlist settings), Inspector toggle and Search.
+
+## Inspector
+
+Owner decision, 11 Nov 2026: Play Now sits alone in the first row, centred.
+It is a 44-point filled accent circle with play.fill. It becomes Pause with pause.fill
+while this Episode is playing. It is the only prominent action.
+The second row centres five equal 28-point icon buttons with even spacing:
+Add to a Playlist, Star, Mark Played, Download and Share.
+Star and Played use filled symbols for their active states.
+Download shows progress and offers Cancel, Retry or Remove for its current state.
+Every action has a tooltip and an accessibility label. Status and Position stay as text.
+Episode and context menus keep text labels. Bulk actions stay in the selection toolbar.
+
+Each Playlist membership has its own Resume icon and Position.
+Resume makes that Playlist Active and starts at that Entry's Position.
+Chapters show their Artwork, falling back to Episode Artwork, then podcast Artwork.
+Share uses the Episode page link, then its enclosure. Copy Link uses the same address.
+The Podcast page also offers Share podcast and Copy feed address.
 
 ## Player bar
 
@@ -31,12 +49,20 @@ Milestone 3 decision (11 Nov 2026): **Now Playing is a sheet**, opened from the 
 or Controls menu. It shows large resolved Artwork, Episode and podcast names, the current
 Chapter, larger transport controls, a scrubbable seek bar with Chapter ticks, Speed and Sleep
 menus, previous/next Chapter and a Chapter list. Done/Escape dismisses it without pausing.
-Open Active Playlist dismisses the sheet and navigates the owning window. The player middle
+Episode detail opens inside the same sheet, with Back to Now Playing.
+Its Add sheet opens above it. Adding Next or Last keeps the detail context.
+Starting playback from detail returns to Now Playing.
+Open Active Playlist dismisses the sheet and navigates the owning window.
+Starting playback from that route reopens Now Playing. Navigating elsewhere ends that return route.
+This is the Mac presentation for the shared Episode detail and Entries round trip.
+The player middle
 keeps exactly the three centred lines above. Chapter Artwork overrides Episode, then podcast.
 
 Downloads appear as a down-arrow in Episode lists and with progress/cancel/retry/remove actions
 in the Inspector. A Subscription's Episode list has this Device's Download Rule and optional
-All New cap above the table. Closing all windows keeps the app in the Dock and playing;
+All New cap above the table. A cap is positive, or All has no cap.
+Older zero caps are repaired to no cap when the Library opens.
+Subscriptions support native multi-selection and one batch Download Rule editor. Closing all windows keeps the app in the Dock and playing;
 explicit Quit flushes local Position/listening before termination.
 
 ## Menus and shortcuts
@@ -51,7 +77,10 @@ Delete Playlist asks nothing and offers Undo; Unsubscribe takes two clicks on th
 
 File > New Playlist uses ⌘⇧N. Episode actions are available in the Episode menu, row context
 menus, the selection toolbar and Inspector; the Add sheet preselects the Active Playlist,
-with New Playlist as its last choice. Playlist settings is a sheet with the full name on its
+with New Playlist as its last choice. Podcast-page Add uses this same sheet before or after subscribing.
+Each fresh Add sheet preselects the current Active Playlist.
+An unfinished Add draft keeps an explicitly chosen target and any New Playlist name.
+A successful Add clears that draft; an old target alone is not an open draft. Playlist settings is a sheet with the full name on its
 own lines and Rename/Cancel/Save beneath it; New Playlist, Add and open Rename drafts are
 kept per server when a sheet closes or the app quits. Delete has no confirmation: the status
 says “Playlist <name> moved to Trash” and offers the named Undo action.
@@ -59,7 +88,9 @@ says “Playlist <name> moved to Trash” and offers the named Undo action.
 Playlist Entries, History and Listening Timeline use a segmented control. Entries use native
 table row dragging with insertion boundaries, with Move Up/Down (⌘⌥↑/↓) and Remove (⌘⌫) in
 the Episode menu. Rewind opens a summary sheet before committing. Edit > Undo/Redo names the
-latest domain edit; editable text retains native text Undo. A compact status line provides
+latest domain edit across Playlists, Views and Subscription changes.
+These edits share one session history. Failed reversals stay available for retry.
+Editable text retains native text Undo. A compact status line provides
 feedback and Undo, and Trash includes Restore and its retention period.
 
 

@@ -235,3 +235,44 @@ private final class FakePlayerClock: Sendable {
     #expect(player.display?.episodeID == "a" && !player.wantsPlayback)
     await player.shutdown()
 }
+
+@MainActor @Test func pendingOverridesImmediatelyReachPlaybackAndReopenedSettings() async throws {
+    let (db, player, audio, _) = try await playbackFixture()
+    player.play(); await player.settle()
+    try await db.record(.setSubscriptionOverrides(subscriptionId: "s", playbackSettings: .init(speed: 1.75, skipIntro: 20, skipOutro: 10, volumeBoost: false), playedThreshold: 5), at: 100)
+    player.refresh(); await player.settle()
+    #expect(player.display?.speed == 1.75)
+    #expect(audio.loads.last?.2 == 1.75 && audio.loads.last?.3 == false)
+    let reopened = try #require(try await db.readLibrary().subscriptions.first)
+    #expect(reopened.playedThreshold == 5 && reopened.playbackSettings.skipIntro == 20 && reopened.playbackSettings.skipOutro == 10)
+    // A fresh catalogue page must not hide the later pending replacement document.
+    try await db.upsertLibrary(subscriptions: [subscription()], episodes: [])
+    #expect(try await db.readLibrary().subscriptions.first?.playbackSettings == reopened.playbackSettings)
+    try await db.record(.setSubscriptionOverrides(subscriptionId: "s", playbackSettings: .init(), playedThreshold: nil), at: 101)
+    player.refresh(); await player.settle()
+    #expect(player.display?.speed == 1)
+    #expect(try await db.readLibrary().subscriptions.first?.playedThreshold == nil)
+    let sent = try await db.outbox(), state = try await db.loadState()
+    try await db.commitPull(PullPage(cursor: 1, snapshot: state, operations: []), sent: sent)
+    #expect(try await db.outbox().isEmpty)
+    #expect(try await db.readLibrary().subscriptions.first?.playbackSettings == .init())
+    await player.shutdown()
+}
+
+@MainActor @Test func inspectorMembershipResumeUsesThatEntryPositionAndMakesPlaylistActive() async throws {
+    let (db, player, audio, _) = try await playbackFixture()
+    var state = try await db.loadState()
+    var other = state.playlists[0]; other.id = "other"; other.name = "Commute"; other.isDefault = false
+    other.entries[0].position = 45; state.playlists.append(other)
+    try await db.saveState(state)
+    let model = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString), player: { player })
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "d")
+    let membership = try #require(library.memberships("a").first { $0.id == "other" })
+    #expect(membership.position == 45)
+    await model.playFromHere(playlistID: membership.id, episodeID: "a")
+    await player.settle()
+    #expect(try await db.loadState().activePlaylistId == "other")
+    #expect(player.display?.playlistID == "other" && player.display?.position == 45)
+    #expect(audio.loads.last?.1 == 45 && player.wantsPlayback)
+    await player.shutdown()
+}

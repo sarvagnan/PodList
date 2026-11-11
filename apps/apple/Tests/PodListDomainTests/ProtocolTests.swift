@@ -56,6 +56,7 @@ func serverLog(_ vector: JSON) throws {
     let covered = try Set(operations.map { element in
         let operation = try element.decode(Operation.self)
         #expect(try JSON.encoded(operation) == element)
+        try ProtocolValidation.validate(operation)
         return element["change"]["_tag"].string
     })
     #expect(tags == covered)

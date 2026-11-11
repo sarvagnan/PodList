@@ -21,6 +21,7 @@ public final class PlaybackController {
     public private(set) var display: PlaybackDisplay?
     public private(set) var error: String?
     public private(set) var wantsPlayback = false
+    public private(set) var userPlaybackRevision = 0
     @ObservationIgnored private let db: LocalDatabase
     @ObservationIgnored private let audio: any PlayerAudio
     @ObservationIgnored private let clock: PlayerClock
@@ -151,6 +152,7 @@ public final class PlaybackController {
                     controller.audio.pause(); controller.wantsPlayback = false
                     controller.error = "Playback could not continue: \(error)"; controller.publish()
                 }
+                if start { controller.userPlaybackRevision += 1 }
                 continuation.resume()
             }
         }
@@ -192,6 +194,7 @@ public final class PlaybackController {
         try await event(.position(seconds: position, duration: duration))
     }
     private func refreshState() async throws {
+        let previousSettings = snapshot.map { PlaybackPolicy.settings($0.state.playbackSettings, override: subscription?.playbackSettings ?? .init()) }
         snapshot = try await db.readLibrary()
         if let id = episodeID {
             let played = snapshot?.state.episodeStates[id]?.played
@@ -202,6 +205,11 @@ public final class PlaybackController {
                 let oldURL = episode?.audioUrl
                 episode = fresh; subscription = snapshot?.subscriptions.first { $0.id == fresh.subscriptionId }
                 try await event(.metadata(subscriptionId: fresh.subscriptionId, threshold: subscription?.playedThreshold))
+                let effective = PlaybackPolicy.settings(snapshot!.state.playbackSettings, override: subscription?.playbackSettings ?? .init())
+                if effective != previousSettings {
+                    try await sample(); try await event(.speed(effective.speed)); settings = effective
+                    if prepared { loadSource(play: wantsPlayback) }
+                }
                 duration = audio.duration ?? fresh.duration
                 if prepared, oldURL != fresh.audioUrl {
                     try await sample(); try await event(.flush); try await event(.discontinuity)

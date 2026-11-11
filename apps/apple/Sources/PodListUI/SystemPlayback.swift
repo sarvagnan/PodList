@@ -91,7 +91,6 @@ public enum NowPlayingMapping {
     /// MediaPlayer calls the request handler on its own queue, so it must not be main-actor isolated.
     /// NSImage is immutable here; the handler only returns this retained image.
     nonisolated private static func artwork(_ image: NSImage) -> MPMediaItemArtwork {
-        nonisolated(unsafe) let image = image
         return MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
     }
     #endif

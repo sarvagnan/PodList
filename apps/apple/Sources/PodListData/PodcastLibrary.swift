@@ -11,24 +11,31 @@ public struct DirectoryPodcast: Codable, Equatable, Identifiable, Sendable {
 
 public protocol PublisherReader: Sendable {
     func read(_ url: URL) async throws -> Data
+    func readPrefix(_ url: URL, bytes: Int) async throws -> Data
+}
+public extension PublisherReader {
+    func readPrefix(_ url: URL, bytes: Int) async throws -> Data { Data(try await read(url).prefix(bytes)) }
 }
 public struct PublisherHTTP: PublisherReader {
     public init() {}
-    public func read(_ url: URL) async throws -> Data {
+    public func read(_ url: URL) async throws -> Data { try await fetch(url, limit: FeedParser.sizeLimit, prefix: false) }
+    public func readPrefix(_ url: URL, bytes: Int) async throws -> Data { try await fetch(url, limit: bytes, prefix: true) }
+    private func fetch(_ url: URL, limit: Int, prefix: Bool) async throws -> Data {
         guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil,
               url.user == nil, url.password == nil else { throw SyncResponseFailure("Enter an HTTP or HTTPS feed address") }
         var request = URLRequest(url: url); request.timeoutInterval = 30
+        if prefix { request.setValue("bytes=0-\(limit - 1)", forHTTPHeaderField: "Range") }
         request.setValue("PodList Apple", forHTTPHeaderField: "User-Agent")
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil; configuration.urlCredentialStorage = nil
         let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
+        defer { session.invalidateAndCancel() }
         // Bound publisher responses while reading; a feed never allocates unbounded memory.
         let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { throw SyncResponseFailure("Could not read the feed. Try again") }
         var data = Data()
         for try await byte in bytes {
-            guard data.count < FeedParser.sizeLimit else { throw SyncResponseFailure("Feed is too large") }
+            if data.count >= limit { if prefix { break }; throw SyncResponseFailure("Publisher response is too large") }
             data.append(byte)
         }
         return data
@@ -63,11 +70,17 @@ public actor PodcastLibrary {
         }
     }
     public func readPodcast(_ feed: String) async throws -> ParsedFeed {
-        if let transport { return try ProtocolJSON.decode(ParsedFeed.self, from: await transport.request(method: "POST", path: "/api/podcasts/read", body: json(["feedUrl": feed]))) }
+        if let transport {
+            let parsed = try ProtocolJSON.decode(ParsedFeed.self, from: await transport.request(method: "POST", path: "/api/podcasts/read", body: json(["feedUrl": feed])))
+            try await db.cachePublisherLinks(feed, parsed: parsed)
+            return parsed
+        }
         guard let url = URL(string: feed) else { throw SyncResponseFailure("Invalid feed address") }
         let data = try await publisher.read(url)
         guard let xml = String(data: data, encoding: .utf8) else { throw SyncResponseFailure("Feed is not UTF-8") }
-        return try FeedParser.parse(xml)
+        let parsed = try FeedParser.parse(xml)
+        try await db.cachePublisherLinks(feed, parsed: parsed)
+        return parsed
     }
     public func subscribe(_ feed: String) async throws -> Subscription {
         if let transport {
@@ -119,10 +132,17 @@ public actor PodcastLibrary {
 }
 
 extension LocalDatabase {
+    func cachePublisherLinks(_ feed: String, parsed: ParsedFeed) throws {
+        try execute("UPDATE subscription SET website_url = ? WHERE feed_url = ?", [.optional(parsed.link), .text(feed)])
+        for episode in parsed.episodes {
+            try execute("UPDATE episode SET website_url = ? WHERE subscription_id IN (SELECT id FROM subscription WHERE feed_url = ?) AND guid = ?", [.optional(episode.link), .text(feed), .text(episode.guid)])
+        }
+    }
     /// One actor turn preserves feed/guid identities when Subscribe overlaps a one-Episode import.
     func storePodcast(_ feed: String, parsed: ParsedFeed, subscribe: Bool, guid: String?) throws -> Subscription {
         let snapshot = try readLibrary(), now = Int64(Date().timeIntervalSince1970 * 1000)
         let existing = snapshot.subscriptions.first { $0.feedUrl == feed }
+        let chapterSources = try query("SELECT id, chapters_url FROM episode").reduce(into: [String: String]()) { $0[$1["id"]!.string!] = $1["chapters_url"]?.string }
         var sub = existing ?? Subscription(id: UUID().uuidString, feedUrl: feed, title: parsed.title, author: parsed.author, description: parsed.description, artwork: parsed.artworkUrl.map(Artwork.init), subscribedAt: now, unsubscribedAt: subscribe ? nil : now, playedThreshold: nil, playbackSettings: .init())
         sub.title = parsed.title; sub.author = parsed.author; sub.description = parsed.description; sub.artwork = parsed.artworkUrl.map(Artwork.init)
         if subscribe { sub.unsubscribedAt = nil }
@@ -133,12 +153,17 @@ extension LocalDatabase {
             }
             let old = snapshot.episodes.first { $0.subscriptionId == sub.id && $0.guid == e.guid } ?? (guid == nil && alternatives.count == 1 ? alternatives.first : nil)
             let replaced = old?.duration.flatMap { previous in e.duration.map { abs(previous - $0) > 30 } } == true
-            result[e.guid] = Episode(id: old?.id ?? UUID().uuidString, subscriptionId: sub.id, guid: e.guid, title: e.title, description: e.description, published: e.published, duration: e.duration, audioUrl: e.audioUrl, artwork: e.artworkUrl.map(Artwork.init), chapters: replaced ? [] : old?.chapters ?? [], audioUpdatedAt: replaced ? now : old?.audioUpdatedAt)
+            result[e.guid] = Episode(id: old?.id ?? UUID().uuidString, subscriptionId: sub.id, guid: e.guid, title: e.title, description: e.description, published: e.published, duration: e.duration, audioUrl: e.audioUrl, artwork: e.artworkUrl.map(Artwork.init), chapters: replaced || chapterSources[old?.id ?? ""] != e.chaptersUrl ? [] : old?.chapters ?? [], audioUpdatedAt: replaced ? now : old?.audioUpdatedAt)
         }
         try upsertLibrary(subscriptions: [sub], episodes: Array(episodes.values))
         for e in parsed.episodes where guid == nil || e.guid == guid {
-            if let id = episodes[e.guid]?.id { try execute("UPDATE episode SET chapters_url = ? WHERE id = ?", [e.chaptersUrl.map(SQLValue.text) ?? .null, .text(id)]) }
+            if let episode = episodes[e.guid] {
+                let old = snapshot.episodes.first { $0.id == episode.id }
+                let reset = chapterSources[episode.id] != e.chaptersUrl || old?.audioUpdatedAt != episode.audioUpdatedAt
+                try execute("UPDATE episode SET chapters_url = ?, chapters_fetched_at = CASE WHEN ? THEN NULL ELSE chapters_fetched_at END WHERE id = ?", [.optional(e.chaptersUrl), .integer(reset ? 1 : 0), .text(episode.id)])
+            }
         }
+        try cachePublisherLinks(feed, parsed: parsed)
         if guid == nil { try setMeta("feedComplete:" + sub.id, "true") }
         return sub
     }

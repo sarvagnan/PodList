@@ -187,6 +187,9 @@ public struct LibraryModel: Sendable {
             published: episode?.published ?? 0, length: episode?.duration ?? .infinity,
             stateText: labels.joined(separator: " · "), position: position, isCursor: cursor == id, ordinal: ordinal)
     }
+    public func episodeShareURL(_ id: String) -> URL? {
+        ShareLinks.episode(page: snapshot.episodeLinks[id], enclosure: episodesByID[id]?.audioUrl)
+    }
     public var player: PlayerPresentation? {
         guard let playlist = state.playlists.first(where: { $0.id == state.activePlaylistId }),
               let index = playlist.entries.firstIndex(where: { $0.episodeId == playlist.cursor }) else { return nil }
@@ -197,9 +200,9 @@ public struct LibraryModel: Sendable {
         return PlayerPresentation(row: row, artworkURL: subscription?.artwork.flatMap { URL(string: $0.url) },
             playlistID: playlist.id, playlistName: playlist.name, entriesAfter: playlist.entries.count - index - 1, speed: speed)
     }
-    public func memberships(_ id: String) -> [(name: String, position: Double)] {
+    public func memberships(_ id: String) -> [(id: String, name: String, position: Double)] {
         state.playlists.compactMap { playlist in
-            playlist.entries.first { $0.episodeId == id }.map { (playlist.name, $0.position) }
+            playlist.entries.first { $0.episodeId == id }.map { (playlist.id, playlist.name, $0.position) }
         }
     }
 }
@@ -209,11 +212,19 @@ public final class WindowModel {
     public var destination: Destination? = .subscriptions
     public var search = ""
     public var showNowPlaying = false
+    public private(set) var returnToNowPlaying = false
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
 
     public init() {}
+    public func openNowPlayingEntries(_ playlistID: String) {
+        showNowPlaying = false; navigate(to: .playlist(playlistID)); returnToNowPlaying = true
+    }
+    public func didStartPlayback() {
+        if returnToNowPlaying { showNowPlaying = true; returnToNowPlaying = false }
+    }
     public func navigate(to destination: Destination?) {
+        returnToNowPlaying = false
         self.destination = destination; search = ""; selection = []; sortOrder = []
     }
     public func rows(in library: LibraryModel) -> [EpisodeRow] {
