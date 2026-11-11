@@ -23,6 +23,8 @@ struct EpisodeInspector: SwiftUI.View {
     let row: EpisodeRow?
     let library: LibraryModel
     @Bindable var app: ApplicationModel
+    let selectedIDs: [String]
+    let playlistPresentation: PlaylistPresentation
     var body: some SwiftUI.View {
         if let row {
             ScrollView {
@@ -37,9 +39,18 @@ struct EpisodeInspector: SwiftUI.View {
                             LabeledContent("Length", value: row.durationText)
                             LabeledContent("State", value: row.stateText)
                             DownloadActions(id: row.id, app: app)
-                            Button("Play Now", systemImage: "play.fill") { app.playback?.playNow(row.id) }.buttonStyle(.borderedProminent)
+                            if let editing = app.editing {
+                                let ids = selectedIDs.isEmpty ? [row.id] : selectedIDs
+                                if ids.count > 1 { Text("Actions apply to \(ids.count) selected Episodes").font(.caption) }
+                                Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }.buttonStyle(.borderedProminent)
+                                Button("Add to a Playlist…", systemImage: "plus") { playlistPresentation.sheet = .add(ids, false) }
+                                let starred = ids.allSatisfy { library.state.episodeStates[$0]?.starred == true }
+                                Button(starred ? "Unstar" : "Star", systemImage: starred ? "star.fill" : "star") { Task { await editing.setStar(ids, starred: !starred) } }
+                                let played = ids.allSatisfy { library.state.episodeStates[$0]?.played != nil }
+                                Button(played ? "Mark Unplayed" : "Mark Played", systemImage: "checkmark") { Task { await editing.markPlayed(ids, played: !played) } }
+                            }
                             if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
-                        }.font(.subheadline)
+                        }.font(.subheadline).disabled(app.editing?.busy == true)
                         Divider()
                         Text("In your Playlists").font(.headline)
                         let memberships = library.memberships(row.id)

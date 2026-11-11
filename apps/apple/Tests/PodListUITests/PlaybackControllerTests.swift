@@ -195,3 +195,43 @@ private final class FakePlayerClock: Sendable {
     #expect(audio.loads.last?.1 == 40)
     await player.shutdown()
 }
+
+@MainActor @Test func userEditsFlushPositionBeforeUndoAndKeepUnrelatedAudioLoaded() async throws {
+    let (db, player, audio, clock) = try await playbackFixture()
+    let defaults = UserDefaults(suiteName: "PodListPlaybackEdits-" + UUID().uuidString)!
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults), player: { player })
+    player.play(); await player.settle()
+    clock.advance(5); audio.tick(5); await player.settle()
+    await editing.setStar(["b"], starred: true)
+    #expect(audio.loads.count == 1 && player.wantsPlayback)
+    #expect(try await db.loadState().playlists[0].entries[0].position == 5)
+    _ = await editing.add(["c"], placement: .next)
+    #expect(audio.loads.count == 1 && player.display?.episodeID == "a")
+    await editing.remove(["a"], playlistID: "default")
+    #expect(player.display?.episodeID == "c" && player.wantsPlayback)
+    await editing.reverse()
+    #expect(player.display?.episodeID == "a" && player.display?.position == 5 && player.wantsPlayback)
+    #expect(try await db.loadState().listeningLog?["1970-01-01"]?["s"] == 5)
+    await player.shutdown()
+}
+
+@MainActor @Test func inactivePlaylistEditsKeepSpeedAndAudioAndPlayThisCanActivateEmptyPlaylist() async throws {
+    let (db, player, audio, _) = try await playbackFixture()
+    let defaults = UserDefaults(suiteName: "PodListInactiveEdits-" + UUID().uuidString)!
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults), player: { player })
+    player.play(); await player.settle()
+    player.setSpeed(1.75); await player.settle()
+    let id = try #require(await editing.create(name: "Other"))
+    _ = await editing.add(["b"], to: id, placement: .last)
+    await editing.remove(["b"], playlistID: id)
+    #expect(audio.loads.count == 1 && player.display?.speed == 1.75 && player.wantsPlayback)
+    _ = await editing.add(["a"], placement: .now)
+    #expect(audio.loads.count == 1 && player.display?.speed == 1.75)
+    await editing.playFromHere(playlistID: id, episodeID: nil)
+    #expect(try await db.loadState().activePlaylistId == id)
+    #expect(player.display == nil && !player.wantsPlayback)
+    await editing.reverse()
+    #expect(try await db.loadState().activePlaylistId == "default")
+    #expect(player.display?.episodeID == "a" && !player.wantsPlayback)
+    await player.shutdown()
+}
