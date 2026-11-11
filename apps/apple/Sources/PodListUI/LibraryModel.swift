@@ -208,6 +208,7 @@ public struct LibraryModel: Sendable {
 public final class WindowModel {
     public var destination: Destination? = .subscriptions
     public var search = ""
+    public var showNowPlaying = false
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
 
