@@ -2,7 +2,7 @@
 
 The selected Mac presentation of the Apple app (phase 2 of the [platform plan](../plans/platform-clients.md)). Shared behaviour is authoritative in [product-behaviour.md](product-behaviour.md); [CONTEXT.md](../../CONTEXT.md) defines the domain language and [client duties](../protocol/client-duties.md) define what the client must do.
 
-Chosen by the owner on 11 Nov 2026 from three mocked variants: **A — Three columns**, **B — Sidebar, list and player bar**, and **C — Views and Playlists side by side**. B was chosen, with one change: the player bar shows the podcast and Episode name above the seek bar, because a Mac window has the room.
+Chosen by the owner on 11 Nov 2026 from three mocked variants: **A — Three columns**, **B — Sidebar, list and player bar**, and **C — Views and Playlists side by side**. B was chosen, with one change: the player bar shows the Episode and podcast name above the seek bar, because a Mac window has the room.
 
 Mock-ups (throwaway): https://generatedpages.burmese-mountain.ts.net/podlist-mac-layouts/#B
 
@@ -23,7 +23,9 @@ SwiftUI with AppKit conventions: system font, sidebar material, unified toolbar,
 
 Always present at the bottom of the window whenever the Active Playlist has a current Entry, including straight after launch (paused at its Position).
 
-Left to right: **Artwork · back 15 · Play/Pause · forward 30**, then the **podcast and Episode name above the seek bar** (owner, 11 Nov 2026), elapsed and remaining time, **Speed**, **Sleep** and the Active Playlist's queue (name and Entries after the current one). Clicking the artwork opens Now Playing. Media keys and the system Now Playing widget control playback.
+Left to right: **Artwork · back 15 · Play/Pause · forward 30**, then the middle of the bar, then **Speed**, **Sleep** and the Active Playlist's queue (name and Entries after the current one).
+
+The middle is three centred lines (owner, 11 Nov 2026): the **Episode name** on top (truncated with an ellipsis only if it doesn't fit the full middle width), the **podcast name** below it in secondary text, then the **seek bar** with elapsed and remaining time. Clicking the artwork opens Now Playing. Media keys and the system Now Playing widget control playback.
 
 ## Menus and shortcuts
 
