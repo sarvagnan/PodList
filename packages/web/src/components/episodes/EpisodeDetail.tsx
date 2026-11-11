@@ -1,15 +1,15 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { useAtomRefresh, useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Check, ListEnd, ListStart, Pause, Play, Plus, Share, Star } from "lucide-react"
 import type * as React from "react"
 import { type ReactNode, useState } from "react"
-import { episodeDetailAtom } from "../../app/data.ts"
+import { episodeDetailAtom, type ViewEpisode } from "../../app/data.ts"
 import { useAppState, useCanEdit, useNextLastTarget, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt } from "../../lib/chapters.ts"
 import { episodeLink } from "../../lib/share.ts"
-import { showNotesText } from "../../lib/showNotes.ts"
+import { showNotes } from "../../lib/showNotes.ts"
 import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
@@ -96,11 +96,14 @@ const playOfSeven = "col-span-full order-first @min-[31.25rem]:order-none"
 
 export function EpisodeDetail({
   episodeId,
+  summary,
   tone = "light",
   heading: Heading = "h2",
   onPlay
 }: {
   readonly episodeId: string
+  /** Already loaded list facts; never show a previous row while the detail is pending. */
+  readonly summary?: ViewEpisode | undefined
   readonly tone?: Tone
   /** h1 on the Episode's own screen; h2 in a panel beside a list. */
   readonly heading?: "h1" | "h2"
@@ -109,7 +112,10 @@ export function EpisodeDetail({
 }) {
   const t = tones[tone]
   const result = useAtomValue(episodeDetailAtom(episodeId))
-  const detail = AsyncResult.getOrElse(result, () => null)
+  const refresh = useAtomRefresh(episodeDetailAtom(episodeId))
+  const fetched = AsyncResult.getOrElse(result, () => null)
+  const row = summary?.id === episodeId ? summary : null
+  const detail = AsyncResult.getOrElse(result, () => row)
   const state = useAppState()
   const now = useNowPlaying()
   const act = useEpisodeActions()
@@ -122,7 +128,7 @@ export function EpisodeDetail({
   const seven = useMinWidth("64rem") && tone === "light" && Heading === "h1"
   const copyLink = useCopyEpisodeLink()
 
-  if (AsyncResult.isInitial(result)) {
+  if (AsyncResult.isInitial(result) && !detail) {
     return <div role="status" aria-label="Loading Episode" className="h-40" />
   }
   if (detail === null) {
@@ -146,16 +152,17 @@ export function EpisodeDetail({
     )
   }
   const episodeState = state?.episodeStates[episodeId]
-  const played = episodeState?.played != null
-  const starred = episodeState?.starred ?? false
+  const played = episodeState ? episodeState.played != null : (row?.played ?? false)
+  const starred = episodeState?.starred ?? row?.starred ?? false
   const loaded = now?.episodeId === episodeId
   const playlists =
     state?.playlists.flatMap((p) => {
       const entry = p.entries.find((e) => e.episodeId === episodeId)
       return entry ? [{ playlist: p, entry }] : []
     }) ?? []
-  const notes = showNotesText(detail.description)
-  const playingChapter = loaded ? chapterAt(detail.chapters, now.position) : -1
+  const notes = showNotes(fetched?.description ?? "")
+  const chapters = fetched?.chapters ?? []
+  const playingChapter = loaded ? chapterAt(chapters, now.position) : -1
   const facts = [
     formatPublished(detail.published),
     ...(detail.duration ? [formatLength(detail.duration)] : []),
@@ -308,7 +315,7 @@ export function EpisodeDetail({
         </div>
       </div>
 
-      {playlists.length > 0 && (
+      {fetched && playlists.length > 0 && (
         <section className="mt-8">
           <h3 className={`text-xs font-semibold tracking-[0.08em] uppercase ${t.muted}`}>
             In your Playlists
@@ -353,13 +360,13 @@ export function EpisodeDetail({
         </section>
       )}
 
-      {detail.chapters.length > 0 && (
+      {chapters.length > 0 && (
         <section className="mt-8">
           <h3 className={`text-xs font-semibold tracking-[0.08em] uppercase ${t.muted}`}>
             Chapters
           </h3>
           <ol className="mt-2">
-            {detail.chapters.map((c, i) => (
+            {chapters.map((c, i) => (
               <li key={c.start}>
                 {loaded ? (
                   <button
@@ -391,18 +398,53 @@ export function EpisodeDetail({
         </section>
       )}
 
-      <section className="mt-8">
-        <h3 className={`text-xs font-semibold tracking-[0.08em] uppercase ${t.muted}`}>
-          Show notes
-        </h3>
-        <div className="mt-2 max-w-prose space-y-3 text-row leading-relaxed whitespace-pre-line">
-          {notes.length > 0 ? (
-            notes.map((p) => <p key={p}>{p}</p>)
+      {!fetched ? (
+        <div className={`mt-8 text-row ${t.muted}`}>
+          {AsyncResult.isFailure(result) ? (
+            <p>
+              Couldn’t load Episode details.{" "}
+              <button type="button" onClick={refresh} className="underline">
+                Try again
+              </button>
+            </p>
           ) : (
-            <p className={t.muted}>None.</p>
+            <p role="status">Loading Episode details…</p>
           )}
         </div>
-      </section>
+      ) : (
+        <section className="mt-8">
+          <h3 className={`text-xs font-semibold tracking-[0.08em] uppercase ${t.muted}`}>
+            Show notes
+          </h3>
+          <div className="mt-2 max-w-prose space-y-3 text-row leading-relaxed whitespace-pre-line">
+            {notes.length > 0 ? (
+              notes.map((parts, paragraph) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: immutable parsed feed text.
+                <p key={paragraph}>
+                  {parts.map((part, index) =>
+                    part.href ? (
+                      <a
+                        // biome-ignore lint/suspicious/noArrayIndexKey: immutable parsed feed text.
+                        key={index}
+                        href={part.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`break-words underline underline-offset-2 ${tone === "dark" ? "text-progress" : "text-primary"}`}
+                      >
+                        {part.text}
+                      </a>
+                    ) : (
+                      part.text
+                    )
+                  )}
+                </p>
+              ))
+            ) : (
+              <p className={t.muted}>None.</p>
+            )}
+          </div>
+        </section>
+      )}
 
       {adding && (
         <AddToPlaylist

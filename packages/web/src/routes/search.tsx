@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { filterEpisodesAtom } from "../app/data.ts"
 import { useCanEdit } from "../app/hooks.ts"
 import { BulkBar } from "../components/episodes/BulkBar.tsx"
+import { DetailColumn } from "../components/episodes/DetailColumn.tsx"
 import { EpisodeDetail } from "../components/episodes/EpisodeDetail.tsx"
 import { EpisodeList } from "../components/episodes/EpisodeList.tsx"
 import { EmptyState } from "../components/lists/ListRow.tsx"
@@ -258,111 +259,114 @@ function SearchPage() {
   const count = `${paging.total} ${paging.total === 1 ? "Episode" : "Episodes"}`
   return (
     <>
-      <PageHeader
-        title="Search"
-        back={{ to: "/views", label: "Views" }}
-        actions={
-          // Keep the title and toolbar in one row without moving results on selection (APPEAR-11).
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <div className="flex min-h-[max(48px,2.75rem)] min-w-full w-max items-center justify-end">
-              {checked.size > 0 ? (
-                <BulkBar selected={[...checked]} onClear={() => setCheckedState(new Set())} />
-              ) : (
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-w-0">
+          <PageHeader
+            title="Search"
+            back={{ to: "/views", label: "Views" }}
+            actions={
+              // Keep the title and toolbar in one row without moving results on selection (APPEAR-11).
+              <div className="min-w-0 flex-1 overflow-x-auto">
+                <div className="flex min-h-[max(48px,2.75rem)] min-w-full w-max items-center justify-end">
+                  {checked.size > 0 ? (
+                    <BulkBar selected={[...checked]} onClear={() => setCheckedState(new Set())} />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!active}
+                      onClick={() => setSaving(true)}
+                      className="inline-flex min-h-[max(48px,2.75rem)] shrink-0 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70 disabled:opacity-50"
+                    >
+                      Save as View
+                    </button>
+                  )}
+                </div>
+              </div>
+            }
+          />
+          <div className="px-5 pb-3 md:px-8">
+            <label htmlFor={`${id}-q`} className="sr-only">
+              Search the Library
+            </label>
+            {/* As wide as the results under it (beside the panel on a wide screen). */}
+            <div className="relative max-w-xl">
+              <SearchIcon
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                ref={input}
+                id={`${id}-q`}
+                type="search"
+                value={text}
+                placeholder="Titles, show notes, podcasts"
+                aria-describedby={`${id}-count`}
+                onChange={(event) => setText(event.target.value)}
+                className="min-h-12 w-full rounded-xl border border-field bg-card py-2 pr-3 pl-10 text-row"
+              />
+            </div>
+            {/* What is searched stays in view; the count joins it once there are words. */}
+            <p id={`${id}-count`} className="mt-2 text-small text-muted-foreground">
+              <span aria-live="polite">{active ? `${count} · ` : ""}</span>
+              Every word must appear in the title, the show notes or the podcast’s name.
+            </p>
+            {/* Narrow screens: the rest of the View form, folded under the field. */}
+            {!wide && (
+              <div className="mt-2">
                 <button
                   type="button"
-                  disabled={!active}
-                  onClick={() => setSaving(true)}
-                  className="inline-flex min-h-[max(48px,2.75rem)] shrink-0 items-center rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70 disabled:opacity-50"
+                  aria-expanded={refining}
+                  aria-controls={`${id}-refine`}
+                  onClick={() => {
+                    searchRefineOpen.set(!refining)
+                    setRefining(!refining)
+                  }}
+                  className="-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-row font-medium text-primary hover:bg-secondary/60"
                 >
-                  Save as View
+                  <ChevronRight
+                    aria-hidden="true"
+                    className={`size-4 transition-transform motion-reduce:transition-none ${refining ? "rotate-90" : ""}`}
+                  />
+                  {narrowed ? "Refine (narrowed)" : "Refine"}
                 </button>
-              )}
-            </div>
+                <div id={`${id}-refine`} hidden={!refining} className="mt-2">
+                  {form}
+                </div>
+              </div>
+            )}
           </div>
-        }
-      />
-      <div className="px-5 pb-3 md:px-8">
-        <label htmlFor={`${id}-q`} className="sr-only">
-          Search the Library
-        </label>
-        {/* As wide as the results under it (beside the panel on a wide screen). */}
-        <div className="relative max-w-xl lg:max-w-[calc(100%-400px+1rem)]">
-          <SearchIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
-          />
-          <input
-            ref={input}
-            id={`${id}-q`}
-            type="search"
-            value={text}
-            placeholder="Titles, show notes, podcasts"
-            aria-describedby={`${id}-count`}
-            onChange={(event) => setText(event.target.value)}
-            className="min-h-12 w-full rounded-xl border border-field bg-card py-2 pr-3 pl-10 text-row"
-          />
+          {/* As on a View: the results, with the form (or the open Episode) beside them. */}
+          {!active ? (
+            // A starting point, not a blank page.
+            <EmptyState title="Search your Library">
+              Type words above, or narrow by Played, Podcasts, Length and more with Refine.
+            </EmptyState>
+          ) : active && !AsyncResult.isInitial(result) && episodes.length === 0 ? (
+            <EmptyState title="Nothing matches">
+              Try fewer or different words{narrowed ? ", or set a condition back to Any" : ""}.
+            </EmptyState>
+          ) : (
+            <EpisodeList
+              paging={paging}
+              episodes={episodes}
+              label="Search results"
+              ready={!AsyncResult.isInitial(result)}
+              selected={selected}
+              onOpen={(episodeId, how) =>
+                navigate({
+                  search: (previous) => ({ ...previous, episode: episodeId }),
+                  replace: how?.replace ?? false
+                })
+              }
+              checked={checked}
+              setChecked={(update) => setCheckedState((previous) => update(previous))}
+            />
+          )}
         </div>
-        {/* What is searched stays in view; the count joins it once there are words. */}
-        <p id={`${id}-count`} className="mt-2 text-small text-muted-foreground">
-          <span aria-live="polite">{active ? `${count} · ` : ""}</span>
-          Every word must appear in the title, the show notes or the podcast’s name.
-        </p>
-        {/* Narrow screens: the rest of the View form, folded under the field. */}
-        {!wide && (
-          <div className="mt-2">
-            <button
-              type="button"
-              aria-expanded={refining}
-              aria-controls={`${id}-refine`}
-              onClick={() => {
-                searchRefineOpen.set(!refining)
-                setRefining(!refining)
-              }}
-              className="-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-row font-medium text-primary hover:bg-secondary/60"
-            >
-              <ChevronRight
-                aria-hidden="true"
-                className={`size-4 transition-transform motion-reduce:transition-none ${refining ? "rotate-90" : ""}`}
-              />
-              {narrowed ? "Refine (narrowed)" : "Refine"}
-            </button>
-            <div id={`${id}-refine`} hidden={!refining} className="mt-2">
-              {form}
-            </div>
-          </div>
-        )}
-      </div>
-      {/* As on a View: the results, with the form (or the open Episode) beside them. */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        {!active ? (
-          // A starting point, not a blank page.
-          <EmptyState title="Search your Library">
-            Type words above, or narrow by Played, Podcasts, Length and more with Refine.
-          </EmptyState>
-        ) : active && !AsyncResult.isInitial(result) && episodes.length === 0 ? (
-          <EmptyState title="Nothing matches">
-            Try fewer or different words{narrowed ? ", or set a condition back to Any" : ""}.
-          </EmptyState>
-        ) : (
-          <EpisodeList
-            paging={paging}
-            episodes={episodes}
-            label="Search results"
-            ready={!AsyncResult.isInitial(result)}
-            selected={selected}
-            onOpen={(episodeId, how) =>
-              navigate({
-                search: (previous) => ({ ...previous, episode: episodeId }),
-                replace: how?.replace ?? false
-              })
-            }
-            checked={checked}
-            setChecked={(update) => setCheckedState((previous) => update(previous))}
-          />
-        )}
-        <aside
-          aria-label={selected ? "Episode" : "Refine"}
-          className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
+        <DetailColumn
+          label={selected ? "Episode" : "Refine"}
+          openOnNarrow={!!selected}
+          onClose={() => void navigate({ search: ({ episode: _, ...rest }) => rest })}
         >
           {selected ? (
             <>
@@ -376,7 +380,10 @@ function SearchPage() {
                   <X aria-hidden="true" className="size-5" />
                 </button>
               </div>
-              <EpisodeDetail episodeId={selected} />
+              <EpisodeDetail
+                episodeId={selected}
+                summary={episodes.find((e) => e.id === selected)}
+              />
             </>
           ) : (
             <div className="px-4 pt-2">
@@ -384,7 +391,7 @@ function SearchPage() {
               {form}
             </div>
           )}
-        </aside>
+        </DetailColumn>
       </div>
       {saving && <SaveSearchDialog view={draft} open={saving} onOpenChange={setSaving} />}
     </>

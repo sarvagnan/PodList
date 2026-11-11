@@ -7,6 +7,7 @@ import { subscriptionsAtom, viewEpisodesAtom } from "../../app/data.ts"
 import { useLibraryReady } from "../../app/hooks.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
+import { DetailColumn } from "../../components/episodes/DetailColumn.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
@@ -166,124 +167,121 @@ function ViewDetail() {
   }
 
   return (
-    <>
-      <PageHeader
-        title={view.name}
-        stableActions
-        back={{ to: "/views", label: "Views" }}
-        subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
-        notice={false}
-        actions={
-          checked.size > 0 ? (
-            <BulkBar selected={[...checked]} onClear={() => setChecked(() => new Set())} />
-          ) : (
-            <div className="flex w-max shrink-0 items-center gap-3">
-              <NextLastTarget />
-              {!editing && (
-                <button
-                  type="button"
-                  data-edit-view=""
-                  onClick={startEditing}
-                  className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
-                >
-                  <SlidersHorizontal aria-hidden="true" className="size-4" />
-                  <span>
-                    Edit<span className="max-md:sr-only"> View</span>
-                  </span>
-                </button>
-              )}
-            </div>
-          )
-        }
-      />
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        {/* The list column: the welcome card sits at its top, level with the panel beside
-            it (FLOW-05). */}
-        <div className="min-w-0">
-          <div data-page-notice="" />
-          {!loading &&
-          episodes.length === 0 &&
-          noPodcasts &&
-          !firstRunDone.get() &&
-          opensFirstView &&
-          state.views[0]?.id === viewId ? (
-            // The welcome card above already offers Add podcasts: no second one here.
-            <div />
-          ) : !loading && episodes.length === 0 && noPodcasts ? (
-            // Nothing to match yet: the next step is podcasts, not the View (COPY-03).
-            <EmptyState title="Add podcasts to fill your Views">
-              Views find Episodes in your Library, which is empty.{" "}
-              <Link
-                to="/library"
-                search={{ add: true }}
-                className="font-medium text-primary underline underline-offset-2"
-              >
-                Add podcasts
-              </Link>
-            </EmptyState>
-          ) : !loading && episodes.length === 0 ? (
-            <EmptyState title="No Episodes match this View">
-              {editing
-                ? "Set a row back to “Any” to widen it."
-                : "New Episodes appear here as your podcasts publish them."}
-            </EmptyState>
-          ) : (
-            <EpisodeList
-              paging={paging}
-              episodes={episodes}
-              label={`${view.name} Episodes`}
-              ready={!loading}
-              selected={selected}
-              onOpen={open}
-              checked={checked}
-              setChecked={setChecked}
-            />
-          )}
-        </div>
-        {/* Beside the list: the editor, the open Episode, or where Next and Last go. */}
-        <aside
-          aria-label={editing ? "Edit View" : selected ? "Episode" : "Up next"}
-          className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
-        >
-          {editing ? (
-            <div className="px-4 pt-2">
-              <div className="flex items-center justify-between pb-3">
-                <h2
-                  tabIndex={-1}
-                  data-edit-heading=""
-                  className="font-heading text-xl font-semibold outline-none"
-                >
-                  Edit View
-                </h2>
-                <button
-                  type="button"
-                  onClick={doneEditing}
-                  className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
-                >
-                  Done
-                </button>
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="min-w-0">
+        <PageHeader
+          title={view.name}
+          stableActions
+          back={{ to: "/views", label: "Views" }}
+          subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
+          notice={false}
+          actions={
+            checked.size > 0 ? (
+              <BulkBar selected={[...checked]} onClear={() => setChecked(() => new Set())} />
+            ) : (
+              <div className="flex w-max shrink-0 items-center gap-3">
+                <NextLastTarget />
+                {!editing && (
+                  <button
+                    type="button"
+                    data-edit-view=""
+                    onClick={startEditing}
+                    className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-4 text-row font-medium hover:bg-input active:bg-input/70"
+                  >
+                    <SlidersHorizontal aria-hidden="true" className="size-4" />
+                    <span>
+                      Edit<span className="max-md:sr-only"> View</span>
+                    </span>
+                  </button>
+                )}
               </div>
-              {form}
-            </div>
-          ) : selected ? (
-            <>
-              <div className="flex justify-end px-3">
-                <button
-                  type="button"
-                  aria-label="Close Episode"
-                  onClick={closePanel}
-                  className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-                >
-                  <X aria-hidden="true" className="size-5" />
-                </button>
-              </div>
-              <EpisodeDetail episodeId={selected} />
-            </>
-          ) : (
-            <TargetPanel onOpen={open} />
-          )}
-        </aside>
+            )
+          }
+        />
+        <div data-page-notice="" />
+        {!loading &&
+        episodes.length === 0 &&
+        noPodcasts &&
+        !firstRunDone.get() &&
+        opensFirstView &&
+        state.views[0]?.id === viewId ? (
+          // The welcome card above already offers Add podcasts: no second one here.
+          <div />
+        ) : !loading && episodes.length === 0 && noPodcasts ? (
+          // Nothing to match yet: the next step is podcasts, not the View (COPY-03).
+          <EmptyState title="Add podcasts to fill your Views">
+            Views find Episodes in your Library, which is empty.{" "}
+            <Link
+              to="/library"
+              search={{ add: true }}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Add podcasts
+            </Link>
+          </EmptyState>
+        ) : !loading && episodes.length === 0 ? (
+          <EmptyState title="No Episodes match this View">
+            {editing
+              ? "Set a row back to “Any” to widen it."
+              : "New Episodes appear here as your podcasts publish them."}
+          </EmptyState>
+        ) : (
+          <EpisodeList
+            paging={paging}
+            episodes={episodes}
+            label={`${view.name} Episodes`}
+            ready={!loading}
+            selected={selected}
+            onOpen={open}
+            checked={checked}
+            setChecked={setChecked}
+          />
+        )}
       </div>
-    </>
+      {/* Beside the list: the editor, the open Episode, or where Next and Last go. */}
+      <DetailColumn
+        label={editing ? "Edit View" : selected ? "Episode" : "Up next"}
+        openOnNarrow={!!selected}
+        onClose={closePanel}
+      >
+        {editing ? (
+          <div className="px-4 pt-2">
+            <div className="flex items-center justify-between pb-3">
+              <h2
+                tabIndex={-1}
+                data-edit-heading=""
+                className="font-heading text-xl font-semibold outline-none"
+              >
+                Edit View
+              </h2>
+              <button
+                type="button"
+                onClick={doneEditing}
+                className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+              >
+                Done
+              </button>
+            </div>
+            {form}
+          </div>
+        ) : selected ? (
+          <>
+            <div className="flex justify-end px-3">
+              <button
+                type="button"
+                aria-label="Close Episode"
+                onClick={closePanel}
+                className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+              >
+                <X aria-hidden="true" className="size-5" />
+              </button>
+            </div>
+            <EpisodeDetail episodeId={selected} summary={episodes.find((e) => e.id === selected)} />
+          </>
+        ) : (
+          <TargetPanel onOpen={open} />
+        )}
+      </DetailColumn>
+    </div>
   )
 }

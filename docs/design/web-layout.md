@@ -53,6 +53,16 @@ Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist
 
 Owner, 12 Nov 2026: a selected sidebar item, an open Episode row and an open Entry use the theme's accent tint plus a straight 3 px bar in the primary colour, inset 3 px from the leading edge. The bar is a short pill (18 px) on sidebar rows and runs nearly the full height (8 px from top and bottom) on Episode and Entry rows. It replaces an inset shadow that bent around rounded corners. The tint and bar take their colours from the theme, so a future theme changes them with no other edits.
 
+Owner, 12 Nov 2026: the selected Episode tint has rounded-lg corners and a small inset from the list edges. Dividers above and below stay clear of the tint. The checkbox stays at least 8 px beyond the blue bar. All rows reserve the same leading space. Selection does not move content.
+
+The Episode panel shows Artwork, title, podcast, Published, length and state from the row immediately. Show notes, Chapters and Playlist memberships fill in when detail arrives. Hover and keyboard focus prefetch detail. Web reads still use the online API.
+
+The View panel starts at the top of the content area, beside the page heading. It fills the available height and scrolls on its own. Scrolling the list does not move it. At narrow widths an open panel becomes a sheet. Tapping a narrow row still opens the Episode screen.
+
+Play Next and Play Last use list-start and list-end icons in View rows, Search results and Podcast pages. Tooltips and accessible names say “Play Next” and “Play Last”. Keyboard controls stay the same.
+
+Show notes keep safe links. Links open in a new tab with noopener and noreferrer. They work with the keyboard. Only http, https and mailto links survive. Feed scripts, unsafe URLs and event handlers are never rendered.
+
 ## Not yet designed
 
 Dark theme. Global Playback Settings (a Settings screen, pod-g1v.7).

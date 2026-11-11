@@ -31,7 +31,7 @@ test("the Episode list is one Tab stop with arrow keys between rows and actions"
   await page.keyboard.press("ArrowDown")
   expect(await focusedRow()).toBe("2")
   await page.keyboard.press("ArrowRight")
-  await expect(page.locator(":focus")).toHaveAccessibleName(/^Play Next in/)
+  await expect(page.locator(":focus")).toHaveAccessibleName("Play Next")
   await page.keyboard.press("ArrowLeft")
   await page.keyboard.press("Space")
   await expect(page.getByRole("row").nth(2)).toHaveAttribute("aria-selected", "true")

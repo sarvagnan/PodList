@@ -1,12 +1,21 @@
 import { Menu } from "@base-ui/react/menu"
-import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { RegistryContext, useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { ArrowDownToLine, Check, Ellipsis, Play, Plus, Star } from "lucide-react"
+import {
+  ArrowDownToLine,
+  Check,
+  Ellipsis,
+  ListEnd,
+  ListStart,
+  Play,
+  Plus,
+  Star
+} from "lucide-react"
 import type * as React from "react"
-import { Fragment, type ReactNode, useState } from "react"
+import { Fragment, type ReactNode, useContext, useEffect, useRef, useState } from "react"
 import { localClient } from "#client"
-import type { ViewEpisode } from "../../app/data.ts"
+import { episodeDetailAtom, type ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { downloadAtom, stateAtom } from "../../app/runtime.ts"
 import { nextLastTarget } from "../../lib/remembered.ts"
@@ -54,33 +63,6 @@ function IconButton({
   )
 }
 
-/** Play Next / Play Last: words, not two near-identical list glyphs (APPEAR-09). */
-function TextAction({
-  label,
-  onClick,
-  children
-}: {
-  readonly label: string
-  readonly onClick: () => void
-  readonly children: ReactNode
-}) {
-  return (
-    <GridCell className="relative z-10 shrink-0">
-      <Tip label={label}>
-        <button
-          type="button"
-          data-cell=""
-          aria-label={label}
-          onClick={onClick}
-          className="h-9 rounded-full px-3 text-row font-medium text-muted-foreground hover:bg-secondary hover:text-foreground active:bg-input"
-        >
-          {children}
-        </button>
-      </Tip>
-    </GridCell>
-  )
-}
-
 /** A plain left click; modified clicks keep their browser meaning (new tab, window). */
 const plainClick = (event: React.MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
@@ -112,6 +94,21 @@ export function EpisodeRow({
   readonly onCheck?: (checked: boolean, range: boolean) => void
 }) {
   const act = useEpisodeActions()
+  const registry = useContext(RegistryContext)
+  const prefetched = useRef<(() => void) | null>(null)
+  const prefetch = () => {
+    prefetched.current ??= registry.mount(episodeDetailAtom(episode.id))
+  }
+  // Mounting keeps reactive dependencies alive through the request. Virtual rows
+  // release their subscription as they leave; the atom's short TTL handles revisits.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a recycled row must release the old Episode.
+  useEffect(
+    () => () => {
+      prefetched.current?.()
+      prefetched.current = null
+    },
+    [registry, episode.id]
+  )
   const navigate = useNavigate()
   const downloadStatus = useDownloadStatus(episode.id)
   const downloaded = downloadStatus?._tag === "Stored"
@@ -232,7 +229,7 @@ export function EpisodeRow({
     { label: "Open Episode", run: open }
   ]
   const link = `/episodes/${episode.id}`
-  const rowClass = `group @container relative flex min-h-[76px] items-center gap-3 border-b px-2 py-2 lg:cursor-pointer ${
+  const rowClass = `episode-row group @container relative mx-1 flex min-h-[76px] items-center gap-3 rounded-lg border-b border-transparent py-2 pr-2 pl-4 lg:cursor-pointer ${
     selected
       ? "selected-row select-bar-tall bg-secondary"
       : checked
@@ -340,18 +337,12 @@ export function EpisodeRow({
           </Menu.Root>
         </GridCell>
         <div className={`hidden items-center gap-0.5 @min-[46rem]:flex ${quiet}`}>
-          <TextAction
-            label={`Play Next in ${target?.name ?? "Playlist"}`}
-            onClick={() => addTo("next")}
-          >
-            Next
-          </TextAction>
-          <TextAction
-            label={`Play Last in ${target?.name ?? "Playlist"}`}
-            onClick={() => addTo("last")}
-          >
-            Last
-          </TextAction>
+          <IconButton label="Play Next" onClick={() => addTo("next")}>
+            <ListStart aria-hidden="true" className="size-[18px]" />
+          </IconButton>
+          <IconButton label="Play Last" onClick={() => addTo("last")}>
+            <ListEnd aria-hidden="true" className="size-[18px]" />
+          </IconButton>
           <IconButton label="Add to a Playlist…" onClick={() => setAdding(true)}>
             <Plus aria-hidden="true" className="size-[18px]" />
           </IconButton>
@@ -433,8 +424,15 @@ export function EpisodeRow({
     <RowMenu
       commands={commands}
       link={link}
-      // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.
-      render={<div className={rowClass} onClick={onRowClick} />}
+      render={
+        // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: the title link is the keyboard way in; this only widens the mouse target.
+        <div
+          className={rowClass}
+          onClick={onRowClick}
+          onPointerEnter={prefetch}
+          onFocusCapture={prefetch}
+        />
+      }
     >
       {body}
     </RowMenu>

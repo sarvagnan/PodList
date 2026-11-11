@@ -198,7 +198,7 @@ input[type="search"]::-webkit-search-cancel-button {
     border: 1px solid ButtonText;
   }
   /* An open Episode keeps a leading edge distinct from NOW’s outline (SIDE-04, AX-02). */
-  .selected-row {
+  .selected-row:not(.episode-row) {
     border-inline-start: 3px solid CanvasText;
   }
   /* Episode actions: the round icon carries the edge, not the whole column, so the row
@@ -265,6 +265,14 @@ input[type="search"]::-webkit-search-cancel-button {
 .select-bar-tall::before {
   top: 8px;
   bottom: 8px;
+}
+/* Dividers occupy the same space in every row. Hide both neighbours of the open tint,
+   keeping its rounded outline clear without moving any row content. */
+.episode-row:not(.selected-row) {
+  border-bottom-color: var(--border);
+}
+[data-row]:has(+ [aria-current="true"]) .episode-row {
+  border-bottom-color: transparent;
 }
 @media (forced-colors: active) {
   .nav-select.active::before,
