@@ -64,26 +64,69 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     Button("Getting started") { app.libraryEditing?.showGettingStarted = true; gettingStarted = true }
                 }
             }
+            if app.isStandalone {
+                Section("Publisher feeds") {
+                    Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day; the wait survives restarting PodList.").font(.callout)
+                    Button("Refresh now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
+                    if let error = app.syncError { Text(error).foregroundStyle(.red) }
+                }
+            }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) { ForEach(["System", "Light", "Dark"], id: \.self) { Text($0).tag($0) } }
             }
             Section("Server connection") {
                 if let origin = app.origin {
                     LabeledContent("Server address", value: origin)
+                    if app.bringOverAvailable { Button("Bring Library from this Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
+                    if let job = app.bringOverJob {
+                        Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(job.imported.count) podcasts transferred, \(job.copied.count) downloads copied. Progress is saved.")
+                            .font(.callout)
+                        if !job.complete { Button("Retry bring-over") { Task { await app.sync() } }.disabled(app.syncing) }
+                    }
+                    if let error = app.bringOverError { Text(error).foregroundStyle(.red).textSelection(.enabled) }
                     Button("Disconnect") { app.disconnect() }
                 } else {
                     Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
                     TextField("Server address", text: $app.serverInput)
                     Button("Check and connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
-                    if app.isStandalone { Text("The server opens a separate Library. Your Library on this Mac is retained; bringing it over is not available yet.").font(.caption).foregroundStyle(.secondary) }
+                    if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").font(.caption).foregroundStyle(.secondary) }
                     if let error = app.connectionError { Text(error).foregroundStyle(.red) }
                 }
             }
         }.formStyle(.grouped).frame(width: 600, height: 690)
+        .sheet(isPresented: Binding(get: { app.bringOverPreview != nil }, set: { if !$0 { app.declineBringOver() } })) {
+            if let preview = app.bringOverPreview { BringOverPreviewScreen(app: app, preview: preview) }
+        }
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft } }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
         .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
         .sheet(isPresented: $gettingStarted) { if let editor = app.libraryEditing { GettingStartedScreen(editor: editor, add: nil) .padding(25).frame(width: 500) } }
+    }
+}
+
+private struct BringOverPreviewScreen: SwiftUI.View {
+    @Bindable var app: ApplicationModel
+    let preview: BringOverPreview
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Bring this Mac’s Library over?").font(.title2).bold()
+            Text("To \(app.origin ?? "the server")").foregroundStyle(.secondary).textSelection(.enabled)
+            LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
+            LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
+            LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
+            LabeledContent("Entries and Positions", value: "\(preview.entries) Entries · \(preview.positions) Positions")
+            LabeledContent("Played and Starred", value: "\(preview.played) Played · \(preview.starred) Starred")
+            LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
+            LabeledContent("Views and downloads", value: "\(preview.views) Views · \(preview.downloads) downloads")
+            Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").font(.callout)
+            Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry bring-over in Settings. Not now keeps the Libraries separate; you can return here later.").font(.callout).foregroundStyle(.secondary)
+            if let error = app.bringOverError { Text(error).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Not now") { app.declineBringOver() }.keyboardShortcut(.cancelAction)
+                Button("Bring over") { Task { await app.acceptBringOver() } }.keyboardShortcut(.defaultAction)
+            }
+        }.padding(25).frame(width: 560)
     }
 }
 

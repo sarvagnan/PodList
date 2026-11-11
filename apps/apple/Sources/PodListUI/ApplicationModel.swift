@@ -66,6 +66,12 @@ public final class ApplicationModel {
     public private(set) var library: LibraryModel?
     public private(set) var libraryEditing: LibraryEditingModel?
     public var isStandalone: Bool { library != nil && origin == nil }
+    public private(set) var bringOverPreview: BringOverPreview?
+    public private(set) var bringOverJob: BringOverJob?
+    public private(set) var bringOverError: String?
+    public private(set) var bringOverAvailable = false
+    @ObservationIgnored private var bringOver: BringOver?
+    @ObservationIgnored private var bringOverSnapshot: BringOverSnapshot?
     public private(set) var lastSync: Date?
     public private(set) var editing: PlaylistEditingModel?
     public private(set) var playback: PlaybackController?
@@ -122,6 +128,7 @@ public final class ApplicationModel {
         }
         starting = false
         await sync()
+        await offerBringOver(showPreview: false)
     }
 
     public func startStandalone() async {
@@ -159,6 +166,9 @@ public final class ApplicationModel {
                 generation = UUID(); token = generation
                 libraryEditing?.endSession(); syncing = false; syncError = nil; lastSync = nil
                 await playback?.shutdown(); await downloads?.suspend()
+                if let database {
+                    bringOverSnapshot = try await database.bringOverSnapshot(downloads: downloads?.bringOverDownloads() ?? [])
+                }
                 periodicTask?.cancel(); triggerTask?.cancel(); monitor?.cancel(); ruleTask?.cancel()
                 downloads = nil; downloadStatuses = [:]
             }
@@ -166,6 +176,7 @@ public final class ApplicationModel {
             guard generation == token else { return }
             store.currentOrigin = address.origin.absoluteString
             await sync()
+            await offerBringOver(showPreview: true)
         } catch {
             guard generation == token else { return }
             connectionError = ConnectionValidation.message(for: error)
@@ -185,9 +196,8 @@ public final class ApplicationModel {
         await cleanupTask?.value
         guard generation == token else { return }
         if automaticSync {
-            let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             let databaseKey = address.map { store.databaseID(for: $0.origin.absoluteString) } ?? "standalone"
-            let directory = base.appendingPathComponent("PodList/Audio/" + databaseKey, isDirectory: true)
+            let directory = try Self.audioDirectory(databaseKey)
             let downloads = try DownloadStore(directory: directory, identifier: "app.podlist.audio." + databaseKey) { [weak self] statuses in
                 Task { @MainActor in
                     guard let self, self.generation == token else { return }
@@ -200,6 +210,12 @@ public final class ApplicationModel {
             try await downloads.start()
         }
         guard generation == token else { return }
+        if let address, let client {
+            bringOverJob = try await db.bringOverJob()
+            bringOver = BringOver(destination: db, transport: transportFactory(address), sync: client,
+                sourceFiles: automaticSync ? try AudioFiles(directory: Self.audioDirectory("standalone")) : nil,
+                destinationDownloads: downloads)
+        }
         playback = PlaybackController(database: db, origin: address?.origin, downloads: downloads, systemIntegration: automaticSync) { [weak self] in
             guard let self, self.generation == token else { return }
             await self.reloadLocal(); self.requestSync()
@@ -220,13 +236,13 @@ public final class ApplicationModel {
         startAutomaticSync(token: token)
     }
 
-    public func sync() async {
+    public func sync(forceRefresh: Bool = false) async {
         guard !syncing else { return }
         if isStandalone, let libraryEditing {
             let token = generation
             syncing = true
             var failure: String?
-            do { try await libraryEditing.source.refresh() }
+            do { try await libraryEditing.source.refresh(respectBackoff: !forceRefresh) }
             catch { failure = LibraryMessages.failure(error) }
             guard generation == token else { return }
             await reloadLocal()
@@ -239,8 +255,19 @@ public final class ApplicationModel {
         let token = generation
         syncing = true
         var failure: String?
-        do { try await client.sync() }
-        catch { failure = ConnectionValidation.message(for: error) }
+        do {
+            if let bringOver, let job = try await database.bringOverJob(), !job.complete {
+                let result = try await bringOver.resume()
+                guard generation == token else { return }
+                bringOverJob = result
+                bringOverError = result.issues.isEmpty ? nil : result.issues.joined(separator: "\n")
+            } else { try await client.sync() }
+        } catch {
+            failure = ConnectionValidation.message(for: error)
+            if generation == token, let job = try? await database.bringOverJob(), !job.complete {
+                bringOverJob = job; bringOverError = LibraryMessages.failure(error)
+            }
+        }
         // Read even on failure: either independent pull may already have committed.
         do {
             let snapshot = try await database.readLibrary()
@@ -252,6 +279,56 @@ public final class ApplicationModel {
         guard generation == token else { return }
         syncing = false; syncError = failure
         if failure == nil { lastSync = Date(); try? await libraryEditing?.initialize() }
+    }
+
+    nonisolated private static func audioDirectory(_ key: String) throws -> URL {
+        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("PodList/Audio/" + key, isDirectory: true)
+    }
+
+    /// Not now writes no transfer checkpoint; Settings can offer the retained Library again.
+    public func declineBringOver() { bringOverPreview = nil; bringOverSnapshot = nil }
+    public func offerBringOver(showPreview: Bool = true) async {
+        guard origin != nil, let database, !syncing else { return }
+        let token = generation
+        do {
+            if let job = try await database.bringOverJob() {
+                guard token == generation else { return }
+                bringOverJob = job; bringOverAvailable = false; return
+            }
+            let snapshot: BringOverSnapshot
+            if let saved = bringOverSnapshot { snapshot = saved }
+            else {
+                let source = try databaseFactory("standalone")
+                try await source.ensureState()
+                let audio = automaticSync ? try DownloadStore(directory: Self.audioDirectory("standalone"), identifier: "app.podlist.audio.standalone") : nil
+                snapshot = try await source.bringOverSnapshot(downloads: audio?.bringOverDownloads() ?? [])
+            }
+            let preview = BringOverPreview(source: snapshot, destination: try await database.readLibrary())
+            guard token == generation else { return }
+            bringOverAvailable = snapshot.worthMoving
+            if showPreview && snapshot.worthMoving {
+                guard syncError == nil else { throw SyncResponseFailure("Sync the server Library before previewing bring-over") }
+                bringOverError = nil; bringOverSnapshot = snapshot; bringOverPreview = preview
+            }
+        } catch {
+            guard token == generation else { return }
+            bringOverError = LibraryMessages.failure(error)
+        }
+    }
+    public func acceptBringOver() async {
+        guard let database, let snapshot = bringOverSnapshot, bringOverPreview != nil, !syncing else { return }
+        let token = generation
+        do {
+            try await database.beginBringOver(snapshot)
+            guard token == generation else { return }
+            bringOverJob = try await database.bringOverJob()
+            bringOverPreview = nil; bringOverSnapshot = nil; bringOverAvailable = false
+            await sync()
+        } catch {
+            guard token == generation else { return }
+            bringOverError = LibraryMessages.failure(error)
+        }
     }
 
     public func requestSync() {
@@ -360,14 +437,15 @@ public final class ApplicationModel {
     public func shutdownPlayback() async { await playback?.shutdown() }
     public func disconnect() {
         libraryEditing?.endSession()
-        let oldPlayback = playback, oldDownloads = downloads
-        cleanupTask = Task { await oldPlayback?.shutdown(); await oldDownloads?.suspend() }
+        let oldPlayback = playback, oldDownloads = downloads, oldBringOver = bringOver
+        cleanupTask = Task { await oldBringOver?.suspend(); await oldPlayback?.shutdown(); await oldDownloads?.suspend() }
         editing = nil; playback = nil; downloads = nil; downloadStatuses = [:]; ruleTask?.cancel()
         generation = UUID()
         periodicTask?.cancel(); triggerTask?.cancel(); monitor?.cancel()
         periodicTask = nil; triggerTask = nil; monitor = nil
         store.currentOrigin = nil
         database = nil; client = nil; library = nil; libraryEditing = nil; origin = nil
+        bringOver = nil; bringOverSnapshot = nil; bringOverPreview = nil; bringOverJob = nil; bringOverError = nil; bringOverAvailable = false
         connecting = false; syncing = false; connectionError = nil; syncError = nil; lastSync = nil
     }
 }

@@ -19,6 +19,7 @@ private actor FakeTransport: SyncTransport {
     var healthResponse = #"{"status":"ok","protocolVersion":4}"#
     var snapshot = fixtureState()
     var paths: [String] = []
+    var seen = Set<String>()
     private var pauseNextPull = false
     private var pausedPull: CheckedContinuation<Void, Never>?
     private var pauseWaiter: CheckedContinuation<Void, Never>?
@@ -36,6 +37,13 @@ private actor FakeTransport: SyncTransport {
         switch path {
         case "/api/health": return healthResponse
         case "/api/devices": return body!
+        case "/api/subscriptions/bring-over": return ""
+        case "/api/sync/push":
+            struct Push: Decodable { let operations: [PodListDomain.Operation] }
+            let operations = try ProtocolJSON.decode(Push.self, from: body!).operations
+            let result = StateRules.replay(snapshot, operations: operations, applied: seen)
+            snapshot = result.state; seen = result.applied
+            return #"{"accepted":0,"cursor":8}"#
         case let p where p.hasPrefix("/api/sync/pull"):
             if pauseNextPull {
                 pauseNextPull = false
@@ -153,4 +161,59 @@ private actor FakeTransport: SyncTransport {
     restarted.currentOrigin = nil
     #expect(restarted.databaseID(for: "https://a.example") == a)
     #expect(restarted.databaseID(for: "https://b.example") == b)
+}
+
+
+@MainActor @Test func standaloneBringOverDeclineKeepsLibrariesSeparateAndOfferInSettings() async throws {
+    let source = try LocalDatabase(path: ":memory:", standalone: true), server = try LocalDatabase(path: ":memory:")
+    try await source.ensureState()
+    var local = episode(); local.id = "local-a"
+    try await source.upsertLibrary(subscriptions: [subscription()], episodes: [local])
+    try await source.record(.setStar(episodeId: local.id, starred: true), at: 1)
+    let before = try await source.readLibrary()
+    let store = MemoryConnectionStore(), transport = FakeTransport()
+    let app = ApplicationModel(store: store, automaticSync: false, databaseFactory: { $0 == "standalone" ? source : server }, transportFactory: { _ in transport })
+    await app.startStandalone()
+    app.serverInput = "https://example.com"
+    await app.connect()
+    #expect(app.origin == "https://example.com" && app.bringOverPreview?.mergedEpisodes == 1)
+    #expect(app.bringOverPreview?.starred == 1)
+    app.declineBringOver()
+    #expect(app.bringOverPreview == nil && app.bringOverAvailable)
+    #expect(try await server.bringOverJob() == nil)
+    #expect(try await source.readLibrary() == before)
+    #expect(try await server.loadState() == fixtureState())
+    #expect(await transport.paths.allSatisfy { !$0.contains("bring-over") && !$0.contains("push") })
+    await app.offerBringOver()
+    #expect(app.bringOverPreview != nil)
+    app.declineBringOver(); app.disconnect()
+    await app.startStandalone()
+    #expect(app.isStandalone && app.library?.snapshot.episodes.first?.id == "local-a")
+    app.disconnect()
+}
+
+@MainActor @Test func acceptedBringOverResumesOnServerLaunchAfterOfflineFailure() async throws {
+    let source = try LocalDatabase(path: ":memory:", standalone: true), server = try LocalDatabase(path: ":memory:")
+    try await source.ensureState()
+    var local = episode(); local.id = "local-a"
+    try await source.upsertLibrary(subscriptions: [subscription()], episodes: [local])
+    try await source.record(.setStar(episodeId: local.id, starred: true), at: 1)
+    let store = MemoryConnectionStore(), transport = FakeTransport()
+    let app = ApplicationModel(store: store, automaticSync: false, databaseFactory: { $0 == "standalone" ? source : server }, transportFactory: { _ in transport })
+    await app.startStandalone(); app.serverInput = "https://example.com"; await app.connect()
+    #expect(app.bringOverPreview != nil)
+    await transport.setOffline(true)
+    await app.acceptBringOver()
+    #expect(try await server.bringOverJob()?.complete == false)
+    #expect(app.bringOverError != nil && app.bringOverPreview == nil)
+    app.disconnect()
+    store.currentOrigin = "https://example.com"
+    await transport.setOffline(false)
+    let restarted = ApplicationModel(store: store, automaticSync: false, databaseFactory: { $0 == "standalone" ? source : server }, transportFactory: { _ in transport })
+    await restarted.start()
+    #expect(restarted.bringOverJob?.complete == true && restarted.bringOverError == nil)
+    #expect(restarted.library?.state.episodeStates["a"]?.starred == true)
+    #expect(try await source.loadState().episodeStates["local-a"]?.starred == true)
+    #expect(!restarted.bringOverAvailable && restarted.bringOverPreview == nil)
+    restarted.disconnect()
 }

@@ -3,7 +3,7 @@
 Reviewed 11 November 2026 at `ed46a1dc4eb3993468a9859f6533e122e4b89118`.
 Phase 2, milestone 5. Review task: `pod-apx.5.11`.
 
-The requested blocker and major action fixes are implemented on `mac-parity-fixes` (11 November 2026). Standalone bring-over (M07) remains separate. The minor findings and live checks remain open. This is a source audit with model tests, not a live UI grade.
+The requested blocker and major action fixes are implemented on `mac-parity-fixes` (11 November 2026). Standalone bring-over (M07) and conditional feed polling are implemented on `mac-standalone`, based on `ab5d5f6` (11 November 2026). Other minor findings and live checks remain open. This is a source audit with model tests, not a live UI grade.
 
 ## Scope and reading rules
 
@@ -28,13 +28,13 @@ Each source citation is `file:line`. For an absent action, the citation identifi
 
 | Scope | Done | Partial | Missing | Blocker rows | Major rows | Minor rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Product behaviour | 85 | 10 | 0 | 0 | 1 | 9 |
+| Product behaviour | 87 | 8 | 0 | 0 | 0 | 8 |
 | Client duties | 46 | 2 | 0 | 0 | 0 | 2 |
 | Mac decisions and live checks | 7 | 7 | 0 | 0 | 0 | 7 |
-| **Total: 157 checks** | **138** | **19** | **0** | **0** | **1** | **18** |
+| **Total: 157 checks** | **140** | **17** | **0** | **0** | **0** | **17** |
 
-The original audit found one blocker and 11 major findings. B01 and M01–M06/M08–M11
-are now done in source. M07 is the one remaining major row. The 138 done rows still
+The original audit found one blocker and 11 major findings. B01 and M01–M11
+are now done in source. The 140 done rows still
 need the applicable live presentation and accessibility checks.
 
 ## Blocker and major findings
@@ -46,7 +46,7 @@ need the applicable live presentation and accessibility checks.
 - **M04 — done.** Episode detail shows Chapters and Chapter Artwork. The Inspector and Now Playing use Chapter, Episode, then podcast Artwork.
 - **M05 — done.** Now Playing opens detail inside its sheet. Add opens above it. Starting playback returns to Now Playing. The Entries route reopens Now Playing after playback starts. The Mac presentation is recorded in `docs/design/mac.md`; the sheet and three-line player middle remain intact.
 - **M06 — done.** Subscriptions support native multi-selection and one batch Download Rule editor. A batch is one Undo step.
-- **M07 — not done, by scope.** Standalone bring-over stays on `pod-apx.5.6` for the next task.
+- **M07 — done.** The server connection offers a counted bring-over preview. Not now retains separate Libraries and the Settings offer. Accepted jobs checkpoint metadata imports, atomic mapped Operation queueing and download copies; launch and Retry resume without duplicating Listening log amounts or Entries. Source Library/files stay intact. Existing server APIs only. See P85 and `docs/design/mac.md`; Beads `pod-apx.5.6` remains open for handoff.
 - **M08 — done.** Standalone resolves publisher JSON Chapters, then stored or bounded streamed ID3. Both server and publisher paths use the Episode cache. Failed reads remain retryable. Feed Chapter-source or audio replacement invalidates the cache.
 - **M09 — done.** Podcast Add opens the shared chooser before or after subscribing. Fresh Add sheets preselect Active. An explicitly edited unfinished draft retains its target and name; successful Add clears it.
 - **M10 — done.** Pending Subscription override documents project in outbox order into Library reads, reopened settings and playback. Catalogue refreshes do not hide pending edits. Unrelated edits preserve transient playback speed.
@@ -187,12 +187,12 @@ need the applicable live presentation and accessibility checks.
 | Check | Behaviour | Mac status | Evidence | Gap | Severity |
 | --- | --- | --- | --- | --- | --- |
 | [x] P84 | Open without a server; offer Standalone or server connection. | done | `UI/ConnectionViews.swift:14`; `UI/ConnectionViews.swift:33`; `UI/ApplicationModel.swift:127` | — | — |
-| [ ] P85 | Connecting Standalone offers a bring-over preview; declining keeps Libraries separate. | partial | `UI/ApplicationModel.swift:145`; `UI/LibrarySettingsScreens.swift:78` | M07: `pod-apx.5.6` covers the missing preview, transfer and resumable retry; separation already works. | major |
+| [x] P85 | Connecting Standalone offers a bring-over preview; declining keeps Libraries separate. | done | `UI/LibrarySettingsScreens.swift:107` (`BringOverPreviewScreen`); `UI/ApplicationModel.swift:291` (`offerBringOver`); `Data/BringOver.swift:244` (`resume`); `Tests/PodListDataTests/BringOverTests.swift:111` (`bringOverPreviewIncludesAddsMergesPositionsFactsAndListening`); `Tests/PodListDataTests/BringOverTests.swift:127` (`bringOverRestartsAfterLostPushWithoutDuplicatingListeningOrEntries`); `Tests/PodListDataTests/BringOverTests.swift:176` (per-feed retry); `Tests/PodListDataTests/BringOverTests.swift:202` (download retry); `Tests/PodListUITests/ApplicationModelTests.swift:167` (decline/reoffer); `Tests/PodListUITests/ApplicationModelTests.swift:195` (launch resume) | — | — |
 | [x] P86 | Three-step skippable checklist lives on Views; Default Playlist is ready. | done | `UI/MacWindow.swift:79`; `UI/LibrarySettingsScreens.swift:139`; `Domain/State.swift:32` | — | — |
 | [x] P87 | Seed New this week, Under 30 minutes and Starred once; do not mistake loading for fresh data. | done | `UI/LibraryEditingModel.swift:105`; `UI/ApplicationModel.swift:254`; `Tests/PodListUITests/LibraryEditingTests.swift:118` | — | — |
 | [x] P88 | Track steps, retain until dismissed, and reopen with completed steps from Settings. | done | `UI/LibraryEditingModel.swift:64`; `UI/LibraryEditingModel.swift:100`; `UI/LibrarySettingsScreens.swift:64`; `UI/LibrarySettingsScreens.swift:144` | — | — |
 | [x] P89 | First Subscribe keeps the Add flow open and preserves input. | done | `UI/PodcastScreens.swift:25`; `UI/PodcastScreens.swift:55`; `UI/PodcastScreens.swift:65` | — | — |
-| [ ] P90 | Standalone fetches and refreshes publisher feeds in the background. | partial | `UI/ApplicationModel.swift:223`; `UI/ApplicationModel.swift:266`; `Data/PodcastLibrary.swift:109` | `pod-apx.5.7` covers conditional polling and persisted retry state; current polling runs while the app lives, and sleep/wake behaviour needs live check. | minor |
+| [x] P90 | Standalone fetches and refreshes publisher feeds in the background. | done | `UI/ApplicationModel.swift:239` (`sync`); `Data/PodcastLibrary.swift:151` (`refresh`); `Data/FeedPolling.swift:16` (`feedPollState`); `UI/LibrarySettingsScreens.swift:68` (Refresh now); `Tests/PodListDataTests/FeedPollingTests.swift:27` (conditional 304); `Tests/PodListDataTests/FeedPollingTests.swift:52` (persisted backoff/restart); `Tests/PodListDataTests/FeedPollingTests.swift:96` (failed-feed isolation); `Tests/PodListDataTests/PodcastLibraryTests.swift:97` (concurrent Unsubscribe) | — | — |
 
 ### Settings and Listening stats
 
@@ -326,7 +326,7 @@ These are comparison notes, not extra shared requirements or Mac blockers. Paths
 | **not in spec:** Share a podcast and copy its feed address. | `apps/android/app/src/main/kotlin/app/podlist/PodcastPageScreen.kt:336` | `UI/PodcastScreens.swift:150` now provides Share podcast and Copy feed address. Episode sharing is M02. |
 | **not in spec:** Accept a feed URL or OPML through OS Open/Share. | `apps/android/app/src/main/kotlin/app/podlist/IncomingContent.kt:19`; `apps/android/app/src/main/kotlin/app/podlist/PodListScreens.kt:107` | `Mac/PodListMac.swift:18` has no incoming URL/document handler; OPML uses the explicit file panel. |
 | **not in spec:** Persist browsing stacks, selection, Playlist tab and scroll anchors across recreation. | `apps/android/data/src/main/kotlin/app/podlist/data/BrowsingStore.kt:7`; `apps/android/app/src/main/kotlin/app/podlist/BrowsingState.kt:22` | `UI/LibraryModel.swift:207` keeps these in window memory; `UI/MacWindow.swift:172` resets the Playlist tab on destination changes. |
-| **not in spec:** Per-feed refresh failure/last-success information and Retry refresh on its page. | `apps/android/app/src/main/kotlin/app/podlist/SubscriptionRefreshStatus.kt:13` | `Data/PodcastLibrary.swift:109` returns an aggregate error; `UI/PodcastScreens.swift:153` has no persisted refresh diagnostics. The polling work belongs to known issue `pod-apx.5.7`. |
+| **not in spec:** Per-feed refresh failure/last-success information and Retry refresh on its page. | `apps/android/app/src/main/kotlin/app/podlist/SubscriptionRefreshStatus.kt:13` | `Data/FeedPolling.swift:16` now persists per-feed validators/check time/failures/error. Settings offers Refresh now; the Podcast page still has no per-feed diagnostics presentation (an Android extra). |
 | **not in spec:** An explicit server-address Discard draft action. | `apps/android/app/src/main/kotlin/app/podlist/ServerScreen.kt:48` | `UI/ConnectionViews.swift:37`; `UI/LibrarySettingsScreens.swift:83` retain the draft but provide no discard control. |
 | **not in spec:** Android Auto browses Playlists and Entries through Media3. | `apps/android/app/src/main/kotlin/app/podlist/PlaybackService.kt:446` | `UI/SystemPlayback.swift:38` exposes playback commands only; car browsing is a platform feature and CarPlay is a later Apple target. |
 | **not in spec:** System download-notification permission teaching. | `apps/android/app/src/main/kotlin/app/podlist/IncomingContent.kt:29` | `UI/DownloadViews.swift:11` supplies in-app status only; Android notification conventions are not a Mac requirement. |
@@ -349,10 +349,10 @@ swift build --scratch-path .build --disable-sandbox
 ```
 
 Both exact commands passed with no warnings on 11 November 2026.
-All **128 test functions** passed: **62 UI/model, 27 Domain and 39 Data**, including
+All **140 test functions** passed: **64 UI/model, 27 Domain and 49 Data**, including
 parameterized vectors. Validation used Swift 6 strict concurrency. No packages were added.
 The tests exercise models and protocol/data behaviour. They do not prove layout or native
 menu routing. Live checks remain: narrow Inspector and VoiceOver labels, Download progress,
 native Share/Copy Link, text-field Undo, sheet/Add/Entries round trips, and real publisher
 Chapter fetching and audio output. Known minor follow-ups stay on `pod-apx.5.14`.
-Bring-over, polling and other existing follow-ups stay on their current issues.
+Bring-over preview layout/VoiceOver, real-server transfer interruption and publisher conditional polling across Mac sleep/wake still need live checks. Bring-over and polling issues `pod-apx.5.6` / `pod-apx.5.7` remain in progress for handoff as requested; other follow-ups stay on their current issues.

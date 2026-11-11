@@ -62,6 +62,24 @@ public actor DownloadStore {
         guard let status = manifest.statuses[id], status.phase == .stored else { return nil }
         return files.stored(id, bytes: status.received)
     }
+    public func bringOverDownloads() -> [BringOverDownload] {
+        manifest.statuses.sorted { $0.key < $1.key }.compactMap { id, status in
+            guard status.phase == .stored, files.stored(id, bytes: status.received) != nil else { return nil }
+            return BringOverDownload(episodeID: id, bytes: status.received)
+        }
+    }
+    /// An explicit bring-over keeps audio as Manual Downloads, independent of merged server rules.
+    /// File replacement and the manifest commit happen in one actor turn; retries keep complete files.
+    public func importStored(_ source: URL, id: String, bytes: Int64) throws {
+        if stored(id) != nil { manifest.statuses[id]?.manual = true; try publish(); return }
+        running.removeValue(forKey: id)?.1.cancel()
+        let partial = files.directory.appendingPathComponent(UUID().uuidString + ".part")
+        defer { try? FileManager.default.removeItem(at: partial) }
+        try FileManager.default.copyItem(at: source, to: partial)
+        let received = try files.commit(partial, id: id, expected: bytes)
+        manifest.statuses[id] = DownloadStatus(phase: .stored, manual: true, received: received, total: received)
+        try publish()
+    }
     public func request(_ id: String, sources: [URL], manual: Bool = true) throws {
         if let status = manifest.statuses[id], status.phase != .failed {
             if manual { manifest.statuses[id]?.manual = true; try publish() }; return

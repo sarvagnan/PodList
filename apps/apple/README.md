@@ -243,9 +243,19 @@ totals, playback-source Episodes finished from retained metadata, streak, top po
 `LibraryEditingTests`, `PodcastLibraryTests` and `ListeningStatsTests` cover these flows using
 in-memory databases and fake publisher/server transports. Native window layout, keyboard
 routing, panels, VoiceOver and live publisher requests still need a manual Mac run; the
-agent sandbox cannot launch the app. Bringing an existing Standalone Library over to a server
-is deferred: connecting currently opens that server's separate Library and keeps the local
-one intact. Disconnect and choose Start on this Mac to return to it.
+new Standalone flows also need a live Mac presentation check. Connecting offers a counted
+bring-over preview. Not now keeps the Libraries separate and leaves the offer in Settings.
+Accepted transfers retain their source, checkpoint per feed and download, and enqueue mapped
+Operations atomically with stable ids, so interrupted transfers resume without double counting.
+The existing `/api/subscriptions/bring-over` imports vanished feed metadata by feed address and
+guid. Disconnect and choose Start on this Mac to return to the retained source Library.
+
+Standalone polling persists ETag/Last-Modified, check times and failure state in `feed_state`.
+Automatic checks use 30-minute intervals and the server's exponential failure backoff capped
+at one day, across restarts. Settings > Publisher feeds > Refresh now bypasses the wait.
+`BringOverTests`, `FeedPollingTests` and `ApplicationModelTests` cover lost responses,
+restart/resume, source retention, declining/reopening the offer, conditional 304 handling,
+validator replacement, backoff persistence and failed-feed isolation.
 
 ## Playlist editing (milestone 4a)
 
@@ -383,7 +393,7 @@ The socket test needs permission to bind a local Unix socket in the enclosing sa
 
 ## Next
 
-Distribution signing and installation, conditional feed polling and the resumable
-Standalone-to-server bring-over flow remain later work (Beads `pod-apx.5.7` and
-`pod-apx.5.6`). Live platform validation of milestones 2–4, Shortcuts discovery and an
-MCP client session are pending the owner's Mac run.
+Distribution signing and installation remain later work. Conditional Standalone polling and
+resumable Library bring-over are implemented (`pod-apx.5.7`, `pod-apx.5.6`; issues remain open
+for handoff). Live platform validation, including bring-over presentation, sleep/wake polling,
+Shortcuts discovery and an MCP client session, is pending the owner's Mac run.
