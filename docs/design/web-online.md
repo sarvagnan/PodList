@@ -48,7 +48,7 @@ The following reads are proposed. They do not exist yet.
 New contracts and handlers belong in milestone 2. Regenerate OpenAPI and test reads
 against the shared View vectors and today's local results.
 
-Owner decision: cap and page large result sets. Recommend bounded pages with stable
+Decided (owner, 11 Nov 2026): bounded pages with stable continuation. Was: cap and page large result sets. Recommend bounded pages with stable
 continuation and batch summaries; preserve the View limit across pages.
 
 ## Open tabs and writes
@@ -58,14 +58,14 @@ Subscription overrides and changes from native apps. Notifications invalidate re
 they do not carry a second copy of the Library. Fetch fresh State and affected reads
 on reconnect and on return to the tab. A missed notification must not leave stale data.
 
-Owner decision: live transport. Recommend SSE with State and Library cursors,
+Decided (owner, 11 Nov 2026): WebSockets, with cursor catch-up on reconnect and a polling fallback. The SSE recommendation below was not taken. Was: live transport. Recommend SSE with State and Library cursors,
 reconnect catch-up and a polling fallback. Each tab can connect independently first.
 
-Owner decision: browser Device identity. Recommend one persistent opaque id per browser
+Decided (owner, 11 Nov 2026): one Device per browser profile, kind `web`. Was: browser Device identity. Recommend one persistent opaque id per browser
 profile and a new `web` kind. Coordinate operation sequence allocation across tabs.
 Do not reuse Electron's Device or register each tab as a separate installation.
 
-Owner decision: failed web edits. Recommend optimistic edits held in memory while
+Decided (owner, 11 Nov 2026): hold failed edits in the tab with visible retry; no durable outbox. Was: failed web edits. Recommend optimistic edits held in memory while
 the tab is open, with pending status and visible retry on failed sends. Disable new
 edits while known offline. Keep no durable offline outbox. `record` accepts the edit;
 status tracks delivery. Milestone 3 must adapt the typed-edit journal and Listening
@@ -88,7 +88,7 @@ Its private `app://podlist` origin and server bridge stay. Keep its database loc
 its OPFS database needs one. Select adapters at build time so web excludes local code.
 No build selection or PWA removal happens in milestone 1.
 
-Owner decision: deployment. Recommend a separate approved rollout after contract,
+Decided (standing rule): every deploy needs owner approval. Was: deployment. Recommend a separate approved rollout after contract,
 web, Electron and service-worker retirement checks. Every deploy needs owner approval.
 
 ## Milestones
