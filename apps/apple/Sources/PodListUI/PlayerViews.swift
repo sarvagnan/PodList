@@ -129,7 +129,7 @@ struct NowPlayingView: SwiftUI.View {
             VStack(spacing: 20) {
                 HStack { Text("Now Playing").font(.title2).bold(); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
                 if let value = controller.display {
-                    ArtworkView(url: value.artwork, title: value.title, size: 230)
+                    ArtworkView(url: value.artwork, title: value.podcast, size: 230)
                     Text(value.title).font(.title).multilineTextAlignment(.center).textSelection(.enabled)
                     Text(value.podcast).font(.headline).foregroundStyle(.secondary)
                     if let chapter = value.chapter { Text(chapter.title).font(.headline) }

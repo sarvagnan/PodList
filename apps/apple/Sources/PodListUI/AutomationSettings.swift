@@ -47,7 +47,7 @@ public final class AutomationSettings {
         Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("podlist-mcp").path ?? "podlist-mcp"
     }
     public var clientConfiguration: String {
-        let config: JSONValue = ["mcpServers": ["podlist": ["command": .string(bridgePath), "args": []]]]
+        let config: JSONValue = ["mcpServers": ["podlist": ["command": .string(bridgePath)]]]
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return (try? String(decoding: encoder.encode(config), as: UTF8.self)) ?? ""

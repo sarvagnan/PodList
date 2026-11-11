@@ -52,7 +52,10 @@ public enum NowPlayingMapping {
             return .success
         }
         targets.append((remote.changePlaybackPositionCommand, position))
-        remote.nextTrackCommand.isEnabled = false; remote.previousTrackCommand.isEnabled = false
+        // Keyboard ⏩/⏪ and headset next/previous arrive as track commands. As on Android, they skip
+        // within the Episode rather than changing Entries.
+        bind(remote.nextTrackCommand) { $0.skip(30) }
+        bind(remote.previousTrackCommand) { $0.skip(-15) }
         update(nil)
     }
     private func bind(_ command: MPRemoteCommand, action: @escaping @MainActor (PlaybackController) -> Void) {
