@@ -174,6 +174,7 @@ test("the View editor holds together at 200% text", async ({ page }) => {
   await page.goto(`${demo.base}/views/short?edit=true`)
   await page.addStyleTag({ content: "html { font-size: 32px !important }" })
   const form = page.locator("main form, main [data-view-form], main").first()
+  await page.getByRole("button", { name: "Rename", exact: true }).click()
   await page.getByRole("textbox", { name: "Name" }).waitFor()
   // No label runs under its field, and nothing scrolls sideways.
   const overflowing = await form.evaluate((root) =>

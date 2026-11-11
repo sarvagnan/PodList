@@ -119,10 +119,11 @@ test("Add podcasts keeps both typed fields and selected tab through reload (WDAT
 })
 
 for (const field of ["Name", "Mentions"]) {
-  test(`View ${field} follows replayed edits after reload and preserves subsequent typing (WDATA-01)`, async ({
+  test(`View ${field} keeps typed input after reload and preserves subsequent typing (WDATA-01)`, async ({
     page
   }) => {
     await page.goto(`${demo.base}/views/starred?edit=true`)
+    if (field === "Name") await page.getByRole("button", { name: "Rename", exact: true }).click()
     const input = page.getByRole(field === "Name" ? "textbox" : "searchbox", {
       name: field,
       exact: true

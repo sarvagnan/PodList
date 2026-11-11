@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { ViewData } from "./viewEdit.ts"
 
 export type DialogDraft =
+  | { readonly kind: "rename"; readonly name: string | null }
   | { readonly kind: "playlist"; readonly name: string; readonly clearOnPlayed: boolean }
   | { readonly kind: "view"; readonly name: string; readonly view: ViewData }
   | {
@@ -23,6 +24,7 @@ export type DialogDraft =
 const key = "podlist:dialog-draft"
 const decode = Schema.decodeUnknownSync(
   Schema.Union([
+    Schema.Struct({ kind: Schema.Literal("rename"), name: Schema.NullOr(Schema.String) }),
     Schema.Struct({
       kind: Schema.Literal("playlist"),
       name: Schema.String,
@@ -55,18 +57,18 @@ const decode = Schema.decodeUnknownSync(
   ])
 )
 
-export const readDialogDraft = (): DialogDraft | null => {
+export const readDialogDraft = (storageKey = key): DialogDraft | null => {
   try {
-    return decode(JSON.parse(localStorage.getItem(key) ?? "null"))
+    return decode(JSON.parse(localStorage.getItem(storageKey) ?? "null"))
   } catch {
     return null
   }
 }
 
-export const storeDialogDraft = (draft: DialogDraft | null): boolean => {
+export const storeDialogDraft = (draft: DialogDraft | null, storageKey = key): boolean => {
   try {
-    if (draft === null) localStorage.removeItem(key)
-    else localStorage.setItem(key, JSON.stringify(draft))
+    if (draft === null) localStorage.removeItem(storageKey)
+    else localStorage.setItem(storageKey, JSON.stringify(draft))
     return true
   } catch {
     // A refused write leaves the previous durable copy intact (DATA-01).
@@ -78,23 +80,37 @@ export const storeDialogDraft = (draft: DialogDraft | null): boolean => {
  * partition) scopes it (DATA-01, WDATA-01).
  * Write at each edit, before React renders, as the typed-edit journal does (DATA-01). */
 export function useDialogDraft<K extends DialogDraft["kind"]>(
-  initial: { readonly kind: K } & Extract<DialogDraft, { readonly kind: K }>
+  initial: { readonly kind: K } & Extract<DialogDraft, { readonly kind: K }>,
+  storageKey = key
 ) {
   type D = Extract<DialogDraft, { readonly kind: K }>
   const [draft, setDraft] = useState<D>(() => {
-    const saved = readDialogDraft()
+    const saved = readDialogDraft(storageKey)
     return saved?.kind === initial.kind ? (saved as D) : initial
   })
   const latest = useRef(draft)
   const stored = useRef(false)
   const unsafe = useRef(false)
   const [unsaved, setUnsaved] = useState(false)
-  const persist = useCallback((next: D) => {
-    stored.current =
-      storeDialogDraft(next) || JSON.stringify(readDialogDraft()) === JSON.stringify(next)
-    unsafe.current = !stored.current
-    setUnsaved(unsafe.current)
-  }, [])
+  const persist = useCallback(
+    (next: D) => {
+      // A closed rename is not unfinished input. Do not create an idle draft or
+      // warn about leaving it when this browser refuses storage.
+      const value: DialogDraft = next
+      if (value.kind === "rename" && value.name === null) {
+        storeDialogDraft(null, storageKey)
+        unsafe.current = false
+        setUnsaved(false)
+        return
+      }
+      stored.current =
+        storeDialogDraft(next, storageKey) ||
+        JSON.stringify(readDialogDraft(storageKey)) === JSON.stringify(next)
+      unsafe.current = !stored.current
+      setUnsaved(unsafe.current)
+    },
+    [storageKey]
+  )
   useEffect(() => {
     persist(latest.current)
     // Warn only for the latest value without a durable copy (DATA-01, WDATA-02).
@@ -114,9 +130,13 @@ export function useDialogDraft<K extends DialogDraft["kind"]>(
   }
   const clear = () => {
     // Never erase the last saved copy after a newer write was refused (DATA-01).
-    if (stored.current) storeDialogDraft(null)
+    if (stored.current) storeDialogDraft(null, storageKey)
     unsafe.current = false
     setUnsaved(false)
   }
   return { draft, update, clear, unsaved, retry: () => persist(latest.current) }
 }
+
+/** Rename drafts coexist with dialogs and with other Views and Playlists. */
+export const renameDraftKey = (kind: "View" | "Playlist", id: string) =>
+  `podlist:rename-draft:${kind}:${id}`

@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { useCallback } from "react"
 import { useAppState } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
+import { readDialogDraft, renameDraftKey } from "../../lib/dialogDraft.ts"
 import { blankView, deleteViewChange, saveViewChange, viewData } from "../../lib/viewEdit.ts"
 import { useConfirm } from "../feedback/useConfirm.ts"
 
@@ -11,9 +12,15 @@ import { useConfirm } from "../feedback/useConfirm.ts"
  * like that, they go (with Undo) rather than piling up as identical "New View" rows. */
 const fresh = new Set<string>()
 
-/** A new View still as New View made it: its own default name, every condition at Any. */
+const hasRenameDraft = (id: string) => {
+  const draft = readDialogDraft(renameDraftKey("View", id))
+  return draft?.kind === "rename" && draft.name !== null
+}
+
+/** A new View still as New View made it: no rename draft and every condition at Any. */
 export const untouched = (view: View.View) =>
   fresh.has(view.id) &&
+  !hasRenameDraft(view.id) &&
   /^New View( \d+)?$/.test(view.name) &&
   Object.keys(view.filter).length === 0 &&
   view.sort === "publishedDesc" &&
@@ -42,13 +49,11 @@ export function useViewActions() {
     fresh.add(view.id)
     await record(saveViewChange(view))
     await navigate({ to: "/views/$viewId", params: { viewId: view.id }, search: { edit: true } })
-    // Its name is the first thing to give it, as with New Playlist (KEY-06): after the
+    // Rename is the first action on a new View (KEY-06): after the
     // screen's own focus on arrival.
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        const field = document.querySelector<HTMLInputElement>("main [data-view-name]")
-        field?.focus()
-        field?.select()
+        document.querySelector<HTMLButtonElement>("main [data-rename]")?.focus()
       })
     )
   }, [record, navigate, namesKey])

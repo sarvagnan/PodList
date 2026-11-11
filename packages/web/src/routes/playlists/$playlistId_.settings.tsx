@@ -2,14 +2,13 @@ import { Operation, State } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { Trash2 } from "lucide-react"
-import { useEffect, useId, useRef, useState } from "react"
 import { useAppState } from "../../app/hooks.ts"
 import { useJournaledRecord } from "../../app/journal.ts"
+import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
-import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
+import { RenameableName } from "../../components/lists/RenameableName.tsx"
 import { usePlaylistActions } from "../../components/playlists/usePlaylistActions.ts"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
-import { useDebounced } from "../../lib/useDebounced.ts"
 
 // A Playlist's settings (docs/design/ui-layout.md › Playlist settings): its name, Clear
 // on Played, and Delete, which sends it with its History and Listening Timeline to the
@@ -27,36 +26,21 @@ function PlaylistSettings() {
   // Typed: journaled until recorded, so closing the page at once can't lose it (DATA-01).
   const record = useJournaledRecord()
   const { remove } = usePlaylistActions()
-  const id = useId()
+  const confirm = useConfirm()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
-  const [name, setName] = useState(playlist?.name ?? "")
-  const [error, setError] = useState<string | null>(null)
-  const rename = (value: string) => {
-    const trimmed = value.trim()
-    // Two of the same name couldn't be told apart in the sidebar or the Next/Last picker.
-    const taken = state?.playlists.some(
-      (p) => p.id !== playlistId && p.name.toLowerCase() === trimmed.toLowerCase()
-    )
-    const problem =
-      trimmed === ""
-        ? "A Playlist needs a name."
-        : taken
-          ? `There’s already a Playlist called “${trimmed}”.`
-          : null
-    setError(problem)
-    if (playlist !== undefined && problem === null && trimmed !== playlist.name) {
-      record(change({ _tag: "RenamePlaylist", playlistId, name: trimmed }))
+  const rename = async (name: string) => {
+    if (!playlist || playlist.isDefault) return
+    const next = change({ _tag: "RenamePlaylist", playlistId, name })
+    const step = {
+      message: `Renamed Playlist “${playlist.name}” to “${name}”`,
+      undo: [change({ _tag: "RenamePlaylist", playlistId, name: playlist.name })]
     }
+    await record(next)
+    confirm(step, async () => {
+      await record(next)
+      return step
+    })
   }
-  const renameLater = useDebounced(rename)
-  // The field shows the saved name (as it loads, or changes from elsewhere) until it's
-  // typed in; from then until it's left it holds what's typed, an empty field included
-  // (with its error), never the old name put back under the cursor (WDATA-03).
-  const typing = useRef(false)
-  const saved = playlist?.name
-  useEffect(() => {
-    if (saved !== undefined && !typing.current) setName(saved)
-  }, [saved])
 
   if (state === null) return <LoadingRows label="Loading Playlist" />
   if (playlist === undefined) {
@@ -85,40 +69,17 @@ function PlaylistSettings() {
       />
       <div className="max-w-[704px] space-y-5 px-5 pb-10 md:px-8">
         <div className="rounded-xl border bg-card">
-          {/* The same row as every other setting: label and hint beside the field. */}
-          <SettingsRow
-            label="Name"
-            htmlFor={`${id}-name`}
-            help={
-              playlist.isDefault ? "The Default Playlist keeps its name." : "Saved as you type."
-            }
-          >
-            <input
-              id={`${id}-name`}
-              type="text"
-              value={name}
+          <div className="border-b">
+            <RenameableName
+              key={playlist.id}
+              kind="Playlist"
+              entityId={playlist.id}
+              name={playlist.name}
+              names={state.playlists}
               disabled={playlist.isDefault}
-              required
-              aria-invalid={error !== null}
-              aria-describedby={error ? `${id}-name-error` : undefined}
-              onChange={(event) => {
-                const value = event.target.value
-                typing.current = true
-                setName(value)
-                renameLater.schedule(value)
-              }}
-              onBlur={(event) => {
-                renameLater.now(event.target.value)
-                typing.current = false
-              }}
-              className={`${fieldControl} aria-invalid:border-destructive disabled:bg-secondary disabled:text-muted-foreground`}
+              onSave={rename}
             />
-            {error && (
-              <p id={`${id}-name-error`} className="mt-1 text-small text-destructive">
-                {error}
-              </p>
-            )}
-          </SettingsRow>
+          </div>
           <label className="flex items-start gap-3 px-4 py-3">
             <input
               type="checkbox"
