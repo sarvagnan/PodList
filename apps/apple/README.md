@@ -1,8 +1,8 @@
 # PodList Apple
 
-Phase 2, milestone 1: the shared domain and local data foundation. Swift 6 language mode,
+Phase 2, milestones 1 and 2: the shared domain/data foundation and read-only Mac app. Swift 6 language mode,
 macOS 26 and iOS 26 minimums, no third-party packages. The installed Swift 6.4 toolchain
-builds this package. There is no UI or application target yet.
+builds this package. The Mac window follows variant B in `docs/design/mac.md`.
 
 ## Build and test
 
@@ -13,6 +13,7 @@ export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
 swift build --scratch-path .build
 swift test --scratch-path .build
+swift build --product PodListMac
 ```
 
 In an agent sandbox that cannot launch SwiftPM's nested sandbox, use:
@@ -27,6 +28,44 @@ swift test --scratch-path .build --disable-sandbox \
 The second form also keeps SwiftPM's configuration, security directory and manifest cache
 inside `.build/`. It disables SwiftPM's nested sandbox; the enclosing agent sandbox still
 applies. `.build/` and `.swiftpm/` are ignored by git.
+
+## Run the Mac app
+
+Start the repository's demo server from the repository root:
+
+```sh
+node packages/web/ui-flows/demo.mjs
+```
+
+It prints the server port. In a second terminal, from `apps/apple`, set the module-cache
+environment above and run:
+
+```sh
+swift run PodListMac
+```
+
+On Welcome, enter `http://127.0.0.1:PORT` with the printed port, then **Check and connect**.
+Other servers require an HTTPS origin; paths, credentials, queries and fragments are rejected.
+There is no application login. The app uses the existing URLSession transport and protocol
+Device kind `desktop`. The demo port must stay the same to reuse its connection after restart.
+
+Connection preferences and the remembered Inspector setting use UserDefaults. Local SQLite
+databases live under `~/Library/Application Support/PodList/`, separately for each server
+origin. Disconnect in Settings (⌘,) returns every window to Welcome, keeps that server's
+local data and Device identity, and never mixes it with another server. Reconnecting to the
+same origin reuses its database. Launch reads the local Library before background sync;
+startup, foreground, network recovery and periodic passes request sync. Failures preserve
+cached data and offer **Try again**. Multiple windows share the session and keep independent
+navigation, Search, sorting and Episode selections.
+
+The sidebar holds Views, Playlists (Active marked, then Trash), and Library. Views and Search
+show sortable Episode tables; Playlist Entries preserve order and mark the Cursor. Subscriptions
+are grouped by this Device's Download Rule and open a read-only Episode table. The Inspector
+(toolbar or ⌘⌥I) shows Artwork, facts, plain-text show notes and Playlist Positions. The player
+bar is visible only for the Active Playlist's current Entry, paused at its Position, with
+podcast and Episode names **above** the seek bar. Playback controls are disabled. App/File/
+Edit/View/Window/Help menus use standard SwiftUI commands, including Sidebar and Inspector
+visibility. There is no Xcode project or app bundle yet.
 
 ## Modules
 
@@ -52,6 +91,13 @@ applies. `.build/` and `.swiftpm/` are ignored by git.
 - **FeedParser** uses Foundation's streaming XML parser for RSS, enclosure and chapter-source
   metadata, publisher dates and durations. It rejects DTD/entity declarations and feeds over
   32 MiB measured as UTF-8 bytes.
+- **PodListUI** holds main-actor observable application/window models, immutable Sendable
+  Library projections, connection validation, and the SwiftUI screens. Domain and data stay
+  independent of SwiftUI. The Mac presentation is conditionally compiled; models can be reused
+  by the later iPhone/iPad targets. `LocalDatabase.readLibrary()` adds a consistent typed read
+  of State and Library without changing sync or domain behavior.
+- **PodListMac** is the minimal SwiftPM executable: `@main App`, WindowGroup, Settings and
+  Help scenes, and native commands. No third-party packages.
 - **ProtocolTestSupport** is an internal test helper target. Fixtures are found by walking
   upward from `#filePath` to `packages/domain/protocol`; no vectors are copied or bundled.
 
@@ -75,15 +121,18 @@ Episodes, malformed cursor progression, unresolved Subscriptions, failed-pull ac
 and Listening log deduplication across restart. Database tests cover durable sequences, atomic
 rollback, nested savepoints, schema drift and migration backfill over multiple batches.
 
-No shared vector needed changing. Tests use offline transports; live server networking has
-not been exercised.
+UI-model tests use in-memory SQLite and fake transports to cover sidebar counts, per-Device
+Download Rule groups, View rows/filtering/sorting, ordered Playlist Entries and Cursor,
+per-Entry Positions, player names/times/Artwork, pending metadata, plain-text show notes,
+connection validation, health errors, persistence, cached startup and offline retry.
+No shared vector needed changing. Tests use offline transports; live server networking and
+visual/VoiceOver behavior need a manual run on the Mac (the agent sandbox cannot launch it).
 
 ## Next
 
-Milestone 2 is the Mac window layout and read-only Library, Views and Playlists wired to sync.
-The owner is choosing between mock-ups; do not build UI before that choice. Platform lifecycle
-sync scheduling and reader notifications belong with that app integration. Audio playback,
-download execution, native menus, App Intents and the Mac MCP server remain later milestones.
+Milestone 3 adds audio playback, background audio, media keys, system Now Playing, downloads
+and Download Rule execution. Editing, full History/Listening Timeline/Rewind, Listening stats,
+the remaining native commands, App Intents and the Mac MCP server remain later milestones.
 Standalone feed polling, directory search, Subscribe/Unsubscribe, OPML, bringing a Library to a
 server, and publisher Chapter fetching are not ported in this foundation package; RSS parsing
 and the persistent schema are ready for that work. Android's UI/action helpers are not ported.
