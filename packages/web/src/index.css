@@ -243,3 +243,33 @@ input[type="search"]::-webkit-search-cancel-button {
     --sheet-rest-y: -50%;
   }
 }
+
+/* Selection marker (owner, 12 Nov 2026): a straight bar inset from the leading edge, with
+   the theme's tint behind it. Short on sidebar rows, nearly full height on Episode and
+   Entry rows. It replaces an inset shadow that bent around rounded corners. */
+.nav-select.active::before,
+.select-bar-tall::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 3px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  pointer-events: none;
+}
+.nav-select.active::before {
+  top: 50%;
+  height: 18px;
+  transform: translateY(-50%);
+}
+.select-bar-tall::before {
+  top: 8px;
+  bottom: 8px;
+}
+@media (forced-colors: active) {
+  .nav-select.active::before,
+  .select-bar-tall::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}

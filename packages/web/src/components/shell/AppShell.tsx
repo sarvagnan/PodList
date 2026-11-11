@@ -401,7 +401,7 @@ function Sidebar() {
     from !== null && (from === to || from.startsWith(`${to}/`)) ? " active" : ""
   // Rows keep their natural text height and scroll in short windows (WTYPE-02).
   const link =
-    "flex min-h-9 shrink-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold [&.active]:shadow-[inset_3px_0_0_var(--color-primary)]"
+    "nav-select relative flex min-h-9 shrink-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-row text-foreground hover:bg-secondary active:bg-input [&.active]:bg-accent [&.active]:font-semibold"
   // The section headings lead to their overviews (all Views, all Playlists), and show
   // as selected there.
   const heading =

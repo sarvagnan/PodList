@@ -490,7 +490,7 @@ function PlaylistDetail() {
                             }}
                             // Narrow for its text (a small phone, large text): the number column
                             // gives way, then the buttons stack beside the title (WTYPE-02).
-                            className={`@container relative flex items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer data-[popup-open]:bg-secondary ${opened ? "selected-row shadow-[inset_3px_0_0_var(--color-primary)]" : ""} ${current ? "bg-accent" : opened ? "bg-secondary" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
+                            className={`@container relative flex items-center gap-3 rounded-xl px-2 py-2.5 lg:cursor-pointer data-[popup-open]:bg-secondary ${opened ? "selected-row select-bar-tall" : ""} ${current ? "bg-accent" : opened ? "bg-secondary" : "lg:hover:bg-secondary/60"} ${sortable.dragging ? "bg-card shadow-lg" : ""}`}
                           />
                         }
                       >

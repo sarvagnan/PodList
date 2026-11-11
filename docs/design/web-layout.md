@@ -49,6 +49,10 @@ Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist
 - **Add** is one sheet: Search (Podcast Index), Feed address (resolved directly, no index needed), OPML.
 - **Unsubscribe:** asks for confirmation, then offers Undo in the toast and through Cmd/Ctrl+Z; Redo repeats it. Undo re-subscribes to the same feed. The server retains the Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices’ Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals these retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Downloads stay on their Devices.
 
+## Selection marker
+
+Owner, 12 Nov 2026: a selected sidebar item, an open Episode row and an open Entry use the theme's accent tint plus a straight 3 px bar in the primary colour, inset 3 px from the leading edge. The bar is a short pill (18 px) on sidebar rows and runs nearly the full height (8 px from top and bottom) on Episode and Entry rows. It replaces an inset shadow that bent around rounded corners. The tint and bar take their colours from the theme, so a future theme changes them with no other edits.
+
 ## Not yet designed
 
 Dark theme. Global Playback Settings (a Settings screen, pod-g1v.7).
