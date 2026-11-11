@@ -4,6 +4,7 @@ import { Clock, Effect, Layer, Queue, Schema, Stream, SubscriptionRef } from "ef
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import listeningContract from "../../../domain/protocol/listening.json"
+import { LocalDataLayer } from "../data/LocalDataLayer.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import {
   Player,
@@ -127,6 +128,7 @@ const withDevice = <A, E>(
       audioUrl: (id) => `/audio/${id}`,
       reportEveryMillis: options.reportEveryMillis ?? 0
     }).pipe(
+      Layer.provideMerge(LocalDataLayer),
       Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: "test" })),
       Layer.provideMerge(LocalDb.layerMemory),
       Layer.provideMerge(Reactivity.layer),

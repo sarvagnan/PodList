@@ -1,16 +1,13 @@
 import { type Operation, PlaybackSettings, Units } from "@podlist/domain"
 import { Effect, Layer, Stream, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
-import { SqlClient } from "effect/sql"
-import { DownloadRulesLive } from "../downloads/DownloadRules.ts"
+import { DataLayer } from "../data/DataLayer.ts"
+import { localClientLayer } from "../data/LocalClient.ts"
 import { Downloads } from "../downloads/Downloads.ts"
 import { artworkSrc } from "../lib/artwork.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
-import { DownloadStore } from "../platform/DownloadStore.ts"
-import * as LocalDb from "../platform/LocalDb.ts"
 import { Player } from "../platform/Player.ts"
 import { Playback, type SleepRequest } from "../playback/Playback.ts"
-import { SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
 
 // The app's Effect runtime: local database, server transport and sync engine, exposed to
@@ -46,13 +43,11 @@ const PlaybackLive = Layer.unwrap(
   })
 )
 
-export const AppLayer = Layer.merge(PlaybackLive, DownloadRulesLive).pipe(
-  Layer.provideMerge(Downloads.layer({ audioUrl })),
-  Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: deviceName() })),
-  Layer.provideMerge(LocalDb.layerWeb()),
-  Layer.provide(DownloadStore.layerWeb),
+// Milestone 1: both builds still select the local client.
+export const AppLayer = PlaybackLive.pipe(
+  Layer.provideMerge(localClientLayer({ defaults, deviceName: deviceName(), audioUrl })),
   Layer.provide(Player.layerWeb),
-  Layer.provideMerge(Transport.layerHttp(location.origin)),
+  Layer.provide(Transport.layerHttp(location.origin)),
   Layer.provideMerge(LibraryClient.layerHttp(location.origin))
 )
 
@@ -65,7 +60,7 @@ export const runtime = Atom.runtime(AppLayer)
 export const stateAtom = runtime.atom(
   Stream.unwrap(
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       return SubscriptionRef.changes(engine.state)
     })
   )
@@ -74,7 +69,7 @@ export const stateAtom = runtime.atom(
 export const syncStatusAtom = runtime.atom(
   Stream.unwrap(
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       return SubscriptionRef.changes(engine.status)
     })
   )
@@ -83,7 +78,7 @@ export const syncStatusAtom = runtime.atom(
 /** Mounted once at the root: keeps the Device in sync while the app is open. */
 export const backgroundSyncAtom = runtime.atom(
   Effect.gen(function* () {
-    const engine = yield* SyncEngine
+    const engine = yield* DataLayer
     yield* Effect.forkScoped(engine.runInBackground)
   })
 )
@@ -92,7 +87,7 @@ export const backgroundSyncAtom = runtime.atom(
 export const recordAtom = runtime.fn(
   (change: Operation.Change) =>
     Effect.gen(function* () {
-      const engine = yield* SyncEngine
+      const engine = yield* DataLayer
       yield* engine.record(change)
     }),
   // Quick edits (a View's conditions) must each be recorded, not cancel one another.
@@ -100,7 +95,7 @@ export const recordAtom = runtime.fn(
 )
 
 /** This Device's id: Download Rules are per Device. */
-export const deviceIdAtom = runtime.atom(Effect.map(SyncEngine, (engine) => engine.deviceId))
+export const deviceIdAtom = runtime.atom(Effect.map(DataLayer, (engine) => engine.deviceId))
 
 /** The loaded Entry and whether it is playing; null when nothing is queued. */
 export const nowPlayingAtom = runtime.atom(
@@ -143,15 +138,6 @@ export const playbackAtom = runtime.fn((command: Command) =>
     }
   })
 )
-
-/** Runs a read-only query against the local database. */
-export const queryAtom = <A>(run: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>) =>
-  runtime.atom(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      return yield* run(sql)
-    })
-  )
 
 /** Downloads on this Device, by Episode. */
 export const downloadsAtom = runtime.atom(
