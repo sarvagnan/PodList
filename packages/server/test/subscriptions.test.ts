@@ -1,17 +1,17 @@
 import { readFileSync } from "node:fs"
 import { assert, describe, it } from "@effect/vitest"
-import { PodListApi, Subscriptions as Api } from "@podlist/api"
+import { Subscriptions as Api, PodListApi } from "@podlist/api"
 import { Operation } from "@podlist/domain"
 import { Effect, Exit, Layer, Schema } from "effect"
 import { HttpClient, HttpClientResponse, HttpServer } from "effect/http"
 import { HttpApiTest } from "effect/http-api"
 import { SqlClient } from "effect/sql"
+import { Catalogue } from "../src/Catalogue.ts"
 import * as Database from "../src/Database.ts"
 import { SubscriptionsHandlers } from "../src/Http.ts"
 import { Library } from "../src/Library.ts"
-import { feedUrlsFromOpml, Subscriptions } from "../src/Subscriptions.ts"
-import { Catalogue } from "../src/Catalogue.ts"
 import { Poller } from "../src/Poller.ts"
+import { feedUrlsFromOpml, Subscriptions } from "../src/Subscriptions.ts"
 import { SyncStore } from "../src/SyncStore.ts"
 
 const xml = readFileSync(new URL("fixtures/night-shift.xml", import.meta.url), "utf8")
@@ -119,7 +119,7 @@ describe("Subscriptions", () => {
         })
         assert.strictEqual(feed.author, "Night Shift Media")
         assert.strictEqual(feed.artworkUrl, "https://example.test/podcast.jpg")
-        assert.include(feed.episodes[0]!.description, "1977")
+        assert.include(feed.episodes[0]?.description ?? "", "1977")
         assert.strictEqual((yield* client.subscriptions.list()).length, 0)
         const first = yield* client.subscriptions.bringEpisode({
           payload: new Api.BringEpisodeRequest({ feedUrl, guid: "ns-0212" })

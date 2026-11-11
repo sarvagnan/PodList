@@ -197,7 +197,9 @@ export class Subscriptions extends Context.Service<
             const [subscription] = yield* sql<{
               id: string
             }>`SELECT id FROM subscription WHERE feed_url = ${feedUrl}`
-            const subscriptionId = subscription!.id
+            if (!subscription)
+              return yield* Effect.die(new Error(`Subscription for ${feedUrl} was not stored`))
+            const subscriptionId = subscription.id
             yield* sql`INSERT INTO episode ${sql.insert({
               id: `ep_${randomUUID()}`,
               subscription_id: subscriptionId,
@@ -215,7 +217,8 @@ export class Subscriptions extends Context.Service<
             const [stored] = yield* sql<{
               id: string
             }>`SELECT id FROM episode WHERE subscription_id = ${subscriptionId} AND guid = ${guid}`
-            return new Api.BroughtEpisode({ subscriptionId, episodeId: stored!.id })
+            if (!stored) return yield* Effect.die(new Error(`Episode ${guid} was not stored`))
+            return new Api.BroughtEpisode({ subscriptionId, episodeId: stored.id })
           }).pipe(sql.withTransaction, Effect.orDie)
         })
 

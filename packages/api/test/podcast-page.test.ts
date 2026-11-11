@@ -2,8 +2,8 @@ import { describe, expect, it } from "@effect/vitest"
 import { Schema } from "effect"
 import { openApiDocument } from "../src/OpenApi.ts"
 import {
-  BroughtEpisode,
   BringEpisodeRequest,
+  BroughtEpisode,
   PodcastFeed,
   SubscribeRequest
 } from "../src/Subscriptions.ts"

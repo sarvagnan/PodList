@@ -13,6 +13,7 @@
       "!.claude",
       "!pnpm-workspace.yaml",
       "!pnpm-lock.yaml",
+      "!apps/android/app/src/androidTest/assets",
       "!**/*.md",
       "!**/routeTree.gen.ts"
     ]
