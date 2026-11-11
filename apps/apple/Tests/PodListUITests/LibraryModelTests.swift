@@ -109,7 +109,8 @@ func fixtureModel() async throws -> LibraryModel {
     let player = try #require(model.player)
     #expect(player.row.title == "Alpha")
     #expect(player.row.podcast == "Science")
-    #expect(player.row.artworkURL?.absoluteString == "https://example.com/chapter.png")
+    #expect(player.headingLines == ["Alpha", "Science"])
+    #expect(player.artworkURL?.absoluteString == "https://example.com/podcast.png")
     #expect(player.elapsed == "1:05")
     #expect(player.remaining == "−3:55")
     #expect(player.speed == 1.5)
@@ -123,6 +124,25 @@ func fixtureModel() async throws -> LibraryModel {
     let pending = LibraryModel(snapshot: .init(state: state, subscriptions: [], episodes: []), deviceID: "this")
     #expect(pending.player?.elapsed == "0:08")
     #expect(pending.player?.remaining == "—")
+}
+
+@Test func playerKeepsFullCentredHeadingsAndUsesPodcastArtworkOrInitials() throws {
+    let title = "The long life of a shipping container, and why every box is the same size"
+    var podcast = subscription(title: "Market Hours")
+    var current = episode(title: title)
+    current.artwork = Artwork(url: "https://example.com/episode.png")
+    func player() throws -> PlayerPresentation {
+        try #require(LibraryModel(snapshot: .init(state: fixtureState(), subscriptions: [podcast], episodes: [current]), deviceID: "this").player)
+    }
+    let withArtwork = try player()
+    // Each centred heading gets the entire middle width; only the view may truncate it.
+    #expect(withArtwork.headingLines == [title, "Market Hours"])
+    #expect(withArtwork.artworkURL?.absoluteString == "https://example.com/podcast.png")
+    podcast.artwork = nil
+    let placeholder = try player()
+    #expect(placeholder.artworkURL == nil)
+    #expect(Presentation.initials(placeholder.row.podcast) == "MH")
+    #expect(Presentation.initials("  Deep\tField\nPodcast ") == "DF")
 }
 
 @Test func notesArePlainTextAndViewConditionsAreReadable() async throws {

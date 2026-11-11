@@ -11,7 +11,7 @@ struct ArtworkView: SwiftUI.View {
         } placeholder: {
             ZStack {
                 Color.podListAccent.opacity(0.12)
-                Text(String(title.prefix(1)).uppercased()).font(.system(size: size * 0.4, weight: .medium)).foregroundStyle(Color.podListAccent)
+                Text(Presentation.initials(title)).font(.system(size: size * 0.34, weight: .medium)).foregroundStyle(Color.podListAccent)
             }
         }
         .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: min(12, size / 8)))
@@ -69,17 +69,18 @@ struct PlayerBar: SwiftUI.View {
         VStack(spacing: 0) {
             Divider()
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 18) {
+                HStack(alignment: .center, spacing: 18) {
                     transport
                     position.frame(minWidth: 220, maxWidth: .infinity)
                     extras
                 }
                 VStack(spacing: 10) {
-                    HStack(spacing: 14) { transport; position }
+                    HStack(alignment: .center, spacing: 14) { transport; position }
                     extras.frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .padding(.horizontal, 18).padding(.vertical, 12)
+            .padding(.horizontal, 18).padding(.vertical, 14)
+            .frame(minHeight: 92)
         }
         .background(.bar)
         .accessibilityElement(children: .contain)
@@ -87,7 +88,7 @@ struct PlayerBar: SwiftUI.View {
     }
     private var transport: some SwiftUI.View {
         HStack(spacing: 10) {
-            ArtworkView(url: player.row.artworkURL, title: player.row.title, size: 48)
+            ArtworkView(url: player.artworkURL, title: player.row.podcast, size: 48)
             playbackButton("Back 15 seconds", symbol: "gobackward.15")
             playbackButton("Play", symbol: "play.fill")
             playbackButton("Forward 30 seconds", symbol: "goforward.30")
@@ -99,18 +100,27 @@ struct PlayerBar: SwiftUI.View {
             .disabled(true).help("Playback comes later").accessibilityLabel(label + ", playback comes later")
     }
     private var position: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(player.row.podcast).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            Text(player.row.title).font(.headline).lineLimit(1).help(player.row.title)
-            Slider(value: .constant(player.fraction), in: 0...1)
-                .disabled(true).controlSize(.mini).help("Playback comes later")
-                .accessibilityLabel("Position").accessibilityValue("\(player.elapsed) elapsed, \(player.remaining) remaining")
-            HStack {
+        VStack(alignment: .center, spacing: 5) {
+            ForEach(Array(player.headingLines.enumerated()), id: \.offset) { index, text in
+                Text(text)
+                    .font(index == 0 ? .headline : .caption)
+                    .foregroundStyle(index == 0 ? Color.primary : Color.secondary)
+                    .lineLimit(1).truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center).help(text)
+                    .accessibilitySortPriority(Double(2 - index))
+            }
+            HStack(spacing: 10) {
                 Text(player.elapsed)
-                Spacer()
+                    .accessibilityHidden(true)
+                Slider(value: .constant(player.fraction), in: 0...1)
+                    .disabled(true).controlSize(.mini).help("Playback comes later")
+                    .accessibilityLabel("Position").accessibilityValue("\(player.elapsed) elapsed, \(player.remaining) remaining")
                 Text(player.remaining)
+                    .accessibilityHidden(true)
             }.font(.caption2).foregroundStyle(.secondary).monospacedDigit()
         }
+        .accessibilityElement(children: .contain)
     }
     private var extras: some SwiftUI.View {
         HStack(spacing: 16) {

@@ -52,10 +52,13 @@ public struct SubscriptionGroup: Identifiable, Sendable {
 
 public struct PlayerPresentation: Sendable {
     public let row: EpisodeRow
+    public let artworkURL: URL?
     public let playlistID: String
     public let playlistName: String
     public let entriesAfter: Int
     public let speed: Double
+    /// Full-width centred headings, in visual and VoiceOver order; the view truncates only when needed.
+    public var headingLines: [String] { [row.title, row.podcast] }
     public var elapsed: String { Presentation.time(row.position ?? 0) }
     public var remaining: String {
         row.episode?.duration.map { "−" + Presentation.time(max(0, $0 - (row.position ?? 0))) } ?? "—"
@@ -68,6 +71,10 @@ public struct PlayerPresentation: Sendable {
 }
 
 public enum Presentation {
+    public static func initials(_ title: String) -> String {
+        title.split(whereSeparator: { $0.isWhitespace }).prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
+    }
+
     public static func time(_ seconds: Double) -> String {
         guard seconds.isFinite else { return "—" }
         let total = Int(min(Double(Int.max / 2), max(0, seconds)))
@@ -184,15 +191,11 @@ public struct LibraryModel: Sendable {
         guard let playlist = state.playlists.first(where: { $0.id == state.activePlaylistId }),
               let index = playlist.entries.firstIndex(where: { $0.episodeId == playlist.cursor }) else { return nil }
         let entry = playlist.entries[index]
-        var row = row(entry.episodeId, entry: entry, cursor: playlist.cursor)
-        if let episode = row.episode,
-           let chapter = episode.chapters.last(where: { $0.start <= entry.position }), let artwork = chapter.artwork {
-            row = EpisodeRow(id: row.id, episode: row.episode, title: row.title, podcast: row.podcast,
-                artworkURL: URL(string: artwork.url), published: row.published, length: row.length, stateText: row.stateText,
-                position: row.position, isCursor: true, ordinal: nil)
-        }
-        let speed = row.episode.flatMap { subscriptionsByID[$0.subscriptionId]?.playbackSettings.speed } ?? state.playbackSettings.speed
-        return PlayerPresentation(row: row, playlistID: playlist.id, playlistName: playlist.name, entriesAfter: playlist.entries.count - index - 1, speed: speed)
+        let row = row(entry.episodeId, entry: entry, cursor: playlist.cursor)
+        let subscription = row.episode.flatMap { subscriptionsByID[$0.subscriptionId] }
+        let speed = subscription?.playbackSettings.speed ?? state.playbackSettings.speed
+        return PlayerPresentation(row: row, artworkURL: subscription?.artwork.flatMap { URL(string: $0.url) },
+            playlistID: playlist.id, playlistName: playlist.name, entriesAfter: playlist.entries.count - index - 1, speed: speed)
     }
     public func memberships(_ id: String) -> [(name: String, position: Double)] {
         state.playlists.compactMap { playlist in
