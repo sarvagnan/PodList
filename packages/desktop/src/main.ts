@@ -16,6 +16,8 @@ import {
   session,
   shell
 } from "electron"
+import type { ObjectValue } from "./automation/handler.ts"
+import { AutomationListener, endpoint } from "./automation/listener.ts"
 
 // The Mac app carries its own copy of the web app (ADR 0005), served from
 // app://podlist so it opens without the server. Requests for /api/… are passed on to
@@ -51,6 +53,7 @@ const webRoot = normalize(
 const configFile = () => join(app.getPath("userData"), "config.json")
 
 interface Config {
+  readonly mcpEnabled?: boolean
   readonly serverUrl?: string
   readonly bounds?: { x: number; y: number; width: number; height: number }
 }
@@ -66,6 +69,64 @@ const writeConfig = (config: Config) => writeFileSync(configFile(), JSON.stringi
 
 /** PODLIST_URL wins (development and tests), then the saved address. */
 const serverUrl = () => process.env.PODLIST_URL ?? readConfig().serverUrl
+
+const bridgeBinary = app.isPackaged
+  ? join(process.resourcesPath, process.platform === "win32" ? "podlist-mcp.exe" : "podlist-mcp")
+  : join(
+      import.meta.dirname,
+      "../build/mcp",
+      process.platform === "win32" ? "podlist-mcp.exe" : "podlist-mcp"
+    )
+let automationReady = false
+let nextCall = 0
+let quitting = false
+const calls = new Map<
+  number,
+  { contents: Electron.WebContents; resolve: (value: unknown) => void; reject: (e: Error) => void }
+>()
+const automation = new AutomationListener(
+  bridgeBinary,
+  app.getPath("userData"),
+  (name: string, args: ObjectValue) => {
+    const contents = window?.webContents
+    if (
+      !contents ||
+      contents.isDestroyed() ||
+      !automationReady ||
+      !contents.getURL().startsWith(`${appOrigin}/`)
+    )
+      return Promise.reject(new Error("Open a Library in PodList first."))
+    return new Promise((resolve, reject) => {
+      const id = ++nextCall
+      const timer = setTimeout(() => {
+        calls.delete(id)
+        reject(new Error("PodList did not finish the action. Check the app before retrying."))
+      }, 30000)
+      calls.set(id, {
+        contents,
+        resolve: (value) => {
+          clearTimeout(timer)
+          resolve(value)
+        },
+        reject: (e) => {
+          clearTimeout(timer)
+          reject(e)
+        }
+      })
+      contents.send("podlist:automation-call", id, name, args)
+    })
+  }
+)
+const automationStatus = () => ({
+  enabled: readConfig().mcpEnabled === true,
+  error: automation.error,
+  command: `${JSON.stringify(bridgeBinary)} --socket ${JSON.stringify(endpoint(app.getPath("userData")))}`,
+  configuration: automation.configuration
+})
+const trustedAutomation = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) =>
+  event.sender === window?.webContents &&
+  event.senderFrame === event.sender.mainFrame &&
+  event.sender.getURL().startsWith(`${appOrigin}/`)
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -370,6 +431,16 @@ const createWindow = () => {
     }
   })
   window = win
+  automationReady = false
+  win.webContents.on("did-start-navigation", (_event, _url, _inPlace, mainFrame) => {
+    if (!mainFrame) return
+    automationReady = false
+    for (const [id, call] of calls)
+      if (call.contents === win.webContents) {
+        call.reject(new Error("The Library changed. Retry the action."))
+        calls.delete(id)
+      }
+  })
   win.once("ready-to-show", () => win.show())
   // A Mac window is titled by what it shows, without the app's name (the page's tab title
   // ends "· PodList", which a browser tab needs and a window doesn't).
@@ -377,7 +448,11 @@ const createWindow = () => {
     event.preventDefault()
     win.setTitle(title.replace(/ · PodList$/, "") || "PodList")
   })
-  win.on("close", () => {
+  win.on("close", (event) => {
+    if (!quitting && readConfig().mcpEnabled === true) {
+      event.preventDefault()
+      win.hide()
+    }
     if (window === win) writeConfig({ ...readConfig(), bounds: win.getBounds() })
   })
 
@@ -640,9 +715,40 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on("second-instance", () => {
     if (window?.isMinimized()) window.restore()
+    window?.show()
     window?.focus()
   })
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    ipcMain.handle("podlist:automation-status", (event) => {
+      if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
+      return automationStatus()
+    })
+    ipcMain.handle("podlist:automation-enabled", async (event, enabled: unknown) => {
+      if (!trustedAutomation(event) || typeof enabled !== "boolean")
+        throw new Error("Invalid MCP setting.")
+      writeConfig({ ...readConfig(), mcpEnabled: enabled })
+      try {
+        await automation.setEnabled(enabled)
+      } catch (e) {
+        automation.error = e instanceof Error ? e.message : String(e)
+      }
+      return automationStatus()
+    })
+    ipcMain.on("podlist:automation-ready", (event, ready: unknown) => {
+      if (trustedAutomation(event)) automationReady = ready === true
+    })
+    ipcMain.on("podlist:automation-reply", (event, id: number, value: unknown, error: unknown) => {
+      const call = calls.get(id)
+      if (!trustedAutomation(event) || !call || call.contents !== event.sender) return
+      calls.delete(id)
+      if (typeof error === "string") call.reject(new Error(error))
+      else call.resolve(value)
+    })
+    try {
+      await automation.setEnabled(readConfig().mcpEnabled === true)
+    } catch (e) {
+      automation.error = e instanceof Error ? e.message : String(e)
+    }
     Menu.setApplicationMenu(Menu.buildFromTemplate(menu()))
     ipcMain.handle("podlist:connect", (_event, address: string) => connect(address))
     ipcMain.handle("podlist:server", () => serverUrl() ?? null)
@@ -656,9 +762,19 @@ if (!app.requestSingleInstanceLock()) {
     createWindow()
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      else window?.show()
     })
   })
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit()
   })
 }
+
+app.on("before-quit", (event) => {
+  if (quitting) return
+  event.preventDefault()
+  quitting = true
+  for (const call of calls.values()) call.reject(new Error("PodList is quitting."))
+  calls.clear()
+  void automation.stop().finally(() => app.quit())
+})

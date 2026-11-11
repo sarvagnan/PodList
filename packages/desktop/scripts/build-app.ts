@@ -1,6 +1,6 @@
-// Builds PodList.app for this Mac, unsigned, and with --install puts it in
-// /Applications. A locally built app carries no quarantine flag, so Gatekeeper lets
-// it open (ADR 0005). Run through `pnpm desktop:install` from the repo root.
+import { buildMCP } from "./build-mcp.ts"
+// Builds an unsigned app for the host OS and architecture. On macOS --install
+// copies PodList.app to /Applications. It carries no quarantine flag (ADR 0005).
 
 import { execFileSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs"
@@ -43,7 +43,8 @@ execFileSync("pnpm", ["--filter", "@podlist/web", "build", "--mode", "desktop"],
 })
 const web = join(build, "web")
 cpSync(join(root, "../web/dist-desktop"), web, { recursive: true })
-const icon = await makeIcon()
+const icon = process.platform === "darwin" ? await makeIcon() : undefined
+const bridge = buildMCP(join(build, "mcp"))
 const electronVersion = JSON.parse(
   readFileSync(join(root, "node_modules/electron/package.json"), "utf8")
 ).version as string
@@ -54,22 +55,31 @@ const [appDir] = await packager({
   name: "PodList",
   appBundleId: "app.podlist.desktop",
   appCategoryType: "public.app-category.music",
-  platform: "darwin",
+  platform: process.platform as "darwin" | "linux" | "win32",
   arch: process.arch === "arm64" ? "arm64" : "x64",
   electronVersion,
-  icon,
+  ...(icon ? { icon } : {}),
   asar: true,
   // Served by the app from Contents/Resources/web.
-  extraResource: [web],
+  extraResource: [web, bridge],
   // The shell has no runtime dependencies: ship only its source.
-  ignore: [/^\/(node_modules|out|scripts|test)(\/|$)/, /^\/(playwright\.config|tsconfig)/],
+  ignore: [
+    /^\/(node_modules|out|build|native|scripts|test)(\/|$)/,
+    /^\/((playwright|vitest)\.config|tsconfig)/,
+    /\.test\.ts$/,
+    /__snapshots__/
+  ],
   prune: false,
   overwrite: true
 })
-const app = join(appDir ?? "", "PodList.app")
+const app = process.platform === "darwin" ? join(appDir ?? "", "PodList.app") : (appDir ?? "")
 console.log(`Built ${app}`)
 
 if (process.argv.includes("--install")) {
+  if (process.platform !== "darwin")
+    throw new Error(
+      "--install is only supported on macOS. Use the packaged app directory on this platform."
+    )
   const target = "/Applications/PodList.app"
   if (existsSync(target)) rmSync(target, { recursive: true, force: true })
   cpSync(app, target, { recursive: true, verbatimSymlinks: true })

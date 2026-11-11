@@ -4,7 +4,7 @@ import { episodeActionAtom } from "../../app/episodeActions.ts"
 import type { EpisodeAction } from "../../lib/episodeActions.ts"
 import { useConfirm } from "../feedback/useConfirm.ts"
 
-/** Runs an Episode action, then confirms it with an Undo. Play Now confirms itself. */
+/** Runs an Episode action, then confirms it with an Undo. */
 export function useEpisodeActions() {
   const run = useAtomSet(episodeActionAtom, { mode: "promise" })
   const confirm = useConfirm()
@@ -12,15 +12,14 @@ export function useEpisodeActions() {
     async (action: EpisodeAction) => {
       const outcome = await run(action)
       // Undo brings the Episode's row back (or keeps it): focus goes to its title.
-      if (action._tag !== "PlayNow")
-        confirm(
-          outcome,
-          () => run(action),
-          () =>
-            document.querySelector<HTMLElement>(
-              `[data-sheet="drawer"] [data-episode-title="${action.episodeId}"]`
-            ) ?? document.querySelector<HTMLElement>(`[data-episode-title="${action.episodeId}"]`)
-        )
+      confirm(
+        outcome,
+        () => run(action),
+        () =>
+          document.querySelector<HTMLElement>(
+            `[data-sheet="drawer"] [data-episode-title="${action.episodeId}"]`
+          ) ?? document.querySelector<HTMLElement>(`[data-episode-title="${action.episodeId}"]`)
+      )
     },
     [run, confirm]
   )

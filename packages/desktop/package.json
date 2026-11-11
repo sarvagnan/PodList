@@ -6,9 +6,10 @@
   "type": "module",
   "main": "src/main.ts",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/build-mcp.ts && electron .",
     "typecheck": "tsc -p tsconfig.json",
-    "test:app": "playwright test",
+    "test:app": "node scripts/build-mcp.ts && playwright test",
+    "build:mcp": "node scripts/build-mcp.ts",
     "build:app": "node scripts/build-app.ts",
     "install:app": "node scripts/build-app.ts --install"
   },
