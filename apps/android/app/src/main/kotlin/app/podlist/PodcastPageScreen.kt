@@ -297,27 +297,28 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     if (!armed) ActionIcon(R.drawable.ic_settings, stringResource(R.string.m4_subscription_settings), enabled = !busy && !changingSubscription && id != null) { openPage("subscription-settings:$id") }
                     val label = if (changingSubscription) stringResource(R.string.subscribing) else if (armed) stringResource(R.string.unsubscribe) else stringResource(R.string.podcast_subscribed_unsubscribe, title)
                     val armedAnnouncement = stringResource(R.string.podcast_unsubscribe_armed, title)
+                    val subscriptionEnabled = !busy && !changingSubscription
+                    val subscriptionAction: () -> Unit = {
+                        val now = SystemClock.uptimeMillis()
+                        if (confirmation.canConfirm(now, ViewConfiguration.getDoubleTapTimeout().toLong())) {
+                            confirmation = confirmation.disarm()
+                            changeSubscription(true)
+                        } else if (!confirmation.isArmedAt(now)) {
+                            val timeout = accessibility.getRecommendedTimeoutMillis(5_000,
+                                AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_TEXT)
+                            confirmation = confirmation.arm(now, timeout.toLong())
+                        }
+                    }
                     // The check and pending spinner share a 48 dp slot. Only the deliberate armed action expands.
                     ActionTooltip(label) {
-                        TextButton(onClick = {
-                            val now = SystemClock.uptimeMillis()
-                            if (confirmation.canConfirm(now, ViewConfiguration.getDoubleTapTimeout().toLong())) {
-                                confirmation = confirmation.disarm()
-                                changeSubscription(true)
-                            } else if (!confirmation.isArmedAt(now)) {
-                                val timeout = accessibility.getRecommendedTimeoutMillis(5_000,
-                                    AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_TEXT)
-                                confirmation = confirmation.arm(now, timeout.toLong())
-                            }
-                        }, enabled = !busy && !changingSubscription, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        TextButton(onClick = subscriptionAction, enabled = subscriptionEnabled, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                             contentPadding = PaddingValues(horizontal = if (armed) 12.dp else 0.dp),
                             modifier = Modifier.widthIn(min = if (armed) 96.dp else 48.dp).then(if (armed) Modifier else Modifier.width(48.dp))
                                 .heightIn(min = 48.dp).onGloballyPositioned { controlBounds = it.boundsInWindow() }.then(flowSlot("podcast-subscription"))
                                 .semantics {
-                                    contentDescription = label
                                     if (armed) stateDescription = armedAnnouncement
                                     liveRegion = LiveRegionMode.Polite
-                                }) {
+                                }.iconControlSemantics(label, subscriptionEnabled, subscriptionAction)) {
                             Box(contentAlignment = Alignment.Center) {
                                 // The right edge stays anchored beside overflow; the armed label grows left over the hidden gear.
                                 if (armed && !changingSubscription) Text(stringResource(R.string.unsubscribe), Modifier.clearAndSetSemantics {})
