@@ -3,6 +3,7 @@ import SwiftUI
 
 struct WelcomeView: SwiftUI.View {
     @Bindable var app: ApplicationModel
+    @AppStorage("PodList.serverDraft") private var serverDraft = ""
     @FocusState private var addressFocused: Bool
     var body: some SwiftUI.View {
         ScrollView {
@@ -29,11 +30,12 @@ struct WelcomeView: SwiftUI.View {
                     if app.connecting { ProgressView().controlSize(.small).accessibilityLabel("Checking server") }
                 }
                 Divider().padding(.vertical, 8)
-                Text("Standalone Device · Coming later").foregroundStyle(.secondary)
-                Text("Start on this Mac without a server in a later milestone.").font(.caption).foregroundStyle(.secondary)
+                Button("Start on this Mac") { Task { await app.startStandalone() } }
+                    .disabled(app.connecting).accessibilityHint("Start as a Standalone Device, with no server")
             }.frame(maxWidth: 470, alignment: .leading).padding(40).frame(maxWidth: .infinity)
         }
-        .onAppear { addressFocused = true }
+        .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft }; addressFocused = true }
+        .onChange(of: app.serverInput) { _, text in serverDraft = text }
     }
     private func connect() {
         guard !app.connecting, !app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -45,18 +47,7 @@ public struct PodListSettings: SwiftUI.View {
     @Bindable private var app: ApplicationModel
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
-        Form {
-            Section("This Device") {
-                if let origin = app.origin {
-                    LabeledContent("Server address") { Text(origin).textSelection(.enabled) }
-                    Text("A separate local Library is kept for each server.").font(.caption).foregroundStyle(.secondary)
-                    Button("Disconnect") { app.disconnect() }.accessibilityLabel("Disconnect from server")
-                } else {
-                    Text("No server connected. Connect from the Welcome window.").foregroundStyle(.secondary)
-                }
-            }
-        }
-        .formStyle(.grouped).frame(width: 520, height: 220).tint(.podListAccent)
+        LibrarySettingsScreen(app: app)
     }
 }
 

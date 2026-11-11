@@ -8,7 +8,7 @@ struct PodListMac: App {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        WindowGroup("PodList") {
+        WindowGroup("PodList", id: "library") {
             PodListWindow(app: model)
                 .onAppear { delegate.model = model }
         }
@@ -16,6 +16,7 @@ struct PodListMac: App {
         .commands {
             SidebarCommands()
             PodListCommands()
+            LibraryCommands(app: model)
             PlaybackCommands(app: model)
             PlaylistEditingCommands(app: model)
             CommandGroup(replacing: .help) {
@@ -23,6 +24,7 @@ struct PodListMac: App {
             }
         }
         Settings { PodListSettings(app: model) }
+        Window("Listening stats", id: "listening-stats") { ListeningStatsScreen(app: model) }
         Window("PodList Help", id: "help") { PodListHelp() }
             .windowResizability(.contentSize)
     }

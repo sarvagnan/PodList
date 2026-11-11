@@ -1,6 +1,6 @@
 # PodList Apple
 
-Phase 2, milestones 1–4a: shared domain/data, the Mac Library, playback, downloads and Playlist editing. Swift 6 language mode,
+Phase 2, milestones 1–4: shared domain/data, the Mac Library, playback, downloads, Playlist editing, Library, Views and Settings. Swift 6 language mode,
 macOS 26 and iOS 26 minimums, no third-party packages. The installed Swift 6.4 toolchain
 builds this package. The Mac window follows variant B in `docs/design/mac.md`.
 
@@ -200,15 +200,49 @@ restart ownership, Library invalidations and offline ID3 Chapters.
 No shared vector needed changing. Tests use offline transports; live server networking and
 visual/VoiceOver behavior need a manual run on the Mac (the agent sandbox cannot launch it).
 
-## Next
+## Library, Views and Settings (milestone 4b)
 
-Milestone 3 is implemented; live platform validation is pending the owner's Mac run.
-Editing, full History/Listening Timeline/Rewind, Listening stats,
-the remaining native commands, App Intents and the Mac MCP server remain later milestones.
-Standalone feed polling, directory search, Subscribe/Unsubscribe, OPML, bringing a Library to a
-server remain later work. RSS parsing and the persistent schema are ready for that work.
-Saved Playback Settings are consumed here; their global/Subscription editing UI remains with
-the remaining settings screens in milestone 4.
+Welcome offers **Start on this Mac**, which uses a persistent Standalone Device database and
+publisher feeds without a server. A restarted Standalone Device reuses its Device identity,
+State and cached metadata. Feed refresh runs at startup, foreground/network recovery and
+periodically while the app runs. Streaming and downloads use publisher audio; there is no
+server fallback on a Standalone Device. New Libraries get three starter Views once and a
+skippable Getting started checklist on Views; Settings can reopen the completed checklist.
+
+Use the Library sidebar + or File ▸ Add Podcasts… (⌘⇧A) for one name/feed-address field.
+Standalone directory search uses Apple's public directory; server connections use the existing
+server endpoints. Open a result for its Podcast page in the content column, with Artwork,
+author, description, Search Episodes and Add/Play actions before subscribing. Reading a feed
+alone does not add metadata to the Library; adding/playing one Episode retains only that
+Episode, using the same feed/guid identity when subscribing later. Cached Podcast pages remain
+usable without networking. Subscribe leaves Add podcasts open and preserves the field.
+The green Subscribed control arms Unsubscribe for four seconds on its first click and
+unsubscribes on its second, with Undo/Redo and no dialog, staying on the page. Settings opens
+Played threshold, inherited Playback Settings overrides and this Device's Download Rule.
+
+Views have New View (⌘N), Edit View, every condition in one form, Sort, Show, a live count,
+explicit Rename/Cancel/Save and Delete with Undo. Condition edits are recorded as made;
+invalid numeric drafts remain visible across reopening and restart. Names are checked in the
+database actor, ignoring case and surrounding whitespace, including races between windows.
+Search Library (⌘F) reports its count and offers inline Create View with a name. Add-podcast,
+Search, New View, Rename and numeric-setting drafts are scoped to their Library and persisted.
+View and subscription changes register with the key window's native Undo manager; inline
+Undo/Redo also expose retry after a failed network action. Part 4a's editing integration can
+use `LibraryEditingModel` alongside its Episode/Playlist undo history.
+
+Settings (⌘,) edits saved Playback Settings, Trash retention, Appearance and the server
+connection. OPML import/export is in Settings and File, using native panels. Imports report
+progress, already subscribed feeds and per-feed failures; Retry failed imports preserves
+successful work. Window ▸ Listening stats shows Monday-based weekly, monthly and all-time
+totals, playback-source Episodes finished from retained metadata, streak, top podcasts and a
+30-day chart with a table alternative.
+
+`LibraryEditingTests`, `PodcastLibraryTests` and `ListeningStatsTests` cover these flows using
+in-memory databases and fake publisher/server transports. Native window layout, keyboard
+routing, panels, VoiceOver and live publisher requests still need a manual Mac run; the
+agent sandbox cannot launch the app. Bringing an existing Standalone Library over to a server
+is deferred: connecting currently opens that server's separate Library and keeps the local
+one intact. Disconnect and choose Start on this Mac to return to it.
 
 ## Playlist editing (milestone 4a)
 
@@ -237,3 +271,9 @@ The session-wide domain edit history uses new protocol Operations; a failed reve
 available to retry. Sync and playback reports do not create Undo steps. Edits flush playback
 reporting before capturing inverses, and leave unrelated playing audio and transient speed
 alone. Quitting keeps form drafts; the Undo stack lasts for the current connection session.
+
+## Next
+
+App Intents, the Mac MCP server, app-bundle packaging/signing, conditional feed polling and the
+resumable Standalone-to-server bring-over flow remain later work (Beads `pod-apx.5.7` and
+`pod-apx.5.6`). Live platform validation of milestones 2–4 is pending the owner's Mac run.
