@@ -1,5 +1,4 @@
 import { Effect, Layer, SubscriptionRef } from "effect"
-import type { ReactNode } from "react"
 import { type DownloadStatus, Downloads } from "../downloads/DownloadService.ts"
 import { serverDataLayer } from "./ServerDataLayer.ts"
 
@@ -24,4 +23,4 @@ export const clientLayer = (
       )
     )
   )
-export const ClientGate = ({ children }: { readonly children: ReactNode }) => <>{children}</>
+export { PwaUpgradeGate as ClientGate } from "../upgrade/PwaUpgradeGate.tsx"

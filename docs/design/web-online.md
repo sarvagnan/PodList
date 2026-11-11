@@ -2,7 +2,7 @@
 
 Phase 4 of [the platform plan](../plans/platform-clients.md), under `pod-apx.2`.
 [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md) sets the split.
-Milestones 1–3 are implemented. Web uses server reads and in-memory pending edits.
+Milestones 1–4 are implemented. Web uses server reads and in-memory pending edits.
 Electron keeps local SQLite. This change has not been deployed.
 
 ## Seam
@@ -136,8 +136,9 @@ The web adapter keeps optimistic edits in memory while the tab is open. `record`
 accepts the edit; status tracks delivery. Failed edits show Pending and Retry. New
 user edits are disabled while known offline. There is no durable outbox. A
 `beforeunload` warning protects departures with unsent edits. Leaving still drops
-them. The web typed-edit journal records directly into this memory. It does not
-replay the old browser journal. Electron still persists before returning.
+them. Normal web typed edits record directly into this memory. The startup
+carry-over recovers the old browser journal before the online app opens.
+Electron still persists before returning.
 
 Playback keeps the shared Position, Played and Listening rules. A web report is
 accepted into tab memory before its measured amounts are cleared. Reports can keep
@@ -150,20 +151,76 @@ flushes. Other Devices stay independent. The web tab lock is removed.
 
 ## Build split
 
-Vite selects `WebClient` for web and `DesktopClient` for `--mode desktop`. The web
-bundle excludes the SQLite worker, OPFS downloads, Download Rules and `TabGate`.
+Vite selects `WebClient` for web and `DesktopClient` for `--mode desktop`. Normal web
+startup excludes SQLite, OPFS downloads, Download Rules and `TabGate`. Returning
+PWA profiles lazy-load SQLite solely for the one-time carry-over described below.
 Download controls and offline promises are hidden. Icons and navigation stay.
 There is no install manifest, precache or service worker registration. A retirement
-script at the old `/sw.js` path unregisters old workers, clears app caches and
-reloads their pages. The new entry point also clears old workers and app caches.
+script at the old `/sw.js` path waits for existing controlled pages to close, then
+takes control without a fetch handler. The next launch reaches the online build.
+It deliberately omits `skipWaiting`: the old Vite PWA `autoUpdate` listener would
+otherwise reload live pages on activation. It does not reload pages or delete caches:
+an old page may still hold unreported playback in memory. The new startup gate
+unregisters the old worker and clears app caches after safe carry-over, including
+profiles with no old database.
 
 Electron keeps the React screens, `LocalClient`, SQLite, downloads and sync.
 Its private `app://podlist` origin and server bridge stay. Keep its database lock
-while its OPFS database needs one. Select adapters at build time so web excludes
-local code. Desktop output is `packages/web/dist-desktop`; web output stays
-`packages/web/dist`. The desktop packaging script selects its own build.
+while its OPFS database needs one. Select adapters at build time; web only loads
+the local database reader when recovering an old installation. Desktop output is
+`packages/web/dist-desktop`; web output stays `packages/web/dist`. The desktop
+packaging script selects its own build.
 
 Decided (standing rule): every deployment needs owner approval. No deploy was run.
+
+## PWA carry-over before the online app opens
+
+`src/upgrade/PwaCarryOver.ts` detects the old `podlist.db` using the actual
+AccessHandlePoolVFS headers in the same origin's OPFS `opfs` directory. It never
+opens a missing database to probe for one. Under the old `podlist-local-database`
+Web Lock, it opens SQLite without starting the old app or running migrations.
+Another live PWA must close normally first; the gate does not steal its lock or
+force a reload. New tabs queue behind a separate carry-over lock before claiming
+the old database lock, so only one recovers at once and simultaneous fresh loads
+do not incorrectly report another PWA as open.
+
+It reads `outbox ORDER BY seq`, preserving each Operation's id, Device id, sequence,
+timestamp and change. Persisted ReportPosition and RecordListening entries are
+Operations in this outbox, not separate unsent tables. Confirmed/optimistic State,
+History, Timeline and Listening totals must never be converted back into reports:
+that would count synced listening twice. The old typed-edit localStorage journal
+is staged into the outbox transactionally with its stable entry ids and the old
+Device's next sequences before pushing. Corrupt/unreadable data blocks the gate
+and remains available for recovery.
+
+Pushes use the existing `Transport.push` path in batches of 100. They remain
+attributed to the old `pwa` Device even though normal online edits use the new
+profile `web` Device. Protocol v4 permits this: the tailnet authenticates requests,
+the Operation supplies its Device id, and SyncStore deduplicates by Operation id,
+without binding a browser session to a Device or rejecting an old sequence.
+An unregistered legacy Device is registered as `pwa` before its first push.
+
+Only an explicit `acknowledged` id for every Operation in a batch advances a durable
+carry-over cursor. A server that omits these ids must be upgraded before retirement;
+`accepted: 0` alone does not authorize deleting data. A lost response resends the
+same ids, so the server skips already committed Listening amounts. Acknowledged
+prefixes are skipped on reload. The complete original outbox remains in SQLite
+until every batch is acknowledged and a durable completion marker is saved.
+Then the reader closes, the old DB and its sidecar files are removed, the root
+service worker is unregistered, and `artwork`/`workbox-*` caches are cleared.
+Cleanup failures also retry, using the durable acknowledgement cursor without
+pushing acknowledged Operations again, while still checking for new old-PWA edits.
+Other databases, registrations and caches are left alone. Legacy audio downloads
+are not imported into the online player.
+
+The gate shows “Sending N changes saved by the previous version…” and blocks new
+edits/playback until recovery finishes. Failure preserves unsent data, displays
+Retry, retries when connectivity returns, and resumes on the next page load.
+Position and Listening amounts still held only in the old page's JS memory have
+never reached SQLite and cannot be recovered after it closes/crashes. Before an
+approved cutover, pause playback in the old PWA while online, wait for sync, and
+confirm its outbox is empty, then close all old tabs/installed windows and reopen.
+This is a belt-and-braces check, not a replacement for the carry-over.
 
 ## Milestones
 
@@ -190,7 +247,18 @@ Decided (standing rule): every deployment needs owner approval. No deploy was ru
    JavaScript and JSON files pass Biome. `git diff --check` passes.
    Local dependency copies and local-listener access were needed for these checks.
    No requested check remains blocked.
-4. Run approved rollout checks against the real proxy and returning installed PWAs.
-   Check legacy unsent PWA edits before cutover. Old SQLite files are left intact;
-   the web adapter does not import their outbox or downloads. Obtain owner approval
-   for deployment. No new product decision is needed for this implementation.
+4. Implemented: resumable acknowledged legacy outbox/Position/Listening carry-over,
+   typed-edit journal recovery and deferred database/worker/cache retirement.
+   Browser tests exercise real OPFS recovery, interrupted/lost-response retries,
+   retained data on failure, missing databases, empty outboxes and worker cleanup.
+5. Still before PWA retirement: run approved rollout checks through the real HTTPS
+   proxy on returning installed PWAs, including an intentionally pending outbox,
+   an interrupted upload and a second launch. Verify the deployed server returns
+   committed-id acknowledgements, the old Device remains the source of recovered
+   edits, Listening is counted once, OPFS is removed only after acknowledgement,
+   and the old worker/caches disappear even for an empty outbox. First open the old
+   PWA online, pause and verify an empty outbox on the real user device. Confirm a
+   still-open old tab shows the close-and-retry gate rather than being reloaded.
+   Test on the exact same origin (scheme/host/port); another origin cannot read
+   browser storage. Obtain owner deployment approval. No further product decision
+   is required; real-device rollout validation and deployment approval need an owner.

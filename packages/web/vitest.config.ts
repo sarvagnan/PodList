@@ -22,5 +22,8 @@ export default defineProject({
     alias: { "#client": new URL("./src/data/DesktopClient.tsx", import.meta.url).pathname }
   },
   worker: { format: "es" },
-  optimizeDeps: { exclude: ["@effect/wa-sqlite", "@effect/sql-sqlite-wasm"] }
+  optimizeDeps: {
+    include: ["react/jsx-dev-runtime"],
+    exclude: ["@effect/wa-sqlite", "@effect/sql-sqlite-wasm"]
+  }
 })
