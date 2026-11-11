@@ -69,4 +69,22 @@ class DeviceSettingsStoreTest {
         assertEquals(Appearance.System, DeviceSettingsStore(file).appearance)
         assertEquals("https://kept.example", DeviceSettingsStore(file).serverAddressDraft)
     }
+    @Test fun `server draft discard retains exact address and caret through cold reopen Undo and Redo`() {
+        val expected = ServerDraft("  https://例.example/unfinished  ", "10,18")
+        val store = DeviceSettingsStore(file)
+        store.appearance = Appearance.Dark
+        store.replaceServerDraft(expected)
+        val removed = store.replaceServerDraft(ServerDraft(null, null))
+        assertEquals(expected, removed)
+        val reopened = DeviceSettingsStore(file)
+        assertEquals(ServerDraft(null, null), reopened.serverDraft())
+        assertEquals(expected, reopened.retainedServerDraft())
+        val redo = reopened.replaceServerDraft(reopened.retainedServerDraft()!!)
+        assertEquals(expected, DeviceSettingsStore(file).serverDraft())
+        reopened.replaceServerDraft(redo)
+        assertEquals(expected, DeviceSettingsStore(file).retainedServerDraft())
+        assertEquals(ServerDraft(null, null), DeviceSettingsStore(file).serverDraft())
+        assertEquals(Appearance.Dark, DeviceSettingsStore(file).appearance)
+    }
+
 }

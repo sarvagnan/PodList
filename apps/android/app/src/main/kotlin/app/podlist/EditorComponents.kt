@@ -43,13 +43,13 @@ internal fun ValueRow(label: String, value: String, changed: Boolean = false, he
 // Single-field forms commit directly beneath their field; sheets and multi-field forms may pin this region.
 // The primary commit is trailing and filled; secondary actions are text. Actions wrap before they crowd.
 @Composable
-internal fun CommitActions(modifier: Modifier = Modifier, content: @Composable FlowRowScope.() -> Unit) {
+internal fun CommitActions(modifier: Modifier = Modifier, gap: androidx.compose.ui.unit.Dp = 12.dp, content: @Composable FlowRowScope.() -> Unit) {
     val local = LocalSheetSnackbar.current
     Column(modifier.fillMaxWidth()) {
         // Reserve real space above the actions. An overlay padded only by the action height
         // still covers the final option/field, especially when text is enlarged.
         if (local?.snackbar?.currentSnackbarData != null) FeedbackSnackbarHost(local.snackbar)
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap, Alignment.End),
             verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
@@ -96,9 +96,10 @@ internal fun PodListTopAppBar(
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
     scrollBehavior: TopAppBarScrollBehavior? = null,
-    separateActions: Boolean = true
+    separateActions: Boolean = true,
+    titleVisible: Boolean = true
 ) {
-    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f && separateActions) {
+    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f && separateActions && titleVisible) {
         val colors = TopAppBarDefaults.topAppBarColors()
         val fraction = scrollBehavior?.state?.overlappedFraction ?: 0f
         val container = androidx.compose.ui.graphics.lerp(colors.containerColor, colors.scrolledContainerColor,
@@ -116,7 +117,7 @@ internal fun PodListTopAppBar(
         }
     } else TopAppBar(title = title, modifier = modifier, navigationIcon = navigationIcon,
         actions = actions, scrollBehavior = scrollBehavior,
-        expandedHeight = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) with(androidx.compose.ui.platform.LocalDensity.current) { 56.sp.toDp() + 16.dp } else 64.dp)
+        expandedHeight = if (titleVisible && androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) with(androidx.compose.ui.platform.LocalDensity.current) { 56.sp.toDp() + 16.dp } else 64.dp)
 }
 
 /** Quiet, inset separators keep adjacent list rows distinct without heavy rules. */
@@ -169,7 +170,7 @@ internal fun NumberField(label: String, value: Double?, integer: Boolean = false
     val model = LocalAppModel.current
     val currentValid by rememberUpdatedState(valid)
     DisposableEffect(Unit) { onDispose { if (!currentValid) model.messages.trySend(AppMessage(R.string.invalid_number_not_applied)) } }
-    var fieldValue by rememberFieldValue(text)
+    var fieldValue by rememberDraftFieldValue(key, text)
     OutlinedTextField(fieldValue, { fieldValue = it; text = it.text; val n = NumberInput.parse(it.text); if (it.text.isBlank()) changed(null) else if (n != null && n.isFinite() && n >= minimum && (!integer || n % 1 == 0.0 && n <= Int.MAX_VALUE)) changed(n) },
         label = { Text(label) }, placeholder = { Text(stringResource(R.string.any)) }, singleLine = true,
         isError = !valid, supportingText = if (!valid) ({ InlineError(if (integer) stringResource(when (problem) {
@@ -222,7 +223,7 @@ internal fun FocusedInputModifier(once: Boolean = false): Modifier {
 @Composable
 internal fun ActionIcon(icon: Int, label: String, modifier: Modifier = Modifier, enabled: Boolean = true, action: () -> Unit) {
     TooltipBox(positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above), tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) {
-        IconButton(onClick = action, enabled = enabled, modifier = modifier.size(48.dp)) { Icon(androidx.compose.ui.res.painterResource(icon), label) }
+        IconButton(onClick = action, enabled = enabled, modifier = modifier.size(48.dp).semantics { contentDescription = label }) { Icon(androidx.compose.ui.res.painterResource(icon), null) }
     }
 }
 

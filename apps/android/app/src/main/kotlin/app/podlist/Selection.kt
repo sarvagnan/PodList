@@ -76,18 +76,18 @@ internal fun Modifier.listSelectionKeys(selection: EpisodeSelection?): Modifier 
 internal fun ActionGrid(content: @Composable FlowRowScope.() -> Unit) {
     FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         maxItemsInEachRow = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 2 else 4,
-        verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
+        verticalArrangement = Arrangement.spacedBy(if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 0.dp else 4.dp), content = content)
 }
 
 @Composable
-internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, accessibilityLabel: String? = null, action: () -> Unit) {
+internal fun RowScope.LabelledAction(icon: Int, label: String, enabled: Boolean = true, accessibilityLabel: String? = null, labelColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified, action: () -> Unit) {
     TextButton(onClick = action, enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) 4.dp else 8.dp),
         modifier = Modifier.weight(1f).widthIn(min = 48.dp).heightIn(min = 48.dp).then(
             if (accessibilityLabel == null) Modifier else Modifier.semantics { contentDescription = accessibilityLabel })) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
-            Text(label, modifier = if (accessibilityLabel == null) Modifier else Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+            Text(label, modifier = if (accessibilityLabel == null) Modifier else Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelLarge, color = labelColor, textAlign = TextAlign.Center)
         }
     }
 }

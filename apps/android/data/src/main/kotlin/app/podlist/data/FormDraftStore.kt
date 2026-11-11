@@ -2,6 +2,9 @@ package app.podlist.data
 
 import app.podlist.domain.Change
 import java.util.UUID
+import app.podlist.domain.ProtocolJson
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
 
 class FormDraftStore(private val db: LocalDatabase) {
     private fun raw(): Map<String, String> = db.query("SELECT key, value FROM sync_meta WHERE key LIKE 'formDraft:%'")
@@ -27,7 +30,7 @@ class FormDraftStore(private val db: LocalDatabase) {
     fun finishRename(key: String, submitted: String) = db.transaction {
         val values = raw()
         if (values[key] == values["$key/submitted"] && values["$key/submitted"]?.trim() == submitted.trim()) {
-            db.execute("DELETE FROM sync_meta WHERE key IN (?, ?)", listOf("formDraft:$key", "formDraft:$key/submitted"))
+            db.execute("DELETE FROM sync_meta WHERE key IN (?, ?, ?)", listOf("formDraft:$key", "formDraft:$key/submitted", "formDraft:$key/selection"))
         }
     }
 
@@ -40,6 +43,18 @@ class FormDraftStore(private val db: LocalDatabase) {
         clear("view:$id/")
         if (load()["new-view/id"] == id) clear("new-view/")
     }
+
+    /** Keep the removed form durable and outside active drafts, including selection/invalid raw fields. */
+    fun replaceDraft(prefixes: List<String>, replacement: Map<String, String>, scope: String): Map<String, String> = db.transaction {
+        val before = load().filterKeys { key -> prefixes.any(key::startsWith) }
+        db.setMeta("discardedDraft:$scope", ProtocolJson.encodeToString(RetainedDraft(prefixes, before)))
+        prefixes.forEach(::clear)
+        putAll(replacement)
+        before
+    }
+
+    fun retainedDraft(scope: String): RetainedDraft? = db.query("SELECT value FROM sync_meta WHERE key = ?", listOf("discardedDraft:$scope"))
+        .firstOrNull()?.get("value")?.let { ProtocolJson.decodeFromString<RetainedDraft>(it as String) }
 
     fun putAll(values: Map<String, String>) = db.transaction { values.forEach { (key, text) -> put(key, text) } }
 
@@ -74,3 +89,6 @@ class FormDraftStore(private val db: LocalDatabase) {
         }
     }
 }
+
+@Serializable
+data class RetainedDraft(val prefixes: List<String>, val values: Map<String, String>)

@@ -53,7 +53,9 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     val contextual = LocalContextualChrome.current?.hidden == true
     val peek by androidx.compose.animation.core.animateDpAsState(if (now == null || contextual) 0.dp else 72.dp, label = "Player chrome")
     val revision by model.revision.collectAsState()
-    var addEpisode by rememberSaveable { mutableStateOf<String?>(null) }
+    var addEpisodes by rememberSaveable { mutableStateOf<List<String>?>(null) }
+    val restoredDraft by model.restorePlaylistDraft.collectAsState()
+    LaunchedEffect(restoredDraft) { restoredDraft?.take()?.let { addEpisodes = it }; model.restorePlaylistDraft.compareAndSet(restoredDraft, null) }
     var pages by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val page = pages.lastOrNull()
     var predictiveProgress by remember { mutableFloatStateOf(0f) }
@@ -86,7 +88,7 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
     }
     LaunchedEffect(now?.metadata?.episodeId) { if (now == null) { pages = emptyList(); sheet.bottomSheetState.partialExpand() } }
     // Registered after destination navigation so it receives Back before the normal stack.
-    CompositionLocalProvider(LocalSheetFeedback provides feedback, LocalAppModel provides model, LocalAddEpisode provides { addEpisode = it }, LocalPlaybackStarted provides { pages = emptyList() }) {
+    CompositionLocalProvider(LocalSheetFeedback provides feedback, LocalAppModel provides model, LocalAddEpisode provides { addEpisodes = listOf(it) }, LocalPlaybackStarted provides { pages = emptyList() }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val height = (maxHeight - 8.dp).coerceAtLeast(72.dp)
             BottomSheetScaffold(
@@ -129,20 +131,20 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
             ) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()).then(if (contextual) Modifier.navigationBarsPadding() else Modifier)) { content() } }
             // Register on expansion, after the current tab’s stack handlers, including restored tabs.
             key(expanded) {
-                PredictiveBackHandler(enabled = addEpisode == null && expanded) { events ->
+                PredictiveBackHandler(enabled = addEpisodes == null && expanded) { events ->
                     try {
                         events.collect { predictiveProgress = it.progress }
                         if (page != null) pages = pages.dropLast(1) else sheet.bottomSheetState.partialExpand()
                     } finally { predictiveProgress = 0f }
                 }
             }
-            addEpisode?.let { episode -> AddSheet(episode, session, model, onDismiss = { addEpisode = null }) }
+            addEpisodes?.let { episodes -> AddSheet(episodes, session, model, onDismiss = { addEpisodes = null }) }
         }
     }
 }
 
 @Composable
-private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expand: () -> Unit, openPlaylist: () -> Unit) {
+internal fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expand: () -> Unit, openPlaylist: () -> Unit) {
     val accessible = stringResource(R.string.open_now_playing, now.metadata.podcast ?: stringResource(R.string.app_name), now.metadata.title ?: stringResource(R.string.metadata_pending))
     val progressLabel = stringResource(R.string.playback_position)
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).height(72.dp).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = ripple(), onClickLabel = accessible, onClick = expand).semantics { isTraversalGroup = true }) {
@@ -152,9 +154,9 @@ private fun MiniPlayer(now: PlaybackUi, session: Session, model: AppModel, expan
                 SkipButton(false, false) { model.seek(now.position - 15) }
                 val actionLabel = stringResource(if (now.error) R.string.retry_playback else if (now.buffering) R.string.buffering else if (now.playing) R.string.pause else R.string.play)
                 ActionTooltip(actionLabel) {
-                    FilledTonalIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp), colors = if (now.error) IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) else IconButtonDefaults.filledTonalIconButtonColors()) {
-                        if (now.buffering) CircularProgressIndicator(Modifier.size(24.dp).semantics { contentDescription = actionLabel }, strokeWidth = 2.dp)
-                        else Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), actionLabel)
+                    FilledTonalIconButton(onClick = model::togglePlayback, modifier = Modifier.size(48.dp).semantics { contentDescription = actionLabel }, colors = if (now.error) IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) else IconButtonDefaults.filledTonalIconButtonColors()) {
+                        if (now.buffering) CircularProgressIndicator(Modifier.size(24.dp).clearAndSetSemantics {}, strokeWidth = 2.dp)
+                        else Icon(painterResource(if (now.error) R.drawable.ic_retry else if (now.playing) R.drawable.ic_pause else R.drawable.ic_play), null)
                     }
                 }
                 SkipButton(true, false) { model.seek(now.position + 30) }
@@ -200,7 +202,7 @@ private fun NowPlaying(now: PlaybackUi, session: Session, model: AppModel, open:
         FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), maxItemsInEachRow = 2,
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val speedLabel = stringResource(R.string.speed_accessibility, speedSetting(now.speed.toDouble()))
-            LabelledAction(R.drawable.ic_speed, speedSetting(now.speed.toDouble()), accessibilityLabel = speedLabel) { speed = true }
+            LabelledAction(R.drawable.ic_speed, speedSetting(now.speed.toDouble()), accessibilityLabel = speedLabel, labelColor = MaterialTheme.colorScheme.onSurfaceVariant) { speed = true }
             LabelledAction(R.drawable.ic_sleep, sleepLabel(now)) { sleep = true }
             LabelledAction(R.drawable.ic_episode, stringResource(R.string.episode)) { open("episode") }
             if (now.metadata.chapters.isNotEmpty()) LabelledAction(R.drawable.ic_chapters, stringResource(R.string.chapters)) { open("chapters") }
@@ -266,16 +268,22 @@ private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composabl
 }
 
 @Composable private fun SkipButton(forward: Boolean, large: Boolean, action: () -> Unit) {
-    ActionTooltip(stringResource(if (forward) R.string.forward_30 else R.string.back_15)) {
-    IconButton(onClick = action, modifier = Modifier.size(if (large) 80.dp else 48.dp)) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(painterResource(if (forward) R.drawable.ic_skip_forward else R.drawable.ic_skip_back), stringResource(if (forward) R.string.forward_30 else R.string.back_15), Modifier.size(if (large) 60.dp else 30.dp))
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, 1f)) {
-                Text(stringResource(R.string.skip_number, if (forward) 30 else 15), style = if (large) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics {})
+    val label = stringResource(if (forward) R.string.forward_30 else R.string.back_15)
+    ActionTooltip(label) {
+        IconButton(onClick = action, modifier = Modifier.size(if (large) 80.dp else 48.dp).semantics { contentDescription = label }) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(painterResource(if (forward) R.drawable.ic_skip_forward else R.drawable.ic_skip_back), null, Modifier.size(if (large) 60.dp else 30.dp))
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                // Numerals are part of the glyph: scale every dimension together, independent of text size.
+                val type = MaterialTheme.typography.titleLarge
+                val factor = if (large) 1f else .5f
+                CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, 1f)) {
+                    Text(stringResource(R.string.skip_number, if (forward) 30 else 15),
+                        style = type.copy(fontSize = type.fontSize * factor, lineHeight = type.lineHeight * factor),
+                        modifier = Modifier.padding(top = if (large) 4.dp else 2.dp).clearAndSetSemantics {})
+                }
             }
         }
-    }
     }
 }
 
@@ -331,11 +339,11 @@ private fun PlayerLayout(artwork: @Composable (Dp) -> Unit, controls: @Composabl
     })
 }
 
-@Composable private fun AddSheet(episode: String, session: Session, model: AppModel, onDismiss: () -> Unit) {
+@Composable private fun AddSheet(episodes: List<String>, session: Session, model: AppModel, onDismiss: () -> Unit) {
     val revision by model.revision.collectAsState()
     var state by remember { mutableStateOf<State?>(null) }
     LaunchedEffect(revision) { state = withContext(Dispatchers.IO) { session.db.loadState() } }
-    state?.let { PlaylistAddSheet(listOf(episode), it, model, onDismiss, onDismiss) }
+    state?.let { PlaylistAddSheet(episodes, it, model, onDismiss, onDismiss) }
 }
 
 @Composable
@@ -362,12 +370,18 @@ internal fun PlaylistAddSheet(ids: List<String>, state: State, model: AppModel, 
                 }
                 item { ChoiceRows(listOf(null to stringResource(R.string.new_playlist)), target, enabled = !submitting) { target = null; rejected = null } }
                 if (target == null) item {
-                    var fieldValue by rememberFieldValue(name)
+                    var fieldValue by rememberDraftFieldValue(draftPrefix + "name", name)
                     OutlinedTextField(fieldValue, { if (!submitting) { fieldValue = it; name = it.text; interacted = "true"; rejected = null } }, label = { Text(stringResource(R.string.m4_name)) }, readOnly = submitting, isError = shownProblem != null,
                     supportingText = shownProblem?.let { error -> ({ InlineError(playlistProblem(error, name, state.playlists.map { it.name })) }) }, modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()), singleLine = true) }
             }
-            CommitActions(Modifier.padding(vertical = 16.dp)) {
-                if (target == null && name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting, onClick = { drafts.clear(draftPrefix); dismiss() }) { Text(stringResource(R.string.discard_draft)) }
+            val owner = LocalSheetSnackbar.current?.id
+            CommitActions(Modifier.padding(vertical = 16.dp), gap = 24.dp) {
+                if (target == null && name.isNotEmpty()) TextButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting, onClick = {
+                    // Keep this sheet open so its Undo remains in the reserved feedback region.
+                    model.discardDraft(drafts, draftPrefix, feedbackSheet = owner, restored = {
+                        if (model.feedbackSheet != owner) model.restorePlaylistDraft.value = OneShotEvent(ids)
+                    })
+                }) { Text(stringResource(R.string.discard_draft)) }
                 for ((placement, label) in listOf(Placement.Next to R.string.play_next, Placement.Last to R.string.play_last)) FilledTonalButton(modifier = Modifier.heightIn(min = 48.dp), enabled = !submitting && problem == null, onClick = {
                     val submittedDraft = drafts.snapshot(draftPrefix)
                     submitting = true

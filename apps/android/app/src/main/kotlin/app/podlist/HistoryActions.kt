@@ -155,3 +155,25 @@ internal fun historyShortcuts(model: AppModel): Modifier = Modifier.onKeyEvent {
 internal fun textFieldHistoryShortcuts(): Modifier = Modifier.onKeyEvent { event ->
     event.isCtrlPressed && (event.key == Key.Z || event.key == Key.A)
 }
+
+/** A retained snapshot also becomes the inverse on Redo; saved objects are never changed. */
+internal fun AppModel.draftStep(
+    drafts: FormDraftState, prefixes: List<String>, snapshot: Map<String, String>, scope: String,
+    restored: () -> Unit, discarded: () -> Unit = {}
+): ReversibleEdit = ReversibleEdit {
+    val before = drafts.replaceDraft(prefixes, snapshot, scope)
+    if (snapshot.isNotEmpty()) restored() else discarded()
+    draftStep(drafts, prefixes, before, scope, restored, discarded)
+}
+
+internal fun AppModel.discardDraft(
+    drafts: FormDraftState, prefix: String, restored: () -> Unit, feedbackSheet: String? = null,
+    discarded: () -> Unit = {}
+) {
+    val current = session.value ?: return
+    finishTyping()
+    val snapshot = drafts.replaceDraft(listOf(prefix), emptyMap(), prefix)
+    recordHistory(current, AppMessage(R.string.draft_discarded, feedbackSheet = feedbackSheet),
+        draftStep(drafts, listOf(prefix), snapshot, prefix, restored, discarded))
+    discarded()
+}

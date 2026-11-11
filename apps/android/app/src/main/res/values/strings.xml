@@ -21,8 +21,11 @@
     <string name="server_error">Couldn’t complete the request. Check the server and try again.</string>
     <string name="response_error">Couldn’t read the server’s response. Check that the address is a PodList server.</string>
     <string name="loading">Loading local Library…</string>
-    <string name="offline">Offline · Showing local data. Sync will try again.</string>
-    <string name="sync_error">Sync error · Showing local data.</string>
+    <string name="offline">Server unreachable. Showing local data.</string>
+    <string name="sync_server_error">The server couldn’t sync. Showing local data.</string>
+    <string name="sync_signed_out">Signed out on the server. Showing local data. Sign in again, then try again.</string>
+    <string name="sync_tls_error">Couldn’t verify the server’s secure connection. Showing local data.</string>
+    <string name="sync_response_error">The server sent an invalid response. Showing local data.</string>
     <string name="retry">Try again</string>
     <string name="no_synced_data">No synced data on this Device yet.</string>
     <string name="no_views">No Views yet. Create a View to find Episodes by your conditions.</string>
@@ -81,7 +84,7 @@
     <string name="back_15">Back 15 seconds</string>
     <string name="forward_30">Forward 30 seconds</string>
     <string name="open_now_playing">Now Playing: %1$s · %2$s</string>
-    <string name="now_playing_playlist">Now Playing · %1$s</string>
+    <string name="now_playing_playlist">Now Playing · “%1$s”</string>
     <string name="collapse_player">Collapse Now Playing</string>
     <string name="entries_next">Entries · %1$d next</string>
     <string name="no_chapters">No Chapters available</string>
@@ -106,7 +109,7 @@
     <string name="new_playlist">New Playlist</string>
     <string name="play_next">Play Next</string>
     <string name="play_last">Play Last</string>
-    <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to %2$s</item><item quantity="other">Added %1$d Entries to %2$s</item></plurals>
+    <plurals name="entries_added_to_playlist"><item quantity="one">Added %1$d Entry to “%2$s”</item><item quantity="other">Added %1$d Entries to “%2$s”</item></plurals>
     <string name="play_from_here">Play from here</string>
     <string name="switch_playlist">Switch Playlist</string>
     <string name="resume">Resume</string>
@@ -118,7 +121,7 @@
     <string name="move_up">Move up</string>
     <string name="move_down">Move down</string>
     <string name="entry_actions">Entry actions</string>
-    <string name="entry_moved">Moved “%1$s” in %2$s</string>
+    <string name="entry_moved">Moved “%1$s” in “%2$s”</string>
     <string name="undo">Undo</string>
     <string name="mark_played">Mark Played</string>
     <string name="mark_unplayed">Mark Unplayed</string>
@@ -190,7 +193,7 @@
     <string name="save">Save</string>
     <string name="m4_create_playlist">Create Playlist</string>
     <string name="m4_playlist_empty">A Playlist needs a name.</string>
-    <string name="m4_playlist_duplicate">There’s already a Playlist called %1$s.</string>
+    <string name="m4_playlist_duplicate">There’s already a Playlist called “%1$s”.</string>
     <string name="m4_playlist_restored">Restored Playlist “%1$s”</string>
     <string name="m4_restore">Restore</string>
     <string name="m4_downloads_device">Downloads on this Device</string>
@@ -218,7 +221,7 @@
     <string name="m4_entry_removed">Removed Entry</string>
     <string name="m4_marked_played">Marked Played by hand</string>
     <string name="m4_rewind_here">Rewind to here</string>
-    <string name="m4_rewind_title">Rewind %1$s to %2$s?</string>
+    <string name="m4_rewind_title">Rewind “%1$s” to %2$s?</string>
     <string name="m4_goes_back">Goes back to</string>
     <string name="m4_position">Position %1$s</string>
     <string name="m4_unplayed_again">Unplayed again</string>
@@ -277,7 +280,7 @@
     <string name="m4_save_as_view">Save as a View</string>
     <string name="m4_new_view">New View</string>
     <string name="m4_edit_view">Edit View</string>
-    <string name="playlist_settings_for">Settings for %1$s</string>
+    <string name="playlist_settings_for">Settings for “%1$s”</string>
     <string name="m4_subscription_settings">Subscription settings</string>
     <string name="create_view">Create View</string>
     <string name="m4_select_subscriptions">Select Subscriptions</string>
@@ -287,7 +290,7 @@
         <item quantity="other">%1$d selected</item>
     </plurals>
     <string name="m4_downloads_requested">Downloads requested</string>
-    <string name="m4_active_target">%1$s · Active Playlist</string>
+    <string name="m4_active_target">“%1$s” · Active Playlist</string>
     <string name="m4_length_range_error">At most must be at least as long as At least.</string>
     <string name="m4_date_range_error">To must be on or after From.</string>
     <string name="m4_redo">Redo</string>
@@ -296,7 +299,7 @@
     <plurals name="episode_count"><item quantity="one">%1$d Episode</item><item quantity="other">%1$d Episodes</item></plurals>
     <plurals name="m4_matching"><item quantity="one">%1$d Episode matches</item><item quantity="other">%1$d Episodes match</item></plurals>
     <plurals name="m4_streak"><item quantity="one">Current Listening streak: %1$d day</item><item quantity="other">Current Listening streak: %1$d days</item></plurals>
-    <plurals name="active_playlist_next"><item quantity="one">%1$s · %2$d Entry after the current one</item><item quantity="other">%1$s · %2$d Entries after the current one</item></plurals>
+    <plurals name="active_playlist_next"><item quantity="one">“%1$s” · %2$d Entry after the current one</item><item quantity="other">“%1$s” · %2$d Entries after the current one</item></plurals>
     <string name="m4_download_rule">Download Rule</string>
     <string name="m4_episodes_finished">Episodes finished</string>
     <string name="m4_step_done">Done</string>
@@ -422,6 +425,9 @@
     </plurals>
     <string name="download_notification_reason">Allow notifications to see download progress and stop a download.</string>
     <string name="continue_action">Continue</string>
+    <string name="draft_discarded">Draft discarded</string>
+    <string name="finish_rename_first">Save or cancel the name first</string>
+    <string name="podcast_search_help">Enter a podcast name or feed address. For example, Deep Field or https://example.org/feed.xml</string>
     <string name="discard_draft">Discard draft</string>
     <string name="show_podcast_details">Show podcast details</string>
     <string name="hide_podcast_details">Hide podcast details</string>
@@ -473,7 +479,7 @@
     <string name="download_rule_changed">Updated Download Rule</string>
     <string name="library_grouped_by_rule">Grouped by Download Rule</string>
     <string name="subscriptions">Subscriptions</string>
-    <string name="edit_undone_specific">Undid: %1$s</string>
+    <string name="edit_undone_specific">Undone: %1$s</string>
     <string name="edit_redone_specific">Redid: %1$s</string>
     <string name="opml_read_error">Couldn’t read this file. Choose an accessible OPML file and try again.</string>
     <string name="opml_size_error">This OPML file is larger than 8 MiB. Split it into smaller files, then try again.</string>
@@ -525,6 +531,6 @@
         <item quantity="other">%1$d podcasts failed</item>
     </plurals>
     <string name="delete_view_help">Episodes stay in your Library.</string>
-    <string name="timeline_tab">Timeline</string>
+    <string name="timeline_tab">Listening Timeline</string>
     <string name="add">Add</string>
 </resources>

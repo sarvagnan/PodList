@@ -13,7 +13,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 
 /**
@@ -46,8 +45,8 @@ internal fun RenameableName(
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (draft == null) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.m4_name), style = MaterialTheme.typography.bodyLarge)
-                Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.m4_name), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             }
             ContentActionButton(onClick = { drafts.put(draftKey, name) }, modifier = Modifier.focusRequester(renameFocus).heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.rename))
@@ -57,7 +56,7 @@ internal fun RenameableName(
             }
         } else {
             // The persisted text owns this field even if Undo or another Device changes the saved name.
-            var value by remember(draftKey) { mutableStateOf(TextFieldValue(draft, TextRange(draft.length))) }
+            var value by rememberDraftFieldValue(draftKey, draft)
             val fieldFocus = remember { FocusRequester() }
             val validationProblem = problem(value.text)
             var saveFailed by remember { mutableStateOf(false) }
