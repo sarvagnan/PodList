@@ -9,36 +9,58 @@ public struct DirectoryPodcast: Codable, Equatable, Identifiable, Sendable {
     public var id: String { feedUrl }
 }
 
+public struct PublisherResponse: Sendable {
+    public let data: Data
+    public let status: Int
+    public let etag: String?
+    public let lastModified: String?
+    public init(data: Data = Data(), status: Int = 200, etag: String? = nil, lastModified: String? = nil) {
+        self.data = data; self.status = status; self.etag = etag; self.lastModified = lastModified
+    }
+}
+
 public protocol PublisherReader: Sendable {
+    func readFeed(_ url: URL, etag: String?, lastModified: String?) async throws -> PublisherResponse
     func read(_ url: URL) async throws -> Data
     func readPrefix(_ url: URL, bytes: Int) async throws -> Data
 }
 public extension PublisherReader {
+    func readFeed(_ url: URL, etag: String?, lastModified: String?) async throws -> PublisherResponse {
+        PublisherResponse(data: try await read(url))
+    }
     func readPrefix(_ url: URL, bytes: Int) async throws -> Data { Data(try await read(url).prefix(bytes)) }
 }
 public struct PublisherHTTP: PublisherReader {
     public init() {}
-    public func read(_ url: URL) async throws -> Data { try await fetch(url, limit: FeedParser.sizeLimit, prefix: false) }
-    public func readPrefix(_ url: URL, bytes: Int) async throws -> Data { try await fetch(url, limit: bytes, prefix: true) }
-    private func fetch(_ url: URL, limit: Int, prefix: Bool) async throws -> Data {
+    public func read(_ url: URL) async throws -> Data { try await fetch(url, limit: FeedParser.sizeLimit, prefix: false).data }
+    public func readPrefix(_ url: URL, bytes: Int) async throws -> Data { try await fetch(url, limit: bytes, prefix: true).data }
+    public func readFeed(_ url: URL, etag: String?, lastModified: String?) async throws -> PublisherResponse {
+        try await fetch(url, limit: FeedParser.sizeLimit, prefix: false, etag: etag, lastModified: lastModified)
+    }
+    private func fetch(_ url: URL, limit: Int, prefix: Bool, etag: String? = nil, lastModified: String? = nil) async throws -> PublisherResponse {
         guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil,
               url.user == nil, url.password == nil else { throw SyncResponseFailure("Enter an HTTP or HTTPS feed address") }
         var request = URLRequest(url: url); request.timeoutInterval = 30
         if prefix { request.setValue("bytes=0-\(limit - 1)", forHTTPHeaderField: "Range") }
-        request.setValue("PodList Apple", forHTTPHeaderField: "User-Agent")
+        request.setValue("PodList/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        request.setValue(lastModified, forHTTPHeaderField: "If-Modified-Since")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil; configuration.urlCredentialStorage = nil
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
         // Bound publisher responses while reading; a feed never allocates unbounded memory.
         let (bytes, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { throw SyncResponseFailure("Could not read the feed. Try again") }
+        guard let http = response as? HTTPURLResponse else { throw SyncResponseFailure("Invalid publisher response") }
+        if http.statusCode == 304 { return PublisherResponse(status: 304) }
+        guard (200...299).contains(http.statusCode) else { throw SyncResponseFailure("Could not read the feed. Try again") }
         var data = Data()
         for try await byte in bytes {
             if data.count >= limit { if prefix { break }; throw SyncResponseFailure("Publisher response is too large") }
             data.append(byte)
         }
-        return data
+        return PublisherResponse(data: data, status: http.statusCode, etag: http.value(forHTTPHeaderField: "ETag"), lastModified: http.value(forHTTPHeaderField: "Last-Modified"))
     }
 }
 
@@ -47,8 +69,11 @@ public actor PodcastLibrary {
     private let db: LocalDatabase
     private let transport: (any SyncTransport)?
     private let publisher: any PublisherReader
-    public init(database: LocalDatabase, transport: (any SyncTransport)? = nil, publisher: any PublisherReader = PublisherHTTP()) {
-        db = database; self.transport = transport; self.publisher = publisher
+    private let now: @Sendable () -> Int64
+    private var refreshing = false
+    public init(database: LocalDatabase, transport: (any SyncTransport)? = nil, publisher: any PublisherReader = PublisherHTTP(),
+                now: @escaping @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }) {
+        db = database; self.transport = transport; self.publisher = publisher; self.now = now
     }
     private func json(_ values: [String: String]) throws -> String { String(decoding: try JSONEncoder().encode(values), as: UTF8.self) }
     private func escaped(_ text: String) -> String { text.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "" }
@@ -95,8 +120,11 @@ public actor PodcastLibrary {
                 return existing
             }
         }
-        let parsed = try await readPodcast(feed)
-        return try await db.storePodcast(feed, parsed: parsed, subscribe: true, guid: nil)
+        guard let url = URL(string: feed) else { throw SyncResponseFailure("Invalid feed address") }
+        let response = try await publisher.readFeed(url, etag: nil, lastModified: nil)
+        guard (200...299).contains(response.status), let xml = String(data: response.data, encoding: .utf8) else { throw SyncResponseFailure("Could not read the feed. Try again") }
+        let parsed = try FeedParser.parse(xml)
+        return try await db.subscribePolledFeed(feed, parsed: parsed, response: response, at: now())
     }
     public func unsubscribe(_ id: String) async throws {
         if let transport {
@@ -119,16 +147,37 @@ public actor PodcastLibrary {
         let sub = try await db.storePodcast(feed, parsed: parsed, subscribe: false, guid: guid)
         return try await db.readLibrary().episodes.first { $0.subscriptionId == sub.id && $0.guid == guid }!.id
     }
-    public func refresh() async throws {
+    /// Automatic passes respect persisted deadlines; Refresh now deliberately bypasses them.
+    public func refresh(respectBackoff: Bool = false) async throws {
+        guard !refreshing else { return }
+        refreshing = true; defer { refreshing = false }
         var failures: [String] = []
         for sub in try await db.readLibrary().subscriptions where sub.unsubscribedAt == nil {
+            try Task.checkCancellation()
+            let state = try await db.feedPollState(sub.id)
+            if respectBackoff, let checked = state.checkedAt,
+               now() < checked + max(FeedPollState.interval, state.backoff) { continue }
             do {
-                let parsed = try await readPodcast(sub.feedUrl)
-                _ = try await db.storePodcast(sub.feedUrl, parsed: parsed, subscribe: false, guid: nil)
-            } catch { failures.append(sub.title) }
+                guard let url = URL(string: sub.feedUrl) else { throw SyncResponseFailure("Invalid feed address") }
+                let result = try await publisher.readFeed(url, etag: state.etag, lastModified: state.lastModified)
+                guard result.status == 304 || (200...299).contains(result.status) else { throw SyncResponseFailure("Feed answered HTTP \(result.status)") }
+                let parsed: ParsedFeed?
+                if result.status == 304 { parsed = nil }
+                else {
+                    guard let xml = String(data: result.data, encoding: .utf8) else { throw SyncResponseFailure("Feed is not UTF-8") }
+                    parsed = try FeedParser.parse(xml)
+                }
+                try await db.commitFeedPoll(sub, parsed: parsed, etag: result.status == 304 ? state.etag : result.etag,
+                                            lastModified: result.status == 304 ? state.lastModified : result.lastModified, at: now())
+            } catch is CancellationError { throw CancellationError() }
+            catch {
+                try await db.failFeedPoll(sub.id, at: now(), error: String(describing: error))
+                failures.append(sub.title)
+            }
         }
         if !failures.isEmpty { throw SyncResponseFailure("Could not refresh: " + failures.joined(separator: ", ") + ". Try again") }
     }
+
 }
 
 extension LocalDatabase {

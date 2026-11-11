@@ -38,7 +38,7 @@ public struct HttpTransport: SyncTransport {
         else { throw SyncResponseFailure("Invalid API path") }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = path == "/api/subscriptions/import" ? 120 : (["/api/podcasts/read", "/api/podcasts/episodes"].contains(path) ? 30 : 2)
+        request.timeoutInterval = ["/api/subscriptions/import", "/api/subscriptions/bring-over"].contains(path) ? 120 : (["/api/subscriptions", "/api/podcasts/read", "/api/podcasts/episodes"].contains(path) ? 30 : 2)
         request.setValue("PodList Apple", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {

@@ -4,7 +4,7 @@ import struct PodListDomain.Operation
 
 /// All connection use and multi-table commits are isolated to this actor; HTTP never holds a transaction.
 public actor LocalDatabase {
-    private let storage: SQLite
+    let storage: SQLite
     private let standalone: Bool
 
     public init(path: String, standalone: Bool = false) throws {

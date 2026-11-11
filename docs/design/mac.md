@@ -94,6 +94,46 @@ Editable text retains native text Undo. A compact status line provides
 feedback and Undo, and Trash includes Restore and its retention period.
 
 
+## Standalone Library and publisher refresh
+
+Connecting a Standalone Device from Settings checks the server and loads its Library before
+showing **Bring this Mac’s Library over?**. The preview names the server and counts added and
+matched Subscriptions and Episodes, added Playlists, Entries and Positions, Played/Starred
+marks, Listening log time, Views and completed downloads. Subscriptions match by feed address;
+Episodes match by feed address and guid. Default merges into the server's Default Playlist.
+Other Playlists and Views retain their own identities; name conflicts receive numeric suffixes.
+State edits replay in their original order using the shared merge rules, including newer Position
+timestamps. Saved settings and this Mac's Download Rules come too. Retained metadata for removed
+Subscriptions travels with their Orphaned Episodes and permanent Listening log.
+
+**Not now** opens the server Library and writes no transfer job. The source Library and audio
+stay on this Mac. **Bring Library from this Mac…** remains in Settings for a later offer.
+Disconnect and choose Start on this Mac to return to the separate source Library.
+
+**Bring over** saves an immutable source snapshot and resumable checkpoints in this server's
+local database. Publisher-independent metadata import uses the existing
+`POST /api/subscriptions/bring-over`; no server API was added. Per-feed checkpoints survive
+failure, including a response lost after the server accepted it. State Operations enter the
+existing outbox atomically with the mapping checkpoint, keeping stable ids for deduplication.
+The original source Device is registered before its Operations are pushed. Stored audio is
+copied into the server Library's DownloadStore and kept as Manual Downloads, so merged rules
+cannot immediately discard it. Original files remain intact. Settings shows saved counts,
+partial failures and **Retry bring-over**. Accepted jobs resume on launch and ordinary sync
+triggers; completed jobs never replay again. An older server without the metadata API reports
+the exact missing API and keeps State pending, rather than silently losing vanished Episodes.
+
+Standalone publisher feeds use the generic `PodList/1.0` User-Agent. ETag and Last-Modified,
+check time, failure count and last error persist in `feed_state`. A 304 preserves cached metadata
+and validators and clears failures. A successful replacement stores its new validators, including
+clearing absent ones. Automatic checks wait 30 minutes after a successful check; after failures
+they use the server's 30-minute, one-hour, two-hour exponential waits capped at one day. These
+waits survive restart. Each feed fails independently and keeps its cached Episodes. A concurrent
+Unsubscribe stays removed when the fetch returns. Settings > Publisher feeds offers **Refresh
+now**, which bypasses the wait; Try again in the Library status does too. Periodic checks run
+while the app lives, with foreground/network recovery triggers. Sleep/wake timing, real publisher
+responses and the preview's layout/VoiceOver still need a live Mac check.
+
+
 ## Agents and automation
 
 Milestone 4c automation, with the owner’s decisions of 11 Nov 2026 recorded below.

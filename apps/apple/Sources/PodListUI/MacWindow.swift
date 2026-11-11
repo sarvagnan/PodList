@@ -315,7 +315,7 @@ public struct PodListWindow: SwiftUI.View {
             } else if let error = app.syncError {
                 Image(systemName: "exclamationmark.icloud").accessibilityHidden(true)
                 Text(error).lineLimit(2).help(error)
-                Button("Try again") { Task { await app.sync() } }.accessibilityLabel("Try sync again")
+                Button("Try again") { Task { await app.sync(forceRefresh: true) } }.accessibilityLabel("Try sync again")
             } else {
                 Image(systemName: "checkmark.icloud").accessibilityHidden(true)
                 Text(app.lastSync == nil ? "Local Library" : "Up to date")
