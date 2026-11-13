@@ -37,16 +37,8 @@ public enum FeedParser {
     }
     public static func parse(_ xml: String) throws -> ParsedFeed {
         guard xml.utf8.count <= sizeLimit else { throw FeedFailure(reason: "XML is too large") }
-        guard xml.range(of: #"<!\s*(DOCTYPE|ENTITY)"#, options: [.regularExpression, .caseInsensitive]) == nil else {
-            throw FeedFailure(reason: "DTD and entities are forbidden")
-        }
-        let parser = XMLParser(data: Data(xml.utf8))
-        parser.shouldProcessNamespaces = false
-        parser.shouldResolveExternalEntities = false
-        parser.externalEntityResolvingPolicy = .never
         let handler = FeedHandler()
-        parser.delegate = handler
-        guard parser.parse() else { throw FeedFailure(reason: parser.parserError?.localizedDescription ?? "Malformed XML") }
+        try FeedXML(xml).read(open: handler.open, close: handler.close, text: handler.text)
         return try handler.feed()
     }
     fileprivate static func date(_ raw: String?) -> Int64 {
@@ -86,14 +78,14 @@ private final class Fields {
     func open(_ name: String, attributes: [String: String]) -> Bool {
         guard wanted.contains(name) || self.attributes[name] != nil, seen.insert(name).inserted else { return false }
         if let attribute = self.attributes[name], let raw = attributes[attribute] {
-            set(name, raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            set(name, raw)
         }
         return wanted.contains(name)
     }
     func set(_ name: String, _ value: String) { if !value.isEmpty { values[name] = value } }
     subscript(_ key: String) -> String? { values[key] }
 }
-private final class FeedHandler: NSObject, XMLParserDelegate {
+private final class FeedHandler {
     private var root: String?
     private var depth = 0
     private var channelSeen = false
@@ -108,13 +100,7 @@ private final class FeedHandler: NSObject, XMLParserDelegate {
     private var field: String?
     private var fieldDepth = 0
     private var value = ""
-    private var run = ""
-
-    private func flushRun() {
-        if !run.isEmpty { value += run.trimmingCharacters(in: .whitespacesAndNewlines); run = "" }
-    }
-    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) {
-        if field != nil { flushRun() }
+    func open(_ name: String, attributes: [String: String]) {
         depth += 1
         if field != nil { return }
         var fields: Fields?
@@ -133,17 +119,14 @@ private final class FeedHandler: NSObject, XMLParserDelegate {
         }
         if let fields, fields.open(name, attributes: attributes) { target = fields; field = name; fieldDepth = depth; value = "" }
     }
-    func parser(_ parser: XMLParser, foundCharacters text: String) { if field != nil && depth == fieldDepth { run += text } }
-    func parser(_ parser: XMLParser, foundCDATA data: Data) { self.parser(parser, foundCharacters: String(decoding: data, as: UTF8.self)) }
-    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
-        if field != nil { flushRun() }
+    func text(_ text: String) { if field != nil && depth == fieldDepth { value += text } }
+    func close(_ name: String) {
         if let field, depth == fieldDepth { target?.set(field, value); self.field = nil; target = nil }
         if inChannel && depth == 3 && name == "item" { if let item { finish(item) }; item = nil }
         if inChannel && depth == 3 && name == "image" { inImage = false }
         if inChannel && depth == 2 { inChannel = false }
         depth -= 1
     }
-    func parser(_ parser: XMLParser, resolveExternalEntityName name: String, systemID: String?) -> Data? { parser.abortParsing(); return nil }
     private func finish(_ item: Fields) {
         guard let audio = item["enclosure"] else { return }
         episodes.append(ParsedEpisode(guid: item["guid"] ?? audio, title: item["title"] ?? item["itunes:title"] ?? "Untitled episode",

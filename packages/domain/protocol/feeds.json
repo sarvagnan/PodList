@@ -141,6 +141,370 @@
       }
     },
     {
+      "name": "ignored-entity-expansion-bomb",
+      "xml": "<!DOCTYPE rss [<!ENTITY lol0 \"EXPANDED\"><!ENTITY lol1 \"&lol0;&lol0;&lol0;&lol0;&lol0;&lol0;&lol0;&lol0;&lol0;&lol0;\"><!ENTITY lol2 \"&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;\"><!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\"><!ENTITY lol4 \"&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;\"><!ENTITY lol5 \"&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;&lol4;\"><!ENTITY lol6 \"&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;&lol5;\"><!ENTITY lol7 \"&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;&lol6;\"><!ENTITY lol8 \"&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;&lol7;\"><!ENTITY lol9 \"&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;&lol8;\">]><rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>&lol9;</title><item><enclosure url=\"&lol9;\"/></item></channel></rss>",
+      "expected": {
+        "title": "&lol9;",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "&lol9;",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "&lol9;",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "declaration-literals",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title><![CDATA[<!DOCTYPE literal> &amp;]]></title><!-- <!DOCTYPE fake [ --><item><enclosure url=\"https://test/<!DOCTYPE literal>\"/></item></channel></rss>",
+      "expected": {
+        "title": "<!DOCTYPE literal> &amp;",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "https://test/<!DOCTYPE literal>",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "https://test/<!DOCTYPE literal>",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "malformed",
+      "xml": "<rss><channel><title>Broken</channel></rss>",
+      "expected": {
+        "title": "Broken",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "external-entity",
+      "xml": "<!DOCTYPE rss [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><rss><channel><title>&xxe;</title></channel></rss>",
+      "expected": {
+        "title": "&xxe;",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "external-dtd",
+      "xml": "<!DOCTYPE rss SYSTEM \"https://test/evil\"><rss><channel><title>Unsafe</title></channel></rss>",
+      "expected": {
+        "title": "Unsafe",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "bare-ampersands",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Fish & Chips &unknown;</title><item><title>A & B</title><enclosure url=\"https://test/a?x=1&y=2\"/></item></channel></rss>",
+      "expected": {
+        "title": "Fish & Chips &unknown;",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "https://test/a?x=1&y=2",
+            "title": "A & B",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "https://test/a?x=1&y=2",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "unbound-prefixes",
+      "xml": "<rss><channel><title>Show</title><itunes:author>Author</itunes:author><item><itunes:title>Episode</itunes:title><enclosure url=\"a\"/></item></channel></rss>",
+      "expected": {
+        "title": "Show",
+        "author": "Author",
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "a",
+            "title": "Episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "a",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "truncated-after-complete-fields",
+      "xml": "<rss><channel><title>Show</title><item><title>Episode</title><enclosure url=\"a\"/>",
+      "expected": {
+        "title": "Show",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "a",
+            "title": "Episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "a",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "truncated-final-text",
+      "xml": "<rss><channel><title>Show</title><item><enclosure url=\"a\"/><description>unfinished",
+      "expected": {
+        "title": "Show",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "a",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "a",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "mismatched-item-close",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><item><title>Episode</wrong><enclosure url=\"a\"/></oops><item><enclosure url=\"b\"/></item></channel></rss>",
+      "expected": {
+        "title": "Show",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "a",
+            "title": "Episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "a",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          },
+          {
+            "guid": "b",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "b",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "stray-closing-tag",
+      "xml": "</stray><rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><item><enclosure url=\"a\"/></item></channel></rss>",
+      "expected": {
+        "title": "Show",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "a",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "a",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "quoted-and-unquoted-attributes",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><item><enclosure url=ignored/></item><item><enclosure url=\"old\" url=\"new\" note=\"x > y\"/></item></channel></rss>",
+      "expected": {
+        "title": "Show",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "new",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "new",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "built-in-entities",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>&lt; &gt; &amp; &quot; &apos; &#65; &#x1F600; &nbsp; &copy; &mdash; &euro;</title><item><enclosure url=\"a?x=&#49;&amp;y=&copy;\"/></item></channel></rss>",
+      "expected": {
+        "title": "< > & \" ' A 😀   © — €",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "a?x=1&y=©",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "a?x=1&y=©",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "entity-decoding-once",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>&amp;lt; &unknown; &#x110000; &#0; &#xD800;</title><description><![CDATA[&copy; &amp; <!DOCTYPE literal>]]></description></channel></rss>",
+      "expected": {
+        "title": "&lt; &unknown; &#x110000;  ",
+        "author": null,
+        "description": "&copy; &amp; <!DOCTYPE literal>",
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "comments-and-cdata",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>A<!-- ignored --> B<![CDATA[ C &amp; ]]></title><description>one<b>ignored</b>two</description></channel></rss>",
+      "expected": {
+        "title": "A B C &amp; ",
+        "author": null,
+        "description": "onetwo",
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "ignored-internal-entities",
+      "xml": "<!DOCTYPE rss [<!ENTITY custom \"EXPANDED\"><!ENTITY amp \"WRONG\">]><rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>&custom; &amp; &#65; &copy;</title><item><enclosure url=\"&custom;\"/></item></channel></rss>",
+      "expected": {
+        "title": "&custom; & A ©",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": [
+          {
+            "guid": "&custom;",
+            "title": "Untitled episode",
+            "description": "",
+            "published": 0,
+            "duration": null,
+            "audioUrl": "&custom;",
+            "artworkUrl": null,
+            "chaptersUrl": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "ignored-parameter-entity",
+      "xml": "<!DOCTYPE rss [<!ENTITY % remote SYSTEM \"https://test/evil\">%remote;]><rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Safe</title></channel></rss>",
+      "expected": {
+        "title": "Safe",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "doctype-quotes-and-comments",
+      "xml": "<!DOCTYPE rss SYSTEM \"https://test/a>b\" [<!-- ]> fake <rss> --><!ENTITY custom \"x ]> <title>Injected</title>\">]><rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Safe &custom;</title></channel></rss>",
+      "expected": {
+        "title": "Safe &custom;",
+        "author": null,
+        "description": null,
+        "artworkUrl": null,
+        "episodes": []
+      }
+    },
+    {
+      "name": "truncated-title",
+      "xml": "<rss><channel><title>unfinished",
+      "error": true
+    },
+    {
+      "name": "unclosed-opening-tag",
+      "xml": "<rss><channel><title>Show</title><item",
+      "error": true
+    },
+    {
+      "name": "unclosed-attribute",
+      "xml": "<rss><channel><title>Show</title><item><enclosure url=\"a",
+      "error": true
+    },
+    {
+      "name": "unclosed-comment",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><!--</channel></rss>",
+      "error": true
+    },
+    {
+      "name": "unclosed-cdata",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><![CDATA[bad</channel></rss>",
+      "error": true
+    },
+    {
+      "name": "unclosed-doctype",
+      "xml": "<!DOCTYPE rss [<!ENTITY custom \"x\">",
+      "error": true
+    },
+    {
+      "name": "excessive-nesting",
+      "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title>Show</title><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested><nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></nested></channel></rss>",
+      "error": true
+    },
+    {
       "name": "not-rss",
       "xml": "<html><body/></html>",
       "error": true
@@ -159,24 +523,6 @@
       "name": "empty-title",
       "xml": "<rss xmlns:itunes=\"urn:itunes\" xmlns:content=\"urn:content\" xmlns:podcast=\"urn:podcast\"><channel><title> </title></channel></rss>",
       "error": true
-    },
-    {
-      "name": "malformed",
-      "xml": "<rss><channel><title>Broken</channel></rss>",
-      "error": true,
-      "deviceOnly": true
-    },
-    {
-      "name": "external-entity",
-      "xml": "<!DOCTYPE rss [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><rss><channel><title>&xxe;</title></channel></rss>",
-      "error": true,
-      "deviceOnly": true
-    },
-    {
-      "name": "external-dtd",
-      "xml": "<!DOCTYPE rss SYSTEM \"https://test/evil\"><rss><channel><title>Unsafe</title></channel></rss>",
-      "error": true,
-      "deviceOnly": true
     }
   ],
   "durations": [

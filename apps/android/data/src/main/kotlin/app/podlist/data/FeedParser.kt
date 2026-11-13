@@ -7,10 +7,7 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
-import org.xml.sax.Attributes
 import org.xml.sax.InputSource
-import org.xml.sax.helpers.DefaultHandler
-import javax.xml.parsers.SAXParserFactory
 
 const val FeedSizeLimit = 32 * 1024 * 1024
 private const val DocumentSizeLimit = 8 * 1024 * 1024
@@ -65,17 +62,11 @@ private fun parseDate(raw: String?): Long {
     runCatching { return LocalDate.parse(raw).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }
     return 0
 }
-/** Reads as a stream: real feeds reach 20 MB, which a DOM would turn into several times that in memory. */
+/** Bounded, non-validating RSS tokenization; DTDs never reach an XML/entity resolver. */
 fun parseFeed(xml: String): ParsedFeed {
     require(utf8Size(xml) <= FeedSizeLimit) { "XML is too large" }
-    require(!forbiddenDeclaration.containsMatchIn(xml)) { "DTD and entities are forbidden" }
-    val factory = SAXParserFactory.newInstance()
-    factory.isNamespaceAware = false
-    // Android and the JVM expose different features; the declaration guard above is mandatory on both.
-    for (name in listOf("http://xml.org/sax/features/external-general-entities", "http://xml.org/sax/features/external-parameter-entities"))
-        runCatching { factory.setFeature(name, false) }
     val handler = FeedHandler()
-    factory.newSAXParser().parse(InputSource(StringReader(xml)), handler)
+    FeedXml(xml).read(handler::startElement, handler::endElement, handler::text)
     return handler.feed()
 }
 private fun utf8Size(text: String): Long = text.fold(0L) { size, c -> size + when { c.code < 0x80 -> 1; c.code < 0x800 || c.isSurrogate() -> 2; else -> 3 } }
@@ -86,7 +77,7 @@ private class Fields(private val wanted: Set<String>, private val attributes: Ma
     private val values = HashMap<String, String>()
     fun open(name: String, read: (String) -> String?): Boolean {
         if ((name !in wanted && name !in attributes) || !seen.add(name)) return false
-        attributes[name]?.let { attribute -> read(attribute)?.trim()?.takeIf { it.isNotEmpty() }?.let { values[name] = it } }
+        attributes[name]?.let { attribute -> read(attribute)?.takeIf { it.isNotEmpty() }?.let { values[name] = it } }
         return name in wanted
     }
     fun set(name: String, value: String) { if (value.isNotEmpty()) values[name] = value }
@@ -94,7 +85,7 @@ private class Fields(private val wanted: Set<String>, private val attributes: Ma
 }
 private val channelText = setOf("link", "title", "itunes:author", "itunes:owner", "description", "itunes:summary")
 private val itemText = setOf("link", "guid", "title", "itunes:title", "content:encoded", "description", "itunes:summary", "pubDate", "itunes:duration")
-private class FeedHandler : DefaultHandler() {
+private class FeedHandler {
     private var root: String? = null
     private var depth = 0
     private var channelSeen = false
@@ -109,11 +100,7 @@ private class FeedHandler : DefaultHandler() {
     private var field: String? = null
     private var fieldDepth = 0
     private val value = StringBuilder()
-    private val run = StringBuilder()
-
-    private fun flushRun() { if (run.isNotEmpty()) { value.append(run.toString().trim()); run.setLength(0) } }
-    override fun startElement(uri: String?, local: String?, qName: String, attributes: Attributes) {
-        if (field != null) flushRun()
+    fun startElement(qName: String, attributes: Map<String, String>) {
         depth++
         if (field != null) return
         val fields = when {
@@ -127,11 +114,10 @@ private class FeedHandler : DefaultHandler() {
             depth == 4 -> item ?: image.takeIf { inImage }
             else -> null
         } ?: return
-        if (fields.open(qName) { attributes.getValue(it) }) { target = fields; field = qName; fieldDepth = depth; value.setLength(0) }
+        if (fields.open(qName) { attributes[it] }) { target = fields; field = qName; fieldDepth = depth; value.setLength(0) }
     }
-    override fun characters(ch: CharArray, start: Int, length: Int) { if (field != null && depth == fieldDepth) run.append(ch, start, length) }
-    override fun endElement(uri: String?, local: String?, qName: String) {
-        if (field != null) flushRun()
+    fun text(text: String) { if (field != null && depth == fieldDepth) value.append(text) }
+    fun endElement(qName: String) {
         if (field != null && depth == fieldDepth) { target!!.set(field!!, value.toString()); field = null; target = null }
         if (inChannel && depth == 3 && qName == "item") { item?.let(::finishItem); item = null }
         if (inChannel && depth == 3 && qName == "image") inImage = false
@@ -144,7 +130,6 @@ private class FeedHandler : DefaultHandler() {
             item["content:encoded"] ?: item["description"] ?: item["itunes:summary"] ?: "",
             parseDate(item["pubDate"]), parseDuration(item["itunes:duration"]), audio, item["itunes:image"], item["podcast:chapters"], item["link"])
     }
-    override fun resolveEntity(publicId: String?, systemId: String?): InputSource = throw IllegalArgumentException("External entities are forbidden")
     fun feed(): ParsedFeed {
         require(root == "rss") { "Not an RSS feed" }
         require(channelSeen) { "No channel" }

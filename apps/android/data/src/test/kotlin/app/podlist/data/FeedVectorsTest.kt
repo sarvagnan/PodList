@@ -30,4 +30,26 @@ class FeedVectorsTest {
         assertFails { parseFeed("<rss>${"é".repeat(FeedSizeLimit / 2)}</rss>") }
         assertFails { Opml.parse("<!DOCTYPE opml SYSTEM 'https://test/evil'><opml><body/></opml>") }
     }
+    @Test fun `DTD expansion bombs remain literal even with many references`() {
+        val declarations = (1..9).joinToString("") { n ->
+            "<!ENTITY lol$n '${"&lol${n - 1};".repeat(10)}'>"
+        }
+        val literal = "&lol9;".repeat(10_000)
+        val xml = "<!DOCTYPE rss [<!ENTITY lol0 'EXPANDED'>$declarations]>" +
+            "<rss><channel><title>Safe</title><description>$literal</description></channel></rss>"
+        assertEquals(literal, parseFeed(xml).description)
+    }
+    @Test fun `nesting is bounded even inside unused markup`() {
+        assertFailsWith<IllegalArgumentException> {
+            parseFeed("<rss><channel><title>Safe</title>${"<unused>".repeat(1000)}${"</unused>".repeat(1000)}</channel></rss>")
+        }
+    }
+    @Test fun `doctype text inside comments CDATA and attributes is inert`() {
+        val xml = "<rss><channel><!-- <!DOCTYPE fake [ -->" +
+            "<title><![CDATA[<!DOCTYPE literal> &amp;]]></title>" +
+            "<item><enclosure url=\"https://test/<!DOCTYPE literal>\"/></item></channel></rss>"
+        val feed = parseFeed(xml)
+        assertEquals("<!DOCTYPE literal> &amp;", feed.title)
+        assertEquals("https://test/<!DOCTYPE literal>", feed.episodes.single().audioUrl)
+    }
 }

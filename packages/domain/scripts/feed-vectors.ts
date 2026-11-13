@@ -34,13 +34,33 @@ const sources = [
   }
 ]
 const rejected = [
+  { name: "truncated-title", xml: "<rss><channel><title>unfinished" },
+  { name: "unclosed-opening-tag", xml: "<rss><channel><title>Show</title><item" },
+  { name: "unclosed-attribute", xml: '<rss><channel><title>Show</title><item><enclosure url="a' },
+  { name: "unclosed-comment", xml: rss("<title>Show</title><!--") },
+  { name: "unclosed-cdata", xml: rss("<title>Show</title><![CDATA[bad") },
+  { name: "unclosed-doctype", xml: '<!DOCTYPE rss [<!ENTITY custom "x">' },
+  {
+    name: "excessive-nesting",
+    xml: rss(`<title>Show</title>${"<nested>".repeat(200)}${"</nested>".repeat(200)}`)
+  },
   { name: "not-rss", xml: "<html><body/></html>" },
   { name: "missing-channel", xml: "<rss/>" },
   { name: "missing-title", xml: rss("<description>No title</description>") },
   { name: "empty-title", xml: rss("<title> </title>") }
 ]
-// Stricter on the Device than the server, whose tolerant parser keeps sloppy live feeds working.
-const rejectedOnDevice = [
+const recovered = [
+  {
+    name: "ignored-entity-expansion-bomb",
+    xml: `<!DOCTYPE rss [<!ENTITY lol0 "EXPANDED">${Array.from({ length: 9 }, (_, n) => `<!ENTITY lol${n + 1} "${`&lol${n};`.repeat(10)}">`).join("")}]>${rss('<title>&lol9;</title><item><enclosure url="&lol9;"/></item>')}`
+  },
+  {
+    name: "declaration-literals",
+    xml: rss(
+      '<title><![CDATA[<!DOCTYPE literal> &amp;]]></title><!-- <!DOCTYPE fake [ --><item><enclosure url="https://test/<!DOCTYPE literal>"/></item>'
+    )
+  },
+
   { name: "malformed", xml: "<rss><channel><title>Broken</channel></rss>" },
   {
     name: "external-entity",
@@ -49,14 +69,83 @@ const rejectedOnDevice = [
   {
     name: "external-dtd",
     xml: '<!DOCTYPE rss SYSTEM "https://test/evil"><rss><channel><title>Unsafe</title></channel></rss>'
+  },
+  {
+    name: "bare-ampersands",
+    xml: rss(
+      '<title>Fish & Chips &unknown;</title><item><title>A & B</title><enclosure url="https://test/a?x=1&y=2"/></item>'
+    )
+  },
+  {
+    name: "unbound-prefixes",
+    xml: '<rss><channel><title>Show</title><itunes:author>Author</itunes:author><item><itunes:title>Episode</itunes:title><enclosure url="a"/></item></channel></rss>'
+  },
+  {
+    name: "truncated-after-complete-fields",
+    xml: '<rss><channel><title>Show</title><item><title>Episode</title><enclosure url="a"/>'
+  },
+  {
+    name: "truncated-final-text",
+    xml: '<rss><channel><title>Show</title><item><enclosure url="a"/><description>unfinished'
+  },
+  {
+    name: "mismatched-item-close",
+    xml: rss(
+      '<title>Show</title><item><title>Episode</wrong><enclosure url="a"/></oops><item><enclosure url="b"/></item>'
+    )
+  },
+  {
+    name: "stray-closing-tag",
+    xml: `</stray>${rss('<title>Show</title><item><enclosure url="a"/></item>')}`
+  },
+  {
+    name: "quoted-and-unquoted-attributes",
+    xml: rss(
+      '<title>Show</title><item><enclosure url=ignored/></item><item><enclosure url="old" url="new" note="x > y"/></item>'
+    )
+  },
+  {
+    name: "built-in-entities",
+    xml: rss(
+      '<title>&lt; &gt; &amp; &quot; &apos; &#65; &#x1F600; &nbsp; &copy; &mdash; &euro;</title><item><enclosure url="a?x=&#49;&amp;y=&copy;"/></item>'
+    )
+  },
+  {
+    name: "entity-decoding-once",
+    xml: rss(
+      "<title>&amp;lt; &unknown; &#x110000; &#0; &#xD800;</title><description><![CDATA[&copy; &amp; <!DOCTYPE literal>]]></description>"
+    )
+  },
+  {
+    name: "comments-and-cdata",
+    xml: rss(
+      "<title>A<!-- ignored --> B<![CDATA[ C &amp; ]]></title><description>one<b>ignored</b>two</description>"
+    )
+  },
+  {
+    name: "ignored-internal-entities",
+    xml:
+      '<!DOCTYPE rss [<!ENTITY custom "EXPANDED"><!ENTITY amp "WRONG">]>' +
+      rss('<title>&custom; &amp; &#65; &copy;</title><item><enclosure url="&custom;"/></item>')
+  },
+  {
+    name: "ignored-parameter-entity",
+    xml:
+      '<!DOCTYPE rss [<!ENTITY % remote SYSTEM "https://test/evil">%remote;]>' +
+      rss("<title>Safe</title>")
+  },
+  {
+    name: "doctype-quotes-and-comments",
+    xml:
+      '<!DOCTYPE rss SYSTEM "https://test/a>b" [<!-- ]> fake <rss> --><!ENTITY custom "x ]> <title>Injected</title>">]>' +
+      rss("<title>Safe &custom;</title>")
   }
 ]
 export const buildFeedVectors = () => ({
   protocolVersion: 4,
   feeds: [
-    ...sources.map((source) => ({ ...source, expected: parseFeed(source.xml) })),
-    ...rejected.map((source) => ({ ...source, error: true })),
-    ...rejectedOnDevice.map((source) => ({ ...source, error: true, deviceOnly: true }))
+    ...[...sources, ...recovered].map((source) => ({ ...source, expected: parseFeed(source.xml) })),
+    ...rejected.map((source) => ({ ...source, error: true }))
   ],
   durations: [
     null,
