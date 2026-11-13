@@ -387,6 +387,7 @@ try {
 } finally {
   await browser.close()
   demo.stop()
+  await demo.stopped
 }
 
 writeFileSync(join(out, "measurements.json"), JSON.stringify(rows, null, 2))

@@ -176,7 +176,14 @@ const startFixtures = async () => {
   })
   const port = await listen(server)
   const origin = `http://127.0.0.1:${port}`
-  return { origin, close: () => server.close() }
+  return {
+    origin,
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve)
+        server.closeAllConnections()
+      })
+  }
 }
 
 const freePort = async () => {
@@ -203,12 +210,13 @@ export const startDemo = async ({ empty = false, large = false, port: requestedP
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = requestedPort ?? (await freePort())
   const base = `http://127.0.0.1:${port}`
-  const server = spawn(process.execPath, [join(repo, "packages/server/src/main.ts")], {
+  const server = spawn(process.execPath, [join(repo, "packages/web/ui-flows/demo-server.mjs")], {
     env: {
       // No Podcast Index keys: search goes to the fixture host below.
       ...Object.fromEntries(
         Object.entries(process.env).filter(([name]) => !name.startsWith("PODCASTINDEX_"))
       ),
+      NODE_COMPILE_CACHE: join(tmpdir(), "podlist-demo-compile-cache"),
       PORT: String(port),
       DATABASE_PATH: join(dir, "podlist.db"),
       BACKUP_DIR: join(dir, "backups"),
@@ -216,21 +224,67 @@ export const startDemo = async ({ empty = false, large = false, port: requestedP
       // Search finds the fixture feeds, never the real directories.
       ITUNES_SEARCH_URL: `${fixtures.origin}/search`
     },
-    stdio: ["ignore", "ignore", "inherit"]
+    stdio: ["ignore", "pipe", "pipe", "ipc"]
   })
+  const loaded = new Promise((resolve, reject) => {
+    const failed = (code, signal) => {
+      reject(new Error(`Demo server exited during module loading (${code}, ${signal})`))
+    }
+    server.once("error", reject)
+    server.once("exit", failed)
+    server.once("message", (message) => {
+      if (message?.type !== "podlist-demo-loaded") {
+        reject(new Error("Unexpected demo server startup message"))
+        return
+      }
+      server.removeListener("error", reject)
+      server.removeListener("exit", failed)
+      resolve()
+    })
+  })
+  let startupOutput = ""
+  for (const stream of [server.stdout, server.stderr]) {
+    stream.on("data", (data) => {
+      startupOutput = (startupOutput + data.toString()).slice(-8000)
+    })
+  }
+  let resolveStopped
+  let rejectStopped
+  const stopped = new Promise((resolve, reject) => {
+    resolveStopped = resolve
+    rejectStopped = reject
+  })
+  let stopping = false
   const stop = () => {
-    server.kill()
-    fixtures.close()
-    rmSync(dir, { recursive: true, force: true })
+    if (stopping) return
+    stopping = true
+    // Do not block browser teardown on its own live sockets, or cut in-flight
+    // route.fetch handlers short. Delete fixture data only after its writer exits.
+    const exited =
+      server.exitCode === null && server.signalCode === null
+        ? new Promise((resolve) => {
+            server.once("close", resolve)
+            server.kill()
+          })
+        : Promise.resolve()
+    void exited
+      .then(() => fixtures.close())
+      .then(() => {
+        rmSync(dir, { recursive: true, force: true })
+      })
+      .then(resolveStopped, rejectStopped)
   }
   try {
+    await loaded
     await waitFor(`${base}/api/health`)
     if (!empty) await seed(base, fixtures.origin, large)
   } catch (error) {
+    const startupStatus = `exit=${server.exitCode}, signal=${server.signalCode}`
     stop()
-    throw error
+    await stopped
+    throw new Error(`${error.message} (${startupStatus})\n${startupOutput}`, { cause: error })
   }
-  return { base, stop, fixtures: fixtures.origin }
+  return { base, stop, stopped, fixtures: fixtures.origin }
 }
 
 const post = async (base, path, body) => {
@@ -361,8 +415,9 @@ const seed = async (base, origin, large) => {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const demo = await startDemo()
   console.log(`PodList demo at ${demo.base}`)
-  process.on("SIGINT", () => {
+  process.on("SIGINT", async () => {
     demo.stop()
+    await demo.stopped
     process.exit(0)
   })
 }

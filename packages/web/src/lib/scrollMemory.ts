@@ -1,5 +1,6 @@
 import { useRouter } from "@tanstack/react-router"
 import { useEffect, useLayoutEffect, useRef } from "react"
+import { scrollEntry } from "./overlayScroll.ts"
 
 // Back, Forward and reload return a list to where it was scrolled (BROWSER-01, DATA-06).
 // Lists fill in from the local database after the screen renders, so the position is
@@ -11,7 +12,7 @@ const storageKey = (entry: string) => `podlist:scroll:${entry}`
 export function useScrollMemory(ready: boolean) {
   const router = useRouter()
   const { history } = router
-  const entry = history.location.state.__TSR_key ?? "initial"
+  const entry = scrollEntry(history.location.state)
 
   // Until this entry's position is back, scrolls are the router's and the list's own
   // (to the top, as the page fills in), not the reader's: they mustn't overwrite it.
@@ -25,7 +26,7 @@ export function useScrollMemory(ready: boolean) {
     const save = () => {
       if (!settled.current) return
       // Leaving this screen resets the scroll; that isn't this entry's position.
-      if ((history.location.state.__TSR_key ?? "initial") !== entry) return
+      if (scrollEntry(history.location.state) !== entry) return
       try {
         sessionStorage.setItem(storageKey(entry), String(Math.round(window.scrollY)))
       } catch {
@@ -51,7 +52,9 @@ export function useScrollMemory(ready: boolean) {
   useEffect(
     () =>
       router.subscribe("onRendered", (event) => {
-        const key = event.toLocation.state.__TSR_key ?? "initial"
+        const policy = router.options.scrollRestoration
+        if (typeof policy === "function" && !policy({ location: event.toLocation })) return
+        const key = scrollEntry(event.toLocation.state)
         if (key === entry && readyNow.current) restore(entry, () => {})
       }),
     [router, entry]

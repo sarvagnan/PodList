@@ -2,21 +2,17 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
-  KeyboardSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors
 } from "@dnd-kit/core"
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy
-} from "@dnd-kit/sortable"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import type * as React from "react"
-import { type ReactNode, useMemo } from "react"
+import { type ReactNode, useContext, useMemo } from "react"
+
+import { KeyboardReorderContext } from "./useKeyboardReorder.ts"
 
 // Reordering a list by dragging its rows' handles: pointer, touch (press and hold) or
 // keyboard (Space on the handle, arrows, Space again). Announcements name the rows.
@@ -26,7 +22,6 @@ export function SortableList({
   label,
   onMove,
   children,
-  keyboard = true,
   onDragChange
 }: {
   readonly ids: ReadonlyArray<string>
@@ -35,15 +30,12 @@ export function SortableList({
   /** The row `id` now sits right after `after` (null: first). */
   readonly onMove: (id: string, after: string | null) => void
   readonly children: ReactNode
-  /** Off where the rows take their own arrow keys (the Now Playing drawer). */
   readonly onDragChange?: (id: string | null) => void
-  readonly keyboard?: boolean
 }) {
   const items = useMemo(() => [...ids], [ids])
   const pointer = useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   const touch = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
-  const keys = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  const sensors = useSensors(pointer, touch, ...(keyboard ? [keys] : []))
+  const sensors = useSensors(pointer, touch)
   const position = (id: string | number) => ids.indexOf(String(id)) + 1
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     onDragChange?.(null)
@@ -104,6 +96,8 @@ export function SortableRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id
   })
+  const keyboardHandle = useContext(KeyboardReorderContext)?.(id)
+  const dragging = isDragging || keyboardHandle?.["aria-pressed"] === true
   return children({
     ref: setNodeRef,
     style: {
@@ -111,7 +105,7 @@ export function SortableRow({
       transition,
       ...(isDragging ? { zIndex: 20, position: "relative" } : {})
     },
-    dragging: isDragging,
-    handle: { ...attributes, ...listeners }
+    dragging,
+    handle: { ...attributes, ...listeners, ...keyboardHandle, "aria-pressed": dragging }
   })
 }

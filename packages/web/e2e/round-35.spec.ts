@@ -158,7 +158,26 @@ for (const route of ["views/starred?edit=true", "search?q=market"]) {
     await page.goto(`${demo.base}/${route}`)
     const min = page.getByRole("combobox", { name: "At least", exact: true })
     const max = page.getByRole("combobox", { name: "At most", exact: true })
-    await min.selectOption("60")
+    // A saved View is held in this tab until server acknowledgement. A real reload
+    // warns while pending; Playwright's automatic dialog handling is not a save boundary.
+    const saved = async (edit: () => Promise<unknown>) => {
+      const delivered = route.startsWith("views/")
+        ? page.waitForResponse(
+            (response) =>
+              response.url().endsWith("/api/sync/push") &&
+              response.ok() &&
+              response
+                .request()
+                .postDataJSON()
+                .operations.some(
+                  (operation: { change: { _tag: string } }) => operation.change._tag === "SaveView"
+                )
+          )
+        : null
+      await edit()
+      await delivered
+    }
+    await saved(() => min.selectOption("60"))
     await max.selectOption("10")
     await expect(max).toHaveValue("10")
     await expect(max).toHaveAttribute("aria-invalid", "true")
@@ -170,14 +189,16 @@ for (const route of ["views/starred?edit=true", "search?q=market"]) {
     await expect(min).toHaveValue("60")
     await expect(max).toHaveValue("")
     await max.selectOption("10")
-    await max.selectOption("90")
+    await saved(() => max.selectOption("90"))
     await expect(max).toHaveAttribute("aria-invalid", "false")
     await page.reload()
     await expect(max).toHaveValue("90")
-    await page.getByRole("combobox", { name: "Published", exact: true }).selectOption("between")
+    await saved(() =>
+      page.getByRole("combobox", { name: "Published", exact: true }).selectOption("between")
+    )
     const from = page.getByLabel("From", { exact: true })
     const to = page.getByLabel("To", { exact: true })
-    await from.fill("2026-10-20")
+    await saved(() => from.fill("2026-10-20"))
     await to.fill("2026-10-10")
     await expect(to).toHaveValue("2026-10-10")
     await expect(to).toHaveAttribute("aria-invalid", "true")
@@ -185,7 +206,7 @@ for (const route of ["views/starred?edit=true", "search?q=market"]) {
     await page.reload()
     await expect(from).toHaveValue("2026-10-20")
     await expect(to).toHaveValue("")
-    await to.fill("2026-10-20")
+    await saved(() => to.fill("2026-10-20"))
     await expect(to).toHaveAttribute("aria-invalid", "false")
     await page.reload()
     await expect(to).toHaveValue("2026-10-20")
@@ -228,11 +249,18 @@ for (const width of [1440, 720]) {
       await page.goto(`${demo.base}/${route}`)
       const checks = page.locator("main [data-row]").getByRole("checkbox")
       await expect(checks.nth(1)).toBeVisible()
-      const before = await checks.nth(1).boundingBox()
+      // Initial virtual measurements can adjust scroll anchoring while selecting.
+      // The toolbar must preserve document layout, independent of viewport scrolling.
+      const position = () =>
+        checks.nth(1).evaluate((element) => {
+          const box = element.getBoundingClientRect()
+          return { x: box.x + scrollX, y: box.y + scrollY, width: box.width, height: box.height }
+        })
+      const before = await position()
       await checks.first().check()
       const bar = page.getByRole("toolbar")
       await expect(bar).toBeVisible()
-      expect(await checks.nth(1).boundingBox()).toEqual(before)
+      expect(await position()).toEqual(before)
       await checks.nth(1).check()
       await expect(bar).toHaveAccessibleName("2 Episodes selected")
       expect(await bar.textContent()).toMatch(/^2 selected/)
@@ -245,7 +273,7 @@ for (const width of [1440, 720]) {
       await expect(clear).toBeInViewport()
       await page.keyboard.press("Enter")
       await expect(bar).toHaveCount(0)
-      expect(await checks.nth(1).boundingBox()).toEqual(before)
+      expect(await position()).toEqual(before)
     })
   }
 }

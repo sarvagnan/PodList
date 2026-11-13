@@ -6,7 +6,11 @@ let demo: { base: string; stop: () => void }
 test.beforeEach(async () => {
   demo = await startDemo()
 })
-test.afterEach(() => demo.stop())
+test.afterEach(async ({ page }) => {
+  // Drain HTTP mock callbacks before Playwright disposes their request responses.
+  await page.unrouteAll({ behavior: "wait" })
+  demo?.stop()
+})
 const open = async (page: Page) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/views/short`)

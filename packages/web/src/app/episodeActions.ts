@@ -1,5 +1,5 @@
 import { Operation } from "@podlist/domain"
-import { Effect, Schema, SubscriptionRef } from "effect"
+import { Effect, Schema, Semaphore, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { DataLayer } from "../data/DataLayer.ts"
 import {
@@ -68,6 +68,42 @@ export const bulkActionAtom = runtime.fn(
       }
       return { message: input.message, undo: undos.reverse().flat() } satisfies Outcome
     }),
+  { concurrent: true }
+)
+
+// Read and record each relative move together. React's last rendered row index can
+// lag several arrow presses; the next intention must see the preceding optimistic edit.
+const keyboardMoves = Semaphore.makeUnsafe(1)
+export const moveUpcomingEntryAtom = runtime.fn(
+  (input: {
+    readonly playlistId: string
+    readonly episodeId: string
+    readonly currentEpisodeId: string
+    readonly direction: -1 | 1
+  }) =>
+    Effect.gen(function* () {
+      const engine = yield* DataLayer
+      const state = yield* SubscriptionRef.get(engine.state)
+      const playlist = state.playlists.find((playlist) => playlist.id === input.playlistId)
+      if (!playlist) return null
+      const entries = playlist.entries
+      const from = entries.findIndex((entry) => entry.episodeId === input.episodeId)
+      const current = entries.findIndex((entry) => entry.episodeId === input.currentEpisodeId)
+      const to = from + input.direction
+      if (from <= current || from < 0 || to <= current || to < 0 || to >= entries.length)
+        return null
+      const move = (after: string | null) =>
+        Schema.decodeUnknownSync(Operation.Change)({
+          _tag: "MoveEntry",
+          playlistId: playlist.id,
+          episodeId: input.episodeId,
+          after
+        })
+      const undo = move(entries[from - 1]?.episodeId ?? null)
+      const redo = move(entries[input.direction === -1 ? from - 2 : from + 1]?.episodeId ?? null)
+      yield* engine.record(redo)
+      return { undo: [undo], redo }
+    }).pipe(keyboardMoves.withPermits(1)),
   { concurrent: true }
 )
 

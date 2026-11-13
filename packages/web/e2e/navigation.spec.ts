@@ -36,7 +36,9 @@ test.describe("phone", () => {
     await expect(drawer).toBeHidden()
     await expect(page).toHaveURL(/\/playlists\/default$/)
     await page.goBack()
-    await expect(page).toHaveURL(/\/playlists$/)
+    // goBack awaited the document load. Read Chromium's committed URL directly;
+    // renderer evaluation can stall during the document's execution-context swap.
+    expect(page.url()).toMatch(/\/playlists$/)
   })
 
   test("Esc on a drawer page goes back one page, then closes the drawer", async ({ page }) => {
@@ -148,27 +150,51 @@ test("the Episode screen's back link names the View it came from", async ({ page
   await expect(page).toHaveURL(/\/views\/short$/)
 })
 
-test("Up next in the drawer reorders with the keyboard, with Undo", async ({ page }) => {
-  await page.setViewportSize({ width: 412, height: 915 })
-  await page.goto(`${demo.base}/playlists/default`)
-  await page.getByRole("button", { name: /^Open Now Playing/ }).click()
-  const drawer = page.getByRole("dialog")
-  await drawer.getByRole("button", { name: /^Up next/ }).click()
-  const list = drawer.getByRole("list", { name: /^Up next in/ })
-  const order = () =>
-    list
-      .getByRole("button", { name: /from here$/ })
-      .evaluateAll((buttons) => buttons.map((b) => b.getAttribute("aria-label") ?? ""))
-  const before = await order()
-  expect(before.length).toBeGreaterThan(1)
-  // Its handle takes the arrows: down moves it one place.
-  const handle = list.getByRole("button", { name: /^Move / }).first()
-  await handle.focus()
-  await page.keyboard.press("ArrowDown")
-  await expect.poll(order).toEqual([before[1], before[0], ...before.slice(2)])
-  await drawer.getByRole("button", { name: "Undo" }).click()
-  await expect.poll(order).toEqual(before)
-})
+for (const lateTitles of [false, true]) {
+  test(`Up next in the drawer reorders with the keyboard, with Undo, late titles=${lateTitles}`, async ({
+    page
+  }) => {
+    let releaseTitles = () => {}
+    const titles = new Promise<void>((resolve) => {
+      releaseTitles = resolve
+    })
+    if (lateTitles)
+      await page.route("**/api/reads/episodes", async (route) => {
+        await titles
+        await route.continue()
+      })
+    try {
+      await page.setViewportSize({ width: 412, height: 915 })
+      await page.goto(`${demo.base}/playlists/default`)
+      await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+      const drawer = page.getByRole("dialog")
+      await drawer.getByRole("button", { name: /^Up next/ }).click()
+      const list = drawer.getByRole("list", { name: /^Up next in/ })
+      const order = () =>
+        list
+          .getByRole("button", { name: /from here$/ })
+          .evaluateAll((buttons) =>
+            buttons.map((b) => b.closest("[data-entry-id]")?.getAttribute("data-entry-id") ?? "")
+          )
+      // Summaries may still say “Entry”: compare stable row identities, not loading labels.
+      const before = await order()
+      expect(before.length).toBeGreaterThan(1)
+      // Its handle takes the arrows: down moves it one place.
+      const handle = list.getByRole("button", { name: /^Move / }).first()
+      await handle.focus()
+      await page.keyboard.press("ArrowDown")
+      releaseTitles()
+      await expect(
+        list.getByRole("button", { name: "Play Joinery without screws from here", exact: true })
+      ).toBeVisible()
+      await expect.poll(order).toEqual([before[1], before[0], ...before.slice(2)])
+      await drawer.getByRole("button", { name: "Undo" }).click()
+      await expect.poll(order).toEqual(before)
+    } finally {
+      releaseTitles()
+    }
+  })
+}
 
 test("an Episode opened from a podcast keeps Library selected (LIST-06)", async ({ page }) => {
   // Phone: the Library tab stays selected, and the back link names the podcast.
@@ -237,4 +263,42 @@ test("on the phone, Back closes an open menu first (BROWSER-01)", async ({ page 
     .click()
   await page.getByRole("menuitem", { name: "Open Episode" }).click()
   await expect(page).toHaveURL(/\/episodes\//)
+})
+
+test("rapid Up next arrows apply in order before a paint", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto(`${demo.base}/playlists/default`)
+  await page.getByRole("button", { name: /^Open Now Playing/ }).click()
+  const drawer = page.getByRole("dialog")
+  await drawer.getByRole("button", { name: /^Up next/ }).click()
+  const list = drawer.getByRole("list", { name: /^Up next in/ })
+  const order = () =>
+    list
+      .getByRole("button", { name: /from here$/ })
+      .evaluateAll((buttons) =>
+        buttons.map(
+          (button) => button.closest("[data-entry-id]")?.getAttribute("data-entry-id") ?? ""
+        )
+      )
+  const before = await order()
+  expect(before.length).toBeGreaterThan(1)
+  const handle = list.getByRole("button", { name: /^Move / }).first()
+  await handle.focus()
+  const moves = new Set<string>()
+  page.on("request", (request) => {
+    if (!request.url().endsWith("/api/sync/push")) return
+    for (const operation of request.postDataJSON().operations)
+      if (operation.change._tag === "MoveEntry") moves.add(operation.id)
+  })
+  // Down then Up must restore the starting order, even if the first move has not rendered.
+  await handle.evaluate((button) => {
+    for (const key of ["ArrowDown", "ArrowUp"])
+      button.dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true }))
+  })
+  // A net-zero result alone could pass before either edit has run. Both keys must record.
+  await expect.poll(() => moves.size).toBe(2)
+  await expect(page.getByText(/^Moved “/)).toBeVisible()
+  await expect.poll(order).toEqual(before)
+  await drawer.getByRole("button", { name: "Undo", exact: true }).click()
+  await expect.poll(order).toEqual([before[1], before[0], ...before.slice(2)])
 })

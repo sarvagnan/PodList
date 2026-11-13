@@ -15,6 +15,7 @@ import {
   useState
 } from "react"
 import { SortableList } from "./SortableRow.tsx"
+import { KeyboardReorderContext, useKeyboardReorder } from "./useKeyboardReorder.ts"
 
 export interface EntryScroller {
   readonly scrollToIndex: (index: number) => void
@@ -43,7 +44,7 @@ const EntryContent = memo(
 
 /** Keep dragged and focused Entries mounted as the viewport moves (pod-b90, KEY-04). */
 export function VirtualSortableList({
-  ids,
+  ids: savedIds,
   memoryKey,
   rowVersion,
   label,
@@ -62,6 +63,8 @@ export function VirtualSortableList({
   readonly scroller?: Ref<EntryScroller>
   readonly drawer?: boolean
 }) {
+  const keyboard = useKeyboardReorder({ ids: savedIds, label, onMove, enabled: !drawer })
+  const ids = keyboard.ids
   const root = useRef<HTMLDivElement>(null)
   const storageKey = () =>
     `podlist:entry-sizes:${drawer ? "drawer" : "page"}:${memoryKey}:${window.innerWidth}`
@@ -116,7 +119,7 @@ export function VirtualSortableList({
     scrollMargin: margin,
     rangeExtractor: (range: Parameters<typeof defaultRangeExtractor>[0]) => {
       const indexes = new Set(defaultRangeExtractor(range))
-      for (const id of [dragged, focused]) {
+      for (const id of [dragged, keyboard.active, focused]) {
         const index = id === null ? -1 : ids.indexOf(id)
         if (index >= 0) indexes.add(index)
       }
@@ -134,6 +137,10 @@ export function VirtualSortableList({
     getScrollElement: scrollElement
   })
   const list = drawer ? drawerList : windowList
+  useLayoutEffect(() => {
+    if (keyboard.active !== null)
+      list.scrollToIndex(ids.indexOf(keyboard.active), { align: "auto" })
+  }, [ids, keyboard.active, list])
   useEffect(() => {
     // Pixel restoration needs the same measured heights, including after a reload.
     const save = () => {
@@ -177,35 +184,42 @@ export function VirtualSortableList({
         )
       }
     >
-      <SortableList
-        ids={ids}
-        label={label}
-        onMove={onMove}
-        keyboard={!drawer}
-        onDragChange={setDragged}
-      >
-        {list.getVirtualItems().map((item) => {
-          const id = ids[item.index]
-          if (!id) return null
-          return (
-            <div
-              key={id}
-              ref={list.measureElement}
-              data-index={item.index}
-              data-entry-id={id}
-              className="absolute inset-x-0 top-0 [contain:layout_style]"
-              style={{ transform: `translateY(${item.start - margin}px)` }}
-            >
-              <EntryContent
-                id={id}
-                index={item.index}
-                render={children}
-                version={rowVersion(id, item.index)}
-              />
-            </div>
-          )
-        })}
-      </SortableList>
+      {!drawer && (
+        <>
+          <span id={keyboard.instructions} className="sr-only">
+            To move this Entry, press Space, then the up and down arrows, then Space to drop it, or
+            Escape to cancel.
+          </span>
+          <div role="status" aria-live="assertive" aria-atomic="true" className="sr-only">
+            {keyboard.announcement}
+          </div>
+        </>
+      )}
+      <KeyboardReorderContext value={drawer ? null : keyboard.handle}>
+        <SortableList ids={ids} label={label} onMove={onMove} onDragChange={setDragged}>
+          {list.getVirtualItems().map((item) => {
+            const id = ids[item.index]
+            if (!id) return null
+            return (
+              <div
+                key={id}
+                ref={list.measureElement}
+                data-index={item.index}
+                data-entry-id={id}
+                className="absolute inset-x-0 top-0 [contain:layout_style]"
+                style={{ transform: `translateY(${item.start - margin}px)` }}
+              >
+                <EntryContent
+                  id={id}
+                  index={item.index}
+                  render={children}
+                  version={rowVersion(id, savedIds.indexOf(id))}
+                />
+              </div>
+            )
+          })}
+        </SortableList>
+      </KeyboardReorderContext>
     </div>
   )
 }
