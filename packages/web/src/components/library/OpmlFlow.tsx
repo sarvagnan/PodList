@@ -20,7 +20,7 @@ export function OpmlStatus() {
         {state.podcasts.length} · {state.name}
       </p>
       <p className="text-small text-muted-foreground">
-        Closing Add podcasts does not stop the import. Progress stays in Library.{" "}
+        Leaving Settings does not stop the import. Progress stays visible in Library.{" "}
         {localClient
           ? "Keep the app running. If you quit, import the same file again to finish the rest."
           : "Keep this tab open. Closing it stops the import. Import the same file again to finish the rest."}{" "}
@@ -70,8 +70,8 @@ export function OpmlFlow() {
         OPML file
       </label>
       <p className="text-small text-muted-foreground">
-        Choose a file to review before Import. Closing Add podcasts does not stop an import.
-        Progress stays in Library.{" "}
+        Choose a file to review before Import. Leaving Settings does not stop an import. Progress
+        stays visible in Library.{" "}
         {localClient
           ? "Keep the app running; after quitting, import the same file again to finish the rest."
           : "Keep this tab open; closing it stops the import. Import the same file again to finish the rest."}{" "}

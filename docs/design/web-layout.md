@@ -54,8 +54,8 @@ Keep the web saving status in a reserved row above the phone player and above Li
 ## Library and Subscriptions (design round 2, variant C)
 
 - **Library** groups Subscriptions by their Download Rule on this Device; desktop is a table with bulk rule changes.
-- **Add** is one sheet: Search (Podcast Index), Feed address (resolved directly, no index needed), OPML.
-- **Unsubscribe:** asks for confirmation, then offers Undo in the toast and through Cmd/Ctrl+Z; Redo repeats it. Undo re-subscribes to the same feed. The server retains the Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices’ Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals these retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Downloads stay on their Devices.
+- **Add** is one sheet: Search (Podcast Index), Feed address (resolved directly, no index needed). OPML import and export live in Settings.
+- **Unsubscribe:** the subscribed check arms an Unsubscribe button for five seconds. A second activation unsubscribes; another interaction, focus leaving, scroll, Escape or leaving the page disarms it. Stay on the Podcast page after success, then offer Undo in the toast and through Cmd/Ctrl+Z; Redo repeats it. Undo re-subscribes to the same feed. The server retains the Subscription and Episode ids, settings (Played threshold and Playback Settings overrides), all Devices’ Download Rules, Played and Starred states, Entries and Positions. Re-subscribing reveals these retained records again. A failed server call keeps the Undo or Redo step available and explains that it can be retried. Downloads stay on their Devices.
 
 ## Selection marker
 
@@ -134,6 +134,6 @@ Playlist Entry order and Positions, and return up to 200 rows per page, 100 by d
 
 Choose or drop a file to select it. Show its name, podcast count and how many are already in the Library. Allow another file or Cancel. Show unreadable-file errors without Import. Import starts only after pressing Import.
 
-Show “Importing 12 of 40” and each podcast’s result: Added, Already in the Library, or Failed with a reason. Retry failed podcasts. Skip duplicates. Import and export live in Settings. Add podcasts uses the same import flow. Keep the Choose a file… button.
+Show “Importing 12 of 40” and each podcast’s result: Added, Already in the Library, or Failed with a reason. Retry failed podcasts. Skip duplicates. Import and export live in Settings. Keep the Choose a file… button.
 
-Closing Add podcasts does not stop importing. Keep progress and results in Library. Say to keep the tab open. Warn before leaving during import. Closing the tab stops it. Importing the same file again finishes the rest. Electron keeps importing while its app runs; after quitting, import the same file again.
+Leaving Settings does not stop importing. Keep progress and results in Library. Say to keep the tab open. Warn before leaving during import. Closing the tab stops it. Importing the same file again finishes the rest. Electron keeps importing while its app runs; after quitting, import the same file again.

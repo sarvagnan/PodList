@@ -32,8 +32,8 @@ import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
 
 // The Library (docs/design/ui-layout.md › Library and Subscriptions): every Subscription,
-// each opening its settings and Episodes; Add finds podcasts, takes a feed address or an
-// OPML file. Grouping by Download Rule arrives with Download Rules (pod-g1v.5).
+// each opening its settings and Episodes. Add finds podcasts or takes a feed address;
+// Settings imports OPML. Grouping by Download Rule arrives with Download Rules (pod-g1v.5).
 
 /** The Download Rules, as a row's menu offers them. */
 const rules: ReadonlyArray<readonly [Mode, string]> = [
@@ -229,8 +229,11 @@ function LibraryScreen() {
         <LoadingRows label="Loading your Library" />
       ) : subscriptions.length === 0 ? (
         <EmptyState title="No Subscriptions yet">
-          Add podcasts by name, by feed address, or from another app’s OPML file. Their Episodes
-          then appear in your Views.
+          Add podcasts by name or by feed address. Import another app’s OPML file in{" "}
+          <Link to="/settings" className="font-medium text-primary underline underline-offset-2">
+            Settings
+          </Link>
+          . Their Episodes then appear in your Views.
         </EmptyState>
       ) : wide && state !== null ? (
         <LibraryTable

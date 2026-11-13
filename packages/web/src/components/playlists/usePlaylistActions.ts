@@ -24,7 +24,7 @@ export function usePlaylistActions() {
   const remove = useCallback(
     async (playlistId: string, name: string) => {
       const step = {
-        message: `Moved “${name}” to the Trash`,
+        message: `Playlist ${name} moved to Trash`,
         undo: [change({ _tag: "RestorePlaylist", playlistId })]
       }
       await record(change({ _tag: "DeletePlaylist", playlistId }))

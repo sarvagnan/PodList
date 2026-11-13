@@ -10,9 +10,10 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(() => demo.stop())
 
 const unsubscribe = async (page: Page) => {
+  await page.getByRole("button", { name: "Subscribed to Slow Build" }).click()
   await page.getByRole("button", { name: "Unsubscribe", exact: true }).click()
-  await page.getByRole("alertdialog").getByRole("button", { name: "Unsubscribe" }).click()
-  await expect(page).toHaveURL(/\/library$/)
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
+  await expect(page).toHaveURL(/\/library\/[^/]+$/)
 }
 
 test("Unsubscribe offers toast and keyboard Undo, retries offline, and supports Redo", async ({
@@ -23,7 +24,7 @@ test("Unsubscribe offers toast and keyboard Undo, retries offline, and supports 
   await podcast.click()
   await page.getByRole("combobox", { name: "Speed", exact: true }).selectOption("1.5")
   await unsubscribe(page)
-  await expect(podcast).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeVisible()
   // A failed request must leave both the original step and its retry action available.
   await page.route("**/api/subscriptions", (route) => route.abort())
@@ -31,26 +32,25 @@ test("Unsubscribe offers toast and keyboard Undo, retries offline, and supports 
   const retry = page.getByRole("dialog", { name: /Undo is still available/ })
   await expect(retry).toBeVisible()
   await expect(retry.getByRole("button", { name: "Undo", exact: true })).toBeVisible()
-  await expect(podcast).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
   await page.unroute("**/api/subscriptions")
   await page.locator("main h1").click()
   await page.keyboard.press("ControlOrMeta+z")
-  await expect(podcast).toBeVisible()
+  await expect(page.getByRole("button", { name: "Subscribed to Slow Build" })).toBeVisible()
   await page.route("**/api/subscriptions/*", (route) => route.abort())
   await page.keyboard.press("ControlOrMeta+Shift+z")
   await expect(page.getByText(/Redo is still available/)).toBeVisible()
-  await expect(podcast).toBeVisible()
+  await expect(page.getByRole("button", { name: "Subscribed to Slow Build" })).toBeVisible()
   await page.unroute("**/api/subscriptions/*")
   await page.getByRole("button", { name: "Redo", exact: true }).click()
-  await expect(podcast).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
   await expect(page.getByText("Redone: Unsubscribed from Slow Build")).toBeVisible()
   await page.keyboard.press("ControlOrMeta+z")
-  await expect(podcast).toBeVisible()
-  await podcast.click()
+  await expect(page.getByRole("button", { name: "Subscribed to Slow Build" })).toBeVisible()
   await expect(page.getByRole("combobox", { name: "Speed", exact: true })).toHaveValue("1.5")
   await unsubscribe(page)
   await page.getByRole("button", { name: "Undo", exact: true }).click()
-  await expect(podcast).toBeVisible()
+  await expect(page.getByRole("button", { name: "Subscribed to Slow Build" })).toBeVisible()
 })
 
 test("Playlist panel follows the Cursor unless an Episode is explicitly opened", async ({
