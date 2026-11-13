@@ -4,8 +4,15 @@
 # server's dependencies on the box, switches to it, and rolls back if it doesn't answer.
 set -euo pipefail
 
-host=${PODLIST_HOST:-sarvagnan@podlist}
 cd "$(dirname "$0")/.."
+
+# Where to deploy, as user@host. Set PODLIST_HOST, or put it in deploy/deploy.local
+# (not committed), e.g. PODLIST_HOST=deploy@podlist
+if [[ -z ${PODLIST_HOST:-} && -f deploy/deploy.local ]]; then
+  # shellcheck source=/dev/null
+  source deploy/deploy.local
+fi
+host=${PODLIST_HOST:?Set PODLIST_HOST to user@host, or put it in deploy/deploy.local (see deploy/README.md)}
 
 if [[ -n $(git status --porcelain) ]]; then
   echo "Commit or stash your changes first: every release is a commit." >&2
