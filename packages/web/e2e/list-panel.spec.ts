@@ -7,7 +7,11 @@ test.beforeEach(async ({ page }) => {
   demo = await startDemo()
   await page.setViewportSize({ width: 1600, height: 1000 })
 })
-test.afterEach(() => demo.stop())
+test.afterEach(async ({ page }) => {
+  // Drain HTTP mock callbacks before Playwright disposes their request responses.
+  await page.unrouteAll({ behavior: "wait" })
+  demo?.stop()
+})
 
 test("measure selection request and panel render", async ({ page }, testInfo) => {
   const delay = Number(process.env.PANEL_DELAY_MS ?? 0)

@@ -29,8 +29,22 @@ for (const placement of ["Next", "Last"]) {
     await sheet.getByRole("button", { name: `Play ${placement}` }).click()
     await expect(sheet).toBeHidden()
     await expect(page.getByText("Created “Walking” with 1 Episode")).toBeVisible()
+    const undone = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/sync/push") &&
+        response.ok() &&
+        response
+          .request()
+          .postDataJSON()
+          .operations.some(
+            (operation: { change: { _tag: string } }) => operation.change._tag === "DeletePlaylist"
+          )
+    )
     await page.getByRole("button", { name: "Undo", exact: true }).click()
+    await undone
     await page.goto(`${demo.base}/playlists`)
+    // State.initial has only Default; wait for a server-seeded Playlist before asserting absence.
+    await expect(page.getByRole("link", { name: /^Commute/ })).toBeVisible()
     await expect(page.getByRole("link", { name: /^Walking/ })).toHaveCount(0)
   })
 }

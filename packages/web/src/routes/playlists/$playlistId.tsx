@@ -6,6 +6,7 @@ import { AsyncResult } from "effect/reactivity"
 import { GripVertical, Pause, Play, Settings, X } from "lucide-react"
 import type * as React from "react"
 import { useEffect, useRef } from "react"
+import { localClient } from "#client"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
@@ -59,7 +60,8 @@ function PlaylistDetail() {
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   const { episode: selected, tab } = Route.useSearch()
   const navigate = Route.useNavigate()
-  useScrollMemory(state !== null)
+  // Web emits State.initial before its first pull; it has no list height to restore yet.
+  useScrollMemory(state !== null && playlist !== undefined && (localClient || ready))
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
   const listRef = useRef<HTMLDivElement>(null)
   const entries = playlist?.entries ?? []
@@ -356,8 +358,8 @@ function PlaylistDetail() {
               label={(id) => episodes.get(id)?.title ?? "Entry"}
               onMove={moveEntry}
             >
-              {(_id, index) => {
-                const entry = entries[index]
+              {(id, index) => {
+                const entry = entries.find((entry) => entry.episodeId === id)
                 if (!entry) return null
                 const episode = episodes.get(entry.episodeId)
                 // Open beside the list has an edge; NOW keeps its blue tint (SIDE-04).

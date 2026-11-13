@@ -19,6 +19,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
+import { moveUpcomingEntryAtom } from "../../app/episodeActions.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
@@ -288,6 +289,7 @@ function ChaptersList({ current }: { readonly current: NowPlaying }) {
 const decodeChange = Schema.decodeUnknownSync(Operation.Change)
 
 function UpNext({ current }: { readonly current: NowPlaying }) {
+  const moveUpcoming = useAtomSet(moveUpcomingEntryAtom, { mode: "promise" })
   const state = useAppState()
   const control = useAtomSet(playbackAtom)
   const record = useAtomSet(recordAtom)
@@ -503,14 +505,33 @@ function UpNext({ current }: { readonly current: NowPlaying }) {
                           aria-label={`Move ${title(entry.episodeId)}`}
                           aria-description="Up and down arrows move it one place"
                           onKeyDown={(event) => {
-                            const index = after.findIndex((e) => e.episodeId === entry.episodeId)
-                            if (event.key === "ArrowUp" && index > 0) {
-                              event.preventDefault()
-                              moveEntry(entry.episodeId, after[index - 2]?.episodeId ?? null)
-                            } else if (event.key === "ArrowDown" && index < after.length - 1) {
-                              event.preventDefault()
-                              moveEntry(entry.episodeId, after[index + 1]?.episodeId ?? null)
-                            }
+                            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+                            event.preventDefault()
+                            void moveUpcoming({
+                              playlistId: playlist.id,
+                              episodeId: entry.episodeId,
+                              currentEpisodeId: current.episodeId,
+                              direction: event.key === "ArrowUp" ? -1 : 1
+                            })
+                              .then((move) => {
+                                if (move === null) return
+                                const step = {
+                                  message: `Moved “${title(entry.episodeId)}”`,
+                                  undo: move.undo
+                                }
+                                confirm(step, async () => {
+                                  record(move.redo)
+                                  return step
+                                })
+                              })
+                              .catch(() => {
+                                const step = {
+                                  message:
+                                    "This move couldn’t be made. Try again when your server is reachable.",
+                                  undo: []
+                                }
+                                confirm(step, async () => step)
+                              })
                           }}
                           className="-mr-1 grid size-11 shrink-0 cursor-grab touch-none place-items-center rounded-full text-player-muted hover:bg-player-track hover:text-player-foreground active:cursor-grabbing"
                         >

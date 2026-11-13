@@ -1,5 +1,6 @@
 import { useRouter } from "@tanstack/react-router"
 import { useEffect, useRef } from "react"
+import { scrollEntry } from "./overlayScroll.ts"
 
 const indexKey = "__TSR_index"
 
@@ -32,7 +33,10 @@ export function useBackLayers(depth: number, popOne: () => void) {
 
   useEffect(() => {
     while (pushed.current.length < depth) {
-      history.push(history.location.href, { podlistLayer: true })
+      history.push(history.location.href, {
+        podlistLayer: true,
+        podlistScrollEntry: scrollEntry(history.location.state)
+      })
       // The router batches pushes made in one tick into a single browser entry; each layer
       // needs its own (opening the drawer straight on Up next adds two at once), or
       // closing goes Back one entry too far.
