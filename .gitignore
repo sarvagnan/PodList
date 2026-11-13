@@ -37,3 +37,6 @@ packages/desktop/out/
 local.properties
 *.jks
 *.keystore
+
+# Per-person deploy target (deploy/README.md)
+deploy/deploy.local
