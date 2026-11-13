@@ -11,6 +11,12 @@ app="$PWD/.build/PodList.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" .build/app-intents
 cp -f "$bin_dir/PodListMac" "$app/Contents/MacOS/PodListMac"
 cp -f "$bin_dir/podlist-mcp" "$app/Contents/MacOS/podlist-mcp"
+# SwiftPM resource bundles (Bundle.module looks in Contents/Resources). Without them the
+# first edit traps when protocol validation loads its schema.
+for bundle in "$bin_dir"/*.bundle; do
+    rm -rf "$app/Contents/Resources/$(basename "$bundle")"
+    cp -R "$bundle" "$app/Contents/Resources/"
+done
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -60,5 +66,8 @@ if not metadata.get('actions') or not metadata.get('entities') or not metadata.g
     raise SystemExit('App Intents extraction did not produce actions, entities and shortcuts.')
 print(f"Extracted {len(metadata['actions'])} intents, {len(metadata['entities'])} entities, {len(metadata['autoShortcuts'])} shortcuts")
 PYMETA
+for bundle in "$bin_dir"/*.bundle; do
+    [ -d "$app/Contents/Resources/$(basename "$bundle")" ] || { echo "Missing $(basename "$bundle") in the app" >&2; exit 1; }
+done
 codesign --force --sign - "$app"
 printf 'Built %s\n' "$app"
