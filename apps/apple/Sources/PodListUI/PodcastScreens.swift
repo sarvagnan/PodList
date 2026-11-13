@@ -186,7 +186,8 @@ struct PodcastPageScreen: SwiftUI.View {
                         .width(min: 60, ideal: 70, max: 100)
                     TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
                 }
-                .tableStyle(.inset(alternatesRowBackgrounds: false))
+                .tableStyle(.inset)
+                .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { ids in
                     let chosen = episodes.filter { ids.contains($0.id) }
                     if let editing = app.editing, !chosen.isEmpty, chosen.allSatisfy({ $0.localID != nil }) {

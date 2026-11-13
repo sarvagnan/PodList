@@ -3,13 +3,18 @@ import Observation
 import PodListDomain
 import PodListData
 
-public struct PlaybackDisplay: Sendable {
+public struct PlaybackDisplay: Equatable, Sendable {
+    public struct Metadata: Equatable, Sendable {
+        public var title: String, podcast: String
+        public var artwork: URL?
+    }
     public var episodeID: String, playlistID: String, title: String, podcast: String
     public var position: Double, duration: Double?, speed: Double
     public var playing: Bool, buffering: Bool
     public var chapters: [Chapter]
     public var artwork: URL?
     public var sleep: SleepTimer?
+    public var metadata: Metadata { Metadata(title: title, podcast: podcast, artwork: artwork) }
     public var chapterIndex: Int? { PlaybackPolicy.chapterIndex(chapters, position: position) }
     public var chapter: Chapter? { chapterIndex.map { chapters[$0] } }
 }
@@ -18,7 +23,15 @@ public struct PlaybackDisplay: Sendable {
 /// Accounting advances only after recordAll commits, so failed writes retain the listening tail.
 @MainActor @Observable
 public final class PlaybackController {
-    public private(set) var display: PlaybackDisplay?
+    public private(set) var display: PlaybackDisplay? {
+        didSet {
+            hasDisplay = display != nil
+            metadata = display?.metadata
+        }
+    }
+    // Stored projections keep presence and metadata readers independent of position ticks.
+    public private(set) var hasDisplay = false
+    public private(set) var metadata: PlaybackDisplay.Metadata?
     public private(set) var error: String?
     public private(set) var wantsPlayback = false
     public private(set) var userPlaybackRevision = 0
@@ -224,7 +237,8 @@ public final class PlaybackController {
         let fresh = try await db.readLibrary(); snapshot = fresh
         guard let target = PlaybackPolicy.target(fresh.state) else {
             try await event(.flush); audio.stop(); prepared = false; wantsPlayback = false
-            display = nil; episodeID = nil; playlistID = nil; session = nil; system?.update(nil); return
+            if display != nil { display = nil }
+            episodeID = nil; playlistID = nil; session = nil; system?.update(nil); return
         }
         if !force, target.entry.episodeId == episodeID, target.playlist.id == playlistID, session?.finished == false {
             if !wantsPlayback, target.entry.positionAt > reportAt, abs(position - target.entry.position) >= 1 {
@@ -351,10 +365,12 @@ public final class PlaybackController {
     private func publish() {
         guard let episodeID, let playlistID else { return }
         let chapters = episode?.chapters ?? []
-        display = PlaybackDisplay(episodeID: episodeID, playlistID: playlistID, title: episode?.title ?? "Episode details pending sync",
+        let next = PlaybackDisplay(episodeID: episodeID, playlistID: playlistID, title: episode?.title ?? "Episode details pending sync",
             podcast: subscription?.title ?? "Podcast details pending sync", position: position, duration: duration, speed: settings.speed,
             playing: wantsPlayback, buffering: wantsPlayback && loadingAt != nil, chapters: chapters,
             artwork: PlaybackPolicy.artwork(chapters, position: position, episode: episode?.artwork, podcast: subscription?.artwork).flatMap { URL(string: $0.url) }, sleep: sleep)
+        guard display != next else { return }
+        display = next
         system?.update(display)
     }
 }

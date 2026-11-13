@@ -6,6 +6,13 @@ import PodListDomain
 import PodListAutomation
 @testable import PodListUI
 
+@Test func automationFailureExposesMessageAsLocalizedStringResource() {
+    let failure = AutomationFailure("Episode \"Café\" is unavailable (404).")
+    let localized: any CustomLocalizedStringResourceConvertible = failure
+    #expect(String(localized: localized.localizedStringResource) == failure.message)
+    #expect(failure.errorDescription == failure.message)
+}
+
 @MainActor private func automationFixture() async throws -> (LocalDatabase, ApplicationModel) {
     let db = try await fixtureDatabase()
     let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })

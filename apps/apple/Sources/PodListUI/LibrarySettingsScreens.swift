@@ -23,7 +23,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
                 if settings.isEnabled {
                     LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
                     Text("MCP client configuration").font(.headline)
-                    Text(settings.clientConfiguration).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    Text(settings.clientConfiguration).font(.system(.caption, design: .monospaced, weight: nil)).textSelection(.enabled)
                     Button("Copy configuration") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(settings.clientConfiguration, forType: .string)

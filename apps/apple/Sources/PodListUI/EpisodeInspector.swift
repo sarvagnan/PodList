@@ -52,7 +52,7 @@ struct EpisodeInspector: SwiftUI.View {
                         Text("In your Playlists").font(.headline)
                         let memberships = library.memberships(row.id)
                         if memberships.isEmpty { Text("No Playlists").foregroundStyle(.secondary) }
-                        ForEach(Array(memberships.enumerated()), id: \.offset) { _, membership in
+                        ForEach(memberships, id: \.id) { membership in
                             HStack {
                                 LabeledContent(membership.name, value: Presentation.time(membership.position))
                                 Button {
@@ -68,7 +68,7 @@ struct EpisodeInspector: SwiftUI.View {
                         Divider()
                         if !episode.chapters.isEmpty {
                             Text("Chapters").font(.headline)
-                            ForEach(Array(episode.chapters.enumerated()), id: \.offset) { index, chapter in
+                            ForEach(episode.chapters.enumerated(), id: \.element.start) { index, chapter in
                                 HStack {
                                     ArtworkView(url: PlaybackPolicy.artwork(episode.chapters, position: chapter.start, episode: episode.artwork,
                                         podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }, title: row.podcast, size: 40)
