@@ -22,8 +22,6 @@ The harness records input-to-render time within the page, excluding Playwrightâ€
 
 The multi-second stalls are removed, but the approximate 100 ms interaction budget is **not consistently met**. Mounting virtual rows also costs more during continuous scrolling than moving the original fully mounted DOM. Remaining interaction and frame costs are tracked in **pod-1qz**; this report does not claim a steady 60 fps at 4Ã— CPU.
 
-[Published measurement chart](https://generatedpages.burmese-mountain.ts.net/podlist-playlist-measurements/).
-
 ## Implementation and behavior
 
 Both lists render a bounded viewport with two overscan rows. Dragged and focused Entries stay mounted, including while a portaled menu has focus. ResizeObserver supplies wrapped row heights without synchronous measurement for every new row. Measured heights survive navigation and reload so pixel scroll restoration stays consistent. Row contents are memoized against their Episode, Position, Played/Star state, Cursor, and reorder neighbors. Entry title reads depend on membership and Library updates rather than every Position report.

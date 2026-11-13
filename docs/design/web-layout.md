@@ -4,7 +4,7 @@ The selected web and Electron presentation. Shared behaviour is authoritative in
 
 Chosen from three mocked variants: **A — Two halves** (Views and Playlists as equal halves), over **B — Player first** (Playlists as a card deck, Views summoned) and **C — Columns** (every View and Playlist side by side). A mirrors the domain: finding (Views) and listening (Playlists) are peers. Navigation between Views and between Playlists is always a **list**, never a row of capsules.
 
-Prototype (throwaway, not production code): https://generatedpages.burmese-mountain.ts.net/podcast-ui-variants/ (`#A-phone`, `#A-desktop`).
+Prototype (throwaway, not production code): `prototype/ui-mockups/index.html` on branch `prototype/ui-mockups` (`#A-phone`, `#A-desktop`).
 
 ## Phone
 
@@ -33,7 +33,7 @@ Artwork · back 15 s · **Play/Pause** · forward 30 s · queue badge (number of
 
 ## View editor and Search (design round 2, variant R)
 
-Chosen on 7 Nov 2026 from https://generatedpages.burmese-mountain.ts.net/podlist-design-round-2/ (`#view-editor/R-desktop/view`); source on branch `prototype/design-round-2`.
+Chosen on 7 Nov 2026 from the design round 2 prototype (`#view-editor/R-desktop/view`), on branch `prototype/design-round-2`.
 
 - **Form (from C):** every condition is always a row, set to "Any" until changed: Published, Podcasts, Mentions (text), Played, Starred, In a Playlist, Length; then Sort and Show (limit). Nothing is added or removed, so the "all must match" rule is visible.
 - **Desktop:** reading a View is unchanged: its Episodes, with the target Playlist (or the open Episode) beside them. **Edit View** swaps that panel for the form; the list becomes a live preview. Condition edits apply as they are made (no Save; Undo takes one back); **Done** puts the panel back. Delete View is at the bottom of the form.
