@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Synchronization
 import Testing
 import MediaPlayer
@@ -113,6 +114,60 @@ private final class FakePlayerClock: Sendable {
     #expect(player.display?.position == 45 && audio.loads.isEmpty)
     player.flush(); await player.settle()
     #expect(try await db.outbox().count == 1)
+    await player.shutdown()
+}
+@MainActor @Test func pausedPlayerDoesNotRepublishIdenticalDisplay() async throws {
+    let (_, player, audio, _) = try await playbackFixture()
+    player.play(); await player.settle()
+    player.pause(); await player.settle()
+    let before = try #require(player.display)
+    #expect(!before.playing)
+    let changed = Mutex(false)
+    withObservationTracking {
+        _ = player.display
+    } onChange: {
+        changed.withLock { $0 = true }
+    }
+    // Exercise identical publications from refresh, audio callbacks and the real 0.5 s timer.
+    player.refresh(); audio.event?(.tick); await player.settle()
+    try await Task.sleep(for: .seconds(1.1))
+    await player.settle()
+    #expect(player.display == before)
+    #expect(!changed.withLock { $0 })
+    // Prove the observer still sees an actual display change.
+    player.seek(5); await player.settle()
+    #expect(changed.withLock { $0 })
+    #expect(player.display?.position == 5)
+    await player.shutdown()
+}
+@MainActor @Test func playbackPresenceAndMetadataIgnorePositionChanges() async throws {
+    let (db, player, _, _) = try await playbackFixture()
+    #expect(player.hasDisplay && player.metadata == player.display?.metadata)
+    let presenceChanged = Mutex(false), metadataChanged = Mutex(false)
+    withObservationTracking {
+        _ = player.hasDisplay
+    } onChange: {
+        presenceChanged.withLock { $0 = true }
+    }
+    withObservationTracking {
+        _ = player.metadata
+    } onChange: {
+        metadataChanged.withLock { $0 = true }
+    }
+    player.seek(5); await player.settle()
+    #expect(player.display?.position == 5)
+    #expect(!presenceChanged.withLock { $0 } && !metadataChanged.withLock { $0 })
+    var updated = episode(duration: 100); updated.title = "Updated title"
+    try await db.upsertLibrary(subscriptions: [], episodes: [updated])
+    player.refresh(); await player.settle()
+    #expect(player.metadata?.title == updated.title && metadataChanged.withLock { $0 })
+    #expect(!presenceChanged.withLock { $0 })
+    var state = try await db.loadState()
+    state.playlists[0].entries = []; state.playlists[0].cursor = nil
+    try await db.saveState(state)
+    player.refresh(); await player.settle()
+    #expect(!player.hasDisplay && player.metadata == nil && player.display == nil)
+    #expect(presenceChanged.withLock { $0 })
     await player.shutdown()
 }
 @Test func nowPlayingMapsRateDurationChapterAndUnknownDuration() {

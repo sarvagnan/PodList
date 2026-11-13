@@ -136,7 +136,7 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let playback = app.playback, playback.display != nil {
+            if let playback = app.playback, playback.hasDisplay {
                 PlayerBar(controller: playback, library: library,
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
                           openNowPlaying: { window.showNowPlaying = true })
@@ -317,7 +317,8 @@ public struct PodListWindow: SwiftUI.View {
                     TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
                     TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
                 }
-                .tableStyle(.inset(alternatesRowBackgrounds: false))
+                .tableStyle(.inset)
+                .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { selection in
                     if let editing = app.editing {
                         EpisodeActionItems(ids: rows.map(\.id).filter { selection.contains($0) }, library: library, editing: editing, presentation: playlistPresentation, app: app)

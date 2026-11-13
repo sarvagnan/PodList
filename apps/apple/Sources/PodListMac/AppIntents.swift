@@ -17,8 +17,11 @@ struct EpisodeEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Episode"
     static let defaultQuery = EpisodeQuery()
     let id: String
-    let title: String
-    let podcast: String
+    @Property(title: "Title") var title: String
+    @Property(title: "Podcast") var podcast: String
+    init(id: String, title: String, podcast: String) {
+        self.id = id; self.title = title; self.podcast = podcast
+    }
     var displayRepresentation: DisplayRepresentation { .init(title: "\(title)", subtitle: "\(podcast)") }
 }
 struct EpisodeQuery: EntityStringQuery {
@@ -43,7 +46,8 @@ struct PlaylistEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Playlist"
     static let defaultQuery = PlaylistQuery()
     let id: String
-    let name: String
+    @Property(title: "Name") var name: String
+    init(id: String, name: String) { self.id = id; self.name = name }
     var displayRepresentation: DisplayRepresentation { .init(title: "\(name)") }
 }
 struct PlaylistQuery: EntityStringQuery {
@@ -70,14 +74,14 @@ struct PlaylistQuery: EntityStringQuery {
 
 struct PlayIntent: AppIntent {
     static let title: LocalizedStringResource = "Play Active Playlist"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @MainActor func perform() async throws -> some IntentResult {
         _ = try await AutomationRuntime.perform("play"); return .result()
     }
 }
 struct PauseIntent: AppIntent {
     static let title: LocalizedStringResource = "Pause Playback"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @MainActor func perform() async throws -> some IntentResult {
         _ = try await AutomationRuntime.perform("pause"); return .result()
     }
@@ -92,7 +96,7 @@ enum TransportAction: String, AppEnum {
 }
 struct PlaybackIntent: AppIntent {
     static let title: LocalizedStringResource = "Control Playback"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Action") var action: TransportAction
     @MainActor func perform() async throws -> some IntentResult & ReturnsValue<String> {
         .result(value: try await AutomationRuntime.perform(action.action).text())
@@ -100,7 +104,7 @@ struct PlaybackIntent: AppIntent {
 }
 struct PlayEpisodeIntent: AppIntent {
     static let title: LocalizedStringResource = "Play Episode Now"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Episode") var episode: EpisodeEntity
     @MainActor func perform() async throws -> some IntentResult {
         _ = try await AutomationRuntime.perform("play_episode", ["episode_id": .string(episode.id)]); return .result()
@@ -113,7 +117,7 @@ enum AddPlacement: String, AppEnum {
 }
 struct AddEpisodesIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Episodes to Playlist"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Episodes") var episodes: [EpisodeEntity]
     @Parameter(title: "Playlist") var playlist: PlaylistEntity?
     @Parameter(title: "Placement", default: .last) var placement: AddPlacement
@@ -125,7 +129,7 @@ struct AddEpisodesIntent: AppIntent {
 }
 struct AddCurrentIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Current Episode to Playlist"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Playlist") var playlist: PlaylistEntity?
     @MainActor func perform() async throws -> some IntentResult {
         let args: JSONValue = playlist.map { ["playlist_id": .string($0.id)] } ?? [:]
@@ -139,7 +143,7 @@ enum EpisodeMark: String, AppEnum {
 }
 struct MarkEpisodesIntent: AppIntent {
     static let title: LocalizedStringResource = "Mark Episodes"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Episodes") var episodes: [EpisodeEntity]
     @Parameter(title: "Mark") var mark: EpisodeMark
     @MainActor func perform() async throws -> some IntentResult {
@@ -151,7 +155,7 @@ struct MarkEpisodesIntent: AppIntent {
 }
 struct SearchEpisodesIntent: AppIntent {
     static let title: LocalizedStringResource = "Search Episodes"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Text") var text: String
     @MainActor func perform() async throws -> some IntentResult & ReturnsValue<[EpisodeEntity]> {
         .result(value: try await EpisodeQuery().entities(matching: text))
@@ -164,7 +168,7 @@ enum LibraryList: String, AppEnum {
 }
 struct ListLibraryIntent: AppIntent {
     static let title: LocalizedStringResource = "List Library"
-    static let openAppWhenRun = true
+    static let supportedModes: IntentModes = .foreground
     @Parameter(title: "List") var list: LibraryList
     @Parameter(title: "Playlist") var playlist: PlaylistEntity?
     @Parameter(title: "View id") var viewID: String?

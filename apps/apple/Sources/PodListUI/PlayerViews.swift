@@ -8,7 +8,7 @@ struct PlayerBar: SwiftUI.View {
     let openPlaylist: () -> Void
     let openNowPlaying: () -> Void
     var body: some SwiftUI.View {
-        if let value = controller.display {
+        if let value = controller.metadata {
             VStack(spacing: 0) {
                 Divider()
                 ViewThatFits(in: .horizontal) {
@@ -24,14 +24,14 @@ struct PlayerBar: SwiftUI.View {
             }.background(.bar).accessibilityElement(children: .contain).accessibilityLabel("Player")
         }
     }
-    private func transport(_ value: PlaybackDisplay) -> some SwiftUI.View {
+    private func transport(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {
         HStack(spacing: 10) {
             Button(action: openNowPlaying) { ArtworkView(url: value.artwork, title: value.podcast, size: 48) }
                 .buttonStyle(.plain).help("Open Now Playing").accessibilityLabel("Open Now Playing")
             TransportControls(controller: controller)
         }
     }
-    private func middle(_ value: PlaybackDisplay) -> some SwiftUI.View {
+    private func middle(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {
         VStack(alignment: .center, spacing: 5) {
             Text(value.title).font(.headline).lineLimit(1).help(value.title).frame(maxWidth: .infinity)
             Text(value.podcast).font(.caption).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity)
@@ -76,7 +76,7 @@ struct PlayerSeek: SwiftUI.View {
                     }.controlSize(.mini).disabled(value.duration == nil)
                     .accessibilityLabel("Position").accessibilityValue(Presentation.time(value.position))
                     GeometryReader { geometry in
-                        ForEach(Array(value.chapters.enumerated()), id: \.offset) { _, chapter in
+                        ForEach(value.chapters, id: \.start) { chapter in
                             Rectangle().fill(.secondary).frame(width: 1, height: 4)
                                 .offset(x: min(geometry.size.width, max(0, geometry.size.width * chapter.start / duration)))
                                 .help(chapter.title)
@@ -155,7 +155,7 @@ struct NowPlayingView: SwiftUI.View {
                                     Button("Next Chapter", systemImage: "forward.end") { controller.chapter(1) }
                                 }
                                 Divider()
-                                ForEach(Array(value.chapters.enumerated()), id: \.offset) { index, chapter in
+                                ForEach(value.chapters.enumerated(), id: \.element.start) { index, chapter in
                                     Button { controller.seek(chapter.start) } label: {
                                         HStack {
                                             let current = app.library ?? library

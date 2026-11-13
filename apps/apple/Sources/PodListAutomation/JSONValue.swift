@@ -39,8 +39,9 @@ public enum JSONValue: Codable, Equatable, Sendable, ExpressibleByStringLiteral,
     public func text() throws -> String { String(decoding: try JSONEncoder().encode(self), as: UTF8.self) }
 }
 
-public struct AutomationFailure: Error, LocalizedError, Sendable {
+public struct AutomationFailure: Error, LocalizedError, CustomLocalizedStringResourceConvertible, Sendable {
     public let message: String
     public init(_ message: String) { self.message = message }
     public var errorDescription: String? { message }
+    public var localizedStringResource: LocalizedStringResource { "\(message)" }
 }

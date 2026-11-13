@@ -59,7 +59,8 @@ struct PlaylistContentView: SwiftUI.View {
                         _ = drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
                     }
             }
-            .tableStyle(.inset(alternatesRowBackgrounds: false))
+            .tableStyle(.inset)
+            .alternatingRowBackgrounds(.disabled)
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
             } primaryAction: { selection in
