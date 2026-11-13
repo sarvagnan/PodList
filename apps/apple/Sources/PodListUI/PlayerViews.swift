@@ -21,7 +21,7 @@ struct PlayerBar: SwiftUI.View {
                 if let error = controller.error {
                     HStack { Text(error); Button("Retry") { controller.play() } }.font(.caption).padding(.bottom, 8)
                 }
-            }.background(.bar).accessibilityLabel("Player")
+            }.background(.bar).accessibilityElement(children: .contain).accessibilityLabel("Player")
         }
     }
     private func transport(_ value: PlaybackDisplay) -> some SwiftUI.View {
