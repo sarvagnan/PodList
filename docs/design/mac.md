@@ -4,7 +4,7 @@ The selected Mac presentation of the Apple app (phase 2 of the [platform plan](.
 
 Chosen by the owner on 11 Nov 2026 from three mocked variants: **A — Three columns**, **B — Sidebar, list and player bar**, and **C — Views and Playlists side by side**. B was chosen, with one change: the player bar shows the Episode and podcast name above the seek bar, because a Mac window has the room.
 
-Mock-ups (throwaway): https://generatedpages.burmese-mountain.ts.net/podlist-mac-layouts/#B
+The mock-ups were throwaway and are not kept in the repo.
 
 ## Look
 

@@ -4,7 +4,7 @@ The selected Android phone presentation. Shared behaviour is authoritative in [p
 
 Chosen by the owner on 9 Nov 2026 from four mocked variants: **A — Separate stacks**, **B — Shared directory**, **C — Last open**, and **D — Recommended mix**, which takes A's navigation and row actions and C's Now Playing sheet. D was then revised in review so that playback is built around its controls and not around names.
 
-Prototype (throwaway, not production code): https://generatedpages.burmese-mountain.ts.net/podlist-android-phone-round-1/ (variant D). Source: branch `prototype/android-phone-round-1`.
+Prototype (throwaway, not production code): variant D, on branch `prototype/android-phone-round-1`.
 
 ## Look
 
@@ -72,7 +72,7 @@ A full screen reached from the gear. Sections: **Playback** (Speed, Skip intro, 
 
 ## Agreed for milestone 4
 
-Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): https://generatedpages.burmese-mountain.ts.net/podlist-android-phone-round-2/ Source: branch `prototype/android-phone-round-2`.
+Chosen by the owner on 9 Nov 2026. Prototype (throwaway, not production code): branch `prototype/android-phone-round-2`.
 
 - **Add podcasts:** one editable field that takes a podcast name or a pasted feed address; a new query supersedes a pending search. The field uses IME Search and a trailing 48dp search icon button labelled **Find podcasts** inside the field. There is no separate Find button competing with results; Subscribe is the only filled button on this screen. Other single-field forms retain a filled commit beneath the field. The field’s clear action is the only reset, with no Discard draft command. OPML isn't here; import and export belong in Settings.
 - **View editor:** one list with every condition as a row showing its value, each opening a small sheet. The View's name is renamed the same way as a Playlist's: a Name label with the value on its own lines, Rename below, then Cancel and Save. The read-only name uses titleMedium/onSurface below a quiet bodyMedium/onSurfaceVariant Name label. A live count and commit stay pinned in both New View and Edit View, replacing the bottom player and navigation chrome. Create View and Discard draft share the same footer as Done, with at least 24dp between their targets. Discard draft retains the complete form and caret durably and offers “Draft discarded” with Undo; Undo reveals the restored editor. Done during an open Rename keeps the field open and says “Save or cancel the name first”; single-field New Playlist keeps its inline commit. All Discard draft actions, including the server and Add-sheet New Playlist forms, retain a durable snapshot and offer Undo. Discard in the Add sheet keeps it open, with feedback above the commit row. Undo remains reachable.
