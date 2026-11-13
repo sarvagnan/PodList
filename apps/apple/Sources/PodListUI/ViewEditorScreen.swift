@@ -142,7 +142,12 @@ struct ViewEditorScreen: SwiftUI.View {
         }), prompt: Text("No limit")).textFieldStyle(.roundedBorder)
     }
     private func update(_ mutation: (inout PodListDomain.View) -> Void) {
-        mutation(&draft)
+        var next = draft
+        mutation(&next)
+        // Text fields commit their unchanged value when editing ends (Escape, Done, focus
+        // moving); that isn't an edit and mustn't record one.
+        guard next != draft else { return }
+        draft = next
         editor.setDraft(String(decoding: (try? JSONEncoder().encode(draft)) ?? Data(), as: UTF8.self), field: "view.\(draft.id)")
         problem = ViewEdits.problem(draft)
         guard problem == nil, rawNumberProblem == nil else { return }
