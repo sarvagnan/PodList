@@ -3,6 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { defineConfig, devices } from "@playwright/test"
 
+// Keep fixture Episodes in relative-date Views as the calendar advances. Workers and the
+// preview server inherit one timestamp; visual demos retain their fixed date by default.
+process.env.PODLIST_TEST_DEMO_NOW ??= String(Date.now())
+
 // Browser tests run the production build against seeded demo servers.
 // Artifacts stay out of the repo.
 // Each checkout (a worktree too) gets its own preview port and results folder, so two

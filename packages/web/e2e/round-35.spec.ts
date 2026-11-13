@@ -136,6 +136,8 @@ for (const input of ["toast", "keyboard"]) {
     const before = await rows.count()
     await page.getByRole("button", { name: `Remove ${title} from Commute`, exact: true }).click()
     await expect(rows).toHaveCount(before - 1)
+    // Rows update optimistically; Undo is registered after the server confirms the removal.
+    await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeVisible()
     if (input === "toast") await page.getByRole("button", { name: "Undo", exact: true }).click()
     else {
       await page.locator("main h1").focus()

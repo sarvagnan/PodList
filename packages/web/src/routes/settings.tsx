@@ -182,7 +182,7 @@ function SettingsScreen() {
           </div>
         </section>
         <section aria-label="OPML import and export">
-          <h2 className={heading}>Your podcasts</h2>
+          <h2 className={heading}>Import and export (OPML)</h2>
           <OpmlFlow />
           <ExportOpml />
         </section>

@@ -14,12 +14,11 @@ import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
-import { OpmlFlow } from "./OpmlFlow.tsx"
 
 // Add podcasts (docs/design/ui-layout.md › Library): Search through Podcast Index, a feed
-// address resolved directly, or an OPML file from another app.
+// address resolved directly. OPML import and export live in Settings.
 
-type Tab = "search" | "address" | "opml"
+type Tab = "search" | "address"
 const DraftSaved = createContext(() => {})
 
 const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
@@ -355,7 +354,8 @@ export function AddPodcastSheet({
     search: "",
     address: ""
   })
-  const { tab } = draft
+  // Older saved Add drafts may still name the retired OPML tab. Keep their typed fields.
+  const tab = draft.tab === "opml" ? "search" : draft.tab
   const close = (next: boolean) => {
     if (!next) clear()
     onOpenChange(next)
@@ -367,8 +367,7 @@ export function AddPodcastSheet({
   if (open && opener.current === null) opener.current = document.activeElement
   const tabs: ReadonlyArray<readonly [Tab, string]> = [
     ["search", "Search"],
-    ["address", "Feed address"],
-    ["opml", "OPML file"]
+    ["address", "Feed address"]
   ]
   return (
     <DraftSaved value={clear}>
@@ -401,7 +400,7 @@ export function AddPodcastSheet({
                 <X aria-hidden="true" className="size-5" />
               </Dialog.Close>
             </div>
-            <fieldset className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-secondary p-1">
+            <fieldset className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-secondary p-1">
               <legend className="sr-only">How to add</legend>
               {tabs.map(([value, label]) => (
                 <button
@@ -418,10 +417,8 @@ export function AddPodcastSheet({
             <div className="mt-4">
               {tab === "search" ? (
                 <SearchTab text={draft.search} setText={(search) => update({ search })} />
-              ) : tab === "address" ? (
-                <AddressTab text={draft.address} setText={(address) => update({ address })} />
               ) : (
-                <OpmlFlow />
+                <AddressTab text={draft.address} setText={(address) => update({ address })} />
               )}
             </div>
             <DraftNotice unsaved={unsaved} retry={retry} />

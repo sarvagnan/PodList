@@ -37,7 +37,7 @@ export const importOpmlAtom = runtime.fn((opml: string) =>
   thenSync(Effect.flatMap(LibraryClient, (client) => client.importOpml(opml)))
 )
 
-// Kept alive while navigating or dismissing Add podcasts. Uses the ordinary Subscribe path.
+// Kept alive while navigating away from Settings. Uses the ordinary Subscribe path.
 export const opmlCommandAtom = runtime
   .fn(
     (command: File | "import" | "retry") =>

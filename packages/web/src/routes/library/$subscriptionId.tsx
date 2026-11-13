@@ -14,8 +14,8 @@ import { subscribeAtom, unsubscribeAtom } from "../../app/library.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
-import { ConfirmDialog } from "../../components/feedback/ConfirmDialog.tsx"
 import { useConfirm } from "../../components/feedback/useConfirm.ts"
+import { SubscriptionButton } from "../../components/library/SubscriptionButton.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
@@ -89,7 +89,8 @@ function SubscriptionScreen() {
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promise" })
   const subscribe = useAtomSet(subscribeAtom, { mode: "promise" })
-  const [asking, setAsking] = useState<"unsubscribe" | null>(null)
+  const [changingSubscription, setChangingSubscription] = useState(false)
+  const [subscriptionProblem, setSubscriptionProblem] = useState<string | null>(null)
   const wide = useMinWidth("64rem")
   // Remembered on this Device, so a reload or the next podcast keeps it as left.
   const [showSettings, setShowSettingsState] = useState(subscriptionSettingsOpen.get)
@@ -385,16 +386,57 @@ function SubscriptionScreen() {
             >
               Mark all Played
             </button>
-            {subscription.subscribed && (
-              <button
-                type="button"
-                onClick={() => setAsking("unsubscribe")}
-                className="h-10 rounded-full px-4 text-row font-medium text-destructive hover:bg-secondary"
-              >
-                Unsubscribe
-              </button>
-            )}
+            <SubscriptionButton
+              key={subscriptionId}
+              title={subscription.title}
+              subscribed={subscription.subscribed}
+              busy={changingSubscription}
+              onSubscribe={async () => {
+                setChangingSubscription(true)
+                setSubscriptionProblem(null)
+                try {
+                  await subscribe(subscription.feedUrl)
+                } catch {
+                  setSubscriptionProblem(
+                    `Couldn’t subscribe. ${serverUnavailable} Try again when it’s reachable.`
+                  )
+                } finally {
+                  setChangingSubscription(false)
+                }
+              }}
+              onUnsubscribe={async () => {
+                setChangingSubscription(true)
+                setSubscriptionProblem(null)
+                const again = async () => {
+                  await unsubscribe(subscriptionId)
+                  return {
+                    message: `Unsubscribed from ${subscription.title}`,
+                    undo: [],
+                    // The server retains settings, states, Entries and Positions under stable ids.
+                    undoAsync: async () => {
+                      await subscribe(subscription.feedUrl)
+                    }
+                  }
+                }
+                try {
+                  confirm(await again(), again, () =>
+                    document.querySelector<HTMLElement>("[data-subscription-control]")
+                  )
+                } catch {
+                  setSubscriptionProblem(
+                    `Couldn’t unsubscribe. ${serverUnavailable} Try again when it’s reachable.`
+                  )
+                } finally {
+                  setChangingSubscription(false)
+                }
+              }}
+            />
           </div>
+          {subscriptionProblem && (
+            <p role="alert" className="mt-2 text-small text-destructive">
+              {subscriptionProblem}
+            </p>
+          )}
         </section>
         <section aria-label="Episodes" className="min-w-0 lg:order-1">
           {!AsyncResult.isInitial(episodesResult) && episodes.length === 0 ? (
@@ -419,38 +461,6 @@ function SubscriptionScreen() {
           )}
         </section>
       </div>
-      <ConfirmDialog
-        open={asking === "unsubscribe"}
-        onOpenChange={(open) => setAsking(open ? "unsubscribe" : null)}
-        title={`Unsubscribe from ${subscription.title}?`}
-        confirm="Unsubscribe"
-        destructive
-        onConfirm={async () => {
-          const again = async () => {
-            await unsubscribe(subscriptionId)
-            return {
-              message: `Unsubscribed from ${subscription.title}`,
-              undo: [],
-              // The server retains settings, states, Entries and Positions under stable ids.
-              undoAsync: async () => {
-                await subscribe(subscription.feedUrl)
-              }
-            }
-          }
-          try {
-            confirm(await again(), again, () =>
-              document.querySelector<HTMLElement>(`a[href="/library/${subscriptionId}"]`)
-            )
-          } catch {
-            return `Couldn’t unsubscribe. ${serverUnavailable} Try again when it’s reachable.`
-          }
-          await navigate({ to: "/library" })
-          return null
-        }}
-      >
-        Its Episodes leave your Library, except ones in a Playlist or Starred, which stay until you
-        remove them. {localClient ? "Downloads stay on your Devices." : ""}
-      </ConfirmDialog>
     </>
   )
 }

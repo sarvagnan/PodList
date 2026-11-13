@@ -94,8 +94,8 @@ const audioFor = (seconds) => {
 }
 
 const day = 86_400_000
-/** Episodes are published every few days before this fixed date, newest first. */
-export const demoNow = Date.UTC(2026, 10, 6, 9, 0)
+/** Visual demos keep a fixed date; e2e uses its run date so relative Views keep matching. */
+export const demoNow = Number(process.env.PODLIST_TEST_DEMO_NOW) || Date.UTC(2026, 10, 6, 9, 0)
 
 const feed = (origin, podcast) => {
   const items = podcast.episodes

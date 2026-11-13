@@ -39,7 +39,7 @@ test("creates, renames, deletes to the Trash and restores a Playlist", async ({ 
 
   await page.getByRole("button", { name: "Delete Playlist" }).click()
   await expect(page).toHaveURL(/\/playlists$/)
-  await expect(page.getByText("Moved “Road trips” to the Trash")).toBeVisible()
+  await expect(page.getByText("Playlist Road trips moved to Trash")).toBeVisible()
   await expect(sidebar.getByRole("link", { name: /^Road trips/ })).toHaveCount(0)
   await sidebar.getByRole("link", { name: /^Trash/ }).click()
   await page.getByRole("button", { name: "Restore Road trips" }).click()

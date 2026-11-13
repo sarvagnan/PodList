@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises"
 import { expect, test } from "@playwright/test"
 // @ts-expect-error: a plain .mjs helper shared with the UI flow runs
 import { startDemo } from "../ui-flows/demo.mjs"
@@ -37,8 +38,11 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   await page.reload()
   await expect(page.getByRole("combobox", { name: "Speed" })).toHaveValue("1.5")
 
-  await page.getByRole("button", { name: "Unsubscribe" }).click()
-  await page.getByRole("alertdialog").getByRole("button", { name: "Unsubscribe" }).click()
+  await page.getByRole("button", { name: "Subscribed to Slow Build" }).click()
+  await page.getByRole("button", { name: "Unsubscribe", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
+  await expect(page).toHaveURL(/\/library\/[^/]+$/)
+  await page.goto(`${demo.base}/library`)
   await expect(page).toHaveURL(/\/library$/)
   await expect(page.getByRole("link", { name: "Slow Build", exact: true })).toHaveCount(0)
 
@@ -107,19 +111,23 @@ test("the web Library lists podcasts without Download Rules", async ({ page }) =
   await expect(page.getByRole("combobox", { name: /Downloads/ })).toHaveCount(0)
 })
 
-test("Unsubscribe that fails says so in its dialog, with Try again", async ({ page }) => {
+test("Unsubscribe that fails keeps the Podcast page and can be retried", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await page.getByRole("link", { name: "Slow Build", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Slow Build", level: 1 })).toBeVisible()
-  await page.getByRole("button", { name: "Unsubscribe" }).click()
+  await page.getByRole("button", { name: "Subscribed to Slow Build" }).click()
   await page.route("**/api/subscriptions/*", (route) => route.abort())
-  const dialog = page.getByRole("alertdialog")
-  await dialog.getByRole("button", { name: "Unsubscribe" }).click()
-  await expect(dialog.getByRole("alert")).toContainText("Couldn’t unsubscribe")
+  await page.getByRole("button", { name: "Unsubscribe", exact: true }).click()
+  await expect(page.getByRole("alert")).toContainText(
+    "Couldn’t unsubscribe. Can’t reach your PodList server. Try again when it’s reachable."
+  )
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
   await page.unroute("**/api/subscriptions/*")
-  await dialog.getByRole("button", { name: "Try again" }).click()
-  await expect(page).toHaveURL(/\/library$/)
+  await page.getByRole("button", { name: "Subscribed to Slow Build" }).click()
+  await page.getByRole("button", { name: "Unsubscribe", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
+  await expect(page).toHaveURL(/\/library\/[^/]+$/)
 })
 
 test("a feed address shows its podcast before Subscribe, or says it isn't one", async ({
@@ -273,9 +281,7 @@ test("focus stays on the page after bulk Mark Played, Mark all Played and Undo",
   await expect(markAll).toHaveAttribute("aria-disabled", "true")
 })
 
-test("an OPML file can be dropped on Add podcasts, and a stray drop is refused", async ({
-  page
-}) => {
+test("an OPML file can be dropped in Settings, and a stray drop is refused", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${demo.base}/library`)
   await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible()
@@ -288,9 +294,9 @@ test("an OPML file can be dropped on Add podcasts, and a stray drop is refused",
     return drop.defaultPrevented
   })
   expect(strayRefused).toBe(true)
-  await page.getByRole("button", { name: "Add podcasts" }).click()
-  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
-  await sheet.getByRole("button", { name: "OPML file" }).click()
+  await page.goto(`${demo.base}/settings`)
+  const sheet = page.getByRole("region", { name: "OPML import and export" })
+  await expect(sheet.locator('input[type="file"]')).toBeEnabled()
   await page.evaluate(() => {
     const data = new DataTransfer()
     const opml =
@@ -321,7 +327,7 @@ test("an OPML file can be dropped on Add podcasts, and a stray drop is refused",
   await expect(sheet.getByText(/Failed:/).first()).toBeVisible({ timeout: 20_000 })
 })
 
-test("OPML confirmation, progress after Close, retry and duplicate skipping share Settings flow", async ({
+test("OPML confirmation, progress after leaving Settings, retry and duplicate skipping", async ({
   page
 }) => {
   const subscriptions = (await (await fetch(`${demo.base}/api/subscriptions`)).json()) as Array<{
@@ -352,14 +358,18 @@ test("OPML confirmation, progress after Close, retry and duplicate skipping shar
     if (feed === bad.feedUrl && fail) await route.abort()
     else await route.continue()
   })
-  await page.goto(`${demo.base}/library`)
-  await page.getByRole("button", { name: "Add podcasts" }).click()
-  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
-  await sheet.getByRole("button", { name: "OPML file", exact: true }).click()
-  const select = () =>
-    sheet
-      .locator('input[type="file"]')
-      .setInputFiles({ name: "Library.opml", mimeType: "text/xml", buffer: Buffer.from(xml) })
+  await page.goto(`${demo.base}/settings`)
+  const sheet = page.getByRole("region", { name: "OPML import and export" })
+  const select = async () => {
+    const input = sheet.locator('input[type="file"]')
+    // setInputFiles can target disabled inputs; wait until the Library is ready to import.
+    await expect(input).toBeEnabled()
+    await input.setInputFiles({
+      name: "Library.opml",
+      mimeType: "text/xml",
+      buffer: Buffer.from(xml)
+    })
+  }
   await select()
   await expect(sheet.getByText("Library.opml: 3 podcasts; 1 already in the Library.")).toBeVisible()
   expect(requests).toBe(0)
@@ -370,8 +380,11 @@ test("OPML confirmation, progress after Close, retry and duplicate skipping shar
   await blocked.promise
   try {
     await expect(sheet.getByRole("status")).toContainText("Importing 1 of 3")
-    await sheet.getByRole("button", { name: "Close", exact: true }).click()
-    await expect(sheet).toBeHidden()
+    await page
+      .getByRole("navigation", { name: "Library and lists" })
+      .getByRole("link", { name: "Library", exact: true })
+      .click()
+    await expect(sheet).toHaveCount(0)
     const progress = page.getByRole("region", { name: "OPML import progress" })
     await expect(progress.getByRole("status")).toContainText("Importing 1 of 3")
     expect(
@@ -423,4 +436,92 @@ test("unreadable OPML has a reason and no Import button", async ({ page }) => {
   })
   await expect(page.getByRole("alert")).toContainText("not valid OPML")
   await expect(page.getByRole("button", { name: "Import", exact: true })).toHaveCount(0)
+})
+
+test("Add podcasts has only Search and Feed address; Settings exports current Subscriptions", async ({
+  page
+}) => {
+  const subscriptions = (await (await fetch(`${demo.base}/api/subscriptions`)).json()) as Array<{
+    id: string
+    title: string
+    feedUrl: string
+  }>
+  const removed = subscriptions.pop()
+  if (!removed) throw new Error("Expected fixture Subscription")
+  await fetch(`${demo.base}/api/subscriptions/${removed.id}`, { method: "DELETE" })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("button", { name: "Add podcasts" }).click()
+  const sheet = page.getByRole("dialog", { name: "Add podcasts" })
+  await expect(sheet.getByRole("button", { name: "Search", exact: true })).toBeVisible()
+  await expect(sheet.getByRole("button", { name: "Feed address", exact: true })).toBeVisible()
+  await expect(sheet.getByRole("button", { name: "OPML file" })).toHaveCount(0)
+  await expect(sheet.locator('input[type="file"]')).toHaveCount(0)
+  await sheet.getByRole("button", { name: "Close", exact: true }).click()
+  await page.goto(`${demo.base}/settings`)
+  await expect(page.getByRole("heading", { name: "Import and export (OPML)" })).toBeVisible()
+  const download = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Export OPML", exact: true }).click()
+  const exported = await download
+  expect(exported.suggestedFilename()).toBe("PodList.opml")
+  const path = await exported.path()
+  if (!path) throw new Error("Missing OPML download")
+  const xml = await readFile(path, "utf8")
+  const feeds = await page.evaluate(
+    (text) =>
+      [...new DOMParser().parseFromString(text, "text/xml").querySelectorAll("outline")].map(
+        (outline) => outline.getAttribute("xmlUrl")
+      ),
+    xml
+  )
+  expect(feeds.sort()).toEqual(subscriptions.map((s) => s.feedUrl).sort())
+  expect(feeds).not.toContain(removed.feedUrl)
+})
+
+test("Unsubscribe disarms on other interactions and expires; keyboard activation works in forced colors", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${demo.base}/library`)
+  await page.getByRole("link", { name: "Slow Build", exact: true }).click()
+  const subscribed = page.getByRole("button", { name: "Subscribed to Slow Build" })
+  const armed = page.getByRole("button", { name: "Unsubscribe", exact: true })
+  const arm = async () => {
+    await subscribed.click()
+    await expect(armed).toBeVisible()
+  }
+  await arm()
+  await page.locator("main h1").click()
+  await expect(subscribed).toBeVisible()
+  await arm()
+  await page.keyboard.press("Escape")
+  await expect(subscribed).toBeVisible()
+  await arm()
+  await page.keyboard.press("Tab")
+  await expect(subscribed).toBeVisible()
+  await arm()
+  await page.locator("main").dispatchEvent("scroll")
+  await expect(subscribed).toBeVisible()
+  await arm()
+  await expect(subscribed).toBeVisible({ timeout: 7000 })
+  await arm()
+  await page
+    .getByRole("navigation", { name: "Library and lists" })
+    .getByRole("link", { name: "Library", exact: true })
+    .click()
+  await page.getByRole("link", { name: "Slow Build", exact: true }).click()
+  await expect(subscribed).toBeVisible()
+  await page.emulateMedia({ forcedColors: "active" })
+  await subscribed.focus()
+  await page.keyboard.press("Enter")
+  await expect(armed).toBeFocused()
+  await expect(
+    page.getByRole("status").filter({ hasText: /Unsubscribe from Slow Build armed/ })
+  ).toHaveCount(1)
+  const border = await armed.evaluate((button) => getComputedStyle(button).borderTopStyle)
+  expect(border).toBe("solid")
+  await page.keyboard.press("Space")
+  await expect(page.getByRole("button", { name: "Subscribe to Slow Build" })).toBeVisible()
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
+  await expect(page.getByText("Unsubscribed from Slow Build", { exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/library\/[^/]+$/)
 })

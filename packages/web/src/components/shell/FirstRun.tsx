@@ -147,7 +147,7 @@ export function FirstRun() {
         {point(
           1,
           "Add your podcasts",
-          "Search by name, paste a feed address, or import an OPML file from another app."
+          "Search by name, paste a feed address, or import an OPML file from another app in Settings."
         )}
         {point(
           2,
