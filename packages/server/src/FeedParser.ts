@@ -34,6 +34,7 @@ const parser = new XMLParser({
   attributeNamePrefix: "@_",
   parseTagValue: false,
   parseAttributeValue: false,
+  htmlEntities: true,
   trimValues: true,
   isArray: (name) => name === "item"
 })
@@ -71,10 +72,59 @@ const parseDate = (raw: string | null): number => {
   return Number.isFinite(millis) ? millis : 0
 }
 
+/** Ignore declarations rather than registering DTD entities. Never fetch resources.
+ * Quoted literals, comments and internal subsets can contain '>' or fake markup.
+ * Keep CDATA and comments opaque so their contents cannot become declarations.
+ */
+const withoutDeclarations = (xml: string): string => {
+  const chunks: Array<string> = []
+  let retained = 0
+  let position = 0
+  const after = (marker: string, start: number): number => {
+    const end = xml.indexOf(marker, start)
+    if (end < 0) throw new Error("Unclosed XML token")
+    return end + marker.length
+  }
+  while (position < xml.length) {
+    const start = xml.indexOf("<", position)
+    if (start < 0) break
+    if (xml.startsWith("<!--", start)) position = after("-->", start + 4)
+    else if (xml.startsWith("<![CDATA[", start)) position = after("]]>", start + 9)
+    else if (xml.startsWith("<?", start)) position = after("?>", start + 2)
+    else {
+      const declaration = xml.startsWith("<!", start)
+      let brackets = 0
+      let quote: string | undefined
+      position = start + 1
+      for (; position < xml.length; position++) {
+        const c = xml[position]
+        if (quote !== undefined) {
+          if (c === quote) quote = undefined
+        } else if (declaration && xml.startsWith("<!--", position)) {
+          position = after("-->", position + 4) - 1
+        } else if (c === '"' || c === "'") quote = c
+        else if (declaration && c === "[") brackets++
+        else if (declaration && c === "]" && brackets > 0) brackets--
+        else if (c === ">" && brackets === 0) break
+      }
+      if (position === xml.length) throw new Error("Unclosed XML token")
+      position++
+      if (declaration) {
+        chunks.push(xml.slice(retained, start))
+        retained = position
+      }
+    }
+  }
+  if (retained === 0) return xml
+  chunks.push(xml.slice(retained))
+  return chunks.join("")
+}
+
 export const parseFeed = (xml: string): ParsedFeed => {
   let document: Node
   try {
-    document = parser.parse(xml) as Node
+    if (Buffer.byteLength(xml, "utf8") > 32 * 1024 * 1024) throw new Error("XML is too large")
+    document = parser.parse(withoutDeclarations(xml)) as Node
   } catch (cause) {
     throw new FeedParseError(`Not valid XML: ${String(cause)}`)
   }

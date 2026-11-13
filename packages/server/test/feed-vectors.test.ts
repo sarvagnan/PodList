@@ -9,7 +9,7 @@ const vectors = JSON.parse(
 describe("language-neutral feed parsing vectors", () => {
   it("committed fixtures match the reference parser", () =>
     expect(vectors).toEqual(buildFeedVectors()))
-  for (const vector of vectors.feeds.filter((feed) => !("deviceOnly" in feed)))
+  for (const vector of vectors.feeds)
     it(vector.name, () => {
       if ("error" in vector) expect(() => parseFeed(vector.xml)).toThrow()
       else expect(parseFeed(vector.xml)).toEqual(vector.expected)
