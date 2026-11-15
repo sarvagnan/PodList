@@ -30,7 +30,9 @@ tart exec "$vm" true
 tart exec "$vm" /bin/bash -c '
 set -euo pipefail
 s() { echo admin | sudo -S -p "" "$@"; }
-s ditto "/Volumes/My Shared Files/xcode" /Applications/Xcode.app
+# Keep APFS compression: Xcode is ~9 GB uncompressed and the base image has ~12 GB free.
+s ditto --hfsCompression "/Volumes/My Shared Files/xcode" /Applications/Xcode.app
+df -h /
 s xcode-select -s /Applications/Xcode.app
 s xcodebuild -license accept
 s xcodebuild -runFirstLaunch
