@@ -85,6 +85,7 @@ public struct PodListWindow: SwiftUI.View {
                                 }
                             })
                             .contextMenu { sidebarActions(item.destination, library: library) }
+                            .modifier(PlaylistEpisodeDropTarget(destination: item.destination, editor: app.libraryEditing))
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
@@ -152,6 +153,15 @@ public struct PodListWindow: SwiftUI.View {
                           openNowPlaying: { window.showNowPlaying = true })
             }
         }
+        .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { drop in
+            guard let editor = app.libraryEditing else { return }
+            switch drop {
+            case let .opml(url): Task { await editor.selectOPMLFile(url) }
+            case let .feed(url):
+                editor.setDraft(url.absoluteString, field: "addPodcasts")
+                showAddPodcasts = true
+            }
+        })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }))
@@ -401,7 +411,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
             } else {
-                Table(rows, selection: $window.selection, sortOrder: $window.sortOrder) {
+                Table(of: EpisodeRow.self, selection: $window.selection, sortOrder: $window.sortOrder) {
                     TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }
                     TableColumn("Published", value: \.published) { row in
                         if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
@@ -409,6 +419,10 @@ public struct PodListWindow: SwiftUI.View {
                     }.width(min: 95, ideal: 110, max: 150)
                     TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
                     TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                } rows: {
+                    ForEach(rows) { row in
+                        TableRow(row).draggable(EpisodeTransfer.local(row.id, selection: rows.map(\.id).filter { window.selection.contains($0) }, library: library))
+                    }
                 }
                 .tableStyle(.inset)
                 .alternatingRowBackgrounds(.disabled)

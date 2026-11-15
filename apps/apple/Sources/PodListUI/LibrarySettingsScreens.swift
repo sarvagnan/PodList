@@ -246,13 +246,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
             Task { @MainActor in
-                let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let file = try FileHandle(forReadingFrom: url); defer { try? file.close() }
-                    let bytes = try file.read(upToCount: 8 * 1024 * 1024 + 1) ?? Data()
-                    guard bytes.count <= 8 * 1024 * 1024, let text = String(data: bytes, encoding: .utf8) else { throw SyncResponseFailure("Choose UTF-8 OPML under 8 MiB") }
-                    await editor.selectOPML(text, name: url.lastPathComponent)
-                } catch { editor.cancelImportSelection(); editor.importName = url.lastPathComponent; editor.importPresented = true; editor.error = "Could not read this OPML file. " + LibraryMessages.failure(error) }
+                await editor.selectOPMLFile(url)
             }
         }
     }

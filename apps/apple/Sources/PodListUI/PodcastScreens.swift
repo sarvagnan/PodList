@@ -163,7 +163,7 @@ struct PodcastPageScreen: SwiftUI.View {
                     else { Button("Clear Search") { search = "" } }
                 }
             } else {
-                Table(episodes, selection: selection, sortOrder: $sortOrder) {
+                Table(of: PageEpisode.self, selection: selection, sortOrder: $sortOrder) {
                     TableColumn("Episode", value: \.title) { episode in
                         HStack {
                             Text(episode.title).lineLimit(2)
@@ -186,6 +186,8 @@ struct PodcastPageScreen: SwiftUI.View {
                     TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
                         .width(min: 60, ideal: 70, max: 100)
                     TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                } rows: {
+                    ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                 }
                 .tableStyle(.inset)
                 .alternatingRowBackgrounds(.disabled)
@@ -230,6 +232,15 @@ struct PodcastPageScreen: SwiftUI.View {
         .sheet(isPresented: $settings) {
             if let subscription { SubscriptionSettingsScreen(subscription: subscription, library: library, app: app, editor: editor) }
         }
+    }
+    private func dragPayload(_ episode: PageEpisode) -> EpisodeTransfer {
+        let chosen = selection.wrappedValue.contains(episode.id) ? episodes.filter { selection.wrappedValue.contains($0.id) } : [episode]
+        let references = chosen.map { item in
+            item.localID.map { DraggedEpisode(episodeID: $0) } ?? DraggedEpisode(episodeID: nil, feedURL: feedURL, guid: item.guid)
+        }
+        let published = feed?.episodes.first { $0.guid == episode.guid }
+        let url = episode.localID.flatMap { library.episodeShareURL($0) } ?? ShareLinks.episode(page: published?.link, enclosure: published?.audioUrl)
+        return EpisodeTransfer(episodes: references, sourcePlaylistID: nil, title: episode.title, shareURL: url)
     }
     private var podcastCommands: PodcastCommandContext {
         let available = !subscriptionBusy && !editor.busy && !editor.edits.busy

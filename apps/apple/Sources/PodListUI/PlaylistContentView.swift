@@ -57,8 +57,10 @@ struct PlaylistContentView: SwiftUI.View {
                 TableColumn("Length") { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
                 TableColumn("State") { row in Text(row.stateText) }.width(min: 80, ideal: 110, max: 150)
             } rows: {
-                ForEach(rows) { row in TableRow(row).draggable(dragPayload(row.id)) }
-                    .dropDestination(for: String.self) { index, values in
+                ForEach(rows) { row in
+                    TableRow(row).draggable(EpisodeTransfer.local(row.id, selection: ordered(window.selection), sourcePlaylistID: playlist.id, library: library))
+                }
+                    .dropDestination(for: EpisodeTransfer.self) { index, values in
                         _ = drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
                     }
             }
@@ -107,16 +109,10 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private func ordered(_ selection: Set<String>) -> [String] { rows.map(\.id).filter { selection.contains($0) } }
-    private func dragPayload(_ id: String) -> String {
-        let ids = window.selection.contains(id) ? ordered(window.selection) : [id]
-        return (try? JSONEncoder().encode([playlist.id] + ids)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    }
-    private func drop(_ values: [String], before id: String?) -> Bool {
-        guard !editing.busy, let value = values.first, let payload = try? JSONDecoder().decode([String].self, from: Data(value.utf8)),
-              payload.first == playlist.id, payload.count > 1,
-              payload.dropFirst().allSatisfy({ id in playlist.entries.contains { $0.episodeId == id } }) else { return false }
+    private func drop(_ values: [EpisodeTransfer], before id: String?) -> Bool {
+        guard !editing.busy, let ids = EpisodeDrop.reorderIDs(values, in: playlist) else { return false }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count
-        Task { await editing.move(Set(payload.dropFirst()), playlistID: playlist.id, to: boundary) }
+        Task { await editing.move(ids, playlistID: playlist.id, to: boundary) }
         return true
     }
     private var historyIDs: [String] {
