@@ -82,13 +82,14 @@ public struct PodListHelp: SwiftUI.View {
                 Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
                 Divider()
                 Text("Keyboard Shortcuts").macContentFont(.title2).bold()
-                Text("Choose a sidebar item with the arrow keys; in Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Double-click a row for details. Space plays selected Episodes, or toggles playback when none are selected. While editing text, Space and ⌘←/⌘→ keep their text meaning.")
+                Text("Choose a sidebar item with the arrow keys; in Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Double-click a row for details. Space always plays or pauses the current Episode, regardless of selection; if nothing is loaded, it starts the Active Playlist. Return plays selected Episodes using Episode › Play Now. While editing text, Space, Return and ⌘←/⌘→ keep their text meaning. In sheets, Return uses the default action.")
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                     shortcutRow("New View…", "⌘N")
                     shortcutRow("New Playlist…", "⇧⌘N")
                     shortcutRow("Add Podcasts…", "⇧⌘A")
                     shortcutRow("Search Library", "⌘F")
                     shortcutRow("Show / Hide Inspector", "⌥⌘I")
+                    shortcutRow("Play / Pause current Episode", "Space")
                     ForEach(PodListShortcut.allCases, id: \.self) { action in
                         shortcutRow(action.title, action.notation)
                     }

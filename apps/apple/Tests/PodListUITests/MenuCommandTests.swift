@@ -25,6 +25,15 @@ import UniformTypeIdentifiers
         #expect(PlaybackKeyboardGuard.route(characters: ".", modifiers: .command, editable: editable, sheet: true) == .cancelSheet)
         #expect(PlaybackKeyboardGuard.route(characters: ".", modifiers: .command, editable: editable, sheet: false) == .menu)
     }
+    // Return belongs to the field editor while renaming/editing, and to the
+    // sheet's default action even if the parent window still has a selection.
+    #expect(PlaybackKeyboardGuard.route(characters: "\r", modifiers: [], editable: true, sheet: false) == .text)
+    #expect(PlaybackKeyboardGuard.route(characters: "\r", modifiers: [], editable: false, sheet: false) == .menu)
+    for editable in [false, true] {
+        #expect(PlaybackKeyboardGuard.route(characters: "\r", modifiers: [], editable: editable, sheet: true) == .sheetDefault)
+        #expect(PlaybackKeyboardGuard.route(characters: "\r", modifiers: .command, editable: editable, sheet: true) == .menu)
+        #expect(PlaybackKeyboardGuard.route(characters: " ", modifiers: [], editable: editable, sheet: true) == (editable ? .text : .menu))
+    }
 }
 
 private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> Data {
@@ -72,14 +81,17 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     ]
     for shortcut in shortcuts {
         #expect(!shortcut.modifiers.contains(.control))
-        #expect(shortcut.modifiers.contains(.command))
+        if shortcut.key == .return {
+            #expect(shortcut.modifiers.isEmpty)
+        } else { #expect(shortcut.modifiers.contains(.command)) }
         for (modifiers, keys) in reserved where shortcut.modifiers == modifiers {
             #expect(!keys.contains(shortcut.key.character))
         }
     }
     #expect(PodListShortcut.download.shortcut == nil)
+    #expect(PodListShortcut.playNow.shortcut == KeyboardShortcut(.return, modifiers: []))
     #expect(PodListShortcut.allCases.map(\.notation) == [
-        "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→"
+        "↩", "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→"
     ])
 }
 

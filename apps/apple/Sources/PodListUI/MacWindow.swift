@@ -201,7 +201,7 @@ public struct PodListWindow: SwiftUI.View {
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions)
-        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }, showDetails: { inspectorVisible = true }))
+        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing { ContentSizedPanel(width: 600) { VStack(alignment: .leading) {
@@ -629,12 +629,6 @@ public struct PodListWindow: SwiftUI.View {
     }
     private func editView(_ view: PodListDomain.View) {
         creatingView = false; editingView = view
-    }
-    private func playSelection(_ library: LibraryModel) async {
-        guard let id = selectedIDs(library).first, let editing = app.editing else { app.playback?.toggle(); return }
-        if case let .playlist(playlistID) = window.destination {
-            await editing.playFromHere(playlistID: playlistID, episodeID: id)
-        } else { await editing.add([id], placement: .now) }
     }
     private func newView(text: String? = nil) {
         guard let editor = app.libraryEditing else { return }

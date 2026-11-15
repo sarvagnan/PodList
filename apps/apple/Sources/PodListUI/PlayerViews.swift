@@ -64,7 +64,7 @@ struct TransportControls: SwiftUI.View {
             }.help("Back 15 seconds")
             Button { controller.toggle() } label: {
                 MacIconLabel(title: controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill")
-            }.help(controller.wantsPlayback ? "Pause" : "Play")
+            }.help(controller.wantsPlayback ? "Pause (Space)" : "Play (Space)")
             Button { controller.skip(30) } label: {
                 MacIconLabel(title: "Forward 30 seconds", systemImage: "goforward.30")
             }.help("Forward 30 seconds")

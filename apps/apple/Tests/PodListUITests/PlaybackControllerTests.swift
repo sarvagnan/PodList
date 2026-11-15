@@ -49,6 +49,62 @@ private final class FakePlayerClock: Sendable {
     return (db, player, audio, clock)
 }
 #if os(macOS)
+@MainActor @Test func playbackMenuToggleKeepsTheCurrentEpisodeAndPlaylistOrder() async throws {
+    let (db, player, audio, clock) = try await playbackFixture()
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
+    let command = PlaybackToggleCommand(controller: player, library: library)
+    #expect(command.isEnabled && command.title == "Play")
+    command.perform(); await player.settle()
+    #expect(command.title == "Pause" && audio.isPlaying)
+
+    // Clear on Played advances the Playlist cursor to b while a is still playing.
+    // Even here, the transport must pause/resume a, without Play Now/Play from Here.
+    clock.advance(1); audio.tick(70); await player.settle()
+    let before = try await db.loadState()
+    #expect(before.playlists[0].cursor == "b")
+    #expect(player.display?.episodeID == "a")
+    command.perform(); await player.settle()
+    #expect(command.title == "Play" && !audio.isPlaying && !player.wantsPlayback)
+    #expect(player.display?.episodeID == "a")
+    command.perform(); await player.settle()
+    #expect(command.title == "Pause" && audio.isPlaying && player.wantsPlayback)
+    #expect(player.display?.episodeID == "a")
+    let after = try await db.loadState()
+    #expect(after.playlists[0].cursor == before.playlists[0].cursor)
+    #expect(after.playlists[0].entries.map(\.episodeId) == before.playlists[0].entries.map(\.episodeId))
+    #expect(audio.loads.count == 1)
+    await player.shutdown()
+}
+
+@MainActor @Test func playbackMenuStartsTheActivePlaylistWithoutALoadedEpisode() async throws {
+    let db = try await fixtureDatabase()
+    var state = try await db.loadState()
+    state.playlists[0].cursor = nil
+    try await db.saveState(state)
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
+    let audio = FakeAudio()
+    let player = PlaybackController(database: db, origin: nil, audio: audio, systemIntegration: false)
+    let command = PlaybackToggleCommand(controller: player, library: library)
+    #expect(player.display == nil && command.isEnabled && command.title == "Play")
+    command.perform(); await player.settle()
+    #expect(player.display?.episodeID == state.playlists[0].entries.first?.episodeId)
+    #expect(player.wantsPlayback && command.title == "Pause")
+    #expect(try await db.loadState().playlists[0].entries.map(\.episodeId) == state.playlists[0].entries.map(\.episodeId))
+    await player.shutdown()
+
+    state.playlists[0].entries = []
+    try await db.saveState(state)
+    let empty = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
+    let idle = PlaybackController(database: db, origin: nil, audio: FakeAudio(), systemIntegration: false)
+    let unavailable = PlaybackToggleCommand(controller: idle, library: empty)
+    #expect(!unavailable.isEnabled && unavailable.title == "Play")
+    unavailable.perform(); await idle.settle()
+    #expect(!idle.wantsPlayback && idle.display == nil)
+    #expect(!PlaybackToggleCommand(controller: nil, library: library).isEnabled)
+    #expect(!PlaybackToggleCommand(controller: idle, library: nil).isEnabled)
+    await idle.shutdown()
+}
+
 @MainActor @Test func glassPlayerBarReflowsAtEnlargedTextSizesWithoutAScreen() async throws {
     let (db, player, _, _) = try await playbackFixture()
     let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
