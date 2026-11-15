@@ -66,13 +66,21 @@ final class PodListUITour: XCTestCase {
         try navigate("Default")
         try ready(episodeList)
         try capture("06-default-playlist")
+        let defaultHeader = library.buttons["Play This Playlist"].frame
+        let defaultSection = library.radioButtons["Entries"].frame
         try selectFirstEpisode()
         try capture("07-entry-inspector")
         try segment("History")
         try capture("08-history")
+        assertPlaylistHeader(play: defaultHeader, section: defaultSection)
+        let historyDescription = text("Manual Played marks do not create History")
+        try ready(historyDescription)
+        XCTAssertLessThanOrEqual(historyDescription.frame.maxY, library.buttons["Open Now Playing"].frame.minY - 22,
+                                 "History must fit above the player at the default window size")
         try segment("Listening Timeline")
         try ready(library.descendants(matching: .any).matching(identifier: "Listening Timeline").firstMatch)
         try capture("09-listening-timeline")
+        assertPlaylistHeader(play: defaultHeader, section: defaultSection)
         let rewind = library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Rewind to ")).firstMatch
         try ready(rewind)
         // Standard XCUITest pointer input, even when the row already shows its action.
@@ -85,6 +93,9 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Commute")
         try capture("10-commute")
+        let commuteHeader = library.buttons["Play This Playlist"].frame
+        let commuteSection = library.radioButtons["Entries"].frame
+        let entryColumn = episodeList.buttons["Entry"].firstMatch.frame
         try click(button("Playlist Settings"))
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
@@ -93,11 +104,15 @@ final class PodListUITour: XCTestCase {
         try capture("12-playlist-rename", expectsSheet: true)
         try click(library.sheets.buttons["Cancel Rename"])
         try dismissSheet("Done")
+        assertPlaylistHeader(play: commuteHeader, section: commuteSection)
+        XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
         // Use the documented command so the duplicate sidebar/toolbar buttons are irrelevant.
         app.typeKey("n", modifierFlags: [.command, .shift])
         try sheet("New Playlist")
         try capture("13-new-playlist", expectsSheet: true)
         try dismissSheet("Cancel")
+        assertPlaylistHeader(play: commuteHeader, section: commuteSection)
+        XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
 
         try navigate("Trash")
         try ready(text("Trash is empty"))
@@ -168,9 +183,31 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Cancel")
         try navigate("Default")
         try click(library.buttons["Open Now Playing"])
-        try ready(library.sheets.firstMatch)
-        try capture("26-now-playing", expectsSheet: true)
-        try dismissSheet("Done")
+        let nowPlaying = app.windows.matching(NSPredicate(format: "title == %@", "Now Playing")).firstMatch
+        try ready(nowPlaying)
+        XCTAssertFalse(library.sheets.firstMatch.exists)
+        try capture("26-now-playing", in: nowPlaying)
+        // Playback stays open while the person browses Library.
+        try navigate("Trash")
+        try ready(text("Trash is empty"))
+        XCTAssertTrue(nowPlaying.exists)
+        try navigate("Default")
+        try click(library.buttons["Open Now Playing"])
+        XCTAssertEqual(app.windows.matching(NSPredicate(format: "title == %@", "Now Playing")).count, 1)
+        let playerScroll = nowPlaying.scrollViews.firstMatch
+        let details = nowPlaying.buttons["Episode Details"]
+        try reveal(details, in: playerScroll)
+        XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.buttons["Done"].frame.minY)
+        try click(details)
+        let addFromDetails = nowPlaying.buttons["Add to a Playlist"]
+        try reveal(addFromDetails, in: playerScroll)
+        try click(addFromDetails)
+        try sheet("to a Playlist")
+        XCTAssertFalse(nowPlaying.sheets.firstMatch.exists, "Playlist edits must present on Library")
+        try dismissSheet("Cancel")
+        try click(library.buttons["Open Now Playing"])
+        try click(nowPlaying.buttons["Done"])
+        XCTAssertTrue(nowPlaying.waitForNonExistence(timeout: 10))
 
         app.typeKey(",", modifierFlags: .command)
         let settings = app.windows.containing(.any, identifier: "General").firstMatch
@@ -235,6 +272,17 @@ final class PodListUITour: XCTestCase {
         try ready(element, file: file, line: line)
         XCTAssertTrue(element.isEnabled, "Disabled \(element)", file: file, line: line)
         element.click()
+    }
+
+    private func assertPlaylistHeader(play: CGRect, section: CGRect,
+                                      file: StaticString = #filePath, line: UInt = #line) {
+        let actualPlay = library.buttons["Play This Playlist"].frame
+        let actualSection = library.radioButtons["Entries"].frame
+        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
+        XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
+        XCTAssertEqual(actualSection.minY, section.minY, accuracy: 1, "Section control moved", file: file, line: line)
+        XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
+        XCTAssertLessThan(abs(actualPlay.midY - actualSection.midY), 8, "Controls must share a row", file: file, line: line)
     }
 
     private func navigate(_ name: String) throws {

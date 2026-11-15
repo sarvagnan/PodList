@@ -29,20 +29,6 @@ import PodListData
     #expect(ShareLinks.podcast(page: nil, feed: "https://publisher/rss")?.absoluteString == "https://publisher/rss")
 }
 
-@MainActor @Test func nowPlayingEntriesReturnOnlyAfterStartingPlayback() {
-    let window = WindowModel()
-    window.showNowPlaying = true
-    window.openNowPlayingEntries("commute")
-    #expect(!window.showNowPlaying && window.destination == .playlist("commute"))
-    #expect(window.returnToNowPlaying)
-    window.didStartPlayback()
-    #expect(window.showNowPlaying && !window.returnToNowPlaying)
-    window.openNowPlayingEntries("commute")
-    window.navigate(to: .search)
-    window.didStartPlayback()
-    #expect(!window.showNowPlaying)
-}
-
 @MainActor @Test func addSheetDefaultsToActiveUnlessAnUnfinishedDraftChoseAnotherTarget() {
     let defaults = UserDefaults(suiteName: UUID().uuidString)!
     let drafts = PlaylistDrafts(scope: "test", defaults: defaults)

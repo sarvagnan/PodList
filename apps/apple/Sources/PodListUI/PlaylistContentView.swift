@@ -15,22 +15,20 @@ struct PlaylistContentView: SwiftUI.View {
 
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
-            HStack {
-                Picker("Playlist section", selection: $presentation.playlistTab) { ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                    .pickerStyle(.segmented).frame(maxWidth: 480)
-                Spacer()
-                Button("Play This Playlist", systemImage: "play.fill") {
-                    Task { await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
-                }.disabled(editing.busy)
-            }.padding(12)
-            Group {
-                switch presentation.playlistTab {
-                case .entries: entries
-                case .history: history
-                case .timeline: timeline
-                }
+            PlaylistHeader(selection: $presentation.playlistTab, busy: editing.busy) {
+                Task { await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The content's ideal size must never take space from the header.
+            GeometryReader { geometry in
+                Group {
+                    switch presentation.playlistTab {
+                    case .entries: entries
+                    case .history: history
+                    case .timeline: timeline
+                    }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation))
@@ -144,7 +142,7 @@ struct PlaylistContentView: SwiftUI.View {
     private var history: some SwiftUI.View {
         Group {
             if playlist.history.isEmpty {
-                ContentUnavailableView("No History", systemImage: "clock", description: Text("Entries finished through this Playlist’s playback appear here. Manual Played marks do not create History."))
+                ScrollableEmptyState("No History", systemImage: "clock", description: "Entries finished through this Playlist’s playback appear here. Manual Played marks do not create History.")
             } else {
                 List(Array(playlist.history.enumerated().reversed()), id: \.offset, selection: $window.selection) { _, item in
                     let row = library.row(item.episodeId)
@@ -164,7 +162,7 @@ struct PlaylistContentView: SwiftUI.View {
         let events = TimelinePresentation.events(playlist)
         return Group {
             if events.isEmpty {
-                ContentUnavailableView("No Listening Timeline", systemImage: "clock.arrow.circlepath", description: Text("Listening and deliberate edits are kept here for 30 days. Play an Entry to begin."))
+                ScrollableEmptyState("No Listening Timeline", systemImage: "clock.arrow.circlepath", description: "Listening and deliberate edits are kept here for 30 days. Play an Entry to begin.")
             } else {
                 List(events, selection: $window.timelineSelection) { event in
                     HStack {
@@ -213,6 +211,32 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private func date(_ at: Int64) -> String { Date(timeIntervalSince1970: Double(at) / 1000).formatted(date: .abbreviated, time: .shortened) }
+}
+
+/// Keep both controls in one intrinsic-height row, independent of the selected tab.
+struct PlaylistHeader: SwiftUI.View {
+    @Binding var selection: PlaylistTab
+    let busy: Bool
+    let play: () -> Void
+
+    var body: some SwiftUI.View {
+        HStack {
+            Text("Playlist section").fixedSize()
+            Picker("Playlist section", selection: $selection) {
+                ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 350)
+            .layoutPriority(1)
+            Button("Play This Playlist", systemImage: "play.fill", action: play)
+                .fixedSize().disabled(busy)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("playlist.header")
+    }
 }
 
 struct RewindSheet: SwiftUI.View {

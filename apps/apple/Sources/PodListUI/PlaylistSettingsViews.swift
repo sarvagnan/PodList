@@ -157,7 +157,7 @@ struct PlaylistTrashView: SwiftUI.View {
             Text("Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
                 .macContentFont(.subheadline).foregroundStyle(.secondary).padding(12)
             if library.trash.isEmpty {
-                ContentUnavailableView("Trash Is Empty", systemImage: "trash", description: Text("Deleted Playlists can be restored here."))
+                ScrollableEmptyState("Trash Is Empty", systemImage: "trash", description: "Deleted Playlists can be restored here.")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id, selection: $selection) { item in
