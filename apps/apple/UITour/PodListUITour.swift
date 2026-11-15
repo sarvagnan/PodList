@@ -100,13 +100,13 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Cancel")
 
         try navigate("Trash")
-        try ready(library.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Trash is empty")).firstMatch)
+        try ready(text("Trash is empty"))
         try capture("14-trash")
         app.typeKey("f", modifierFlags: .command)
         let search = library.searchFields.firstMatch
         try click(search)
         search.typeText("rice")
-        try ready(episodeList.staticTexts["Who sets the price of rice?"])
+        try ready(text("Who sets the price of rice?", in: episodeList))
         try capture("15-search-rice")
         search.typeKey("a", modifierFlags: .command)
         search.typeKey(.delete, modifierFlags: [])
@@ -124,7 +124,7 @@ final class PodListUITour: XCTestCase {
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(button("Show description"))
-        try ready(episodeList.staticTexts["Who sets the price of rice?"])
+        try ready(text("Who sets the price of rice?", in: episodeList))
         try capture("18-podcast-market-hours")
         try click(button("Show description"))
         try ready(button("Show less"))
@@ -266,6 +266,12 @@ final class PodListUITour: XCTestCase {
         try ready(library.sheets.firstMatch)
         try ready(library.sheets.firstMatch.descendants(matching: .any).matching(NSPredicate(
             format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@ OR title CONTAINS[c] %@", heading, heading, heading)).firstMatch)
+    }
+
+    /// Any element showing the text, whether SwiftUI exposes it as label, value or title.
+    private func text(_ string: String, in root: XCUIElement? = nil) -> XCUIElement {
+        (root ?? library).descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@ OR title CONTAINS[c] %@", string, string, string)).firstMatch
     }
 
     private func button(_ title: String, in root: XCUIElement? = nil) -> XCUIElement {
