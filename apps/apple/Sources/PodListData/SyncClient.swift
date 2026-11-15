@@ -8,6 +8,7 @@ public protocol SyncTransport: Sendable {
 public struct Health: Codable, Equatable, Sendable {
     public let status: String
     public let protocolVersion: Int
+    public let supportedOperations: [String]?
     public let release: String?
 }
 public struct PullPage: Codable, Equatable, Sendable {
@@ -63,9 +64,17 @@ public actor SyncClient {
         onLibraryPage = handler
     }
     public func health() async throws -> Health {
+        try await db.setMeta("supportsPurgePlaylist", "false")
         let health: Health = try ProtocolJSON.decode(from: await transport.request(method: "GET", path: "/api/health", body: nil))
         guard health.status == "ok" else { throw SyncResponseFailure() }
+        try await db.setMeta("supportsPurgePlaylist", health.supportedOperations?.contains("PurgePlaylist") == true ? "true" : "false")
         return health
+    }
+    /// Refresh before an irreversible edit; protocolVersion alone does not advertise extensions.
+    public func requirePurgePlaylistSupport() async throws {
+        guard try await health().supportedOperations?.contains("PurgePlaylist") == true else {
+            throw SyncResponseFailure("This server does not support permanent Playlist deletion. Update the server, then retry.")
+        }
     }
     public func sync() async throws {
         if let inFlight { return try await inFlight.value }
@@ -90,6 +99,10 @@ public actor SyncClient {
     }
     private func syncState() async throws {
         let sent = try await db.outbox()
+        // Recheck after restart or a server rollback, including Operations imported by bring-over.
+        if sent.contains(where: { if case .purgePlaylist = $0.change { true } else { false } }) {
+            try await requirePurgePlaylistSupport()
+        }
         if !sent.isEmpty {
             let _: PushResult = try ProtocolJSON.decode(from: await transport.request(method: "POST", path: "/api/sync/push", body: ProtocolJSON.encode(PushBody(operations: sent))))
         }

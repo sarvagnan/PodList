@@ -13,7 +13,14 @@ layer(Layer.mergeAll(SystemHandlers, HttpServer.layerServices))("HTTP API", (it)
     Effect.gen(function* () {
       const client = yield* HttpApiTest.groups(PodListApi, ["system"])
       const health = yield* client.system.health()
-      assert.deepStrictEqual({ ...health }, { status: "ok", protocolVersion: Protocol.version })
+      assert.deepStrictEqual(
+        { ...health },
+        {
+          status: "ok",
+          protocolVersion: Protocol.version,
+          supportedOperations: ["PurgePlaylist"]
+        }
+      )
     })
   )
 })

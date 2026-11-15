@@ -233,6 +233,7 @@ public final class ApplicationModel {
         }
         editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: address?.origin.absoluteString ?? "standalone"),
             player: { [weak self] in self?.generation == token ? self?.playback : nil },
+            checkPurgeSupport: { [client = self.client] in try await client?.requirePurgePlaylistSupport() },
             donate: { [weak self] action in
                 guard let self, self.generation == token else { return }; self.donations.record(action)
             }, changed: { [weak self] in

@@ -599,6 +599,21 @@
               "properties": {
                 "_tag": {
                   "type": "string",
+                  "enum": ["PurgePlaylist"]
+                },
+                "playlistId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["_tag", "playlistId"],
+              "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "properties": {
+                "_tag": {
+                  "type": "string",
                   "enum": ["SetTrashDays"]
                 },
                 "days": {

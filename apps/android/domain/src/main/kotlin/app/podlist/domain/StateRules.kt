@@ -66,6 +66,7 @@ object StateRules {
                 state.playlists.any { it.id == change.playlistId }) state
             else state.copy(playlists = state.playlists + trashed.playlist, trash = state.trash?.filterNot { it === trashed })
         }
+        is Change.PurgePlaylist -> state.copy(trash = state.trash?.filterNot { it.playlist.id == change.playlistId })
         is Change.SetTrashDays -> state.copy(trashDays = change.days)
         is Change.SetActivePlaylist -> if (state.playlists.none { it.id == change.playlistId }) state else state.copy(activePlaylistId = change.playlistId)
         is Change.SetStar -> state.copy(episodeStates = episodeFacts(state, change.episodeId, state.episodeStates[change.episodeId]?.played, change.starred))

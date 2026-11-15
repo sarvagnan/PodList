@@ -86,6 +86,9 @@ export const SetClearOnPlayed = Schema.TaggedStruct("SetClearOnPlayed", {
 /** Moves the Playlist, with its History and Listening Timeline, to the Trash. */
 export const DeletePlaylist = Schema.TaggedStruct("DeletePlaylist", { playlistId: PlaylistId })
 
+/** Permanently removes only the named Playlist’s retained Trash data. */
+export const PurgePlaylist = Schema.TaggedStruct("PurgePlaylist", { playlistId: PlaylistId })
+
 /** Brings a Playlist back from the Trash while it is still kept there. */
 export const RestorePlaylist = Schema.TaggedStruct("RestorePlaylist", { playlistId: PlaylistId })
 
@@ -135,6 +138,7 @@ export const Change = Schema.Union([
   SetClearOnPlayed,
   DeletePlaylist,
   RestorePlaylist,
+  PurgePlaylist,
   SetTrashDays,
   SetActivePlaylist,
   Rewind,

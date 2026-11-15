@@ -53,6 +53,9 @@ struct WindowContext: Codable, Equatable {
     var podcastFeed: String?
     var subscriptionSelection = Set<String>()
 
+    var scrollAnchor: RowAnchor?
+    var paneWidths: PaneWidths?
+
     private var isPodcastPage: Bool {
         if case .subscription = destination { return true }
         return podcastFeed != nil
@@ -68,6 +71,7 @@ struct WindowContext: Codable, Equatable {
         // Server State and catalogue arrive independently. Empty partial reads are not deletions.
         guard library.snapshot.isReady else { return self }
         var result = self
+        result.paneWidths = paneWidths?.reconciled
         switch destination {
         case let .playlist(id) where !library.state.playlists.contains(where: { $0.id == id }):
             result.destination = .subscriptions
@@ -80,6 +84,7 @@ struct WindowContext: Codable, Equatable {
         if result.destination != destination {
             result.search = ""; result.selection = []; result.sort = []
             result.playlistTab = .entries; result.timelineSelection = nil; result.podcastFeed = nil
+            result.scrollAnchor = nil
         }
         result.subscriptionSelection.formIntersection(Set(library.subscriptions.map(\.id)))
         if result.isPodcastPage {
@@ -100,6 +105,21 @@ struct WindowContext: Codable, Equatable {
             ids = Set(library.rows(for: result.destination, search: result.search).map(\.id))
             result.timelineSelection = nil
         }
+        let scrollIDs: [String]
+        switch result.destination {
+        case .subscriptions: scrollIDs = library.subscriptionGroups(search: result.search).flatMap { $0.subscriptions.map(\.id) }
+        case .views: scrollIDs = library.state.views.map(\.id)
+        case .trash: scrollIDs = library.trash.filter { result.search.isEmpty || $0.playlist.name.localizedStandardContains(result.search) }.map { $0.playlist.id }
+        case let .playlist(id) where result.playlistTab == .timeline:
+            scrollIDs = library.state.playlists.first { $0.id == id }.map { TimelinePresentation.events($0, now: library.now).map(\.id) } ?? []
+        case let .playlist(id) where result.playlistTab == .history:
+            scrollIDs = library.state.playlists.first { $0.id == id }?.history.reversed().map(\.episodeId) ?? []
+        default:
+            let rows = library.rows(for: result.destination, search: result.search)
+            if case .playlist = result.destination { scrollIDs = rows.map(\.id) }
+            else { scrollIDs = result.sort.isEmpty ? rows.map(\.id) : rows.sorted(using: result.sort.map(\.comparator)).map(\.id) }
+        }
+        result.scrollAnchor = result.scrollAnchor?.reconciled(with: scrollIDs)
         result.selection.formIntersection(ids)
         return result
     }
@@ -111,12 +131,35 @@ extension WindowModel {
         WindowContext(libraryID: libraryID, destination: destination, search: search, selection: selection,
                       sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
                       playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns,
-                      podcastFeed: podcastFeed, subscriptionSelection: subscriptionSelection)
+                      podcastFeed: podcastFeed, subscriptionSelection: subscriptionSelection,
+                      scrollAnchor: scrollAnchor, paneWidths: paneWidths)
     }
 
     func restore(_ context: WindowContext) {
         destination = context.destination; search = context.search; selection = context.selection
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection
+        scrollAnchor = context.scrollAnchor; paneWidths = context.paneWidths ?? PaneWidths()
+    }
+}
+
+/// A stable row plus its old ordinal supplies a nearby fallback when that row disappears.
+struct RowAnchor: Codable, Equatable {
+    var id: String
+    var index: Int
+    func reconciled(with ids: [String]) -> Self? {
+        guard !ids.isEmpty else { return nil }
+        if let index = ids.firstIndex(of: id) { return Self(id: id, index: index) }
+        let index = min(max(0, self.index), ids.count - 1)
+        return Self(id: ids[index], index: index)
+    }
+}
+
+struct PaneWidths: Codable, Equatable {
+    var sidebar: Double = 225
+    var inspector: Double = 310
+    var reconciled: Self {
+        Self(sidebar: sidebar.isFinite ? min(max(sidebar, 180), 320) : 225,
+             inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 310)
     }
 }

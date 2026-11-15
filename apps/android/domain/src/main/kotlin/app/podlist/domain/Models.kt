@@ -104,6 +104,7 @@ typealias ListeningLog = Map<String, Map<String, Double>>
     @Serializable @SerialName("RenamePlaylist") data class RenamePlaylist(val playlistId: String, val name: String) : Change
     @Serializable @SerialName("SetClearOnPlayed") data class SetClearOnPlayed(val playlistId: String, val clearOnPlayed: Boolean) : Change
     @Serializable @SerialName("DeletePlaylist") data class DeletePlaylist(val playlistId: String) : Change
+    @Serializable @SerialName("PurgePlaylist") data class PurgePlaylist(val playlistId: String) : Change
     @Serializable @SerialName("RestorePlaylist") data class RestorePlaylist(val playlistId: String) : Change
     @Serializable @SerialName("SetTrashDays") data class SetTrashDays(val days: Long) : Change
     @Serializable @SerialName("SetActivePlaylist") data class SetActivePlaylist(val playlistId: String) : Change

@@ -211,6 +211,12 @@ const applyChange = (state: State, change: Change, context: Context): State => {
         trash: trashOf(state).filter((t) => t !== trashed)
       })
     }
+    case "PurgePlaylist":
+      return trashOf(state).some((t) => t.playlist.id === change.playlistId)
+        ? replace(state, {
+            trash: trashOf(state).filter((t) => t.playlist.id !== change.playlistId)
+          })
+        : state
     case "SetTrashDays":
       return replace(state, { trashDays: change.days })
     case "SetActivePlaylist":

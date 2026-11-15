@@ -222,6 +222,18 @@ public final class WindowModel {
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
     var podcastSort: [WindowSort] = [.init(column: .published, reversed: true)]
     var timelineSelection: String?
+    var scrollAnchor: RowAnchor?
+    var paneWidths = PaneWidths()
+    var pendingDropSelections: [String: [String]] = [:]
+
+    func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true) {
+        pendingDropSelections[playlistID] = ids
+        if reveal, destination == .playlist(playlistID) { revealDrop(in: playlistID) }
+    }
+    func revealDrop(in playlistID: String) {
+        guard let ids = pendingDropSelections.removeValue(forKey: playlistID), let first = ids.first else { return }
+        search = ""; selection = Set(ids); scrollAnchor = RowAnchor(id: first, index: 0)
+    }
 
     public init() {}
     /// Podcast pages belong to Subscriptions even though they have no sidebar row.
@@ -231,7 +243,10 @@ public final class WindowModel {
     }
     public func navigate(to destination: Destination?) {
         self.destination = destination; search = ""; selection = []; sortOrder = []
-        podcastSort = [.init(column: .published, reversed: true)]; timelineSelection = nil
+        podcastSort = [.init(column: .published, reversed: true)]; timelineSelection = nil; scrollAnchor = nil
+        if case let .playlist(id) = destination, let ids = pendingDropSelections[id], let first = ids.first {
+            selection = Set(ids); scrollAnchor = RowAnchor(id: first, index: 0)
+        }
     }
     public func rows(in library: LibraryModel) -> [EpisodeRow] {
         let rows = library.rows(for: destination, search: search)

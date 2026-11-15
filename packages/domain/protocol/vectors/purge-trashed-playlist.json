@@ -1,0 +1,186 @@
+{
+  "name": "purge-trashed-playlist",
+  "description": "Permanent deletion removes only the named trashed Playlist; restoration and duplicate purges are no-ops, and live Playlists are protected.",
+  "protocolVersion": 4,
+  "initial": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    }
+  },
+  "operations": [
+    {
+      "id": "purge-trashed-playlist-0",
+      "deviceId": "phone",
+      "sequence": 0,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "PurgePlaylist",
+        "playlistId": "default"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-1",
+      "deviceId": "phone",
+      "sequence": 1,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "CreatePlaylist",
+        "playlistId": "p",
+        "name": "Purge",
+        "clearOnPlayed": false
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-2",
+      "deviceId": "phone",
+      "sequence": 2,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "AddEntry",
+        "playlistId": "p",
+        "episodeId": "a",
+        "placement": "last"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-3",
+      "deviceId": "phone",
+      "sequence": 3,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "CreatePlaylist",
+        "playlistId": "keep",
+        "name": "Keep",
+        "clearOnPlayed": false
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-4",
+      "deviceId": "phone",
+      "sequence": 4,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "DeletePlaylist",
+        "playlistId": "keep"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-5",
+      "deviceId": "phone",
+      "sequence": 5,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "PurgePlaylist",
+        "playlistId": "p"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-6",
+      "deviceId": "phone",
+      "sequence": 6,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "DeletePlaylist",
+        "playlistId": "p"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-7",
+      "deviceId": "phone",
+      "sequence": 7,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "PurgePlaylist",
+        "playlistId": "p"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-8",
+      "deviceId": "phone",
+      "sequence": 8,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "RestorePlaylist",
+        "playlistId": "p"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-9",
+      "deviceId": "phone",
+      "sequence": 9,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "PurgePlaylist",
+        "playlistId": "p"
+      }
+    },
+    {
+      "id": "purge-trashed-playlist-10",
+      "deviceId": "phone",
+      "sequence": 10,
+      "recordedAt": 1793750400000,
+      "change": {
+        "_tag": "PurgePlaylist",
+        "playlistId": "default"
+      }
+    }
+  ],
+  "expected": {
+    "playlists": [
+      {
+        "id": "default",
+        "name": "Default",
+        "isDefault": true,
+        "clearOnPlayed": true,
+        "entries": [],
+        "cursor": null,
+        "history": [],
+        "timeline": []
+      }
+    ],
+    "activePlaylistId": "default",
+    "episodeStates": {},
+    "views": [],
+    "downloadRules": [],
+    "playbackSettings": {
+      "speed": 1,
+      "skipIntro": 0,
+      "skipOutro": 0,
+      "volumeBoost": false
+    },
+    "trash": [
+      {
+        "playlist": {
+          "id": "keep",
+          "name": "Keep",
+          "isDefault": false,
+          "clearOnPlayed": false,
+          "entries": [],
+          "cursor": null,
+          "history": [],
+          "timeline": []
+        },
+        "deletedAt": 1793750400000
+      }
+    ]
+  }
+}
