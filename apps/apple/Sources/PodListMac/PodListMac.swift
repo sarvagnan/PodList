@@ -13,6 +13,10 @@ struct PodListMac: App {
         let model = ApplicationModel()
         _model = State(initialValue: model)
         AutomationRuntime.app = model
+        model.donations.handler = { [weak model] action in
+            guard let model else { return }
+            IntentDonations.donate(action, app: model)
+        }
     }
     @Environment(\.openWindow) private var openWindow
 

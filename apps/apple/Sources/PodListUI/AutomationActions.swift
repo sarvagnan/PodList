@@ -22,7 +22,8 @@ public final class AutomationActions {
             tool("play", "Resume the Active Playlist."), tool("pause", "Pause playback."),
             tool("toggle", "Toggle playback."), tool("skip_back", "Skip back 15 seconds."),
             tool("skip_forward", "Skip forward 30 seconds."), tool("now_playing", "Episode, podcast, Position in seconds and Active Playlist."),
-            tool("play_episode", "Play an Episode now in the Active Playlist. Offers Undo.", ["episode_id": text], ["episode_id"]),
+            tool("play_episode", "Play an Episode now in the Active Playlist. Offers Undo.", ["episode_id": text, "playlist_id": text], ["episode_id"]),
+            tool("play_in_playlist", "Play an existing Entry in a Playlist. Offers Undo.", ["episode_id": text, "playlist_id": text], ["episode_id", "playlist_id"]),
             tool("add_episodes", "Add or move Episodes to a Playlist, Active by default. Offers Undo.",
                  ["episode_ids": ids, "playlist_id": text, "placement": ["type": "string", "enum": ["next", "last"]]], ["episode_ids"]),
             tool("add_current", "Add the current Episode to a Playlist, Active by default. Offers Undo.", ["playlist_id": text]),
@@ -45,7 +46,11 @@ public final class AutomationActions {
         return identifiers.filter(known.contains).map { library.row($0) }
     }
 
-    public func perform(_ name: String, arguments: JSONValue = [:]) async throws -> JSONValue {
+    public func performUndoable(_ name: String, arguments: JSONValue = [:], undoManager: UndoManager?) async throws -> JSONValue {
+        try await perform(name, arguments: arguments, undoManager: undoManager)
+    }
+
+    public func perform(_ name: String, arguments: JSONValue = [:], undoManager: UndoManager? = nil) async throws -> JSONValue {
         try Self.validate(name, arguments)
         guard let app else { throw AutomationFailure("PodList is not running.") }
         await app.start()
@@ -98,6 +103,14 @@ public final class AutomationActions {
             await player.settle()
             if let error = player.error { throw AutomationFailure(error) }
             return Self.nowPlaying(player, library: app.library ?? library)
+        case "play_in_playlist":
+            let editor = try requireEditor(), id = arguments["episode_id"]!.string!
+            guard let target = try playlistID(),
+                  library.state.playlists.first(where: { $0.id == target })?.entries.contains(where: { $0.episodeId == id }) == true else {
+                throw AutomationFailure("The Episode is not in that Playlist.")
+            }
+            guard await editor.playFromHere(playlistID: target, episodeID: id, undoManager: undoManager) else { throw AutomationFailure(editor.error ?? "Could not play the Entry. Retry.") }
+            return ["playlist_id": .string(target), "episode_ids": [.string(id)], "undo": .string(editor.undoTitle)]
         case "play_episode", "add_episodes", "add_current":
             let editor = try requireEditor()
             let ids: [String]
@@ -110,13 +123,13 @@ public final class AutomationActions {
             try checkEpisodes(ids)
             let target = try playlistID()
             let placement: Placement = name == "play_episode" ? .now : arguments["placement"]?.string == "next" ? .next : .last
-            guard let result = await editor.add(ids, to: target, placement: placement) else { throw AutomationFailure(editor.error ?? "Could not add Episodes. Retry.") }
+            guard let result = await editor.add(ids, to: target, placement: placement, undoManager: undoManager) else { throw AutomationFailure(editor.error ?? "Could not add Episodes. Retry.") }
             if name == "play_episode", let error = player?.error { throw AutomationFailure(error) }
             return ["playlist_id": .string(result), "episode_ids": .array(ids.map(JSONValue.string)), "undo": .string(editor.undoTitle)]
         case "set_starred", "set_played":
             let editor = try requireEditor(), ids = arguments["episode_ids"]!.array!.map { $0.string! }
             try checkEpisodes(ids)
-            let succeeded = name == "set_starred" ? await editor.setStar(ids, starred: arguments["starred"]!.bool!) : await editor.markPlayed(ids, played: arguments["played"]!.bool!)
+            let succeeded = name == "set_starred" ? await editor.setStar(ids, starred: arguments["starred"]!.bool!, undoManager: undoManager) : await editor.markPlayed(ids, played: arguments["played"]!.bool!, undoManager: undoManager)
             guard succeeded else { throw AutomationFailure(editor.error ?? "Could not edit Episodes. Retry.") }
             return ["episode_ids": .array(ids.map(JSONValue.string)), "undo": .string(editor.undoTitle)]
         default: throw AutomationFailure("Unknown action.")
