@@ -10,6 +10,12 @@ public extension Color {
         MacAccentPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
     })
 
+    /// System red is too light for regular-sized error text in Aqua. Keep
+    /// errors red with opaque, appearance-specific foregrounds on reading surfaces.
+    static let podListError = Color(nsColor: NSColor(name: "PodList Error") { appearance in
+        MacErrorPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
+    })
+
     /// Custom accent-filled controls need a dark glyph on the light Dark accent.
     static let podListOnAccent = Color(nsColor: NSColor(name: "PodList On Accent") { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -25,6 +31,17 @@ enum MacAccentPalette {
         case .accessibilityHighContrastAqua: return NSColor(srgbRed: 25 / 255, green: 58 / 255, blue: 155 / 255, alpha: 1) // #193A9B
         case .darkAqua: return NSColor(srgbRed: 157 / 255, green: 177 / 255, blue: 1, alpha: 1) // #9DB1FF
         default: return NSColor(srgbRed: 43 / 255, green: 80 / 255, blue: 200 / 255, alpha: 1) // #2B50C8
+        }
+    }
+}
+
+enum MacErrorPalette {
+    static func color(for appearance: NSAppearance.Name?) -> NSColor {
+        switch appearance {
+        case .accessibilityHighContrastDarkAqua: return NSColor(srgbRed: 1, green: 0.72, blue: 0.73, alpha: 1)
+        case .accessibilityHighContrastAqua: return NSColor(srgbRed: 0.6, green: 0.06, blue: 0.08, alpha: 1)
+        case .darkAqua: return NSColor(srgbRed: 1, green: 159 / 255, blue: 161 / 255, alpha: 1) // #FF9FA1
+        default: return NSColor(srgbRed: 185 / 255, green: 28 / 255, blue: 28 / 255, alpha: 1) // #B91C1C
         }
     }
 }

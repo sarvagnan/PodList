@@ -112,11 +112,12 @@ struct EditingFeedback: SwiftUI.View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             feedback(at: context.date)
         }
+        .onChange(of: additionalError) { _, message in editing.announcements.error(message) }
     }
     private func feedback(at now: Date) -> some SwiftUI.View {
         HStack {
             if let text = error ?? lifetime.message(for: editing.feedbackNotice, at: now) {
-                Text(text).foregroundStyle(error == nil ? Color.secondary : Color.red)
+                Text(text).foregroundStyle(error == nil ? Color.primary : Color.podListError)
                     .fixedSize(horizontal: false, vertical: true).help(text).textSelection(.enabled)
             }
             Spacer(minLength: 8)

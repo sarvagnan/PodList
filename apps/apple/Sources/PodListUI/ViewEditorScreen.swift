@@ -13,6 +13,7 @@ struct ViewEditorScreen: SwiftUI.View {
     @State private var rename = ""
     @State private var problem: String?
     @State private var renameProblem: String?
+    @State private var nameValidation = FormValidationVisibility()
     @Environment(\.locale) private var locale
     @State private var from = Date()
     @State private var to = Date()
@@ -43,8 +44,11 @@ struct ViewEditorScreen: SwiftUI.View {
                 Form {
                     Section {
                         if creating {
-                            TextField("Name", text: value(\.name))
-                            validation(nameProblem)
+                            TextField("Name", text: Binding(get: { draft.name }, set: { text in
+                                nameValidation.edited(from: draft.name, to: text)
+                                update { $0.name = text }
+                            }))
+                            validation(nameValidation.message(nameProblem))
                         }
                         else if renaming {
                             TextField("View name", text: $rename).onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
@@ -83,8 +87,8 @@ struct ViewEditorScreen: SwiftUI.View {
                                 } }))
                             }
                         }
-                        TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
-                            .textFieldStyle(.roundedBorder)
+                        TextField("Mentions (Optional)", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
+                            .textFieldStyle(.roundedBorder).accessibilityLabel("Mentions")
                         Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
                             Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
                         }
@@ -102,11 +106,11 @@ struct ViewEditorScreen: SwiftUI.View {
                             Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
                             Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
                         }
-                        TextField("Show", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return editor.hasDraft("limit.\(draft.id)") ? raw : draft.limit.map(String.init) ?? "" }, set: { text in
+                        TextField("Show (Optional)", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return editor.hasDraft("limit.\(draft.id)") ? raw : draft.limit.map(String.init) ?? "" }, set: { text in
                             editor.setDraft(text, field: "limit.\(draft.id)")
                             if text.isEmpty { update { $0.limit = nil } }
                             else if let limit = Int64(text), limit > 0 { update { $0.limit = limit } }
-                        }), prompt: Text("All")).textFieldStyle(.roundedBorder)
+                        }), prompt: Text("All")).textFieldStyle(.roundedBorder).accessibilityLabel("Show")
                         validation(fieldProblems[.show])
                     }
                 }.formStyle(.columns).disabled(saving)
@@ -125,6 +129,12 @@ struct ViewEditorScreen: SwiftUI.View {
             }
         }
         .interactiveDismissDisabled(saving)
+        .onChange(of: creating ? nameValidation.message(nameProblem) : (renaming ? renameProblem : nil)) { _, message in
+            editor.edits.announcements.error(message)
+        }
+        .onChange(of: fieldProblems) { _, problems in
+            editor.edits.announcements.error(problems.isEmpty ? nil : problems.values.sorted().joined(separator: " "))
+        }
         .onAppear {
             rename = editor.draft("rename.\(draft.id)"); renaming = !rename.isEmpty
         }
@@ -150,7 +160,7 @@ struct ViewEditorScreen: SwiftUI.View {
         return editor.hasDraft(key) ? editor.draft(key) : draft[keyPath: path].map { FormNumbers.string($0 / 60, locale: locale) } ?? ""
     }
     private func optionalNumber(_ label: String, field: ViewEdits.Field, path: WritableKeyPath<PodListDomain.View, Double?>) -> some SwiftUI.View {
-        LabeledContent(label) {
+        LabeledContent("\(label) (Optional)") {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     TextField(label, text: Binding(get: { numberDraft(label, path: path) }, set: { text in
@@ -159,14 +169,14 @@ struct ViewEditorScreen: SwiftUI.View {
                         else if let seconds = FormNumbers.seconds(fromMinutes: text, locale: locale) { update { $0[keyPath: path] = seconds } }
                     }), prompt: Text("No limit")).labelsHidden().accessibilityLabel(label)
                         .textFieldStyle(.roundedBorder).frame(width: 88)
-                    Text("min").foregroundStyle(.secondary)
+                    Text("min").foregroundStyle(.primary)
                 }
                 validation(fieldProblems[field])
             }
         }
     }
     @ViewBuilder private func validation(_ message: String?) -> some SwiftUI.View {
-        if let message { Text(message).macContentFont(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+        if let message { Text(message).macContentFont(.caption).foregroundStyle(Color.podListError).fixedSize(horizontal: false, vertical: true) }
     }
     private var nameProblem: String? { creating ? ViewNames.problem(draft.name, views: library.state.views, excluding: draft.id) : nil }
     private var fieldProblems: [ViewEdits.Field: String] {
@@ -220,6 +230,7 @@ struct ViewEditorScreen: SwiftUI.View {
         }
     }
     private func finish() {
+        nameValidation.submitted()
         guard fieldProblems.isEmpty, nameProblem == nil else { return }
         problem = nil
         saving = true

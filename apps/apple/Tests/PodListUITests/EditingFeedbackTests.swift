@@ -87,3 +87,59 @@ import PodListData
     #expect(editing.redoTitle == "Redo Star")
 }
 #endif
+
+#if os(macOS)
+@MainActor @Test func sharedFeedbackAnnouncesEachEditErrorAndImportResultOnce() async throws {
+    let db = try await fixtureDatabase()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: UUID().uuidString,
+                                     defaults: UserDefaults(suiteName: UUID().uuidString)!)
+    var messages: [String] = [], priorities: [Bool] = []
+    editor.edits.announcements.post = { messages.append($0); priorities.append($1) }
+    _ = LibraryFeedback(editor: editor)
+    _ = EditingFeedback(editing: editor.edits)
+    _ = await editor.edits.edit([.setStar(episodeId: "a", starred: true)], name: "Star")
+    #expect(messages == ["Star"] && priorities == [false])
+    editor.notice = "Imported 2; already in the Library 1; failed 0."
+    #expect(messages.count == 2 && priorities.last == false)
+    editor.error = "Could not read the feed. Try again."
+    editor.edits.announcements.error(editor.error)
+    #expect(messages.count == 3 && priorities.last == true)
+    editor.error = nil
+    editor.error = "Could not read the feed. Try again."
+    #expect(messages.count == 4)
+    editor.error = nil
+    _ = await editor.edits.edit([.setStar(episodeId: "a", starred: false)], name: "Unstar")
+    await editor.undo()
+    #expect(messages.suffix(2) == ["Unstar", "Undone: Unstar"])
+}
+
+@MainActor @Test func downloadsAnnounceTransitionsOnceAndIgnoreStoredDownloadsAtLaunch() async throws {
+    let db = try await fixtureDatabase()
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
+    await app.startStandalone()
+    var messages: [String] = [], priorities: [Bool] = []
+    app.announcements.post = { messages.append($0); priorities.append($1) }
+    func status(_ phase: DownloadPhase, error: String? = nil) throws -> DownloadStatus {
+        var value: [String: Any] = ["phase": phase.rawValue, "manual": true, "received": 0, "total": 0]
+        if let error { value["error"] = error }
+        return try JSONDecoder().decode(DownloadStatus.self, from: JSONSerialization.data(withJSONObject: value))
+    }
+    app.receiveDownloadStatuses(["a": try status(.stored)])
+    #expect(messages.isEmpty)
+    app.receiveDownloadStatuses(["a": try status(.queued)])
+    app.receiveDownloadStatuses(["a": try status(.transferring)])
+    app.receiveDownloadStatuses(["a": try status(.stored)])
+    app.receiveDownloadStatuses(["a": try status(.stored)])
+    #expect(messages.count == 1 && messages[0].hasPrefix("Downloaded ") && priorities == [false])
+    app.receiveDownloadStatuses(["a": try status(.queued)])
+    app.receiveDownloadStatuses(["a": try status(.failed, error: "Connection lost")])
+    app.receiveDownloadStatuses(["a": try status(.failed, error: "Connection lost")])
+    #expect(messages.count == 2 && messages.last?.contains("Connection lost") == true && priorities.last == true)
+    app.receiveDownloadStatuses(["a": try status(.queued)])
+    app.receiveDownloadStatuses(["a": try status(.failed, error: "Connection lost")])
+    #expect(messages.count == 3 && messages[2] == messages[1] && priorities.last == true)
+    app.receiveDownloadStatuses(["a": try status(.queued)])
+    app.receiveDownloadStatuses(["a": try status(.stored)])
+    #expect(messages.count == 4 && messages.last == messages.first && priorities.last == false)
+}
+#endif

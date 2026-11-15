@@ -60,7 +60,7 @@ struct MacTextSizeControl: SwiftUI.View {
             }
         }
         Text("Enlarges reading text in all windows. You can also use View › Bigger or Smaller.")
-            .macContentFont(.caption).foregroundStyle(.secondary)
+            .macContentFont(.caption).foregroundStyle(.primary)
     }
 }
 
@@ -88,7 +88,7 @@ struct MacReadingRow<Title: SwiftUI.View>: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 6) {
             title()
-            Text(metadata()).macContentFont(.caption).foregroundStyle(.secondary)
+            Text(metadata()).macContentFont(.caption).foregroundStyle(.primary)
         }
         .lineLimit(nil).fixedSize(horizontal: false, vertical: true).padding(.vertical, 6)
     }

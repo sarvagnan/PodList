@@ -34,7 +34,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                         .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
                     Button("Search") { search() }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(.secondary)
+                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(.primary)
                 if !searched, !loading {
                     ContentUnavailableView {
                         Label("Find Your Next Podcast", systemImage: "magnifyingglass")
@@ -43,7 +43,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                     }
                 }
                 if loading { ProgressView("Finding Podcasts…") }
-                if let error { FailureFeedback(message: error) { search() } }
+                if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { search() } }
                 if searched && !loading && results.isEmpty && error == nil { Text("No podcasts found. Try a name or a feed address.") }
                 if !results.isEmpty {
                     List(results) { result in
@@ -51,11 +51,11 @@ struct AddPodcastsScreen: SwiftUI.View {
                             Button { open(result.feedUrl); dismiss() } label: {
                                 HStack {
                                     ArtworkView(url: result.artworkUrl.flatMap(URL.init(string:)), title: result.title, size: 48)
-                                    VStack(alignment: .leading) { Text(result.title); Text(result.author ?? "").foregroundStyle(.secondary) }
+                                    VStack(alignment: .leading) { Text(result.title); Text(result.author ?? "").foregroundStyle(.primary) }
                                 }
                             }.buttonStyle(.plain).accessibilityLabel("Open Podcast page for \(result.title)")
                             Spacer()
-                            if library.subscriptions.contains(where: { $0.feedUrl == result.feedUrl }) { Label("Subscribed", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+                            if library.subscriptions.contains(where: { $0.feedUrl == result.feedUrl }) { Label("Subscribed", systemImage: "checkmark.circle.fill").foregroundStyle(.primary) }
                             else {
                                 Button(subscribing.contains(result.feedUrl) ? "Subscribing…" : "Subscribe") {
                                     subscribing.insert(result.feedUrl)
@@ -178,7 +178,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title).macContentFont(.title2).bold()
-                    Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(.secondary)
+                    Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(.primary)
                     Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? nil : 5).textSelection(.enabled)
                     Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
                     HStack {
@@ -188,7 +188,8 @@ struct PodcastPageScreen: SwiftUI.View {
                                 changeSubscription()
                             } label: {
                                 Label(subscribed ? (control.isArmed(at: context.date) ? "Unsubscribe" : "Subscribed") : "Subscribe", systemImage: subscribed ? (control.isArmed(at: context.date) ? "minus.circle.fill" : "checkmark.circle.fill") : "plus.circle")
-                            }.tint(subscribed ? (control.isArmed(at: context.date) ? .red : .green) : .podListAccent).disabled(subscriptionBusy)
+                                    .foregroundStyle(subscribed ? (control.isArmed(at: context.date) ? Color.podListError : Color.primary) : Color.podListAccent)
+                            }.tint(subscribed ? nil : .podListAccent).disabled(subscriptionBusy)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
                                 .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
                         }
@@ -204,8 +205,8 @@ struct PodcastPageScreen: SwiftUI.View {
                 DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
             }
             if loading { ProgressView("Reading Episodes…") }
-            if let error { FailureFeedback(message: error) { control.reset(); load() } }
-            Text(CountText.format(episodes.count, .episode)).foregroundStyle(.secondary)
+            if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { control.reset(); load() } }
+            Text(CountText.format(episodes.count, .episode)).foregroundStyle(.primary)
             if episodes.isEmpty, !loading, error == nil {
                 ContentUnavailableView {
                     Label(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet")
@@ -386,7 +387,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                         Button("Mark All Played") { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
                     }
                     Section("Playback Settings Overrides") {
-                        Text("Default inherits the global Playback Settings.").foregroundStyle(.secondary)
+                        Text("Default inherits the global Playback Settings.").foregroundStyle(.primary)
                         overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
                         overrideNumber("Skip Intro (seconds)", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120])
                         overrideNumber("Skip Outro (seconds)", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120])

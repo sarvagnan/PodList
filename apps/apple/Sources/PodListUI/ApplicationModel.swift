@@ -61,15 +61,15 @@ public final class ApplicationModel {
     public private(set) var origin: String?
     public private(set) var connecting = false
     public private(set) var starting = true
-    public private(set) var connectionError: String?
-    public private(set) var syncError: String?
+    public private(set) var connectionError: String? { didSet { announcements.error(connectionError) } }
+    public private(set) var syncError: String? { didSet { announcements.error(syncError) } }
     public private(set) var syncing = false
     public private(set) var library: LibraryModel?
     public private(set) var libraryEditing: LibraryEditingModel?
     public var isStandalone: Bool { library != nil && origin == nil }
     public private(set) var bringOverPreview: BringOverPreview?
     public private(set) var bringOverJob: BringOverJob?
-    public private(set) var bringOverError: String?
+    public private(set) var bringOverError: String? { didSet { announcements.error(bringOverError) } }
     public private(set) var bringOverAvailable = false
     @ObservationIgnored private var bringOver: BringOver?
     @ObservationIgnored private var bringOverSnapshot: BringOverSnapshot?
@@ -77,7 +77,8 @@ public final class ApplicationModel {
     public private(set) var editing: PlaylistEditingModel?
     public private(set) var playback: PlaybackController?
     public private(set) var downloadStatuses: [String: DownloadStatus] = [:]
-    public private(set) var downloadError: String?
+    public private(set) var downloadError: String? { didSet { announcements.error(downloadError) } }
+    @ObservationIgnored var announcements = FeedbackAnnouncements()
     @ObservationIgnored private var downloads: DownloadStore?
     @ObservationIgnored private var cleanupTask: Task<Void, Never>?
     @ObservationIgnored private var ruleTask: Task<Void, Never>?
@@ -207,7 +208,7 @@ public final class ApplicationModel {
                 Task { @MainActor in
                     guard let self, self.generation == token else { return }
                     guard self.downloadStatuses != statuses else { return }
-                    self.downloadStatuses = statuses
+                    self.receiveDownloadStatuses(statuses)
                     self.scheduleRules()
                 }
             }
@@ -235,6 +236,7 @@ public final class ApplicationModel {
                 guard let self, self.generation == token else { return }
                 await self.reloadLocal(); self.playback?.refresh(); self.requestSync()
             })
+        if let editing { announcements = editing.announcements }
         libraryEditing = LibraryEditingModel(database: db, source: source, scope: address?.origin.absoluteString ?? "standalone", edits: editing) { [weak self] in
             guard let self, self.generation == token else { return }
             await self.reloadLocal(); self.playback?.refresh(); self.requestSync()
@@ -440,6 +442,26 @@ public final class ApplicationModel {
             } catch is CancellationError {} catch { self?.downloadError = String(describing: error) }
         }
     }
+    /// Only transitions from a running download are completion announcements;
+    /// loading stored downloads at launch must stay silent.
+    func receiveDownloadStatuses(_ statuses: [String: DownloadStatus]) {
+        for id in statuses.keys.sorted() {
+            guard let next = statuses[id], let previous = downloadStatuses[id] else { continue }
+            let completed = next.phase == .stored && previous.phase != .stored
+            let failed = next.phase == .failed && (previous.phase != .failed || previous.error != next.error)
+            guard completed || failed else { continue }
+            let title = library?.snapshot.episodes.first(where: { $0.id == id })?.title ?? "Episode"
+            if completed {
+                editing?.showNotice("Downloaded \(title) on this Device.")
+            } else {
+                // A failed retry is a new event even when the server repeats its error.
+                announcements.error(nil)
+                announcements.error("Could not download \(title). \(next.error ?? "Try again.")")
+            }
+        }
+        downloadStatuses = statuses
+    }
+
     public func download(_ ids: [String]) {
         var seen = Set<String>()
         for id in ids where seen.insert(id).inserted { download(id) }
