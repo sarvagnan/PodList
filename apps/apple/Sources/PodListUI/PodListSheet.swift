@@ -56,7 +56,7 @@ struct PodListSheetReadingSurface<Content: SwiftUI.View>: SwiftUI.View {
             content()
         }
         .labeledContentStyle(PodListSheetLabelStyle())
-        .toggleStyle(.checkbox)
+        .toggleStyle(PodListSheetCheckboxStyle())
         .frame(width: max(1, width - 48), alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .padding(24)
@@ -82,8 +82,27 @@ struct PodListSheetField<Content: SwiftUI.View>: SwiftUI.View {
 struct PodListSheetFormStyle: FormStyle {
     func makeBody(configuration: Configuration) -> some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) { configuration.content }
-            .toggleStyle(.checkbox)
+            .toggleStyle(PodListSheetCheckboxStyle())
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The sheets' stacked label style also reaches toggles, which would put a
+/// checkbox's title above a detached box. Draw the native checkbox with its
+/// title trailing, as AppKit does; the title stays the control's only name.
+struct PodListSheetCheckboxStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    func makeBody(configuration: Configuration) -> some SwiftUI.View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.checkbox).labelsHidden()
+            configuration.label
+                .foregroundStyle(isEnabled ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                .fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
+                .onTapGesture { if isEnabled { configuration.isOn.toggle() } }
+                .accessibilityHidden(true)
+        }
     }
 }
 
