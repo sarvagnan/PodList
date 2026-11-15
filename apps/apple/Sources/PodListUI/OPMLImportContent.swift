@@ -11,11 +11,11 @@ struct OPMLImportContent: SwiftUI.View {
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
             if editor.importReady {
                 Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")
-                HStack {
+                if !inSheet { HStack {
                     Button("Import") { editor.startImport() }.keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
                     Button("Choose a Different File…", action: choose)
                     Button("Cancel", action: cancelImport)
-                }
+                } }
             } else if !editor.busy { Button("Choose a File…", action: choose) }
             if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
             if !editor.importFeeds.isEmpty {

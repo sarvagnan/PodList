@@ -112,7 +112,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
         .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
             if let editor = app.libraryEditing {
-                ContentSizedPanel(width: 500) { GettingStartedScreen(editor: editor, add: nil, inSheet: true).padding(25) }
+                GettingStartedScreen(editor: editor, add: nil, inSheet: true)
                     .onExitCommand { editor.showGettingStarted = false; gettingStarted = false }
                     .onChange(of: editor.showGettingStarted) { _, visible in if !visible { gettingStarted = false } }
             }
@@ -134,26 +134,21 @@ private struct BringOverPreviewScreen: SwiftUI.View {
     @Bindable var app: ApplicationModel
     let preview: BringOverPreview
     var body: some SwiftUI.View {
-        ContentSizedPanel(width: 560) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Bring this Mac’s Library over?").macContentFont(.title2).bold()
-                Text("To \(app.origin ?? "the server")").foregroundStyle(MacReadableSecondaryStyle()).textSelection(.enabled)
-                LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
-                LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
-                LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
-                LabeledContent("Entries and Positions", value: "\(CountText.format(preview.entries, .entry)) · \(CountText.format(preview.positions, .position))")
-                LabeledContent("Played and Starred", value: "\(preview.played) Played · \(preview.starred) Starred")
-                LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
-                LabeledContent("Views and downloads", value: "\(CountText.format(preview.views, .view)) · \(CountText.format(preview.downloads, .download))")
-                Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").macContentFont(.callout)
-                Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
-                if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError) }
-                HStack {
-                    Spacer()
-                    Button("Not Now") { app.declineBringOver() }.keyboardShortcut(.cancelAction)
-                    Button("Bring Over") { Task { await app.acceptBringOver() } }.macDefaultAction()
-                }
-            }.padding(25)
+        PodListSheet(title: "Bring this Mac’s Library over?", width: 560, actionTitle: "Bring Over",
+                     cancelTitle: "Not Now", cancel: { app.declineBringOver() },
+                     action: { Task { await app.acceptBringOver() } }) {
+            Text("To \(app.origin ?? "the server")").foregroundStyle(MacReadableSecondaryStyle()).textSelection(.enabled)
+            LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
+            LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
+            LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
+            LabeledContent("Entries and Positions", value: "\(CountText.format(preview.entries, .entry)) · \(CountText.format(preview.positions, .position))")
+            LabeledContent("Played and Starred", value: "\(preview.played) Played · \(preview.starred) Starred")
+            LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
+            LabeledContent("Views and downloads", value: "\(CountText.format(preview.views, .view)) · \(CountText.format(preview.downloads, .download))")
+            Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").macContentFont(.callout)
+            Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
+        } status: {
+            if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError) }
         }
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
             .notNow: { app.declineBringOver() }, .bringOver: { Task { await app.acceptBringOver() } }
@@ -260,8 +255,24 @@ struct GettingStartedScreen: SwiftUI.View {
     let add: (() -> Void)?
     var inSheet = false
     var body: some SwiftUI.View {
+        Group {
+            if inSheet {
+                PodListSheet(title: "Getting Started", width: 500, actionTitle: "Dismiss", cancelTitle: nil,
+                             cancel: { editor.showGettingStarted = false }, action: { editor.showGettingStarted = false }) {
+                    steps
+                }.onExitCommand { editor.showGettingStarted = false }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Getting Started").macContentFont(.headline)
+                    steps
+                    HStack { Spacer(); Button("Dismiss") { editor.showGettingStarted = false } }
+                }.padding(12)
+            }
+        }
+        .focusedSceneValue(\.podListTutorialActions, MenuActionContext(actions: [.dismissTutorial: { editor.showGettingStarted = false }]))
+    }
+    private var steps: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Getting Started").macContentFont(.headline)
             Label("Add podcasts to your Library", systemImage: "1.circle")
             Text("Search by name or enter a feed address.").foregroundStyle(MacReadableSecondaryStyle())
             if let add { Button("Add Podcasts…", action: add) }
@@ -270,13 +281,7 @@ struct GettingStartedScreen: SwiftUI.View {
             Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(MacReadableSecondaryStyle())
             Label("Add Episodes to Playlists", systemImage: "3.circle")
             Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(MacReadableSecondaryStyle())
-            HStack {
-                Spacer()
-                Button("Dismiss") { editor.showGettingStarted = false }
-                    .keyboardShortcut(inSheet ? .defaultAction : nil)
-            }
-        }.padding(12)
-        .focusedSceneValue(\.podListTutorialActions, MenuActionContext(actions: [.dismissTutorial: { editor.showGettingStarted = false }]))
+        }
     }
 }
 

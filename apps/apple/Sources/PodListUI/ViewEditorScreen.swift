@@ -34,105 +34,98 @@ struct ViewEditorScreen: SwiftUI.View {
     }
     private var count: Int { library.viewEpisodes(draft).count }
     var body: some SwiftUI.View {
-        ContentSizedPanel(width: 600) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(creating ? "New View" : "Edit View").macContentFont(.title2).bold()
-                    Spacer()
-                    Text(CountText.format(count, .matchingEpisode)).monospacedDigit()
-                }
-                Form {
-                    Section {
-                        if creating {
-                            TextField("Name", text: Binding(get: { draft.name }, set: { text in
+        PodListSheet(title: creating ? "New View" : "Edit View", width: 600,
+                     actionTitle: creating ? "Create View" : "Save", actionEnabled: canFinish,
+                     defaultShortcut: !renaming, cancelEnabled: !saving,
+                     cancel: cancel, action: finish) {
+            Text(CountText.format(count, .matchingEpisode)).monospacedDigit()
+            Form {
+                Section {
+                    if creating {
+                        LabeledContent("Name") {
+                            TextField("View name", text: Binding(get: { draft.name }, set: { text in
                                 nameValidation.edited(from: draft.name, to: text)
                                 update { $0.name = text }
-                            }))
-                            validation(nameValidation.message(nameProblem))
+                            })).onSubmit { finish() }
                         }
-                        else if renaming {
-                            TextField("View name", text: $rename).onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
-                            validation(renameProblem)
-                            HStack {
-                                Button("Cancel", action: cancelRename)
-                                Button("Save") { saveRename() }.keyboardShortcut(.defaultAction).disabled(saving || !fieldProblems.isEmpty)
-                            }
-                        } else {
-                            LabeledContent("Name", value: draft.name)
-                            Button("Rename…") { if ViewRenameAction.prepare(draft, editor: editor) { rename = editor.draft("rename.\(draft.id)"); renaming = true } }
+                        validation(nameValidation.message(nameProblem))
+                    }
+                    else if renaming {
+                        TextField("View name", text: $rename).onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
+                        validation(renameProblem)
+                        HStack {
+                            Button("Cancel", action: cancelRename)
+                            Button("Save") { saveRename() }.keyboardShortcut(.defaultAction).disabled(saving || !fieldProblems.isEmpty)
+                        }
+                    } else {
+                        LabeledContent("Name", value: draft.name)
+                        Button("Rename…") { if ViewRenameAction.prepare(draft, editor: editor) { rename = editor.draft("rename.\(draft.id)"); renaming = true } }
+                    }
+                }
+                Section("All Conditions Must Match") {
+                    Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
+                        update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
+                    })) {
+                        Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
+                    }
+                    if publishedMode == "days" {
+                        Stepper("Last \(CountText.format(lastDays, .day))", value: Binding(get: { lastDays }, set: { days in update { $0.filter.published = .lastDays(days: days) } }), in: 1...3650)
+                    }
+                    if publishedMode == "between" {
+                        DatePicker("From", selection: $from, displayedComponents: .date).onChange(of: from) { _, _ in updateDates() }
+                        DatePicker("Through", selection: $to, displayedComponents: .date).onChange(of: to) { _, _ in updateDates() }
+                    }
+                    validation(fieldProblems[.published])
+                    Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
+                        Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
+                    }
+                    if draft.filter.podcasts != nil {
+                        ForEach(library.snapshot.subscriptions, id: \.id) { sub in
+                            Toggle(sub.title, isOn: Binding(get: { draft.filter.podcasts?.subscriptionIds.contains(sub.id) == true }, set: { included in update { view in
+                                view.filter.podcasts?.subscriptionIds.removeAll { $0 == sub.id }
+                                if included { view.filter.podcasts?.subscriptionIds.append(sub.id) }
+                            } }))
                         }
                     }
-                    Section("All Conditions Must Match") {
-                        Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
-                            update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
-                        })) {
-                            Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
-                        }
-                        if publishedMode == "days" {
-                            Stepper("Last \(CountText.format(lastDays, .day))", value: Binding(get: { lastDays }, set: { days in update { $0.filter.published = .lastDays(days: days) } }), in: 1...3650)
-                        }
-                        if publishedMode == "between" {
-                            DatePicker("From", selection: $from, displayedComponents: .date).onChange(of: from) { _, _ in updateDates() }
-                            DatePicker("Through", selection: $to, displayedComponents: .date).onChange(of: to) { _, _ in updateDates() }
-                        }
-                        validation(fieldProblems[.published])
-                        Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
-                            Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
-                        }
-                        if draft.filter.podcasts != nil {
-                            ForEach(library.snapshot.subscriptions, id: \.id) { sub in
-                                Toggle(sub.title, isOn: Binding(get: { draft.filter.podcasts?.subscriptionIds.contains(sub.id) == true }, set: { included in update { view in
-                                    view.filter.podcasts?.subscriptionIds.removeAll { $0 == sub.id }
-                                    if included { view.filter.podcasts?.subscriptionIds.append(sub.id) }
-                                } }))
-                            }
-                        }
-                        TextField("Mentions (Optional)", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
-                            .textFieldStyle(.roundedBorder).accessibilityLabel("Mentions")
-                        Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
-                            Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
-                        }
-                        Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
-                            Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
-                        }
-                        Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
-                            Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
-                        }
-                        optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
-                        optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
+                    TextField("Mentions (Optional)", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
+                        .textFieldStyle(.roundedBorder).accessibilityLabel("Mentions")
+                    Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
+                        Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
                     }
-                    Section {
-                        Picker("Sort", selection: value(\.sort)) {
-                            Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
-                            Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
-                        }
-                        TextField("Show (Optional)", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return editor.hasDraft("limit.\(draft.id)") ? raw : draft.limit.map(String.init) ?? "" }, set: { text in
-                            editor.setDraft(text, field: "limit.\(draft.id)")
-                            if text.isEmpty { update { $0.limit = nil } }
-                            else if let limit = Int64(text), limit > 0 { update { $0.limit = limit } }
-                        }), prompt: Text("All")).textFieldStyle(.roundedBorder).accessibilityLabel("Show")
-                        validation(fieldProblems[.show])
+                    Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
+                        Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
                     }
-                }.formStyle(.columns).disabled(saving)
-            }.padding(20)
-        } footer: {
-            VStack(spacing: 0) {
-                EditingFeedback(editing: editor.edits, additionalError: problem ?? editor.error,
-                                undo: { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } },
-                                redo: { Task { await editor.redo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } })
-                HStack {
-                    if !creating { Button("Delete View", role: .destructive, action: deleteView) }
-                    Spacer()
-                    Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
-                    Button("Done") { finish() }.keyboardShortcut(renaming ? nil : .defaultAction).buttonStyle(MacDefaultButtonStyle()).disabled(saving || renaming)
-                }.disabled(saving).padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
-            }
+                    Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
+                        Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
+                    }
+                    optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
+                    optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
+                }
+                Section {
+                    Picker("Sort", selection: value(\.sort)) {
+                        Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
+                        Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
+                    }
+                    TextField("Show (Optional)", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return editor.hasDraft("limit.\(draft.id)") ? raw : draft.limit.map(String.init) ?? "" }, set: { text in
+                        editor.setDraft(text, field: "limit.\(draft.id)")
+                        if text.isEmpty { update { $0.limit = nil } }
+                        else if let limit = Int64(text), limit > 0 { update { $0.limit = limit } }
+                    }), prompt: Text("All")).textFieldStyle(.roundedBorder).accessibilityLabel("Show")
+                    validation(fieldProblems[.show])
+                }
+            }.formStyle(.columns).disabled(saving)
+        } status: {
+            EditingFeedback(editing: editor.edits, additionalError: problem ?? editor.error,
+                            undo: { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } },
+                            redo: { Task { await editor.redo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } })
+        } secondary: {
+            if !creating { Button("Delete View", role: .destructive, action: deleteView).disabled(saving) }
         }
         .interactiveDismissDisabled(saving)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
-            .done: !saving && !renaming ? { finish() } : nil,
+            .createView: creating && canFinish ? { finish() } : nil,
             .cancel: saving ? nil : { cancel() },
-            .save: renaming && !saving && fieldProblems.isEmpty ? { saveRename() } : nil,
+            .save: renaming ? (!saving && fieldProblems.isEmpty ? { saveRename() } : nil) : (!creating && canFinish ? { finish() } : nil),
             .cancelRename: renaming && !saving ? { cancelRename() } : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListViewEditorActions, ViewEditorCommandContext(
@@ -240,9 +233,10 @@ struct ViewEditorScreen: SwiftUI.View {
             saving = false
         }
     }
+    private var canFinish: Bool { !saving && !renaming && fieldProblems.isEmpty && nameProblem == nil }
     private func finish() {
         nameValidation.submitted()
-        guard fieldProblems.isEmpty, nameProblem == nil else { return }
+        guard canFinish else { return }
         problem = nil
         saving = true
         Task {

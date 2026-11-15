@@ -191,8 +191,9 @@ struct NowPlayingView: SwiftUI.View {
             } else {
                 ContentUnavailableView("No Current Entry", systemImage: "music.note")
             }
-            HStack { Spacer(); Button("Done", action: done).keyboardShortcut(.cancelAction) }
-                .padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
+            PodListSheetFooter(actionTitle: "Done", defaultShortcut: false, cancelTitle: nil,
+                               cancel: done, action: done)
+                .onExitCommand(perform: done)
         }
     }
     private func playbackControls(_ value: PlaybackDisplay) -> some SwiftUI.View {
@@ -262,16 +263,9 @@ private struct PlaybackSeekSheet: SwiftUI.View {
         return value
     }
     var body: some SwiftUI.View {
-        ContentSizedPanel(width: 420) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Go to Time").macContentFont(.title2).bold()
-                TextField("Position in seconds", text: $seconds).onSubmit { go() }
-                HStack {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Spacer()
-                    Button("Go", action: go).keyboardShortcut(.defaultAction).disabled(position == nil)
-                }
-            }.padding(24)
+        PodListSheet(title: "Go to Time", width: 420, actionTitle: "Go", actionEnabled: position != nil,
+                     cancel: { dismiss() }, action: go) {
+            TextField("Position in seconds", text: $seconds).onSubmit { go() }
         }
         .onAppear { episodeID = controller.display?.episodeID; seconds = FormNumbers.string(controller.display?.position ?? 0, locale: locale) }
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [

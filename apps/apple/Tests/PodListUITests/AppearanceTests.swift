@@ -265,7 +265,8 @@ private struct RGB {
                         Button {} label: { Text("Apply").foregroundStyle(Color.podListOnAccent) }
                             .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(.podListAccent)
                     }
-                    else { button.keyboardShortcut(.defaultAction) }
+                    else if kind == 2 { button.keyboardShortcut(.defaultAction) }
+                    else { button.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(.podListAccent) }
                 }.tint(.podListAccent)
                     .environment(\.colorScheme, scheme)
                     .disabled(!enabled)
@@ -275,7 +276,8 @@ private struct RGB {
             }
             let actual = try render(0)
             let image = { (data: Data) throws -> NSBitmapImageRep in try #require(NSBitmapImageRep(data: data)) }
-            #expect(differingPixels(try image(actual), try image(try render(1))) < 50)
+            #expect(differingPixels(try image(actual), try image(try render(enabled ? 1 : 3))) < 50,
+                    "Disabled defaults must use the system's complete disabled style")
             if enabled {
                 if scheme == .dark {
                     #expect(differingPixels(try image(actual), try image(try render(2))) >= 50,
