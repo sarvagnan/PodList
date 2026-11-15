@@ -256,7 +256,8 @@ final class PodListUITour: XCTestCase {
     }
 
     private func segment(_ name: String) throws {
-        try click(library.segmentedControls.buttons[name])
+        // macOS 27 exposes segmented pickers as radio groups.
+        try click(library.radioButtons[name])
     }
 
     /// Sheet headings and button titles are matched case-insensitively by prefix, so title-case
