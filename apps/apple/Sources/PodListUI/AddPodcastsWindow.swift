@@ -100,7 +100,12 @@ struct AddPodcastsScreen: SwiftUI.View {
             .searchPodcasts: !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListPodcast, discoveryCommands)
-        .onAppear { editor.beginAddingPodcasts(); state.restoreDraft(from: editor) }
+        .onAppear {
+            editor.beginAddingPodcasts(); state.restoreDraft(from: editor)
+            // defaultFocus alone loses to the window's own key-view loop when it is
+            // opened by openWindow; claim the field once the window is on screen.
+            Task { @MainActor in focused = true }
+        }
         .onDisappear { editor.endAddingPodcasts() }
     }
     private var discoveryCommands: PodcastCommandContext {
