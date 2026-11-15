@@ -250,7 +250,8 @@ final class PodListUITour: XCTestCase {
         let row = episodeRows.firstMatch
         // SwiftUI outline rows report isEnabled == false to accessibility; they still select on click.
         try ready(row)
-        row.click()
+        // The row's centre can fall on its Play Now button; click the title area instead.
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).click()
         try ready(library.buttons["Add to a Playlist"])
     }
 
