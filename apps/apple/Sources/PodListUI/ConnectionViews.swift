@@ -9,15 +9,15 @@ struct WelcomeView: SwiftUI.View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Image(systemName: "waveform.circle.fill").font(.system(size: 54)).foregroundStyle(Color.podListAccent).accessibilityHidden(true)
-                Text("Welcome to PodList").font(.largeTitle).bold()
+                Text("Welcome to PodList").macContentFont(.largeTitle).bold()
                 Text("Your Library, Views and Playlists, together on this Mac.").foregroundStyle(.secondary)
-                Text("Connect to a Server").font(.title2).bold().padding(.top, 12)
+                Text("Connect to a Server").macContentFont(.title2).bold().padding(.top, 12)
                 Text("Enter your PodList server address. Your Library stays available on this Device when the server is unreachable.")
                 TextField("Server address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
                     .textFieldStyle(.roundedBorder).focused($addressFocused).disabled(app.connecting)
                     .accessibilityLabel("Server address")
                     .onSubmit { connect() }
-                Text("For the local demo, use http://127.0.0.1:PORT.").font(.caption).foregroundStyle(.secondary)
+                Text("For the local demo, use http://127.0.0.1:PORT.").macContentFont(.caption).foregroundStyle(.secondary)
                 if let error = app.connectionError {
                     Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                         .accessibilityLabel("Connection error: " + error)
@@ -35,6 +35,7 @@ struct WelcomeView: SwiftUI.View {
                     .disabled(app.connecting).accessibilityHint("Start as a Standalone Device, with no server")
             }.frame(maxWidth: 470, alignment: .leading).padding(40).frame(maxWidth: .infinity)
         }
+        .macContentFont(.body)
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft }; addressFocused = true }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
     }
@@ -70,13 +71,13 @@ public struct PodListHelp: SwiftUI.View {
     public var body: some SwiftUI.View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("PodList").font(.largeTitle).bold()
+                Text("PodList").macContentFont(.largeTitle).bold()
                 Text("Views find Episodes in your Library. Playlists hold Entries in order, each with its own Position.")
                 Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌥⌘I). Search filters the current list.")
                 Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; change a Subscription’s Download Rule above its Episode list. Playback continues when windows close.")
                 Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
                 Divider()
-                Text("Keyboard Shortcuts").font(.title2).bold()
+                Text("Keyboard Shortcuts").macContentFont(.title2).bold()
                 Text("Choose a sidebar item with the arrow keys; in Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Double-click a row for details. Space plays selected Episodes, or toggles playback when none are selected. While editing text, Space and ⌘←/⌘→ keep their text meaning.")
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                     shortcutRow("New View…", "⌘N")
@@ -94,11 +95,12 @@ public struct PodListHelp: SwiftUI.View {
                     shortcutRow("Undo / Redo", "⌘Z / ⇧⌘Z")
                     shortcutRow("Cancel sheet", "Esc or ⌘.")
                     shortcutRow("Stop playback (outside sheets)", "⌘.")
+                    shortcutRow("Bigger / Smaller / Actual Size", "⌘+ / ⌘− / ⌘0")
                     shortcutRow("Settings…", "⌘,")
                 }
-                Text("Remove from Playlist is undoable. Shortcuts for unavailable commands are disabled; standard text editing commands follow the focused text field.").font(.caption)
+                Text("Remove from Playlist is undoable. Shortcuts for unavailable commands are disabled; standard text editing commands follow the focused text field.").macContentFont(.caption)
             }.padding(30).textSelection(.enabled)
-        }.frame(width: 600, height: 680)
+        }.macContentFont(.body).frame(width: 600, height: 680)
     }
     private func shortcutRow(_ title: String, _ keys: String) -> some SwiftUI.View {
         GridRow { Text(title); Text(keys).monospaced().frame(maxWidth: .infinity, alignment: .trailing) }

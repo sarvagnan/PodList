@@ -12,11 +12,11 @@ struct NewPlaylistSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 420) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("New Playlist").font(.title2).bold().accessibilityAddTraits(.isHeader)
+                Text("New Playlist").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
                 LabeledContent("Name") {
                     TextField("Playlist name", text: name).disabled(editing.busy).focused($focused).onSubmit { submit() }
                 }
-                if let problem { Text(problem).foregroundStyle(.red).font(.caption) }
+                if let problem { Text(problem).foregroundStyle(.red).macContentFont(.caption) }
                 EditingFeedback(editing: editing)
                 HStack {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(editing.busy)
@@ -61,7 +61,7 @@ struct AddPlaylistSheet: SwiftUI.View {
     }
     private var fields: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Add \(CountText.format(ids.count, .episode)) to a Playlist").font(.title2).bold().accessibilityAddTraits(.isHeader)
+            Text("Add \(CountText.format(ids.count, .episode)) to a Playlist").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
             Picker("Playlist", selection: Binding(get: { target }, set: { target = $0; editing.drafts[prefix + "/target"] = $0; editing.drafts[prefix + "/open"] = "true" })) {
                 ForEach(playlists, id: \.id) { playlist in
                     Text(playlist.name + (playlist.id == app.library?.state.activePlaylistId ? " (Active)" : "")).tag(playlist.id)
@@ -73,7 +73,7 @@ struct AddPlaylistSheet: SwiftUI.View {
                 LabeledContent("Name") {
                     TextField("Playlist name", text: name).disabled(editing.busy).onSubmit { submit(.next) }
                 }
-                if let problem { Text(problem).font(.caption).foregroundStyle(.red) }
+                if let problem { Text(problem).macContentFont(.caption).foregroundStyle(.red) }
             }
             EditingFeedback(editing: editing)
             HStack {
@@ -107,31 +107,31 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 450) {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Playlist Settings").font(.title2).bold().accessibilityAddTraits(.isHeader)
+                Text("Playlist Settings").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
                 if let playlist {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Name").foregroundStyle(.secondary)
                         if renaming && !playlist.isDefault {
                             TextField("Playlist name", text: name).disabled(editing.busy).focused($focused).onSubmit { save() }
-                            if let problem { Text(problem).font(.caption).foregroundStyle(.red) }
+                            if let problem { Text(problem).macContentFont(.caption).foregroundStyle(.red) }
                             HStack {
                                 Button("Cancel Rename") { editing.drafts.remove("rename/\(id)"); editing.drafts.remove("rename-open/\(id)") }
                                 Button("Save") { save() }.disabled(problem != nil || name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) == playlist.name || editing.busy)
                             }
                         } else {
-                            Text(playlist.name).font(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                            Text(playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                             if !playlist.isDefault {
                                 Button("Rename…") { editing.drafts["rename/\(id)"] = playlist.name; editing.drafts["rename-open/\(id)"] = "true"; focused = true }
-                            } else { Text("The Default Playlist cannot be renamed or deleted.").font(.caption).foregroundStyle(.secondary) }
+                            } else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(.secondary) }
                         }
                     }
                     Toggle("Clear on Played", isOn: Binding(get: { self.playlist?.clearOnPlayed ?? false }, set: { value in
                         Task { await editing.edit([.setClearOnPlayed(playlistId: id, clearOnPlayed: value)], name: "Clear on Played") }
                     })).disabled(editing.busy)
-                    Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").font(.caption).foregroundStyle(.secondary)
+                    Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(.secondary)
                     if !playlist.isDefault {
                         Button("Delete Playlist", role: .destructive) { Task { if await editing.delete(playlist) { done() } } }.disabled(editing.busy)
-                        Text("Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").font(.caption).foregroundStyle(.secondary)
+                        Text("Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(.secondary)
                     }
                 } else { Text("Playlist unavailable.") }
                 EditingFeedback(editing: editing)
@@ -155,7 +155,7 @@ struct PlaylistTrashView: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
             Text("Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
-                .font(.subheadline).foregroundStyle(.secondary).padding(12)
+                .macContentFont(.subheadline).foregroundStyle(.secondary).padding(12)
             if library.trash.isEmpty {
                 ContentUnavailableView("Trash Is Empty", systemImage: "trash", description: Text("Deleted Playlists can be restored here."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -163,7 +163,7 @@ struct PlaylistTrashView: SwiftUI.View {
                 List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id, selection: $selection) { item in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(item.playlist.name).font(.headline)
+                            Text(item.playlist.name).macContentFont(.headline)
                             Text("\(CountText.format(item.playlist.entries.count, .entry)) · Deleted \(Date(timeIntervalSince1970: Double(item.deletedAt) / 1000).formatted(date: .abbreviated, time: .omitted))").foregroundStyle(.secondary)
                         }
                         Spacer()

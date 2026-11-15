@@ -96,6 +96,7 @@ struct EpisodeActionButtons: ToolbarContent {
 }
 
 struct EditingFeedback: SwiftUI.View {
+    @Environment(\.macTextScale) private var textScale
     let editing: PlaylistEditingModel
     var additionalError: String? = nil
     var undo: (() -> Void)? = nil
@@ -105,7 +106,7 @@ struct EditingFeedback: SwiftUI.View {
         HStack {
             if let text = error ?? editing.status {
                 Text(text).foregroundStyle(error == nil ? Color.secondary : Color.red)
-                    .lineLimit(1).truncationMode(.tail).help(text).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true).help(text).textSelection(.enabled)
                 Spacer(minLength: 8)
                 if editing.history.undo != nil {
                     Button(editing.undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
@@ -114,7 +115,8 @@ struct EditingFeedback: SwiftUI.View {
                     Button(editing.redoTitle) { if let redo { redo() } else { Task { await editing.reverse(redo: true) } } }.disabled(editing.busy)
                 }
             } else { Spacer() }
-        }.font(.caption).lineLimit(1).padding(.horizontal, 14).frame(height: 32)
+        }.macContentFont(.caption).lineLimit(textScale > 1 ? nil : 1).padding(.horizontal, 14)
+            .frame(height: textScale > 1 ? nil : 32).frame(minHeight: 32)
             .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
     }
 }
