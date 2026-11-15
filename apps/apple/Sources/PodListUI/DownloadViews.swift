@@ -153,8 +153,12 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
                 }
             }.padding(24)
         }.disabled(saving)
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+            .cancel: saving ? nil : { dismiss() }, .apply: saving ? nil : { apply() }
+        ].compactMapValues { $0 }))
     }
     private func apply() {
+        guard !saving else { return }
         saving = true
         Task { if await app.setDownloadRules(subscriptions: ids, mode: mode, cap: cap) { dismiss() }; saving = false }
     }

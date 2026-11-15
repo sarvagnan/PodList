@@ -26,6 +26,10 @@ struct NewPlaylistSheet: SwiftUI.View {
                 }
             }.padding(24)
         }.interactiveDismissDisabled(editing.busy).task { focused = true }
+            .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+                .cancel: editing.busy ? nil : { dismiss() },
+                .createPlaylist: problem == nil && !editing.busy ? { submit() } : nil
+            ].compactMapValues { $0 }))
             .onChange(of: nameValidation.message(problem)) { _, message in editing.announcements.error(message) }
     }
     private var problem: String? { PlaylistNames.problem(name.wrappedValue, playlists: app.library?.state.playlists ?? []) }
@@ -60,6 +64,12 @@ struct AddPlaylistSheet: SwiftUI.View {
             else { ContentSizedPanel(width: 540) { fields } }
         }
         .interactiveDismissDisabled(editing.busy)
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+            .cancel: editing.busy ? nil : { if let cancelled { cancelled() } else { dismiss() } },
+            .playNow: problem == nil && !editing.busy ? { submit(.now) } : nil,
+            .playNext: problem == nil && !editing.busy ? { submit(.next) } : nil,
+            .playLast: problem == nil && !editing.busy ? { submit(.last) } : nil
+        ].compactMapValues { $0 }))
         .onChange(of: nameValidation.message(problem)) { _, message in editing.announcements.error(message) }
         .onAppear {
             target = editing.drafts.addTarget(prefix: prefix, active: app.library?.state.activePlaylistId ?? "", playlists: playlists, preferNew: preferNew)
@@ -124,13 +134,13 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                                 .task { focused = true }
                             if let problem { Text(problem).macContentFont(.caption).foregroundStyle(Color.podListError) }
                             HStack {
-                                Button("Cancel Rename") { editing.drafts.remove("rename/\(id)"); editing.drafts.remove("rename-open/\(id)") }
+                                Button("Cancel Rename", action: cancelRename)
                                 Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(problem != nil || name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) == playlist.name || editing.busy)
                             }
                         } else {
                             Text(playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                             if !playlist.isDefault {
-                                Button("Rename…") { if PlaylistRenameAction.prepare(playlist, editing: editing) { focused = true } }
+                                Button("Rename…", action: renamePlaylist)
                             } else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
                         }
                     }
@@ -139,7 +149,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                     })).disabled(editing.busy)
                     Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if !playlist.isDefault {
-                        Button("Delete Playlist", role: .destructive) { Task { if await editing.delete(playlist) { done() } } }.disabled(editing.busy)
+                        Button("Delete Playlist", role: .destructive, action: deletePlaylist).disabled(editing.busy)
                         Text("Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     }
                 } else { Text("Playlist unavailable.") }
@@ -148,8 +158,25 @@ struct PlaylistSettingsSheet: SwiftUI.View {
             }.padding(24)
         }.interactiveDismissDisabled(editing.busy)
             .onExitCommand { if !editing.busy { done() } }
+            .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+                .done: { done() },
+                .cancelRename: renaming ? { cancelRename() } : nil,
+                .save: renaming && problem == nil && name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) != playlist?.name && !editing.busy ? { save() } : nil
+            ].compactMapValues { $0 }))
+            .focusedSceneValue(\.podListPlaylistSettingsActions, PlaylistSettingsCommandContext(
+                rename: !renaming && playlist?.isDefault == false && !editing.busy ? { renamePlaylist() } : nil,
+                delete: playlist?.isDefault == false && !editing.busy ? { deletePlaylist() } : nil))
             .onChange(of: renaming ? problem : nil) { _, message in editing.announcements.error(message) }
     }
+    private func renamePlaylist() {
+        guard let playlist else { return }
+        if PlaylistRenameAction.prepare(playlist, editing: editing) { focused = true }
+    }
+    private func deletePlaylist() {
+        guard let playlist, !editing.busy else { return }
+        Task { if await editing.delete(playlist) { done() } }
+    }
+    private func cancelRename() { editing.drafts.remove("rename/\(id)"); editing.drafts.remove("rename-open/\(id)") }
     private var problem: String? { PlaylistNames.problem(name.wrappedValue, playlists: app.library?.state.playlists ?? [], excluding: id) }
     private func save() {
         guard renaming, problem == nil, name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) != playlist?.name, !editing.busy else { return }
@@ -184,7 +211,7 @@ struct PlaylistTrashView: SwiftUI.View {
                     }.padding(.vertical, 4).tag(item.playlist.id)
                     .contextMenu {
                         Button("Restore") { Task { await editing.restore(item.playlist.id) } }.disabled(editing.busy)
-                        Button("Delete Permanently…", role: .destructive) { deleting = item.playlist }.disabled(editing.busy)
+                        Button("Delete Permanently…", role: .destructive) { confirmDeletion(item.playlist) }.disabled(editing.busy)
                     }
                 }
                 .restoringRows(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }.map { Optional($0.playlist.id) }, anchor: $scrollAnchor)
@@ -192,19 +219,34 @@ struct PlaylistTrashView: SwiftUI.View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .focusedSceneValue(\.podListRestore, restoreAction)
+        .focusedSceneValue(\.podListDeletePermanently, deletePermanentlyAction)
+        .focusedSceneValue(\.podListPanelActions, deleting == nil ? nil : MenuActionContext(actions: [
+            .cancel: { deleting = nil }, .deletePermanently: editing.busy ? nil : { deleteConfirmed() }
+        ].compactMapValues { $0 }))
         .confirmationDialog("Delete “\(deleting?.name ?? "Playlist")” Permanently?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
-            Button("Delete Permanently", role: .destructive) {
-                if let id = deleting?.id { Task { await editing.deletePermanently(id) } }
-                deleting = nil
-            }
+            Button("Delete Permanently", role: .destructive, action: deleteConfirmed)
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: {
             Text("This removes the Playlist, its History and Listening Timeline from Trash. This cannot be undone. Episodes and the permanent Listening log are kept.")
         }
     }
+    private func deleteConfirmed() {
+        if let id = deleting?.id { Task { await editing.deletePermanently(id) } }
+        deleting = nil
+    }
+    private func confirmDeletion(_ playlist: Playlist) {
+        guard !editing.busy else { return }
+        deleting = playlist
+    }
+    private var deletePermanentlyAction: (() -> Void)? {
+        guard !editing.busy, deleting == nil, let playlist = selectedPlaylist else { return nil }
+        return { confirmDeletion(playlist) }
+    }
+    private var selectedPlaylist: Playlist? {
+        TrashSelectionAction.playlist(in: library, selection: selection, search: search, busy: editing.busy)
+    }
     private var restoreAction: (() -> Void)? {
-        guard !editing.busy, let id = selection,
-              library.trash.contains(where: { $0.playlist.id == id && (search.isEmpty || $0.playlist.name.localizedStandardContains(search)) }) else { return nil }
+        guard deleting == nil, let id = selectedPlaylist?.id else { return nil }
         return { Task { await editing.restore(id) } }
     }
 }

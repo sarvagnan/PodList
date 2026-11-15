@@ -2,8 +2,13 @@
 import SwiftUI
 import AppKit
 
+private struct SeekKey: FocusedValueKey { typealias Value = () -> Void }
 private struct PlaySelectionKey: FocusedValueKey { typealias Value = () -> Void }
 extension FocusedValues {
+    var podListSeek: (() -> Void)? {
+        get { self[SeekKey.self] }
+        set { self[SeekKey.self] = newValue }
+    }
     var podListPlaySelection: (() -> Void)? {
         get { self[PlaySelectionKey.self] }
         set { self[PlaySelectionKey.self] = newValue }
@@ -12,6 +17,7 @@ extension FocusedValues {
 
 public struct PlaybackCommands: Commands {
     @Bindable var app: ApplicationModel
+    @FocusedValue(\.podListSeek) private var seek
     @FocusedValue(\.podListPlaySelection) private var playSelection
     @FocusedValue(\.podListEpisodes) private var context
     @FocusedValue(\.podListNowPlaying) private var nowPlaying
@@ -26,6 +32,9 @@ public struct PlaybackCommands: Commands {
             }
                 .keyboardShortcut(.space, modifiers: [])
                 .disabled(app.library == nil || (playSelection == nil && context?.ids.isEmpty != false && app.playback?.display == nil))
+            Button("Resume Playback") { app.playback?.play() }.disabled(app.playback?.display == nil || app.playback?.wantsPlayback == true)
+            Button("Pause Playback") { app.playback?.pause() }.disabled(app.playback?.wantsPlayback != true)
+            Button("Go to Time…") { seek?() }.disabled(seek == nil)
             Button("Back 15 Seconds") { app.playback?.skip(-15) }.keyboardShortcut(.leftArrow, modifiers: .command).disabled(app.playback?.display == nil)
             Button("Forward 30 Seconds") { app.playback?.skip(30) }.keyboardShortcut(.rightArrow, modifiers: .command).disabled(app.playback?.display == nil)
             Button("Stop") { if !PlaybackKeyboardGuard.sheetIsKey { app.playback?.stop() } }
@@ -40,6 +49,12 @@ public struct PlaybackCommands: Commands {
             Button("Now Playing") { nowPlaying?() }.keyboardShortcut(PodListShortcut.nowPlaying.shortcut)
                 .disabled(app.playback?.display == nil || nowPlaying == nil)
             Button("Open Active Playlist") { openPlaylist?() }.disabled(openPlaylist == nil)
+            MenuActionItems(items: [.backToNowPlaying, .retryPlayback])
+            Menu("Go to Chapter") {
+                ForEach(Array((app.playback?.display?.chapters ?? []).enumerated()), id: \.offset) { index, chapter in
+                    Button(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title) { app.playback?.seek(chapter.start) }
+                }
+            }.disabled(app.playback?.display?.chapters.isEmpty != false)
         }
     }
 }

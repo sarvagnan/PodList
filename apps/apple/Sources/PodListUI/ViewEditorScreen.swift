@@ -54,7 +54,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             TextField("View name", text: $rename).onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
                             validation(renameProblem)
                             HStack {
-                                Button("Cancel") { renaming = false; editor.setDraft("", field: "rename.\(draft.id)") }
+                                Button("Cancel", action: cancelRename)
                                 Button("Save") { saveRename() }.keyboardShortcut(.defaultAction).disabled(saving || !fieldProblems.isEmpty)
                             }
                         } else {
@@ -121,7 +121,7 @@ struct ViewEditorScreen: SwiftUI.View {
                                 undo: { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } },
                                 redo: { Task { await editor.redo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } })
                 HStack {
-                    if !creating { Button("Delete View", role: .destructive) { editor.run { try await editor.deleteView(draft); finished(nil) } } }
+                    if !creating { Button("Delete View", role: .destructive, action: deleteView) }
                     Spacer()
                     Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
                     Button("Done") { finish() }.keyboardShortcut(renaming ? nil : .defaultAction).buttonStyle(MacDefaultButtonStyle()).disabled(saving || renaming)
@@ -129,6 +129,15 @@ struct ViewEditorScreen: SwiftUI.View {
             }
         }
         .interactiveDismissDisabled(saving)
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+            .done: !saving && !renaming ? { finish() } : nil,
+            .cancel: saving ? nil : { cancel() },
+            .save: renaming && !saving && fieldProblems.isEmpty ? { saveRename() } : nil,
+            .cancelRename: renaming && !saving ? { cancelRename() } : nil
+        ].compactMapValues { $0 }))
+        .focusedSceneValue(\.podListViewEditorActions, ViewEditorCommandContext(
+            rename: !creating && !saving && !renaming ? { if ViewRenameAction.prepare(draft, editor: editor) { rename = editor.draft("rename.\(draft.id)"); renaming = true } } : nil,
+            delete: !creating && !saving ? { deleteView() } : nil))
         .onChange(of: creating ? nameValidation.message(nameProblem) : (renaming ? renameProblem : nil)) { _, message in
             editor.edits.announcements.error(message)
         }
@@ -142,6 +151,8 @@ struct ViewEditorScreen: SwiftUI.View {
             if !creating, let current = views.first(where: { $0.id == draft.id }), applying == 0, !unappliedDraft, fieldProblems.isEmpty, current != draft { draft = current; reconcileDraft() }
         }
     }
+    private func cancelRename() { renaming = false; editor.setDraft("", field: "rename.\(draft.id)") }
+    private func deleteView() { editor.run { try await editor.deleteView(draft); finished(nil) } }
     private var publishedMode: String {
         switch draft.filter.published { case .lastDays: "days"; case .between: "between"; case nil: "any" }
     }

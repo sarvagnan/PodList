@@ -26,14 +26,19 @@ struct AutomationSettingsScreen: SwiftUI.View {
                         LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
                         Text("MCP client configuration").macContentFont(.headline)
                         Text(settings.clientConfiguration).macContentFont(.system(.caption, design: .monospaced, weight: nil)).textSelection(.enabled)
-                        Button("Copy Configuration") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(settings.clientConfiguration, forType: .string)
-                        }
+                        Button("Copy Configuration", action: copyConfiguration)
                     }
                 }
             }.formStyle(.columns).padding(24)
         }
+        .focusedSceneValue(\.podListSettingsActions, MenuActionContext(actions: [
+            .copyConfiguration: settings.isEnabled ? { copyConfiguration() } : nil,
+            .retryAutomation: settings.isEnabled && settings.error != nil ? { settings.start() } : nil
+        ].compactMapValues { $0 }))
+    }
+    private func copyConfiguration() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(settings.clientConfiguration, forType: .string)
     }
 }
 
@@ -96,6 +101,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         .sheet(isPresented: Binding(get: { app.bringOverPreview != nil }, set: { if !$0 { app.declineBringOver() } })) {
             if let preview = app.bringOverPreview { BringOverPreviewScreen(app: app, preview: preview) }
         }
+        .focusedSceneValue(\.podListSettingsActions, settingsMenuActions)
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft } }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
         .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
@@ -105,6 +111,16 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     .onChange(of: editor.showGettingStarted) { _, visible in if !visible { gettingStarted = false } }
             }
         }
+    }
+    private var settingsMenuActions: MenuActionContext {
+        var actions: [MenuAction: () -> Void] = [:]
+        if app.isStandalone && !app.syncing { actions[.refresh] = { Task { await app.sync(forceRefresh: true) } } }
+        if app.origin != nil {
+            actions[.disconnect] = { app.disconnect() }
+            if app.bringOverAvailable && !app.syncing { actions[.offerBringOver] = { Task { await app.offerBringOver() } } }
+            if app.bringOverJob?.complete == false && !app.syncing { actions[.retryBringOver] = { Task { await app.sync() } } }
+        } else if !app.connecting && !app.serverInput.isEmpty { actions[.connect] = { Task { await app.connect() } } }
+        return MenuActionContext(actions: actions)
     }
 }
 
@@ -133,6 +149,9 @@ private struct BringOverPreviewScreen: SwiftUI.View {
                 }
             }.padding(25)
         }
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+            .notNow: { app.declineBringOver() }, .bringOver: { Task { await app.acceptBringOver() } }
+        ]))
     }
 }
 
@@ -251,6 +270,22 @@ struct GettingStartedScreen: SwiftUI.View {
                     .keyboardShortcut(inSheet ? .defaultAction : nil)
             }
         }.padding(12)
+        .focusedSceneValue(\.podListTutorialActions, MenuActionContext(actions: [.dismissTutorial: { editor.showGettingStarted = false }]))
+    }
+}
+
+public struct GettingStartedWindow: SwiftUI.View {
+    @Bindable var app: ApplicationModel
+    @Environment(\.dismissWindow) private var dismissWindow
+    public init(app: ApplicationModel) { self.app = app }
+    public var body: some SwiftUI.View {
+        Group {
+            if let editor = app.libraryEditing {
+                GettingStartedScreen(editor: editor, add: nil).padding(25)
+                    .onAppear { editor.showGettingStarted = true }
+                    .onChange(of: editor.showGettingStarted) { _, visible in if !visible { dismissWindow(id: "getting-started") } }
+            }
+        }.frame(width: 500).macContentFont(.body)
     }
 }
 
@@ -302,6 +337,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 }
             } else { ContentUnavailableView("Open a Library to see Listening stats", systemImage: "chart.bar") }
         }.macContentFont(.body).frame(minWidth: 650, minHeight: 600)
+            .focusedSceneValue(\.podListDailyTable, app.library == nil ? nil : $table)
     }
 }
 

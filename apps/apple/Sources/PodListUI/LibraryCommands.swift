@@ -21,6 +21,7 @@ public struct LibraryCommands: Commands {
     @FocusedValue(\.podListLibraryActions) private var actions
     @FocusedValue(\.podListEpisodes) private var context
     @FocusedValue(\.podListPodcast) private var podcast
+    @FocusedValue(\.podListViewEditorActions) private var viewEditor
     @Environment(\.openWindow) private var openWindow
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
@@ -34,10 +35,14 @@ public struct LibraryCommands: Commands {
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
         }
         CommandMenu("Podcast") {
+            Button("Subscriptions") { context?.window.navigate(to: .subscriptions) }.disabled(context == nil)
+            MenuActionItems(items: [.searchPodcasts])
             Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()
             Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }
                 .disabled(podcast?.subscriptionAction == nil)
+            Button("Mark All Played") { podcast?.markAllPlayed?() }.disabled(podcast?.markAllPlayed == nil)
+            Button("Refresh Episodes") { podcast?.refresh?() }.disabled(podcast?.refresh == nil)
             Button("Subscription Settings…") { podcast?.settings?() }.disabled(podcast?.settings == nil)
             Button("Edit Download Rules…") { podcast?.downloadRules?() }.disabled(podcast?.downloadRules == nil)
             Divider()
@@ -48,13 +53,22 @@ public struct LibraryCommands: Commands {
                 .disabled(podcast?.toggleDescription == nil)
         }
         CommandMenu("Views") {
+            Menu("Open View") {
+                ForEach(context?.library.state.views ?? [], id: \.id) { view in
+                    Button(view.name) { context?.window.navigate(to: .view(view.id)) }
+                }
+            }.disabled(context?.library.state.views.isEmpty != false)
+            MenuActionItems(items: [.createViewFromSearch])
             Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)
             Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut).disabled(selectedViewID == nil || actions == nil)
-            Button("Rename View…") { actions?.renameView?() }.disabled(actions?.renameView == nil)
+            Button("Rename View…") {
+                if let viewEditor { viewEditor.rename?() } else { actions?.renameView?() }
+            }.disabled(viewEditor != nil ? viewEditor?.rename == nil : actions?.renameView == nil)
             Button("Delete View", role: .destructive) {
+                if let viewEditor { viewEditor.delete?(); return }
                 guard let id = selectedViewID, let view = app.library?.state.views.first(where: { $0.id == id }) else { return }
                 Task { do { try await app.libraryEditing?.deleteView(view) } catch { app.libraryEditing?.error = LibraryMessages.failure(error) } }
-            }.disabled(selectedViewID == nil || app.editing?.busy == true)
+            }.disabled(viewEditor != nil ? viewEditor?.delete == nil : selectedViewID == nil || app.editing?.busy == true)
         }
         CommandGroup(after: .textEditing) {
             Button("Search Library", action: { actions?.search() }).keyboardShortcut("f").disabled(actions == nil)

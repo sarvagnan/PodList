@@ -18,6 +18,7 @@ struct AddPodcastsScreen: SwiftUI.View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var results: [DirectoryPodcast] = []
+    @State private var selectedFeed: String?
     @State private var loading = false
     @State private var searched = false
     @State private var error: String?
@@ -46,9 +47,9 @@ struct AddPodcastsScreen: SwiftUI.View {
                 if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { search() } }
                 if searched && !loading && results.isEmpty && error == nil { Text("No podcasts found. Try a name or a feed address.") }
                 if !results.isEmpty {
-                    List(results) { result in
+                    List(results, selection: $selectedFeed) { result in
                         HStack {
-                            Button { open(result.feedUrl); dismiss() } label: {
+                            Button { openResult(result) } label: {
                                 HStack {
                                     ArtworkView(url: result.artworkUrl.flatMap(URL.init(string:)), title: result.title, size: 48)
                                     VStack(alignment: .leading) { Text(result.title); Text(result.author ?? "").foregroundStyle(MacReadableSecondaryStyle()) }
@@ -58,11 +59,10 @@ struct AddPodcastsScreen: SwiftUI.View {
                             if library.subscriptions.contains(where: { $0.feedUrl == result.feedUrl }) { Label("Subscribed", systemImage: "checkmark.circle.fill").foregroundStyle(.primary) }
                             else {
                                 Button(subscribing.contains(result.feedUrl) ? "Subscribing…" : "Subscribe") {
-                                    subscribing.insert(result.feedUrl)
-                                    Task { do { try await editor.subscribe(result.feedUrl) } catch { editor.error = LibraryMessages.failure(error) }; subscribing.remove(result.feedUrl) }
+                                    subscribe(result)
                                 }.disabled(subscribing.contains(result.feedUrl)).accessibilityLabel("Subscribe to \(result.title)")
                             }
-                        }.padding(.vertical, 5)
+                        }.padding(.vertical, 5).tag(result.feedUrl)
                     }
                     .frame(height: min(320, CGFloat(results.count) * 70))
                 }
@@ -70,8 +70,25 @@ struct AddPodcastsScreen: SwiftUI.View {
                 HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
             }.padding(20)
         }
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { dismiss() }]))
+        .focusedSceneValue(\.podListDiscoveryActions, MenuActionContext(actions: [
+            .searchPodcasts: !loading && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil,
+            .retry: error != nil && !loading ? { search() } : nil
+        ].compactMapValues { $0 }))
+        .focusedSceneValue(\.podListPodcast, discoveryCommands)
         .onAppear { editor.beginAddingPodcasts(); query = editor.draft("addPodcasts"); focused = true }
         .onDisappear { searchTask?.cancel(); editor.endAddingPodcasts() }
+    }
+    private var discoveryCommands: PodcastCommandContext {
+        guard let result = results.first(where: { $0.feedUrl == selectedFeed }) else { return PodcastCommandContext() }
+        let subscribed = library.subscriptions.contains { $0.feedUrl == result.feedUrl }
+        return PodcastCommandContext(open: { openResult(result) }, subscribed: subscribed,
+            subscriptionAction: !subscribed && !subscribing.contains(result.feedUrl) && !editor.busy && !editor.edits.busy ? { subscribe(result) } : nil)
+    }
+    private func openResult(_ result: DirectoryPodcast) { open(result.feedUrl); dismiss() }
+    private func subscribe(_ result: DirectoryPodcast) {
+        subscribing.insert(result.feedUrl)
+        Task { do { try await editor.subscribe(result.feedUrl) } catch { editor.error = LibraryMessages.failure(error) }; subscribing.remove(result.feedUrl) }
     }
     private func search() {
         searchTask?.cancel()
@@ -268,7 +285,10 @@ struct PodcastPageScreen: SwiftUI.View {
                 .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
             }
         }.padding(18)
+        .focusedSceneValue(\.podListRecoveryActions, MenuActionContext(actions: error != nil && !loading ? [.retry: { control.reset(); load() }] : [:]))
+        .focusedSceneValue(\.podListSort, $savedSort)
         .focusedSceneValue(\.podListPodcast, podcastCommands)
+        .focusedSceneValue(\.podListRemoteEpisode, remoteEpisodeActions)
         .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { episode in { inspect(episode) } })
         .focusedSceneValue(\.podListPlaySelection, selectedEpisode.map { episode in { bring(episode, play: true) } })
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
@@ -306,6 +326,11 @@ struct PodcastPageScreen: SwiftUI.View {
         let url = episode.localID.flatMap { library.episodeShareURL($0) } ?? ShareLinks.episode(page: published?.link, enclosure: published?.audioUrl)
         return EpisodeTransfer(episodes: references, sourcePlaylistID: nil, title: episode.title, shareURL: url)
     }
+    private var remoteEpisodeActions: EpisodeMenuOverrides? {
+        guard let episode = selectedEpisode, episodes.contains(where: { selection.wrappedValue.contains($0.id) && $0.localID == nil }),
+              !bringing.contains(episode.guid), !editor.busy, !editor.edits.busy else { return nil }
+        return EpisodeMenuOverrides(play: { bring(episode, play: true) }, add: { bring(episode, play: false) })
+    }
     private var podcastCommands: PodcastCommandContext {
         let available = !subscriptionBusy && !editor.busy && !editor.edits.busy
         var commands = PodcastCommandContext()
@@ -314,9 +339,11 @@ struct PodcastPageScreen: SwiftUI.View {
         if subscribed && available {
             commands.settings = { openSettings() }
             commands.downloadRules = { control.reset(); downloadRules = true }
+            commands.markAllPlayed = SubscriptionPlayedAction.action(subscription, editor: editor)
         }
         commands.shareURL = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL)
         commands.feedURL = ShareLinks.web(feedURL)
+        commands.refresh = loading ? nil : { load() }
         commands.descriptionExpanded = descriptionExpanded
         commands.toggleDescription = { toggleDescription() }
         return commands
@@ -392,7 +419,8 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                             ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
                             if let threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
                         }
-                        Button("Mark All Played") { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
+                        Button("Mark All Played") { SubscriptionPlayedAction.action(subscription, editor: editor)?() }
+                            .disabled(SubscriptionPlayedAction.action(subscription, editor: editor) == nil)
                     }
                     Section("Playback Settings Overrides") {
                         Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle())
@@ -409,6 +437,8 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             }.padding(20)
         }
         .onExitCommand { dismiss() }
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { dismiss() }]))
+        .focusedSceneValue(\.podListPodcast, PodcastCommandContext(subscribed: true, markAllPlayed: SubscriptionPlayedAction.action(subscription, editor: editor)))
         .onChange(of: overrides) { _, _ in save() }.onChange(of: threshold) { _, _ in save() }
     }
     private func overrideNumber(_ name: String, path: WritableKeyPath<PlaybackSettingsOverride, Double?>, choices: [Double]) -> some SwiftUI.View {

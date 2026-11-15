@@ -90,6 +90,7 @@ public struct NowPlayingWindow: SwiftUI.View {
                 ScrollableEmptyState("No Current Entry", systemImage: "music.note", description: "Choose an Episode in Library to begin.")
             }
         }
+        .modifier(PlaybackSeekHost(app: app))
         .macContentFont(.body)
         .frame(minWidth: 420, minHeight: 360)
         .tint(.podListAccent)
