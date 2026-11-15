@@ -145,19 +145,23 @@ struct NowPlayingView: SwiftUI.View {
     let library: LibraryModel
     let app: ApplicationModel
     let openPlaylist: () -> Void
+    let addToPlaylist: ([String], Bool) -> Void
+    let done: () -> Void
     @State private var detailID: String?
     @State private var presentation = PlaylistPresentation()
-    @Environment(\.dismiss) private var dismiss
     var body: some SwiftUI.View {
         GlassEffectContainer(spacing: 12) { panel }
             .onChange(of: controller.userPlaybackRevision) { _, _ in detailID = nil }
+            .onChange(of: presentation.sheet?.id) { _, _ in
+                if case let .add(ids, preferNew) = presentation.sheet {
+                    presentation.sheet = nil
+                    addToPlaylist(ids, preferNew)
+                }
+            }
     }
     private var panel: some SwiftUI.View {
-        ContentSizedPanel(width: 560) {
-            if case let .add(ids, new) = presentation.sheet, let editing = app.editing {
-                AddPlaylistSheet(ids: ids, preferNew: new, app: app, editing: editing, inline: true,
-                                 cancelled: { presentation.sheet = nil }, done: { presentation.sheet = nil })
-            } else {
+        VStack(spacing: 0) {
+            ScrollView {
                 VStack(spacing: 12) {
                     HStack { Text("Now Playing").macContentFont(.title2).bold(); Spacer() }
                         .padding(.horizontal, 28).padding(.top, 20)
@@ -203,12 +207,12 @@ struct NowPlayingView: SwiftUI.View {
                         }.padding(28)
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: false, vertical: true)
             }
-        } footer: {
-            if presentation.sheet == nil {
-                HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
-                    .padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
-            }
+            .scrollBounceBehavior(.basedOnSize)
+            HStack { Spacer(); Button("Done", action: done).keyboardShortcut(.cancelAction) }
+                .padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
         }
     }
 }

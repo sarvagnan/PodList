@@ -218,8 +218,6 @@ public struct LibraryModel: Sendable {
 public final class WindowModel {
     public var destination: Destination? = .subscriptions
     public var search = ""
-    public var showNowPlaying = false
-    public private(set) var returnToNowPlaying = false
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
     var podcastSort: [WindowSort] = [.init(column: .published, reversed: true)]
@@ -231,14 +229,7 @@ public final class WindowModel {
         if case .subscription = destination { return .subscriptions }
         return destination
     }
-    public func openNowPlayingEntries(_ playlistID: String) {
-        showNowPlaying = false; navigate(to: .playlist(playlistID)); returnToNowPlaying = true
-    }
-    public func didStartPlayback() {
-        if returnToNowPlaying { showNowPlaying = true; returnToNowPlaying = false }
-    }
     public func navigate(to destination: Destination?) {
-        returnToNowPlaying = false
         self.destination = destination; search = ""; selection = []; sortOrder = []
         podcastSort = [.init(column: .published, reversed: true)]; timelineSelection = nil
     }

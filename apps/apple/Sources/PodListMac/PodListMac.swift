@@ -43,6 +43,8 @@ struct PodListMac: App {
                 Button("PodList Help") { openWindow(id: "help") }
             }
         }
+        Window("Now Playing", id: "now-playing") { NowPlayingWindow(app: model).macTextSize(textSize) }
+            .defaultSize(width: 560, height: 700)
         Settings { PodListSettings(app: model).macTextSize(textSize).tint(.podListAccent) }
         Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).macTextSize(textSize).tint(.podListAccent) }
         Window("PodList Help", id: "help") { PodListHelp().macTextSize(textSize).tint(.podListAccent) }

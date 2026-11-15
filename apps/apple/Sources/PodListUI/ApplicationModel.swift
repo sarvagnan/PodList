@@ -51,6 +51,9 @@ public enum ConnectionValidation {
 /// One app-wide session, with independent per-server databases and stable Device identities.
 @MainActor @Observable
 public final class ApplicationModel {
+    #if os(macOS)
+    @ObservationIgnored let nowPlayingNavigation = NowPlayingLibraryNavigation()
+    #endif
     @ObservationIgnored public lazy var actions = AutomationActions(app: self)
     @ObservationIgnored public lazy var automation = AutomationSettings { [weak self] name, arguments in
         guard let self else { throw AutomationFailure("PodList is not running.") }

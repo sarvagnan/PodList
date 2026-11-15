@@ -178,7 +178,7 @@ public struct PodListWindow: SwiftUI.View {
             if let playback = app.playback, playback.hasDisplay {
                 PlayerBar(controller: playback, library: library,
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
-                          openNowPlaying: { window.showNowPlaying = true })
+                          openNowPlaying: { openWindow(id: "now-playing") })
             }
         }
         .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { drop in
@@ -215,15 +215,9 @@ public struct PodListWindow: SwiftUI.View {
             podcastFeed = nil
         }
         .focusedSceneValue(\.podListInspector, showsEpisodeInspector ? $inspectorVisible : nil)
-        .focusedSceneValue(\.podListOpenPlaylist, { window.showNowPlaying = false; window.navigate(to: .playlist(library.state.activePlaylistId)) })
-        .focusedSceneValue(\.podListNowPlaying, { window.showNowPlaying = true })
-        .sheet(isPresented: $window.showNowPlaying) {
-            if let controller = app.playback {
-                NowPlayingView(controller: controller, library: library, app: app) {
-                    window.openNowPlayingEntries(library.state.activePlaylistId)
-                }
-            }
-        }
+        .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation))
+        .focusedSceneValue(\.podListOpenPlaylist, { window.navigate(to: .playlist(library.state.activePlaylistId)) })
+        .focusedSceneValue(\.podListNowPlaying, { openWindow(id: "now-playing") })
         .onChange(of: app.library?.snapshot) { previous, _ in
             if let library = app.library {
                 if !restoredContext, library.snapshot.isReady, previous?.state.views.isEmpty != false, library.subscriptions.isEmpty,
@@ -237,7 +231,6 @@ public struct PodListWindow: SwiftUI.View {
             if !isPodcastPage, window.destination == .search { app.libraryEditing?.setDraft(text, field: "librarySearch") }
             reconcileSelection(library)
         }
-        .onChange(of: app.playback?.userPlaybackRevision) { _, _ in window.didStartPlayback() }
         .onChange(of: window.destination) { _, _ in playlistPresentation.playlistTab = .entries }
         .onChange(of: currentContext) { _, context in
             if contextLoaded, context.libraryID == contextLibraryID { savedContext = context.encoded }

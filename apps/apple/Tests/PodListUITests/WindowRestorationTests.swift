@@ -111,7 +111,6 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     window.restore(try #require(WindowContext.decode(value.encoded)))
     #expect(window.destination == value.destination && window.selection == value.selection && window.search == value.search)
     #expect(window.sortOrder == value.sort.map(\.comparator))
-    #expect(!window.showNowPlaying && !window.returnToNowPlaying)
     #expect(newWindow.destination == .subscriptions && newWindow.selection.isEmpty && newWindow.sortOrder.isEmpty)
     #expect(try await db.readLibrary() == before)
     #expect(try await db.outbox().isEmpty)
