@@ -13,6 +13,9 @@ struct ArtworkView: SwiftUI.View {
             image.resizable().scaledToFill()
         } placeholder: {
             ZStack {
+                // Keep initials readable even when the artwork sits on a
+                // selected row: the tint composites over a known opaque base.
+                Color(nsColor: .windowBackgroundColor)
                 Color.podListAccent.opacity(0.12)
                 Text(Presentation.initials(title)).font(.system(size: size * 0.34, weight: .medium)).foregroundStyle(Color.podListAccent)
             }
@@ -35,7 +38,7 @@ struct EpisodeInspector: SwiftUI.View {
                     ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180)
                         .frame(maxWidth: .infinity)
                     Text(row.title).font(.title2).bold().fixedSize(horizontal: false, vertical: true)
-                    Text(row.podcast).font(.headline).foregroundStyle(.secondary)
+                    Text(row.podcast).font(.headline).foregroundStyle(.primary)
                     if let episode = row.episode {
                         VStack(alignment: .leading, spacing: 8) {
                             LabeledContent("Published", value: row.publishedDate.formatted(date: .abbreviated, time: .omitted))
@@ -47,14 +50,15 @@ struct EpisodeInspector: SwiftUI.View {
                             }
                             DownloadStatusText(id: row.id, app: app)
                             if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
-                        }.font(.subheadline).disabled(app.editing?.busy == true)
+                        }.font(.subheadline).labeledContentStyle(InspectorLabeledContentStyle()).disabled(app.editing?.busy == true)
                         Divider()
                         Text("In your Playlists").font(.headline)
                         let memberships = library.memberships(row.id)
-                        if memberships.isEmpty { Text("No Playlists").foregroundStyle(.secondary) }
+                        if memberships.isEmpty { Text("No Playlists").foregroundStyle(.primary) }
                         ForEach(memberships, id: \.id) { membership in
                             HStack {
                                 LabeledContent(membership.name, value: Presentation.time(membership.position))
+                                    .labeledContentStyle(InspectorLabeledContentStyle())
                                 Button {
                                     Task {
                                         await app.editing?.playFromHere(playlistID: membership.id, episodeID: row.id)
@@ -74,7 +78,7 @@ struct EpisodeInspector: SwiftUI.View {
                                         podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }, title: row.podcast, size: 40)
                                     VStack(alignment: .leading) {
                                         Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                                        Text(Presentation.time(chapter.start)).font(.caption).foregroundStyle(.secondary)
+                                        Text(Presentation.time(chapter.start)).font(.caption).foregroundStyle(.primary)
                                     }
                                     Spacer()
                                     Button {
@@ -92,7 +96,7 @@ struct EpisodeInspector: SwiftUI.View {
                         let notes = Presentation.plainShowNotes(episode.description)
                         Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
                     } else {
-                        Text("Episode details will appear when Library sync catches up.").foregroundStyle(.secondary)
+                        Text("Episode details will appear when Library sync catches up.").foregroundStyle(.primary)
                     }
                 }
                 .padding(20).frame(maxWidth: .infinity, alignment: .leading)
@@ -100,7 +104,11 @@ struct EpisodeInspector: SwiftUI.View {
             .accessibilityLabel("Episode Inspector")
             .task(id: row.id) { await app.resolveEpisodeDetails(row.id) }
         } else {
-            ContentUnavailableView("Select an Episode", systemImage: "info.circle", description: Text("Its details and Playlists appear here."))
+            ContentUnavailableView {
+                Label("Select an Episode", systemImage: "info.circle")
+            } description: {
+                Text("Its details and Playlists appear here.").foregroundStyle(.primary)
+            }
         }
     }
     private func resolvedArtwork(_ row: EpisodeRow) -> URL? {
@@ -128,7 +136,7 @@ struct InspectorActions: SwiftUI.View {
                 else { Task { if await editing.add([row.id], placement: .now) != nil { startedPlayback() } } }
             } label: {
                 Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.white).frame(width: 44, height: 44).background(Color.podListAccent, in: Circle())
+                    .foregroundStyle(Color.podListOnAccent).frame(width: 44, height: 44).background(Color.podListAccent, in: Circle())
             }.buttonStyle(.plain).help(playing ? "Pause (playing)" : "Play Now (not playing)")
                 .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
             HStack(spacing: 8) {

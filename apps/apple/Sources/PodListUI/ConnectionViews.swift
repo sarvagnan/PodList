@@ -25,6 +25,7 @@ struct WelcomeView: SwiftUI.View {
                 HStack {
                     Button(app.connecting ? "Checking…" : "Check and connect") { connect() }
                         .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                        .foregroundStyle(Color.podListOnAccent)
                         .disabled(app.connecting || app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel("Check and connect to server")
                     if app.connecting { ProgressView().controlSize(.small).accessibilityLabel("Checking server") }

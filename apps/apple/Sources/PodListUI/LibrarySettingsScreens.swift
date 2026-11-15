@@ -96,7 +96,6 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         }
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft } }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
-        .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
         .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
             if let editor = app.libraryEditing {
                 GettingStartedScreen(editor: editor, add: nil).padding(25).frame(width: 500)
@@ -222,7 +221,10 @@ public struct ListeningStatsScreen: SwiftUI.View {
                         if table {
                             ForEach(stats.days.reversed()) { day in LabeledContent(day.date.formatted(date: .abbreviated, time: .omitted), value: Presentation.time(day.seconds)) }
                         } else {
-                            Chart(stats.days) { day in BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60)) }
+                            Chart(stats.days) { day in
+                                BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60))
+                                    .foregroundStyle(Color.podListAccent)
+                            }
                                 .frame(height: 200).accessibilityLabel("Daily listening for the last 30 days. Use Show daily table for exact values.")
                         }
                         Text("Top podcasts").font(.title2)

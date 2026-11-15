@@ -2,10 +2,6 @@
 import SwiftUI
 import PodListDomain
 
-public extension Color {
-    static let podListAccent = Color(red: 43 / 255, green: 80 / 255, blue: 200 / 255)
-}
-
 public struct PodListWindow: SwiftUI.View {
     @Bindable private var app: ApplicationModel
     @State private var window = WindowModel()
@@ -19,7 +15,6 @@ public struct PodListWindow: SwiftUI.View {
     @State private var showSubscriptionSettings = false
     @State private var podcastFeed: String?
     @State private var podcastEpisodeIDs: [String] = []
-    @AppStorage("PodList.appearance") private var appearance = "System"
     @State private var columns = NavigationSplitViewVisibility.all
     @AppStorage("PodList.inspectorVisible") private var inspectorVisible = true
     @Environment(\.scenePhase) private var scenePhase
@@ -38,7 +33,6 @@ public struct PodListWindow: SwiftUI.View {
         }
         .frame(minWidth: 760, minHeight: 500)
         .tint(.podListAccent)
-        .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
         .task { await app.start() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } else { app.playback?.flush() } }
         .onChange(of: app.origin) { _, _ in window.navigate(to: .subscriptions); playlistPresentation.sheet = nil; subscriptionSelection = [] }
