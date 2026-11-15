@@ -398,3 +398,87 @@ Distribution signing and installation remain later work. Conditional Standalone 
 resumable Library bring-over are implemented (`pod-apx.5.7`, `pod-apx.5.6`; issues remain open
 for handoff). Live platform validation, including bring-over presentation, sleep/wake polling,
 Shortcuts discovery and an MCP client session, is pending the owner's Mac run.
+
+## Mac grading with XCUITest
+
+From the repository root, on a logged-in macOS 26+ desktop with Xcode 27.2:
+
+```sh
+apps/apple/scripts/ui-tour.sh /private/tmp/podlist-mac-tour
+```
+
+Choose an empty output directory. The script builds the SwiftPM app, starts the
+existing local fixture/demo server with the current date, and runs the shared
+`PodListUITour` scheme in `PodListUITour.xcodeproj`. The project contains only a
+macOS UI Testing Bundle; the app continues to build through SwiftPM. It uses
+`XCUIApplication(url:)`, ordinary clicks, keyboard commands, scrolling and
+`hover()`. **A run brings PodList to the front and drives input.** Leave the Mac
+alone until it finishes. The first run needs Accessibility permission for the
+`PodListUITour-Runner` test runner; grant the permission and rerun if macOS blocks
+that first run. Nothing is installed into `/Applications`.
+
+The 35 states (01–33, 34a and 34) cover Subscriptions grouped by Download Rule,
+Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
+Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours
+and its subscription controls, Add to a Playlist, Add podcasts, Download Rules,
+Now Playing, General/Automation Settings, Listening stats, Getting started and
+View multi-selection. Every state has a window screenshot (including native
+sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
+attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
+`.txt`, `menus.txt`, and a README listing every screen. The full `Tour.xcresult`,
+raw attachment exports and build/demo/test logs are retained too. A failed run
+exports its partial results and reports missing attachments rather than claiming
+success. It never opens Apple, Services, Import/Export OPML, Open or Save panels.
+
+Isolation uses a **temporary copy of the bundle with a fresh bundle ID for each
+appearance**, `app.podlist.uitour.<UUID>.light` / `.dark`. This gives AppKit,
+SwiftUI, drafts and `UserDefaults.standard` separate preference domains, including
+window state. `-PodList.serverOrigin`, `-PodList.appearance`,
+`-PodList.inspectorVisible` and `-PodList.mcpEnabled` are passed through the
+standard `NSArgumentDomain`. A DEBUG-only `PODLIST_UI_DATA_DIRECTORY` redirects
+all PodList databases (including the Standalone bring-over check), audio downloads
+and the automation socket into that run's temporary directory. It requires both
+a disposable bundle ID and a path beneath a temporary directory, and fails closed
+on malformed configuration. Release builds ignore the override. The production
+`app.podlist.mac` preference domain and `Library/Application Support/PodList` are
+never used by the tour. Each appearance starts fresh. MCP remains off; the demo's
+current Episode stays paused, as after a relaunch. Teardown quits the test app;
+the script removes the temporary bundles, data, defaults, caches and window state
+and stops only its own test/demo processes by PID. The demo API reaps its own
+server child and database. No custom AX or in-app snapshot tour is involved.
+
+XCUITest's public snapshot API supplies `XCUIElementType`, label, title, value,
+identifier, enabled, selected and screen-coordinate frame. It does **not** expose
+raw AXRole/AXSubrole or menu key equivalents in Xcode 27.2. Text dumps label the
+role as the XCUI type (plus its numeric value), and explicitly mark subrole and
+keyboard shortcuts unavailable. The standard alternative for exact shortcuts is
+to inspect `NSMenuItem.keyEquivalent` and `keyEquivalentModifierMask` in Xcode's
+LLDB debugger, or inspect the rendered menus manually. No custom AX utility is
+provided. Menu enabled states reflect the final multi-selection in the Light tour.
+
+The Unsubscribe sequence clicks Subscribed only once, captures the armed control,
+then waits until at least six seconds after that click before capturing Subscribed
+again. The product's arm lasts four seconds; XCUITest synchronization/screenshot
+latency can consume that short interval. The test fails explicitly if the armed
+control has expired during capture. It never clicks Unsubscribe or changes Library
+content through the preview sheets. The Timeline Rewind action is also available
+to keyboard/VoiceOver users as a named accessibility action and context command.
+With no Subscriptions selected, Edit Download Rules opens the all-Subscriptions
+editor; Cancel closes it without applying anything.
+
+Headless verification (does **not** launch the UI tests):
+
+```sh
+xcodebuild build-for-testing \
+  -project apps/apple/PodListUITour.xcodeproj -scheme PodListUITour \
+  -destination "platform=macOS,arch=$(uname -m)" \
+  -derivedDataPath apps/apple/.build/ui-tour-derived
+cd apps/apple
+export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
+export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
+swift test --scratch-path .build --disable-sandbox
+```
+
+The main-session foreground run is still needed to validate the UI locators,
+menu hierarchy, window/sheet screenshots, export manifest and short armed-state
+timing. Do not run the UI tests in a screenless agent sandbox.

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2720" version="1.3">
+ <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+  <BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+   <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000005" BuildableName="PodListUITour.xctest" BlueprintName="PodListUITour" ReferencedContainer="container:PodListUITour.xcodeproj"/>
+  </BuildActionEntry></BuildActionEntries>
+ </BuildAction>
+ <TestAction buildConfiguration="Debug" shouldUseLaunchSchemeArgsEnv="NO">
+  <MacroExpansion><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000005" BuildableName="PodListUITour.xctest" BlueprintName="PodListUITour" ReferencedContainer="container:PodListUITour.xcodeproj"/></MacroExpansion>
+  <Testables><TestableReference skipped="NO" parallelizable="NO"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000005" BuildableName="PodListUITour.xctest" BlueprintName="PodListUITour" ReferencedContainer="container:PodListUITour.xcodeproj"/></TestableReference></Testables>
+  <EnvironmentVariables>
+   <EnvironmentVariable key="PODLIST_UI_RUN_DIRECTORY" value="$(PODLIST_UI_RUN_DIRECTORY)" isEnabled="YES"/>
+   <EnvironmentVariable key="PODLIST_UI_SERVER_ORIGIN" value="$(PODLIST_UI_SERVER_ORIGIN)" isEnabled="YES"/>
+  </EnvironmentVariables>
+ </TestAction>
+ <LaunchAction buildConfiguration="Debug" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="YES" debugDocumentVersioning="YES"/>
+ <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES"/>
+ <AnalyzeAction buildConfiguration="Debug"/>
+ <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+</Scheme>

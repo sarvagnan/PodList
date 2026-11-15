@@ -148,6 +148,17 @@ struct PlaylistContentView: SwiftUI.View {
                             Button("Rewind to Here") { rewindTarget = event }.accessibilityLabel("Rewind to \(date(event.moment))")
                         }
                     }.padding(.vertical, 4)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityActions {
+                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                            Button("Rewind to Here") { rewindTarget = event }
+                        }
+                    }
+                    .contextMenu {
+                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                            Button("Rewind to Here") { rewindTarget = event }
+                        }
+                    }
                 }.accessibilityLabel("Listening Timeline")
             }
         }
