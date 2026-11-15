@@ -8,23 +8,22 @@ import UniformTypeIdentifiers
 @testable import PodListUI
 
 @Test func supplementalCommandsAreFiledByTaskAndObject() {
-    #expect(MenuActionMenu.file.items == [.showImport])
+    #expect(Set(MenuActionMenu.file.items) == [.showImport, .cancelImport, .retryImport])
     #expect(MenuActionMenu.edit.items == [.clearSearch])
     #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .backToLibrary, .searchPodcasts])
     #expect(MenuActionMenu.views.items == [.createViewFromSearch])
-    #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver])
-    #expect(MenuActionMenu.controls.items == [.backToNowPlaying])
+    #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver, .retryBringOver])
+    #expect(MenuActionMenu.controls.items == [.backToNowPlaying, .retryPlayback])
+    #expect(MenuActionMenu.automation.items == [.copyConfiguration, .retryAutomation])
     let items = MenuActionMenu.allCases.flatMap(\.items)
     #expect(Set(items).count == items.count)
 }
 
-@Test func sheetRecoveryAndConfigurationHelpersHaveNoMenuEntries() {
+@Test func dialogButtonsAndMessageLocalHelpersHaveNoMenuEntries() {
     let surfaceOnly: [MenuAction] = [
         .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
         .playNow, .playNext, .playLast, .go, .deletePermanently, .apply, .rewind,
-        .bringOver, .notNow, .importSelection, .chooseFile, .cancelImport,
-        .retry, .retryImport, .retryBringOver, .retryAutomation, .retryPlayback,
-        .dismissTutorial, .copyConfiguration
+        .bringOver, .notNow, .importSelection, .chooseFile, .retry, .dismissTutorial
     ]
     for action in surfaceOnly {
         #expect(action.menu == nil)

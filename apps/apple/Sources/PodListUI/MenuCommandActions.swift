@@ -1,5 +1,6 @@
 #if os(macOS)
 import SwiftUI
+import AppKit
 
 /// The visible surface publishes its existing handlers and validation. Menu
 /// placement follows the object or task, independently of the publishing surface.
@@ -20,25 +21,25 @@ enum MenuAction: String, CaseIterable {
 
     var menu: MenuActionMenu? {
         switch self {
-        case .showImport: .file
+        case .showImport, .cancelImport, .retryImport: .file
         case .clearSearch: .edit
         case .refresh, .backToLibrary, .searchPodcasts: .podcast
         case .createViewFromSearch: .views
-        case .connect, .standalone, .disconnect, .offerBringOver: .connection
-        case .backToNowPlaying: .controls
-        // Sheet buttons, transient recovery and Settings helpers stay on their
-        // own surfaces. Persistent object actions use the object command menus.
+        case .connect, .standalone, .disconnect, .offerBringOver, .retryBringOver: .connection
+        case .backToNowPlaying, .retryPlayback: .controls
+        case .copyConfiguration, .retryAutomation: .automation
+        // Dialog buttons and ambiguous, message-local Retry stay on their
+        // own surfaces. Persistent operation recovery remains searchable.
         case .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
              .playNow, .playNext, .playLast, .go, .deletePermanently, .apply,
-             .rewind, .bringOver, .notNow, .importSelection, .chooseFile, .cancelImport,
-             .retryImport, .retryBringOver, .dismissTutorial, .retry,
-             .copyConfiguration, .retryAutomation, .retryPlayback: nil
+             .rewind, .bringOver, .notNow, .importSelection, .chooseFile,
+             .dismissTutorial, .retry: nil
         }
     }
 }
 
 enum MenuActionMenu: CaseIterable {
-    case file, edit, podcast, views, connection, controls
+    case file, edit, podcast, views, connection, controls, automation
     var items: [MenuAction] { MenuAction.allCases.filter { $0.menu == self } }
 }
 struct MenuActionContext {
@@ -73,6 +74,7 @@ extension FocusedValues {
 /// The registry is also used in menus that already own the corresponding domain.
 struct MenuActionItems: SwiftUI.View {
     let menu: MenuActionMenu
+    var app: ApplicationModel? = nil
     @FocusedValue(\.podListWindowActions) private var window
     @FocusedValue(\.podListImportActions) private var imports
     @FocusedValue(\.podListDiscoveryActions) private var discovery
@@ -87,7 +89,42 @@ struct MenuActionItems: SwiftUI.View {
         }
     }
     private func action(_ item: MenuAction) -> (() -> Void)? {
+        if let app, PersistentMenuActions.owns(item) { return PersistentMenuActions.context(app)[item] }
         return discovery?[item] ?? searchView?[item] ?? imports?[item] ?? settings?[item] ?? player?[item] ?? window?[item]
+    }
+}
+
+/// These operations outlive their presenting sheet and use application state,
+/// so moving focus to Settings or closing the progress sheet does not hide them.
+@MainActor enum PersistentMenuActions {
+    static func owns(_ action: MenuAction) -> Bool {
+        [.showImport, .cancelImport, .retryImport, .retryBringOver,
+         .retryPlayback, .copyConfiguration, .retryAutomation].contains(action)
+    }
+    static func imports(_ editor: LibraryEditingModel) -> MenuActionContext {
+        var actions: [MenuAction: () -> Void] = [:]
+        if editor.busy || editor.importReady || !editor.importFeeds.isEmpty || !editor.importFailed.isEmpty {
+            actions[.showImport] = { editor.importPresented = true }
+        }
+        if editor.busy && !editor.importCancellationRequested { actions[.cancelImport] = { editor.cancelImport() } }
+        if !editor.busy && !editor.importFailed.isEmpty { actions[.retryImport] = { Task { await editor.retryImport() } } }
+        return MenuActionContext(actions: actions)
+    }
+    static func context(_ app: ApplicationModel) -> MenuActionContext {
+        var result = app.libraryEditing.map(imports) ?? MenuActionContext()
+        if app.origin != nil && app.bringOverJob?.complete == false && !app.syncing {
+            result.actions[.retryBringOver] = { Task { await app.sync(forceRefresh: true) } }
+        }
+        if let player = app.playback, player.error != nil { result.actions[.retryPlayback] = { player.play() } }
+        let automation = app.automation
+        if automation.isEnabled {
+            result.actions[.copyConfiguration] = {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(automation.clientConfiguration, forType: .string)
+            }
+            if automation.error != nil { result.actions[.retryAutomation] = { automation.start() } }
+        }
+        return result
     }
 }
 
@@ -100,7 +137,8 @@ public struct AdditionalMenuCommands: Commands {
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
         CommandGroup(after: .appSettings) {
-            Menu("Connection") { MenuActionItems(menu: .connection) }
+            Menu("Connection") { MenuActionItems(menu: .connection, app: app) }
+            Menu("Automation") { MenuActionItems(menu: .automation, app: app) }
         }
         CommandGroup(after: .sidebar) {
             Menu("Sort by") {

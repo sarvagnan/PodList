@@ -14,12 +14,12 @@ struct NewPlaylistSheet: SwiftUI.View {
         PodListSheet(title: "New Playlist", width: 420, actionTitle: "Create Playlist",
                      actionEnabled: problem == nil && !editing.busy, cancelEnabled: !editing.busy,
                      cancel: { dismiss() }, action: submit) {
-            Form {
+            VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Name") {
                     TextField("Playlist name", text: name).labelsHidden().disabled(editing.busy).focused($focused).onSubmit { submit() }
                 }
                 if let problem = nameValidation.message(problem) { Text(problem).foregroundStyle(Color.podListError).macContentFont(.caption) }
-            }.formStyle(.columns)
+            }
         } status: {
             EditingFeedback(editing: editing, retry: submit)
         }.interactiveDismissDisabled(editing.busy).task { focused = true }
@@ -73,7 +73,7 @@ struct AddPlaylistSheet: SwiftUI.View {
                      actionTitle: "Play Next", actionEnabled: problem == nil && !editing.busy,
                      cancelEnabled: !editing.busy, cancel: { if let cancelled { cancelled() } else { dismiss() } },
                      action: { submit(.next) }) {
-            Form {
+            VStack(alignment: .leading, spacing: 16) {
                 Picker("Playlist", selection: Binding(get: { target }, set: { target = $0; editing.drafts[prefix + "/target"] = $0; editing.drafts[prefix + "/open"] = "true" })) {
                     ForEach(playlists, id: \.id) { playlist in
                         Text(playlist.name + (playlist.id == app.library?.state.activePlaylistId ? " (Active)" : "")).tag(playlist.id)
@@ -87,7 +87,7 @@ struct AddPlaylistSheet: SwiftUI.View {
                     }
                     if let problem = nameValidation.message(problem) { Text(problem).macContentFont(.caption).foregroundStyle(Color.podListError) }
                 }
-            }.formStyle(.columns)
+            }
         } status: {
             EditingFeedback(editing: editing, retry: { submit(attemptedPlacement) })
         } secondary: {
@@ -114,12 +114,11 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     let done: () -> Void
     @FocusState private var focused: Bool
     @State private var draft: PlaylistSettingsDraft?
-    @State private var stagedName: String?
     private var playlist: Playlist? { app.library?.state.playlists.first { $0.id == id } }
     private var renaming: Bool { editing.drafts["rename-open/\(id)"] == "true" }
     private var name: Binding<String> { Binding(get: { editing.drafts["rename/\(id)"] }, set: { editing.drafts["rename/\(id)"] = $0 }) }
     private var stagedNameProblem: String? {
-        guard let stagedName else { return nil }
+        guard let stagedName = draft?.name, playlist?.isDefault == false else { return nil }
         return PlaylistNames.problem(stagedName, playlists: app.library?.state.playlists ?? [], excluding: id)
     }
     private var canSave: Bool { playlist != nil && draft != nil && stagedNameProblem == nil && !editing.busy && !renaming }
@@ -137,7 +136,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         }
         .interactiveDismissDisabled(editing.busy)
         .onExitCommand { if !editing.busy { cancel() } }
-        .onAppear { if draft == nil, let playlist { draft = PlaylistSettingsDraft(playlist) } }
+        .onAppear { if draft == nil, let playlist { draft = editing.drafts.playlistSettings(playlist) } }
         .focusedSceneValue(\.podListPanelActions, panelActions)
         .focusedSceneValue(\.podListPlaylistSettingsActions, PlaylistSettingsCommandContext(
             rename: !renaming && playlist?.isDefault == false && !editing.busy ? { renamePlaylist() } : nil,
@@ -157,7 +156,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     }
     @ViewBuilder private var settingsFields: some SwiftUI.View {
         if let playlist {
-            Form {
+            VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Name") {
                     VStack(alignment: .leading, spacing: 10) {
                         if renaming && !playlist.isDefault {
@@ -169,39 +168,43 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                                 Button("Save Name", action: saveRename).keyboardShortcut(.defaultAction).disabled(problem != nil || editing.busy)
                             }
                         } else {
-                            Text(stagedName ?? playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                            Text(draft?.name ?? playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                             if !playlist.isDefault { Button("Rename…", action: renamePlaylist) }
-                            else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
+                            else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true) }
                         }
                     }
                 }
-                Toggle("Clear on Played", isOn: Binding(get: { draft?.clearOnPlayed ?? playlist.clearOnPlayed }, set: { draft?.clearOnPlayed = $0 }))
-                Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-                Text("Save applies these settings. Cancel discards changes.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                Toggle("Clear on Played", isOn: Binding(get: { draft?.clearOnPlayed ?? playlist.clearOnPlayed }, set: { value in
+                    guard var updated = draft else { return }; updated.clearOnPlayed = value
+                    editing.drafts.stage(updated); draft = updated
+                }))
+                Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+                Text("Save applies these settings. Cancel discards changes.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 if !playlist.isDefault {
-                    Text("Delete Playlist takes effect immediately and closes these settings. Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                    Text("Delete Playlist takes effect immediately and closes these settings. Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 }
-            }.formStyle(.columns).disabled(editing.busy)
+            }.disabled(editing.busy)
         } else { Text("Playlist unavailable.") }
     }
     private func renamePlaylist() {
         guard let playlist else { return }
         if PlaylistRenameAction.prepare(playlist, editing: editing) {
-            name.wrappedValue = stagedName ?? playlist.name
+            name.wrappedValue = draft?.name ?? playlist.name
             focused = true
         }
     }
     private func deletePlaylist() {
         guard let playlist, !editing.busy else { return }
-        Task { if await editing.delete(playlist) { cancelRename(); done() } }
+        Task { if await editing.delete(playlist) { editing.drafts.discardPlaylistSettings(id); done() } }
     }
     private func cancelRename() { editing.drafts.remove("rename/\(id)"); editing.drafts.remove("rename-open/\(id)") }
-    private func cancel() { cancelRename(); done() }
+    private func cancel() { editing.drafts.discardPlaylistSettings(id); done() }
     private var problem: String? { PlaylistNames.problem(name.wrappedValue, playlists: app.library?.state.playlists ?? [], excluding: id) }
     private func saveRename() {
         guard renaming, problem == nil, !editing.busy else { return }
-        stagedName = name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        draft?.name = stagedName ?? ""
+        guard var updated = draft else { return }
+        updated.name = name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        editing.drafts.stage(updated); draft = updated
         cancelRename()
     }
     private func apply() {
@@ -209,7 +212,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         let changes = draft.changes
         Task {
             let saved = changes.isEmpty ? true : await editing.edit(changes, name: "Playlist Settings")
-            if saved { cancelRename(); done() }
+            if saved { editing.drafts.discardPlaylistSettings(id); done() }
         }
     }
 }

@@ -61,3 +61,83 @@ import PodListDomain
     #expect(subscriptionDraft.changes(episodeIDs: []).count == 1)
     #expect(subscriptionDraft.changes(episodeIDs: []) == [.setDownloadRule(rule: .init(subscriptionId: "s", deviceId: "this", mode: .onEntry, keepAtMost: nil))])
 }
+
+@MainActor @Test func playlistSettingsJournalSurvivesReopeningAndRelaunchWithBothRenameStages() async throws {
+    let suite = UUID().uuidString, scope = "library"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let db = try await fixtureDatabase()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: scope, defaults: defaults))
+    let id = try #require(await editing.create(name: "Commute"))
+    let original = try #require(try await db.loadState().playlists.first { $0.id == id })
+    var draft = editing.drafts.playlistSettings(original)
+    draft.clearOnPlayed.toggle()
+    editing.drafts.stage(draft)
+    editing.drafts["rename/\(id)"] = "Unfinished name"
+    editing.drafts["rename-open/\(id)"] = "true"
+    let reopened = PlaylistDrafts(scope: scope, defaults: try #require(UserDefaults(suiteName: suite)))
+    #expect(reopened.playlistSettings(original).clearOnPlayed == draft.clearOnPlayed)
+    #expect(reopened["rename/\(id)"] == "Unfinished name")
+    #expect(reopened["rename-open/\(id)"] == "true")
+    // Save Name journals the complete stage before removing the inline input.
+    draft.name = "Morning"
+    reopened.stage(draft)
+    reopened.remove("rename/\(id)"); reopened.remove("rename-open/\(id)")
+    let relaunched = PlaylistDrafts(scope: scope, defaults: try #require(UserDefaults(suiteName: suite)))
+    #expect(relaunched.playlistSettings(original).changes == draft.changes)
+    #expect(try await db.loadState().playlists.first { $0.id == id } == original)
+    #expect(await editing.edit(relaunched.playlistSettings(original).changes, name: "Playlist Settings"))
+    relaunched.discardPlaylistSettings(id)
+    let saved = try #require(try await db.loadState().playlists.first { $0.id == id })
+    #expect(saved.name == "Morning" && saved.clearOnPlayed == draft.clearOnPlayed)
+    #expect(PlaylistDrafts(scope: scope, defaults: defaults).playlistSettings(saved).changes.isEmpty)
+}
+
+@MainActor @Test func settingsJournalsRetainOriginalBaselinesAndStayScopedToLibraryObjectAndDevice() throws {
+    let suite = UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let drafts = PlaylistDrafts(scope: "one", defaults: defaults)
+    var original = State.initial().playlists[0]
+    var playlistDraft = drafts.playlistSettings(original)
+    playlistDraft.clearOnPlayed.toggle(); drafts.stage(playlistDraft)
+    original.name = "Changed by sync"
+    #expect(drafts.playlistSettings(original).changes == playlistDraft.changes)
+    var sub = subscription()
+    sub.playbackSettings = .init(speed: 1.5, skipIntro: 30, skipOutro: 10, volumeBoost: true)
+    sub.playedThreshold = 60
+    let rule = DownloadRule(subscriptionId: sub.id, deviceId: "this", mode: .allNew, keepAtMost: 5)
+    var stage = drafts.subscriptionSettings(sub, rule: rule, deviceID: "this")
+    stage.overrides = .init(); stage.threshold = nil; stage.cap = nil; stage.mode = .onEntry; stage.markAllPlayed = true
+    drafts.stage(stage)
+    let relaunched = PlaylistDrafts(scope: "one", defaults: try #require(UserDefaults(suiteName: suite)))
+    let restored = relaunched.subscriptionSettings(sub, rule: rule, deviceID: "this")
+    #expect(restored.changes(episodeIDs: ["a"]) == stage.changes(episodeIDs: ["a"]))
+    #expect(restored.overrides == .init() && restored.threshold == nil && restored.cap == nil && restored.markAllPlayed)
+    #expect(relaunched.subscriptionSettings(sub, rule: nil, deviceID: "other").changes(episodeIDs: []).isEmpty)
+    #expect(PlaylistDrafts(scope: "two", defaults: defaults).subscriptionSettings(sub, rule: rule, deviceID: "this").changes(episodeIDs: []).isEmpty)
+    var synced = sub; synced.title = "Updated elsewhere"
+    #expect(relaunched.subscriptionSettings(synced, rule: nil, deviceID: "this").changes(episodeIDs: ["a"]) == stage.changes(episodeIDs: ["a"]))
+    relaunched.remove(stage.field) // Explicit Cancel and successful Save use the same removal.
+    #expect(PlaylistDrafts(scope: "one", defaults: defaults).subscriptionSettings(sub, rule: rule, deviceID: "this").changes(episodeIDs: []).isEmpty)
+    #expect(!relaunched[playlistDraft.field].isEmpty) // Cancelling one sheet keeps other drafts.
+    relaunched["rename/\(original.id)"] = "Unfinished"; relaunched["rename-open/\(original.id)"] = "true"
+    relaunched.discardPlaylistSettings(original.id)
+    #expect(relaunched[playlistDraft.field].isEmpty && relaunched["rename/\(original.id)"].isEmpty && relaunched["rename-open/\(original.id)"].isEmpty)
+}
+
+@MainActor @Test func failedSettingsSaveKeepsTheCompleteDraftForRetry() async throws {
+    let suite = UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let db = try await fixtureDatabase()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults))
+    let id = try #require(await editing.create(name: "Commute"))
+    _ = await editing.create(name: "Morning")
+    let original = try #require(try await db.loadState().playlists.first { $0.id == id })
+    var draft = editing.drafts.playlistSettings(original)
+    draft.name = "Morning"; draft.clearOnPlayed.toggle(); editing.drafts.stage(draft)
+    #expect(await editing.edit(draft.changes, name: "Playlist Settings") == false)
+    #expect(PlaylistDrafts(scope: "test", defaults: defaults).playlistSettings(original).changes == draft.changes)
+    #expect(try await db.loadState().playlists.first { $0.id == id } == original)
+}

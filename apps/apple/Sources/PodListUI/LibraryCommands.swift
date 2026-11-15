@@ -35,7 +35,7 @@ public struct LibraryCommands: Commands {
             Button("Add Podcasts…") { openWindow(id: "add-podcasts") }.keyboardShortcut("a", modifiers: [.command, .shift]).disabled(app.libraryEditing == nil)
             Button("Import OPML…") { LibraryFileActions.importOPML(app) }.disabled(app.library == nil || app.libraryEditing?.busy == true)
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
-            MenuActionItems(menu: .file)
+            MenuActionItems(menu: .file, app: app)
         }
         CommandMenu("Podcast") {
             Button("Subscriptions") { context?.window.navigate(to: .subscriptions) }.disabled(context == nil)

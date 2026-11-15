@@ -117,16 +117,20 @@ struct DownloadRuleFields: SwiftUI.View {
     @Binding var cap: Int64?
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            Picker("Download Rule on this Device", selection: $mode) {
-                Text("Stream").tag(DownloadMode.never)
-                Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
-                Text("As Episodes are published").tag(DownloadMode.allNew)
+            PodListSheetField("Download Rule on this Device") {
+                Picker("Download Rule on this Device", selection: $mode) {
+                    Text("Stream").tag(DownloadMode.never)
+                    Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
+                    Text("As Episodes are published").tag(DownloadMode.allNew)
+                }.labelsHidden()
             }
             if mode == .allNew {
-                Picker("Keep", selection: $cap) {
-                    Text("All").tag(nil as Int64?)
-                    ForEach([1, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag(Optional($0)) }
-                    if let cap, cap > 0, ![1, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(Optional(cap)) }
+                PodListSheetField("Keep") {
+                    Picker("Keep", selection: $cap) {
+                        Text("All").tag(nil as Int64?)
+                        ForEach([1, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag(Optional($0)) }
+                        if let cap, cap > 0, ![1, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(Optional(cap)) }
+                    }.labelsHidden()
                 }
             }
         }.macContentFont(.subheadline)

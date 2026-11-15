@@ -142,12 +142,28 @@ private actor PublisherFixture: PublisherReader {
     await actions.selectOPML("<opml><body><outline xmlUrl='\(good)'/><outline xmlUrl='\(bad)'/><outline xmlUrl='\(good)'/></body></opml>", name: "My podcasts.opml")
     #expect(actions.importName == "My podcasts.opml" && actions.importTotal == 2 && actions.importExisting == 0 && actions.importReady)
     #expect(try await db.readLibrary().subscriptions.isEmpty)
+    #if os(macOS)
+    #expect(PersistentMenuActions.imports(actions)[.cancelImport] == nil)
+    #expect(PersistentMenuActions.imports(actions)[.retryImport] == nil)
+    #expect(PersistentMenuActions.imports(actions)[.showImport] != nil)
+    #endif
     await actions.importSelected()
     #expect(actions.importCompleted == 2 && actions.importTotal == 2 && actions.importFailed == [bad] && !actions.busy)
+    #if os(macOS)
+    actions.importPresented = false
+    let commands = PersistentMenuActions.imports(actions)
+    #expect(commands[.cancelImport] == nil && commands[.retryImport] != nil)
+    let showResults = try #require(commands[.showImport]); showResults()
+    #expect(actions.importPresented)
+    #endif
     #expect(announcements.filter { $0 == "Imported 1; already in the Library 0; failed 1." }.count == 1)
     #expect(try await db.readLibrary().subscriptions.count == 1)
     await http.setFailure(bad, false); await actions.retryImport()
     #expect(actions.importFailed.isEmpty)
+    #if os(macOS)
+    #expect(PersistentMenuActions.imports(actions)[.retryImport] == nil)
+    #expect(PersistentMenuActions.imports(actions)[.showImport] != nil)
+    #endif
     #expect(try await db.readLibrary().subscriptions.count == 2)
 }
 
@@ -492,7 +508,14 @@ private actor PausedImportPublisher: PublisherReader {
     actions.startImport()
     while !(await publisher.started) { await Task.yield() }
     #expect(actions.importCompleted == 1 && actions.importTotal == 3)
+    #if os(macOS)
+    actions.importPresented = false
+    #expect(PersistentMenuActions.imports(actions)[.retryImport] == nil)
+    let cancelImport = try #require(PersistentMenuActions.imports(actions)[.cancelImport]); cancelImport()
+    #expect(PersistentMenuActions.imports(actions)[.cancelImport] == nil)
+    #else
     actions.cancelImport()
+    #endif
     actions.cancelImport() // Repeated clicks cannot start a second cancellation.
     #expect(actions.busy && actions.importCancellationRequested)
     await publisher.release()

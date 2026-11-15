@@ -113,7 +113,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     }), prompt: Text("All")).textFieldStyle(.roundedBorder).accessibilityLabel("Show")
                     validation(fieldProblems[.show])
                 }
-            }.formStyle(.columns).disabled(saving)
+            }.formStyle(PodListSheetFormStyle()).disabled(saving)
         } status: {
             EditingFeedback(editing: editor.edits, additionalError: problem ?? editor.error,
                             undo: { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } },
