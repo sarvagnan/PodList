@@ -140,19 +140,15 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
     @State private var saving = false
     @Environment(\.dismiss) private var dismiss
     var body: some SwiftUI.View {
-        ContentSizedPanel(width: 520) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Download Rules for \(CountText.format(ids.count, .subscription))").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
-                Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(MacReadableSecondaryStyle())
-                DownloadRuleFields(mode: $mode, cap: $cap)
-                if let editing = app.editing { EditingFeedback(editing: editing, retry: apply) }
-                HStack {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Spacer()
-                    Button("Apply", action: apply).macDefaultAction()
-                }
-            }.padding(24)
-        }.disabled(saving)
+        PodListSheet(title: "Download Rules for \(CountText.format(ids.count, .subscription))", width: 520,
+                     actionTitle: "Apply", actionEnabled: !saving && !ids.isEmpty,
+                     cancelEnabled: !saving, cancel: { dismiss() }, action: apply) {
+            Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(MacReadableSecondaryStyle())
+            DownloadRuleFields(mode: $mode, cap: $cap).disabled(saving)
+        } status: {
+            if let editing = app.editing { EditingFeedback(editing: editing, retry: apply) }
+        }
+        .interactiveDismissDisabled(saving)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
             .cancel: saving ? nil : { dismiss() }, .apply: saving ? nil : { apply() }
         ].compactMapValues { $0 }))

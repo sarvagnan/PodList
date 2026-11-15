@@ -311,38 +311,32 @@ struct RewindSheet: SwiftUI.View {
     @Environment(\.dismiss) private var dismiss
     @State private var problem: String?
     var body: some SwiftUI.View {
-        ContentSizedPanel(width: 520) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Rewind Playlist").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
-                Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
-                if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Goes back to").macContentFont(.headline)
-                        Text("\(preview.cursor.map { library.row($0).title } ?? "No Current Entry") · \(Presentation.time(preview.position))")
-                        Text("Unplayed again").macContentFont(.headline)
-                        Text(titles(preview.unplayed))
-                        Text("Back in the Playlist").macContentFont(.headline)
-                        Text(titles(preview.restored))
-                        Text("Kept").macContentFont(.headline)
-                        Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    if let problem { Text(problem).foregroundStyle(Color.podListError) }
-                    HStack {
-                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                        Spacer()
-                        Button("Rewind", action: rewind)
-                            .macDefaultAction().disabled(editing.busy)
-                    }
-                } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
-            }.padding(24)
+        PodListSheet(title: "Rewind Playlist", width: 520, actionTitle: "Rewind",
+                     actionEnabled: !editing.busy && previewAvailable, cancel: { dismiss() }, action: rewind) {
+            Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
+            if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Goes back to").macContentFont(.headline)
+                    Text("\(preview.cursor.map { library.row($0).title } ?? "No Current Entry") · \(Presentation.time(preview.position))")
+                    Text("Unplayed again").macContentFont(.headline)
+                    Text(titles(preview.unplayed))
+                    Text("Back in the Playlist").macContentFont(.headline)
+                    Text(titles(preview.restored))
+                    Text("Kept").macContentFont(.headline)
+                    Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            } else { Text("This moment is no longer available.") }
+        } status: {
+            if let problem { FailureFeedback(message: problem, announcements: editing.announcements, retry: rewind) }
         }.interactiveDismissDisabled(editing.busy)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
             .cancel: { dismiss() },
             .rewind: !editing.busy && TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) != nil ? { rewind() } : nil
         ].compactMapValues { $0 }))
     }
+    private var previewAvailable: Bool { TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) != nil }
     private func rewind() {
-        guard !editing.busy else { return }
+        guard !editing.busy, previewAvailable else { return }
         Task {
             if await editing.rewind(playlistID, to: target) { done() }
             else { problem = editing.error ?? "Could not rewind. Try again." }

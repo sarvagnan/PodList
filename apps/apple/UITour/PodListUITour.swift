@@ -110,7 +110,7 @@ final class PodListUITour: XCTestCase {
         app.typeText("Commute")
         try capture("12-playlist-rename", expectsSheet: true)
         try click(library.sheets.buttons["Cancel Rename"])
-        try dismissSheet("Done")
+        try dismissSheet("Cancel")
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
         // Use the documented command so the duplicate sidebar/toolbar buttons are irrelevant.
@@ -146,6 +146,8 @@ final class PodListUITour: XCTestCase {
         app.typeKey("n", modifierFlags: .command)
         try sheet("New View")
         XCTAssertFalse(library.sheets.staticTexts["Enter a View name."].exists)
+        XCTAssertFalse(library.sheets.buttons["Create View"].isEnabled)
+        XCTAssertFalse(library.sheets.buttons["Done"].exists)
         for label in ["Mentions (Optional)", "Minimum length (Optional)", "Maximum length (Optional)", "Show (Optional)"] {
             XCTAssertTrue(library.sheets.staticTexts[label].exists)
         }
@@ -197,7 +199,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("a", modifierFlags: [.command, .shift])
         try sheet("Add podcasts")
         try capture("24-add-podcasts", expectsSheet: true)
-        try dismissSheet("Done")
+        try dismissSheet("Close")
         // The bulk editor needs a selection: select every Subscription first.
         try click(library.descendants(matching: .any).matching(identifier: "subscriptions.list").firstMatch)
         app.typeKey("a", modifierFlags: .command)

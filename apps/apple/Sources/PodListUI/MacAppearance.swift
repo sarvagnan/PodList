@@ -61,12 +61,18 @@ extension SwiftUI.View {
 }
 
 struct MacDefaultButtonStyle: PrimitiveButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some SwiftUI.View {
-        Button(role: configuration.role, action: configuration.trigger) {
-            configuration.label.foregroundStyle(Color.podListOnAccent)
+        if isEnabled {
+            Button(role: configuration.role, action: configuration.trigger) {
+                configuration.label.foregroundStyle(Color.podListOnAccent)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.podListAccent)
+        } else {
+            // Let macOS draw its complete disabled treatment, including the label.
+            Button(configuration).buttonStyle(.borderedProminent).tint(.podListAccent)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.podListAccent)
     }
 }
 
