@@ -8,7 +8,7 @@ struct WelcomeView: SwiftUI.View {
     var body: some SwiftUI.View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Image(systemName: "waveform.circle.fill").font(.system(size: 54)).foregroundStyle(Color.podListAccent).accessibilityHidden(true)
+                Image(systemName: "waveform.circle.fill").font(.system(size: 54)).foregroundStyle(Color.podListBrand).accessibilityHidden(true)
                 Text("Welcome to PodList").macContentFont(.largeTitle).bold()
                 Text("Your Library, Views and Playlists, together on this Mac.").foregroundStyle(MacReadableSecondaryStyle())
                 Text("Connect to a Server").macContentFont(.title2).bold().padding(.top, 12)
@@ -24,8 +24,7 @@ struct WelcomeView: SwiftUI.View {
                 }
                 HStack {
                     Button(app.connecting ? "Checking…" : "Check and Connect") { connect() }
-                        .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                        .foregroundStyle(Color.podListOnAccent)
+                        .macDefaultAction()
                         .disabled(app.connecting || app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel("Check and connect to server")
                     if app.connecting { ProgressView().controlSize(.small).accessibilityLabel("Checking server") }

@@ -16,8 +16,8 @@ struct ArtworkView: SwiftUI.View {
                 // Keep initials readable even when the artwork sits on a
                 // selected row: the tint composites over a known opaque base.
                 Color(nsColor: .windowBackgroundColor)
-                Color.podListAccent.opacity(0.12)
-                Text(Presentation.initials(title)).font(.system(size: size * 0.34, weight: .medium)).foregroundStyle(Color.podListAccent)
+                Color.podListBrand.opacity(0.12)
+                Text(Presentation.initials(title)).font(.system(size: size * 0.34, weight: .medium)).foregroundStyle(Color.podListBrand)
             }
         }
         .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: min(12, size / 8)))

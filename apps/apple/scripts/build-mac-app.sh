@@ -30,6 +30,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSAccentColorName</key><string>AccentColor</string>
 <key>UTExportedTypeDeclarations</key><array><dict>
 <key>UTTypeIdentifier</key><string>app.podlist.episode</string>
 <key>UTTypeDescription</key><string>PodList Episode</string>
@@ -37,6 +38,34 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 </dict></array>
 </dict></plist>
 PLIST
+# SwiftPM builds executables and module resources, not the main app's asset
+# catalogue. Compile the global accent into the main bundle before signing.
+# NSAccentColorName lets macOS use it for Multicolor and honor other system accents.
+xcrun actool "$PWD/Resources/MacAssets.xcassets" \
+    --compile "$app/Contents/Resources" \
+    --platform macosx --minimum-deployment-target 26.0 \
+    --target-device mac --accent-color AccentColor \
+    --output-partial-info-plist "$PWD/.build/accent-info.plist"
+[ -s "$app/Contents/Resources/Assets.car" ] || { echo "Missing compiled accent catalogue" >&2; exit 1; }
+# Verify the packaged catalogue, not just the source JSON or an old Assets.car.
+xcrun assetutil --info "$app/Contents/Resources/Assets.car" > "$PWD/.build/accent-assets.json"
+python3 - "$PWD/.build/accent-assets.json" <<'PYACCENT'
+import json, sys
+with open(sys.argv[1]) as file:
+    colors = [entry for entry in json.load(file) if entry.get('Name') == 'AccentColor']
+expected = {
+    'NSAppearanceNameSystem': (43, 80, 200, 255),
+    'NSAppearanceNameDarkAqua': (157, 177, 255, 255),
+    'NSAppearanceNameAccessibilitySystem': (25, 58, 155, 255),
+    'NSAppearanceNameAccessibilityDarkAqua': (178, 193, 255, 255),
+}
+actual = {entry.get('Appearance', 'NSAppearanceNameSystem'):
+          tuple(round(value * 255) for value in entry.get('Color components', []))
+          for entry in colors if entry.get('Colorspace') == 'srgb'}
+if len(colors) != 4 or actual != expected:
+    raise SystemExit(f'Compiled AccentColor variants do not match the brand palette: {actual}')
+print('Verified four compiled AccentColor variants in the app bundle')
+PYACCENT
 # SwiftPM emits compiler constant values on the Xcode build engine, but does not
 # run the app metadata packaging phase. Collect only this executable's values.
 python3 - <<'PY'

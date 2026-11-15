@@ -4,10 +4,11 @@ import Combine
 import SwiftUI
 
 public extension Color {
-    /// The brand blue in Light, with readable foreground variants for Dark and
-    /// Increase Contrast. See AppearanceTests and docs/ui-grade/mac-appearance.md.
-    static let podListAccent = Color(nsColor: NSColor(name: "PodList Accent") { appearance in
-        MacAccentPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
+    /// Identity only: artwork placeholders and the Welcome mark. Controls use the
+    /// system accent; the app bundle supplies the Multicolor accent asset.
+    /// See AppearanceTests and docs/ui-grade/mac-appearance.md.
+    static let podListBrand = Color(nsColor: NSColor(name: "PodList Brand") { appearance in
+        MacBrandPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
     })
 
     /// System red is too light for regular-sized error text in Aqua. Keep
@@ -18,13 +19,6 @@ public extension Color {
 
     static let podListReadableSecondary = Color(nsColor: NSColor(name: "PodList Readable Secondary") { appearance in
         MacSecondaryPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
-    })
-
-    /// Custom accent-filled controls need a dark glyph on the light Dark accent.
-    static let podListOnAccent = Color(nsColor: NSColor(name: "PodList On Accent") { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 17 / 255, green: 24 / 255, blue: 39 / 255, alpha: 1)
-            : .white
     })
 }
 
@@ -53,30 +47,41 @@ struct MacReadableSecondaryStyle: ShapeStyle {
 }
 
 extension SwiftUI.View {
-    /// Keep native prominent-button interaction, with a label that contrasts
-    /// against the brand fill in both appearances.
+    /// Keep native default-button interaction and readable labels for pale accents.
     func macDefaultAction() -> some SwiftUI.View {
         keyboardShortcut(.defaultAction).buttonStyle(MacDefaultButtonStyle())
     }
 }
 
+/// Native chrome and keyboard behavior, with a contrast-safe enabled label.
+/// Native white default labels are unreadable on the pale Multicolor Dark accent.
 struct MacDefaultButtonStyle: PrimitiveButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some SwiftUI.View {
-        if isEnabled {
-            Button(role: configuration.role, action: configuration.trigger) {
-                configuration.label.foregroundStyle(Color.podListOnAccent)
+        Group {
+            if isEnabled {
+                Button(role: configuration.role, action: configuration.trigger) {
+                    configuration.label.foregroundStyle(MacOnAccentStyle())
+                }.buttonStyle(.borderedProminent)
+            } else {
+                Button(configuration).buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.podListAccent)
-        } else {
-            // Let macOS draw its complete disabled treatment, including the label.
-            Button(configuration).buttonStyle(.borderedProminent).tint(.podListAccent)
         }
+        // Clear the neutral tint of an enclosing glass footer; use the same
+        // system accent for the native fill and the label contrast decision.
+        .tint(nil)
     }
 }
 
-enum MacAccentPalette {
+struct MacOnAccentStyle: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> Color {
+        let accent = Color.accentColor.resolve(in: environment)
+        let black = Color.black.resolve(in: environment), white = Color.white.resolve(in: environment)
+        return MacAccentContrast.ratio(accent, black) >= MacAccentContrast.ratio(accent, white) ? .black : .white
+    }
+}
+
+enum MacBrandPalette {
     static func color(for appearance: NSAppearance.Name?) -> NSColor {
         switch appearance {
         case .accessibilityHighContrastDarkAqua: return NSColor(srgbRed: 178 / 255, green: 193 / 255, blue: 1, alpha: 1) // #B2C1FF
@@ -98,14 +103,42 @@ enum MacErrorPalette {
     }
 }
 
-/// Read prominence inside each row, rather than at the enclosing List / Table.
-/// Primary inherits the selection foreground supplied by SwiftUI; an inactive
-/// selection keeps the dynamic accent, which contrasts with its neutral fill.
+/// Accent text and symbols must also work with pale system accents (e.g. Yellow).
+/// Native controls own their contrast; custom foregrounds use primary when the
+/// accent cannot reach 4.5:1 on ordinary or inactive-selection reading surfaces.
+enum MacAccentContrast {
+    static func ratio(_ first: Color.Resolved, _ second: Color.Resolved) -> Double {
+        func luminance(_ color: Color.Resolved) -> Double {
+            func linear(_ component: Float) -> Double {
+                let value = Double(component)
+                return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
+        }
+        let a = luminance(first), b = luminance(second)
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+    }
+
+    static func needsPrimary(_ accent: Color.Resolved, on surfaces: [Color.Resolved]) -> Bool {
+        accent.opacity < 1 || surfaces.contains { ratio(accent, $0) < 4.5 }
+    }
+}
+
+struct MacAccentForegroundStyle: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
+        let surfaces: [NSColor] = [.windowBackgroundColor, .underPageBackgroundColor, .unemphasizedSelectedContentBackgroundColor]
+        let needsPrimary = MacAccentContrast.needsPrimary(Color.accentColor.resolve(in: environment),
+            on: surfaces.map { Color(nsColor: $0).resolve(in: environment) })
+        return needsPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.accentColor)
+    }
+}
+
+/// Resolve inside each row so emphasized selections inherit SwiftUI's foreground.
 struct MacRowAccentStyle: ShapeStyle {
     func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
         environment.backgroundProminence == .increased
             ? AnyShapeStyle(.primary)
-            : AnyShapeStyle(Color.podListAccent)
+            : AnyShapeStyle(MacAccentForegroundStyle())
     }
 }
 
