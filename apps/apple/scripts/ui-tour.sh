@@ -136,6 +136,8 @@ if [ -n "$vm" ]; then
         demo=\$!
         for i in \$(seq 1 600); do [ -s '$guest_run/origin' ] && break; sleep 0.1; done
         if [ ! -s '$guest_run/origin' ]; then cat '$guest_run/demo.log'; kill \$demo; exit 1; fi
+        # Login-time banners (App Background Activity) would cover screenshots; let them go.
+        sleep 30
         cd '$guest_run/products'
         xctestrun=\$(ls *.xctestrun | head -1)
         /usr/libexec/PlistBuddy -c \"Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN \$(cat '$guest_run/origin')\" \"\$xctestrun\"
@@ -192,8 +194,8 @@ if manifest.exists():
     for test in json.loads(manifest.read_text()):
         for item in test['attachments']:
             name = item['suggestedHumanReadableName']
-            match = re.search(r'(light|dark)--([0-9]{2}a?-[a-z0-9-]+)\.(png|txt)', name)
-            destination = f'{match[1]}/{match[2]}.{match[3]}' if match else 'menus.txt' if name.startswith('menus.txt') else None
+            match = re.search(r'(light|dark)--([0-9]{2}a?-[a-z0-9-]+?)(?:_[0-9]+_[0-9A-F-]+)?\.(png|txt)$', name)
+            destination = f'{match[1]}/{match[2]}.{match[3]}' if match else 'menus.txt' if name.startswith('menus') else None
             if destination not in expected:
                 continue
             if destination in written:

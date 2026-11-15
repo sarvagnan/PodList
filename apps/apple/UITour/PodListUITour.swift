@@ -53,7 +53,7 @@ final class PodListUITour: XCTestCase {
         try capture("01-subscriptions")
 
         try navigate("New this week")
-        try ready(library.tables["Episodes, sortable columns"])
+        try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch)
         try capture("02-new-this-week")
         try selectFirstEpisode()
         try capture("03-episode-inspector")
@@ -64,7 +64,7 @@ final class PodListUITour: XCTestCase {
         try capture("05-all-views")
 
         try navigate("Default")
-        try ready(library.tables.firstMatch)
+        try ready(episodeList)
         try capture("06-default-playlist")
         try selectFirstEpisode()
         try capture("07-entry-inspector")
@@ -106,7 +106,7 @@ final class PodListUITour: XCTestCase {
         let search = library.searchFields.firstMatch
         try click(search)
         search.typeText("rice")
-        try ready(library.tables.staticTexts["Who sets the price of rice?"])
+        try ready(episodeList.staticTexts["Who sets the price of rice?"])
         try capture("15-search-rice")
         search.typeKey("a", modifierFlags: .command)
         search.typeKey(.delete, modifierFlags: [])
@@ -124,7 +124,7 @@ final class PodListUITour: XCTestCase {
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(library.buttons["Show description"])
-        try ready(library.tables.staticTexts["Who sets the price of rice?"])
+        try ready(episodeList.staticTexts["Who sets the price of rice?"])
         try capture("18-podcast-market-hours")
         try click(library.buttons["Show description"])
         try ready(library.buttons["Show less"])
@@ -145,7 +145,7 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Done")
 
         try navigate("New this week")
-        let add = library.tables.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
+        let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
         try sheet("Add Episode to a Playlist")
         try capture("23-add-to-playlist", expectsSheet: true)
@@ -211,8 +211,8 @@ final class PodListUITour: XCTestCase {
 
         try navigate("New this week")
         try selectFirstEpisode()
-        library.tables.firstMatch.typeKey("a", modifierFlags: .command)
-        XCTAssertGreaterThan(library.tables.firstMatch.tableRows.matching(NSPredicate(format: "selected == true")).count, 1)
+        episodeList.typeKey("a", modifierFlags: .command)
+        XCTAssertGreaterThan(episodeRows.matching(NSPredicate(format: "selected == true")).count, 1)
         try ready(library.buttons["Add to a Playlist"])
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
@@ -236,8 +236,18 @@ final class PodListUITour: XCTestCase {
         try click(library.descendants(matching: .any).matching(identifier: "sidebar." + name).firstMatch)
     }
 
+    /// The content list: a Table, or an Outline when its rows can be dragged; never the sidebar.
+    private var episodeList: XCUIElement {
+        library.descendants(matching: .any).matching(NSPredicate(format: "(elementType == %d OR elementType == %d) AND label != 'Sidebar'",
+            XCUIElement.ElementType.table.rawValue, XCUIElement.ElementType.outline.rawValue)).firstMatch
+    }
+    private var episodeRows: XCUIElementQuery {
+        episodeList.descendants(matching: .any).matching(NSPredicate(format: "elementType == %d OR elementType == %d",
+            XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue))
+    }
+
     private func selectFirstEpisode() throws {
-        let row = library.tables.firstMatch.tableRows.firstMatch
+        let row = episodeRows.firstMatch
         try click(row)
         try ready(library.buttons["Add to a Playlist"])
     }
