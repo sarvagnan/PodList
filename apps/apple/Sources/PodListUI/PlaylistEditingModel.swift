@@ -10,6 +10,7 @@ public struct NamedEdit: Sendable {
     public var action: (@MainActor @Sendable () async throws -> Void)? = nil
     public var inverseAction: (@MainActor @Sendable () async throws -> Void)? = nil
     public var sessionID: UUID? = nil
+    public var message: String? = nil
 }
 
 /// App-wide, session-scoped edit history. Playback reporting and sync are never undo steps.
@@ -43,10 +44,11 @@ public final class PlaylistEditingModel {
         do {
             let step = try await apply()
             if !ended, recordHistory { history.record(step) }
-            status = step.name
+            status = step.message ?? step.name
             await changed()
         } catch { self.error = String(describing: error); throw error }
     }
+    func showNotice(_ text: String?) { status = text }
     public var undoTitle: String { history.undo.map { "Undo \($0.name)" } ?? "Undo" }
     public var redoTitle: String { history.redo.map { "Redo \($0.name)" } ?? "Redo" }
 

@@ -37,9 +37,9 @@ struct DownloadIcon: SwiftUI.View {
             }.frame(width: 28, height: 28)
         }.buttonStyle(.borderless).help(label).accessibilityLabel(label)
             .contextMenu {
-                if working || phase == .failed { Button("Cancel download") { app.removeDownload(id) } }
-                if phase == .failed { Button("Retry download") { app.download(id) } }
-                if phase == .stored { Button("Remove download") { app.removeDownload(id) } }
+                if working || phase == .failed { Button("Cancel Download") { app.removeDownload(id) } }
+                if phase == .failed { Button("Retry") { app.download(id) } }
+                if phase == .stored { Button("Remove Download") { app.removeDownload(id) } }
             }
     }
 }
@@ -88,7 +88,7 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 520) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Download Rules for \(ids.count) Subscriptions").font(.title2)
+                Text("Download Rules for \(CountText.format(ids.count, .subscription))").font(.title2).bold().accessibilityAddTraits(.isHeader)
                 Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.secondary)
                 DownloadRuleFields(mode: $mode, cap: $cap)
                 if let editing = app.editing { EditingFeedback(editing: editing) }

@@ -6,7 +6,8 @@ import PodListDomain
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     var body: some SwiftUI.View {
-        EditingFeedback(editing: editor.edits, additionalError: editor.error, notice: editor.notice)
+        EditingFeedback(editing: editor.edits, additionalError: editor.error,
+                        undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } })
     }
 }
 
@@ -26,16 +27,23 @@ struct AddPodcastsScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 650) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Add podcasts").font(.title2).bold()
+                Text("Add Podcasts").font(.title2).bold()
                 Text("Podcast name or feed address")
                 HStack {
                     TextField("Podcast name or feed address", text: $query).textFieldStyle(.roundedBorder).focused($focused)
                         .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
                     Button("Search") { search() }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                Text("OPML import is in Settings. Closing Add podcasts does not stop an import; progress stays in Library.").font(.caption).foregroundStyle(.secondary)
-                if loading { ProgressView("Finding podcasts…") }
-                if let error { Text(error).foregroundStyle(.red); Button("Try again") { search() } }
+                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").font(.caption).foregroundStyle(.secondary)
+                if !searched, !loading {
+                    ContentUnavailableView {
+                        Label("Find Your Next Podcast", systemImage: "magnifyingglass")
+                    } description: {
+                        Text("Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.")
+                    }
+                }
+                if loading { ProgressView("Finding Podcasts…") }
+                if let error { FailureFeedback(message: error) { search() } }
                 if searched && !loading && results.isEmpty && error == nil { Text("No podcasts found. Try a name or a feed address.") }
                 if !results.isEmpty {
                     List(results) { result in
@@ -155,23 +163,23 @@ struct PodcastPageScreen: SwiftUI.View {
                     Text(title).font(.title2).bold()
                     Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(.secondary)
                     Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? nil : 5).textSelection(.enabled)
-                    Button(descriptionExpanded ? "Show less" : "Show description", action: toggleDescription).buttonStyle(.link)
+                    Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
                     HStack {
                         TimelineView(.periodic(from: .now, by: 0.25)) { context in
                             Button {
                                 if subscribed, !control.click(at: Date()) { return }
                                 changeSubscription()
                             } label: {
-                                Label(subscribed ? (control.isArmed(at: context.date) ? "Unsubscribe" : "Subscribed") : "Subscribe", systemImage: subscribed ? "checkmark.circle.fill" : "plus.circle")
-                            }.tint(subscribed ? .green : .podListAccent).disabled(subscriptionBusy)
+                                Label(subscribed ? (control.isArmed(at: context.date) ? "Unsubscribe" : "Subscribed") : "Subscribe", systemImage: subscribed ? (control.isArmed(at: context.date) ? "minus.circle.fill" : "checkmark.circle.fill") : "plus.circle")
+                            }.tint(subscribed ? (control.isArmed(at: context.date) ? .red : .green) : .podListAccent).disabled(subscriptionBusy)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
                                 .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
                         }
                         if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
-                            ShareLink(item: url) { Label("Share podcast", systemImage: "square.and.arrow.up") }
-                            Button("Copy feed address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
+                            ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
+                            Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
                         }
-                        if subscribed { Button("Subscription settings", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly) }
+                        if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly) }
                     }
                 }
             }
@@ -179,11 +187,11 @@ struct PodcastPageScreen: SwiftUI.View {
                 DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
             }
             if loading { ProgressView("Reading Episodes…") }
-            if let error { Text(error).foregroundStyle(.red); Button("Try again") { control.reset(); load() } }
-            Text("\(episodes.count) Episodes").foregroundStyle(.secondary)
+            if let error { FailureFeedback(message: error) { control.reset(); load() } }
+            Text(CountText.format(episodes.count, .episode)).foregroundStyle(.secondary)
             if episodes.isEmpty, !loading, error == nil {
                 ContentUnavailableView {
-                    Label(search.isEmpty ? "No Episodes yet" : "No matching Episodes", systemImage: "list.bullet")
+                    Label(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet")
                 } description: { Text(search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.") }
                 actions: {
                     if search.isEmpty { Button("Refresh Episodes") { load() } }
@@ -196,7 +204,7 @@ struct PodcastPageScreen: SwiftUI.View {
                             Text(episode.title).lineLimit(2)
                             Spacer()
                             Button { bring(episode, play: false) } label: {
-                                MacIconLabel(title: "Add", systemImage: "plus")
+                                MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
                             }
                                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
                                 .help("Add \(episode.title) to a Playlist")
@@ -207,6 +215,7 @@ struct PodcastPageScreen: SwiftUI.View {
                                 .help("Play \(episode.title) now")
                         }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
                     }
+                    .width(min: 240, ideal: 420)
                     TableColumn("Published", value: \.published) { episode in
                         Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
                     }.width(min: 95, ideal: 110, max: 150)
@@ -238,7 +247,6 @@ struct PodcastPageScreen: SwiftUI.View {
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
                 .accessibilityLabel("Podcast Episodes, sortable columns")
             }
-            LibraryFeedback(editor: editor)
         }.padding(18)
         .focusedSceneValue(\.podListPodcast, podcastCommands)
         .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { episode in { inspect(episode) } })
@@ -349,23 +357,23 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 600) {
             VStack(alignment: .leading) {
-                Text("\(subscription.title) settings").font(.title2)
+                Text("\(subscription.title) Settings").font(.title2).bold().accessibilityAddTraits(.isHeader)
                 Form {
-                    Section("On this Device") { DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app) }
+                    Section("On This Device") { DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app) }
                     Section("Played") {
-                        Picker("Played threshold", selection: $threshold) {
+                        Picker("Played Threshold", selection: $threshold) {
                             Text("Default (30 seconds)").tag(nil as Double?)
-                            ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text("\(Int($0)) seconds").tag(Optional($0)) }
-                            if let threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text("\(threshold) seconds").tag(Optional(threshold)) }
+                            ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
+                            if let threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
                         }
-                        Button("Mark all Played") { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
+                        Button("Mark All Played") { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
                     }
-                    Section("Playback Settings overrides") {
+                    Section("Playback Settings Overrides") {
                         Text("Default inherits the global Playback Settings.").foregroundStyle(.secondary)
                         overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
-                        overrideNumber("Skip intro (seconds)", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120])
-                        overrideNumber("Skip outro (seconds)", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120])
-                        Picker("Volume boost", selection: $overrides.volumeBoost) {
+                        overrideNumber("Skip Intro (seconds)", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120])
+                        overrideNumber("Skip Outro (seconds)", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120])
+                        Picker("Volume Boost", selection: $overrides.volumeBoost) {
                             Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
                         }
                     }

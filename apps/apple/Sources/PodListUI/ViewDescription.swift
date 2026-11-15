@@ -6,7 +6,7 @@ public enum ViewDescription {
         var parts: [String] = []
         let filter = view.filter
         switch filter.published {
-        case let .lastDays(days): parts.append("Published in the last \(days) days")
+        case let .lastDays(days): parts.append("Published in the last \(CountText.format(days, .day))")
         case let .between(from, to):
             func date(_ value: Int64) -> String { Date(timeIntervalSince1970: Double(value) / 1000).formatted(date: .abbreviated, time: .omitted) }
             if let from { parts.append("Published from \(date(from))") }
