@@ -214,7 +214,7 @@ final class PodListUITour: XCTestCase {
         try click(details)
         let addFromDetails = button("Add to a Playlist", in: nowPlaying)
         try reveal(addFromDetails, in: playerScroll)
-        try click(addFromDetails)
+        addFromDetails.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         try sheet("to a Playlist")
         XCTAssertFalse(nowPlaying.sheets.firstMatch.exists, "Playlist edits must present on Library")
         try dismissSheet("Cancel")
@@ -354,7 +354,10 @@ final class PodListUITour: XCTestCase {
 
     private func reveal(_ element: XCUIElement, in scroll: XCUIElement) throws {
         for _ in 0..<8 {
-            if element.exists && element.isHittable { return }
+            // Glass action strips can report isHittable == false although the control is
+            // visible; accept a control whose centre lies inside the scroll view.
+            if element.exists, !element.frame.isEmpty, element.isHittable
+                || scroll.frame.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) { return }
             scroll.scroll(byDeltaX: 0, deltaY: -180)
         }
         XCTFail("Could not reveal \(element)")
