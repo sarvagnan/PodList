@@ -10,6 +10,19 @@ enum FormNumbers {
         return match.output
     }
 
+    static func positiveCount(_ text: String, locale: Locale) -> Int64? {
+        let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let style = IntegerFormatStyle<Int64>.number.locale(locale).grouping(.never)
+        guard !raw.isEmpty, raw.allSatisfy({ $0.isNumber }),
+              let match = raw.wholeMatch(of: style), match.output > 0 else { return nil }
+        return match.output
+    }
+
+    static func countProblem(_ text: String, locale: Locale) -> String? {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return positiveCount(text, locale: locale) == nil ? "Episodes to Show must be a positive whole number." : nil
+    }
+
     static func string(_ value: Double, locale: Locale) -> String {
         value.formatted(.number.locale(locale).grouping(.never).precision(.significantDigits(1...17)))
     }

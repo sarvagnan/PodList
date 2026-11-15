@@ -26,7 +26,7 @@ final class GeneralSettingsEdits {
                 // Each playback change writes the complete draft, including any
                 // previously failed playback fields.
                 if case .setPlaybackSettings = change {
-                    for field in ["Speed", "Skip intro", "Skip outro", "Volume boost"] { failures[field] = nil }
+                    for field in ["Speed", "Skip Intro", "Skip Outro", "Volume Boost"] { failures[field] = nil }
                 }
             } else {
                 failures[setting] = "Could not save \(setting). \(editor.error ?? "Another Library edit is in progress.") Your draft is kept. Retry to save it."
@@ -36,7 +36,7 @@ final class GeneralSettingsEdits {
 
     func reconcile(playback: PlaybackSettings, trashDays: Int64) {
         guard pendingCount == 0 else { return }
-        if !["Speed", "Skip intro", "Skip outro", "Volume boost"].contains(where: { failures[$0] != nil }) { self.playback = playback }
+        if !["Speed", "Skip Intro", "Skip Outro", "Volume Boost"].contains(where: { failures[$0] != nil }) { self.playback = playback }
         if failures["Keep Playlists in Trash"] == nil { self.trashDays = trashDays }
     }
 

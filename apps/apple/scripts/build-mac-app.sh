@@ -55,15 +55,15 @@ with open(sys.argv[1]) as file:
     colors = [entry for entry in json.load(file) if entry.get('Name') == 'AccentColor']
 expected = {
     'NSAppearanceNameSystem': (43, 80, 200, 255),
-    'NSAppearanceNameDarkAqua': (157, 177, 255, 255),
+    'NSAppearanceNameDarkAqua': (54, 82, 208, 255),
     'NSAppearanceNameAccessibilitySystem': (25, 58, 155, 255),
-    'NSAppearanceNameAccessibilityDarkAqua': (178, 193, 255, 255),
+    'NSAppearanceNameAccessibilityDarkAqua': (43, 67, 186, 255),
 }
 actual = {entry.get('Appearance', 'NSAppearanceNameSystem'):
           tuple(round(value * 255) for value in entry.get('Color components', []))
           for entry in colors if entry.get('Colorspace') == 'srgb'}
 if len(colors) != 4 or actual != expected:
-    raise SystemExit(f'Compiled AccentColor variants do not match the brand palette: {actual}')
+    raise SystemExit(f'Compiled AccentColor variants do not match the selection palette: {actual}')
 print('Verified four compiled AccentColor variants in the app bundle')
 PYACCENT
 # SwiftPM emits compiler constant values on the Xcode build engine, but does not

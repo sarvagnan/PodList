@@ -10,9 +10,15 @@ and the bundle's
 ## Bundle and controls
 
 `apps/apple/Resources/MacAssets.xcassets/AccentColor.colorset` contains opaque sRGB
-Light `#2B50C8`, Dark `#9DB1FF`, high-contrast Light `#193A9B` and high-contrast
-Dark `#B2C1FF`. `scripts/build-mac-app.sh` runs `xcrun actool` with `--platform
-macosx`, `--target-device mac`, `--minimum-deployment-target 26.0` and
+Light `#2B50C8`, Dark `#3652D0`, high-contrast Light `#193A9B` and high-contrast
+Dark `#2B43BA`. These are selection fills, separate from the identity foreground
+palette. White selected text measures **6.81:1, 6.41:1, 9.91:1 and 8.03:1**,
+respectively, using WCAG sRGB luminance. The initially suggested Dark `#4A68E8`
+passed the selection pair (4.73:1), but native prominent buttons lightened it to
+`#5D81ED` (3.60:1 with white). The chosen Dark also passes the actual native
+button rendering (white on `#456BD9`, **4.82:1**).
+`scripts/build-mac-app.sh` runs `xcrun actool` with `--platform macosx`,
+`--target-device mac`, `--minimum-deployment-target 26.0` and
 `--accent-color AccentColor`, writing `Assets.car` to `PodList.app/Contents/Resources`
 before signing. Its main Info.plist declares `NSAccentColorName = AccentColor`.
 This is a main-bundle resource, rather than a SwiftPM module resource. The script
@@ -54,14 +60,14 @@ accent fallback. Selected-row behavior is unchanged except that an unreadable
 system accent can now fall back to primary.
 
 Headless tests cover all eight system accent colour families, black/white
-extremes and the four exact Multicolor palette values in both appearances. They
-check the rendered fallback, its final foreground contrast on all three native
+extremes, all four exact Multicolor selection fills and the four identity
+foregrounds in both appearances. They check the rendered fallback, its final foreground contrast on all three native
 surfaces, and selection inheritance. Tests do not change the host's preferences.
-The foreground fixtures measure at least **4.97:1 in Light / 4.57:1 in Dark**
-after fallback. Actual rendered default-button labels measure **5.15–14.57:1
-in Light / 5.15–15.49:1 in Dark**, across eight system colour families and all
-four brand variants, with and without a Return shortcut. The minimum required
-contrast is 4.5:1. Disabled controls are compared with the complete native
+The foreground fixtures measure at least **4.68:1 in Light / 4.57:1 in Dark**
+after fallback. Actual rendered default-button labels measure **4.82–14.57:1
+in Light / 4.82–15.49:1 in Dark**, across eight system colour families and all
+four selection fills and identity foregrounds, with and without a Return shortcut.
+The minimum required contrast is 4.5:1. Disabled controls are compared with the complete native
 disabled treatment and are not held to the enabled-text contrast threshold.
 The existing error and reading-secondary contrast rules remain in force.
 
@@ -69,13 +75,16 @@ The existing error and reading-secondary contrast rules remain in force.
 
 Only `Color.podListBrand` / `MacBrandPalette` provide explicit brand colour:
 
+- Identity foregrounds retain Light `#2B50C8`, Dark `#9DB1FF`, increased Light
+  `#193A9B` and increased Dark `#B2C1FF`. These pale Dark blues are never selection
+  fills behind white text.
 - Artwork placeholders: initials and a 12% brand wash over an opaque native
   window-background tile. The opaque base isolates them from selected-row fills.
 - The non-interactive Welcome waveform mark: product identity, not a control.
 - The existing app icon is untouched; this change adds no new icon artwork.
 
 Artwork initials contrast remains **5.67:1 / 8.04:1** in Light / increased Light
-and **6.40:1 / 7.33:1** in Dark / increased Dark. Multicolor's brand accent on
+and **6.40:1 / 7.33:1** in Dark / increased Dark. The identity foreground palette on
 native white, under-page and inactive-selection backgrounds gives **6.81:1,
 6.30:1, 4.97:1** in Light and **8.07:1, 7.14:1, 4.57:1** in Dark. Increase Contrast
 raises those minimums to **7.22:1** and **5.38:1**. Active selections use the
@@ -89,9 +98,10 @@ lifetime. Every window, sheet and Settings pane inherits the application
 appearance; no `.preferredColorScheme` overrides are used.
 
 `AppearanceTests` verifies the source catalogue's four variants, identity palette
-resolution and artwork compositing, actual default-button glyph/fill contrast for
-each system accent and all four brand variants (with and without a Return
-shortcut), native disabled rendering, readable
+resolution and artwork compositing, white-text selection pairs for every source
+asset variant, actual default-button glyph/fill contrast for
+each system accent, all four selection fills and all four identity foregrounds
+(with and without a Return shortcut), native disabled rendering, readable
 system-accent fallbacks, selected-row inheritance, errors, secondary text and
 live defaults observation. AppKit's high-contrast appearance names are matching
 targets; merely constructing one does not toggle Increase Contrast. Exact
@@ -113,6 +123,47 @@ bundle, signing and extraction of 13 intents, 2 entities and 4 shortcuts.
 `AccentColor`. `xcodebuild build-for-testing -project PodListUITour.xcodeproj
 -scheme PodListUITour -derivedDataPath .build/ui-tour-derived` succeeded.
 The UI tour was built, not run.
+
+## Round 5 controls and menus (pod-apx.5.70, pod-apx.5.72)
+
+The View editor labels its limit **Episodes to Show (Optional)**, with an 88-point
+locale-aware count field, an Episodes unit and adjacent field-specific validation.
+Blank means All; fractions, zero, negative values and Int64 overflow are rejected.
+Invalid and incomplete drafts remain visible. Tests cover four locales.
+
+Episode contexts retain Play Now, active-Playlist Next/Last and Add to a Playlist;
+the three per-Playlist placement submenus remain in the menu bar. Contexts omit
+empty Resume/Chapter menus, unavailable Share/Copy Link, ineligible download
+commands and commands requiring a local Episode when showing remote overrides.
+Subscription contexts omit missing actions; the Default Playlist omits Rename
+and Delete. The menu bar retains its complete inventory with disabled entries.
+The Inspector's Share glyph opens the native ShareLink directly; Copy Link
+remains in Episode contexts and the Episode menu.
+
+View › Sidebar has exactly one `SidebarCommands()` registration and no custom
+Show/Hide Sidebar item in source. The captured title mismatch cannot be confirmed
+in this screenless sandbox, so native sidebar command handling is retained.
+
+Menu titles use Bring Library from This Mac…, Default Order, Playback Speed and
+Sleep Timer. Speed/Sleep readouts in player controls remain, with menu checkmarks
+representing their selected values. Settings consistently use Skip Intro,
+Skip Outro and seconds; section headers and setting labels use title case.
+Getting Started names Add to a Playlist, Add Podcasts points to File › Import OPML…
+and Settings › General › Library, and Help points to Podcast › Edit Download
+Rules…. Settings has a single file chooser through Import OPML…, avoiding its
+nested duplicate. These are copy and action changes; settings draft/width
+behavior and the File command inventory are left to their separate task.
+
+Tour assertions track the renamed optional label, menu titles and MCP toggle.
+The required Swift suite passed **292 tests** (203 UI, 30 domain, 59 data), with
+both module-cache variables and `--scratch-path .build --disable-sandbox`.
+It ran outside the filesystem sandbox for existing local socket and system type
+registration tests. Native default-button rendering, selection-fill/white pairs,
+custom accent fallbacks and download context eligibility all passed.
+`scripts/build-mac-app.sh` succeeded, including the compiled four-variant accent
+check, signing and metadata extraction (13 intents, 2 entities, 4 shortcuts).
+The UI tour's `xcodebuild build-for-testing` succeeded; the tour was not run
+because this sandbox has no screen.
 
 ## Earlier fixes
 

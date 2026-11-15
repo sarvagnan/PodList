@@ -106,12 +106,23 @@ struct ViewEditorScreen: SwiftUI.View {
                         Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
                         Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
                     }
-                    TextField("Show (Optional)", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return editor.hasDraft("limit.\(draft.id)") ? raw : draft.limit.map(String.init) ?? "" }, set: { text in
-                        editor.setDraft(text, field: "limit.\(draft.id)")
-                        if text.isEmpty { update { $0.limit = nil } }
-                        else if let limit = Int64(text), limit > 0 { update { $0.limit = limit } }
-                    }), prompt: Text("All")).textFieldStyle(.roundedBorder).accessibilityLabel("Show")
-                    validation(fieldProblems[.show])
+                    LabeledContent("Episodes to Show (Optional)") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                TextField("Episodes to Show", text: Binding(get: {
+                                    editor.hasDraft("limit.\(draft.id)") ? editor.draft("limit.\(draft.id)")
+                                        : draft.limit.map { $0.formatted(.number.locale(locale).grouping(.never)) } ?? ""
+                                }, set: { text in
+                                    editor.setDraft(text, field: "limit.\(draft.id)")
+                                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { update { $0.limit = nil } }
+                                    else if let limit = FormNumbers.positiveCount(text, locale: locale) { update { $0.limit = limit } }
+                                }), prompt: Text("All")).labelsHidden()
+                                    .textFieldStyle(.roundedBorder).frame(width: 88)
+                                Text("Episodes").foregroundStyle(.primary)
+                            }
+                            validation(fieldProblems[.show])
+                        }
+                    }
                 }
             }.formStyle(.columns).disabled(saving)
         } status: {
@@ -189,7 +200,7 @@ struct ViewEditorScreen: SwiftUI.View {
             if let message = FormNumbers.minutesProblem(numberDraft(label, path: path), label: label, locale: locale) { errors[field] = message }
         }
         let limit = editor.draft("limit.\(draft.id)")
-        if !limit.isEmpty, Int64(limit).map({ $0 > 0 }) != true { errors[.show] = "Show must be a positive whole number." }
+        if let message = FormNumbers.countProblem(limit, locale: locale) { errors[.show] = message }
         return errors
     }
     private func update(_ mutation: (inout PodListDomain.View) -> Void) {

@@ -12,7 +12,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
         ContentSizedPanel(width: 600, settings: true, pane: "automation") {
             Form {
                 Section("MCP") {
-                    Toggle("Enable MCP server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
+                    Toggle("Enable MCP Server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
                     Text("Any app running as this user on this Mac can then read the Library and control playback.")
                         .macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
@@ -23,7 +23,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
                         }
                     }
                     if settings.isEnabled {
-                        LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
+                        LabeledContent("Bridge Path") { Text(settings.bridgePath).textSelection(.enabled) }
                         Text("MCP client configuration").macContentFont(.headline)
                         Text(settings.clientConfiguration).macContentFont(.system(.caption, design: .monospaced, weight: nil)).textSelection(.enabled)
                         Button("Copy Configuration", action: copyConfiguration)
@@ -62,7 +62,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     Section("Library") {
                         Button("Import OPML…") { LibraryFileActions.importOPML(app) }
                         if let editor = app.libraryEditing {
-                            OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
+                            OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) }, showsFileChooser: false)
                         }
                         Button("Export OPML…") { LibraryFileActions.exportOPML(app) }
                         Button("Listening Stats") { openWindow(id: "listening-stats") }
@@ -70,7 +70,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     }
                 }
                 if app.isStandalone {
-                    Section("Publisher feeds") {
+                    Section("Publisher Feeds") {
                         Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day; the wait survives restarting PodList.").macContentFont(.callout)
                         Button("Refresh Now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
                         if let error = app.syncError { Text(error).foregroundStyle(Color.podListError) }
@@ -80,10 +80,10 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     MacTextSizeControl()
                     Picker("Appearance", selection: $appearance) { ForEach(["System", "Light", "Dark"], id: \.self) { Text($0).tag($0) } }
                 }
-                Section("Server connection") {
+                Section("Server Connection") {
                     if let origin = app.origin {
-                        LabeledContent("Server address", value: origin)
-                        if app.bringOverAvailable { Button("Bring Library from this Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
+                        LabeledContent("Server Address", value: origin)
+                        if app.bringOverAvailable { Button("Bring Library from This Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
                         if let job = app.bringOverJob {
                             Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(CountText.format(job.imported.count, .podcast)) transferred, \(CountText.format(job.copied.count, .download)) copied. Progress is saved.")
                                 .macContentFont(.callout)
@@ -93,7 +93,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         Button("Disconnect") { app.disconnect() }
                     } else {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
-                        TextField("Server address", text: $app.serverInput)
+                        TextField("Server Address", text: $app.serverInput)
                         Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
                         if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
                         if let error = app.connectionError { Text(error).foregroundStyle(Color.podListError) }
@@ -143,9 +143,9 @@ private struct BringOverPreviewScreen: SwiftUI.View {
             LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
             LabeledContent("Entries and Positions", value: "\(CountText.format(preview.entries, .entry)) · \(CountText.format(preview.positions, .position))")
             LabeledContent("Played and Starred", value: "\(preview.played) Played · \(preview.starred) Starred")
-            LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
-            LabeledContent("Views and downloads", value: "\(CountText.format(preview.views, .view)) · \(CountText.format(preview.downloads, .download))")
-            Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").macContentFont(.callout)
+            LabeledContent("Listening Log", value: Presentation.time(preview.listeningSeconds))
+            LabeledContent("Views and Downloads", value: "\(CountText.format(preview.views, .view)) · \(CountText.format(preview.downloads, .download))")
+            Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening Log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").macContentFont(.callout)
             Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
         } status: {
             if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError) }
@@ -173,16 +173,16 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
                     if ![0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].contains(draft.playback.speed) { Text("\(draft.playback.speed.formatted())×").tag(draft.playback.speed) }
                 }
                 playbackFailure("Speed")
-                PersistentNumberField(label: "Skip intro", field: "settings.skipIntro", value: draft.playback.skipIntro, editor: editor) {
-                    draft.playback.skipIntro = $0; savePlayback("Skip intro")
+                PersistentNumberField(label: "Skip Intro", field: "settings.skipIntro", value: draft.playback.skipIntro, editor: editor) {
+                    draft.playback.skipIntro = $0; savePlayback("Skip Intro")
                 }
-                playbackFailure("Skip intro")
-                PersistentNumberField(label: "Skip outro", field: "settings.skipOutro", value: draft.playback.skipOutro, editor: editor) {
-                    draft.playback.skipOutro = $0; savePlayback("Skip outro")
+                playbackFailure("Skip Intro")
+                PersistentNumberField(label: "Skip Outro", field: "settings.skipOutro", value: draft.playback.skipOutro, editor: editor) {
+                    draft.playback.skipOutro = $0; savePlayback("Skip Outro")
                 }
-                playbackFailure("Skip outro")
-                Toggle("Volume Boost", isOn: field(\.volumeBoost, setting: "Volume boost"))
-                playbackFailure("Volume boost")
+                playbackFailure("Skip Outro")
+                Toggle("Volume Boost", isOn: field(\.volumeBoost, setting: "Volume Boost"))
+                playbackFailure("Volume Boost")
             }
             Section("Trash") {
                 Picker("Keep in Trash", selection: Binding(get: { draft.trashDays }, set: {
@@ -240,7 +240,7 @@ private struct PersistentNumberField: SwiftUI.View {
                     }))
                     .labelsHidden()
                     .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
-                    Text("sec").foregroundStyle(MacReadableSecondaryStyle())
+                    Text("seconds").foregroundStyle(MacReadableSecondaryStyle())
                 }
                 if !valid { Text("\(label) must be a nonnegative number of seconds.").macContentFont(.caption).foregroundStyle(Color.podListError).fixedSize(horizontal: false, vertical: true) }
             }
@@ -280,7 +280,7 @@ struct GettingStartedScreen: SwiftUI.View {
             Label("Understand Views", systemImage: "2.circle")
             Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(MacReadableSecondaryStyle())
             Label("Add Episodes to Playlists", systemImage: "3.circle")
-            Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(MacReadableSecondaryStyle())
+            Text("Use Add to a Playlist or Play Now. Each Playlist remembers its own Position.").foregroundStyle(MacReadableSecondaryStyle())
         }
     }
 }
@@ -312,7 +312,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 let stats = ListeningStats(log: library.state.listeningLog ?? [:], played: facts)
                 if stats.totals.allSatisfy({ $0.seconds == 0 && $0.finished == 0 }) {
                     ContentUnavailableView("No Listening Yet", systemImage: "chart.bar",
-                                           description: Text("Play an Episode to start your Listening log."))
+                                           description: Text("Play an Episode to start your Listening Log."))
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {

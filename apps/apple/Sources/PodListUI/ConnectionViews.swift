@@ -81,7 +81,7 @@ public struct PodListHelp: SwiftUI.View {
                 Text("PodList").macContentFont(.largeTitle).bold()
                 Text("Views find Episodes in your Library. Playlists hold Entries in order, each with its own Position.")
                 Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌥⌘I). Search filters the current list.")
-                Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; change a Subscription’s Download Rule above its Episode list. Playback continues when windows close.")
+                Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; choose Podcast › Edit Download Rules… to change a Subscription’s Download Rule. Playback continues when windows close.")
                 Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
                 Divider()
                 Text("Keyboard Shortcuts").macContentFont(.title2).bold()

@@ -149,6 +149,20 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     #expect(EpisodeDownloadAction.remove.targets(in: ["q"]) { phases[$0] }.isEmpty)
 }
 
+@Test func downloadContextMenusOmitInapplicableCommandsForSingleAndMixedSelections() {
+    let phases: [String: DownloadPhase] = ["queued": .queued, "stored": .stored, "failed": .failed]
+    func actions(_ ids: [String]) -> [EpisodeDownloadAction] {
+        EpisodeDownloadAction.available(in: ids) { phases[$0] }
+    }
+    #expect(actions([]).isEmpty)
+    #expect(actions(["new"]) == [.download])
+    #expect(actions(["queued"]) == [.cancel])
+    #expect(actions(["stored"]) == [.remove])
+    #expect(actions(["failed"]) == [.cancel, .retry])
+    #expect(actions(["queued", "stored"]) == [.cancel, .remove])
+    #expect(actions(["new", "queued", "stored", "failed"]) == EpisodeDownloadAction.allCases)
+}
+
 @MainActor @Test func renameCommandsPreserveDraftsAndRejectUnavailableObjects() async throws {
     let db = try await fixtureDatabase()
     let defaults = UserDefaults(suiteName: "PodListMenuTests-" + UUID().uuidString)!

@@ -35,6 +35,9 @@ enum EpisodeDownloadAction: CaseIterable {
         var seen = Set<String>()
         return ids.filter { seen.insert($0).inserted && accepts(phase($0)) }
     }
+    static func available(in ids: [String], phase: (String) -> DownloadPhase?) -> [Self] {
+        allCases.filter { !$0.targets(in: ids, phase: phase).isEmpty }
+    }
     @MainActor func perform(_ ids: [String], app: ApplicationModel) {
         for id in targets(in: ids, phase: { app.downloadStatuses[$0]?.phase }) {
             switch self {
@@ -50,7 +53,8 @@ struct EpisodeDownloadItems: SwiftUI.View {
     @Bindable var app: ApplicationModel
     var keyboardShortcuts = false
     var body: some SwiftUI.View {
-        ForEach(EpisodeDownloadAction.allCases, id: \.self) { action in
+        ForEach(keyboardShortcuts ? EpisodeDownloadAction.allCases
+                : EpisodeDownloadAction.available(in: ids, phase: { app.downloadStatuses[$0]?.phase }), id: \.self) { action in
             Button(action.title) { action.perform(ids, app: app) }
                 .keyboardShortcut(action == .download && keyboardShortcuts ? PodListShortcut.download.shortcut : nil)
                 .disabled(action.targets(in: ids, phase: { app.downloadStatuses[$0]?.phase }).isEmpty)
@@ -117,7 +121,7 @@ struct DownloadRuleFields: SwiftUI.View {
     @Binding var cap: Int64?
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            Picker("Download Rule on this Device", selection: $mode) {
+            Picker("Download Rule on This Device", selection: $mode) {
                 Text("Stream").tag(DownloadMode.never)
                 Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                 Text("As Episodes are published").tag(DownloadMode.allNew)

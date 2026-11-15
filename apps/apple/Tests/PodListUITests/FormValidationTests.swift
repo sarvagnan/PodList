@@ -15,6 +15,21 @@ func numberDraftsFormatAndParseInTheirLocale(_ identifier: String) throws {
     #expect(FormNumbers.nonnegative("  " + FormNumbers.string(1.5, locale: locale) + "  ", locale: locale) == 1.5)
 }
 
+@Test(arguments: ["en_US", "de_DE", "fr_FR", "hi_IN"])
+func episodeCountDraftsAcceptOnlyPositiveWholeNumbers(_ identifier: String) {
+    let locale = Locale(identifier: identifier)
+    for value in [Int64(1), 1200, Int64.max] {
+        let formatted = value.formatted(.number.locale(locale).grouping(.never))
+        #expect(FormNumbers.positiveCount(formatted, locale: locale) == value)
+        #expect(FormNumbers.countProblem(formatted, locale: locale) == nil)
+    }
+    for raw in ["0", "-1", "1.5", "1,5", "1 Episode", "9223372036854775808"] {
+        #expect(FormNumbers.positiveCount(raw, locale: locale) == nil)
+        #expect(FormNumbers.countProblem(raw, locale: locale) == "Episodes to Show must be a positive whole number.")
+    }
+    for raw in ["", "  "] { #expect(FormNumbers.countProblem(raw, locale: locale) == nil) }
+}
+
 @Test func commaDecimalMinutesAreConvertedToSeconds() {
     let locale = Locale(identifier: "de_DE")
     #expect(FormNumbers.nonnegative("1,5", locale: locale) == 1.5)
@@ -42,7 +57,7 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     var errors = ViewEdits.problems(view)
     #expect(errors[.minimumLength]?.contains("Minimum length") == true)
     #expect(errors[.maximumLength]?.contains("Maximum length") == true)
-    #expect(errors[.show] == "Show must be a positive whole number.")
+    #expect(errors[.show] == "Episodes to Show must be a positive whole number.")
     view.filter.maxDuration = 180; view.limit = 10
     #expect(ViewEdits.problems(view).isEmpty)
     view.filter.minDuration = -.infinity; view.filter.maxDuration = .nan
@@ -96,9 +111,9 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     let edits = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
     let draft = GeneralSettingsEdits(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30)
     draft.playback.skipIntro = 1.5
-    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Skip intro", using: edits)
+    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Skip Intro", using: edits)
     draft.playback.skipOutro = 2.5
-    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Skip outro", using: edits)
+    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Skip Outro", using: edits)
     draft.save(.setTrashDays(days: 7), setting: "Keep Playlists in Trash", using: edits)
     draft.reconcile(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30)
     #expect(draft.playback.skipIntro == 1.5 && draft.playback.skipOutro == 2.5)

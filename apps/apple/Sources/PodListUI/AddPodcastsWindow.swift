@@ -58,7 +58,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                             .onSubmit { search() }.onChange(of: state.query) { _, text in editor.setDraft(text, field: "addPodcasts"); state.searchTask?.cancel(); state.loading = false; state.searched = false; state.results = []; state.error = nil }
                         Button("Search") { search() }.keyboardShortcut(.defaultAction).disabled(state.loading || state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                    Text("Choose File › Import OPML… in the Library window, or import in Settings › General › Library. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if !state.searched, !state.loading {
                         ContentUnavailableView {
                             Label("Find Your Next Podcast", systemImage: "magnifyingglass")
