@@ -36,6 +36,7 @@ public final class PlaybackController {
     public private(set) var error: String?
     public private(set) var wantsPlayback = false
     public private(set) var userPlaybackRevision = 0
+    @ObservationIgnored private let donate: @MainActor (ActionDonation) -> Void
     @ObservationIgnored private let db: LocalDatabase
     @ObservationIgnored private let audio: any PlayerAudio
     @ObservationIgnored private let clock: PlayerClock
@@ -75,8 +76,9 @@ public final class PlaybackController {
 
     public init(database: LocalDatabase, origin: URL?, downloads: DownloadStore? = nil,
                 audio: any PlayerAudio = AVPlayerAudio(), clock: PlayerClock = PlayerClock(),
-                systemIntegration: Bool = true, changed: @escaping @MainActor () async -> Void = {}) {
-        db = database; self.origin = origin; self.downloads = downloads; self.audio = audio; self.clock = clock; self.changed = changed
+                systemIntegration: Bool = true,
+                donate: @escaping @MainActor (ActionDonation) -> Void = { _ in }, changed: @escaping @MainActor () async -> Void = {}) {
+        self.donate = donate; db = database; self.origin = origin; self.downloads = downloads; self.audio = audio; self.clock = clock; self.changed = changed
         audio.event = { [weak self] event in self?.enqueue { try await $0.audioEvent(event) } }
         if systemIntegration { system = SystemPlayback(controller: self) }
         timerTask = Task { [weak self] in
@@ -101,8 +103,9 @@ public final class PlaybackController {
         repeat { observed = queuedSequence; await tail?.value } while observed != queuedSequence
     }
     public func refresh() { enqueue { try await $0.refreshState() } }
-    public func toggle() { enqueue { if $0.wantsPlayback { try await $0.pauseAudio() } else { try await $0.start() } } }
-    public func play() { enqueue { try await $0.start() } }
+    public func toggle() { enqueue { if $0.wantsPlayback { try await $0.pauseAudio() } else { try await $0.start(); $0.donatePlay() } } }
+    public func play() { enqueue { try await $0.start(); $0.donatePlay() } }
+    private func donatePlay() { if wantsPlayback, error == nil { donate(.play) } }
     public func pause() { enqueue { try await $0.pauseAudio() } }
     public func stop() { enqueue { try await $0.pauseAudio(); $0.audio.stop(); $0.prepared = false; $0.publish() } }
     public func seek(_ seconds: Double) { enqueue { try await $0.seekAudio(seconds) } }
@@ -131,6 +134,7 @@ public final class PlaybackController {
             try await $0.sample(); try await $0.event(.flush)
             try await $0.edit([.setActivePlaylist(playlistId: playlist), .setCursor(playlistId: playlist, episodeId: episode)])
             try await $0.follow(force: true, play: true)
+            if $0.error == nil { $0.donate(.playInPlaylist(episode, playlist: playlist)) }
         }
     }
     public func playNow(_ id: String) {
@@ -140,6 +144,7 @@ public final class PlaybackController {
             try await $0.edit([.addEntry(playlistId: state.activePlaylistId, episodeId: id, placement: .now)])
             if $0.episodeID == id && $0.playlistID == state.activePlaylistId && !$0.ended && $0.error == nil { try await $0.start() }
             else { try await $0.follow(force: true, play: true) }
+            if $0.error == nil { $0.donate(.playEpisode(id, playlist: state.activePlaylistId)) }
         }
     }
     /// Serialize user edits with reporting and track loads. Flush before capturing an inverse,

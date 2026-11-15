@@ -401,3 +401,22 @@ private final class FakePlayerClock: Sendable {
     #expect(player.sleepMinutes == nil && player.display?.sleep == nil)
     await player.shutdown()
 }
+
+@MainActor @Test func userTransportDonatesPlayOnceButAutomaticPlaybackDoesNot() async throws {
+    let db = try await fixtureDatabase(), audio = FakeAudio()
+    var received: [ActionDonation] = []
+    let player = PlaybackController(database: db, origin: nil, audio: audio, systemIntegration: false, donate: { received.append($0) })
+    player.refresh(); await player.settle()
+    #expect(received.isEmpty)
+    player.play(); await player.settle()
+    #expect(received == [.play])
+    player.toggle(); await player.settle()
+    player.seek(10); player.refresh(); await player.settle()
+    #expect(received == [.play])
+    player.toggle(); await player.settle()
+    #expect(received == [.play, .play])
+    // A shared editing action starts audio internally; its editor donates the Episode action.
+    try await player.performUserEdit(reload: true, start: true) {}
+    #expect(received == [.play, .play])
+    await player.shutdown()
+}

@@ -56,6 +56,7 @@ public final class ApplicationModel {
         guard let self else { throw AutomationFailure("PodList is not running.") }
         return try await self.actions.perform(name, arguments: arguments)
     }
+    @ObservationIgnored public let donations = ActionDonations()
     public var serverInput = ""
     public private(set) var origin: String?
     public private(set) var connecting = false
@@ -221,13 +222,17 @@ public final class ApplicationModel {
                 sourceFiles: automaticSync ? try AudioFiles(directory: Self.audioDirectory("standalone")) : nil,
                 destinationDownloads: downloads)
         }
-        playback = PlaybackController(database: db, origin: address?.origin, downloads: downloads, systemIntegration: automaticSync) { [weak self] in
+        playback = PlaybackController(database: db, origin: address?.origin, downloads: downloads, systemIntegration: automaticSync, donate: { [weak self] action in
+            guard let self, self.generation == token else { return }; self.donations.record(action)
+        }) { [weak self] in
             guard let self, self.generation == token else { return }
             await self.reloadLocal(); self.requestSync()
         }
         editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: address?.origin.absoluteString ?? "standalone"),
             player: { [weak self] in self?.generation == token ? self?.playback : nil },
-            changed: { [weak self] in
+            donate: { [weak self] action in
+                guard let self, self.generation == token else { return }; self.donations.record(action)
+            }, changed: { [weak self] in
                 guard let self, self.generation == token else { return }
                 await self.reloadLocal(); self.playback?.refresh(); self.requestSync()
             })

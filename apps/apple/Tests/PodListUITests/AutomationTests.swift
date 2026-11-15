@@ -99,7 +99,7 @@ private let discoveryLine = Data(#"{"jsonrpc":"2.0","id":1,"method":"server/disc
     let list = try await modernRPC(handler, "tools/list")
     expectModernResult(list)
     let tools = try #require(list["result"]?["tools"]?.array)
-    #expect(tools.count == 15 && list["id"] == "request")
+    #expect(tools.count == 16 && list["id"] == "request")
     let names = tools.compactMap { $0["name"]?.string }
     #expect(names == names.sorted())
     #expect(list["result"]?["ttlMs"] == 300000 && list["result"]?["cacheScope"] == "private")
@@ -285,4 +285,100 @@ private let discoveryLine = Data(#"{"jsonrpc":"2.0","id":1,"method":"server/disc
     settings.start()
     #expect(settings.error != nil)
     #expect(try String(contentsOf: url, encoding: .utf8) == "Keep this file")
+}
+
+@MainActor @Test func intentUndoManagerUsesNamedLibraryHistoryAndSupportsRedo() async throws {
+    let cases: [(String, JSONValue, String)] = [
+        ("add_episodes", ["episode_ids": ["b"], "placement": "next"], "Play Next"),
+        ("add_current", [:], "Play Last"),
+        ("play_episode", ["episode_id": "b"], "Play Now"),
+        ("play_in_playlist", ["episode_id": "b", "playlist_id": "default"], "Play from Here"),
+        ("set_starred", ["episode_ids": ["a"], "starred": true], "Star"),
+        ("set_starred", ["episode_ids": ["b"], "starred": false], "Unstar"),
+        ("set_played", ["episode_ids": ["a"], "played": true], "Mark Played"),
+        ("set_played", ["episode_ids": ["b"], "played": false], "Mark Unplayed")
+    ]
+    for (action, arguments, name) in cases {
+        let (db, app) = try await automationFixture()
+        let manager = UndoManager(); manager.groupsByEvent = false
+        let editor = try #require(app.editing)
+        let before = try await db.loadState()
+        manager.beginUndoGrouping()
+        _ = try await app.actions.performUndoable(action, arguments: arguments, undoManager: manager)
+        manager.endUndoGrouping()
+        let edited = try await db.loadState(), id = try #require(editor.history.undo?.id)
+        #expect(editor.undoTitle == "Undo \(name)" && manager.undoActionName == name)
+        manager.undo(); await editor.settleIntentUndo()
+        let undone = try await db.loadState()
+        expectSameUserEdits(undone, before)
+        #expect(editor.history.redo?.id == id && manager.redoActionName == name)
+        manager.redo(); await editor.settleIntentUndo()
+        let redone = try await db.loadState()
+        expectSameUserEdits(redone, edited)
+        #expect(editor.history.undo?.id == id)
+        // The app menu can undo the very same system-redone step.
+        await editor.reverse()
+        #expect(editor.redoTitle == "Redo \(name)")
+        app.disconnect()
+    }
+}
+
+@MainActor @Test func staleIntentUndoCannotReverseLaterMenuEditsOrRegisterFailedActions() async throws {
+    let (db, app) = try await automationFixture()
+    defer { app.disconnect() }
+    let manager = UndoManager(); manager.groupsByEvent = false
+    let editor = try #require(app.editing)
+    manager.beginUndoGrouping()
+    _ = try await app.actions.performUndoable("set_starred", arguments: ["episode_ids": ["a"], "starred": true], undoManager: manager)
+    manager.endUndoGrouping()
+    _ = await editor.create(name: "Later menu edit")
+    let before = try await db.loadState(), id = editor.history.undo?.id
+    manager.undo(); await editor.settleIntentUndo()
+    #expect(try await db.loadState() == before && editor.history.undo?.id == id)
+    #expect(!manager.canRedo)
+    let failed = UndoManager(); failed.groupsByEvent = false
+    await #expect(throws: AutomationFailure.self) {
+        try await app.actions.performUndoable("set_starred", arguments: ["episode_ids": ["missing"], "starred": true], undoManager: failed)
+    }
+    #expect(!failed.canUndo && editor.history.undo?.id == id)
+}
+
+private func expectSameUserEdits(_ actual: State, _ expected: State) {
+    #expect(actual.activePlaylistId == expected.activePlaylistId)
+    #expect(actual.playlists.map(\.id) == expected.playlists.map(\.id))
+    for (a, b) in zip(actual.playlists, expected.playlists) {
+        #expect(a.cursor == b.cursor)
+        #expect(a.entries.map(\.episodeId) == b.entries.map(\.episodeId))
+        #expect(a.entries.map(\.position) == b.entries.map(\.position))
+    }
+    // Undo is a new protocol Operation, so its timestamps and audit Timeline advance.
+    for id in Set(actual.episodeStates.keys).union(expected.episodeStates.keys) {
+        #expect((actual.episodeStates[id]?.starred == true) == (expected.episodeStates[id]?.starred == true))
+        #expect(actual.episodeStates[id]?.played?.source == expected.episodeStates[id]?.played?.source)
+    }
+}
+
+@MainActor @Test func failedSystemUndoRetainsLibraryHistoryAndEndedSessionsRejectSystemUndo() async throws {
+    let db = try await fixtureDatabase()
+    let editor = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
+    let manager = UndoManager(); manager.groupsByEvent = false
+    try await editor.performExternal {
+        NamedEdit(name: "Failed inverse", changes: [], reload: false,
+                  action: { throw AutomationFailure("Offline") }, inverseAction: {})
+    }
+    let id = editor.history.undo?.id
+    manager.beginUndoGrouping()
+    editor.registerIntentUndo(manager, since: nil)
+    manager.endUndoGrouping()
+    manager.undo(); await editor.settleIntentUndo()
+    #expect(editor.history.undo?.id == id && editor.history.redo == nil)
+    #expect(editor.error?.contains("Offline") == true)
+    #expect(!manager.canRedo)
+    manager.beginUndoGrouping()
+    editor.registerIntentUndo(manager, since: nil)
+    manager.endUndoGrouping()
+    editor.endSession()
+    manager.undo(); await editor.settleIntentUndo()
+    #expect(editor.history.undo == nil && editor.history.redo == nil)
+    #expect(!manager.canRedo)
 }
