@@ -116,3 +116,15 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(try await db.readLibrary() == before)
     #expect(try await db.outbox().isEmpty)
 }
+
+@Test func newWindowRequestsCarryDestinationsAndHaveIndependentIdentities() throws {
+    for destination in [Destination.playlist("default"), .view("all")] {
+        let first = LibraryWindowTarget(destination: destination)
+        let second = LibraryWindowTarget(destination: destination)
+        #expect(first != second)
+        let restored = try JSONDecoder().decode(LibraryWindowTarget.self, from: JSONEncoder().encode(first))
+        #expect(restored == first)
+        #expect(restored.destination == destination)
+        #expect(WindowContext(destination: restored.destination).reconciled(in: restorationLibrary()).destination == destination)
+    }
+}

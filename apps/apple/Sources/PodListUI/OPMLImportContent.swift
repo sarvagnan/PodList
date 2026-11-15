@@ -6,16 +6,16 @@ struct OPMLImportContent: SwiftUI.View {
     let choose: () -> Void
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Closing Add podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").font(.callout).fixedSize(horizontal: false, vertical: true)
+            Text("Closing Add Podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").font(.callout).fixedSize(horizontal: false, vertical: true)
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
             if editor.importReady {
-                Text("\(editor.importTotal) podcasts; \(editor.importExisting) already in the Library.")
+                Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")
                 HStack {
                     Button("Import") { editor.startImport() }.disabled(editor.importTotal == 0)
-                    Button("Choose a different file…", action: choose)
+                    Button("Choose a Different File…", action: choose)
                     Button("Cancel") { editor.cancelImportSelection(); editor.importPresented = false }
                 }
-            } else if !editor.busy { Button("Choose a file…", action: choose) }
+            } else if !editor.busy { Button("Choose a File…", action: choose) }
             if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
             if !editor.importFeeds.isEmpty {
                 ScrollView {
@@ -27,7 +27,7 @@ struct OPMLImportContent: SwiftUI.View {
                 }.frame(height: min(220, CGFloat(editor.importFeeds.count) * 44))
             }
             if let error = editor.error { Text(error).foregroundStyle(.red) }
-            if !editor.importFailed.isEmpty { Button("Retry failed imports") { Task { await editor.retryImport() } }.disabled(editor.busy) }
+            if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } }.disabled(editor.busy) }
         }
     }
 }

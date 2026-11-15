@@ -62,7 +62,10 @@ public final class LibraryEditingModel {
     public let source: PodcastLibrary
     public let scope: String
     public var error: String?
-    public var notice: String?
+    public var notice: String? {
+        get { edits.status }
+        set { edits.showNotice(newValue) }
+    }
     public var busy = false
     public var importName = ""
     public var importFeeds: [String] = []
@@ -202,9 +205,8 @@ public final class LibraryEditingModel {
     public func subscribe(_ feed: String) async throws {
         try await edits.performExternal {
             let sub = try await self.source.subscribe(feed), source = self.source
-            self.notice = "Subscribed to \(sub.title)"
             return NamedEdit(name: "Subscribe", changes: [], reload: true,
-                action: { try await source.unsubscribe(sub.id) }, inverseAction: { _ = try await source.subscribe(feed) })
+                action: { try await source.unsubscribe(sub.id) }, inverseAction: { _ = try await source.subscribe(feed) }, message: "Subscribed to \(sub.title)")
         }
         await changed()
     }
@@ -213,7 +215,7 @@ public final class LibraryEditingModel {
             try await self.source.unsubscribe(sub.id)
             let source = self.source
             return NamedEdit(name: "Unsubscribe", changes: [], reload: true,
-                action: { _ = try await source.subscribe(sub.feedUrl) }, inverseAction: { try await source.unsubscribe(sub.id) })
+                action: { _ = try await source.subscribe(sub.feedUrl) }, inverseAction: { try await source.unsubscribe(sub.id) }, message: "Unsubscribed from \(sub.title)")
         }
         notice = "Unsubscribed from \(sub.title)"; await changed()
     }

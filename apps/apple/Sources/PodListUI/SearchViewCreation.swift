@@ -15,7 +15,7 @@ struct SearchViewCreation: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("\(count) results")
+                Text(CountText.format(count, .result))
                 Spacer()
                 if !naming { Button("Create View…") { name = editor.draft("searchView.name"); if name.isEmpty { name = query }; naming = true; editor.setDraft("true", field: "searchView.open") }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
             }
