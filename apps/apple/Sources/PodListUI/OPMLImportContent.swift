@@ -4,6 +4,7 @@ import SwiftUI
 struct OPMLImportContent: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     let choose: () -> Void
+    var inSheet = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Closing Add Podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").macContentFont(.callout).fixedSize(horizontal: false, vertical: true)
@@ -11,7 +12,7 @@ struct OPMLImportContent: SwiftUI.View {
             if editor.importReady {
                 Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")
                 HStack {
-                    Button("Import") { editor.startImport() }.disabled(editor.importTotal == 0)
+                    Button("Import") { editor.startImport() }.keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
                     Button("Choose a Different File…", action: choose)
                     Button("Cancel") { editor.cancelImportSelection(); editor.importPresented = false }
                 }

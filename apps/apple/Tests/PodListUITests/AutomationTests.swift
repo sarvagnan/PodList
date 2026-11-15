@@ -372,7 +372,7 @@ private func expectSameUserEdits(_ actual: State, _ expected: State) {
     manager.endUndoGrouping()
     manager.undo(); await editor.settleIntentUndo()
     #expect(editor.history.undo?.id == id && editor.history.redo == nil)
-    #expect(editor.error?.contains("Offline") == true)
+    #expect(editor.error == "Could not undo the change. Try again.")
     #expect(!manager.canRedo)
     manager.beginUndoGrouping()
     editor.registerIntentUndo(manager, since: nil)
@@ -381,4 +381,32 @@ private func expectSameUserEdits(_ actual: State, _ expected: State) {
     manager.undo(); await editor.settleIntentUndo()
     #expect(editor.history.undo == nil && editor.history.redo == nil)
     #expect(!manager.canRedo)
+}
+
+@Test func mcpToolFailureHidesUnexpectedDiagnosticsAndPreservesAuthoredRecovery() async throws {
+    let tool: JSONValue = ["name": "test", "description": "test", "inputSchema": ["type": "object"]]
+    let unexpected = MCPHandler(tools: [tool]) { _, _ in throw DatabaseFailure(description: "private_sqlite_details") }
+    let response = try await modernRPC(unexpected, "tools/call", params: ["name": "test"])
+    let text = response["result"]?["content"]?.array?.first?["text"]?.string
+    #expect(text == "Could not complete the PodList action. Try again. If it keeps failing, reopen PodList.")
+    let authored = MCPHandler(tools: [tool]) { _, _ in throw AutomationFailure("Open a Library in PodList first.") }
+    let recovery = try await modernRPC(authored, "tools/call", params: ["name": "test"])
+    #expect(recovery["result"]?["content"]?.array?.first?["text"] == "Open a Library in PodList first.")
+}
+
+@MainActor @Test func automationStartupFailureUsesRecoveryCopyAndAnnouncesEachRetry() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let socket = root.appendingPathComponent("mcp.sock")
+    try Data("ordinary file".utf8).write(to: socket)
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let settings = AutomationSettings(defaults: defaults, socketURL: socket) { _, _ in [:] }
+    var spoken: [String] = []
+    settings.announcements.post = { message, _ in spoken.append(message) }
+    settings.setEnabled(true)
+    #expect(settings.error == FailureOperation.automationStart.message)
+    settings.start()
+    #expect(spoken == [FailureOperation.automationStart.message, FailureOperation.automationStart.message])
+    #expect(try Data(contentsOf: socket) == Data("ordinary file".utf8))
 }

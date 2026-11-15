@@ -34,8 +34,9 @@ public enum ConnectionValidation {
         try ServerAddress(input, allowInsecureLocalhost: true)
     }
     public static func message(for error: any Error) -> String {
+        LibraryMessages.log(error, operation: "Open or sync Library")
         if let failure = error as? HttpFailure { return "The server returned HTTP \(failure.status). Try again." }
-        if let failure = error as? SyncResponseFailure { return failure.reason + ". Check the server address and try again." }
+        if error is SyncResponseFailure { return "The server response could not be read. Check the server address and try again. If it keeps failing, check for updates." }
         if error is DecodingError { return "The server returned an unreadable response. Check the address and try again." }
         if let failure = error as? URLError {
             switch failure.code {
@@ -44,7 +45,7 @@ public enum ConnectionValidation {
             default: return "Could not reach the server. Check the address and your connection, then try again."
             }
         }
-        return "Could not open or sync the local Library: \(error)"
+        return "Could not open or sync the local Library. Try again. If it keeps failing, reopen PodList."
     }
 }
 
@@ -82,6 +83,17 @@ public final class ApplicationModel {
     public private(set) var downloadStatuses: [String: DownloadStatus] = [:]
     public private(set) var downloadError: String? { didSet { announcements.error(downloadError) } }
     @ObservationIgnored var announcements = FeedbackAnnouncements()
+    private enum DownloadRetry { case rules, request(String), remove(String) }
+    @ObservationIgnored private var downloadRetry: DownloadRetry?
+    public func retryDownloadFailure() {
+        announcements.error(nil)
+        switch downloadRetry {
+        case .rules: scheduleRules()
+        case let .request(id): download(id)
+        case let .remove(id): removeDownload(id)
+        case nil: break
+        }
+    }
     @ObservationIgnored private var downloads: DownloadStore?
     @ObservationIgnored private var cleanupTask: Task<Void, Never>?
     @ObservationIgnored private var ruleTask: Task<Void, Never>?
@@ -150,7 +162,7 @@ public final class ApplicationModel {
             if automaticSync { requestSync() }
         } catch {
             guard generation == token else { return }
-            connectionError = LibraryMessages.failure(error)
+            connectionError = ConnectionValidation.message(for: error)
         }
     }
 
@@ -282,12 +294,12 @@ public final class ApplicationModel {
                 let result = try await bringOver.resume()
                 guard generation == token else { return }
                 bringOverJob = result
-                bringOverError = result.issues.isEmpty ? nil : result.issues.joined(separator: "\n")
+                bringOverError = LibraryMessages.bringOverIssues(result.issues)
             } else { try await client.sync() }
         } catch {
             failure = ConnectionValidation.message(for: error)
             if generation == token, let job = try? await database.bringOverJob(), !job.complete {
-                bringOverJob = job; bringOverError = LibraryMessages.failure(error)
+                bringOverJob = job; bringOverError = LibraryMessages.failure(error, operation: .bringOver)
             }
         }
         // Read even on failure: either independent pull may already have committed.
@@ -334,7 +346,7 @@ public final class ApplicationModel {
             }
         } catch {
             guard token == generation else { return }
-            bringOverError = LibraryMessages.failure(error)
+            bringOverError = LibraryMessages.failure(error, operation: .bringOver)
         }
     }
     public func acceptBringOver() async {
@@ -348,7 +360,7 @@ public final class ApplicationModel {
             await sync()
         } catch {
             guard token == generation else { return }
-            bringOverError = LibraryMessages.failure(error)
+            bringOverError = LibraryMessages.failure(error, operation: .bringOver)
         }
     }
 
@@ -443,7 +455,11 @@ public final class ApplicationModel {
             do {
                 try await Task.sleep(for: .seconds(1))
                 try await downloads.apply(snapshot: library.snapshot, deviceID: library.deviceID, origin: origin, now: Int64(Date().timeIntervalSince1970 * 1000))
-            } catch is CancellationError {} catch { self?.downloadError = String(describing: error) }
+                if case .rules? = self?.downloadRetry { self?.downloadError = nil; self?.downloadRetry = nil }
+            } catch is CancellationError {} catch {
+                self?.downloadRetry = .rules
+                self?.downloadError = LibraryMessages.failure(error, operation: .downloadRules)
+            }
         }
     }
     /// Only transitions from a running download are completion announcements;
@@ -452,7 +468,7 @@ public final class ApplicationModel {
         for id in statuses.keys.sorted() {
             guard let next = statuses[id], let previous = downloadStatuses[id] else { continue }
             let completed = next.phase == .stored && previous.phase != .stored
-            let failed = next.phase == .failed && (previous.phase != .failed || previous.error != next.error)
+            let failed = next.phase == .failed && (previous.phase != .failed || previous.error == nil)
             guard completed || failed else { continue }
             let title = library?.snapshot.episodes.first(where: { $0.id == id })?.title ?? "Episode"
             if completed {
@@ -460,10 +476,17 @@ public final class ApplicationModel {
             } else {
                 // A failed retry is a new event even when the server repeats its error.
                 announcements.error(nil)
-                announcements.error("Could not download \(title). \(next.error ?? "Try again.")")
+                announcements.error("Could not download \(title). Check your connection and retry.")
             }
         }
-        downloadStatuses = statuses
+        downloadStatuses = statuses.mapValues { status in
+            var safe = status
+            if status.phase == .failed {
+                if let details = status.error { LibraryMessages.logDetails(details, operation: "Download Episode") }
+                safe.error = FailureOperation.download.message
+            }
+            return safe
+        }
     }
 
     public func download(_ ids: [String]) {
@@ -477,20 +500,29 @@ public final class ApplicationModel {
         Task { [weak self] in
             do {
                 try await downloads.request(id, sources: PlaybackPolicy.sources(stored: nil, host: episode.flatMap { URL(string: $0.audioUrl) }, proxy: origin.map { AudioSource.proxy($0, episodeID: id) }))
-                self?.downloadError = nil
-            } catch { self?.downloadError = String(describing: error) }
+                self?.downloadError = nil; self?.downloadRetry = nil
+            } catch {
+                self?.downloadRetry = .request(id)
+                self?.downloadError = LibraryMessages.failure(error, operation: .download)
+            }
         }
     }
     public func removeDownload(_ id: String) {
         guard let downloads else { return }
-        Task { [weak self] in do { try await downloads.remove(id) } catch { self?.downloadError = String(describing: error) } }
+        Task { [weak self] in
+            do { try await downloads.remove(id); self?.downloadError = nil; self?.downloadRetry = nil }
+            catch {
+                self?.downloadRetry = .remove(id)
+                self?.downloadError = LibraryMessages.failure(error, operation: .removeDownload)
+            }
+        }
     }
     public func shutdownPlayback() async { await playback?.shutdown() }
     public func disconnect() {
         libraryEditing?.endSession()
         let oldPlayback = playback, oldDownloads = downloads, oldBringOver = bringOver
         cleanupTask = Task { await oldBringOver?.suspend(); await oldPlayback?.shutdown(); await oldDownloads?.suspend() }
-        editing = nil; playback = nil; downloads = nil; downloadStatuses = [:]; ruleTask?.cancel()
+        editing = nil; playback = nil; downloads = nil; downloadStatuses = [:]; downloadError = nil; downloadRetry = nil; ruleTask?.cancel()
         generation = UUID()
         syncTask?.cancel(); monitor?.cancel()
         syncTask = nil; syncSchedule = SyncSchedule(); monitor = nil

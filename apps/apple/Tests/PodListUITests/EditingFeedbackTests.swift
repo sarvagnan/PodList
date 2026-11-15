@@ -134,7 +134,7 @@ import PodListData
     app.receiveDownloadStatuses(["a": try status(.queued)])
     app.receiveDownloadStatuses(["a": try status(.failed, error: "Connection lost")])
     app.receiveDownloadStatuses(["a": try status(.failed, error: "Connection lost")])
-    #expect(messages.count == 2 && messages.last?.contains("Connection lost") == true && priorities.last == true)
+    #expect(messages.count == 2 && messages.last?.contains("Check your connection and retry") == true && priorities.last == true)
     app.receiveDownloadStatuses(["a": try status(.queued)])
     app.receiveDownloadStatuses(["a": try status(.failed, error: "Connection lost")])
     #expect(messages.count == 3 && messages[2] == messages[1] && priorities.last == true)

@@ -5,12 +5,7 @@ import PodListDomain
 
 public enum LibraryMessages {
     public static func failure(_ error: any Error) -> String {
-        if let failure = error as? SyncResponseFailure { return failure.reason }
-        if let failure = error as? FeedFailure { return "Could not read the feed. " + failure.reason }
-        if let failure = error as? HttpFailure { return "The server returned HTTP \(failure.status). Try again." }
-        if error is URLError { return "Could not reach the podcast or server. Check your connection and try again." }
-        if error is DecodingError { return "The response could not be read. Try again." }
-        return "Could not complete this action. Try again."
+        libraryFailure(error)
     }
 }
 
@@ -328,8 +323,8 @@ extension LocalDatabase {
     /// Validation and write run without suspension, so two windows cannot create duplicate names.
     public func saveUniqueView(_ view: PodListDomain.View, at: Int64) throws -> PodListDomain.View? {
         let state = try loadState()
-        if let problem = ViewEdits.problem(view) { throw SyncResponseFailure(problem) }
-        if let problem = ViewNames.problem(view.name, views: state.views, excluding: view.id) { throw SyncResponseFailure(problem) }
+        if let problem = ViewEdits.problem(view) { throw FormFailure(message: problem) }
+        if let problem = ViewNames.problem(view.name, views: state.views, excluding: view.id) { throw FormFailure(message: problem) }
         var clean = view; clean.name = view.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let previous = state.views.first { $0.id == view.id }
         try record(.saveView(view: clean), at: at)

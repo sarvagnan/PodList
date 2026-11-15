@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// Stateless MCP 2026-07-28 requests over newline-delimited JSON-RPC.
 public actor MCPHandler {
@@ -70,7 +71,9 @@ public actor MCPHandler {
                 return encode(result(id, ["content": [["type": "text", "text": .string(try value.text())]],
                                           "structuredContent": value, "isError": false]))
             } catch {
-                return encode(result(id, ["content": [["type": "text", "text": .string(error.localizedDescription)]], "isError": true]))
+                Logger(subsystem: "app.podlist", category: "Automation").error("MCP action failed: \(String(reflecting: error), privacy: .private)")
+                let message = (error as? AutomationFailure)?.message ?? "Could not complete the PodList action. Try again. If it keeps failing, reopen PodList."
+                return encode(result(id, ["content": [["type": "text", "text": .string(message)]], "isError": true]))
             }
         default: return encode(rpcError(id, -32601, "Method not found"))
         }

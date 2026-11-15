@@ -26,6 +26,11 @@ public final class PlaylistEditingModel {
         set { feedbackNotice = newValue.map { EditingNotice($0) }; announcements.status(newValue) }
     }
     public private(set) var error: String? { didSet { announcements.error(error) } }
+    enum RetryKind { case edit, undo, redo }
+    private(set) var retryKind: RetryKind?
+    @ObservationIgnored private var retryAction: (@MainActor () async -> Void)?
+    public var canRetry: Bool { error != nil && retryAction != nil && !busy && !ended }
+    public func retryFailure() async { guard canRetry else { return }; await retryAction?() }
     public let drafts: PlaylistDrafts
     @ObservationIgnored private var ended = false
     @ObservationIgnored private let database: LocalDatabase
@@ -43,7 +48,7 @@ public final class PlaylistEditingModel {
         self.database = database; self.drafts = drafts; self.donate = donate; self.player = player; self.changed = changed
         self.checkPurgeSupport = checkPurgeSupport
     }
-    public func endSession() { ended = true; history.clear() }
+    public func endSession() { ended = true; history.clear(); retryAction = nil; retryKind = nil }
     func discardViewSession(_ id: UUID) {
         history.removeAll { $0.sessionID == id }
         status = "View edits cancelled."; error = nil
@@ -51,7 +56,7 @@ public final class PlaylistEditingModel {
     /// Share the same serialization and history for metadata requests and State edits.
     public func performExternal(recordHistory: Bool = true, _ apply: @MainActor () async throws -> NamedEdit) async throws {
         guard !busy else { throw DatabaseFailure(description: "An edit is already in progress. Try again.") }
-        busy = true; error = nil
+        busy = true; error = nil; retryAction = nil; retryKind = nil
         defer { busy = false }
         do {
             let step = try await apply()
@@ -72,7 +77,7 @@ public final class PlaylistEditingModel {
     public func edit(name: String, message: String? = nil, reload: Bool = false, start: Bool = false, undoManager: UndoManager? = nil,
                      build: @escaping @Sendable (State) throws -> [Change]) async -> Bool {
         guard !busy, !ended else { return false }
-        busy = true; error = nil
+        busy = true; error = nil; retryAction = nil; retryKind = nil
         defer { busy = false }
         do {
             let action: @MainActor () async throws -> Void = {
@@ -88,7 +93,14 @@ public final class PlaylistEditingModel {
             else { try await action() }
             await changed()
             return true
-        } catch { self.error = String(describing: error); await changed(); return false }
+        } catch {
+            self.error = LibraryMessages.failure(error, operation: .playlistEdit)
+            retryKind = .edit
+            retryAction = { [weak self] in
+                _ = await self?.edit(name: name, message: message, reload: reload, start: start, undoManager: undoManager, build: build)
+            }
+            await changed(); return false
+        }
     }
     public func reverse(redo: Bool = false) async {
         await beginReverse(redo: redo)?.value
@@ -96,7 +108,7 @@ public final class PlaylistEditingModel {
     private func beginReverse(redo: Bool, expectedID: UUID? = nil) -> Task<Void, Never>? {
         guard !busy, !ended, let step = redo ? history.redo : history.undo,
               expectedID == nil || expectedID == step.id else { return nil }
-        busy = true; error = nil
+        busy = true; error = nil; retryAction = nil; retryKind = nil
         return Task { @MainActor in
             defer { self.busy = false }
             do {
@@ -122,7 +134,12 @@ public final class PlaylistEditingModel {
                 else if let player = player() { try await player.performUserEdit(reload: step.reload, action: action) }
                 else { try await action() }
                 await changed()
-            } catch { self.error = "Could not \(redo ? "redo" : "undo"): \(error)"; await changed() }
+            } catch {
+                self.error = LibraryMessages.failure(error, operation: redo ? .redo : .undo)
+                self.retryKind = redo ? .redo : .undo
+                self.retryAction = { [weak self] in await self?.reverse(redo: redo) }
+                await changed()
+            }
         }
     }
 

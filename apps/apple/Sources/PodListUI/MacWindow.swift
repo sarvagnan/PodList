@@ -203,9 +203,9 @@ public struct PodListWindow: SwiftUI.View {
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing { ContentSizedPanel(width: 600) { VStack(alignment: .leading) {
                 Text("Import OPML").macContentFont(.title2).bold()
-                OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
-                Button("Done") { editor.importPresented = false }.keyboardShortcut(.cancelAction)
-            }.padding(24) } }
+                OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) }, inSheet: true)
+                Button("Done") { editor.importPresented = false }.keyboardShortcut(editor.importReady ? nil : .defaultAction)
+            }.padding(24) }.onExitCommand { editor.importPresented = false } }
         }
         .sheet(isPresented: $showAddPodcasts) {
             if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { podcastFeed = $0 }) }

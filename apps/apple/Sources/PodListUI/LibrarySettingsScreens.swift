@@ -18,8 +18,9 @@ struct AutomationSettingsScreen: SwiftUI.View {
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
                         .macContentFont(.caption).foregroundStyle(.primary)
                     if let error = settings.error {
-                        Text(error).foregroundStyle(Color.podListError)
-                        if settings.isEnabled { Button("Retry") { settings.start() } }
+                        FailureFeedback(message: error) {
+                            if settings.isEnabled { settings.start() } else { settings.stop() }
+                        }
                     }
                     if settings.isEnabled {
                         LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
@@ -99,7 +100,8 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
         .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
             if let editor = app.libraryEditing {
-                ContentSizedPanel(width: 500) { GettingStartedScreen(editor: editor, add: nil).padding(25) }
+                ContentSizedPanel(width: 500) { GettingStartedScreen(editor: editor, add: nil, inSheet: true).padding(25) }
+                    .onExitCommand { editor.showGettingStarted = false; gettingStarted = false }
                     .onChange(of: editor.showGettingStarted) { _, visible in if !visible { gettingStarted = false } }
             }
         }
@@ -231,9 +233,10 @@ private struct PersistentNumberField: SwiftUI.View {
 struct GettingStartedScreen: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     let add: (() -> Void)?
+    var inSheet = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack { Text("Getting Started").macContentFont(.headline); Spacer(); Button("Dismiss") { editor.showGettingStarted = false } }
+            Text("Getting Started").macContentFont(.headline)
             Label("Add podcasts to your Library", systemImage: "1.circle")
             Text("Search by name or enter a feed address.").foregroundStyle(.primary)
             if let add { Button("Add Podcasts…", action: add) }
@@ -242,6 +245,11 @@ struct GettingStartedScreen: SwiftUI.View {
             Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(.primary)
             Label("Add Episodes to Playlists", systemImage: "3.circle")
             Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(.primary)
+            HStack {
+                Spacer()
+                Button("Dismiss") { editor.showGettingStarted = false }
+                    .keyboardShortcut(inSheet ? .defaultAction : nil)
+            }
         }.padding(12)
     }
 }

@@ -66,10 +66,11 @@ struct DownloadStatusText: SwiftUI.View {
         case .stored: Text("Downloaded on this Device").foregroundStyle(.primary)
         case .queued: Text("Download queued").foregroundStyle(.primary)
         case .transferring: Text("Downloading on this Device").foregroundStyle(.primary)
-        case .failed: Text(app.downloadStatuses[id]?.error ?? "Download failed").foregroundStyle(Color.podListError)
+        case .failed:
+            FailureFeedback(message: FailureOperation.download.message) { app.download(id) }
         case nil: Text("Not downloaded on this Device").foregroundStyle(.primary)
         }
-        if let error = app.downloadError { Text(error).foregroundStyle(Color.podListError) }
+        if let error = app.downloadError { FailureFeedback(message: error) { app.retryDownloadFailure() } }
     }
 }
 struct DownloadIcon: SwiftUI.View {
@@ -144,17 +145,18 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
                 Text("Download Rules for \(CountText.format(ids.count, .subscription))").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
                 Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.primary)
                 DownloadRuleFields(mode: $mode, cap: $cap)
-                if let editing = app.editing { EditingFeedback(editing: editing) }
+                if let editing = app.editing { EditingFeedback(editing: editing, retry: apply) }
                 HStack {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                     Spacer()
-                    Button("Apply") {
-                        saving = true
-                        Task { if await app.setDownloadRules(subscriptions: ids, mode: mode, cap: cap) { dismiss() }; saving = false }
-                    }.keyboardShortcut(.defaultAction)
+                    Button("Apply", action: apply).keyboardShortcut(.defaultAction)
                 }
             }.padding(24)
         }.disabled(saving)
+    }
+    private func apply() {
+        saving = true
+        Task { if await app.setDownloadRules(subscriptions: ids, mode: mode, cap: cap) { dismiss() }; saving = false }
     }
 }
 #endif

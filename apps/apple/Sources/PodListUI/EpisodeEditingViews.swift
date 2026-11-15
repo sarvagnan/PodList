@@ -126,9 +126,10 @@ struct EditingFeedback: SwiftUI.View {
     var additionalError: String? = nil
     var undo: (() -> Void)? = nil
     var redo: (() -> Void)? = nil
+    var retry: (() -> Void)? = nil
     init(editing: PlaylistEditingModel, additionalError: String? = nil,
-         undo: (() -> Void)? = nil, redo: (() -> Void)? = nil) {
-        self.editing = editing; self.additionalError = additionalError; self.undo = undo; self.redo = redo
+         undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil) {
+        self.editing = editing; self.additionalError = additionalError; self.undo = undo; self.redo = redo; self.retry = retry
         _lifetime = State(initialValue: EditingFeedbackLifetime(currentNotice: editing.feedbackNotice))
     }
     private var error: String? { additionalError ?? editing.error }
@@ -145,6 +146,9 @@ struct EditingFeedback: SwiftUI.View {
                     .fixedSize(horizontal: false, vertical: true).help(text).textSelection(.enabled)
             }
             Spacer(minLength: 8)
+            if error == editing.error, editing.canRetry {
+                Button("Retry", action: retryFailure).disabled(editing.busy)
+            }
             if editing.history.undo != nil {
                 Button(editing.undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
             }
@@ -155,6 +159,16 @@ struct EditingFeedback: SwiftUI.View {
             .frame(height: textScale > 1 ? nil : 32).frame(minHeight: 32)
             .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
     }
+    private func retryFailure() {
+        switch editing.retryKind {
+        case .edit: if let retry { retry(); return }
+        case .undo: if let undo { undo(); return }
+        case .redo: if let redo { redo(); return }
+        case nil: return
+        }
+        Task { await editing.retryFailure() }
+    }
+
 }
 
 struct PlaylistSheetHost: ViewModifier {
