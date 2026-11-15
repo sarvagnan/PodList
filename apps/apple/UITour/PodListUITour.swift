@@ -40,7 +40,7 @@ final class PodListUITour: XCTestCase {
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
-                               "-PodList.mcpEnabled", "NO", "-PodList.inspectorVisible", "YES",
+                               "-PodList.mcpEnabled", "NO", "-PodList.uiTestUnsubscribeArmSeconds", "15", "-PodList.inspectorVisible", "YES",
                                "-ApplePersistenceIgnoreState", "YES"]
         defer {
             app.terminate()
@@ -162,10 +162,11 @@ final class PodListUITour: XCTestCase {
         try capture("19-description-expanded")
         try click(library.buttons["Subscribed"])
         let armedAt = Date()
-        // Never click Unsubscribe. The product's four-second arm expires naturally.
-        try ready(library.buttons["Unsubscribe"], timeout: 1)
+        // Never click Unsubscribe. The arm (held for 15 s in tour builds, 4 s otherwise)
+        // expires naturally.
+        try ready(library.buttons["Unsubscribe"], timeout: 3)
         try capture("20-unsubscribe-armed")
-        let remaining = 6 - Date().timeIntervalSince(armedAt)
+        let remaining = 17 - Date().timeIntervalSince(armedAt)
         if remaining > 0 { Thread.sleep(forTimeInterval: remaining) }
         try ready(library.buttons["Subscribed"])
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
@@ -375,7 +376,7 @@ final class PodListUITour: XCTestCase {
         // Capturing the armed state must not silently turn into a disarmed-state image.
         if name == "20-unsubscribe-armed" {
             XCTAssertTrue(target.buttons["Unsubscribe"].exists,
-                          "XCUITest capture exceeded the four-second arm; inspect this attachment on a faster run")
+                          "Capture outlasted the armed state; raise -PodList.uiTestUnsubscribeArmSeconds")
         }
     }
 
