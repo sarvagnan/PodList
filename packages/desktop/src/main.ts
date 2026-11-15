@@ -18,6 +18,7 @@ import {
 } from "electron"
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
+import { hiddenMenu } from "./hidden-window.ts"
 
 // The Mac app carries its own copy of the web app (ADR 0005), served from
 // app://podlist so it opens without the server. Requests for /api/… are passed on to
@@ -27,6 +28,12 @@ import { AutomationListener, endpoint } from "./automation/listener.ts"
 
 // A separate profile (local database, saved server) for tests.
 if (process.env.PODLIST_USER_DATA) app.setPath("userData", process.env.PODLIST_USER_DATA)
+// Test-only capture mode. Set the activation policy before creating any native UI.
+const hiddenWindow = process.env.PODLIST_HIDDEN_WINDOW === "1"
+if (hiddenWindow && process.platform === "darwin") app.setActivationPolicy("accessory")
+const openExternal = (url: string) => {
+  if (!hiddenWindow) return shell.openExternal(url)
+}
 
 const scheme = "app"
 /** A step's message inside the menu's own quotes: its quotes become single ones (TYPE-08). */
@@ -333,7 +340,7 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
       ? []
       : ([
           { type: "separator" },
-          { label: "Open in Browser", click: () => void shell.openExternal(shared) },
+          { label: "Open in Browser", click: () => void openExternal(shared) },
           { label: "Copy Link", click: () => clipboard.writeText(shared) }
         ] satisfies MenuItemConstructorOptions[]))
   ]
@@ -348,7 +355,7 @@ const contextMenu = (
   const link = params.linkURL
   if (link) {
     if (/^https?:/.test(link))
-      items.push({ label: "Open Link in Browser", click: () => shell.openExternal(link) })
+      items.push({ label: "Open Link in Browser", click: () => openExternal(link) })
     // An in-app link is copied as the same page on the server, which opens anywhere.
     const server = serverUrl()
     const shared =
@@ -422,7 +429,9 @@ const createWindow = () => {
     title: "PodList",
     backgroundColor: "#f6f5f2",
     show: false,
+    ...(hiddenWindow ? { focusable: false } : {}),
     webPreferences: {
+      ...(hiddenWindow ? { backgroundThrottling: false } : {}),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -442,7 +451,7 @@ const createWindow = () => {
         calls.delete(id)
       }
   })
-  win.once("ready-to-show", () => win.show())
+  if (!hiddenWindow) win.once("ready-to-show", () => win.show())
   // A Mac window is titled by what it shows, without the app's name (the page's tab title
   // ends "· PodList", which a browser tab needs and a window doesn't).
   win.on("page-title-updated", (event, title) => {
@@ -463,15 +472,16 @@ const createWindow = () => {
   const inApp = (url: string) =>
     url.startsWith(`${appOrigin}/`) || url.split("#")[0] === pathToFileURL(setupPage).href
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) void shell.openExternal(url)
+    if (/^https?:/.test(url)) void openExternal(url)
     return { action: "deny" }
   })
   win.webContents.on("will-navigate", (event, url) => {
     if (inApp(url)) return
     event.preventDefault()
-    if (/^https?:/.test(url)) void shell.openExternal(url)
+    if (/^https?:/.test(url)) void openExternal(url)
   })
   win.webContents.on("context-menu", (_event, params) => {
+    if (hiddenWindow) return
     void (async () => {
       // On a row (an Episode, an Entry, a Subscription), its commands as a native menu.
       // Native editing, selection and links take precedence over row commands (BROWSER-06).
@@ -530,7 +540,7 @@ const connect = async (address: string): Promise<string | null> => {
 }
 
 const changeServer = async () => {
-  if (!window) return
+  if (!window || hiddenWindow) return
   const { response } = await dialog.showMessageBox(window, {
     type: "question",
     message: "Connect to a different PodList server?",
@@ -551,7 +561,7 @@ const menu = (): MenuItemConstructorOptions[] => [
       { type: "separator" },
       { label: "Settings…", accelerator: "CmdOrCtrl+,", click: () => goTo("/settings") },
       { type: "separator" },
-      { label: "Change Server…", click: () => void changeServer() },
+      { label: "Change Server…", enabled: !hiddenWindow, click: () => void changeServer() },
       { type: "separator" },
       { role: "services" },
       { type: "separator" },
@@ -715,6 +725,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on("second-instance", () => {
+    if (hiddenWindow) return
     if (window?.isMinimized()) window.restore()
     window?.show()
     window?.focus()
@@ -750,7 +761,9 @@ if (!app.requestSingleInstanceLock()) {
     } catch (e) {
       automation.error = e instanceof Error ? e.message : String(e)
     }
-    Menu.setApplicationMenu(Menu.buildFromTemplate(menu()))
+    const updateMenu = () =>
+      Menu.setApplicationMenu(Menu.buildFromTemplate(hiddenWindow ? hiddenMenu(menu()) : menu()))
+    updateMenu()
     ipcMain.handle("podlist:connect", (_event, address: string) => connect(address))
     ipcMain.handle("podlist:server", () => serverUrl() ?? null)
     ipcMain.handle("podlist:cancel", () => window?.loadURL(`${appOrigin}/`))
@@ -758,10 +771,11 @@ if (!app.requestSingleInstanceLock()) {
       undoLabels.undo = typeof undoStep === "string" ? undoStep : null
       undoLabels.redo = typeof redoStep === "string" ? redoStep : null
       undoLabels.editing = editing === true
-      Menu.setApplicationMenu(Menu.buildFromTemplate(menu()))
+      updateMenu()
     })
     createWindow()
     app.on("activate", () => {
+      if (hiddenWindow) return
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
       else window?.show()
     })

@@ -381,3 +381,23 @@ private final class FakePlayerClock: Sendable {
     #expect(player.display?.playlistID == "default")
     await player.shutdown()
 }
+
+@MainActor @Test func selectedSleepDurationSurvivesCountdownAndClearsWithOtherChoices() async throws {
+    let (_, player, audio, clock) = try await playbackFixture()
+    player.play(); await player.settle()
+    player.pause(); await player.settle()
+    player.sleepAfter(minutes: 15); await player.settle()
+    #expect(player.sleepMinutes == 15)
+    #expect(player.display?.sleep == .until(uptime: 900))
+    clock.advance(60); audio.event?(.tick); await player.settle()
+    #expect(player.sleepMinutes == 15) // The menu checks the chosen duration, not remaining minutes.
+    player.setSleep(.episodeEnd); await player.settle()
+    #expect(player.sleepMinutes == nil && player.display?.sleep == .episodeEnd)
+    player.sleepAfter(minutes: 5); await player.settle()
+    player.setSleep(nil); await player.settle()
+    #expect(player.sleepMinutes == nil && player.display?.sleep == nil)
+    player.sleepAfter(minutes: 5); await player.settle()
+    clock.advance(300); audio.event?(.tick); await player.settle()
+    #expect(player.sleepMinutes == nil && player.display?.sleep == nil)
+    await player.shutdown()
+}

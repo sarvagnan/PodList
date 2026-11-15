@@ -30,6 +30,7 @@ public final class PlaybackController {
         }
     }
     // Stored projections keep presence and metadata readers independent of position ticks.
+    public private(set) var sleepMinutes: Double?
     public private(set) var hasDisplay = false
     public private(set) var metadata: PlaybackDisplay.Metadata?
     public private(set) var error: String?
@@ -113,8 +114,12 @@ public final class PlaybackController {
             if $0.wantsPlayback { $0.audio.play(speed: speed) }; $0.publish()
         }
     }
-    public func setSleep(_ timer: SleepTimer?) { enqueue { $0.sleep = timer; $0.publish() } }
-    public func sleepAfter(minutes: Double) { setSleep(.until(uptime: clock.uptime() + max(1, minutes) * 60)) }
+    public func setSleep(_ timer: SleepTimer?) { enqueue { $0.sleep = timer; $0.sleepMinutes = nil; $0.publish() } }
+    public func sleepAfter(minutes: Double) {
+        let minutes = max(1, minutes)
+        let deadline = clock.uptime() + minutes * 60
+        enqueue { $0.sleep = .until(uptime: deadline); $0.sleepMinutes = minutes; $0.publish() }
+    }
     public func sleepAtChapterEnd() { if let display { setSleep(PlaybackPolicy.chapterSleep(display.chapters, position: display.position)) } }
     public func chapter(_ delta: Int) {
         guard let display, !display.chapters.isEmpty else { return }
@@ -349,7 +354,7 @@ public final class PlaybackController {
         if episodeEnd { try await event(.ended); ended = true }
         wantsPlayback = false; audio.pause(); loadingAt = nil
         try await event(.pause)
-        if decision == .sleep { sleep = nil; if episodeEnd { try await follow(force: true) } }
+        if decision == .sleep { sleep = nil; sleepMinutes = nil; if episodeEnd { try await follow(force: true) } }
         else { try await follow(force: true, play: true) }
     }
     private func resolveChapters() {

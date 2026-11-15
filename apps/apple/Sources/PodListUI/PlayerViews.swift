@@ -46,7 +46,7 @@ struct PlayerBar: SwiftUI.View {
                     Label(library.player?.playlistName ?? "Active Playlist", systemImage: "music.note.list").lineLimit(1)
                     Text("\(library.player?.entriesAfter ?? 0) after current").font(.caption).foregroundStyle(.secondary)
                 }.frame(maxWidth: 170, alignment: .leading)
-            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist")
+            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist").help("Open Active Playlist")
         }
     }
 }
@@ -54,9 +54,15 @@ struct TransportControls: SwiftUI.View {
     @Bindable var controller: PlaybackController
     var body: some SwiftUI.View {
         HStack(spacing: 14) {
-            Button("Back 15 seconds", systemImage: "gobackward.15") { controller.skip(-15) }
-            Button(controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill") { controller.toggle() }
-            Button("Forward 30 seconds", systemImage: "goforward.30") { controller.skip(30) }
+            Button { controller.skip(-15) } label: {
+                MacIconLabel(title: "Back 15 seconds", systemImage: "gobackward.15")
+            }.help("Back 15 seconds")
+            Button { controller.toggle() } label: {
+                MacIconLabel(title: controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill")
+            }.help(controller.wantsPlayback ? "Pause" : "Play")
+            Button { controller.skip(30) } label: {
+                MacIconLabel(title: "Forward 30 seconds", systemImage: "goforward.30")
+            }.help("Forward 30 seconds")
         }.labelStyle(.iconOnly).buttonStyle(.borderless).font(.title3)
     }
 }
@@ -89,35 +95,46 @@ struct PlayerSeek: SwiftUI.View {
     }
 }
 struct SpeedMenu: SwiftUI.View {
-    @Bindable var controller: PlaybackController
+    let controller: PlaybackController?
     var body: some SwiftUI.View {
-        Menu("Speed \((controller.display?.speed ?? 1).formatted())×") {
-            ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4], id: \.self) { speed in
-                Button("\(speed.formatted())×") { controller.setSpeed(speed) }
-            }
+        Menu("Speed \((controller?.display?.speed ?? 1).formatted())×") {
+            Picker("Speed", selection: Binding(get: { controller?.display?.speed ?? 1 }, set: { controller?.setSpeed($0) })) {
+                ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4], id: \.self) { speed in
+                    Text("\(speed.formatted())×").tag(speed)
+                }
+            }.pickerStyle(.inline)
         }.menuStyle(.borderlessButton).fixedSize()
     }
 }
 struct SleepMenu: SwiftUI.View {
-    @Bindable var controller: PlaybackController
+    let controller: PlaybackController?
     private var label: String {
-        switch controller.display?.sleep {
+        switch controller?.display?.sleep {
         case .until: "Sleep · Timer"
         case .chapterEnd: "Sleep · End of Chapter"
         case .episodeEnd: "Sleep · End of Episode"
         case nil: "Sleep Off"
         }
     }
+    private func choice(_ title: String, selected: Bool, action: @escaping () -> Void) -> some SwiftUI.View {
+        Toggle(title, isOn: Binding(get: { selected }, set: { if $0 { action() } }))
+    }
     var body: some SwiftUI.View {
         Menu(label) {
             ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { minutes in
-                Button("\(minutes) minutes") { controller.sleepAfter(minutes: Double(minutes)) }
+                choice("\(minutes) minutes", selected: timerSelected(minutes)) { controller?.sleepAfter(minutes: Double(minutes)) }
             }
-            if controller.display?.chapters.isEmpty == false { Button("End of Chapter") { controller.sleepAtChapterEnd() } }
-            Button("End of Episode") { controller.setSleep(.episodeEnd) }
-            Button("Cancel Sleep") { controller.setSleep(nil) }.disabled(controller.display?.sleep == nil)
+            choice("End of Chapter", selected: chapterSelected) { controller?.sleepAtChapterEnd() }
+                .disabled(controller?.display?.chapters.isEmpty != false)
+            choice("End of Episode", selected: controller?.display?.sleep == .episodeEnd) { controller?.setSleep(.episodeEnd) }
+            choice("Sleep Off", selected: controller?.display?.sleep == nil) { controller?.setSleep(nil) }
         }.menuStyle(.borderlessButton).fixedSize()
     }
+    private func timerSelected(_ minutes: Int) -> Bool {
+        guard case .until = controller?.display?.sleep else { return false }
+        return controller?.sleepMinutes == Double(minutes)
+    }
+    private var chapterSelected: Bool { if case .chapterEnd = controller?.display?.sleep { true } else { false } }
 }
 struct NowPlayingView: SwiftUI.View {
     @Bindable var controller: PlaybackController
@@ -128,53 +145,61 @@ struct NowPlayingView: SwiftUI.View {
     @State private var presentation = PlaylistPresentation()
     @Environment(\.dismiss) private var dismiss
     var body: some SwiftUI.View {
-        VStack(spacing: 12) {
-            HStack { Text("Now Playing").font(.title2).bold(); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
-                .padding(.horizontal, 28).padding(.top, 20)
-            if let detailID, let current = app.library {
-                Button("Back to Now Playing", systemImage: "chevron.left") { self.detailID = nil }
-                EpisodeInspector(row: current.row(detailID), library: current, app: app, playlistPresentation: presentation,
-                                 startedPlayback: { self.detailID = nil })
+        ContentSizedPanel(width: 560) {
+            if case let .add(ids, new) = presentation.sheet, let editing = app.editing {
+                AddPlaylistSheet(ids: ids, preferNew: new, app: app, editing: editing, inline: true,
+                                 cancelled: { presentation.sheet = nil }, done: { presentation.sheet = nil })
             } else {
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if let value = controller.display {
-                            ArtworkView(url: value.artwork, title: value.podcast, size: 230)
-                            Text(value.title).font(.title).multilineTextAlignment(.center).textSelection(.enabled)
-                            Text(value.podcast).font(.headline).foregroundStyle(.secondary)
-                            if let chapter = value.chapter { Text(chapter.title).font(.headline) }
-                            PlayerSeek(controller: controller)
-                            TransportControls(controller: controller).controlSize(.large)
-                            HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
-                            if let error = controller.error { Text(error); Button("Retry") { controller.play() } }
-                            Button("Episode detail", systemImage: "info.circle") { detailID = value.episodeID }
-                            Button("Open Active Playlist", systemImage: "music.note.list", action: openPlaylist)
-                            if !value.chapters.isEmpty {
-                                HStack {
-                                    Button("Previous Chapter", systemImage: "backward.end") { controller.chapter(-1) }
-                                    Button("Next Chapter", systemImage: "forward.end") { controller.chapter(1) }
+                VStack(spacing: 12) {
+                    HStack { Text("Now Playing").font(.title2).bold(); Spacer() }
+                        .padding(.horizontal, 28).padding(.top, 20)
+                    if let detailID, let current = app.library {
+                        Button("Back to Now Playing", systemImage: "chevron.left") { self.detailID = nil }
+                        EpisodeInspector(row: current.row(detailID), library: current, app: app, playlistPresentation: presentation,
+                                         startedPlayback: { self.detailID = nil }, scrolls: false)
+                    } else {
+                        VStack(spacing: 20) {
+                            if let value = controller.display {
+                                ArtworkView(url: value.artwork, title: value.podcast, size: 230)
+                                Text(value.title).font(.title).multilineTextAlignment(.center).textSelection(.enabled)
+                                Text(value.podcast).font(.headline).foregroundStyle(.secondary)
+                                if let chapter = value.chapter { Text(chapter.title).font(.headline) }
+                                PlayerSeek(controller: controller)
+                                TransportControls(controller: controller).controlSize(.large)
+                                HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
+                                if let error = controller.error { Text(error); Button("Retry") { controller.play() } }
+                                Button("Episode detail", systemImage: "info.circle") { detailID = value.episodeID }
+                                Button("Open Active Playlist", systemImage: "music.note.list", action: openPlaylist)
+                                if !value.chapters.isEmpty {
+                                    HStack {
+                                        Button("Previous Chapter", systemImage: "backward.end") { controller.chapter(-1) }
+                                        Button("Next Chapter", systemImage: "forward.end") { controller.chapter(1) }
+                                    }
+                                    Divider()
+                                    ForEach(value.chapters.enumerated(), id: \.element.start) { index, chapter in
+                                        Button { controller.seek(chapter.start) } label: {
+                                            HStack {
+                                                let current = app.library ?? library
+                                                let episode = current.row(value.episodeID).episode
+                                                let podcast = current.snapshot.subscriptions.first { $0.id == episode?.subscriptionId }
+                                                ArtworkView(url: PlaybackPolicy.artwork(value.chapters, position: chapter.start, episode: episode?.artwork, podcast: podcast?.artwork).flatMap { URL(string: $0.url) }, title: value.podcast, size: 36)
+                                                if value.chapterIndex == index { Image(systemName: "speaker.wave.2.fill") }
+                                                Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
+                                                Spacer(); Text(Presentation.time(chapter.start)).monospacedDigit()
+                                            }.frame(maxWidth: .infinity)
+                                        }.buttonStyle(.plain).padding(.vertical, 5)
+                                    }
                                 }
-                                Divider()
-                                ForEach(value.chapters.enumerated(), id: \.element.start) { index, chapter in
-                                    Button { controller.seek(chapter.start) } label: {
-                                        HStack {
-                                            let current = app.library ?? library
-                                            let episode = current.row(value.episodeID).episode
-                                            let podcast = current.snapshot.subscriptions.first { $0.id == episode?.subscriptionId }
-                                            ArtworkView(url: PlaybackPolicy.artwork(value.chapters, position: chapter.start, episode: episode?.artwork, podcast: podcast?.artwork).flatMap { URL(string: $0.url) }, title: value.podcast, size: 36)
-                                            if value.chapterIndex == index { Image(systemName: "speaker.wave.2.fill") }
-                                            Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                                            Spacer(); Text(Presentation.time(chapter.start)).monospacedDigit()
-                                        }.frame(maxWidth: .infinity)
-                                    }.buttonStyle(.plain).padding(.vertical, 5)
-                                }
-                            }
-                        } else { ContentUnavailableView("No current Entry", systemImage: "music.note") }
-                    }.padding(28)
+                            } else { ContentUnavailableView("No current Entry", systemImage: "music.note") }
+                        }.padding(28)
+                    }
                 }
             }
-        }.frame(width: 560, height: 700)
-        .modifier(PlaylistSheetHost(presentation: presentation, app: app, created: { _ in }))
+        } footer: {
+            if presentation.sheet == nil {
+                HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }.padding(20)
+            }
+        }
         .onChange(of: controller.userPlaybackRevision) { _, _ in detailID = nil }
     }
 }

@@ -30,6 +30,11 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>UTExportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>app.podlist.episode</string>
+<key>UTTypeDescription</key><string>PodList Episode</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+</dict></array>
 </dict></plist>
 PLIST
 # SwiftPM emits compiler constant values on the Xcode build engine, but does not

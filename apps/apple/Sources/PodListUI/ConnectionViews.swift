@@ -25,6 +25,7 @@ struct WelcomeView: SwiftUI.View {
                 HStack {
                     Button(app.connecting ? "Checking…" : "Check and connect") { connect() }
                         .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                        .foregroundStyle(Color.podListOnAccent)
                         .disabled(app.connecting || app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel("Check and connect to server")
                     if app.connecting { ProgressView().controlSize(.small).accessibilityLabel("Checking server") }
@@ -45,13 +46,21 @@ struct WelcomeView: SwiftUI.View {
 
 public struct PodListSettings: SwiftUI.View {
     @Bindable private var app: ApplicationModel
+    @State private var pane = "general"
+    @State private var heights: [String: CGFloat] = [:]
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
-        TabView {
+        TabView(selection: $pane) {
             LibrarySettingsScreen(app: app)
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag("general")
             AutomationSettingsScreen(settings: app.automation)
                 .tabItem { Label("Automation", systemImage: "terminal") }
+                .tag("automation")
+        }
+        .frame(width: 600, height: heights[pane] ?? 440)
+        .onPreferenceChange(SettingsPaneHeights.self) { measured in
+            for (pane, height) in measured where height > 0 { heights[pane] = height }
         }
     }
 }
@@ -59,13 +68,40 @@ public struct PodListSettings: SwiftUI.View {
 public struct PodListHelp: SwiftUI.View {
     public init() {}
     public var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("PodList").font(.largeTitle).bold()
-            Text("Views find Episodes in your Library. Playlists hold Entries in order, each with its own Position.")
-            Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌘⌥I). Search filters the current list.")
-            Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; change a Subscription’s Download Rule above its Episode list. Playback continues when windows close.")
-            Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
-        }.padding(30).frame(width: 480).textSelection(.enabled)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("PodList").font(.largeTitle).bold()
+                Text("Views find Episodes in your Library. Playlists hold Entries in order, each with its own Position.")
+                Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌥⌘I). Search filters the current list.")
+                Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; change a Subscription’s Download Rule above its Episode list. Playback continues when windows close.")
+                Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
+                Divider()
+                Text("Keyboard Shortcuts").font(.title2).bold()
+                Text("Choose a sidebar item with the arrow keys; in Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Double-click a row for details. Space plays selected Episodes, or toggles playback when none are selected. While editing text, Space and ⌘←/⌘→ keep their text meaning.")
+                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+                    shortcutRow("New View…", "⌘N")
+                    shortcutRow("New Playlist…", "⇧⌘N")
+                    shortcutRow("Add Podcasts…", "⇧⌘A")
+                    shortcutRow("Search Library", "⌘F")
+                    shortcutRow("Show / Hide Inspector", "⌥⌘I")
+                    ForEach(PodListShortcut.allCases, id: \.self) { action in
+                        shortcutRow(action.title, action.notation)
+                    }
+                    shortcutRow("Back 15 / Forward 30 Seconds", "⌘← / ⌘→")
+                    shortcutRow("Move Entry Up / Down", "⌥⌘↑ / ⌥⌘↓")
+                    shortcutRow("Copy Episode title and share URL", "⌘C")
+                    shortcutRow("Remove selected Entries from Playlist", "⌫ or ⌘⌫")
+                    shortcutRow("Undo / Redo", "⌘Z / ⇧⌘Z")
+                    shortcutRow("Cancel sheet", "Esc or ⌘.")
+                    shortcutRow("Stop playback (outside sheets)", "⌘.")
+                    shortcutRow("Settings…", "⌘,")
+                }
+                Text("Remove from Playlist is undoable. Shortcuts for unavailable commands are disabled; standard text editing commands follow the focused text field.").font(.caption)
+            }.padding(30).textSelection(.enabled)
+        }.frame(width: 600, height: 680)
+    }
+    private func shortcutRow(_ title: String, _ keys: String) -> some SwiftUI.View {
+        GridRow { Text(title); Text(keys).monospaced().frame(maxWidth: .infinity, alignment: .trailing) }
     }
 }
 #endif

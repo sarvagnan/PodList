@@ -24,7 +24,7 @@ public struct LibraryCommands: Commands {
     public var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Window") { openWindow(id: "library") }.keyboardShortcut("n", modifiers: [.command, .option, .shift])
-            Button("New View", action: { actions?.newView() }).keyboardShortcut("n").disabled(actions == nil)
+            Button("New View…", action: { actions?.newView() }).keyboardShortcut("n").disabled(actions == nil)
             Button("Add Podcasts…", action: { actions?.add() }).keyboardShortcut("a", modifiers: [.command, .shift]).disabled(actions == nil)
             Divider()
             Button("Import OPML…") { LibraryFileActions.importOPML(app) }.disabled(app.library == nil || app.libraryEditing?.busy == true)
@@ -42,9 +42,9 @@ public struct LibraryCommands: Commands {
             Button(podcast?.descriptionExpanded == true ? "Hide Description" : "Show Description") { podcast?.toggleDescription?() }
                 .disabled(podcast?.toggleDescription == nil)
         }
-        CommandGroup(after: .sidebar) {
+        CommandMenu("Views") {
             Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)
-            Button("Edit View…") { actions?.editView() }.disabled(selectedViewID == nil)
+            Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut).disabled(selectedViewID == nil || actions == nil)
             Button("Delete View", role: .destructive) {
                 guard let id = selectedViewID, let view = app.library?.state.views.first(where: { $0.id == id }) else { return }
                 Task { do { try await app.libraryEditing?.deleteView(view) } catch { app.libraryEditing?.error = LibraryMessages.failure(error) } }
@@ -53,7 +53,6 @@ public struct LibraryCommands: Commands {
         CommandGroup(after: .textEditing) {
             Button("Search Library", action: { actions?.search() }).keyboardShortcut("f").disabled(actions == nil)
         }
-        CommandGroup(after: .windowList) { Button("Listening stats") { openWindow(id: "listening-stats") } }
     }
     private var selectedViewID: String? {
         guard case let .view(id) = context?.window.destination else { return nil }

@@ -7,8 +7,6 @@ import AppIntents
 struct PodListMac: App {
     @NSApplicationDelegateAdaptor(MacApplicationDelegate.self) private var delegate
     @State private var model: ApplicationModel
-    @AppStorage("PodList.appearance") private var appearance = "System"
-    private var colorScheme: ColorScheme? { appearance == "System" ? nil : appearance == "Dark" ? .dark : .light }
 
     init() {
         #if DEBUG
@@ -30,6 +28,7 @@ struct PodListMac: App {
         .defaultSize(width: 1180, height: 760)
         .commands {
             SidebarCommands()
+            TextEditingCommands()
             PodListCommands()
             LibraryCommands(app: model)
             PlaybackCommands(app: model)
@@ -38,9 +37,9 @@ struct PodListMac: App {
                 Button("PodList Help") { openWindow(id: "help") }
             }
         }
-        Settings { PodListSettings(app: model).preferredColorScheme(colorScheme) }
-        Window("Listening stats", id: "listening-stats") { ListeningStatsScreen(app: model).preferredColorScheme(colorScheme) }
-        Window("PodList Help", id: "help") { PodListHelp().preferredColorScheme(colorScheme) }
+        Settings { PodListSettings(app: model).tint(.podListAccent) }
+        Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).tint(.podListAccent) }
+        Window("PodList Help", id: "help") { PodListHelp().tint(.podListAccent) }
             .windowResizability(.contentSize)
     }
 }
@@ -50,6 +49,7 @@ struct PodListMac: App {
 final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
     weak var model: ApplicationModel?
     private var keyboard: PlaybackKeyboardGuard?
+    private var appearance: MacAppearanceController?
     private var terminating = false
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -61,6 +61,9 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
     }
     func applicationWillTerminate(_ notification: Notification) { (model ?? AutomationRuntime.app)?.automation.stop() }
     func applicationDidResignActive(_ notification: Notification) { model?.playback?.flush() }
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        appearance = MacAppearanceController()
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = AutomationRuntime.app
         keyboard = PlaybackKeyboardGuard()

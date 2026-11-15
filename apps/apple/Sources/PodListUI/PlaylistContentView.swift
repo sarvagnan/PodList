@@ -2,8 +2,6 @@
 import SwiftUI
 import PodListDomain
 
-enum PlaylistTab: String, CaseIterable { case entries = "Entries", history = "History", timeline = "Listening Timeline" }
-
 struct PlaylistContentView: SwiftUI.View {
     let playlist: Playlist
     let library: LibraryModel
@@ -13,7 +11,6 @@ struct PlaylistContentView: SwiftUI.View {
     @Bindable var presentation: PlaylistPresentation
     let openEpisode: () -> Void
     @State private var rewindTarget: TimelineEvent?
-    @State private var timelineSelection: TimelineEvent.ID?
 
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
@@ -38,8 +35,8 @@ struct PlaylistContentView: SwiftUI.View {
                 rewindTarget = nil; presentation.playlistTab = .entries
             }
         }
-        .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; timelineSelection = nil }
-        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; timelineSelection = nil }
+        .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; window.timelineSelection = nil }
+        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; window.timelineSelection = nil }
     }
     private var rows: [EpisodeRow] { window.rows(in: library) }
     private var entries: some SwiftUI.View {
@@ -57,8 +54,10 @@ struct PlaylistContentView: SwiftUI.View {
                 TableColumn("Length") { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
                 TableColumn("State") { row in Text(row.stateText) }.width(min: 80, ideal: 110, max: 150)
             } rows: {
-                ForEach(rows) { row in TableRow(row).draggable(dragPayload(row.id)) }
-                    .dropDestination(for: String.self) { index, values in
+                ForEach(rows) { row in
+                    TableRow(row).draggable(EpisodeTransfer.local(row.id, selection: ordered(window.selection), sourcePlaylistID: playlist.id, library: library))
+                }
+                    .dropDestination(for: EpisodeTransfer.self) { index, values in
                         _ = drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
                     }
             }
@@ -69,6 +68,13 @@ struct PlaylistContentView: SwiftUI.View {
             } primaryAction: { selection in
                 window.selection = selection; openEpisode()
             }
+            .onCopyCommand(perform: window.selection.isEmpty ? nil : {
+                EpisodeCopyContent.providers(ids: ordered(window.selection), library: library)
+            })
+            .onDeleteCommand(perform: window.selection.isEmpty || editing.busy ? nil : {
+                let ids = ordered(window.selection)
+                Task { await editing.remove(ids, playlistID: playlist.id) }
+            })
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 
         }
@@ -76,15 +82,17 @@ struct PlaylistContentView: SwiftUI.View {
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.secondary) }
-            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(Color.podListAccent).accessibilityLabel("Current Entry") }
+            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
-                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(Color.podListAccent) }
+                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(2)
                 Text(row.podcast).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
-            Button("Play from Here", systemImage: "play.fill") { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
+            Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
+                MacIconLabel(title: "Play from Here", systemImage: "play.fill")
+            }
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
         }.padding(.vertical, 5).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {
@@ -98,16 +106,10 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private func ordered(_ selection: Set<String>) -> [String] { rows.map(\.id).filter { selection.contains($0) } }
-    private func dragPayload(_ id: String) -> String {
-        let ids = window.selection.contains(id) ? ordered(window.selection) : [id]
-        return (try? JSONEncoder().encode([playlist.id] + ids)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    }
-    private func drop(_ values: [String], before id: String?) -> Bool {
-        guard !editing.busy, let value = values.first, let payload = try? JSONDecoder().decode([String].self, from: Data(value.utf8)),
-              payload.first == playlist.id, payload.count > 1,
-              payload.dropFirst().allSatisfy({ id in playlist.entries.contains { $0.episodeId == id } }) else { return false }
+    private func drop(_ values: [EpisodeTransfer], before id: String?) -> Bool {
+        guard !editing.busy, let ids = EpisodeDrop.reorderIDs(values, in: playlist) else { return false }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count
-        Task { await editing.move(Set(payload.dropFirst()), playlistID: playlist.id, to: boundary) }
+        Task { await editing.move(ids, playlistID: playlist.id, to: boundary) }
         return true
     }
     private var historyIDs: [String] {
@@ -139,7 +141,7 @@ struct PlaylistContentView: SwiftUI.View {
             if events.isEmpty {
                 ContentUnavailableView("No Listening Timeline", systemImage: "clock.arrow.circlepath", description: Text("Listening and deliberate edits are kept here for 30 days. Play an Entry to begin."))
             } else {
-                List(events, selection: $timelineSelection) { event in
+                List(events, selection: $window.timelineSelection) { event in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(library.row(event.episodeID).title).font(.headline)
@@ -169,7 +171,7 @@ struct PlaylistContentView: SwiftUI.View {
     }
     private var rewindAction: (() -> Void)? {
         guard presentation.playlistTab == .timeline, !editing.busy,
-              let event = TimelinePresentation.events(playlist).first(where: { $0.id == timelineSelection }),
+              let event = TimelinePresentation.events(playlist).first(where: { $0.id == window.timelineSelection }),
               TimelineRules.pointAt(playlist, to: event.moment) != nil else { return nil }
         return { rewindTarget = event }
     }
@@ -197,11 +199,11 @@ struct RewindSheet: SwiftUI.View {
     @Environment(\.dismiss) private var dismiss
     @State private var problem: String?
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Rewind Playlist").font(.title2).accessibilityAddTraits(.isHeader)
-            Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
-            if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
-                ScrollView {
+        ContentSizedPanel(width: 520) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Rewind Playlist").font(.title2).accessibilityAddTraits(.isHeader)
+                Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
+                if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Goes back to").font(.headline)
                         Text("\(preview.cursor.map { library.row($0).title } ?? "No current Entry") · \(Presentation.time(preview.position))")
@@ -212,21 +214,21 @@ struct RewindSheet: SwiftUI.View {
                         Text("Kept").font(.headline)
                         Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(maxHeight: 360)
-                if let problem { Text(problem).foregroundStyle(.red) }
-                HStack {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Spacer()
-                    Button("Rewind") {
-                        Task {
-                            if await editing.rewind(playlistID, to: target) { done() }
-                            else { problem = editing.error ?? "Could not rewind. Try again." }
+                    if let problem { Text(problem).foregroundStyle(.red) }
+                    HStack {
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                        Spacer()
+                        Button("Rewind") {
+                            Task {
+                                if await editing.rewind(playlistID, to: target) { done() }
+                                else { problem = editing.error ?? "Could not rewind. Try again." }
+                            }
                         }
+                            .keyboardShortcut(.defaultAction).disabled(editing.busy)
                     }
-                        .keyboardShortcut(.defaultAction).disabled(editing.busy)
-                }
-            } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
-        }.padding(24).frame(width: 520).interactiveDismissDisabled(editing.busy)
+                } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
+            }.padding(24)
+        }.interactiveDismissDisabled(editing.busy)
     }
     private func titles(_ ids: [String]) -> String { ids.isEmpty ? "None" : ids.map { library.row($0).title }.joined(separator: "\n") }
 }
