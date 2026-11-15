@@ -59,8 +59,8 @@ struct MacTextSizeControl: SwiftUI.View {
                 Text("\(percent)%").tag(percent)
             }
         }
-        Text("Enlarges reading text in all windows. You can also use View › Bigger or Smaller.")
-            .macContentFont(.caption).foregroundStyle(.primary)
+        Text("Enlarges content text in all windows. The sidebar follows macOS Sidebar icon size. You can also use View › Bigger or Smaller.")
+            .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
     }
 }
 
@@ -83,12 +83,13 @@ public struct MacTextSizeCommands: Commands {
 /// At enlarged sizes, metadata flows below the title instead of competing for
 /// fixed table columns. A native List keeps selection, keyboard and menu behavior.
 struct MacReadingRow<Title: SwiftUI.View>: SwiftUI.View {
+    var isSelected = false
     @ViewBuilder let title: () -> Title
     let metadata: () -> String
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 6) {
             title()
-            Text(metadata()).macContentFont(.caption).foregroundStyle(.primary)
+            Text(metadata()).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle(isSelected: isSelected))
         }
         .lineLimit(nil).fixedSize(horizontal: false, vertical: true).padding(.vertical, 6)
     }

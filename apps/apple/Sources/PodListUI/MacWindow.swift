@@ -70,7 +70,7 @@ public struct PodListWindow: SwiftUI.View {
                         if section.name == "Playlists" { Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }.buttonStyle(.plain).selectionDisabled() }
                         if section.name == "Library" { Button("Add Podcasts…", systemImage: "plus") { showAddPodcasts = true }.buttonStyle(.plain).selectionDisabled() }
                         if section.items.isEmpty {
-                            Text("No \(section.name)").foregroundStyle(.primary)
+                            Text("No \(section.name)").foregroundStyle(MacReadableSecondaryStyle())
                         }
                         ForEach(section.items) { item in
                             HStack(spacing: 8) {
@@ -80,7 +80,7 @@ public struct PodListWindow: SwiftUI.View {
                                     .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
                                 Spacer(minLength: 4)
                                 if item.active {
-                                    Image(systemName: "speaker.wave.2.fill").macContentFont(.caption)
+                                    Image(systemName: "speaker.wave.2.fill")
                                         .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist")
                                 }
                                 if let clear = item.clearOnPlayed {
@@ -89,7 +89,7 @@ public struct PodListWindow: SwiftUI.View {
                                         .help(clear ? "Clear on Played on" : "Clear on Played off")
                                         .accessibilityLabel(clear ? "Clear on Played on" : "Clear on Played off")
                                 }
-                                Text(item.count, format: .number).foregroundStyle(.primary).monospacedDigit()
+                                Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
                             }
                             .contentShape(Rectangle())
                             .tag(item.destination)
@@ -110,7 +110,8 @@ public struct PodListWindow: SwiftUI.View {
                     } header: { Text(section.name) }
                 }
             }
-            .macContentFont(.body)
+            // Sidebar metrics belong to macOS; app Text Size scales content only.
+            .environment(\.macTextScale, 1)
             .listStyle(.sidebar)
             // Measuring the List here (onGeometryChange) kept this width from reaching the split
             // view: the sidebar opened at ~140 pt, below its minimum. Its width isn't restored.
@@ -250,12 +251,12 @@ public struct PodListWindow: SwiftUI.View {
             if library.state.views.isEmpty {
                 ContentUnavailableView {
                     Label("No Views", systemImage: "line.3.horizontal.decrease")
-                } description: { Text("Create a View to find Episodes.") }
+                } description: { Text("Create a View to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
                 actions: { Button("New View") { newView() } }
             } else {
                 List(library.state.views, id: \.id) { view in
                     Button { window.navigate(to: .view(view.id)) } label: {
-                        HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(.primary) }
+                        HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle()) }
                     }.buttonStyle(.plain)
                     .contextMenu { sidebarActions(.view(view.id), library: library) }
                 }
@@ -292,7 +293,7 @@ public struct PodListWindow: SwiftUI.View {
             if groups.isEmpty {
                 ContentUnavailableView {
                     Label(window.search.isEmpty ? "No Subscriptions" : "No Matching Subscriptions", systemImage: "rectangle.stack")
-                } description: { Text("Search by name or feed address, or clear Search.") }
+                } description: { Text("Search by name or feed address, or clear Search.").foregroundStyle(MacReadableSecondaryStyle()) }
                 actions: {
                     Button("Add Podcasts") { showAddPodcasts = true }
                     if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
@@ -300,14 +301,14 @@ public struct PodListWindow: SwiftUI.View {
             } else {
                 VStack(alignment: .leading) {
                     HStack {
-                        Text("Grouped by Download Rule").foregroundStyle(.primary)
+                        Text("Grouped by Download Rule").foregroundStyle(MacReadableSecondaryStyle())
                         Spacer()
                         Button(selected.isEmpty ? "Edit Download Rules…" : "Edit Download Rules for \(CountText.format(selected.count, .subscription))…") { showBulkRules = true }
                             .disabled(selected.isEmpty)
                     }.padding(.horizontal)
                     List(selection: $subscriptionSelection) {
                         ForEach(groups) { group in
-                            Section(group.name) {
+                            Section {
                                 ForEach(group.subscriptions, id: \.id) { subscription in
                                     HStack(spacing: 12) {
                                         ArtworkView(url: subscription.artwork.flatMap { URL(string: $0.url) }, title: subscription.title, size: 44)
@@ -320,7 +321,7 @@ public struct PodListWindow: SwiftUI.View {
                                             .help("Open \(subscription.title)").accessibilityLabel("Open \(subscription.title), Subscription")
                                     }.padding(.vertical, 5).contentShape(Rectangle()).tag(subscription.id)
                                 }
-                            }
+                            } header: { Text(group.name).foregroundStyle(MacReadableSecondaryStyle()) }
                         }
                     }.listStyle(.inset)
                     .restoringRows(groups.flatMap { [nil] + $0.subscriptions.map { Optional($0.id) } }, anchor: $window.scrollAnchor)
@@ -420,7 +421,7 @@ public struct PodListWindow: SwiftUI.View {
         let rows = window.rows(in: library)
         return VStack(alignment: .leading, spacing: 0) {
             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
-                Text(ViewDescription.text(view, library: library)).macContentFont(.subheadline).foregroundStyle(.primary)
+                Text(ViewDescription.text(view, library: library)).macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle())
                     .padding(.horizontal, 16).padding(.vertical, 10)
             }
             if case let .subscription(id) = window.destination { DownloadRuleEditor(subscriptionID: id, library: library, app: app).padding(12) }
@@ -430,12 +431,12 @@ public struct PodListWindow: SwiftUI.View {
                 case .noSubscriptions:
                     ContentUnavailableView {
                         Label("No Subscriptions", systemImage: "rectangle.stack")
-                    } description: { Text("Add podcasts to find Episodes.") }
+                    } description: { Text("Add podcasts to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
                     actions: { Button("Add Podcasts") { showAddPodcasts = true } }
                 case .noMatches:
                     ContentUnavailableView {
                         Label("No Matching Episodes", systemImage: "magnifyingglass")
-                    } description: { Text("Change this View or Search to find Episodes.") }
+                    } description: { Text("Change this View or Search to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
                     actions: {
                         if case .view = window.destination { Button("Edit View…") { editCurrentView(library) } }
                         if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
@@ -447,7 +448,7 @@ public struct PodListWindow: SwiftUI.View {
                         List(selection: $window.selection) {
                             Section {
                                 ForEach(rows) { row in
-                                    MacReadingRow { episodeTitle(row, library: library) } metadata: {
+                                    MacReadingRow(isSelected: window.selection.contains(row.id)) { episodeTitle(row, library: library) } metadata: {
                                         "Published \(row.episode == nil ? "—" : row.publishedDate.formatted(date: .abbreviated, time: .omitted)) · Length \(row.durationText) · \(row.stateText)"
                                     }.tag(row.id).draggable(episodeDragPayload(row.id, rows: rows, library: library))
                                 }
@@ -492,12 +493,12 @@ public struct PodListWindow: SwiftUI.View {
 
     private func episodeTitle(_ row: EpisodeRow, library: LibraryModel) -> some SwiftUI.View {
         HStack(spacing: 8) {
-            if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(.primary).monospacedDigit() }
+            if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))).monospacedDigit() }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
                 if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-                Text(row.podcast).macContentFont(.caption).foregroundStyle(.primary).lineLimit(textScale > 1 ? nil : 1)
+                Text(row.podcast).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))).lineLimit(textScale > 1 ? nil : 1)
             }.padding(.vertical, 5)
             Spacer(minLength: 4)
             // A status mark beside the row actions, never drawn over them.
@@ -542,7 +543,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             Spacer(minLength: 0)
         }
-        .macContentFont(.caption).foregroundStyle(.primary).padding(.horizontal, 14).padding(.vertical, 7)
+        .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).padding(.horizontal, 14).padding(.vertical, 7)
     }
 
     private func selectionRows(_ library: LibraryModel) -> [EpisodeRow] {

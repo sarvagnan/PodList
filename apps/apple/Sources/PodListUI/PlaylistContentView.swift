@@ -50,7 +50,7 @@ struct PlaylistContentView: SwiftUI.View {
         VStack(spacing: 0) {
             if PlaylistRules.hasNoCurrentEntry(playlist) {
                 HStack {
-                    Text(playlist.entries.isEmpty ? "This Playlist has no Entries." : "No current Entry. This Playlist is past its end.").foregroundStyle(.primary)
+                    Text(playlist.entries.isEmpty ? "This Playlist has no Entries." : "No current Entry. This Playlist is past its end.").foregroundStyle(MacReadableSecondaryStyle())
                     if playlist.entries.isEmpty { Button("Find Episodes") { window.navigate(to: .search) } }
                     Spacer()
                 }.padding(12)
@@ -59,7 +59,7 @@ struct PlaylistContentView: SwiftUI.View {
                 if textScale > 1 {
                     List(selection: $window.selection) {
                         ForEach(rows) { row in
-                            MacReadingRow { entryTitle(row) } metadata: {
+                            MacReadingRow(isSelected: window.selection.contains(row.id)) { entryTitle(row) } metadata: {
                                 "Position \(Presentation.time(row.position ?? 0)) · Length \(row.durationText) · \(row.stateText)"
                             }
                             .tag(row.id).draggable(dragPayload(row.id))
@@ -119,12 +119,12 @@ struct PlaylistContentView: SwiftUI.View {
     }
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
-            if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.primary) }
+            if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))) }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
                 if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-                Text(row.podcast).macContentFont(.caption).foregroundStyle(.primary)
+                Text(row.podcast).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id)))
             }
             Spacer(minLength: 4)
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
@@ -181,7 +181,7 @@ struct PlaylistContentView: SwiftUI.View {
                     let row = library.row(item.episodeId)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(row.title).macContentFont(.headline)
-                        Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(.primary)
+                        Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(item.episodeId)))
                     }.tag(item.episodeId)
                         .contextMenu {
                             EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation, app: app)
@@ -202,8 +202,8 @@ struct PlaylistContentView: SwiftUI.View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(library.row(event.episodeID).title).macContentFont(.headline)
-                            Text(date(event.at)).foregroundStyle(.primary)
-                            Text(eventLabel(event)).macContentFont(.subheadline).foregroundStyle(.primary)
+                            Text(date(event.at)).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.timelineSelection == event.id))
+                            Text(eventLabel(event)).macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.timelineSelection == event.id))
                         }
                         Spacer()
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
@@ -311,7 +311,7 @@ struct RewindSheet: SwiftUI.View {
                                 else { problem = editing.error ?? "Could not rewind. Try again." }
                             }
                         }
-                            .keyboardShortcut(.defaultAction).disabled(editing.busy)
+                            .macDefaultAction().disabled(editing.busy)
                     }
                 } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
             }.padding(24)

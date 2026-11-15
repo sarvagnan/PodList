@@ -16,12 +16,58 @@ public extension Color {
         MacErrorPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
     })
 
+    static let podListReadableSecondary = Color(nsColor: NSColor(name: "PodList Readable Secondary") { appearance in
+        MacSecondaryPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
+    })
+
     /// Custom accent-filled controls need a dark glyph on the light Dark accent.
     static let podListOnAccent = Color(nsColor: NSColor(name: "PodList On Accent") { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(srgbRed: 17 / 255, green: 24 / 255, blue: 39 / 255, alpha: 1)
             : .white
     })
+}
+
+enum MacSecondaryPalette {
+    static func color(for appearance: NSAppearance.Name?) -> NSColor {
+        let value: CGFloat
+        switch appearance {
+        case .accessibilityHighContrastDarkAqua: value = 192 / 255 // #C0C0C0
+        case .accessibilityHighContrastAqua: value = 80 / 255 // #505050
+        case .darkAqua: value = 160 / 255 // #A0A0A0
+        default: value = 96 / 255 // #606060
+        }
+        return NSColor(srgbRed: value, green: value, blue: value, alpha: 1)
+    }
+}
+
+/// Secondary reading text on ordinary surfaces. Selections use the inherited
+/// foreground, including inactive selections whose gray fill needs primary text.
+struct MacReadableSecondaryStyle: ShapeStyle {
+    var isSelected = false
+    func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
+        isSelected || environment.backgroundProminence == .increased
+            ? AnyShapeStyle(.primary)
+            : AnyShapeStyle(Color.podListReadableSecondary)
+    }
+}
+
+extension SwiftUI.View {
+    /// Keep native prominent-button interaction, with a label that contrasts
+    /// against the brand fill in both appearances.
+    func macDefaultAction() -> some SwiftUI.View {
+        keyboardShortcut(.defaultAction).buttonStyle(MacDefaultButtonStyle())
+    }
+}
+
+struct MacDefaultButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some SwiftUI.View {
+        Button(role: configuration.role, action: configuration.trigger) {
+            configuration.label.foregroundStyle(Color.podListOnAccent)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.podListAccent)
+    }
 }
 
 enum MacAccentPalette {

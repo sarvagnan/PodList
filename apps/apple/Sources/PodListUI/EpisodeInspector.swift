@@ -48,7 +48,7 @@ struct EpisodeInspector: SwiftUI.View {
             ContentUnavailableView {
                 Label("Select an Episode", systemImage: "info.circle")
             } description: {
-                Text("Its details and Playlists appear here.").foregroundStyle(.primary)
+                Text("Its details and Playlists appear here.").foregroundStyle(MacReadableSecondaryStyle())
             }
         }
     }
@@ -57,7 +57,7 @@ struct EpisodeInspector: SwiftUI.View {
             ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180)
                 .frame(maxWidth: .infinity)
             Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
-            Text(row.podcast).macContentFont(.headline).foregroundStyle(.primary)
+            Text(row.podcast).macContentFont(.headline).foregroundStyle(MacReadableSecondaryStyle())
             if let episode = row.episode {
                 VStack(alignment: .leading, spacing: 8) {
                     LabeledContent("Published", value: row.publishedDate.formatted(date: .abbreviated, time: .omitted))
@@ -73,7 +73,7 @@ struct EpisodeInspector: SwiftUI.View {
                 Divider()
                 Text("In your Playlists").macContentFont(.headline)
                 let memberships = library.memberships(row.id)
-                if memberships.isEmpty { Text("No Playlists").foregroundStyle(.primary) }
+                if memberships.isEmpty { Text("No Playlists").foregroundStyle(MacReadableSecondaryStyle()) }
                 ForEach(memberships, id: \.id) { membership in
                     HStack {
                         LabeledContent(membership.name, value: Presentation.time(membership.position))
@@ -96,7 +96,7 @@ struct EpisodeInspector: SwiftUI.View {
                                 podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }, title: row.podcast, size: 40)
                             VStack(alignment: .leading) {
                                 Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                                Text(Presentation.time(chapter.start)).macContentFont(.caption).foregroundStyle(.primary)
+                                Text(Presentation.time(chapter.start)).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                             }
                             Spacer()
                             Button {
@@ -113,7 +113,7 @@ struct EpisodeInspector: SwiftUI.View {
                 let notes = Presentation.plainShowNotes(episode.description)
                 Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
             } else {
-                Text("Episode details will appear when Library sync catches up.").foregroundStyle(.primary)
+                Text("Episode details will appear when Library sync catches up.").foregroundStyle(MacReadableSecondaryStyle())
             }
         }
         .padding(20).frame(maxWidth: .infinity, alignment: .leading)

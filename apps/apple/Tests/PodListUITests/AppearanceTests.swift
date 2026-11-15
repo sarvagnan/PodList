@@ -196,6 +196,118 @@ private struct RGB {
 #endif
 
 #if os(macOS)
+@Test @MainActor func readableSecondaryRestoresHierarchyOnReadingSurfaces() {
+    let variants: [(NSAppearance.Name, Int, [Int])] = [
+        (.aqua, 0x606060, [0xFFFFFF, 0xF6F6F6]),
+        (.darkAqua, 0xA0A0A0, [0x1E1E1E, 0x222222, 0x282828, 0x2F2D2B, 0x212931, 0x222B38]),
+        (.accessibilityHighContrastAqua, 0x505050, [0xFFFFFF, 0xF6F6F6]),
+        (.accessibilityHighContrastDarkAqua, 0xC0C0C0, [0x1E1E1E, 0x222222, 0x282828, 0x2F2D2B, 0x212931, 0x222B38])
+    ]
+    for (name, hex, surfaces) in variants {
+        let secondary = RGB(MacSecondaryPalette.color(for: name), over: RGB(0))
+        #expect(secondary.isClose(to: RGB(hex)))
+        for surface in surfaces {
+            let ratio = secondary.contrast(RGB(surface))
+            #expect(ratio >= 4.5)
+            if name == .aqua || name == .darkAqua {
+                #expect(ratio >= 5 && ratio <= 7, "Keep a visible secondary level on #\(String(surface, radix: 16))")
+            }
+            print(String(format: "Readable secondary %@ #%06X on #%06X: %.2f", name.rawValue, hex, surface, ratio))
+        }
+    }
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+        let appearance = NSAppearance(named: name)!
+        appearance.performAsCurrentDrawingAppearance {
+            let matches: [NSAppearance.Name] = [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]
+            #expect(RGB(NSColor(Color.podListReadableSecondary), over: RGB(0)).isClose(to:
+                RGB(MacSecondaryPalette.color(for: appearance.bestMatch(from: matches)), over: RGB(0))))
+        }
+    }
+}
+
+@Test @MainActor func readableSecondaryInheritsActiveAndInactiveSelectionForeground() {
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            for foreground in [Color.white, .green] {
+                for prominence in [BackgroundProminence.standard, .increased] {
+                    for selected in [false, true] {
+                        @MainActor func render(_ style: AnyShapeStyle) -> Data? {
+                            let renderer = ImageRenderer(content: Rectangle().fill(style)
+                                .foregroundStyle(foreground)
+                                .environment(\.backgroundProminence, prominence)
+                                .environment(\.colorScheme, name == .aqua ? .light : .dark)
+                                .frame(width: 8, height: 8))
+                            return renderer.cgImage.flatMap { NSBitmapImageRep(cgImage: $0).representation(using: .png, properties: [:]) }
+                        }
+                        let actual = render(AnyShapeStyle(MacReadableSecondaryStyle(isSelected: selected)))
+                        #expect(actual != nil)
+                        #expect(actual == render(selected || prominence == .increased
+                            ? AnyShapeStyle(foreground) : AnyShapeStyle(Color.podListReadableSecondary)))
+                    }
+                }
+            }
+            // Inactive selection explicitly switches to primary; the ordinary
+            // Dark secondary token is not intended for #464646 selection fills.
+            let background = RGB(name == .aqua ? 0xDCDCDC : 0x464646)
+            #expect(RGB(NSColor.labelColor, over: background).contrast(background) >= 4.5)
+        }
+    }
+}
+
+@Test @MainActor func defaultActionsRenderReadableLabelsOnTheBrandFill() throws {
+    for scheme in [ColorScheme.light, .dark] {
+        for enabled in [true, false] {
+            @MainActor func render(_ kind: Int) throws -> Data {
+                let button = Button("Apply") {}
+                let content = Group {
+                    if kind == 0 { button.macDefaultAction() }
+                    else if kind == 1 {
+                        Button {} label: { Text("Apply").foregroundStyle(Color.podListOnAccent) }
+                            .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(.podListAccent)
+                    }
+                    else { button.keyboardShortcut(.defaultAction) }
+                }.tint(.podListAccent)
+                    .environment(\.colorScheme, scheme)
+                    .disabled(!enabled)
+                    .padding(12)
+                let bitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: content).cgImage))
+                return try #require(bitmap.representation(using: .png, properties: [:]))
+            }
+            let actual = try render(0)
+            #expect(actual == (try render(1)))
+            if enabled {
+                if scheme == .dark {
+                    #expect(actual != (try render(2)), "Dark default action must use its contrasting label")
+                }
+                let bitmap = try #require(NSBitmapImageRep(data: actual))
+                var colors: [Int: Int] = [:]
+                for y in 0..<bitmap.pixelsHigh { for x in 0..<bitmap.pixelsWide {
+                    guard let color = bitmap.colorAt(x: x, y: y), color.alphaComponent == 1 else { continue }
+                    let srgb = try #require(color.usingColorSpace(.sRGB))
+                    let hex = Int((srgb.redComponent * 255).rounded()) << 16
+                        | Int((srgb.greenComponent * 255).rounded()) << 8
+                        | Int((srgb.blueComponent * 255).rounded())
+                    colors[hex, default: 0] += 1
+                } }
+                let swatch = ImageRenderer(content: Rectangle().fill(Color.podListOnAccent)
+                    .environment(\.colorScheme, scheme).frame(width: 8, height: 8))
+                let swatchBitmap = NSBitmapImageRep(cgImage: try #require(swatch.cgImage))
+                let glyph = try #require(swatchBitmap.colorAt(x: 4, y: 4)?.usingColorSpace(.sRGB))
+                let glyphHex = Int((glyph.redComponent * 255).rounded()) << 16
+                    | Int((glyph.greenComponent * 255).rounded()) << 8
+                    | Int((glyph.blueComponent * 255).rounded())
+                // Fully covered glyph interiors must actually carry on-accent;
+                // checking palette tokens alone missed the native white label.
+                #expect(colors[glyphHex, default: 0] >= 8)
+                let fill = try #require(colors.max { $0.value < $1.value }?.key)
+                let ratio = RGB(glyphHex).contrast(RGB(fill))
+                #expect(ratio >= 4.5)
+                print(String(format: "Rendered brand default %@: #%06X on #%06X, %.2f:1", String(describing: scheme), glyphHex, fill, ratio))
+            }
+        }
+    }
+}
+
 @Test @MainActor func roundTwoErrorsAndSecondaryTextMeetContrastInBothAppearances() {
     for (name, surfaces) in [(NSAppearance.Name.aqua, [0xFFFFFF, 0xF6F6F6, 0xFFF5F5, 0xF5FCF7]),
                              (.darkAqua, [0x222222, 0x2F2D2B, 0x292726, 0x2F2424, 0x252B25, 0x464646])] {
