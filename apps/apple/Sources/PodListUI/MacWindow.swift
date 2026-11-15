@@ -112,10 +112,9 @@ public struct PodListWindow: SwiftUI.View {
             }
             .macContentFont(.body)
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: window.initialPaneWidths.sidebar, max: 320)
-            .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
-                if (180...320).contains(width) { window.paneWidths.sidebar = width }
-            }
+            // Measuring the List here (onGeometryChange) kept this width from reaching the split
+            // view: the sidebar opened at ~140 pt, below its minimum. Its width isn't restored.
+            .navigationSplitViewColumnWidth(min: 180, ideal: 225, max: 320)
             .navigationTitle("PodList")
         } detail: {
             VStack(spacing: 0) {
