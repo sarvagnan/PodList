@@ -38,6 +38,7 @@ struct EpisodeInspector: SwiftUI.View {
                 if scrolls { ScrollView { details(row) } }
                 else { details(row) }
             }
+            .macContentFont(.body)
             .accessibilityLabel("Episode Inspector")
             .task(id: row.id) { await app.resolveEpisodeDetails(row.id) }
         } else {
@@ -52,8 +53,8 @@ struct EpisodeInspector: SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
             ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180)
                 .frame(maxWidth: .infinity)
-            Text(row.title).font(.title2).bold().fixedSize(horizontal: false, vertical: true)
-            Text(row.podcast).font(.headline).foregroundStyle(.primary)
+            Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
+            Text(row.podcast).macContentFont(.headline).foregroundStyle(.primary)
             if let episode = row.episode {
                 VStack(alignment: .leading, spacing: 8) {
                     LabeledContent("Published", value: row.publishedDate.formatted(date: .abbreviated, time: .omitted))
@@ -65,9 +66,9 @@ struct EpisodeInspector: SwiftUI.View {
                     }
                     DownloadStatusText(id: row.id, app: app)
                     if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
-                }.font(.subheadline).labeledContentStyle(InspectorLabeledContentStyle()).disabled(app.editing?.busy == true)
+                }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle()).disabled(app.editing?.busy == true)
                 Divider()
-                Text("In your Playlists").font(.headline)
+                Text("In your Playlists").macContentFont(.headline)
                 let memberships = library.memberships(row.id)
                 if memberships.isEmpty { Text("No Playlists").foregroundStyle(.primary) }
                 ForEach(memberships, id: \.id) { membership in
@@ -86,14 +87,14 @@ struct EpisodeInspector: SwiftUI.View {
                 }
                 Divider()
                 if !episode.chapters.isEmpty {
-                    Text("Chapters").font(.headline)
+                    Text("Chapters").macContentFont(.headline)
                     ForEach(episode.chapters.enumerated(), id: \.element.start) { index, chapter in
                         HStack {
                             ArtworkView(url: PlaybackPolicy.artwork(episode.chapters, position: chapter.start, episode: episode.artwork,
                                 podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }, title: row.podcast, size: 40)
                             VStack(alignment: .leading) {
                                 Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                                Text(Presentation.time(chapter.start)).font(.caption).foregroundStyle(.primary)
+                                Text(Presentation.time(chapter.start)).macContentFont(.caption).foregroundStyle(.primary)
                             }
                             Spacer()
                             Button {
@@ -107,7 +108,7 @@ struct EpisodeInspector: SwiftUI.View {
                     }
                     Divider()
                 }
-                Text("Show notes").font(.headline)
+                Text("Show notes").macContentFont(.headline)
                 let notes = Presentation.plainShowNotes(episode.description)
                 Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
             } else {

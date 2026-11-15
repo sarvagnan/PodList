@@ -27,14 +27,14 @@ struct AddPodcastsScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 650) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Add Podcasts").font(.title2).bold()
+                Text("Add Podcasts").macContentFont(.title2).bold()
                 Text("Podcast name or feed address")
                 HStack {
                     TextField("Podcast name or feed address", text: $query).textFieldStyle(.roundedBorder).focused($focused)
                         .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
                     Button("Search") { search() }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").font(.caption).foregroundStyle(.secondary)
+                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(.secondary)
                 if !searched, !loading {
                     ContentUnavailableView {
                         Label("Find Your Next Podcast", systemImage: "magnifyingglass")
@@ -123,6 +123,7 @@ struct PodcastPageScreen: SwiftUI.View {
             return WindowSort(column: column, reversed: comparator.order == .reverse)
         } }
     }
+    @Environment(\.macTextScale) private var textScale
     @State private var feed: ParsedFeed?
     @State private var loading = true
     @State private var error: String?
@@ -134,6 +135,22 @@ struct PodcastPageScreen: SwiftUI.View {
     @State private var subscribedBounds = CGRect.zero
     @State private var bringing = Set<String>()
     @State private var addPresentation = PlaylistPresentation()
+    private func podcastEpisodeTitle(_ episode: PageEpisode) -> some SwiftUI.View {
+        HStack {
+            Text(episode.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button { bring(episode, play: false) } label: {
+                MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
+            }
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
+                .help("Add \(episode.title) to a Playlist")
+            Button { bring(episode, play: true) } label: {
+                MacIconLabel(title: "Play", systemImage: "play.fill")
+            }
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play \(episode.title) now")
+                .help("Play \(episode.title) now")
+        }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
+    }
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
     private var subscribed: Bool { subscription?.unsubscribedAt == nil && subscription != nil }
     private var title: String { feed?.title ?? subscription?.title ?? "Podcast" }
@@ -160,7 +177,7 @@ struct PodcastPageScreen: SwiftUI.View {
             HStack(alignment: .top, spacing: 16) {
                 ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(title).font(.title2).bold()
+                    Text(title).macContentFont(.title2).bold()
                     Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(.secondary)
                     Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? nil : 5).textSelection(.enabled)
                     Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
@@ -198,34 +215,34 @@ struct PodcastPageScreen: SwiftUI.View {
                     else { Button("Clear Search") { search = "" } }
                 }
             } else {
-                Table(of: PageEpisode.self, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
-                    TableColumn("Episode", value: \.title) { episode in
-                        HStack {
-                            Text(episode.title).lineLimit(2)
-                            Spacer()
-                            Button { bring(episode, play: false) } label: {
-                                MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
-                            }
-                                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
-                                .help("Add \(episode.title) to a Playlist")
-                            Button { bring(episode, play: true) } label: {
-                                MacIconLabel(title: "Play", systemImage: "play.fill")
-                            }
-                                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play \(episode.title) now")
-                                .help("Play \(episode.title) now")
-                        }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
+                Group {
+                    if textScale > 1 {
+                        List(selection: selection) {
+                            Section {
+                                ForEach(episodes) { episode in
+                                    MacReadingRow { podcastEpisodeTitle(episode) } metadata: {
+                                        "Published \(Date(timeIntervalSince1970: Double(episode.published) / 1000).formatted(date: .abbreviated, time: .omitted)) · Length \(episode.duration.map(Presentation.time) ?? "—") · \(episode.stateText)"
+                                    }.tag(episode.id).draggable(dragPayload(episode))
+                                }
+                            } header: { MacReadingSortControl(sort: $savedSort) }
+                        }
+                    } else {
+                        Table(of: PageEpisode.self, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
+                            TableColumn("Episode", value: \.title) { episode in
+                                podcastEpisodeTitle(episode)
+                            }.width(min: 240, ideal: 420)
+                            TableColumn("Published", value: \.published) { episode in
+                                Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
+                            }.width(min: 95, ideal: 110, max: 150)
+                            TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
+                                .width(min: 60, ideal: 70, max: 100)
+                            TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                        } rows: {
+                            ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
+                        }
+                        .tableStyle(.inset)
                     }
-                    .width(min: 240, ideal: 420)
-                    TableColumn("Published", value: \.published) { episode in
-                        Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
-                    }.width(min: 95, ideal: 110, max: 150)
-                    TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
-                        .width(min: 60, ideal: 70, max: 100)
-                    TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
-                } rows: {
-                    ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                 }
-                .tableStyle(.inset)
                 .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { ids in
                     let chosen = episodes.filter { ids.contains($0.id) }
@@ -245,7 +262,7 @@ struct PodcastPageScreen: SwiftUI.View {
                     bring(episode, play: true); return .handled
                 }
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
-                .accessibilityLabel("Podcast Episodes, sortable columns")
+                .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
             }
         }.padding(18)
         .focusedSceneValue(\.podListPodcast, podcastCommands)
@@ -357,7 +374,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 600) {
             VStack(alignment: .leading) {
-                Text("\(subscription.title) Settings").font(.title2).bold().accessibilityAddTraits(.isHeader)
+                Text("\(subscription.title) Settings").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
                 Form {
                     Section("On This Device") { DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app) }
                     Section("Played") {

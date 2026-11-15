@@ -151,7 +151,7 @@ struct NowPlayingView: SwiftUI.View {
                                  cancelled: { presentation.sheet = nil }, done: { presentation.sheet = nil })
             } else {
                 VStack(spacing: 12) {
-                    HStack { Text("Now Playing").font(.title2).bold(); Spacer() }
+                    HStack { Text("Now Playing").macContentFont(.title2).bold(); Spacer() }
                         .padding(.horizontal, 28).padding(.top, 20)
                     if let detailID, let current = app.library {
                         Button("Back to Now Playing", systemImage: "chevron.left") { self.detailID = nil }
@@ -161,9 +161,9 @@ struct NowPlayingView: SwiftUI.View {
                         VStack(spacing: 20) {
                             if let value = controller.display {
                                 ArtworkView(url: value.artwork, title: value.podcast, size: 230)
-                                Text(value.title).font(.title).multilineTextAlignment(.center).textSelection(.enabled)
-                                Text(value.podcast).font(.headline).foregroundStyle(.secondary)
-                                if let chapter = value.chapter { Text(chapter.title).font(.headline) }
+                                Text(value.title).macContentFont(.title).multilineTextAlignment(.center).textSelection(.enabled)
+                                Text(value.podcast).macContentFont(.headline).foregroundStyle(.secondary)
+                                if let chapter = value.chapter { Text(chapter.title).macContentFont(.headline) }
                                 PlayerSeek(controller: controller)
                                 TransportControls(controller: controller).controlSize(.large)
                                 HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
