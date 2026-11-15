@@ -176,18 +176,17 @@ final class PodListUITour: XCTestCase {
         let settings = app.windows.containing(.any, identifier: "General").firstMatch
         try ready(settings)
         try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
-        try ready(settings.popUpButtons["Speed"])
+        try ready(text("Speed", in: settings))
         try capture("27-settings-general-top", in: settings)
+        // Settings sizes to its content; scroll only if the pane still scrolls.
         let form = settings.scrollViews.firstMatch
-        try ready(form)
-        form.hover()
-        form.scroll(byDeltaX: 0, deltaY: -280)
+        if form.exists { form.hover(); form.scroll(byDeltaX: 0, deltaY: -280) }
         try capture("28-settings-general-middle", in: settings)
-        form.scroll(byDeltaX: 0, deltaY: -1800)
-        try ready(settings.buttons["Disconnect"])
+        if form.exists { form.scroll(byDeltaX: 0, deltaY: -1800) }
+        try ready(button("Disconnect", in: settings))
         try capture("29-settings-general-bottom", in: settings)
         try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
-        let mcp = settings.checkBoxes["Enable MCP server"]
+        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP server", "Enable MCP server")).firstMatch
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
         try capture("30-settings-automation", in: settings)
@@ -195,7 +194,7 @@ final class PodListUITour: XCTestCase {
         try ready(library)
 
         try menuCommand("Window", "Listening Stats")
-        let stats = app.windows.containing(.staticText, identifier: "Listening Stats").firstMatch
+        let stats = app.windows.matching(NSPredicate(format: "title == %@", "Listening Stats")).firstMatch
         try ready(stats)
         try capture("31-listening-stats", in: stats)
         stats.typeKey("w", modifierFlags: .command)
@@ -203,10 +202,12 @@ final class PodListUITour: XCTestCase {
         try ready(settings)
         try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
         let generalForm = settings.scrollViews.firstMatch
-        generalForm.hover()
-        // Return from the bottom far enough to reveal the Library section.
-        generalForm.scroll(byDeltaX: 0, deltaY: 1800)
-        try reveal(button("Getting started", in: settings), in: generalForm)
+        if generalForm.exists {
+            generalForm.hover()
+            // Return from the bottom far enough to reveal the Library section.
+            generalForm.scroll(byDeltaX: 0, deltaY: 1800)
+            try reveal(button("Getting started", in: settings), in: generalForm)
+        }
         try click(button("Getting started", in: settings))
         try ready(settings.sheets.firstMatch)
         try capture("32-getting-started", in: settings, expectsSheet: true)
