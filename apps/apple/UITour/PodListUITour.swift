@@ -279,7 +279,10 @@ final class PodListUITour: XCTestCase {
     }
 
     private func button(_ title: String, in root: XCUIElement? = nil) -> XCUIElement {
-        (root ?? library).buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@ OR title BEGINSWITH[c] %@", title, title)).firstMatch
+        // Link-styled buttons are exposed as links.
+        (root ?? library).descendants(matching: .any).matching(NSPredicate(
+            format: "(elementType == %d OR elementType == %d) AND (label BEGINSWITH[c] %@ OR title BEGINSWITH[c] %@)",
+            XCUIElement.ElementType.button.rawValue, XCUIElement.ElementType.link.rawValue, title, title)).firstMatch
     }
 
     private func dismissSheet(_ button: String) throws {
