@@ -62,7 +62,9 @@ struct MenuActionItems: SwiftUI.View {
     @FocusedValue(\.podListPlayerActions) private var player
     var body: some SwiftUI.View {
         ForEach(items, id: \.self) { item in
-            Button(item.rawValue) { action(item)?() }.disabled(action(item) == nil)
+            Button(item.rawValue) { action(item)?() }
+                .keyboardShortcut(item == .backToLibrary ? KeyboardShortcut("[", modifiers: .command) : nil)
+                .disabled(action(item) == nil)
         }
     }
     private func action(_ item: MenuAction) -> (() -> Void)? {

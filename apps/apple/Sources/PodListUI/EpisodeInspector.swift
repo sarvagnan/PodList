@@ -32,8 +32,11 @@ struct EpisodeInspector: SwiftUI.View {
     let playlistPresentation: PlaylistPresentation
     var startedPlayback: () -> Void = {}
     var scrolls = true
+    var selectedIDs: [String] = []
     var body: some SwiftUI.View {
-        if let row {
+        if selectedIDs.count > 1 {
+            selectionSummary
+        } else if let row {
             Group {
                 if scrolls { ScrollView { details(row) } }
                 else { details(row) }
@@ -51,6 +54,35 @@ struct EpisodeInspector: SwiftUI.View {
                 Text("Its details and Playlists appear here.").foregroundStyle(MacReadableSecondaryStyle())
             }
         }
+    }
+    private var selectionSummary: some SwiftUI.View {
+        let summary = EpisodeSelectionSummary(ids: selectedIDs, library: library)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Label(summary.title, systemImage: "square.stack")
+                    .macContentFont(.title2).bold()
+                LabeledContent("Total Length", value: summary.lengthText)
+                    .labeledContentStyle(InspectorLabeledContentStyle())
+                if let editing = app.editing, summary.allAvailable {
+                    Button("Add to a Playlist…", systemImage: "text.badge.plus") {
+                        playlistPresentation.sheet = .add(summary.ids, false)
+                    }
+                    let allStarred = summary.ids.allSatisfy { library.state.episodeStates[$0]?.starred == true }
+                    Button(allStarred ? "Unstar" : "Star", systemImage: allStarred ? "star.fill" : "star") {
+                        Task { await editing.setStar(summary.ids, starred: !allStarred) }
+                    }
+                    let allPlayed = summary.ids.allSatisfy { library.state.episodeStates[$0]?.played != nil }
+                    Button(allPlayed ? "Mark Unplayed" : "Mark Played", systemImage: "checkmark.circle") {
+                        Task { await editing.markPlayed(summary.ids, played: !allPlayed) }
+                    }
+                }
+            }
+            .disabled(app.editing?.busy == true)
+            .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .macContentFont(.body)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Episode selection Inspector")
     }
     private func details(_ row: EpisodeRow) -> some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {

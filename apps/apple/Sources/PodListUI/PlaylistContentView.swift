@@ -248,32 +248,55 @@ struct PlaylistContentView: SwiftUI.View {
     private func date(_ at: Int64) -> String { Date(timeIntervalSince1970: Double(at) / 1000).formatted(date: .abbreviated, time: .shortened) }
 }
 
-/// Keep both controls in one intrinsic-height row, independent of the selected tab.
+/// Width alone chooses the row, so switching sections cannot move either control.
 struct PlaylistHeader: SwiftUI.View {
     @Binding var selection: PlaylistTab
     let busy: Bool
     let play: () -> Void
 
     var body: some SwiftUI.View {
-        HStack {
-            Text("Playlist section").fixedSize()
-            Picker("Playlist section", selection: $selection) {
-                ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                Text("Playlist section").fixedSize()
+                sections
+                playButton.labelStyle(.titleAndIcon)
+                Spacer(minLength: 0)
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            // System selected-segment colours: the brand tint fails contrast in Dark.
-            .tint(nil)
-            // Its natural width: a narrower cap lets AppKit redraw it full-width over its
-            // neighbours after a section change (seen on History).
-            .fixedSize()
-            Button("Play This Playlist", systemImage: "play.fill", action: play)
-                .fixedSize().disabled(busy)
-            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                sections
+                playButton.labelStyle(.iconOnly)
+                Spacer(minLength: 0)
+            }
+            // At 760 pt with both panes open, even the natural-width picker cannot
+            // fit. Scroll its viewport rather than cap the AppKit control (which
+            // redraws over its neighbours when capped). Play stays visible.
+            HStack(spacing: 8) {
+                ScrollView(.horizontal) { sections }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .scrollBounceBehavior(.basedOnSize)
+                playButton.labelStyle(.iconOnly)
+            }
         }
         .padding(12)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("playlist.header")
+    }
+    private var sections: some SwiftUI.View {
+        Picker("Playlist section", selection: $selection) {
+            ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }
+        .labelsHidden()
+        .accessibilityLabel("Playlist section")
+        .pickerStyle(.segmented)
+        // System selected-segment colours: the brand tint fails contrast in Dark.
+        .tint(nil)
+        .fixedSize()
+    }
+    private var playButton: some SwiftUI.View {
+        Button("Play This Playlist", systemImage: "play.fill", action: play)
+            .fixedSize().disabled(busy)
+            .help("Play This Playlist")
+            .accessibilityLabel("Play This Playlist")
     }
 }
 
