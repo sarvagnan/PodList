@@ -59,8 +59,8 @@ final class PodListUITour: XCTestCase {
         try capture("03-episode-inspector")
         try navigate("Starred")
         try capture("04-starred")
-        try click(library.buttons["All Views"])
-        try ready(library.buttons["New this week"])
+        try navigate("All Views")
+        try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "New this week")).element(boundBy: 1))
         try capture("05-all-views")
 
         try navigate("Default")
@@ -85,10 +85,10 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Commute")
         try capture("10-commute")
-        try click(library.buttons["Playlist Settings"])
+        try click(button("Playlist Settings"))
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
-        try click(library.sheets.buttons["Rename"])
+        try click(button("Rename", in: library.sheets.firstMatch))
         try ready(library.sheets.textFields["Playlist name"])
         try capture("12-playlist-rename", expectsSheet: true)
         try click(library.sheets.buttons["Cancel Rename"])
@@ -100,7 +100,7 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Cancel")
 
         try navigate("Trash")
-        try ready(library.staticTexts["Trash is empty"])
+        try ready(library.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Trash is empty")).firstMatch)
         try capture("14-trash")
         app.typeKey("f", modifierFlags: .command)
         let search = library.searchFields.firstMatch
@@ -112,7 +112,7 @@ final class PodListUITour: XCTestCase {
         search.typeKey(.delete, modifierFlags: [])
 
         try navigate("New this week")
-        try click(library.buttons["Edit View"])
+        try click(button("Edit View"))
         try sheet("Edit View")
         try capture("16-edit-view", expectsSheet: true)
         try dismissSheet("Cancel")
@@ -123,11 +123,11 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
-        try ready(library.buttons["Show description"])
+        try ready(button("Show description"))
         try ready(episodeList.staticTexts["Who sets the price of rice?"])
         try capture("18-podcast-market-hours")
-        try click(library.buttons["Show description"])
-        try ready(library.buttons["Show less"])
+        try click(button("Show description"))
+        try ready(button("Show less"))
         try capture("19-description-expanded")
         try click(library.buttons["Subscribed"])
         let armedAt = Date()
@@ -139,7 +139,7 @@ final class PodListUITour: XCTestCase {
         try ready(library.buttons["Subscribed"])
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
         try capture("21-unsubscribe-disarmed")
-        try click(library.buttons["Subscription settings"])
+        try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         try capture("22-subscription-settings", expectsSheet: true)
         try dismissSheet("Done")
@@ -147,7 +147,7 @@ final class PodListUITour: XCTestCase {
         try navigate("New this week")
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
-        try sheet("Add Episode to a Playlist")
+        try sheet("Add Episode")
         try capture("23-add-to-playlist", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Subscriptions")
@@ -190,8 +190,8 @@ final class PodListUITour: XCTestCase {
         settings.typeKey("w", modifierFlags: .command)
         try ready(library)
 
-        try menuCommand("Window", "Listening stats")
-        let stats = app.windows.containing(.staticText, identifier: "Listening stats").firstMatch
+        try menuCommand("Window", "Listening Stats")
+        let stats = app.windows.containing(.staticText, identifier: "Listening Stats").firstMatch
         try ready(stats)
         try capture("31-listening-stats", in: stats)
         stats.typeKey("w", modifierFlags: .command)
@@ -202,8 +202,8 @@ final class PodListUITour: XCTestCase {
         generalForm.hover()
         // Return from the bottom far enough to reveal the Library section.
         generalForm.scroll(byDeltaX: 0, deltaY: 1800)
-        try reveal(settings.buttons["Getting started"], in: generalForm)
-        try click(settings.buttons["Getting started"])
+        try reveal(button("Getting started", in: settings), in: generalForm)
+        try click(button("Getting started", in: settings))
         try ready(settings.sheets.firstMatch)
         try capture("32-getting-started", in: settings, expectsSheet: true)
         try click(settings.sheets.buttons["Dismiss"])
@@ -259,8 +259,14 @@ final class PodListUITour: XCTestCase {
         try click(library.segmentedControls.buttons[name])
     }
 
+    /// Sheet headings and button titles are matched case-insensitively by prefix, so title-case
+    /// and trailing-ellipsis changes in the app don't break the tour.
     private func sheet(_ heading: String) throws {
-        try ready(library.sheets.staticTexts[heading])
+        try ready(library.sheets.staticTexts.matching(NSPredicate(format: "label BEGINSWITH[c] %@", heading)).firstMatch)
+    }
+
+    private func button(_ title: String, in root: XCUIElement? = nil) -> XCUIElement {
+        (root ?? library).buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@ OR title BEGINSWITH[c] %@", title, title)).firstMatch
     }
 
     private func dismissSheet(_ button: String) throws {
