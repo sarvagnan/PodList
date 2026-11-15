@@ -74,6 +74,44 @@ describe("Mac-compatible stateless MCP", () => {
       resultType: "complete"
     })
   })
+  it("requires both Play from Here identifiers and forwards valid calls to the renderer", async () => {
+    const value = { playlist_id: "p", episode_ids: ["e"], undo: "Undo Play from Here" }
+    const call = vi.fn(async () => value)
+    const handler = new MCPHandler(call)
+    expect(tools.find((t) => t.name === "play_in_playlist")).toEqual({
+      name: "play_in_playlist",
+      description: "Play an existing Entry in a Playlist. Offers Undo.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          episode_id: { type: "string", minLength: 1 },
+          playlist_id: { type: "string", minLength: 1 }
+        },
+        required: ["episode_id", "playlist_id"],
+        additionalProperties: false
+      }
+    })
+    for (const [args, message] of [
+      [{ playlist_id: "p" }, "Missing argument: episode_id."],
+      [{ episode_id: "e" }, "Missing argument: playlist_id."],
+      [{ episode_id: "", playlist_id: "p" }, "Invalid argument: episode_id."],
+      [{ episode_id: "e", playlist_id: " " }, "Invalid argument: playlist_id."],
+      [{ episode_id: 1, playlist_id: "p" }, "Invalid argument: episode_id."],
+      [{ episode_id: "e", playlist_id: "p", unexpected: true }, "Unknown argument: unexpected."]
+    ] as const) {
+      const result = (
+        await reply(handler, request("tools/call", { name: "play_in_playlist", arguments: args }))
+      ).result
+      expect(result).toMatchObject({ isError: true, content: [{ type: "text", text: message }] })
+    }
+    expect(call).not.toHaveBeenCalled()
+    const args = { episode_id: "e", playlist_id: "p" }
+    const result = (
+      await reply(handler, request("tools/call", { name: "play_in_playlist", arguments: args }))
+    ).result
+    expect(result).toMatchObject({ isError: false, structuredContent: value })
+    expect(call).toHaveBeenCalledExactlyOnceWith("play_in_playlist", args)
+  })
   it("rejects initialize and unsupported revisions without establishing connection state", async () => {
     const handler = new MCPHandler(async () => ({}))
     for (const line of [
@@ -91,7 +129,7 @@ describe("Mac-compatible stateless MCP", () => {
       (await reply(handler, JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }))).error
         .code
     ).toBe(-32602)
-    expect((await reply(handler, request("tools/list"))).result.tools).toHaveLength(15)
+    expect((await reply(handler, request("tools/list"))).result.tools).toHaveLength(16)
   })
   it("validates JSON-RPC, per-request metadata and protocol parameters", async () => {
     const handler = new MCPHandler(async () => ({}))

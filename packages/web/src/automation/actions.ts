@@ -130,6 +130,23 @@ export const perform = (
         )
       case "now_playing":
         return yield* nowPlaying()
+      case "play_in_playlist": {
+        const target = playlist(args.playlist_id)
+        const id = String(args.episode_id)
+        if (!target.entries.some((e) => e.episodeId === id))
+          throw new Error("The Episode is not in that Playlist.")
+        yield* player.playEntry(target.id, id)
+        return {
+          value: { playlist_id: target.id, episode_ids: [id], undo: "Undo Play from Here" },
+          outcome: {
+            message: "Play from Here",
+            undo: [
+              change({ _tag: "SetCursor", playlistId: target.id, episodeId: target.cursor }),
+              change({ _tag: "SetActivePlaylist", playlistId: state.activePlaylistId })
+            ]
+          }
+        }
+      }
       case "play":
       case "pause":
       case "toggle":

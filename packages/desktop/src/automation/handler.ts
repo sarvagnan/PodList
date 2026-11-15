@@ -33,6 +33,12 @@ export const tools = [
     ["episode_id"]
   ),
   tool(
+    "play_in_playlist",
+    "Play an existing Entry in a Playlist. Offers Undo.",
+    { episode_id: text, playlist_id: text },
+    ["episode_id", "playlist_id"]
+  ),
+  tool(
     "add_episodes",
     "Add or move Episodes to a Playlist, Active by default. Offers Undo.",
     { episode_ids: ids, playlist_id: text, placement: { type: "string", enum: ["next", "last"] } },
