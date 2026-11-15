@@ -38,8 +38,8 @@ struct PodListMac: App {
             PodListCommands()
             LibraryCommands(app: model)
             AdditionalMenuCommands(app: model)
-            PlaybackCommands(app: model)
             PlaylistEditingCommands(app: model)
+            PlaybackCommands(app: model)
             CommandGroup(replacing: .help) {
                 Button("PodList Help") { openWindow(id: "help") }
             }
