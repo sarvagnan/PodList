@@ -9,6 +9,7 @@
     "start": "node scripts/build-mcp.ts && electron .",
     "typecheck": "tsc -p tsconfig.json",
     "test:app": "pnpm --filter @podlist/web exec vite build --mode desktop && node scripts/build-mcp.ts && playwright test",
+    "ui:capture": "pnpm --filter @podlist/web exec vite build --mode desktop && node scripts/build-mcp.ts && node ui-capture/capture.ts",
     "build:mcp": "node scripts/build-mcp.ts",
     "build:app": "node scripts/build-app.ts",
     "install:app": "node scripts/build-app.ts --install"
