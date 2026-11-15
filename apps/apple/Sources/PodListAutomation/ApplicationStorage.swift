@@ -24,7 +24,9 @@ public enum ApplicationStorage {
         }
         let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath()
         let temporary = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).resolvingSymlinksInPath()
-        guard url.path.hasPrefix(temporary.path + "/") || url.path.hasPrefix("/private/tmp/") else {
+        // resolvingSymlinksInPath turns /private/tmp/… into /tmp/…, so accept both spellings.
+        guard url.path.hasPrefix(temporary.path + "/") || url.path.hasPrefix("/private/tmp/")
+                || url.path.hasPrefix("/tmp/") else {
             throw AutomationFailure("The UI test data directory must be inside a temporary directory.")
         }
         return url

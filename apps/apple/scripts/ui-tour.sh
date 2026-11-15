@@ -145,10 +145,16 @@ if [ -n "$vm" ]; then
         result=\$?
         kill \$demo 2>/dev/null; wait \$demo 2>/dev/null
         cp '$guest_run/demo.log' \"\$shared/run/guest-demo.log\"
+        # Diagnostics for a failed run: crash reports and the last minutes of relevant logs.
+        mkdir -p \"\$shared/run/guest-diagnostics\"
+        cp ~/Library/Logs/DiagnosticReports/*PodList* \"\$shared/run/guest-diagnostics/\" 2>/dev/null
+        log show --last 10m --style compact --predicate 'process CONTAINS \"PodList\" OR process == \"testmanagerd\" OR process == \"automationmodetool\" OR subsystem == \"com.apple.dt.xctest\"' \\
+            > \"\$shared/run/guest-diagnostics/log.txt\" 2>&1
         if [ -d '$guest_run/Tour.xcresult' ]; then ditto '$guest_run/Tour.xcresult' \"\$shared/run/Tour.xcresult\"; fi
         exit \$result
     " >> "$out/xcodebuild.log" 2>&1 || status=$?
     if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
+    if [ -d "$run/guest-diagnostics" ]; then cp -R "$run/guest-diagnostics" "$out/"; fi
     if [ -d "$run/Tour.xcresult" ]; then ditto "$run/Tour.xcresult" "$out/Tour.xcresult"; fi
 else
 # Serial tests share the foreground desktop. Build settings expand in the shared scheme.

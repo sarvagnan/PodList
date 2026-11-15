@@ -16,4 +16,11 @@ import PodListAutomation
     }
     #expect(try ApplicationStorage.isolatedDirectory(root.path, bundleIdentifier: identity).path == root.resolvingSymlinksInPath().path)
 }
+
+@Test func uiTestStorageAcceptsPrivateTmp() throws {
+    // The tour's run directory lives in /private/tmp, which symlink resolution spells /tmp.
+    let url = try ApplicationStorage.isolatedDirectory("/private/tmp/podlist-uitour-run/dark/data",
+                                                       bundleIdentifier: "app.podlist.uitour.test")
+    #expect(url.path.hasSuffix("/podlist-uitour-run/dark/data"))
+}
 #endif
