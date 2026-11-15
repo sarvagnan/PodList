@@ -168,10 +168,16 @@ struct PodcastPageScreen: SwiftUI.View {
                         HStack {
                             Text(episode.title).lineLimit(2)
                             Spacer()
-                            Button("Add", systemImage: "plus") { bring(episode, play: false) }
+                            Button { bring(episode, play: false) } label: {
+                                MacIconLabel(title: "Add", systemImage: "plus")
+                            }
                                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
-                            Button("Play", systemImage: "play.fill") { bring(episode, play: true) }
+                                .help("Add \(episode.title) to a Playlist")
+                            Button { bring(episode, play: true) } label: {
+                                MacIconLabel(title: "Play", systemImage: "play.fill")
+                            }
                                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play \(episode.title) now")
+                                .help("Play \(episode.title) now")
                         }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
                     }
                     TableColumn("Published", value: \.published) { episode in

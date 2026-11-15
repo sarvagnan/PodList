@@ -4,6 +4,24 @@ import PodListDomain
 import PodListData
 @testable import PodListUI
 
+@MainActor @Test func sidebarSelectionTracksAllViewsAndPodcastParentWithoutChangingContent() {
+    let window = WindowModel()
+    window.navigate(to: .views)
+    #expect(window.sidebarSelection == .views)
+    window.navigate(to: .subscription("podcast"))
+    window.selection = ["episode"]
+    window.search = "query"
+    #expect(window.sidebarSelection == .subscriptions)
+    #expect(window.destination == .subscription("podcast"))
+    #expect(window.selection == ["episode"] && window.search == "query")
+    for destination in [Destination.view("view"), .playlist("playlist"), .subscriptions, .search, .trash] {
+        window.navigate(to: destination)
+        #expect(window.sidebarSelection == destination)
+    }
+    window.navigate(to: nil)
+    #expect(window.sidebarSelection == nil)
+}
+
 @Test func sharingUsesEpisodePageThenEnclosureAndRejectsNonWebLinks() {
     #expect(ShareLinks.episode(page: " https://publisher/episode ", enclosure: "https://publisher/audio.mp3")?.absoluteString == "https://publisher/episode")
     #expect(ShareLinks.episode(page: "javascript:alert(1)", enclosure: "https://publisher/audio.mp3")?.absoluteString == "https://publisher/audio.mp3")

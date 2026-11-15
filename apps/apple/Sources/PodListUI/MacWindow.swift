@@ -40,15 +40,18 @@ public struct PodListWindow: SwiftUI.View {
 
     private func connected(_ library: LibraryModel) -> some SwiftUI.View {
         NavigationSplitView(columnVisibility: $columns) {
-            List(selection: Binding(get: { window.destination }, set: { window.navigate(to: $0) })) {
+            List(selection: Binding(get: { podcastFeed == nil ? window.sidebarSelection : .subscriptions }, set: {
+                podcastFeed = nil
+                window.navigate(to: $0)
+            })) {
                 ForEach(library.sidebar) { section in
                     Section {
                         if section.name == "Views" {
-                            Button("All Views", systemImage: "line.3.horizontal.decrease") { window.navigate(to: .views) }
-                            Button("New View", systemImage: "plus") { newView() }
+                            Label("All Views", systemImage: "line.3.horizontal.decrease").tag(Destination.views)
+                            Button("New View", systemImage: "plus") { newView() }.selectionDisabled()
                         }
-                        if section.name == "Playlists" { Button("New Playlist", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist } }
-                        if section.name == "Library" { Button("Add podcasts", systemImage: "plus") { showAddPodcasts = true } }
+                        if section.name == "Playlists" { Button("New Playlist", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }.selectionDisabled() }
+                        if section.name == "Library" { Button("Add podcasts", systemImage: "plus") { showAddPodcasts = true }.selectionDisabled() }
                         if section.items.isEmpty {
                             Text("No \(section.name)").foregroundStyle(.secondary)
                         }
@@ -71,7 +74,17 @@ public struct PodListWindow: SwiftUI.View {
                                 }
                                 Text(item.count, format: .number).foregroundStyle(.secondary).monospacedDigit()
                             }
+                            .contentShape(Rectangle())
                             .tag(item.destination)
+                            .simultaneousGesture(TapGesture().onEnded {
+                                // The parent is already selected on a Podcast page; a click
+                                // must still open the Subscriptions list.
+                                if item.destination == .subscriptions, isPodcastPage {
+                                    podcastFeed = nil
+                                    window.navigate(to: .subscriptions)
+                                }
+                            })
+                            .contextMenu { sidebarActions(item.destination, library: library) }
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
@@ -258,7 +271,9 @@ public struct PodListWindow: SwiftUI.View {
                                         ArtworkView(url: subscription.artwork.flatMap { URL(string: $0.url) }, title: subscription.title, size: 44)
                                         Text(subscription.title).font(.headline)
                                         Spacer()
-                                        Button("Open", systemImage: "chevron.right") { window.navigate(to: .subscription(subscription.id)) }
+                                        Button { window.navigate(to: .subscription(subscription.id)) } label: {
+                                            MacIconLabel(title: "Open", systemImage: "chevron.right")
+                                        }
                                             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle())
                                             .help("Open \(subscription.title)").accessibilityLabel("Open \(subscription.title), Subscription")
                                     }.padding(.vertical, 5).contentShape(Rectangle()).tag(subscription.id)
@@ -267,7 +282,7 @@ public struct PodListWindow: SwiftUI.View {
                         }
                     }.listStyle(.inset)
                     .contextMenu(forSelectionType: String.self) { ids in
-                        Button("Edit Download Rules…") { subscriptionSelection = ids; showBulkRules = true }.disabled(ids.isEmpty)
+                        subscriptionActions(library, ids: ids)
                     } primaryAction: { ids in
                         if let id = ids.first { window.navigate(to: .subscription(id)) }
                     }
@@ -285,16 +300,68 @@ public struct PodListWindow: SwiftUI.View {
         }
     }
 
-    private func selectedSubscription(_ library: LibraryModel) -> Subscription? {
+    @ViewBuilder private func sidebarActions(_ destination: Destination, library: LibraryModel) -> some SwiftUI.View {
+        switch destination {
+        case let .playlist(id):
+            if let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing {
+                Button("Play") { Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) } }
+                    .disabled(editing.busy)
+                Button("Playlist Settings…") { playlistPresentation.sheet = .settings(id) }
+                Button("Rename…") {
+                    if editing.drafts["rename/\(id)"].isEmpty { editing.drafts["rename/\(id)"] = playlist.name }
+                    editing.drafts["rename-open/\(id)"] = "true"
+                    playlistPresentation.sheet = .settings(id)
+                }.disabled(playlist.isDefault || editing.busy)
+                Toggle("Clear on Played", isOn: Binding(get: {
+                    app.library?.state.playlists.first { $0.id == id }?.clearOnPlayed ?? playlist.clearOnPlayed
+                }, set: { value in
+                    Task { await editing.edit([.setClearOnPlayed(playlistId: id, clearOnPlayed: value)], name: "Clear on Played") }
+                })).disabled(editing.busy)
+                Divider()
+                Button("Delete Playlist", role: .destructive) { Task { await editing.delete(playlist) } }
+                    .disabled(playlist.isDefault || editing.busy)
+            }
+        case let .view(id):
+            if let view = library.state.views.first(where: { $0.id == id }), let editor = app.libraryEditing {
+                Button("Edit View…") { editView(view) }.disabled(editor.busy || app.editing?.busy == true)
+                Button("Rename…") {
+                    if editor.draft("rename.\(id)").isEmpty { editor.setDraft(view.name, field: "rename.\(id)") }
+                    editView(view)
+                }.disabled(editor.busy || app.editing?.busy == true)
+                Divider()
+                Button("Delete View", role: .destructive) {
+                    editor.run { try await editor.deleteView(view) }
+                }.disabled(editor.busy || app.editing?.busy == true)
+            }
+        default: EmptyView()
+        }
+    }
+
+    @ViewBuilder private func subscriptionActions(_ library: LibraryModel, ids: Set<String>) -> some SwiftUI.View {
+        let subscription = selectedSubscription(library, selection: ids)
+        let commands = subscriptionCommands(library, selection: ids)
+        Button("Open") {
+            if let subscription { window.navigate(to: .subscription(subscription.id)) }
+        }.disabled(subscription == nil)
+        Button("Unsubscribe") { commands.subscriptionAction?() }.disabled(commands.subscriptionAction == nil)
+        Button("Subscription Settings…") { commands.settings?() }.disabled(commands.settings == nil)
+        Button("Edit Download Rules…") { commands.downloadRules?() }.disabled(commands.downloadRules == nil)
+        Divider()
+        Button("Copy Feed Address") { if let url = commands.feedURL { ShareLinks.copy(url) } }.disabled(commands.feedURL == nil)
+        ShareLink(items: commands.shareURL.map { [$0] } ?? []) { Text("Share Podcast…") }.disabled(commands.shareURL == nil)
+    }
+
+    private func selectedSubscription(_ library: LibraryModel, selection: Set<String>? = nil) -> Subscription? {
         let visible = Set(library.subscriptionGroups(search: window.search).flatMap { $0.subscriptions.map(\.id) })
-        let ids = subscriptionSelection.intersection(visible)
+        let ids = (selection ?? subscriptionSelection).intersection(visible)
         guard ids.count == 1 else { return nil }
         return library.subscriptions.first { ids.contains($0.id) }
     }
-    private func subscriptionCommands(_ library: LibraryModel) -> PodcastCommandContext {
-        let subscription = selectedSubscription(library)
+    private func subscriptionCommands(_ library: LibraryModel, selection: Set<String>? = nil) -> PodcastCommandContext {
+        let subscription = selectedSubscription(library, selection: selection)
         let visible = Set(library.subscriptionGroups(search: window.search).flatMap { $0.subscriptions.map(\.id) })
-        let hasSelection = !subscriptionSelection.intersection(visible).isEmpty
+        let ids = (selection ?? subscriptionSelection).intersection(visible)
+        let hasSelection = !ids.isEmpty
         let available = app.libraryEditing != nil && app.libraryEditing?.busy == false && app.editing?.busy == false
         return PodcastCommandContext(
             subscribed: subscription != nil,
@@ -302,8 +369,8 @@ public struct PodListWindow: SwiftUI.View {
                 guard let subscription, let editor = app.libraryEditing else { return }
                 editor.run { try await editor.unsubscribe(subscription) }
             } : nil,
-            settings: subscription != nil && available ? { showSubscriptionSettings = true } : nil,
-            downloadRules: hasSelection && available ? { subscriptionSelection.formIntersection(visible); showBulkRules = true } : nil,
+            settings: subscription != nil && available ? { subscriptionSelection = ids; showSubscriptionSettings = true } : nil,
+            downloadRules: hasSelection && available ? { subscriptionSelection = ids; showBulkRules = true } : nil,
             shareURL: subscription.flatMap { ShareLinks.podcast(page: library.snapshot.podcastLinks[$0.id], feed: $0.feedUrl) },
             feedURL: subscription.flatMap { ShareLinks.web($0.feedUrl) })
     }
@@ -371,10 +438,16 @@ public struct PodListWindow: SwiftUI.View {
                 Image(systemName: "arrow.down.circle.fill").foregroundStyle(.secondary).accessibilityLabel("Downloaded")
             }
             if let editing = app.editing {
-                Button("Add", systemImage: "plus") { playlistPresentation.sheet = .add([row.id], false) }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
-                Button("Play Now", systemImage: "play.fill") { Task { await editing.add([row.id], placement: .now) } }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play Now: \(row.title)")
+                Button { playlistPresentation.sheet = .add([row.id], false) } label: {
+                    MacIconLabel(title: "Add", systemImage: "plus")
+                }
+                    .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
+                    .help("Add \(row.title) to a Playlist")
+                Button { Task { await editing.add([row.id], placement: .now) } } label: {
+                    MacIconLabel(title: "Play Now", systemImage: "play.fill")
+                }
+                    .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play Now: \(row.title)")
+                    .help("Play Now: \(row.title)")
             }
         }
         .accessibilityElement(children: .contain)
@@ -434,6 +507,9 @@ public struct PodListWindow: SwiftUI.View {
     private func editCurrentView(_ library: LibraryModel) {
         guard case let .view(id) = window.destination,
               let view = library.state.views.first(where: { $0.id == id }) else { return }
+        editView(view)
+    }
+    private func editView(_ view: PodListDomain.View) {
         creatingView = false; editingView = view
     }
     private func playSelection(_ library: LibraryModel) async {
