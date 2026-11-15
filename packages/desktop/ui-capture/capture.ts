@@ -127,7 +127,8 @@ const desktopScreens = async (rec: Recorder) => {
   const { page } = rec
   await rec.step("Playlists", (p) => goto(p, "/playlists"))
   await rec.step("New Playlist", async (p) => {
-    await p.getByRole("button", { name: "New Playlist", exact: true }).click()
+    // The page's text button; the navigation rail has an icon-only "New Playlist" too.
+    await p.getByRole("button", { name: "New Playlist", exact: true }).filter({ hasText: "New Playlist" }).click()
     await p.getByRole("dialog", { name: "New Playlist" }).waitFor()
   })
   await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click()
