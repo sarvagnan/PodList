@@ -402,8 +402,8 @@ Apple describes bundle metadata in
 
 After opening the bundle, look for PodList in Shortcuts > Add Action > Apps. Launch
 Services and Shortcuts may need time or a Shortcuts restart to refresh their caches.
-Bundle metadata extraction is checked by the script. Actual Shortcuts, Siri and Spotlight
-visibility still needs a manual run. Distribution signing and notarization are not included.
+Bundle metadata extraction is checked by the script. The VM system checks below can
+validate Shortcuts discovery. Siri and Spotlight visibility still need a manual run. Distribution signing and notarization are not included.
 
 `AutomationTests` covers Active Playlist defaults, shared Undo names and reversal, Search,
 paging, Now Playing, id/argument validation, MCP lifecycle/schema/success/error handling,
@@ -458,6 +458,80 @@ PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh /private/tmp/podlist-mac-
 This Mac builds the app and the test bundle. The tour runs in a fresh clone of `podlist-ui`
 with no window; the clone also runs the demo server from the repository, shared read-only,
 with the image's Node. Nothing connects from this Mac into the VM's network. The clone is deleted afterwards.
+
+### App Intents, live MCP and native window checks (VM only)
+
+Use the same prepared VM to validate platform integration without touching this Mac's
+screen or registering the throwaway app with this Mac's LaunchServices:
+
+```sh
+PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --system-checks /private/tmp/podlist-system-checks
+```
+
+Choose a fresh, empty output directory. The host builds; a new headless Tart clone runs
+both checks, copies back partial or complete results, and is deleted on exit. This mode
+refuses to run unless `PODLIST_UI_VM` is set. It uses
+`app.podlist.uitour.<UUID>.system`, isolated temporary data and a guest-local demo server.
+`ui-tour-guest.sh` shares the existing tour's guest startup, diagnostics and result copying.
+No sign-in, Shortcuts action execution, or owner Library is involved.
+
+`PodListSystemChecks` is a separate class in the existing `PodListUITour` test target:
+
+- `testShortcutsDiscovery` launches the disposable PodList bundle through XCUITest so
+  LaunchServices can register it, opens `com.apple.shortcuts`, creates an empty shortcut
+  and searches the action library for **PodList**. It compares the action names against
+  a catalog generated from `AppIntents.swift` and `NowPlayingSnippet.swift`, excluding
+  intents with `isDiscoverable = false`. Currently that is eleven discoverable intents.
+  It records the four App Shortcuts' short titles when shown; if this search exposes any,
+  it requires all four. No action is added or run. It closes the blank editor, chooses
+  Discard/Don't Save if prompted, and quits Shortcuts without issuing Save.
+- `testMCPWindowLifecycle` launches PodList with `-PodList.mcpEnabled YES` and runs
+  `Contents/MacOS/podlist-mcp` from that exact disposable bundle. The client sends
+  newline-delimited JSON-RPC through the bridge's stdin/stdout with revision
+  `2026-07-28` and the required per-request metadata. It asserts that `initialize` is
+  rejected with `-32022` (this revision has **no initialization handshake**), then uses
+  `server/discover`, `tools/list`, and `tools/call`. It checks server identity, cache
+  policy, sorted unique tool names and schemas, fixture Views/Playlists, paused Now
+  Playing, and nonempty `search_episodes` results. It flips one fixture Episode's Star
+  mark, checks the persisted mark and named Undo, then uses the native **Edit > Undo
+  Star/Unstar** command and reads the original mark back through MCP.
+- The same MCP client stays connected while XCUITest closes the last window. The test
+  checks that the app is still running with zero windows, the socket remains, the
+  existing bridge still responds, and a second bundled bridge can connect. Opening
+  the exact app bundle through LaunchServices must restore the Library window with
+  the same process ID and restored Star mark. Native Quit must terminate the app,
+  remove its socket and close the original bridge connection. Socket ownership and
+  0600/0700 permissions are checked too.
+
+`Shortcuts.xcresult` and `MCP.xcresult` retain `.keepAlways` screenshots, UI trees,
+found action names, and the MCP transcript. Exported attachments are in
+`Shortcuts-attachments/` and `MCP-attachments/`. `system-results/` contains the
+source-derived catalog, `mcp-transcript.jsonl`, `mcp-summary.json`, client log and bridge
+stderr. `README.md` reports passed/incomplete; build, demo, test and guest logs survive
+failures. Both independent tests run even if the first fails. The ordinary tour selects
+only `PodListUITour`, so it never opens Shortcuts or enables MCP.
+
+For a focused run **inside an already staged disposable guest**, while its demo server
+is running, the MCP entry point launches just its XCUITest (which launches PodList):
+
+```sh
+tart exec <clone-name> /bin/bash /private/tmp/podlist-uitour-run/checks/mcp-live-check.sh /private/tmp/podlist-uitour-run
+```
+
+That command requires the guest-only `system-vm` marker, staged `products/` and the
+patched demo origin in the `.xctestrun`; use a fresh run before repeating it because
+`MCP.xcresult` must not already exist. The normal host command handles all staging.
+The two tests are independently selectable with
+`-only-testing:PodListUITour/PodListSystemChecks/testShortcutsDiscovery` and
+`-only-testing:PodListUITour/PodListSystemChecks/testMCPWindowLifecycle` on the staged
+`.xctestrun`. Neither should be run on the owner's desktop.
+
+These tests can be built in a screenless sandbox using the headless command below.
+Their Shortcuts locators, App Intents indexing delay and window reopen behavior still
+need the first live VM run. Siri invocation, Spotlight discovery and distribution
+signing/notarization are outside this check; no account credentials are requested.
+
+### Tour coverage and isolation
 
 The 35 states (01–33, 34a and 34) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
