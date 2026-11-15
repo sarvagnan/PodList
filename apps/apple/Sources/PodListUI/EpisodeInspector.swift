@@ -77,8 +77,7 @@ struct EpisodeInspector: SwiftUI.View {
                             .labeledContentStyle(InspectorLabeledContentStyle())
                         Button {
                             Task {
-                                await app.editing?.playFromHere(playlistID: membership.id, episodeID: row.id)
-                                if app.editing?.error == nil { startedPlayback() }
+                                await EpisodePlaybackAction.resume(episodeID: row.id, playlistID: membership.id, app: app, started: startedPlayback)
                             }
                         } label: { Image(systemName: "play.circle").frame(width: 28, height: 28) }
                         .buttonStyle(.borderless).help("Resume in \(membership.name)")
@@ -99,8 +98,7 @@ struct EpisodeInspector: SwiftUI.View {
                             Spacer()
                             Button {
                                 Task {
-                                    guard await app.editing?.add([row.id], placement: .now) != nil else { return }
-                                    app.playback?.seek(chapter.start); startedPlayback()
+                                    await EpisodePlaybackAction.chapter(chapter.start, episodeID: row.id, app: app, started: startedPlayback)
                                 }
                             } label: { Image(systemName: "play.circle").frame(width: 28, height: 28) }
                             .buttonStyle(.borderless).help("Play \(chapter.title)").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")

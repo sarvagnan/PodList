@@ -147,10 +147,12 @@ public struct PodListWindow: SwiftUI.View {
                             Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }
                                 .help("New Playlist (⇧⌘N)")
                             Button("Playlist Settings…", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
+                                .help("Playlist Settings (\(PodListShortcut.playlistSettings.notation))")
                         case .view, .views:
                             Button("New View…", systemImage: "plus") { newView() }
                             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
                                 Button("Edit View…", systemImage: "slider.horizontal.3") { editView(view) }
+                                    .help("Edit View (\(PodListShortcut.editView.notation))")
                             }
                         default: EmptyView()
                         }
@@ -192,7 +194,7 @@ public struct PodListWindow: SwiftUI.View {
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }, showDetails: { inspectorVisible = true }))
-        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction))
+        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing { ContentSizedPanel(width: 600) { VStack(alignment: .leading) {
                 Text("Import OPML").macContentFont(.title2).bold()
@@ -350,9 +352,7 @@ public struct PodListWindow: SwiftUI.View {
                     .disabled(editing.busy)
                 Button("Playlist Settings…") { playlistPresentation.sheet = .settings(id) }
                 Button("Rename…") {
-                    if editing.drafts["rename/\(id)"].isEmpty { editing.drafts["rename/\(id)"] = playlist.name }
-                    editing.drafts["rename-open/\(id)"] = "true"
-                    playlistPresentation.sheet = .settings(id)
+                    if PlaylistRenameAction.prepare(playlist, editing: editing) { playlistPresentation.sheet = .settings(id) }
                 }.disabled(playlist.isDefault || editing.busy)
                 Toggle("Clear on Played", isOn: Binding(get: {
                     app.library?.state.playlists.first { $0.id == id }?.clearOnPlayed ?? playlist.clearOnPlayed
@@ -368,8 +368,7 @@ public struct PodListWindow: SwiftUI.View {
             if let view = library.state.views.first(where: { $0.id == id }), let editor = app.libraryEditing {
                 Button("Edit View…") { editView(view) }.disabled(editor.busy || app.editing?.busy == true)
                 Button("Rename…") {
-                    if editor.draft("rename.\(id)").isEmpty { editor.setDraft(view.name, field: "rename.\(id)") }
-                    editView(view)
+                    renameView(view)
                 }.disabled(editor.busy || app.editing?.busy == true)
                 Divider()
                 Button("Delete View", role: .destructive) {
@@ -381,11 +380,8 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     @ViewBuilder private func subscriptionActions(_ library: LibraryModel, ids: Set<String>) -> some SwiftUI.View {
-        let subscription = selectedSubscription(library, selection: ids)
         let commands = subscriptionCommands(library, selection: ids)
-        Button("Open") {
-            if let subscription { window.navigate(to: .subscription(subscription.id)) }
-        }.disabled(subscription == nil)
+        Button("Open") { commands.open?() }.disabled(commands.open == nil)
         Button("Unsubscribe") { commands.subscriptionAction?() }.disabled(commands.subscriptionAction == nil)
         Button("Subscription Settings…") { commands.settings?() }.disabled(commands.settings == nil)
         Button("Edit Download Rules…") { commands.downloadRules?() }.disabled(commands.downloadRules == nil)
@@ -407,6 +403,7 @@ public struct PodListWindow: SwiftUI.View {
         let hasSelection = !ids.isEmpty
         let available = app.libraryEditing != nil && app.libraryEditing?.busy == false && app.editing?.busy == false
         return PodcastCommandContext(
+            open: subscription.map { sub in { window.navigate(to: .subscription(sub.id)) } },
             subscribed: subscription != nil,
             subscriptionAction: subscription != nil && available ? {
                 guard let subscription, let editor = app.libraryEditing else { return }
@@ -597,6 +594,17 @@ public struct PodListWindow: SwiftUI.View {
     private func editCurrentView(_ library: LibraryModel) {
         guard case let .view(id) = window.destination,
               let view = library.state.views.first(where: { $0.id == id }) else { return }
+        editView(view)
+    }
+    private func renameViewAction(_ library: LibraryModel) -> (() -> Void)? {
+        guard !isPodcastPage, case let .view(id) = window.destination,
+              let view = library.state.views.first(where: { $0.id == id }),
+              app.libraryEditing != nil, app.libraryEditing?.busy == false, app.editing?.busy == false else { return nil }
+        return { renameView(view) }
+    }
+    private func renameView(_ view: PodListDomain.View) {
+        guard let editor = app.libraryEditing, app.editing?.busy == false,
+              ViewRenameAction.prepare(view, editor: editor) else { return }
         editView(view)
     }
     private func editView(_ view: PodListDomain.View) {

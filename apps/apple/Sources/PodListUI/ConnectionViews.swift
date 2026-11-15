@@ -98,6 +98,7 @@ public struct PodListHelp: SwiftUI.View {
                     shortcutRow("Bigger / Smaller / Actual Size", "⌘+ / ⌘− / ⌘0")
                     shortcutRow("Settings…", "⌘,")
                 }
+                Text("Download has no assigned shortcut. Download, Cancel Download, Retry Download and Remove Download are in Episode; Rename commands are in Playlist and Views. Queue commands use ⇧⌘J for Next and ⌥⌘J for Last.").macContentFont(.caption)
                 Text("Remove from Playlist is undoable. Shortcuts for unavailable commands are disabled; standard text editing commands follow the focused text field.").macContentFont(.caption)
             }.padding(30).textSelection(.enabled)
         }.macContentFont(.body).frame(width: 600, height: 680)

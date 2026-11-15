@@ -40,14 +40,38 @@ struct EpisodeActionItems: SwiftUI.View {
         }
         Button("Add to a Playlist…") { presentation?.sheet = .add(ids, false) }
             .keyboardShortcut(shortcut(.addToPlaylist))
+        Menu("Resume in Playlist") {
+            ForEach(memberships, id: \.id) { membership in
+                Button(membership.name) {
+                    guard let id = ids.first else { return }
+                    Task { await EpisodePlaybackAction.resume(episodeID: id, playlistID: membership.id, app: app) }
+                }
+            }
+        }.disabled(memberships.isEmpty)
+        Menu("Play Chapter") {
+            ForEach(chapters.enumerated(), id: \.element.start) { index, chapter in
+                Button(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title) {
+                    guard let id = ids.first else { return }
+                    Task { await EpisodePlaybackAction.chapter(chapter.start, episodeID: id, app: app) }
+                }
+            }
+        }.disabled(chapters.isEmpty)
         Divider()
-        Button("Download") { app.download(ids) }.keyboardShortcut(shortcut(.download))
+        EpisodeDownloadItems(ids: ids, app: app, keyboardShortcuts: keyboardShortcuts)
         ShareLink(items: shareURL.map { [$0] } ?? []) { Text("Share Episode…") }.disabled(shareURL == nil)
         Button("Copy Link") { if let shareURL { ShareLinks.copy(shareURL) } }.disabled(shareURL == nil)
         Button(actionLabels.star) { Task { await editing?.setStar(ids, starred: !allStarred) } }
             .keyboardShortcut(shortcut(.star))
         Button(actionLabels.played) { Task { await editing?.markPlayed(ids, played: !allPlayed) } }
             .keyboardShortcut(shortcut(.played))
+    }
+    private var chapters: [Chapter] {
+        guard ids.count == 1, let id = ids.first else { return [] }
+        return library?.snapshot.episodes.first { $0.id == id }?.chapters ?? []
+    }
+    private var memberships: [(id: String, name: String, position: Double)] {
+        guard ids.count == 1, let id = ids.first else { return [] }
+        return library?.memberships(id) ?? []
     }
     private func shortcut(_ action: PodListShortcut) -> KeyboardShortcut? { keyboardShortcuts ? action.shortcut : nil }
     private var shareURL: URL? { ids.count == 1 ? ids.first.flatMap { library?.episodeShareURL($0) } : nil }
@@ -232,6 +256,12 @@ public struct PlaylistEditingCommands: Commands {
                 guard let playlistContext else { return }
                 playlistContext.presentation.sheet = .settings(playlistContext.playlist.id)
             }.keyboardShortcut(PodListShortcut.playlistSettings.shortcut).disabled(playlistUnavailable)
+            Button("Rename Playlist…") {
+                guard let playlistContext, let editing = app.editing else { return }
+                if PlaylistRenameAction.prepare(playlistContext.playlist, editing: editing) {
+                    playlistContext.presentation.sheet = .settings(playlistContext.playlist.id)
+                }
+            }.disabled(playlistUnavailable || playlistContext?.playlist.isDefault != false)
             Button("Delete Playlist", role: .destructive) {
                 guard let playlist = playlistContext?.playlist else { return }
                 Task { await app.editing?.delete(playlist) }

@@ -8,6 +8,7 @@ public struct LibraryWindowActions {
     public var search: () -> Void
     public var editView: () -> Void
     public var openInNewWindow: (() -> Void)?
+    public var renameView: (() -> Void)? = nil
 }
 public extension FocusedValues {
     var podListLibraryActions: LibraryWindowActions? {
@@ -33,6 +34,8 @@ public struct LibraryCommands: Commands {
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
         }
         CommandMenu("Podcast") {
+            Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
+            Divider()
             Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }
                 .disabled(podcast?.subscriptionAction == nil)
             Button("Subscription Settings…") { podcast?.settings?() }.disabled(podcast?.settings == nil)
@@ -47,6 +50,7 @@ public struct LibraryCommands: Commands {
         CommandMenu("Views") {
             Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)
             Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut).disabled(selectedViewID == nil || actions == nil)
+            Button("Rename View…") { actions?.renameView?() }.disabled(actions?.renameView == nil)
             Button("Delete View", role: .destructive) {
                 guard let id = selectedViewID, let view = app.library?.state.views.first(where: { $0.id == id }) else { return }
                 Task { do { try await app.libraryEditing?.deleteView(view) } catch { app.libraryEditing?.error = LibraryMessages.failure(error) } }

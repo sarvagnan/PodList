@@ -3,6 +3,61 @@ import SwiftUI
 import PodListData
 import PodListDomain
 
+/// Shared eligibility and execution for the Inspector, context menus and menu bar.
+/// A mixed selection applies the command only to its eligible Episodes.
+enum EpisodeDownloadAction: CaseIterable {
+    case download, cancel, retry, remove
+    var title: String {
+        switch self {
+        case .download: "Download"
+        case .cancel: "Cancel Download"
+        case .retry: "Retry Download"
+        case .remove: "Remove Download"
+        }
+    }
+    func accepts(_ phase: DownloadPhase?) -> Bool {
+        switch self {
+        case .download: phase == nil
+        case .cancel: phase == .queued || phase == .transferring || phase == .failed
+        case .retry: phase == .failed
+        case .remove: phase == .stored
+        }
+    }
+    static func primary(for phase: DownloadPhase?) -> Self {
+        switch phase {
+        case .queued, .transferring: .cancel
+        case .stored: .remove
+        case .failed: .retry
+        case nil: .download
+        }
+    }
+    func targets(in ids: [String], phase: (String) -> DownloadPhase?) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { seen.insert($0).inserted && accepts(phase($0)) }
+    }
+    @MainActor func perform(_ ids: [String], app: ApplicationModel) {
+        for id in targets(in: ids, phase: { app.downloadStatuses[$0]?.phase }) {
+            switch self {
+            case .download, .retry: app.download(id)
+            case .cancel, .remove: app.removeDownload(id)
+            }
+        }
+    }
+}
+
+struct EpisodeDownloadItems: SwiftUI.View {
+    let ids: [String]
+    @Bindable var app: ApplicationModel
+    var keyboardShortcuts = false
+    var body: some SwiftUI.View {
+        ForEach(EpisodeDownloadAction.allCases, id: \.self) { action in
+            Button(action.title) { action.perform(ids, app: app) }
+                .keyboardShortcut(action == .download && keyboardShortcuts ? PodListShortcut.download.shortcut : nil)
+                .disabled(action.targets(in: ids, phase: { app.downloadStatuses[$0]?.phase }).isEmpty)
+        }
+    }
+}
+
 struct DownloadStatusText: SwiftUI.View {
     let id: String
     @Bindable var app: ApplicationModel
@@ -27,7 +82,7 @@ struct DownloadIcon: SwiftUI.View {
     }
     var body: some SwiftUI.View {
         Button {
-            if working || phase == .stored { app.removeDownload(id) } else { app.download(id) }
+            EpisodeDownloadAction.primary(for: phase).perform([id], app: app)
         } label: {
             ZStack {
                 if working {
@@ -37,9 +92,7 @@ struct DownloadIcon: SwiftUI.View {
             }.frame(width: 28, height: 28)
         }.buttonStyle(.borderless).help(label).accessibilityLabel(label)
             .contextMenu {
-                if working || phase == .failed { Button("Cancel Download") { app.removeDownload(id) } }
-                if phase == .failed { Button("Retry") { app.download(id) } }
-                if phase == .stored { Button("Remove Download") { app.removeDownload(id) } }
+                EpisodeDownloadItems(ids: [id], app: app)
             }
     }
 }

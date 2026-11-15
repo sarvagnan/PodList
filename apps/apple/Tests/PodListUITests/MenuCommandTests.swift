@@ -1,5 +1,7 @@
 #if os(macOS)
 import AppKit
+import PodListData
+import PodListDomain
 import SwiftUI
 import Testing
 import UniformTypeIdentifiers
@@ -49,16 +51,89 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
 }
 
 @Test func episodeShortcutsLeaveStandardAndExistingEquivalentsAvailable() {
-    let shortcuts = PodListShortcut.allCases.map(\.shortcut)
+    let shortcuts = PodListShortcut.allCases.compactMap(\.shortcut)
     #expect(Set(shortcuts.map { "\($0.modifiers.rawValue)/\($0.key.character)" }).count == shortcuts.count)
-    // All new shortcuts have Control, unlike existing PodList menu equivalents.
-    // Avoid standard ⌃⌘F (Full Screen), ⌃⌘Q (Lock Screen), ⌃⌘D (Dictionary),
-    // ⌃⌘Space (Character Viewer), and Finder's ⌃⌘N/A/T/↑ equivalents as well.
-    let reserved: Set<Character> = ["f", "q", "d", " ", "n", "a", "t", Character(UnicodeScalar(NSUpArrowFunctionKey)!)]
+    // Apple's support.apple.com/en-us/102650 table, including Finder and text
+    // editing; plus PodList's existing app, playback, list and text-size bindings.
+    let command = Array("abcdefghijkmnopqrstuvwxyz,.;/`1234[]{}+-=0")
+        + [Character(" "), KeyEquivalent.leftArrow.character, KeyEquivalent.rightArrow.character,
+           KeyEquivalent.upArrow.character, KeyEquivalent.downArrow.character, KeyEquivalent.delete.character,
+           KeyEquivalent.tab.character]
+    let shiftCommand = Array("acdfghiknopqrstuz:|?+-")
+        + [KeyEquivalent.leftArrow.character, KeyEquivalent.rightArrow.character,
+           KeyEquivalent.upArrow.character, KeyEquivalent.downArrow.character, KeyEquivalent.delete.character,
+           KeyEquivalent.tab.character, Character(" "), "3", "4", "5", "6"]
+    let optionCommand = Array("cdfhilmnpstvwy")
+        + [Character(" "), KeyEquivalent.escape.character, KeyEquivalent.upArrow.character,
+           KeyEquivalent.downArrow.character]
+    let reserved: [(EventModifiers, [Character])] = [
+        (.command, command), ([.shift, .command], shiftCommand), ([.option, .command], optionCommand),
+        ([.option, .shift, .command], ["n", "v", "q", KeyEquivalent.delete.character])
+    ]
     for shortcut in shortcuts {
-        #expect(shortcut.modifiers.contains(.control))
+        #expect(!shortcut.modifiers.contains(.control))
         #expect(shortcut.modifiers.contains(.command))
-        if shortcut.modifiers == [.control, .command] { #expect(!reserved.contains(shortcut.key.character)) }
+        for (modifiers, keys) in reserved where shortcut.modifiers == modifiers {
+            #expect(!keys.contains(shortcut.key.character))
+        }
     }
+    #expect(PodListShortcut.download.shortcut == nil)
+    #expect(PodListShortcut.allCases.map(\.notation) == [
+        "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→"
+    ])
+}
+
+@Test func downloadCommandsTargetOnlyEligibleSelectedEpisodes() {
+    let phases: [String: DownloadPhase] = ["q": .queued, "t": .transferring, "s": .stored, "f": .failed, "otherWindow": .stored]
+    let ids = ["new", "q", "t", "s", "f", "q"]
+    #expect(EpisodeDownloadAction.download.targets(in: ids) { phases[$0] } == ["new"])
+    #expect(EpisodeDownloadAction.cancel.targets(in: ids) { phases[$0] } == ["q", "t", "f"])
+    #expect(EpisodeDownloadAction.retry.targets(in: ids) { phases[$0] } == ["f"])
+    #expect(EpisodeDownloadAction.remove.targets(in: ids) { phases[$0] } == ["s"])
+    for action in EpisodeDownloadAction.allCases {
+        #expect(action.targets(in: []) { phases[$0] }.isEmpty)
+        #expect(!action.targets(in: ids) { phases[$0] }.contains("otherWindow"))
+    }
+    let primaryCases: [(DownloadPhase?, EpisodeDownloadAction)] = [
+        (nil, .download), (.queued, .cancel), (.transferring, .cancel), (.stored, .remove), (.failed, .retry)
+    ]
+    for (phase, action) in primaryCases {
+        #expect(EpisodeDownloadAction.primary(for: phase) == action)
+        #expect(action.accepts(phase))
+    }
+    // A different window's single selection cannot use the first window's target.
+    #expect(EpisodeDownloadAction.remove.targets(in: ["otherWindow"]) { phases[$0] } == ["otherWindow"])
+    #expect(EpisodeDownloadAction.cancel.targets(in: ["s"]) { phases[$0] }.isEmpty)
+    #expect(EpisodeDownloadAction.remove.targets(in: ["q"]) { phases[$0] }.isEmpty)
+}
+
+@MainActor @Test func renameCommandsPreserveDraftsAndRejectUnavailableObjects() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: "PodListMenuTests-" + UUID().uuidString)!
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults))
+    let original = fixtureState().playlists[0]
+    #expect(!PlaylistRenameAction.prepare(original, editing: editing))
+    #expect(editing.drafts["rename-open/\(original.id)"].isEmpty)
+    var playlist = original; playlist.id = "custom"; playlist.name = "Commute"; playlist.isDefault = false
+    #expect(PlaylistRenameAction.prepare(playlist, editing: editing))
+    #expect(editing.drafts["rename/\(playlist.id)"] == "Commute")
+    editing.drafts["rename/\(playlist.id)"] = "Unfinished"
+    #expect(PlaylistRenameAction.prepare(playlist, editing: editing))
+    #expect(editing.drafts["rename/\(playlist.id)"] == "Unfinished")
+    editing.drafts["rename/\(playlist.id)"] = ""
+    #expect(PlaylistRenameAction.prepare(playlist, editing: editing))
+    #expect(editing.drafts["rename/\(playlist.id)"].isEmpty)
+
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "test", defaults: defaults)
+    let view = fixtureState().views[0]
+    #expect(ViewRenameAction.prepare(view, editor: editor))
+    #expect(editor.draft("rename.\(view.id)") == view.name)
+    editor.setDraft("Unfinished View", field: "rename.\(view.id)")
+    #expect(ViewRenameAction.prepare(view, editor: editor))
+    #expect(editor.draft("rename.\(view.id)") == "Unfinished View")
+    editor.busy = true
+    let otherView = fixtureState().views[1]
+    #expect(!ViewRenameAction.prepare(otherView, editor: editor))
+    #expect(editor.draft("rename.\(otherView.id)").isEmpty)
 }
 #endif
