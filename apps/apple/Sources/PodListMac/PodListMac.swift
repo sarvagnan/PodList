@@ -7,8 +7,15 @@ import AppIntents
 struct PodListMac: App {
     @NSApplicationDelegateAdaptor(MacApplicationDelegate.self) private var delegate
     @State private var model: ApplicationModel
+    @AppStorage("PodList.appearance") private var appearance = "System"
+    private var colorScheme: ColorScheme? { appearance == "System" ? nil : appearance == "Dark" ? .dark : .light }
 
     init() {
+        #if DEBUG
+        // Validate before any app service can touch its persistent files.
+        do { _ = try ApplicationStorage.directory() }
+        catch { fatalError("Invalid UI test storage: \(error)") }
+        #endif
         let model = ApplicationModel()
         _model = State(initialValue: model)
         AutomationRuntime.app = model
@@ -31,9 +38,9 @@ struct PodListMac: App {
                 Button("PodList Help") { openWindow(id: "help") }
             }
         }
-        Settings { PodListSettings(app: model) }
-        Window("Listening stats", id: "listening-stats") { ListeningStatsScreen(app: model) }
-        Window("PodList Help", id: "help") { PodListHelp() }
+        Settings { PodListSettings(app: model).preferredColorScheme(colorScheme) }
+        Window("Listening stats", id: "listening-stats") { ListeningStatsScreen(app: model).preferredColorScheme(colorScheme) }
+        Window("PodList Help", id: "help") { PodListHelp().preferredColorScheme(colorScheme) }
             .windowResizability(.contentSize)
     }
 }

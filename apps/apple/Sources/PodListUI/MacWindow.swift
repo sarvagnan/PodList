@@ -77,6 +77,7 @@ public struct PodListWindow: SwiftUI.View {
                             }
                             .tag(item.destination)
                             .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("sidebar.\(item.name)")
                             .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
                     } header: { Text(section.name) }
@@ -251,8 +252,7 @@ public struct PodListWindow: SwiftUI.View {
                     HStack {
                         Text("Grouped by Download Rule").foregroundStyle(.secondary)
                         Spacer()
-                        Button("Edit Download Rules for \(subscriptionSelection.count) Subscriptions…") { showBulkRules = true }
-                            .disabled(subscriptionSelection.isEmpty)
+                        Button(subscriptionSelection.isEmpty ? "Edit Download Rules…" : "Edit Download Rules for \(subscriptionSelection.count) Subscriptions…") { showBulkRules = true }
                     }.padding(.horizontal)
                     List(selection: $subscriptionSelection) {
                         ForEach(groups) { group in
@@ -277,7 +277,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
                 .sheet(isPresented: $showBulkRules) {
-                    BulkDownloadRuleSheet(ids: library.subscriptions.map(\.id).filter { subscriptionSelection.contains($0) }, app: app)
+                    BulkDownloadRuleSheet(ids: library.subscriptions.map(\.id).filter { subscriptionSelection.isEmpty || subscriptionSelection.contains($0) }, app: app)
                 }
             }
         }

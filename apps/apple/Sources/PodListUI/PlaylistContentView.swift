@@ -150,7 +150,19 @@ struct PlaylistContentView: SwiftUI.View {
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
                             Button("Rewind to Here") { rewindTarget = event }.accessibilityLabel("Rewind to \(date(event.moment))")
                         }
-                    }.padding(.vertical, 4).tag(event.id)
+                    }.padding(.vertical, 4)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityActions {
+                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                            Button("Rewind to Here") { rewindTarget = event }
+                        }
+                    }
+                    .contextMenu {
+                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                            Button("Rewind to Here") { rewindTarget = event }
+                        }
+                    }
+                    .tag(event.id)
                 }.accessibilityLabel("Listening Timeline")
             }
         }

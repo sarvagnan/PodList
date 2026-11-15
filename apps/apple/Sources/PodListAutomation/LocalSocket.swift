@@ -3,8 +3,7 @@ import Darwin
 
 public enum LocalSocket {
     public static func defaultURL() throws -> URL {
-        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("PodList/Automation/mcp.sock")
+        try ApplicationStorage.directory().appendingPathComponent("Automation/mcp.sock")
     }
     /// Disabled launches also clean up sockets left by a crash or the earlier always-on server.
     /// Take the same ownership lock as the listener so another running app is never unlinked.
