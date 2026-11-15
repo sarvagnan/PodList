@@ -60,7 +60,7 @@ final class PodListUITour: XCTestCase {
         try navigate("Starred")
         try capture("04-starred")
         try navigate("All Views")
-        try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "New this week")).element(boundBy: 1))
+        try ready(library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "New this week, ")).firstMatch)
         try capture("05-all-views")
 
         try navigate("Default")
