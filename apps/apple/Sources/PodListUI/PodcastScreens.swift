@@ -277,10 +277,6 @@ struct PodcastPageScreen: SwiftUI.View {
                     selection.wrappedValue = ids
                     if let episode = episodes.first(where: { ids.contains($0.id) }) { inspect(episode) }
                 }
-                .onKeyPress(.space) {
-                    guard let episode = episodes.first(where: { selection.wrappedValue.contains($0.id) }) else { return .ignored }
-                    bring(episode, play: true); return .handled
-                }
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
                 .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
             }
@@ -290,7 +286,6 @@ struct PodcastPageScreen: SwiftUI.View {
         .focusedSceneValue(\.podListPodcast, podcastCommands)
         .focusedSceneValue(\.podListRemoteEpisode, remoteEpisodeActions)
         .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { episode in { inspect(episode) } })
-        .focusedSceneValue(\.podListPlaySelection, selectedEpisode.map { episode in { bring(episode, play: true) } })
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
         .simultaneousGesture(SpatialTapGesture().onEnded { if !subscribedBounds.contains($0.location) { control.reset() } })

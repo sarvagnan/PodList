@@ -28,6 +28,7 @@ struct EpisodeActionItems: SwiftUI.View {
         Button("Play Now") {
             if let overrides { overrides.play() } else { Task { await editing?.add(ids, placement: .now) } }
         }
+        .keyboardShortcut(shortcut(.playNow))
         Group {
             Button("Play Next in \(activeName)") { Task { await editing?.add(ids, placement: .next) } }
                 .keyboardShortcut(shortcut(.playNext))
@@ -117,7 +118,7 @@ struct EpisodeActionButtons: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }
-                .accessibilityLabel(labels.play).help("Play selected Episodes now").disabled(disabled)
+                .accessibilityLabel(labels.play).help("Play selected Episodes now (\(PodListShortcut.playNow.notation))").disabled(disabled)
             Button("Add to a Playlist…", systemImage: "text.badge.plus") { presentation.sheet = .add(ids, false) }
                 .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
             Menu("Episode Actions", systemImage: "ellipsis.circle") {
@@ -206,7 +207,6 @@ struct EpisodeCommandContext {
     let library: LibraryModel
     let window: WindowModel
     let presentation: PlaylistPresentation
-    let playSelection: @MainActor () async -> Void
     let showDetails: () -> Void
 }
 private struct EpisodeContextKey: FocusedValueKey { typealias Value = EpisodeCommandContext }

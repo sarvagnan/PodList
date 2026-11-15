@@ -3,35 +3,40 @@ import SwiftUI
 import AppKit
 
 private struct SeekKey: FocusedValueKey { typealias Value = () -> Void }
-private struct PlaySelectionKey: FocusedValueKey { typealias Value = () -> Void }
 extension FocusedValues {
     var podListSeek: (() -> Void)? {
         get { self[SeekKey.self] }
         set { self[SeekKey.self] = newValue }
     }
-    var podListPlaySelection: (() -> Void)? {
-        get { self[PlaySelectionKey.self] }
-        set { self[PlaySelectionKey.self] = newValue }
+}
+
+/// The transport command has no selection context: it always controls the
+/// current Episode, or starts the Active Playlist when nothing is loaded.
+@MainActor struct PlaybackToggleCommand {
+    let controller: PlaybackController?
+    let library: LibraryModel?
+    var title: String { controller?.wantsPlayback == true ? "Pause" : "Play" }
+    var isEnabled: Bool {
+        guard controller != nil, let library else { return false }
+        return controller?.hasDisplay == true || library.state.playlists.contains {
+            $0.id == library.state.activePlaylistId && !$0.entries.isEmpty
+        }
     }
+    func perform() { if isEnabled { controller?.toggle() } }
 }
 
 public struct PlaybackCommands: Commands {
     @Bindable var app: ApplicationModel
     @FocusedValue(\.podListSeek) private var seek
-    @FocusedValue(\.podListPlaySelection) private var playSelection
-    @FocusedValue(\.podListEpisodes) private var context
     @FocusedValue(\.podListNowPlaying) private var nowPlaying
     @FocusedValue(\.podListOpenPlaylist) private var openPlaylist
     public init(app: ApplicationModel) { self.app = app }
+    private var toggle: PlaybackToggleCommand { .init(controller: app.playback, library: app.library) }
     public var body: some Commands {
         CommandMenu("Controls") {
-            Button(playSelection != nil || context?.ids.isEmpty == false ? "Play Selected Episode" : app.playback?.wantsPlayback == true ? "Pause" : "Play") {
-                if let playSelection { playSelection() }
-                else if let context, !context.ids.isEmpty { Task { await context.playSelection() } }
-                else { app.playback?.toggle() }
-            }
+            Button(toggle.title, action: toggle.perform)
                 .keyboardShortcut(.space, modifiers: [])
-                .disabled(app.library == nil || (playSelection == nil && context?.ids.isEmpty != false && app.playback?.display == nil))
+                .disabled(!toggle.isEnabled)
             Button("Resume Playback") { app.playback?.play() }.disabled(app.playback?.display == nil || app.playback?.wantsPlayback == true)
             Button("Pause Playback") { app.playback?.pause() }.disabled(app.playback?.wantsPlayback != true)
             Button("Go to Time…") { seek?() }.disabled(seek == nil)
@@ -60,18 +65,23 @@ public struct PlaybackCommands: Commands {
 }
 
 /// Intercept text navigation before menu equivalents and let AppKit interpret it,
-/// including the user's key bindings. Command-period in a sheet follows Escape's
-/// existing cancel action, including its disabled state during a pending save.
+/// including the user's key bindings. Return stays with text editing and sheet
+/// default actions instead of reaching Episode > Play Now. Command-period in a
+/// sheet follows Escape's cancel action, including its disabled state during a save.
 @MainActor public final class PlaybackKeyboardGuard {
     private var monitor: Any?
     static var sheetIsKey: Bool {
         guard let window = NSApp.keyWindow else { return false }
         return window.sheetParent != nil || window.attachedSheet != nil
     }
-    enum Route: Equatable { case text, cancelSheet, menu }
+    enum Route: Equatable { case text, sheetDefault, cancelSheet, menu }
     static func route(characters: String?, modifiers: NSEvent.ModifierFlags, editable: Bool, sheet: Bool) -> Route {
         let modifiers = modifiers.intersection([.command, .control, .option, .shift])
         if sheet && characters == "." && modifiers == .command { return .cancelSheet }
+        if characters == "\r" && modifiers.isEmpty {
+            if sheet { return .sheetDefault }
+            if editable { return .text }
+        }
         guard editable else { return .menu }
         if characters == " " && modifiers.subtracting(.shift).isEmpty { return .text }
         if [String(UnicodeScalar(NSLeftArrowFunctionKey)!), String(UnicodeScalar(NSRightArrowFunctionKey)!)].contains(characters ?? ""),
@@ -85,6 +95,13 @@ public struct PlaybackCommands: Commands {
                               editable: text?.isEditable == true, sheet: Self.sheetIsKey) {
             case .text:
                 text?.interpretKeyEvents([event])
+                return nil
+            case .sheetDefault:
+                // Dispatch inside the sheet, bypassing application menu equivalents.
+                // AppKit retains default-button validation and field-editor submission.
+                if let window = NSApp.keyWindow?.attachedSheet ?? NSApp.keyWindow {
+                    if !window.performKeyEquivalent(with: event) { window.sendEvent(event) }
+                }
                 return nil
             case .cancelSheet:
                 guard let window = NSApp.keyWindow?.attachedSheet ?? NSApp.keyWindow,

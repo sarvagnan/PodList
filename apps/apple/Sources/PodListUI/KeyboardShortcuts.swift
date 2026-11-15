@@ -5,11 +5,12 @@ import SwiftUI
 /// Apple's standard equivalents (support.apple.com/en-us/102650) and PodList's
 /// existing commands free. Related queue/chapter commands share a key family.
 enum PodListShortcut: CaseIterable {
-    case star, played, download, playNext, playLast, addToPlaylist
+    case playNow, star, played, download, playNext, playLast, addToPlaylist
     case nowPlaying, playlistSettings, editView, previousChapter, nextChapter
 
     var title: String {
         switch self {
+        case .playNow: "Play Now"
         case .star: "Star / Unstar"
         case .played: "Mark Played / Unplayed"
         case .download: "Download"
@@ -25,6 +26,7 @@ enum PodListShortcut: CaseIterable {
     }
     var key: KeyEquivalent? {
         switch self {
+        case .playNow: .return
         case .star: "l"
         case .played: "e"
         case .download: nil
@@ -40,6 +42,7 @@ enum PodListShortcut: CaseIterable {
     }
     var modifiers: EventModifiers {
         switch self {
+        case .playNow: []
         case .nowPlaying, .download: .command
         case .star, .played, .playNext: [.shift, .command]
         case .playLast, .addToPlaylist, .playlistSettings, .editView, .previousChapter, .nextChapter: [.option, .command]
@@ -52,11 +55,12 @@ enum PodListShortcut: CaseIterable {
         guard let key else { return "—" }
         let symbol: String
         switch self {
+        case .playNow: symbol = "↩"
         case .previousChapter: symbol = "←"
         case .nextChapter: symbol = "→"
         default: symbol = String(key.character).uppercased()
         }
-        let prefix = (modifiers.contains(.option) ? "⌥" : "") + (modifiers.contains(.shift) ? "⇧" : "") + "⌘"
+        let prefix = (modifiers.contains(.option) ? "⌥" : "") + (modifiers.contains(.shift) ? "⇧" : "") + (modifiers.contains(.command) ? "⌘" : "")
         return prefix + symbol
     }
 }
