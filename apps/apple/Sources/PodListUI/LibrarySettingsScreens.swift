@@ -216,7 +216,8 @@ private struct PersistentNumberField: SwiftUI.View {
                         text = raw; editor.setDraft(raw, field: field)
                         if let number = FormNumbers.nonnegative(raw, locale: locale), number != value { changed(number) }
                     }))
-                    .frame(width: 72).textFieldStyle(.roundedBorder).focused($focused)
+                    .labelsHidden().accessibilityLabel(label)
+                    .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
                     Text("sec").foregroundStyle(.secondary)
                 }
                 if !valid { Text("\(label) must be a nonnegative number of seconds.").macContentFont(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
