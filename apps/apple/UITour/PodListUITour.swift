@@ -66,10 +66,11 @@ final class PodListUITour: XCTestCase {
         try navigate("Default")
         try ready(episodeList)
         try capture("06-default-playlist")
-        let defaultHeader = library.buttons["Play This Playlist"].frame
-        let defaultSection = library.radioButtons["Entries"].frame
         try selectFirstEpisode()
         try capture("07-entry-inspector")
+        // Measure with the Inspector open: selecting an Episode opens it and narrows the content.
+        let defaultHeader = library.buttons["Play This Playlist"].frame
+        let defaultSection = library.radioButtons["Entries"].frame
         try segment("History")
         try capture("08-history")
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
