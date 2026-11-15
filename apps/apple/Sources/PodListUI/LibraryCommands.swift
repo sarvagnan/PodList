@@ -18,6 +18,7 @@ public struct LibraryCommands: Commands {
     @Bindable var app: ApplicationModel
     @FocusedValue(\.podListLibraryActions) private var actions
     @FocusedValue(\.podListEpisodes) private var context
+    @FocusedValue(\.podListPodcast) private var podcast
     @Environment(\.openWindow) private var openWindow
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
@@ -28,6 +29,18 @@ public struct LibraryCommands: Commands {
             Divider()
             Button("Import OPML…") { LibraryFileActions.importOPML(app) }.disabled(app.library == nil || app.libraryEditing?.busy == true)
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
+        }
+        CommandMenu("Podcast") {
+            Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }
+                .disabled(podcast?.subscriptionAction == nil)
+            Button("Subscription Settings…") { podcast?.settings?() }.disabled(podcast?.settings == nil)
+            Button("Edit Download Rules…") { podcast?.downloadRules?() }.disabled(podcast?.downloadRules == nil)
+            Divider()
+            ShareLink(items: podcast?.shareURL.map { [$0] } ?? []) { Text("Share Podcast…") }.disabled(podcast?.shareURL == nil)
+            Button("Copy Feed Address") { if let url = podcast?.feedURL { ShareLinks.copy(url) } }.disabled(podcast?.feedURL == nil)
+            Divider()
+            Button(podcast?.descriptionExpanded == true ? "Hide Description" : "Show Description") { podcast?.toggleDescription?() }
+                .disabled(podcast?.toggleDescription == nil)
         }
         CommandGroup(after: .sidebar) {
             Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)

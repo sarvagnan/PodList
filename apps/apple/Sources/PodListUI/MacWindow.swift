@@ -16,6 +16,7 @@ public struct PodListWindow: SwiftUI.View {
     @State private var creatingView = false
     @State private var subscriptionSelection = Set<String>()
     @State private var showBulkRules = false
+    @State private var showSubscriptionSettings = false
     @State private var podcastFeed: String?
     @State private var podcastEpisodeIDs: [String] = []
     @AppStorage("PodList.appearance") private var appearance = "System"
@@ -111,9 +112,9 @@ public struct PodListWindow: SwiftUI.View {
                     if case let .playlist(id) = window.destination {
                         Button("Playlist Settings", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
                     }
-                    if let editing = app.editing, !window.selection.isEmpty {
-                        EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app)
-                    }
+                }
+                if let editing = app.editing, !selectedIDs(library).isEmpty {
+                    EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app)
                 }
                 ToolbarItem {
                     if podcastFeed == nil, case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
@@ -143,7 +144,7 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
-        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }))
+        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing { VStack(alignment: .leading) {
@@ -280,6 +281,35 @@ public struct PodListWindow: SwiftUI.View {
                 }
             }
         }
+        .focusedSceneValue(\.podListPodcast, subscriptionCommands(library))
+        .sheet(isPresented: $showSubscriptionSettings) {
+            if let subscription = selectedSubscription(library), let editor = app.libraryEditing {
+                SubscriptionSettingsScreen(subscription: subscription, library: library, app: app, editor: editor)
+            }
+        }
+    }
+
+    private func selectedSubscription(_ library: LibraryModel) -> Subscription? {
+        let visible = Set(library.subscriptionGroups(search: window.search).flatMap { $0.subscriptions.map(\.id) })
+        let ids = subscriptionSelection.intersection(visible)
+        guard ids.count == 1 else { return nil }
+        return library.subscriptions.first { ids.contains($0.id) }
+    }
+    private func subscriptionCommands(_ library: LibraryModel) -> PodcastCommandContext {
+        let subscription = selectedSubscription(library)
+        let visible = Set(library.subscriptionGroups(search: window.search).flatMap { $0.subscriptions.map(\.id) })
+        let hasSelection = !subscriptionSelection.intersection(visible).isEmpty
+        let available = app.libraryEditing != nil && app.libraryEditing?.busy == false && app.editing?.busy == false
+        return PodcastCommandContext(
+            subscribed: subscription != nil,
+            subscriptionAction: subscription != nil && available ? {
+                guard let subscription, let editor = app.libraryEditing else { return }
+                editor.run { try await editor.unsubscribe(subscription) }
+            } : nil,
+            settings: subscription != nil && available ? { showSubscriptionSettings = true } : nil,
+            downloadRules: hasSelection && available ? { subscriptionSelection.formIntersection(visible); showBulkRules = true } : nil,
+            shareURL: subscription.flatMap { ShareLinks.podcast(page: library.snapshot.podcastLinks[$0.id], feed: $0.feedUrl) },
+            feedURL: subscription.flatMap { ShareLinks.web($0.feedUrl) })
     }
 
     private func episodeTable(_ library: LibraryModel) -> some SwiftUI.View {

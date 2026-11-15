@@ -44,37 +44,67 @@ struct EpisodeActionItems: SwiftUI.View {
             ShareLink(item: url) { Text("Share Episode…") }
             Button("Copy Link") { ShareLinks.copy(url) }
         }
-        Button(allStarred ? "Unstar" : "Star") { Task { await editing.setStar(ids, starred: !allStarred) } }
-        Button(allPlayed ? "Mark Unplayed" : "Mark Played") { Task { await editing.markPlayed(ids, played: !allPlayed) } }
+        Button(actionLabels.star) { Task { await editing.setStar(ids, starred: !allStarred) } }
+        Button(actionLabels.played) { Task { await editing.markPlayed(ids, played: !allPlayed) } }
     }
+    private var actionLabels: EpisodeActionLabels { .init(allStarred: allStarred, allPlayed: allPlayed) }
     private var activeName: String { library.state.playlists.first { $0.id == library.state.activePlaylistId }?.name ?? "Active Playlist" }
     private var allStarred: Bool { !ids.isEmpty && ids.allSatisfy { library.state.episodeStates[$0]?.starred == true } }
     private var allPlayed: Bool { !ids.isEmpty && ids.allSatisfy { library.state.episodeStates[$0]?.played != nil } }
 }
 
-struct EpisodeActionButtons: SwiftUI.View {
+/// The visible and spoken action vocabulary is shared by the toolbar and menus.
+struct EpisodeActionLabels {
+    let allStarred: Bool
+    let allPlayed: Bool
+    let play = "Play Now"
+    let add = "Add to a Playlist"
+    let download = "Download"
+    let more = "More Episode Actions"
+    var star: String { allStarred ? "Unstar" : "Star" }
+    var played: String { allPlayed ? "Mark Unplayed" : "Mark Played" }
+    var names: [String] { [play, add, download, star, played, more] }
+}
+
+struct EpisodeActionButtons: ToolbarContent {
     let ids: [String]
     let library: LibraryModel
     let editing: PlaylistEditingModel
     let presentation: PlaylistPresentation
     let app: ApplicationModel
-    var body: some SwiftUI.View {
-        HStack {
+    private var labels: EpisodeActionLabels {
+        EpisodeActionLabels(allStarred: !ids.isEmpty && ids.allSatisfy { library.state.episodeStates[$0]?.starred == true },
+                            allPlayed: !ids.isEmpty && ids.allSatisfy { library.state.episodeStates[$0]?.played != nil })
+    }
+    private var disabled: Bool { ids.isEmpty || editing.busy }
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
             Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }
+                .accessibilityLabel(labels.play).help("Play selected Episodes now").disabled(disabled)
+        }
+        ToolbarItem(placement: .primaryAction) {
             Button("Add", systemImage: "plus") { presentation.sheet = .add(ids, false) }
-                .accessibilityLabel("Add selected Episodes to a Playlist")
+                .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
+        }
+        ToolbarItem(placement: .primaryAction) {
             Button("Download", systemImage: "arrow.down.circle") { app.download(ids) }
-                .labelStyle(.iconOnly).help("Download selected Episodes")
-            let starred = ids.allSatisfy { library.state.episodeStates[$0]?.starred == true }
-            Button(starred ? "Unstar" : "Star", systemImage: starred ? "star.fill" : "star") { Task { await editing.setStar(ids, starred: !starred) } }
-                .labelStyle(.iconOnly).help(starred ? "Unstar selected Episodes" : "Star selected Episodes")
-            let played = ids.allSatisfy { library.state.episodeStates[$0]?.played != nil }
-            Button(played ? "Mark Unplayed" : "Mark Played", systemImage: played ? "arrow.counterclockwise" : "checkmark") { Task { await editing.markPlayed(ids, played: !played) } }
-                .labelStyle(.iconOnly).help(played ? "Mark selected Episodes Unplayed" : "Mark selected Episodes Played")
+                .labelStyle(.iconOnly).accessibilityLabel(labels.download).help("Download selected Episodes").disabled(disabled)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button(labels.star, systemImage: labels.allStarred ? "star.fill" : "star") { Task { await editing.setStar(ids, starred: !labels.allStarred) } }
+                .labelStyle(.iconOnly).accessibilityLabel(labels.star).help("\(labels.star) selected Episodes").disabled(disabled)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button(labels.played, systemImage: labels.allPlayed ? "arrow.counterclockwise" : "checkmark") { Task { await editing.markPlayed(ids, played: !labels.allPlayed) } }
+                .labelStyle(.iconOnly).accessibilityLabel(labels.played)
+                .help(labels.allPlayed ? "Mark selected Episodes Unplayed" : "Mark selected Episodes Played").disabled(disabled)
+        }
+        ToolbarItem(placement: .primaryAction) {
             Menu("Episode Actions", systemImage: "ellipsis.circle") {
                 EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
             }.menuStyle(.borderlessButton).fixedSize()
-        }.disabled(ids.isEmpty || editing.busy)
+                .accessibilityLabel(labels.more).help("More Episode actions").disabled(disabled)
+        }
     }
 }
 
@@ -130,6 +160,7 @@ struct EpisodeCommandContext {
     let window: WindowModel
     let presentation: PlaylistPresentation
     let playSelection: @MainActor () async -> Void
+    let showDetails: () -> Void
 }
 private struct EpisodeContextKey: FocusedValueKey { typealias Value = EpisodeCommandContext }
 extension FocusedValues {
@@ -142,6 +173,10 @@ extension FocusedValues {
 public struct PlaylistEditingCommands: Commands {
     @Bindable private var app: ApplicationModel
     @FocusedValue(\.podListEpisodes) private var context
+    @FocusedValue(\.podListEpisodeDetails) private var episodeDetails
+    @FocusedValue(\.podListPlaylist) private var playlistContext
+    @FocusedValue(\.podListRestore) private var restore
+    @FocusedValue(\.podListRewind) private var rewind
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
         CommandGroup(after: .newItem) {
@@ -157,6 +192,10 @@ public struct PlaylistEditingCommands: Commands {
             }.keyboardShortcut("z", modifiers: [.command, .shift]).disabled(textEditor == nil ? app.editing?.history.redo == nil || app.editing?.busy == true : textEditor?.undoManager?.canRedo != true)
         }
         CommandMenu("Episode") {
+            Button("Show Episode Details") {
+                if let episodeDetails { episodeDetails() } else { context?.showDetails() }
+            }.disabled(episodeDetails == nil && context?.ids.isEmpty != false)
+            Divider()
             if let context, let editing = app.editing {
                 EpisodeActionItems(ids: context.ids, library: context.library, editing: editing, presentation: context.presentation, app: app)
                     .disabled(context.ids.isEmpty || editing.busy)
@@ -173,6 +212,17 @@ public struct PlaylistEditingCommands: Commands {
             } else { Button("Play Now") {}.disabled(true) }
         }
         CommandMenu("Playlist") {
+            Picker("Section", selection: Binding(get: { playlistContext?.presentation.playlistTab ?? .entries }, set: { playlistContext?.presentation.playlistTab = $0 })) {
+                ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.inline).disabled(playlistContext == nil)
+            Divider()
+            Toggle("Clear on Played", isOn: Binding(get: { playlistContext?.playlist.clearOnPlayed ?? false }, set: { value in
+                guard let playlistContext else { return }
+                Task { await app.editing?.edit([.setClearOnPlayed(playlistId: playlistContext.playlist.id, clearOnPlayed: value)], name: "Clear on Played") }
+            })).disabled(playlistContext == nil || app.editing == nil || app.editing?.busy == true)
+            Button("Restore") { restore?() }.disabled(restore == nil)
+            Button("Rewind to Here…") { rewind?() }.disabled(rewind == nil)
+            Divider()
             if let context, let editing = app.editing {
                 Button("Trash") { context.window.navigate(to: .trash) }
                 if case let .playlist(id) = context.window.destination,
