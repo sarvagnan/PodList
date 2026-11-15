@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 /// Published by the visible content, so commands follow the focused window and its selection.
 struct PodcastCommandContext {
+    var open: (() -> Void)?
     var subscribed = false
     var subscriptionAction: (() -> Void)?
     var settings: (() -> Void)?
@@ -18,6 +19,37 @@ struct PlaylistCommandContext {
     let playlist: Playlist
     let presentation: PlaylistPresentation
 }
+/// Rename entry points preserve unfinished drafts regardless of which surface opens them.
+enum PlaylistRenameAction {
+    @MainActor @discardableResult static func prepare(_ playlist: Playlist, editing: PlaylistEditingModel) -> Bool {
+        guard !playlist.isDefault, !editing.busy else { return false }
+        if editing.drafts["rename-open/\(playlist.id)"] != "true" {
+            editing.drafts["rename/\(playlist.id)"] = playlist.name
+        }
+        editing.drafts["rename-open/\(playlist.id)"] = "true"
+        return true
+    }
+}
+enum ViewRenameAction {
+    @MainActor @discardableResult static func prepare(_ view: PodListDomain.View, editor: LibraryEditingModel) -> Bool {
+        guard !editor.busy else { return false }
+        if editor.draft("rename.\(view.id)").isEmpty { editor.setDraft(view.name, field: "rename.\(view.id)") }
+        return true
+    }
+}
+
+enum EpisodePlaybackAction {
+    @MainActor static func chapter(_ start: Double, episodeID: String, app: ApplicationModel, started: () -> Void = {}) async {
+        guard await app.editing?.add([episodeID], placement: .now) != nil else { return }
+        app.playback?.seek(start)
+        started()
+    }
+    @MainActor static func resume(episodeID: String, playlistID: String, app: ApplicationModel, started: () -> Void = {}) async {
+        await app.editing?.playFromHere(playlistID: playlistID, episodeID: episodeID)
+        if app.editing?.error == nil { started() }
+    }
+}
+
 private struct EpisodeDetailsKey: FocusedValueKey { typealias Value = () -> Void }
 private struct PodcastCommandKey: FocusedValueKey { typealias Value = PodcastCommandContext }
 private struct PlaylistCommandKey: FocusedValueKey { typealias Value = PlaylistCommandContext }

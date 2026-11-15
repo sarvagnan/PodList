@@ -55,7 +55,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             }
                         } else {
                             LabeledContent("Name", value: draft.name)
-                            Button("Rename…") { rename = editor.draft("rename.\(draft.id)"); if rename.isEmpty { rename = draft.name }; renaming = true }
+                            Button("Rename…") { if ViewRenameAction.prepare(draft, editor: editor) { rename = editor.draft("rename.\(draft.id)"); renaming = true } }
                         }
                     }
                     Section("All Conditions Must Match") {

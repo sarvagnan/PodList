@@ -121,7 +121,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                         } else {
                             Text(playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                             if !playlist.isDefault {
-                                Button("Rename…") { editing.drafts["rename/\(id)"] = playlist.name; editing.drafts["rename-open/\(id)"] = "true"; focused = true }
+                                Button("Rename…") { if PlaylistRenameAction.prepare(playlist, editing: editing) { focused = true } }
                             } else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(.secondary) }
                         }
                     }
