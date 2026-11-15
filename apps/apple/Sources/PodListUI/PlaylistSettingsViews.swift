@@ -134,6 +134,7 @@ struct PlaylistTrashView: SwiftUI.View {
     let library: LibraryModel
     let editing: PlaylistEditingModel
     let search: String
+    @State private var selection: String?
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
             Text("Deleted Playlists are kept for \(library.state.trashDays ?? 30) days, together with their History and Listening Timeline.")
@@ -141,7 +142,7 @@ struct PlaylistTrashView: SwiftUI.View {
             if library.trash.isEmpty {
                 ContentUnavailableView("Trash is empty", systemImage: "trash", description: Text("Deleted Playlists can be restored here."))
             } else {
-                List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id) { item in
+                List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id, selection: $selection) { item in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.playlist.name).font(.headline)
@@ -150,10 +151,16 @@ struct PlaylistTrashView: SwiftUI.View {
                         Spacer()
                         Button("Restore") { Task { await editing.restore(item.playlist.id) } }
                             .accessibilityLabel("Restore Playlist \(item.playlist.name)").disabled(editing.busy)
-                    }.padding(.vertical, 4)
+                    }.padding(.vertical, 4).tag(item.playlist.id)
                 }
             }
         }
+        .focusedSceneValue(\.podListRestore, restoreAction)
+    }
+    private var restoreAction: (() -> Void)? {
+        guard !editing.busy, let id = selection,
+              library.trash.contains(where: { $0.playlist.id == id && (search.isEmpty || $0.playlist.name.localizedStandardContains(search)) }) else { return nil }
+        return { Task { await editing.restore(id) } }
     }
 }
 #endif

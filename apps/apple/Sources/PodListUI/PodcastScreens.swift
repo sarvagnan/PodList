@@ -95,6 +95,7 @@ struct PodcastPageScreen: SwiftUI.View {
     @State private var subscriptionBusy = false
     @State private var descriptionExpanded = false
     @State private var settings = false
+    @State private var downloadRules = false
     @State private var subscribedBounds = CGRect.zero
     @State private var bringing = Set<String>()
     @State private var addPresentation = PlaylistPresentation()
@@ -127,18 +128,12 @@ struct PodcastPageScreen: SwiftUI.View {
                     Text(title).font(.title2).bold()
                     Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(.secondary)
                     Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? nil : 5).textSelection(.enabled)
-                    Button(descriptionExpanded ? "Show less" : "Show description") { control.reset(); descriptionExpanded.toggle() }.buttonStyle(.link)
+                    Button(descriptionExpanded ? "Show less" : "Show description", action: toggleDescription).buttonStyle(.link)
                     HStack {
                         TimelineView(.periodic(from: .now, by: 0.25)) { context in
                             Button {
-                                if subscribed, let subscription {
-                                    guard control.click(at: Date()) else { return }
-                                    subscriptionBusy = true
-                                    Task { do { try await editor.unsubscribe(subscription) } catch { editor.error = LibraryMessages.failure(error) }; subscriptionBusy = false }
-                                } else {
-                                    subscriptionBusy = true
-                                    Task { do { try await editor.subscribe(feedURL) } catch { editor.error = LibraryMessages.failure(error) }; subscriptionBusy = false }
-                                }
+                                if subscribed, !control.click(at: Date()) { return }
+                                changeSubscription()
                             } label: {
                                 Label(subscribed ? (control.isArmed(at: context.date) ? "Unsubscribe" : "Subscribed") : "Subscribe", systemImage: subscribed ? "checkmark.circle.fill" : "plus.circle")
                             }.tint(subscribed ? .green : .podListAccent).disabled(subscriptionBusy)
@@ -149,7 +144,7 @@ struct PodcastPageScreen: SwiftUI.View {
                             ShareLink(item: url) { Label("Share podcast", systemImage: "square.and.arrow.up") }
                             Button("Copy feed address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
                         }
-                        if subscribed { Button("Subscription settings", systemImage: "gearshape") { control.reset(); settings = true }.labelStyle(.iconOnly) }
+                        if subscribed { Button("Subscription settings", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly) }
                     }
                 }
             }
@@ -210,6 +205,8 @@ struct PodcastPageScreen: SwiftUI.View {
             }
             LibraryFeedback(editor: editor)
         }.padding(18)
+        .focusedSceneValue(\.podListPodcast, podcastCommands)
+        .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { episode in { inspect(episode) } })
         .focusedSceneValue(\.podListPlaySelection, selectedEpisode.map { episode in { bring(episode, play: true) } })
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
@@ -221,8 +218,39 @@ struct PodcastPageScreen: SwiftUI.View {
         }
         .onDisappear { control.reset() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in control.reset() }
+        .sheet(isPresented: $downloadRules) {
+            if let subscription { BulkDownloadRuleSheet(ids: [subscription.id], app: app) }
+        }
         .sheet(isPresented: $settings) {
             if let subscription { SubscriptionSettingsScreen(subscription: subscription, library: library, app: app, editor: editor) }
+        }
+    }
+    private var podcastCommands: PodcastCommandContext {
+        let available = !subscriptionBusy && !editor.busy && !editor.edits.busy
+        var commands = PodcastCommandContext()
+        commands.subscribed = subscribed
+        if available { commands.subscriptionAction = { changeSubscription() } }
+        if subscribed && available {
+            commands.settings = { openSettings() }
+            commands.downloadRules = { control.reset(); downloadRules = true }
+        }
+        commands.shareURL = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL)
+        commands.feedURL = ShareLinks.web(feedURL)
+        commands.descriptionExpanded = descriptionExpanded
+        commands.toggleDescription = { toggleDescription() }
+        return commands
+    }
+    private func toggleDescription() { control.reset(); descriptionExpanded.toggle() }
+    private func openSettings() { control.reset(); settings = true }
+    private func changeSubscription() {
+        guard !subscriptionBusy, !editor.busy, !editor.edits.busy else { return }
+        control.reset(); subscriptionBusy = true
+        Task {
+            do {
+                if subscribed, let subscription { try await editor.unsubscribe(subscription) }
+                else { try await editor.subscribe(feedURL) }
+            } catch { editor.error = LibraryMessages.failure(error) }
+            subscriptionBusy = false
         }
     }
     private var selectedEpisode: PageEpisode? { episodes.first { selection.wrappedValue.contains($0.id) } }

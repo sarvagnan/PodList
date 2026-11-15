@@ -13,6 +13,7 @@ struct PlaylistContentView: SwiftUI.View {
     @Bindable var presentation: PlaylistPresentation
     let openEpisode: () -> Void
     @State private var rewindTarget: TimelineEvent?
+    @State private var timelineSelection: TimelineEvent.ID?
 
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
@@ -30,13 +31,15 @@ struct PlaylistContentView: SwiftUI.View {
             case .timeline: timeline
             }
         }
+        .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation))
+        .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
             RewindSheet(playlistID: playlist.id, target: event.moment, library: library, editing: editing) {
                 rewindTarget = nil; presentation.playlistTab = .entries
             }
         }
-        .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil }
-        .onChange(of: presentation.playlistTab) { _, _ in window.selection = [] }
+        .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; timelineSelection = nil }
+        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; timelineSelection = nil }
     }
     private var rows: [EpisodeRow] { window.rows(in: library) }
     private var entries: some SwiftUI.View {
@@ -136,7 +139,7 @@ struct PlaylistContentView: SwiftUI.View {
             if events.isEmpty {
                 ContentUnavailableView("No Listening Timeline", systemImage: "clock.arrow.circlepath", description: Text("Listening and deliberate edits are kept here for 30 days. Play an Entry to begin."))
             } else {
-                List(events) { event in
+                List(events, selection: $timelineSelection) { event in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(library.row(event.episodeID).title).font(.headline)
@@ -147,10 +150,16 @@ struct PlaylistContentView: SwiftUI.View {
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
                             Button("Rewind to Here") { rewindTarget = event }.accessibilityLabel("Rewind to \(date(event.moment))")
                         }
-                    }.padding(.vertical, 4)
+                    }.padding(.vertical, 4).tag(event.id)
                 }.accessibilityLabel("Listening Timeline")
             }
         }
+    }
+    private var rewindAction: (() -> Void)? {
+        guard presentation.playlistTab == .timeline, !editing.busy,
+              let event = TimelinePresentation.events(playlist).first(where: { $0.id == timelineSelection }),
+              TimelineRules.pointAt(playlist, to: event.moment) != nil else { return nil }
+        return { rewindTarget = event }
     }
     private func eventLabel(_ event: TimelineEvent) -> String {
         switch event.kind {
