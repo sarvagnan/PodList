@@ -132,7 +132,7 @@ struct PodcastPageScreen: SwiftUI.View {
                         Text(title).macContentFont(.title2).bold().lineLimit(2)
                         Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
                         Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? 8 : 3).textSelection(.enabled)
-                        Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
+                        Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(MacReadableLinkStyle())
                         HStack {
                             TimelineView(.periodic(from: .now, by: 0.25)) { context in
                                 Button {
@@ -162,10 +162,8 @@ struct PodcastPageScreen: SwiftUI.View {
             }
         } episodes: {
             if episodes.isEmpty, !loading, error == nil {
-                ContentUnavailableView {
-                    Label(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet")
-                } description: { Text(search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.").foregroundStyle(MacReadableSecondaryStyle()) }
-                actions: {
+                PodListEmptyState(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet",
+                                  description: search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.") {
                     if search.isEmpty { Button("Refresh Episodes") { load() } }
                     else { Button("Clear Search") { search = "" } }
                 }

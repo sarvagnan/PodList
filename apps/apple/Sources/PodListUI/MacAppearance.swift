@@ -133,6 +133,19 @@ struct MacAccentForegroundStyle: ShapeStyle {
     }
 }
 
+/// Native keyboard interaction, with an underlined, contrast-safe link label.
+/// The system .link style uses a separate link color rather than our readable accent.
+struct MacReadableLinkStyle: PrimitiveButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    func makeBody(configuration: Configuration) -> some SwiftUI.View {
+        Button(role: configuration.role, action: configuration.trigger) {
+            configuration.label
+                .foregroundStyle(isEnabled ? AnyShapeStyle(MacAccentForegroundStyle()) : AnyShapeStyle(.tertiary))
+                .underline()
+        }.buttonStyle(.plain)
+    }
+}
+
 /// Resolve inside each row so emphasized selections inherit SwiftUI's foreground.
 struct MacRowAccentStyle: ShapeStyle {
     func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
