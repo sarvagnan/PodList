@@ -18,16 +18,20 @@ struct PlaylistContentView: SwiftUI.View {
                 Picker("Playlist section", selection: $presentation.playlistTab) { ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
                     .pickerStyle(.segmented).frame(maxWidth: 480)
                 Spacer()
-                Button("Play this Playlist", systemImage: "play.fill") {
+                Button("Play This Playlist", systemImage: "play.fill") {
                     Task { await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
                 }.disabled(editing.busy)
             }.padding(12)
-            switch presentation.playlistTab {
-            case .entries: entries
-            case .history: history
-            case .timeline: timeline
+            Group {
+                switch presentation.playlistTab {
+                case .entries: entries
+                case .history: history
+                case .timeline: timeline
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation))
         .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
@@ -82,7 +86,7 @@ struct PlaylistContentView: SwiftUI.View {
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.secondary) }
-            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
+            if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
                 if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(2)
@@ -201,12 +205,12 @@ struct RewindSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 520) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Rewind Playlist").font(.title2).accessibilityAddTraits(.isHeader)
+                Text("Rewind Playlist").font(.title2).bold().accessibilityAddTraits(.isHeader)
                 Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
                 if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Goes back to").font(.headline)
-                        Text("\(preview.cursor.map { library.row($0).title } ?? "No current Entry") · \(Presentation.time(preview.position))")
+                        Text("\(preview.cursor.map { library.row($0).title } ?? "No Current Entry") · \(Presentation.time(preview.position))")
                         Text("Unplayed again").font(.headline)
                         Text(titles(preview.unplayed))
                         Text("Back in the Playlist").font(.headline)

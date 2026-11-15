@@ -155,8 +155,10 @@ final class PodListUITour: XCTestCase {
         try sheet("Add podcasts")
         try capture("24-add-podcasts", expectsSheet: true)
         try dismissSheet("Done")
-        // No Subscription selected: this opens the all-Subscriptions rules editor.
-        try click(library.buttons["Edit Download Rules…"])
+        // The bulk editor needs a selection: select every Subscription first.
+        try click(library.descendants(matching: .any).matching(identifier: "subscriptions.list").firstMatch)
+        app.typeKey("a", modifierFlags: .command)
+        try click(library.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Edit Download Rules for'")).firstMatch)
         try ready(library.sheets.firstMatch)
         try capture("25-download-rules", expectsSheet: true)
         try dismissSheet("Cancel")
@@ -211,7 +213,7 @@ final class PodListUITour: XCTestCase {
         try selectFirstEpisode()
         library.tables.firstMatch.typeKey("a", modifierFlags: .command)
         XCTAssertGreaterThan(library.tables.firstMatch.tableRows.matching(NSPredicate(format: "selected == true")).count, 1)
-        try ready(library.buttons["Add selected Episodes to a Playlist"])
+        try ready(library.buttons["Add to a Playlist"])
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
         XCTAssertTrue(library.buttons["Open Now Playing"].exists)
@@ -237,7 +239,7 @@ final class PodListUITour: XCTestCase {
     private func selectFirstEpisode() throws {
         let row = library.tables.firstMatch.tableRows.firstMatch
         try click(row)
-        try ready(library.buttons["Add selected Episodes to a Playlist"])
+        try ready(library.buttons["Add to a Playlist"])
     }
 
     private func segment(_ name: String) throws {

@@ -21,8 +21,8 @@ struct PodListMac: App {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        WindowGroup("PodList", id: "library") {
-            PodListWindow(app: model)
+        WindowGroup("PodList", id: "library", for: LibraryWindowTarget.self) { $target in
+            PodListWindow(app: model, initialDestination: target?.destination)
                 .onAppear { delegate.model = model }
         }
         .defaultSize(width: 1180, height: 760)

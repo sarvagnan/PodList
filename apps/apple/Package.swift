@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "PodList",
+    defaultLocalization: "en",
     platforms: [.macOS(.v26), .iOS(.v26)],
     products: [
         .library(name: "PodListDomain", targets: ["PodListDomain"]),
@@ -15,7 +16,7 @@ let package = Package(
         .target(name: "PodListDomain", resources: [.copy("Resources/operation.schema.json")]),
         .target(name: "PodListData", dependencies: ["PodListDomain"], linkerSettings: [.linkedLibrary("sqlite3")]),
         .target(name: "PodListAutomation"),
-        .target(name: "PodListUI", dependencies: ["PodListDomain", "PodListData", "PodListAutomation"]),
+        .target(name: "PodListUI", dependencies: ["PodListDomain", "PodListData", "PodListAutomation"], resources: [.process("Resources")]),
         .executableTarget(name: "PodListMCPBridge", dependencies: ["PodListAutomation"]),
         .executableTarget(name: "PodListMac", dependencies: ["PodListUI"]),
         .target(name: "ProtocolTestSupport", path: "Tests/ProtocolTestSupport"),

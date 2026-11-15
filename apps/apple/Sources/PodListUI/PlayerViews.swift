@@ -19,7 +19,7 @@ struct PlayerBar: SwiftUI.View {
                     }
                 }.padding(.horizontal, 18).padding(.vertical, 14).frame(minHeight: 92)
                 if let error = controller.error {
-                    HStack { Text(error); Button("Retry") { controller.play() } }.font(.caption).padding(.bottom, 8)
+                    FailureFeedback(message: error) { controller.play() }.font(.caption).padding(.bottom, 8)
                 }
             }.background(.bar).accessibilityElement(children: .contain).accessibilityLabel("Player")
         }
@@ -167,8 +167,8 @@ struct NowPlayingView: SwiftUI.View {
                                 PlayerSeek(controller: controller)
                                 TransportControls(controller: controller).controlSize(.large)
                                 HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
-                                if let error = controller.error { Text(error); Button("Retry") { controller.play() } }
-                                Button("Episode detail", systemImage: "info.circle") { detailID = value.episodeID }
+                                if let error = controller.error { FailureFeedback(message: error) { controller.play() } }
+                                Button("Episode Details", systemImage: "info.circle") { detailID = value.episodeID }
                                 Button("Open Active Playlist", systemImage: "music.note.list", action: openPlaylist)
                                 if !value.chapters.isEmpty {
                                     HStack {
@@ -190,7 +190,7 @@ struct NowPlayingView: SwiftUI.View {
                                         }.buttonStyle(.plain).padding(.vertical, 5)
                                     }
                                 }
-                            } else { ContentUnavailableView("No current Entry", systemImage: "music.note") }
+                            } else { ContentUnavailableView("No Current Entry", systemImage: "music.note") }
                         }.padding(28)
                     }
                 }

@@ -82,32 +82,15 @@ struct EpisodeActionButtons: ToolbarContent {
     }
     private var disabled: Bool { ids.isEmpty || editing.busy }
     var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .primaryAction) {
             Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }
                 .accessibilityLabel(labels.play).help("Play selected Episodes now").disabled(disabled)
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Button("Add", systemImage: "plus") { presentation.sheet = .add(ids, false) }
+            Button("Add to a Playlist…", systemImage: "text.badge.plus") { presentation.sheet = .add(ids, false) }
                 .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Button("Download", systemImage: "arrow.down.circle") { app.download(ids) }
-                .labelStyle(.iconOnly).accessibilityLabel(labels.download).help("Download selected Episodes").disabled(disabled)
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Button(labels.star, systemImage: labels.allStarred ? "star.fill" : "star") { Task { await editing.setStar(ids, starred: !labels.allStarred) } }
-                .labelStyle(.iconOnly).accessibilityLabel(labels.star).help("\(labels.star) selected Episodes").disabled(disabled)
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Button(labels.played, systemImage: labels.allPlayed ? "arrow.counterclockwise" : "checkmark") { Task { await editing.markPlayed(ids, played: !labels.allPlayed) } }
-                .labelStyle(.iconOnly).accessibilityLabel(labels.played)
-                .help(labels.allPlayed ? "Mark selected Episodes Unplayed" : "Mark selected Episodes Played").disabled(disabled)
-        }
-        ToolbarItem(placement: .primaryAction) {
             Menu("Episode Actions", systemImage: "ellipsis.circle") {
                 EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
             }.menuStyle(.borderlessButton).fixedSize()
-                .accessibilityLabel(labels.more).help("More Episode actions").disabled(disabled)
+                .accessibilityLabel(labels.more).help("More Episode Actions").disabled(disabled)
         }
     }
 }
@@ -115,22 +98,20 @@ struct EpisodeActionButtons: ToolbarContent {
 struct EditingFeedback: SwiftUI.View {
     let editing: PlaylistEditingModel
     var additionalError: String? = nil
-    var notice: String? = nil
+    var undo: (() -> Void)? = nil
+    var redo: (() -> Void)? = nil
     private var error: String? { additionalError ?? editing.error }
     var body: some SwiftUI.View {
         HStack {
-            if let text = error ?? editing.status ?? notice {
+            if let text = error ?? editing.status {
                 Text(text).foregroundStyle(error == nil ? Color.secondary : Color.red)
                     .lineLimit(1).truncationMode(.tail).help(text).textSelection(.enabled)
-                if error == nil, let notice, editing.status != nil, notice != editing.status {
-                    Text(notice).foregroundStyle(.secondary).truncationMode(.tail).help(notice)
-                }
                 Spacer(minLength: 8)
                 if editing.history.undo != nil {
-                    Button(editing.undoTitle) { Task { await editing.reverse() } }.disabled(editing.busy)
+                    Button(editing.undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
                 }
                 if editing.history.redo != nil {
-                    Button(editing.redoTitle) { Task { await editing.reverse(redo: true) } }.disabled(editing.busy)
+                    Button(editing.redoTitle) { if let redo { redo() } else { Task { await editing.reverse(redo: true) } } }.disabled(editing.busy)
                 }
             } else { Spacer() }
         }.font(.caption).lineLimit(1).padding(.horizontal, 14).frame(height: 32)
@@ -230,7 +211,7 @@ public struct PlaylistEditingCommands: Commands {
             Button("Rewind to Here…") { rewind?() }.disabled(rewind == nil)
             Divider()
             Button("Trash") { context?.window.navigate(to: .trash) }.disabled(context == nil)
-            Button("Play this Playlist") {
+            Button("Play This Playlist") {
                 guard let playlist = playlistContext?.playlist else { return }
                 Task { await app.editing?.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
             }.disabled(playlistUnavailable || playlistContext?.playlist.entries.isEmpty != false)

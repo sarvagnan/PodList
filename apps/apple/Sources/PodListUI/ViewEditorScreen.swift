@@ -38,7 +38,7 @@ struct ViewEditorScreen: SwiftUI.View {
                 HStack {
                     Text(creating ? "New View" : "Edit View").font(.title2).bold()
                     Spacer()
-                    Text("\(count) matching Episodes").monospacedDigit().accessibilityLabel("\(count) matching Episodes")
+                    Text(CountText.format(count, .matchingEpisode)).monospacedDigit()
                 }
                 Form {
                     Section {
@@ -58,14 +58,14 @@ struct ViewEditorScreen: SwiftUI.View {
                             Button("Rename…") { rename = editor.draft("rename.\(draft.id)"); if rename.isEmpty { rename = draft.name }; renaming = true }
                         }
                     }
-                    Section("All conditions must match") {
+                    Section("All Conditions Must Match") {
                         Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
                             update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
                         })) {
-                            Text("Any").tag("any"); Text("In the last days").tag("days"); Text("Between dates").tag("between")
+                            Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
                         }
                         if publishedMode == "days" {
-                            Stepper("Last \(lastDays) days", value: Binding(get: { lastDays }, set: { days in update { $0.filter.published = .lastDays(days: days) } }), in: 1...3650)
+                            Stepper("Last \(CountText.format(lastDays, .day))", value: Binding(get: { lastDays }, set: { days in update { $0.filter.published = .lastDays(days: days) } }), in: 1...3650)
                         }
                         if publishedMode == "between" {
                             DatePicker("From", selection: $from, displayedComponents: .date).onChange(of: from) { _, _ in updateDates() }
@@ -73,7 +73,7 @@ struct ViewEditorScreen: SwiftUI.View {
                         }
                         validation(fieldProblems[.published])
                         Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
-                            Text("Any").tag("any"); Text("Include selected").tag("include"); Text("Exclude selected").tag("exclude")
+                            Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
                         }
                         if draft.filter.podcasts != nil {
                             ForEach(library.snapshot.subscriptions, id: \.id) { sub in
@@ -86,21 +86,21 @@ struct ViewEditorScreen: SwiftUI.View {
                         TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
                             .textFieldStyle(.roundedBorder)
                         Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
-                            Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In progress").tag("inProgress"); Text("Played").tag("played")
+                            Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
                         }
                         Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
                             Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
                         }
                         Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
-                            Text("Any").tag(false); Text("Not in any Playlist").tag(true)
+                            Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
                         }
                         optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
                         optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
                     }
                     Section {
                         Picker("Sort", selection: value(\.sort)) {
-                            Text("Newest first").tag(ViewSort.publishedDesc); Text("Oldest first").tag(ViewSort.publishedAsc)
-                            Text("Shortest first").tag(ViewSort.durationAsc); Text("Longest first").tag(ViewSort.durationDesc)
+                            Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
+                            Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
                         }
                         TextField("Show", text: Binding(get: { let raw = editor.draft("limit.\(draft.id)"); return editor.hasDraft("limit.\(draft.id)") ? raw : draft.limit.map(String.init) ?? "" }, set: { text in
                             editor.setDraft(text, field: "limit.\(draft.id)")
@@ -110,17 +110,19 @@ struct ViewEditorScreen: SwiftUI.View {
                         validation(fieldProblems[.show])
                     }
                 }.formStyle(.columns).disabled(saving)
-                if let problem { Text(problem).foregroundStyle(.red) }
-                if let error = editor.error { Text(error).foregroundStyle(.red) }
             }.padding(20)
         } footer: {
-            HStack {
-                if !creating { Button("Delete View", role: .destructive) { editor.run { try await editor.deleteView(draft); finished(nil) } } }
-                if editor.undoName != nil { Button("Undo edit") { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } } }
-                Spacer()
-                Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
-                Button("Done") { finish() }.keyboardShortcut(.defaultAction).disabled(saving || renaming)
-            }.disabled(saving).padding(20)
+            VStack(spacing: 0) {
+                EditingFeedback(editing: editor.edits, additionalError: problem ?? editor.error,
+                                undo: { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } },
+                                redo: { Task { await editor.redo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } })
+                HStack {
+                    if !creating { Button("Delete View", role: .destructive) { editor.run { try await editor.deleteView(draft); finished(nil) } } }
+                    Spacer()
+                    Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
+                    Button("Done") { finish() }.keyboardShortcut(.defaultAction).disabled(saving || renaming)
+                }.disabled(saving).padding(20)
+            }
         }
         .interactiveDismissDisabled(saving)
         .onAppear {

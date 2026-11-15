@@ -7,6 +7,7 @@ public struct LibraryWindowActions {
     public var newView: () -> Void
     public var search: () -> Void
     public var editView: () -> Void
+    public var openInNewWindow: (() -> Void)?
 }
 public extension FocusedValues {
     var podListLibraryActions: LibraryWindowActions? {
@@ -24,6 +25,7 @@ public struct LibraryCommands: Commands {
     public var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Window") { openWindow(id: "library") }.keyboardShortcut("n", modifiers: [.command, .option, .shift])
+            Button("Open in New Window") { actions?.openInNewWindow?() }.disabled(actions?.openInNewWindow == nil)
             Button("New View…", action: { actions?.newView() }).keyboardShortcut("n").disabled(actions == nil)
             Button("Add Podcasts…", action: { actions?.add() }).keyboardShortcut("a", modifiers: [.command, .shift]).disabled(actions == nil)
             Divider()

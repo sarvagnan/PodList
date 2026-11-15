@@ -11,7 +11,7 @@ struct WelcomeView: SwiftUI.View {
                 Image(systemName: "waveform.circle.fill").font(.system(size: 54)).foregroundStyle(Color.podListAccent).accessibilityHidden(true)
                 Text("Welcome to PodList").font(.largeTitle).bold()
                 Text("Your Library, Views and Playlists, together on this Mac.").foregroundStyle(.secondary)
-                Text("Connect to a server").font(.title2).bold().padding(.top, 12)
+                Text("Connect to a Server").font(.title2).bold().padding(.top, 12)
                 Text("Enter your PodList server address. Your Library stays available on this Device when the server is unreachable.")
                 TextField("Server address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
                     .textFieldStyle(.roundedBorder).focused($addressFocused).disabled(app.connecting)
@@ -23,7 +23,7 @@ struct WelcomeView: SwiftUI.View {
                         .accessibilityLabel("Connection error: " + error)
                 }
                 HStack {
-                    Button(app.connecting ? "Checking…" : "Check and connect") { connect() }
+                    Button(app.connecting ? "Checking…" : "Check and Connect") { connect() }
                         .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                         .foregroundStyle(Color.podListOnAccent)
                         .disabled(app.connecting || app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -31,7 +31,7 @@ struct WelcomeView: SwiftUI.View {
                     if app.connecting { ProgressView().controlSize(.small).accessibilityLabel("Checking server") }
                 }
                 Divider().padding(.vertical, 8)
-                Button("Start on this Mac") { Task { await app.startStandalone() } }
+                Button("Start on This Mac") { Task { await app.startStandalone() } }
                     .disabled(app.connecting).accessibilityHint("Start as a Standalone Device, with no server")
             }.frame(maxWidth: 470, alignment: .leading).padding(40).frame(maxWidth: .infinity)
         }

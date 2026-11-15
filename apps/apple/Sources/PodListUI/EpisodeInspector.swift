@@ -145,7 +145,7 @@ struct InspectorActions: SwiftUI.View {
             }.buttonStyle(.plain).help(playing ? "Pause (playing)" : "Play Now (not playing)")
                 .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
             HStack(spacing: 8) {
-                icon("Add to a Playlist", symbol: "plus") { presentation.sheet = .add([row.id], false) }
+                icon("Add to a Playlist", symbol: "text.badge.plus") { presentation.sheet = .add([row.id], false) }
                 icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { Task { await editing.setStar([row.id], starred: !starred) } }
                 icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { Task { await editing.markPlayed([row.id], played: !played) } }
                 DownloadIcon(id: row.id, app: app)
