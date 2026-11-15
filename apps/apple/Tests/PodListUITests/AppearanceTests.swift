@@ -499,4 +499,49 @@ private var multicolorSelectionColors: [NSColor] {
         #expect(RGB(MacErrorPalette.color(for: name), over: background).contrast(background) >= 4.5)
     }
 }
+
+@Test @MainActor func sidebarHeadersRenderReadableInkWithoutChangingNativeTypography() throws {
+    // Representative Light Sidebar and audited Dark material surfaces, plus
+    // opaque window backgrounds used with Reduce Transparency.
+    for (name, scheme, surfaces) in [(NSAppearance.Name.aqua, ColorScheme.light, [0xE8E8E8, 0xF6F6F6]),
+                                     (.darkAqua, .dark, [0x222B38, 0x282828])] {
+        try withDrawingAppearance(name) {
+            for surface in surfaces {
+                let background = RGB(surface)
+                let backdrop = Color(red: background.r, green: background.g, blue: background.b)
+                for title in ["Views", "Playlists", "Library"] {
+                    // The surrounding native Section supplies this font; the header
+                    // must change only its foreground and keep the same glyph metrics.
+                    let header = MacSidebarSectionHeader(title).font(.system(size: 11, weight: .semibold))
+                        .padding(8).background(backdrop).environment(\.colorScheme, scheme)
+                    let original = Text(title).font(.system(size: 11, weight: .semibold))
+                        .padding(8).background(backdrop).environment(\.colorScheme, scheme)
+                    let renderer = ImageRenderer(content: header); renderer.scale = 2
+                    let nativeRenderer = ImageRenderer(content: original); nativeRenderer.scale = 2
+                    let bitmap = NSBitmapImageRep(cgImage: try #require(renderer.cgImage))
+                    let native = try #require(nativeRenderer.cgImage)
+                    #expect(bitmap.pixelsWide == native.width && bitmap.pixelsHigh == native.height)
+                    let image = try #require(renderer.cgImage)
+                    var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+                    try pixels.withUnsafeMutableBytes { bytes in
+                        let context = try #require(CGContext(data: bytes.baseAddress, width: image.width, height: image.height,
+                            bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                    }
+                    var bestContrast = 1.0
+                    for offset in stride(from: 0, to: pixels.count, by: 4) {
+                        let pixel = RGB(Int(pixels[offset]) << 16 | Int(pixels[offset + 1]) << 8 | Int(pixels[offset + 2]))
+                        bestContrast = max(bestContrast, pixel.contrast(background))
+                    }
+                    #expect(bestContrast >= 4.5, "Rendered \(title) in \(name.rawValue)")
+                }
+            }
+        }
+    }
+    for (name, surfaces) in [(NSAppearance.Name.accessibilityHighContrastAqua, [0xE8E8E8, 0xFFFFFF]),
+                             (.accessibilityHighContrastDarkAqua, [0x222B38, 0x282828])] {
+        for surface in surfaces { #expect(RGB(MacSecondaryPalette.color(for: name), over: RGB(surface)).contrast(RGB(surface)) >= 4.5) }
+    }
+}
 #endif

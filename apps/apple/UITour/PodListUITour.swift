@@ -57,9 +57,18 @@ final class PodListUITour: XCTestCase {
 
         try navigate("New this week")
         try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch)
+        let leadingTitleX = library.staticTexts["New this week"].firstMatch.frame.minX
         try capture("02-new-this-week")
         try selectFirstEpisode()
         try capture("03-episode-inspector")
+        // After the baseline captures; the next navigation clears this selection.
+        app.typeText("jo")
+        let joinery = episodeRows.containing(.staticText, identifier: "Joinery without screws").firstMatch
+        try ready(joinery)
+        XCTAssertTrue(joinery.isSelected, "Type-select must select the Episode by title")
+        XCTAssertTrue(library.frame.contains(joinery.frame), "Type-select must reveal the match")
+        let inspector = library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
+        try ready(text("Joinery without screws", in: inspector))
         try navigate("Starred")
         try capture("04-starred")
         try navigate("All Views")
@@ -68,8 +77,13 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Default")
         try ready(episodeList)
+        XCTAssertEqual(library.staticTexts["Default"].firstMatch.frame.minX, leadingTitleX, accuracy: 1,
+                       "The Playlist title must retain the library's leading title position")
         try capture("06-default-playlist")
+        let unselectedSection = playlistSection("Entries").frame
+        let unselectedPlay = playlistPlayButton.frame
         try selectFirstEpisode()
+        assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
         try capture("07-entry-inspector")
         // The section switcher and Playlist action belong to the window toolbar.
         let defaultHeader = playlistPlayButton.frame
@@ -100,7 +114,8 @@ final class PodListUITour: XCTestCase {
         let commuteHeader = playlistPlayButton.frame
         let commuteSection = playlistSection("Entries").frame
         let entryColumn = episodeList.buttons["Entry"].firstMatch.frame
-        try click(button("Playlist Settings"))
+        try click(library.descendants(matching: .any).matching(identifier: "playlist.actions").firstMatch)
+        try click(app.menuItems["Playlist Settings…"].firstMatch)
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
         try click(button("Rename", in: library.sheets.firstMatch))
@@ -362,7 +377,8 @@ final class PodListUITour: XCTestCase {
         let toolbar = library.toolbars.firstMatch
         XCTAssertTrue(toolbar.frame.contains(actualSection), "The section switcher must be in the toolbar", file: file, line: line)
         XCTAssertTrue(toolbar.frame.contains(actualPlay), "The Playlist action must be in the toolbar", file: file, line: line)
-        // Switching sections must preserve both toolbar controls' horizontal positions.
+        XCTAssertGreaterThan(actualPlay.minX, actualSection.maxX, "Play This Playlist belongs in trailing actions, outside the switcher", file: file, line: line)
+        // Principal placement must preserve X when sections or selection actions change.
         XCTAssertEqual(actualPlay.width, play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
         XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
         XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
@@ -400,7 +416,11 @@ final class PodListUITour: XCTestCase {
     }
 
     private var playlistPlayButton: XCUIElement { library.toolbars.buttons["Play This Playlist"].firstMatch }
-    private func playlistSection(_ name: String) -> XCUIElement { library.toolbars.radioButtons[name].firstMatch }
+    private func playlistSection(_ name: String) -> XCUIElement {
+        library.toolbars.descendants(matching: .any).matching(NSPredicate(
+            format: "(elementType == %d OR elementType == %d) AND label == %@",
+            XCUIElement.ElementType.radioButton.rawValue, XCUIElement.ElementType.button.rawValue, name)).firstMatch
+    }
 
     /// Sheet headings and button titles are matched case-insensitively by prefix, so title-case
     /// and trailing-ellipsis changes in the app don't break the tour.

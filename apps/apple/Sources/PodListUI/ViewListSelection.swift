@@ -13,18 +13,26 @@ enum ViewSelectionAction {
     }
 }
 
-/// SwiftUI hosts custom rows, so supply their names for incremental type selection.
-/// Arrow navigation and primary actions remain owned by the native List.
-struct ViewTypeSelection {
+/// Titles and IDs in display order, independent of the domain represented by a row.
+struct TypeSelectionRow: Equatable {
+    let id: String
+    let title: String
+}
+
+/// Native-style incremental matching, including repeated-letter cycling.
+struct RowTypeSelection {
+    static let resetInterval: TimeInterval = 1
     private var query = ""
     private var lastInput = -Double.infinity
 
-    mutating func select(_ text: String, in views: [PodListDomain.View], selected: String?, at now: TimeInterval) -> String? {
-        let cycling = now - lastInput < 1 && query == text
-        query = now - lastInput < 1 && !cycling ? query + text : text
+    mutating func select(_ text: String, in rows: [TypeSelectionRow], selected: String?, at now: TimeInterval) -> String? {
+        guard !text.isEmpty else { return nil }
+        let continuing = now - lastInput < Self.resetInterval
+        let cycling = continuing && query.compare(text, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        query = continuing && !cycling ? query + text : text
         lastInput = now
-        func matches(_ prefix: String) -> [PodListDomain.View] {
-            views.filter { $0.name.range(of: prefix, options: [.anchored, .caseInsensitive, .diacriticInsensitive]) != nil }
+        func matches(_ prefix: String) -> [TypeSelectionRow] {
+            rows.filter { $0.title.range(of: prefix, options: [.anchored, .caseInsensitive, .diacriticInsensitive]) != nil }
         }
         var candidates = matches(query)
         if candidates.isEmpty { query = text; candidates = matches(query) }

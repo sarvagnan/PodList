@@ -92,21 +92,37 @@ import UniformTypeIdentifiers
     #expect(ViewSelectionAction.view(in: library, destination: .subscriptions, selection: [id]) == nil)
 }
 
-@Test func viewTypeSelectionMatchesPrefixesCyclesAndExpires() {
-    var views = fixtureState().views
-    views = Array(repeating: views[0], count: 3)
-    for index in views.indices { views[index].id = "\(index)" }
-    views[0].name = "Café"
-    views[1].name = "Commute"
-    views[2].name = "News"
-    var typing = ViewTypeSelection()
-    #expect(typing.select("c", in: views, selected: nil, at: 1) == "0")
-    #expect(typing.select("c", in: views, selected: "0", at: 1.2) == "1")
-    #expect(typing.select("o", in: views, selected: "1", at: 1.3) == "1")
-    #expect(typing.select("n", in: views, selected: "1", at: 3) == "2")
-    #expect(typing.select("CAFE", in: views, selected: "2", at: 5) == "0")
-    #expect(typing.select("z", in: views, selected: "0", at: 7) == nil)
+@Test func rowTypeSelectionMatchesPrefixesCyclesAndExpires() {
+    let rows = [TypeSelectionRow(id: "0", title: "Café"),
+                TypeSelectionRow(id: "1", title: "Commute"),
+                TypeSelectionRow(id: "2", title: "News")]
+    var typing = RowTypeSelection()
+    #expect(typing.select("c", in: rows, selected: nil, at: 1) == "0")
+    #expect(typing.select("c", in: rows, selected: "0", at: 1.2) == "1")
+    #expect(typing.select("o", in: rows, selected: "1", at: 1.3) == "1")
+    #expect(typing.select("n", in: rows, selected: "1", at: 3) == "2")
+    #expect(typing.select("CAFE", in: rows, selected: "2", at: 5) == "0")
+    #expect(typing.select("z", in: rows, selected: "0", at: 7) == nil)
     #expect(typing.select("n", in: [], selected: nil, at: 9) == nil)
+}
+
+@Test func rowTypeSelectionUsesDisplayOrderAndOneSecondTimeout() {
+    let rows = [TypeSelectionRow(id: "later", title: "Joinery without screws"),
+                TypeSelectionRow(id: "earlier", title: "Joints and hinges"),
+                TypeSelectionRow(id: "other", title: "Other news")]
+    var typing = RowTypeSelection()
+    #expect(typing.select("j", in: rows, selected: nil, at: 1) == "later")
+    #expect(typing.select("o", in: rows, selected: "later", at: 1.1) == "later")
+    #expect(typing.select("i", in: rows, selected: "later", at: 1.2) == "later")
+    // At exactly one second, start a new prefix, rather than extending "joi".
+    #expect(typing.select("o", in: rows, selected: "later", at: 2.2) == "other")
+    #expect(typing.select("", in: rows, selected: "other", at: 2.3) == nil)
+    #expect(typing.select("j", in: rows, selected: "other", at: 4) == "later")
+    #expect(typing.select("J", in: rows, selected: "later", at: 4.1) == "earlier")
+    #expect(typing.select("j", in: rows, selected: "earlier", at: 4.2) == "later")
+    // A changed sort order is the matching order, independent of ID ordering.
+    var sorted = RowTypeSelection()
+    #expect(sorted.select("jo", in: Array(rows.reversed()), selected: nil, at: 1) == "earlier")
 }
 
 @MainActor @Test func textNavigationAndSheetCancellationWinOverPlayback() {
