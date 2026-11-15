@@ -197,9 +197,29 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Cancel")
         try navigate("Subscriptions")
         app.typeKey("a", modifierFlags: [.command, .shift])
-        try sheet("Add podcasts")
-        try capture("24-add-podcasts", expectsSheet: true)
-        try dismissSheet("Close")
+        let addPodcasts = app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).firstMatch
+        try ready(addPodcasts)
+        XCTAssertFalse(library.sheets.firstMatch.exists)
+        try capture("24-add-podcasts", in: addPodcasts)
+        let podcastQuery = addPodcasts.textFields["addPodcasts.query"]
+        try click(podcastQuery)
+        podcastQuery.typeText("PodList tour draft")
+        // Discovery stays open while Library is used and reopening brings it forward.
+        try navigate("Default")
+        XCTAssertTrue(addPodcasts.exists)
+        try menuCommand("File", "Add Podcasts…")
+        XCTAssertEqual(app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).count, 1)
+        addPodcasts.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
+        app.typeKey("a", modifierFlags: [.command, .shift])
+        try ready(addPodcasts)
+        XCTAssertEqual(podcastQuery.value as? String, "PodList tour draft")
+        try click(podcastQuery)
+        podcastQuery.typeKey("a", modifierFlags: .command)
+        podcastQuery.typeKey(.delete, modifierFlags: [])
+        try click(addPodcasts.buttons["Close"])
+        XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
+        try navigate("Subscriptions")
         // The bulk editor needs a selection: select every Subscription first.
         try click(library.descendants(matching: .any).matching(identifier: "subscriptions.list").firstMatch)
         app.typeKey("a", modifierFlags: .command)
@@ -526,10 +546,10 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from this Mac…"],
-            "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Import OPML…", "Export OPML…", "Show Import Results"],
+            "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Show Import Results"],
             "Edit": ["Search Library", "Clear Search"],
             "View": ["Sort by", "Descending", "Listening Stats", "Show Daily Table"],
-            "Podcast": ["Add Podcasts…", "Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
+            "Podcast": ["Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
             "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist"],
             "Playlist": ["Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
@@ -544,7 +564,7 @@ final class PodListUITour: XCTestCase {
         if name == "View" {
             XCTAssertTrue(!items.isDisjoint(with: ["Show Description", "Hide Description"]))
         }
-        let owners = ["Connection": "PodList", "Refresh Library": "Podcast", "Add Podcasts…": "Podcast",
+        let owners = ["Connection": "PodList", "Refresh Library": "Podcast", "Add Podcasts…": "File",
                       "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
                       "Show Description": "View", "Hide Description": "View", "Show Daily Table": "View"]
         for (command, owner) in owners where name != owner {

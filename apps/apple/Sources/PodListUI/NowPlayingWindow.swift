@@ -7,15 +7,17 @@ import SwiftUI
 final class NowPlayingLibraryNavigation {
     enum Request {
         case playlist(String)
+        case podcast(String)
         case add([String], preferNew: Bool)
     }
     private weak var window: WindowModel?
     private weak var presentation: PlaylistPresentation?
     private var activate: (() -> Bool)?
     private var pending: Request?
+    private var openPodcast: ((String) -> Void)?
 
-    func attach(window: WindowModel, presentation: PlaylistPresentation, activate: @escaping () -> Bool) {
-        self.window = window; self.presentation = presentation; self.activate = activate
+    func attach(window: WindowModel, presentation: PlaylistPresentation, activate: @escaping () -> Bool, openPodcast: ((String) -> Void)? = nil) {
+        self.window = window; self.presentation = presentation; self.activate = activate; self.openPodcast = openPodcast
         if let pending {
             self.pending = nil
             _ = perform(pending)
@@ -30,6 +32,7 @@ final class NowPlayingLibraryNavigation {
         }
         switch request {
         case let .playlist(id): window.navigate(to: .playlist(id))
+        case let .podcast(feed): openPodcast?(feed)
         case let .add(ids, preferNew): presentation.sheet = .add(ids, preferNew)
         }
         return true
@@ -41,6 +44,7 @@ struct NowPlayingLibraryHost: NSViewRepresentable {
     let navigation: NowPlayingLibraryNavigation
     let model: WindowModel
     let presentation: PlaylistPresentation
+    var openPodcast: ((String) -> Void)? = nil
 
     func makeNSView(context: Context) -> HostView { HostView(host: self) }
     func updateNSView(_ view: HostView, context: Context) { view.host = self }
@@ -62,11 +66,11 @@ struct NowPlayingLibraryHost: NSViewRepresentable {
         }
         private func attach() {
             guard let window, window.isVisible else { return }
-            host.navigation.attach(window: host.model, presentation: host.presentation) { [weak window] in
+            host.navigation.attach(window: host.model, presentation: host.presentation, activate: { [weak window] in
                 guard let window, window.isVisible else { return false }
                 window.makeKeyAndOrderFront(nil)
                 return true
-            }
+            }, openPodcast: host.openPodcast)
         }
         isolated deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
     }

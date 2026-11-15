@@ -7,7 +7,6 @@ public struct PodListWindow: SwiftUI.View {
     @State private var window = WindowModel()
     @State private var playlistPresentation = PlaylistPresentation()
     @FocusState private var searchFocused: Bool
-    @State private var showAddPodcasts = false
     @State private var editingView: PodListDomain.View?
     @State private var creatingView = false
     @State private var subscriptionSelection = Set<String>()
@@ -67,7 +66,7 @@ public struct PodListWindow: SwiftUI.View {
                             Button("New View…", systemImage: "plus") { newView() }.buttonStyle(.plain).selectionDisabled()
                         }
                         if section.name == "Playlists" { Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }.buttonStyle(.plain).selectionDisabled() }
-                        if section.name == "Library" { Button("Add Podcasts…", systemImage: "plus") { showAddPodcasts = true }.buttonStyle(.plain).selectionDisabled() }
+                        if section.name == "Library" { Button("Add Podcasts…", systemImage: "plus") { openWindow(id: "add-podcasts") }.buttonStyle(.plain).selectionDisabled() }
                         if section.items.isEmpty {
                             Text("No \(section.name)").foregroundStyle(MacReadableSecondaryStyle())
                         }
@@ -120,7 +119,7 @@ public struct PodListWindow: SwiftUI.View {
             VStack(spacing: 0) {
                 syncStatus
                 if let editor = app.libraryEditing {
-                    if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { showAddPodcasts = true }) }
+                    if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
                     LibraryFeedback(editor: editor)
                         .id(window.destination).id(podcastFeed)
                     if editor.busy { VStack {
@@ -195,22 +194,16 @@ public struct PodListWindow: SwiftUI.View {
                           openNowPlaying: { openWindow(id: "now-playing") }, announcements: app.announcements)
             }
         }
-        .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { drop in
-            guard let editor = app.libraryEditing else { return }
-            switch drop {
-            case let .opml(url): Task { await editor.selectOPMLFile(url) }
-            case let .feed(url):
-                editor.setDraft(url.absoluteString, field: "addPodcasts")
-                showAddPodcasts = true
-            }
+        .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { batch in
+            await app.libraryEditing?.selectLibraryDrops(batch)
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions)
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
-        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library)))
+        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing {
-                PodListSheet(title: "Import OPML", width: 600, actionTitle: editor.importReady ? "Import" : "Close",
+                PodListSheet(title: editor.groupsDroppedImport ? "Import Podcasts" : "Import OPML", width: 600, actionTitle: editor.importReady ? "Import" : "Close",
                              actionEnabled: !editor.importReady || editor.importTotal > 0,
                              cancelTitle: editor.importReady ? "Cancel" : nil,
                              cancel: { editor.cancelImportSelection(); editor.importPresented = false },
@@ -222,9 +215,6 @@ public struct PodListWindow: SwiftUI.View {
                 .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { editor.importPresented = false }]))
                 .onExitCommand { editor.importPresented = false }
             }
-        }
-        .sheet(isPresented: $showAddPodcasts) {
-            if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { window.beginPodcastPage(); podcastFeed = $0 }) }
         }
         .sheet(isPresented: Binding(get: { editingView != nil }, set: { if !$0 { editingView = nil } })) {
             if let view = editingView, let editor = app.libraryEditing {
@@ -238,7 +228,7 @@ public struct PodListWindow: SwiftUI.View {
             podcastFeed = nil
         }
         .focusedSceneValue(\.podListInspector, showsEpisodeInspector ? $inspectorVisible : nil)
-        .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation))
+        .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation, openPodcast: { window.beginPodcastPage(); podcastFeed = $0 }))
         .focusedSceneValue(\.podListOpenPlaylist, { window.navigate(to: .playlist(library.state.activePlaylistId)) })
         .focusedSceneValue(\.podListNowPlaying, { openWindow(id: "now-playing") })
         .onChange(of: app.library?.snapshot) { previous, _ in
@@ -327,7 +317,7 @@ public struct PodListWindow: SwiftUI.View {
                     Label(window.search.isEmpty ? "No Subscriptions" : "No Matching Subscriptions", systemImage: "rectangle.stack")
                 } description: { Text("Search by name or feed address, or clear Search.").foregroundStyle(MacReadableSecondaryStyle()) }
                 actions: {
-                    Button("Add Podcasts") { showAddPodcasts = true }
+                    Button("Add Podcasts") { openWindow(id: "add-podcasts") }
                     if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
                 }
             } else {
@@ -465,7 +455,7 @@ public struct PodListWindow: SwiftUI.View {
                     ContentUnavailableView {
                         Label("No Subscriptions", systemImage: "rectangle.stack")
                     } description: { Text("Add podcasts to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
-                    actions: { Button("Add Podcasts") { showAddPodcasts = true } }
+                    actions: { Button("Add Podcasts") { openWindow(id: "add-podcasts") } }
                 case .noMatches:
                     ContentUnavailableView {
                         Label("No Matching Episodes", systemImage: "magnifyingglass")

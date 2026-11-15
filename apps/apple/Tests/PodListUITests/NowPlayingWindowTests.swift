@@ -1,6 +1,7 @@
 #if os(macOS)
 import Testing
 import SwiftUI
+import PodListData
 @testable import PodListUI
 
 @MainActor @Test func nowPlayingActionsUseTheLastLibraryAndKeepItsSheetOnLibrary() {
@@ -63,5 +64,35 @@ import SwiftUI
             #expect(Set(heights).count == 1)
         }
     }
+}
+#endif
+
+#if os(macOS)
+@MainActor @Test func discoveryOpensPodcastInLastLibraryOrQueuesItForReopenedLibrary() {
+    let navigation = NowPlayingLibraryNavigation()
+    let window = WindowModel(), presentation = PlaylistPresentation()
+    var opened: [String] = []
+    #expect(!navigation.perform(.podcast("https://example.com/feed")))
+    navigation.attach(window: window, presentation: presentation, activate: { true }, openPodcast: { opened.append($0) })
+    #expect(opened == ["https://example.com/feed"])
+    #expect(navigation.perform(.podcast("https://example.com/another")))
+    #expect(opened == ["https://example.com/feed", "https://example.com/another"])
+    #expect(presentation.sheet == nil)
+}
+
+@MainActor @Test func discoveryDraftRestorationKeepsSearchAndSelectionWhenReopened() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "discovery", defaults: defaults)
+    editor.setDraft("Podcasts", field: "addPodcasts")
+    let state = editor.podcastDiscovery
+    state.restoreDraft(from: editor)
+    #expect(state.query == "Podcasts")
+    state.query = "Current search"; state.searched = true; state.selectedFeed = "https://example.com/feed"
+    state.results = try JSONDecoder().decode([DirectoryPodcast].self, from: Data(#"[{"title":"Found","feedUrl":"https://example.com/feed"}]"#.utf8))
+    state.restoreDraft(from: editor)
+    #expect(state === editor.podcastDiscovery)
+    #expect(state.query == "Current search" && state.searched && state.selectedFeed == "https://example.com/feed")
+    #expect(state.results.map(\.title) == ["Found"])
 }
 #endif

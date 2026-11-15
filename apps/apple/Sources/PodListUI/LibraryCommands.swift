@@ -32,13 +32,13 @@ public struct LibraryCommands: Commands {
                 .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(context == nil || app.editing == nil)
             Button("Open in New Window") { actions?.openInNewWindow?() }.disabled(actions?.openInNewWindow == nil)
             Divider()
+            Button("Add Podcasts…") { openWindow(id: "add-podcasts") }.keyboardShortcut("a", modifiers: [.command, .shift]).disabled(app.libraryEditing == nil)
             Button("Import OPML…") { LibraryFileActions.importOPML(app) }.disabled(app.library == nil || app.libraryEditing?.busy == true)
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
             MenuActionItems(menu: .file)
         }
         CommandMenu("Podcast") {
             Button("Subscriptions") { context?.window.navigate(to: .subscriptions) }.disabled(context == nil)
-            Button("Add Podcasts…", action: { actions?.add() }).keyboardShortcut("a", modifiers: [.command, .shift]).disabled(actions == nil)
             MenuActionItems(menu: .podcast)
             Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()

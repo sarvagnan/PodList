@@ -77,23 +77,57 @@ enum EpisodeDrop {
         return Set(ids)
     }
 
-    @MainActor static func add(_ values: [EpisodeTransfer], to playlistID: String, editor: LibraryEditingModel, selected: ([String]) -> Void = { _ in }) async -> Bool {
-        guard !editor.busy, !editor.edits.busy, let references = references(values) else { return false }
-        do {
-            var ids: [String] = []
-            for reference in references {
+    @MainActor static func add(_ values: [EpisodeTransfer], to playlistID: String, editor: LibraryEditingModel,
+                               selected: @escaping @MainActor ([String]) -> Void = { _ in }) async -> Bool {
+        guard !editor.busy, !editor.edits.busy, editor.episodeDrop == nil, let references = references(values) else { return false }
+        editor.episodeDrop = EpisodeDropProgress(playlistID: playlistID, total: references.count)
+        editor.failedEpisodeDrop = nil
+        defer { editor.episodeDrop = nil }
+        var ids: [String] = [], failed: [DraggedEpisode] = [], failures: [String] = []
+        for (index, reference) in references.enumerated() {
+            do {
                 if let id = reference.episodeID { ids.append(id) }
                 else if let feed = reference.feedURL, let guid = reference.guid {
                     ids.append(try await editor.prepareEpisode(feed, guid: guid))
                 }
+            } catch {
+                failed.append(reference)
+                failures.append("Episode \(index + 1) (\(reference.feedURL ?? reference.episodeID ?? "unknown")): \(LibraryMessages.failure(error))")
             }
-            // One existing, named, reversible State edit. The source Playlist
-            // is deliberately untouched; a sidebar drop is always Play Last.
-            guard await editor.edits.add(ids, to: playlistID, placement: .last) != nil else { return false }
-            selected(ids)
-            return true
-        } catch { editor.error = LibraryMessages.failure(error); return false }
+            editor.episodeDrop?.completed = index + 1
+        }
+        var seen = Set<String>()
+        ids = ids.filter { seen.insert($0).inserted }
+        // All resolved Episodes form one named, reversible Play Last edit.
+        var added = false
+        if !ids.isEmpty { added = await editor.edits.add(ids, to: playlistID, placement: .last) != nil }
+        if added { selected(ids) }
+        else if !ids.isEmpty {
+            failed += ids.map { DraggedEpisode(episodeID: $0) }
+            failures.append(editor.edits.error ?? "Could not add Episodes to the Playlist. Try again.")
+        }
+        if !failed.isEmpty {
+            let retry = EpisodeTransfer(episodes: failed, sourcePlaylistID: nil, title: "Retry dropped Episodes", shareURL: nil)
+            editor.failedEpisodeDrop = FailedEpisodeDrop(
+                message: "Added \(added ? ids.count : 0) Episodes; \(failed.count) failed.\n" + failures.joined(separator: "\n"),
+                retry: { [weak editor] in
+                    guard let editor else { return }
+                    _ = await add([retry], to: playlistID, editor: editor, selected: selected)
+                })
+        }
+        return added
     }
+}
+
+struct EpisodeDropProgress {
+    let playlistID: String
+    let total: Int
+    var completed = 0
+}
+
+struct FailedEpisodeDrop {
+    let message: String
+    let retry: @MainActor () async -> Void
 }
 
 struct PlaylistEpisodeDropTarget: ViewModifier {
@@ -105,7 +139,7 @@ struct PlaylistEpisodeDropTarget: ViewModifier {
     @State private var optionCopy = false
     @ViewBuilder func body(content: Content) -> some SwiftUI.View {
         if case let .playlist(id) = destination, let editor {
-            content.dropDestination(for: EpisodeTransfer.self, isEnabled: !editor.busy && !editor.edits.busy) { values, _ in
+            content.dropDestination(for: EpisodeTransfer.self, isEnabled: !editor.busy && !editor.edits.busy && editor.episodeDrop == nil) { values, _ in
                 if optionCopy, values.allSatisfy({ $0.sourcePlaylistID == id }),
                    let references = EpisodeDrop.references(values) {
                     window.didDrop(references.compactMap(\.episodeID), into: id)

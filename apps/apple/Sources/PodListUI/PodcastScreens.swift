@@ -6,104 +6,19 @@ import PodListDomain
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     var body: some SwiftUI.View {
-        EditingFeedback(editing: editor.edits, additionalError: editor.error,
-                        undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } })
-    }
-}
-
-struct AddPodcastsScreen: SwiftUI.View {
-    @Bindable var editor: LibraryEditingModel
-    let library: LibraryModel
-    let open: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    @State private var results: [DirectoryPodcast] = []
-    @State private var selectedFeed: String?
-    @State private var loading = false
-    @State private var searched = false
-    @State private var error: String?
-    @State private var subscribing = Set<String>()
-    @State private var searchTask: Task<Void, Never>?
-    @FocusState private var focused: Bool
-    var body: some SwiftUI.View {
-        PodListSheet(title: "Add Podcasts", width: 650, actionTitle: "Close", defaultShortcut: false,
-                     cancelTitle: nil, cancel: { dismiss() }, action: { dismiss() }) {
-            Text("Podcast name or feed address")
-            HStack {
-                TextField("Podcast name or feed address", text: $query).textFieldStyle(.roundedBorder).focused($focused)
-                    .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
-                Button("Search") { search() }.keyboardShortcut(.defaultAction).disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        VStack(alignment: .leading, spacing: 8) {
+            EditingFeedback(editing: editor.edits, additionalError: editor.error,
+                            undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } })
+            if let drop = editor.episodeDrop {
+                ProgressView("Adding Episodes… \(drop.completed) of \(drop.total) prepared", value: Double(drop.completed), total: Double(drop.total))
+                    .padding(.horizontal, 14).padding(.bottom, 8)
             }
-            Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-            if !searched, !loading {
-                ContentUnavailableView {
-                    Label("Find Your Next Podcast", systemImage: "magnifyingglass")
-                } description: {
-                    Text("Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.").foregroundStyle(MacReadableSecondaryStyle())
-                }
+            if let failure = editor.failedEpisodeDrop {
+                FailureFeedback(message: failure.message, announcements: editor.edits.announcements) {
+                    Task { await failure.retry() }
+                }.disabled(editor.episodeDrop != nil || editor.busy || editor.edits.busy)
+                    .padding(.horizontal, 14).padding(.bottom, 8)
             }
-            if loading { ProgressView("Finding Podcasts…") }
-            if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { search() } }
-            if searched && !loading && results.isEmpty && error == nil { Text("No podcasts found. Try a name or a feed address.") }
-            if !results.isEmpty {
-                List(results, selection: $selectedFeed) { result in
-                    HStack {
-                        Button { openResult(result) } label: {
-                            HStack {
-                                ArtworkView(url: result.artworkUrl.flatMap(URL.init(string:)), title: result.title, size: 48)
-                                VStack(alignment: .leading) { Text(result.title); Text(result.author ?? "").foregroundStyle(MacReadableSecondaryStyle()) }
-                            }
-                        }.buttonStyle(.plain).accessibilityLabel("Open Podcast page for \(result.title)")
-                        Spacer()
-                        if library.subscriptions.contains(where: { $0.feedUrl == result.feedUrl }) { Label("Subscribed", systemImage: "checkmark.circle.fill").foregroundStyle(.primary) }
-                        else {
-                            Button(subscribing.contains(result.feedUrl) ? "Subscribing…" : "Subscribe") {
-                                subscribe(result)
-                            }.disabled(subscribing.contains(result.feedUrl)).accessibilityLabel("Subscribe to \(result.title)")
-                        }
-                    }.padding(.vertical, 5).tag(result.feedUrl)
-                }
-                .frame(height: min(320, CGFloat(results.count) * 70))
-            }
-        } status: {
-            LibraryFeedback(editor: editor)
-        }
-        .onExitCommand { dismiss() }
-        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { dismiss() }]))
-        .focusedSceneValue(\.podListDiscoveryActions, MenuActionContext(actions: [
-            .searchPodcasts: !loading && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil,
-            .retry: error != nil && !loading ? { search() } : nil
-        ].compactMapValues { $0 }))
-        .focusedSceneValue(\.podListPodcast, discoveryCommands)
-        .onAppear { editor.beginAddingPodcasts(); query = editor.draft("addPodcasts"); focused = true }
-        .onDisappear { searchTask?.cancel(); editor.endAddingPodcasts() }
-    }
-    private var discoveryCommands: PodcastCommandContext {
-        guard let result = results.first(where: { $0.feedUrl == selectedFeed }) else { return PodcastCommandContext() }
-        let subscribed = library.subscriptions.contains { $0.feedUrl == result.feedUrl }
-        return PodcastCommandContext(open: { openResult(result) }, subscribed: subscribed,
-            subscriptionAction: !subscribed && !subscribing.contains(result.feedUrl) && !editor.busy && !editor.edits.busy ? { subscribe(result) } : nil)
-    }
-    private func openResult(_ result: DirectoryPodcast) { open(result.feedUrl); dismiss() }
-    private func subscribe(_ result: DirectoryPodcast) {
-        subscribing.insert(result.feedUrl)
-        Task { do { try await editor.subscribe(result.feedUrl) } catch { editor.error = LibraryMessages.failure(error) }; subscribing.remove(result.feedUrl) }
-    }
-    private func search() {
-        searchTask?.cancel()
-        loading = true; error = nil; searched = true
-        let submitted = query
-        searchTask = Task {
-            do {
-                let found = try await editor.source.search(submitted)
-                guard !Task.isCancelled, query == submitted else { return }
-                var seen = Set<String>()
-                results = found.filter { seen.insert($0.feedUrl).inserted }
-            } catch {
-                guard !Task.isCancelled, query == submitted else { return }
-                self.error = LibraryMessages.failure(error)
-            }
-            loading = false
         }
     }
 }
