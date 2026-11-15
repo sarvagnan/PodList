@@ -22,7 +22,7 @@ struct NewPlaylistSheet: SwiftUI.View {
                 HStack {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(editing.busy)
                     Spacer()
-                    Button("Create Playlist") { submit() }.keyboardShortcut(.defaultAction).disabled(problem != nil || editing.busy)
+                    Button("Create Playlist") { submit() }.macDefaultAction().disabled(problem != nil || editing.busy)
                 }
             }.padding(24)
         }.interactiveDismissDisabled(editing.busy).task { focused = true }
@@ -85,7 +85,7 @@ struct AddPlaylistSheet: SwiftUI.View {
                 Button("Cancel") { if let cancelled { cancelled() } else { dismiss() } }.keyboardShortcut(.cancelAction).disabled(editing.busy)
                 Spacer()
                 Button("Play Now") { submit(.now) }.disabled(problem != nil || editing.busy)
-                Button("Play Next") { submit(.next) }.disabled(problem != nil || editing.busy).keyboardShortcut(.defaultAction)
+                Button("Play Next") { submit(.next) }.disabled(problem != nil || editing.busy).macDefaultAction()
                 Button("Play Last") { submit(.last) }.disabled(problem != nil || editing.busy)
             }
         }.padding(24)
@@ -129,16 +129,16 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                             Text(playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                             if !playlist.isDefault {
                                 Button("Rename…") { if PlaylistRenameAction.prepare(playlist, editing: editing) { focused = true } }
-                            } else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(.primary) }
+                            } else { Text("The Default Playlist cannot be renamed or deleted.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
                         }
                     }
                     Toggle("Clear on Played", isOn: Binding(get: { self.playlist?.clearOnPlayed ?? false }, set: { value in
                         Task { await editing.edit([.setClearOnPlayed(playlistId: id, clearOnPlayed: value)], name: "Clear on Played") }
                     })).disabled(editing.busy)
-                    Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(.primary)
+                    Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if !playlist.isDefault {
                         Button("Delete Playlist", role: .destructive) { Task { if await editing.delete(playlist) { done() } } }.disabled(editing.busy)
-                        Text("Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(.primary)
+                        Text("Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     }
                 } else { Text("Playlist unavailable.") }
                 EditingFeedback(editing: editing)
@@ -164,7 +164,7 @@ struct PlaylistTrashView: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
             Text("Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
-                .macContentFont(.subheadline).foregroundStyle(.primary).padding(12)
+                .macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle()).padding(12)
             if library.trash.isEmpty {
                 ScrollableEmptyState("Trash Is Empty", systemImage: "trash", description: "Deleted Playlists can be restored here.")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -173,7 +173,7 @@ struct PlaylistTrashView: SwiftUI.View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.playlist.name).macContentFont(.headline)
-                            Text("\(CountText.format(item.playlist.entries.count, .entry)) · Deleted \(Date(timeIntervalSince1970: Double(item.deletedAt) / 1000).formatted(date: .abbreviated, time: .omitted))").foregroundStyle(.primary)
+                            Text("\(CountText.format(item.playlist.entries.count, .entry)) · Deleted \(Date(timeIntervalSince1970: Double(item.deletedAt) / 1000).formatted(date: .abbreviated, time: .omitted))").foregroundStyle(MacReadableSecondaryStyle(isSelected: selection == item.playlist.id))
                         }
                         Spacer()
                         Button("Restore") { Task { await editing.restore(item.playlist.id) } }

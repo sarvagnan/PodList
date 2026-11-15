@@ -124,7 +124,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     if !creating { Button("Delete View", role: .destructive) { editor.run { try await editor.deleteView(draft); finished(nil) } } }
                     Spacer()
                     Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
-                    Button("Done") { finish() }.keyboardShortcut(.defaultAction).disabled(saving || renaming)
+                    Button("Done") { finish() }.macDefaultAction().disabled(saving || renaming)
                 }.disabled(saving).padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
             }
         }

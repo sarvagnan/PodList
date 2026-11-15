@@ -34,12 +34,12 @@ struct AddPodcastsScreen: SwiftUI.View {
                         .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
                     Button("Search") { search() }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(.primary)
+                Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                 if !searched, !loading {
                     ContentUnavailableView {
                         Label("Find Your Next Podcast", systemImage: "magnifyingglass")
                     } description: {
-                        Text("Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.")
+                        Text("Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.").foregroundStyle(MacReadableSecondaryStyle())
                     }
                 }
                 if loading { ProgressView("Finding Podcasts…") }
@@ -51,7 +51,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                             Button { open(result.feedUrl); dismiss() } label: {
                                 HStack {
                                     ArtworkView(url: result.artworkUrl.flatMap(URL.init(string:)), title: result.title, size: 48)
-                                    VStack(alignment: .leading) { Text(result.title); Text(result.author ?? "").foregroundStyle(.primary) }
+                                    VStack(alignment: .leading) { Text(result.title); Text(result.author ?? "").foregroundStyle(MacReadableSecondaryStyle()) }
                                 }
                             }.buttonStyle(.plain).accessibilityLabel("Open Podcast page for \(result.title)")
                             Spacer()
@@ -179,7 +179,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title).macContentFont(.title2).bold()
-                    Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(.primary)
+                    Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle())
                     Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? nil : 5).textSelection(.enabled)
                     Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
                     HStack {
@@ -207,11 +207,11 @@ struct PodcastPageScreen: SwiftUI.View {
             }
             if loading { ProgressView("Reading Episodes…") }
             if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { control.reset(); load() } }
-            Text(CountText.format(episodes.count, .episode)).foregroundStyle(.primary)
+            Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
             if episodes.isEmpty, !loading, error == nil {
                 ContentUnavailableView {
                     Label(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet")
-                } description: { Text(search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.") }
+                } description: { Text(search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.").foregroundStyle(MacReadableSecondaryStyle()) }
                 actions: {
                     if search.isEmpty { Button("Refresh Episodes") { load() } }
                     else { Button("Clear Search") { search = "" } }
@@ -222,7 +222,7 @@ struct PodcastPageScreen: SwiftUI.View {
                         List(selection: selection) {
                             Section {
                                 ForEach(episodes) { episode in
-                                    MacReadingRow { podcastEpisodeTitle(episode) } metadata: {
+                                    MacReadingRow(isSelected: selection.wrappedValue.contains(episode.id)) { podcastEpisodeTitle(episode) } metadata: {
                                         "Published \(Date(timeIntervalSince1970: Double(episode.published) / 1000).formatted(date: .abbreviated, time: .omitted)) · Length \(episode.duration.map(Presentation.time) ?? "—") · \(episode.stateText)"
                                     }.tag(episode.id).draggable(dragPayload(episode))
                                 }
@@ -395,7 +395,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                         Button("Mark All Played") { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
                     }
                     Section("Playback Settings Overrides") {
-                        Text("Default inherits the global Playback Settings.").foregroundStyle(.primary)
+                        Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle())
                         overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
                         overrideNumber("Skip Intro (seconds)", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120])
                         overrideNumber("Skip Outro (seconds)", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120])
@@ -405,7 +405,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                     }
                 }.formStyle(.columns)
                 LibraryFeedback(editor: editor)
-                HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.defaultAction) }
+                HStack { Spacer(); Button("Done") { dismiss() }.macDefaultAction() }
             }.padding(20)
         }
         .onChange(of: overrides) { _, _ in save() }.onChange(of: threshold) { _, _ in save() }

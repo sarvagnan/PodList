@@ -249,3 +249,75 @@ metadata extraction (13 intents, 2 entities, 4 shortcuts).
 `xcodebuild build-for-testing -project PodListUITour.xcodeproj -scheme PodListUITour
 -derivedDataPath .build/ui-tour-derived` succeeded. The UI tour itself was not
 run because this implementation sandbox has no screen.
+
+## Round 3 readable secondary and sidebar sizing (pod-apx.5.55, .54)
+
+`MacReadableSecondaryStyle` is the shared reading-text hierarchy below primary.
+Its opaque `Color.podListReadableSecondary` resolves through the drawing
+appearance: `#606060` in Light and `#A0A0A0` in Dark. Increase Contrast uses
+`#505050` and `#C0C0C0`. It replaces the round-2 primary workaround on counts,
+metadata, descriptions and help text; empty-state descriptions, the Subscriptions
+Download Rule group headers (including Stream), and chart axis labels opt into
+the same style explicitly. Chart grid lines and native sidebar section headers
+remain system drawn. Player/glass text retains primary because its material
+backdrop is not a known reading surface.
+
+| Reading surface | Round-3 before | Shared secondary after |
+| --- | ---: | ---: |
+| Light white (`#FFFFFF`), empty descriptions / Stream / chart labels | `#808080`, 3.95:1 | `#606060`, 6.29:1 |
+| Light white, metadata changed to primary in round 2 | Native primary, 14.94:1 | `#606060`, 6.29:1 |
+| Light under-page (`#F6F6F6`) | Native primary, 14.07:1 | `#606060`, 5.82:1 |
+| Dark window (`#1E1E1E`) | System secondary passed (audit: about 5.7:1) | `#A0A0A0`, 6.38:1 |
+| Dark under-page (`#282828`) | Primary workaround | `#A0A0A0`, 5.64:1 |
+| Dark round-2 reading fill (`#2F2D2B`) | Primary workaround | `#A0A0A0`, 5.25:1 |
+| Dark audited Inspector (`#212931`) | Primary workaround | `#A0A0A0`, 5.63:1 |
+| Dark audited sidebar (`#222B38`) | Primary workaround | `#A0A0A0`, 5.46:1 |
+
+After ratios above are WCAG calculations against documented surface fixtures,
+not fresh window captures. Secondary remains distinct from primary; Increase
+Contrast deliberately raises its ratios (7.46–9.16:1 on these surfaces).
+`MacReadableSecondaryStyle` inherits `.primary` on emphasized rows. Callers also
+supply selection state for sidebar counts and selected metadata in the standard
+and enlarged Episode lists, History, Timeline and Trash. This protects inactive
+selections too: the Dark secondary is intended for reading backgrounds, not the
+lighter `#464646` inactive selection fill.
+
+The failing Dark buttons are **Subscription Settings Done, Add to Playlist Play
+Next, Download Rules Apply, and Rewind** (D22/D23/D25/D34). The D25 crop was
+resampled headlessly: its solid fill is `#9DB1FF` and text is `#FFFFFF`, 2.07:1;
+Light Apply remains `#2B50C8` / white, 6.81:1. `macDefaultAction()` now applies
+`MacDefaultButtonStyle`: a native bordered-prominent button whose label explicitly
+uses `podListOnAccent` **inside the label**, with brand tint on the native control.
+Setting a foreground outside the native label does not reliably replace its
+white default. The style forwards role and trigger and retains the default Return
+shortcut. It is shared by all ordinary default actions (Create Playlist, Play
+Next, Done, Apply, Rewind, Bring Over). Welcome Connect already explicitly pairs
+its prominent fill with on-accent text and keeps that treatment.
+
+Palette-pair ratios remain **6.81:1 Light / 8.59:1 Dark**, and **9.91:1 /
+10.11:1** with Increase Contrast. Native rendering can adjust the palette colors;
+the new rendering test checks the actual fully covered label and dominant fill,
+in addition to the palette tests. It compares enabled and disabled native button
+rendering in both appearances. This host's headless output, converted to sRGB,
+measures **5.15:1 Light** (`#FFFFFF` on `#3868D2`) and **9.20:1 Dark**
+(`#152034` on `#ADC1FF`). These are rendered button checks, not new tour captures.
+Actual pressed/focused rendering, live Increase
+Contrast, wallpaper-dependent materials and live Sidebar icon size changes still
+need a GUI host; this implementation sandbox has no screen.
+
+**Sidebar decision:** the sidebar always follows System Settings › Appearance ›
+Sidebar icon size, at every app Text Size. The sidebar List has no explicit font,
+its Active Playlist symbol inherits the sidebar font, and it resets the app's
+`macTextScale` environment to 1. Text Size enlarges content text across windows,
+not navigation chrome; the Settings explanation says so. The sidebar's
+`navigationSplitViewColumnWidth(min: 180, ideal: 225, max: 320)` and its measurement
+behavior are unchanged, preserving the fix described in pod-apx.5.51.
+
+Validation: the required module-cache exports and `swift test --scratch-path
+.build --disable-sandbox` passed **253 tests** (166 UI, 29 domain, 58 data).
+The full suite ran outside the filesystem sandbox for its existing local MCP
+socket and macOS registration tests; the new focused rendering/contrast tests
+also passed inside the sandbox. `scripts/build-mac-app.sh` succeeded, including
+signing and extraction of 13 intents, 2 entities and 4 shortcuts.
+`xcodebuild build-for-testing -project PodListUITour.xcodeproj -scheme PodListUITour
+-derivedDataPath .build/ui-tour-derived` succeeded. The UI tour was built, not run.

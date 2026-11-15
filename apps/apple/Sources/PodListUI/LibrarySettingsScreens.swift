@@ -14,9 +14,9 @@ struct AutomationSettingsScreen: SwiftUI.View {
                 Section("MCP") {
                     Toggle("Enable MCP server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
                     Text("Any app running as this user on this Mac can then read the Library and control playback.")
-                        .macContentFont(.callout).foregroundStyle(.primary)
+                        .macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
-                        .macContentFont(.caption).foregroundStyle(.primary)
+                        .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if let error = settings.error {
                         Text(error).foregroundStyle(Color.podListError)
                         if settings.isEnabled { Button("Retry") { settings.start() } }
@@ -86,7 +86,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
                         TextField("Server address", text: $app.serverInput)
                         Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
-                        if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(.primary) }
+                        if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
                         if let error = app.connectionError { Text(error).foregroundStyle(Color.podListError) }
                     }
                 }
@@ -113,7 +113,7 @@ private struct BringOverPreviewScreen: SwiftUI.View {
         ContentSizedPanel(width: 560) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Bring this Mac’s Library over?").macContentFont(.title2).bold()
-                Text("To \(app.origin ?? "the server")").foregroundStyle(.primary).textSelection(.enabled)
+                Text("To \(app.origin ?? "the server")").foregroundStyle(MacReadableSecondaryStyle()).textSelection(.enabled)
                 LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
                 LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
                 LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
@@ -122,12 +122,12 @@ private struct BringOverPreviewScreen: SwiftUI.View {
                 LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
                 LabeledContent("Views and downloads", value: "\(CountText.format(preview.views, .view)) · \(CountText.format(preview.downloads, .download))")
                 Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").macContentFont(.callout)
-                Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(.primary)
+                Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
                 if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError) }
                 HStack {
                     Spacer()
                     Button("Not Now") { app.declineBringOver() }.keyboardShortcut(.cancelAction)
-                    Button("Bring Over") { Task { await app.acceptBringOver() } }.keyboardShortcut(.defaultAction)
+                    Button("Bring Over") { Task { await app.acceptBringOver() } }.macDefaultAction()
                 }
             }.padding(25)
         }
@@ -218,7 +218,7 @@ private struct PersistentNumberField: SwiftUI.View {
                     }))
                     .labelsHidden().accessibilityLabel(label)
                     .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
-                    Text("sec").foregroundStyle(.primary)
+                    Text("sec").foregroundStyle(MacReadableSecondaryStyle())
                 }
                 if !valid { Text("\(label) must be a nonnegative number of seconds.").macContentFont(.caption).foregroundStyle(Color.podListError).fixedSize(horizontal: false, vertical: true) }
             }
@@ -235,13 +235,13 @@ struct GettingStartedScreen: SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("Getting Started").macContentFont(.headline); Spacer(); Button("Dismiss") { editor.showGettingStarted = false } }
             Label("Add podcasts to your Library", systemImage: "1.circle")
-            Text("Search by name or enter a feed address.").foregroundStyle(.primary)
+            Text("Search by name or enter a feed address.").foregroundStyle(MacReadableSecondaryStyle())
             if let add { Button("Add Podcasts…", action: add) }
             else { Text("Use File ▸ Add Podcasts… (⇧⌘A) in the Library window.").macContentFont(.caption) }
             Label("Understand Views", systemImage: "2.circle")
-            Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(.primary)
+            Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(MacReadableSecondaryStyle())
             Label("Add Episodes to Playlists", systemImage: "3.circle")
-            Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(.primary)
+            Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(MacReadableSecondaryStyle())
         }.padding(12)
     }
 }
@@ -263,7 +263,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                         ForEach(stats.totals, id: \.name) { total in
                             LabeledContent(total.name) { Text("\(Presentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
                         }
-                        Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(.primary)
+                        Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                         Text("Listening Streak: \(CountText.format(stats.streak, .day))").macContentFont(.headline)
                         Toggle("Show Daily Table", isOn: $table)
                         if table {
@@ -273,7 +273,17 @@ public struct ListeningStatsScreen: SwiftUI.View {
                                 BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60))
                                     .foregroundStyle(Color.podListAccent)
                             }
-                                .chartYAxisLabel("Minutes")
+                                .chartXAxis { AxisMarks { _ in
+                                    AxisGridLine()
+                                    AxisTick()
+                                    AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
+                                } }
+                                .chartYAxis { AxisMarks { _ in
+                                    AxisGridLine()
+                                    AxisTick()
+                                    AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
+                                } }
+                                .chartYAxisLabel { Text("Minutes").foregroundStyle(MacReadableSecondaryStyle()) }
                                 .frame(height: 200).accessibilityLabel("Daily listening in minutes for the last 30 days. Use Show Daily Table for exact values.")
                         }
                         Text("Top Podcasts").macContentFont(.title2)
