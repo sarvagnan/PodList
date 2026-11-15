@@ -417,6 +417,28 @@ alone until it finishes. The first run needs Accessibility permission for the
 `PodListUITour-Runner` test runner; grant the permission and rerun if macOS blocks
 that first run. Nothing is installed into `/Applications`.
 
+### In a macOS VM (recommended)
+
+To keep this Mac free while the tour runs, run it in a throwaway macOS VM with
+[Tart](https://tart.run) (`brew install openai/tools/tart`). Once:
+
+```sh
+tart clone ghcr.io/cirruslabs/macos-golden-gate-base:latest podlist-base   # ~32 GB download
+apps/apple/scripts/ui-tour-vm-prepare.sh podlist-base podlist-ui
+```
+
+The prepare script copies this Mac's Xcode into the VM, accepts its licence and lets UI
+tests enable Automation Mode without a password (acceptable in a throwaway test VM only).
+Then each run:
+
+```sh
+PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh /private/tmp/podlist-mac-tour
+```
+
+This Mac builds the app and the test bundle and runs the demo server; the tour runs in
+a fresh clone of `podlist-ui` with no window, reaching the demo server through a
+reverse SSH tunnel on the same `127.0.0.1` port. The clone is deleted afterwards.
+
 The 35 states (01–33, 34a and 34) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
 Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours

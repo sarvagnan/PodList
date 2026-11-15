@@ -12,8 +12,18 @@ run="$(mktemp -d /private/tmp/podlist-uitour.XXXXXX)"
 run_id="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 demo_pid=""
 test_pid=""
+vm="${PODLIST_UI_VM:-}"
+vm_clone=""
+vm_pid=""
+tunnel_pid=""
 cleanup() {
     # No process-name matching: these PIDs belong to this invocation only.
+    if [ -n "$tunnel_pid" ]; then kill -TERM "$tunnel_pid" 2>/dev/null || true; wait "$tunnel_pid" 2>/dev/null || true; fi
+    if [ -n "$vm_clone" ]; then
+        tart stop "$vm_clone" >/dev/null 2>&1 || true
+        if [ -n "$vm_pid" ]; then wait "$vm_pid" 2>/dev/null || true; fi
+        tart delete "$vm_clone" >/dev/null 2>&1 || true
+    fi
     if [ -n "$test_pid" ]; then kill -TERM "$test_pid" 2>/dev/null || true; wait "$test_pid" 2>/dev/null || true; fi
     if [ -n "$demo_pid" ]; then kill -TERM "$demo_pid" 2>/dev/null || true; wait "$demo_pid" 2>/dev/null || true; fi
     # XCTest normally terminates its app. If the runner was interrupted, identify
@@ -89,6 +99,55 @@ done
 if [ ! -s "$run/origin" ]; then echo "Demo startup timed out; see demo.log" >&2; exit 1; fi
 origin="$(cat "$run/origin")"
 
+if [ -n "$vm" ]; then
+    # Run inside a throwaway clone of a prepared macOS VM (ui-tour-vm-prepare.sh), so the
+    # tour drives the VM's desktop, not this Mac's. The host builds; the guest only tests.
+    command -v tart >/dev/null || { echo "PODLIST_UI_VM needs tart" >&2; exit 2; }
+    guest_run=/private/tmp/podlist-uitour-run
+    xcodebuild build-for-testing -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
+        -destination "platform=macOS,arch=$(uname -m)" \
+        -derivedDataPath "$apple/.build/ui-tour-derived" \
+        "PODLIST_UI_RUN_DIRECTORY=$guest_run" "PODLIST_UI_SERVER_ORIGIN=$origin" \
+        > "$out/xcodebuild.log" 2>&1
+    mkdir "$run/products"
+    cp -R "$apple/.build/ui-tour-derived/Build/Products/." "$run/products/"
+    vm_clone="podlist-ui-run-$run_id"
+    tart clone "$vm" "$vm_clone"
+    tart run --no-graphics --dir="run:$run" "$vm_clone" > "$out/vm.log" 2>&1 &
+    vm_pid=$!
+    for ((attempt = 0; attempt < 300; attempt++)); do
+        if tart exec "$vm_clone" true >/dev/null 2>&1; then break; fi
+        if ! kill -0 "$vm_pid" 2>/dev/null; then cat "$out/vm.log" >&2; exit 1; fi
+        sleep 1
+    done
+    tart exec "$vm_clone" true
+    # The demo server listens on this Mac's loopback; a reverse SSH tunnel gives the guest
+    # the same 127.0.0.1 origin. The key is created per run and deleted with $run.
+    ssh-keygen -q -t ed25519 -N '' -C podlist-uitour -f "$run/tunnel-key"
+    tart exec -i "$vm_clone" /bin/sh -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys' < "$run/tunnel-key.pub"
+    port="${origin##*:}"
+    ssh -i "$run/tunnel-key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+        -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -N -R "$port:127.0.0.1:$port" \
+        "admin@$(tart ip "$vm_clone")" > "$out/tunnel.log" 2>&1 &
+    tunnel_pid=$!
+    sleep 2
+    if ! kill -0 "$tunnel_pid" 2>/dev/null; then cat "$out/tunnel.log" >&2; exit 1; fi
+    status=0
+    tart exec "$vm_clone" /bin/bash -c "
+        set -u
+        shared='/Volumes/My Shared Files/run'
+        rm -rf '$guest_run' && mkdir -p '$guest_run'
+        for item in light dark products; do ditto \"\$shared/\$item\" '$guest_run'/\$item; done
+        cd '$guest_run/products'
+        xcodebuild test-without-building -xctestrun \"\$(ls *.xctestrun | head -1)\" \\
+            -destination 'platform=macOS' -parallel-testing-enabled NO \\
+            -resultBundlePath '$guest_run/Tour.xcresult'
+        result=\$?
+        if [ -d '$guest_run/Tour.xcresult' ]; then ditto '$guest_run/Tour.xcresult' \"\$shared/Tour.xcresult\"; fi
+        exit \$result
+    " >> "$out/xcodebuild.log" 2>&1 || status=$?
+    if [ -d "$run/Tour.xcresult" ]; then ditto "$run/Tour.xcresult" "$out/Tour.xcresult"; fi
+else
 # Serial tests share the foreground desktop. Build settings expand in the shared scheme.
 xcodebuild test -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
     -destination "platform=macOS,arch=$(uname -m)" -parallel-testing-enabled NO \
@@ -100,6 +159,7 @@ test_pid=$!
 status=0
 wait "$test_pid" || status=$?
 test_pid=""
+fi
 
 # Export kept attachments even after a failed tour, for diagnosis in the main session.
 export_status=0
