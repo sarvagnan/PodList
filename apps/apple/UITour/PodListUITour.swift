@@ -102,11 +102,11 @@ final class PodListUITour: XCTestCase {
         try navigate("Trash")
         try ready(text("Trash is empty"))
         try capture("14-trash")
-        // ⌘F focuses the toolbar search field; type straight into it (clicking a toolbar field
-        // can resolve to an off-screen overflow copy).
-        app.typeKey("f", modifierFlags: .command)
-        let search = library.searchFields.firstMatch
+        try navigate("Search")
+        // Only an on-screen field: a toolbar can also hold an off-screen overflow copy.
+        let search = library.searchFields.matching(NSPredicate(format: "hittable == true")).firstMatch
         try ready(search)
+        search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         app.typeText("rice")
         try ready(text("Who sets the price of rice?", in: episodeList))
         try capture("15-search-rice")
