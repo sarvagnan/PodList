@@ -140,6 +140,7 @@ extension WindowModel {
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection
         scrollAnchor = context.scrollAnchor; paneWidths = context.paneWidths ?? PaneWidths()
+        initialPaneWidths = paneWidths
     }
 }
 

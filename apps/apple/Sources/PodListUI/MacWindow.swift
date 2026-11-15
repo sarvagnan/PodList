@@ -112,7 +112,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             .macContentFont(.body)
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: window.paneWidths.sidebar, max: 320)
+            .navigationSplitViewColumnWidth(min: 180, ideal: window.initialPaneWidths.sidebar, max: 320)
             .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                 if (180...320).contains(width) { window.paneWidths.sidebar = width }
             }
@@ -176,7 +176,7 @@ public struct PodListWindow: SwiftUI.View {
             .searchFocused($searchFocused)
             .inspector(isPresented: Binding(get: { showsEpisodeInspector && inspectorVisible }, set: { inspectorVisible = $0 })) {
                 EpisodeInspector(row: selectedRow(library), library: library, app: app, playlistPresentation: playlistPresentation)
-                    .inspectorColumnWidth(min: 260, ideal: window.paneWidths.inspector, max: 440)
+                    .inspectorColumnWidth(min: 260, ideal: window.initialPaneWidths.inspector, max: 440)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                         if (260...440).contains(width) { window.paneWidths.inspector = width }
                     }
