@@ -73,7 +73,9 @@ struct PlaylistContentView: SwiftUI.View {
                         TableColumn("Entry") { (row: EpisodeRow) in entryTitle(row) }
                         TableColumn("Position") { row in Text(Presentation.time(row.position ?? 0)).monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
                         TableColumn("Length") { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                        TableColumn("State") { row in Text(row.stateText) }.width(min: 80, ideal: 110, max: 150)
+                        TableColumn("State") { row in
+                            Text(row.stateText).fixedSize(horizontal: false, vertical: true)
+                        }.width(min: 140, ideal: 150, max: 200)
                     } rows: {
                         ForEach(rows) { row in TableRow(row).draggable(dragPayload(row.id)) }
                             .dropDestination(for: EpisodeTransfer.self) { index, values in

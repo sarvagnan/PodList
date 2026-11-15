@@ -49,6 +49,27 @@ private final class FakePlayerClock: Sendable {
     return (db, player, audio, clock)
 }
 #if os(macOS)
+@MainActor @Test func nowPlayingMinimumFitsPlaybackControlsWithoutAScreen() async throws {
+    let (db, player, _, _) = try await playbackFixture()
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
+    for width in [CGFloat(420), 560] {
+        for appearance in [ColorScheme.light, .dark] {
+            let host = NSHostingView(rootView: NowPlayingView(controller: player, library: library, app: app,
+                openPlaylist: {}, addToPlaylist: { _, _ in }, done: {})
+                .macContentFont(.body)
+                .environment(\.colorScheme, appearance)
+                .frame(width: width))
+            // The old ScrollView could shrink to almost zero, leaving the main
+            // controls behind its footer. Their natural height now sets the minimum.
+            let minimum = host.fittingSize
+            #expect(minimum.width == width)
+            #expect(minimum.height > 600)
+            #expect(minimum.height <= 800)
+        }
+    }
+}
+
 @MainActor @Test func playbackMenuToggleKeepsTheCurrentEpisodeAndPlaylistOrder() async throws {
     let (db, player, audio, clock) = try await playbackFixture()
     let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")

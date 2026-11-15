@@ -61,6 +61,8 @@ struct MacTextSizeControl: SwiftUI.View {
         }
         Text("Enlarges content text in all windows. The sidebar follows macOS Sidebar icon size. You can also use View › Bigger or Smaller.")
             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
