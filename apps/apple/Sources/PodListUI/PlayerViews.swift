@@ -267,11 +267,11 @@ private struct PlaybackSeekSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         PodListSheet(title: "Go to Time", width: 420, actionTitle: "Go", actionEnabled: position != nil,
                      cancel: { dismiss() }, action: go) {
-            Form {
+            VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Position (seconds)") {
                     TextField("Position in seconds", text: $seconds).labelsHidden().onSubmit { go() }
                 }
-            }.formStyle(.columns)
+            }
         }
         .onAppear { episodeID = controller.display?.episodeID }
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [

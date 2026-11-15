@@ -32,10 +32,7 @@ struct PodListSheet<Content: SwiftUI.View, Status: SwiftUI.View, Secondary: Swif
 
     var body: some SwiftUI.View {
         ContentSizedPanel(width: width) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(title).macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
-                content()
-            }.padding(24)
+            PodListSheetReadingSurface(title: title, width: width, content: content)
         } footer: {
             VStack(spacing: 0) {
                 status().padding(.horizontal, 24)
@@ -45,6 +42,55 @@ struct PodListSheet<Content: SwiftUI.View, Status: SwiftUI.View, Secondary: Swif
                                    secondary: secondary)
             }
         }
+    }
+}
+
+struct PodListSheetReadingSurface<Content: SwiftUI.View>: SwiftUI.View {
+    let title: String
+    let width: CGFloat
+    @ViewBuilder let content: () -> Content
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(title).macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
+                .fixedSize(horizontal: false, vertical: true)
+            content()
+        }
+        .labeledContentStyle(PodListSheetLabelStyle())
+        .frame(width: max(1, width - 48), alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(24)
+    }
+}
+
+/// Stacked labels leave the entire proposed width for fields and long values,
+/// including at 200% text. Columns forms can exceed the sheet's proposal.
+struct PodListSheetField<Content: SwiftUI.View>: SwiftUI.View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title; self.content = content
+    }
+    var body: some SwiftUI.View {
+        LabeledContent { content() } label: { Text(title) }
+            .labeledContentStyle(PodListSheetLabelStyle())
+    }
+}
+
+/// A Form inside the shared scrolling surface must not create another scroller
+/// or negotiate an intrinsic columns width. Keep native controls and sections.
+struct PodListSheetFormStyle: FormStyle {
+    func makeBody(configuration: Configuration) -> some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 16) { configuration.content }
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct PodListSheetLabelStyle: LabeledContentStyle {
+    func makeBody(configuration: Configuration) -> some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 6) {
+            configuration.label.fixedSize(horizontal: false, vertical: true)
+            configuration.content.frame(maxWidth: .infinity, alignment: .leading)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

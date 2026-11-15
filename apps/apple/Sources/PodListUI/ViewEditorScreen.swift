@@ -124,7 +124,7 @@ struct ViewEditorScreen: SwiftUI.View {
                         }
                     }
                 }
-            }.formStyle(.columns).disabled(saving)
+            }.formStyle(PodListSheetFormStyle()).disabled(saving)
         } status: {
             EditingFeedback(editing: editor.edits, additionalError: problem ?? editor.error,
                             undo: { Task { await editor.undo(); if let restored = try? await editor.savedView(draft.id) { draft = restored; reconcileDraft() } } },

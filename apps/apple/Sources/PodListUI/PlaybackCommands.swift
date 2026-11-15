@@ -54,7 +54,7 @@ public struct PlaybackCommands: Commands {
             Button("Now Playing") { nowPlaying?() }.keyboardShortcut(PodListShortcut.nowPlaying.shortcut)
                 .disabled(app.playback?.display == nil || nowPlaying == nil)
             Button("Open Active Playlist") { openPlaylist?() }.disabled(openPlaylist == nil)
-            MenuActionItems(menu: .controls)
+            MenuActionItems(menu: .controls, app: app)
             Menu("Go to Chapter") {
                 ForEach(Array((app.playback?.display?.chapters ?? []).enumerated()), id: \.offset) { index, chapter in
                     Button(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title) { app.playback?.seek(chapter.start) }

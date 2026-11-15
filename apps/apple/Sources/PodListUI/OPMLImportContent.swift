@@ -39,7 +39,7 @@ struct OPMLImportContent: SwiftUI.View {
         .focusedSceneValue(\.podListImportActions, MenuActionContext(actions: [
             .importSelection: editor.importReady && editor.importTotal > 0 ? { editor.startImport() } : nil,
             .chooseFile: editor.importReady || !editor.busy ? choose : nil,
-            .cancelImport: editor.busy ? (editor.importCancellationRequested ? nil : { editor.cancelImport() }) : (editor.importReady ? { cancelImport() } : nil),
+            .cancelImport: editor.busy && !editor.importCancellationRequested ? { editor.cancelImport() } : nil,
             .retryImport: !editor.importFailed.isEmpty && !editor.busy ? { Task { await editor.retryImport() } } : nil
         ].compactMapValues { $0 }))
     }

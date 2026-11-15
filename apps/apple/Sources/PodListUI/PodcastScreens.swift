@@ -317,61 +317,79 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     init(subscription: Subscription, library: LibraryModel, app: ApplicationModel, editor: LibraryEditingModel) {
         self.subscription = subscription; self.library = library; self.app = app; self.editor = editor
         let rule = library.state.downloadRules.first { $0.subscriptionId == subscription.id && $0.deviceId == library.deviceID }
-        _draft = State(initialValue: SubscriptionSettingsDraft(subscription, rule: rule, deviceID: library.deviceID))
+        _draft = State(initialValue: editor.edits.drafts.subscriptionSettings(subscription, rule: rule, deviceID: library.deviceID))
     }
     var body: some SwiftUI.View {
         PodListSheet(title: "\(subscription.title) Settings", width: 600, actionTitle: "Save",
                      actionEnabled: !saving && !editor.edits.busy, cancelEnabled: !saving,
-                     cancel: { dismiss() }, action: save) {
-            Form {
-                Section {
-                    DownloadRuleFields(mode: $draft.mode, cap: $draft.cap)
-                } header: { Text("On This Device").macContentFont(.headline) }
-                Section {
-                    Picker("Played Threshold", selection: $draft.threshold) {
-                        Text("Default (30 seconds)").tag(nil as Double?)
-                        ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
-                        if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
-                    }
-                    Toggle("Mark All Played", isOn: $draft.markAllPlayed)
-                    Text("Save applies these settings and any Mark All Played selection. Cancel discards changes.")
-                        .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-                } header: { Text("Played").macContentFont(.headline) }
-                Section {
-                    Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle())
-                    overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
-                    overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
-                    overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
-                    Picker("Volume Boost", selection: $draft.overrides.volumeBoost) {
-                        Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
-                    }
-                } header: { Text("Playback Settings Overrides").macContentFont(.headline) }
-            }.formStyle(.columns).disabled(saving)
+                     cancel: cancel, action: save) {
+            settingsFields
         } status: {
             EditingFeedback(editing: editor.edits, retry: save)
         }
         .interactiveDismissDisabled(saving)
-        .onExitCommand { if !saving { dismiss() } }
+        .onExitCommand { if !saving { cancel() } }
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
-            .cancel: saving ? nil : { dismiss() }, .save: !saving && !editor.edits.busy ? save : nil
+            .cancel: saving ? nil : cancel, .save: !saving && !editor.edits.busy ? save : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListPodcast, PodcastCommandContext(subscribed: true,
-            markAllPlayed: !saving && !editor.edits.busy ? { draft.markAllPlayed = true } : nil))
+            markAllPlayed: !saving && !editor.edits.busy ? { value(\.markAllPlayed).wrappedValue = true } : nil))
+    }
+    private var settingsFields: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("On This Device").macContentFont(.headline)
+            DownloadRuleFields(mode: value(\.mode), cap: value(\.cap))
+            Text("Played").macContentFont(.headline)
+            VStack(alignment: .leading, spacing: 12) {
+                PodListSheetField("Played Threshold") {
+                    Picker("Played Threshold", selection: value(\.threshold)) {
+                        Text("Default (30 seconds)").tag(nil as Double?)
+                        ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
+                        if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
+                    }.labelsHidden()
+                }
+                Toggle("Mark All Played", isOn: value(\.markAllPlayed))
+                Text("Save applies these settings and any Mark All Played selection. Cancel discards changes.")
+                    .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+            }
+            Text("Playback Settings Overrides").macContentFont(.headline)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+                overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
+                overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                PodListSheetField("Volume Boost") {
+                    Picker("Volume Boost", selection: value(\.overrides.volumeBoost)) {
+                        Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
+                    }.labelsHidden()
+                }
+            }
+        }.disabled(saving)
     }
     private func overrideNumber(_ name: String, path: WritableKeyPath<PlaybackSettingsOverride, Double?>, choices: [Double], seconds: Bool = false) -> some SwiftUI.View {
-        Picker(name, selection: Binding(get: { draft.overrides[keyPath: path] }, set: { draft.overrides[keyPath: path] = $0 })) {
-            Text("Default").tag(nil as Double?)
-            ForEach(choices, id: \.self) { Text(seconds ? CountText.seconds($0) : $0.formatted()).tag(Optional($0)) }
-            if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(seconds ? CountText.seconds(current) : current.formatted()).tag(Optional(current)) }
+        let overrides: WritableKeyPath<SubscriptionSettingsDraft, PlaybackSettingsOverride> = \.overrides
+        return PodListSheetField(name) {
+            Picker(name, selection: value(overrides.appending(path: path))) {
+                Text("Default").tag(nil as Double?)
+                ForEach(choices, id: \.self) { Text(seconds ? CountText.seconds($0) : $0.formatted()).tag(Optional($0)) }
+                if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(seconds ? CountText.seconds(current) : current.formatted()).tag(Optional(current)) }
+            }.labelsHidden()
         }
     }
+    private func value<T>(_ path: WritableKeyPath<SubscriptionSettingsDraft, T>) -> Binding<T> {
+        Binding(get: { draft[keyPath: path] }, set: { value in
+            var updated = draft; updated[keyPath: path] = value
+            editor.edits.drafts.stage(updated); draft = updated
+        })
+    }
+    private func cancel() { editor.edits.drafts.remove(draft.field); dismiss() }
     private func save() {
         guard !saving, !editor.edits.busy else { return }
         let changes = draft.changes(episodeIDs: library.snapshot.episodes.filter { $0.subscriptionId == subscription.id }.map(\.id))
         saving = true
         Task {
             let saved = changes.isEmpty ? true : await editor.edits.edit(changes, name: "Subscription Settings", reload: true)
-            if saved { dismiss() }
+            if saved { editor.edits.drafts.remove(draft.field); dismiss() }
             saving = false
         }
     }
