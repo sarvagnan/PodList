@@ -14,11 +14,7 @@ struct ScrollableEmptyState: SwiftUI.View {
     var body: some SwiftUI.View {
         GeometryReader { geometry in
             ScrollView {
-                ContentUnavailableView {
-                    Label(title, systemImage: systemImage)
-                } description: {
-                    Text(description).foregroundStyle(MacReadableSecondaryStyle())
-                }
+                PodListEmptyState(title, systemImage: systemImage, description: description)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: geometry.size.height)

@@ -48,11 +48,8 @@ struct EpisodeInspector: SwiftUI.View {
             .accessibilityLabel("Episode Inspector")
             .task(id: row.id) { await app.resolveEpisodeDetails(row.id) }
         } else {
-            ContentUnavailableView {
-                Label("Select an Episode", systemImage: "info.circle")
-            } description: {
-                Text("Its details and Playlists appear here.").foregroundStyle(MacReadableSecondaryStyle())
-            }
+            PodListEmptyState("Select an Episode", systemImage: "info.circle",
+                              description: "Its details and Playlists appear here.")
         }
     }
     private var selectionSummary: some SwiftUI.View {

@@ -191,7 +191,7 @@ struct NowPlayingView: SwiftUI.View {
                         .scrollBounceBehavior(.basedOnSize)
                 } else { Spacer(minLength: 0) }
             } else {
-                ContentUnavailableView("No Current Entry", systemImage: "music.note")
+                PodListEmptyState("No Current Entry", systemImage: "music.note")
             }
             PodListSheetFooter(actionTitle: "Done", defaultShortcut: false, cancelTitle: nil,
                                cancel: done, action: done)

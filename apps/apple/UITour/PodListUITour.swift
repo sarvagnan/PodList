@@ -206,21 +206,22 @@ final class PodListUITour: XCTestCase {
         let addPodcasts = app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).firstMatch
         try ready(addPodcasts)
         XCTAssertFalse(library.sheets.firstMatch.exists)
-        try capture("24-add-podcasts", in: addPodcasts)
         let podcastQuery = addPodcasts.textFields["addPodcasts.query"]
-        try click(podcastQuery)
+        assertKeyboardFocus(podcastQuery)
+        try capture("24-add-podcasts", in: addPodcasts)
         podcastQuery.typeText("PodList tour draft")
         // Discovery stays open while Library is used and reopening brings it forward.
         try navigate("Default")
         XCTAssertTrue(addPodcasts.exists)
         try menuCommand("File", "Add Podcasts…")
         XCTAssertEqual(app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).count, 1)
+        assertKeyboardFocus(podcastQuery)
         addPodcasts.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
         app.typeKey("a", modifierFlags: [.command, .shift])
         try ready(addPodcasts)
         XCTAssertEqual(podcastQuery.value as? String, "PodList tour draft")
-        try click(podcastQuery)
+        assertKeyboardFocus(podcastQuery)
         podcastQuery.typeKey("a", modifierFlags: .command)
         podcastQuery.typeKey(.delete, modifierFlags: [])
         try click(addPodcasts.buttons["Close"])
@@ -551,6 +552,14 @@ final class PodListUITour: XCTestCase {
         attach(text, name: "menus.txt")
     }
 
+    private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            element.value(forKey: "hasKeyboardFocus") as? Bool == true
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [focused], timeout: 5), .completed,
+                       "The search field must receive keyboard focus when Add Podcasts opens", file: file, line: line)
+    }
+
     private func assertMenuOrganization(_ menu: any XCUIElementSnapshot) {
         let name = menu.title.isEmpty ? menu.label : menu.title
         func titles(_ node: any XCUIElementSnapshot) -> [String] {
@@ -579,6 +588,10 @@ final class PodListUITour: XCTestCase {
             "Help": ["PodList Help", "Getting Started"]
         ]
         XCTAssertTrue(required[name, default: []].isSubset(of: items), "\(name) is missing persistent commands: \(required[name, default: []].subtracting(items))")
+        if name == "PodList" {
+            let configurationItems = titles(menu).filter { ["Settings…", "Connection", "Automation"].contains($0) }
+            XCTAssertEqual(configurationItems, ["Settings…", "Connection", "Automation"])
+        }
         if name == "Podcast" {
             XCTAssertTrue(!items.isDisjoint(with: ["Subscribe", "Unsubscribe"]))
         }

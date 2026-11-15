@@ -82,7 +82,9 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                 }
                 Section("Server Connection") {
                     if let origin = app.origin {
-                        LabeledContent("Server Address", value: origin)
+                        LabeledContent("Server Address") {
+                            Text(origin).foregroundStyle(.primary).textSelection(.enabled)
+                        }
                         if app.bringOverAvailable { Button("Bring Library from This Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
                         if let job = app.bringOverJob {
                             Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(CountText.format(job.imported.count, .podcast)) transferred, \(CountText.format(job.copied.count, .download)) copied. Progress is saved.")
@@ -311,8 +313,8 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 let facts = library.state.episodeStates.values.filter { ids.contains($0.episodeId) }.compactMap(\.played)
                 let stats = ListeningStats(log: library.state.listeningLog ?? [:], played: facts)
                 if stats.totals.allSatisfy({ $0.seconds == 0 && $0.finished == 0 }) {
-                    ContentUnavailableView("No Listening Yet", systemImage: "chart.bar",
-                                           description: Text("Play an Episode to start your Listening Log."))
+                    PodListEmptyState("No Listening Yet", systemImage: "chart.bar",
+                                      description: "Play an Episode to start your Listening Log.")
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
@@ -355,7 +357,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                     }
                     .focusedSceneValue(\.podListDailyTable, stats.days.contains(where: { $0.seconds > 0 }) ? $table : nil)
                 }
-            } else { ContentUnavailableView("Open a Library to see Listening stats", systemImage: "chart.bar") }
+            } else { PodListEmptyState("Open a Library to see Listening stats", systemImage: "chart.bar") }
         }.macContentFont(.body).frame(minWidth: 650, minHeight: 600)
     }
 }

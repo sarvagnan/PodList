@@ -31,6 +31,12 @@ private struct RGB {
     }
 }
 
+@MainActor private func withDrawingAppearance(_ name: NSAppearance.Name, _ body: () throws -> Void) throws {
+    var result: Result<Void, Error> = .success(())
+    NSAppearance(named: name)!.performAsCurrentDrawingAppearance { result = Result { try body() } }
+    try result.get()
+}
+
 // Selection fills are deliberately separate from the pale identity foregrounds.
 private let multicolorSelectionVariants = ["false-false": 0x2B50C8, "true-false": 0x3652D0,
                                            "false-true": 0x193A9B, "true-true": 0x2B43BA]
@@ -261,6 +267,76 @@ private var multicolorSelectionColors: [NSColor] {
             // Dark secondary token is not intended for #464646 selection fills.
             let background = RGB(name == .aqua ? 0xDCDCDC : 0x464646)
             #expect(RGB(NSColor.labelColor, over: background).contrast(background) >= 4.5)
+        }
+    }
+}
+
+@Test @MainActor func emptyStateTitleAndDescriptionRenderReadablePixels() throws {
+    // Include the actual round-7 Inspector surface as well as ordinary content.
+    for (name, scheme, surfaces) in [(NSAppearance.Name.aqua, ColorScheme.light, [0xFFFFFF, 0xF1F0EF]),
+                                     (.darkAqua, .dark, [0x1E1E1E, 0x282828])] {
+        try withDrawingAppearance(name) {
+            for surface in surfaces {
+                let background = RGB(surface)
+                let foreground = RGB(NSColor(Color.podListReadableSecondary), over: background)
+                let renderer = ImageRenderer(content:
+                    PodListEmptyState("Readable Title", systemImage: "info.circle", description: "Readable description.")
+                        .frame(width: 500, height: 300)
+                        .background(Color(red: background.r, green: background.g, blue: background.b))
+                        .environment(\.colorScheme, scheme))
+                let bitmap = NSBitmapImageRep(cgImage: try #require(renderer.cgImage))
+                #expect(bitmap.bitsPerSample == 8 && bitmap.samplesPerPixel >= 3)
+                var pixel = [UInt](repeating: 0, count: bitmap.samplesPerPixel)
+                let red = bitmap.bitmapFormat.contains(.alphaFirst) ? 1 : 0
+                var textRows: [Int] = []
+                for y in 0..<bitmap.pixelsHigh {
+                    var matches = 0
+                    for x in 0..<bitmap.pixelsWide {
+                        // colorAt labels these sRGB components as calibrated RGB;
+                        // read the bytes directly to avoid an extra profile conversion.
+                        bitmap.getPixel(&pixel, atX: x, y: y)
+                        let actual = RGB(Int(pixel[red]) << 16 | Int(pixel[red + 1]) << 8 | Int(pixel[red + 2]))
+                        if abs(actual.r - foreground.r) < 0.005,
+                           abs(actual.g - foreground.g) < 0.005,
+                           abs(actual.b - foreground.b) < 0.005 { matches += 1 }
+                    }
+                    if matches >= 3 { textRows.append(y) }
+                }
+                // Both text blocks must use the token; a correct description alone
+                // must not hide a title left in ContentUnavailableView's secondary style.
+                let blocks = zip(textRows, textRows.dropFirst()).filter { $1 - $0 > 4 }.count + (textRows.isEmpty ? 0 : 1)
+                #expect(blocks == 2, "Title and description must both contain readable glyph pixels in \(name)")
+                #expect(foreground.contrast(background) >= 4.5)
+            }
+        }
+    }
+}
+
+@Test @MainActor func readableLinksRenderAccentOrPrimaryInsteadOfSystemLinkInk() throws {
+    for (name, scheme, surface) in [(NSAppearance.Name.aqua, ColorScheme.light, 0xFFFFFF),
+                                    (.darkAqua, .dark, 0x222222)] {
+        try withDrawingAppearance(name) {
+            let background = RGB(surface)
+            let backdrop = Color(red: background.r, green: background.g, blue: background.b)
+            for accent in multicolorSelectionColors + [.systemYellow, .white, .black] {
+                let color = Color(nsColor: accent)
+                let swatch = Rectangle().fill(MacAccentForegroundStyle()).frame(width: 8, height: 8)
+                    .background(backdrop).accentColor(color).environment(\.colorScheme, scheme)
+                let expectedBitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: swatch).cgImage))
+                let expected = RGB(try #require(expectedBitmap.colorAt(x: 4, y: 4)), over: background)
+                #expect(expected.contrast(background) >= 4.5)
+                let link = Button("Show Description") {}.buttonStyle(MacReadableLinkStyle())
+                    .padding(12).background(backdrop).accentColor(color).environment(\.colorScheme, scheme)
+                let bitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: link).cgImage))
+                var glyphPixels = 0
+                for y in 0..<bitmap.pixelsHigh { for x in 0..<bitmap.pixelsWide {
+                    let actual = RGB(try #require(bitmap.colorAt(x: x, y: y)), over: background)
+                    if abs(actual.r - expected.r) < 0.005,
+                       abs(actual.g - expected.g) < 0.005,
+                       abs(actual.b - expected.b) < 0.005 { glyphPixels += 1 }
+                } }
+                #expect(glyphPixels >= 20, "The link's rendered glyphs must use its contrast-safe foreground")
+            }
         }
     }
 }

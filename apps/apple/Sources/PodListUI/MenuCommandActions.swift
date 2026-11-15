@@ -149,7 +149,9 @@ public struct AdditionalMenuCommands: Commands {
     @Environment(\.openWindow) private var openWindow
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
-        CommandGroup(after: .appSettings) {
+        // Own this group so SwiftUI's synthesized Settings item cannot follow the additions.
+        CommandGroup(replacing: .appSettings) {
+            SettingsLink().keyboardShortcut(",", modifiers: .command)
             Menu("Connection") { MenuActionItems(menu: .connection, app: app) }
             Menu("Automation") { MenuActionItems(menu: .automation, app: app) }
         }

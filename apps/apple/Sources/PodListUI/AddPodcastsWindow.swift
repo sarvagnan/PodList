@@ -34,7 +34,7 @@ public struct AddPodcastsWindow: SwiftUI.View {
                     if !app.nowPlayingNavigation.perform(.podcast(feed)) { openWindow(id: "library") }
                 }, close: { dismissWindow(id: "add-podcasts") })
                 .id(editor.scope)
-            } else { ContentUnavailableView("Open a Library", systemImage: "books.vertical", description: Text("Open a Library to find and subscribe to Podcasts.")) }
+            } else { PodListEmptyState("Open a Library", systemImage: "books.vertical", description: "Open a Library to find and subscribe to Podcasts.") }
         }
         .frame(minWidth: 560, minHeight: 440)
     }
@@ -60,11 +60,8 @@ struct AddPodcastsScreen: SwiftUI.View {
                     }
                     Text("Choose File › Import OPML… in the Library window, or import in Settings › General › Library. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if !state.searched, !state.loading {
-                        ContentUnavailableView {
-                            Label("Find Your Next Podcast", systemImage: "magnifyingglass")
-                        } description: {
-                            Text("Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.").foregroundStyle(MacReadableSecondaryStyle())
-                        }
+                        PodListEmptyState("Find Your Next Podcast", systemImage: "magnifyingglass",
+                                          description: "Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.")
                     }
                     if state.loading { ProgressView("Finding Podcasts…") }
                     if let error = state.error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { search() } }
@@ -95,13 +92,15 @@ struct AddPodcastsScreen: SwiftUI.View {
             PodListSheetFooter(actionTitle: "Close", defaultShortcut: false, cancelTitle: nil, cancel: close, action: close)
         }
         .macContentFont(.body)
+        // Let the window's initial focus evaluation choose the input after it becomes key.
+        .defaultFocus($focused, true, priority: .userInitiated)
         .onExitCommand { close() }
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { close() }]))
         .focusedSceneValue(\.podListDiscoveryActions, MenuActionContext(actions: [
             .searchPodcasts: !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListPodcast, discoveryCommands)
-        .onAppear { editor.beginAddingPodcasts(); state.restoreDraft(from: editor); focused = true }
+        .onAppear { editor.beginAddingPodcasts(); state.restoreDraft(from: editor) }
         .onDisappear { editor.endAddingPodcasts() }
     }
     private var discoveryCommands: PodcastCommandContext {

@@ -285,10 +285,8 @@ public struct PodListWindow: SwiftUI.View {
         switch window.destination {
         case .views:
             if library.state.views.isEmpty {
-                ContentUnavailableView {
-                    Label("No Views", systemImage: "line.3.horizontal.decrease")
-                } description: { Text("Create a View to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
-                actions: { Button("New View") { newView() } }
+                PodListEmptyState("No Views", systemImage: "line.3.horizontal.decrease",
+                                  description: "Create a View to find Episodes.") { Button("New View") { newView() } }
             } else {
                 List(library.state.views, id: \.id, selection: Binding<String?>(get: {
                     window.selection.count == 1 ? window.selection.first : nil
@@ -338,7 +336,7 @@ public struct PodListWindow: SwiftUI.View {
                 episodeTable(library)
             }
         case nil:
-            ContentUnavailableView("Choose a View, Playlist or Library", systemImage: "sidebar.left")
+            PodListEmptyState("Choose a View, Playlist or Library", systemImage: "sidebar.left")
         }
     }
 
@@ -347,10 +345,8 @@ public struct PodListWindow: SwiftUI.View {
         let selected = subscriptionSelection.intersection(Set(groups.flatMap { $0.subscriptions.map(\.id) }))
         return Group {
             if groups.isEmpty {
-                ContentUnavailableView {
-                    Label(window.search.isEmpty ? "No Subscriptions" : "No Matching Subscriptions", systemImage: "rectangle.stack")
-                } description: { Text("Search by name or feed address, or clear Search.").foregroundStyle(MacReadableSecondaryStyle()) }
-                actions: {
+                PodListEmptyState(window.search.isEmpty ? "No Subscriptions" : "No Matching Subscriptions", systemImage: "rectangle.stack",
+                                  description: "Search by name or feed address, or clear Search.") {
                     Button("Add Podcasts") { openWindow(id: "add-podcasts") }
                     if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
                 }
@@ -490,15 +486,11 @@ public struct PodListWindow: SwiftUI.View {
                 switch library.emptyEpisodes(syncing: app.syncing) {
                 case .loading: ProgressView("Loading Episodes…").frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .noSubscriptions:
-                    ContentUnavailableView {
-                        Label("No Subscriptions", systemImage: "rectangle.stack")
-                    } description: { Text("Add podcasts to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
-                    actions: { Button("Add Podcasts") { openWindow(id: "add-podcasts") } }
+                    PodListEmptyState("No Subscriptions", systemImage: "rectangle.stack",
+                                      description: "Add podcasts to find Episodes.") { Button("Add Podcasts") { openWindow(id: "add-podcasts") } }
                 case .noMatches:
-                    ContentUnavailableView {
-                        Label("No Matching Episodes", systemImage: "magnifyingglass")
-                    } description: { Text("Change this View or Search to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
-                    actions: {
+                    PodListEmptyState("No Matching Episodes", systemImage: "magnifyingglass",
+                                      description: "Change this View or Search to find Episodes.") {
                         if case .view = window.destination { Button("Edit View…") { editCurrentView(library) } }
                         if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
                     }
