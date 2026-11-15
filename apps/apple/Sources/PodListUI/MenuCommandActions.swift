@@ -115,9 +115,8 @@ public struct AdditionalMenuCommands: Commands {
         CommandGroup(after: .help) {
             Button("Getting Started") { openWindow(id: "getting-started") }.disabled(app.libraryEditing == nil)
         }
-        CommandGroup(after: .windowList) {
-            Button("Listening Stats") { openWindow(id: "listening-stats") }.disabled(app.library == nil)
-        }
+        // Window › Listening Stats comes from its Window scene; a custom item here listed it
+        // twice (WMENU-03).
     }
 }
 #endif

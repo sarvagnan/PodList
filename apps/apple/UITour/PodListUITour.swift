@@ -308,10 +308,15 @@ final class PodListUITour: XCTestCase {
                                       file: StaticString = #filePath, line: UInt = #line) {
         let actualPlay = library.buttons["Play This Playlist"].frame
         let actualSection = library.radioButtons["Entries"].frame
-        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
-        XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
+        // The header adapts to its width (Play This Playlist turns icon-only when the Inspector
+        // narrows the content), so horizontal positions only compare at the same form.
+        let sameForm = abs(actualPlay.width - play.width) <= 1
+        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: sameForm ? 1 : 2, "Playlist action moved", file: file, line: line)
+        if sameForm {
+            XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
+            XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
+        }
         XCTAssertEqual(actualSection.minY, section.minY, accuracy: 1, "Section control moved", file: file, line: line)
-        XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
         XCTAssertLessThan(abs(actualPlay.midY - actualSection.midY), 8, "Controls must share a row", file: file, line: line)
     }
 
@@ -470,7 +475,7 @@ final class PodListUITour: XCTestCase {
 
     private func menuCommand(_ menu: String, _ command: String) throws {
         try click(app.menuBars.menuBarItems[menu])
-        try click(app.menuItems[command])
+        try click(app.menuBars.menuBarItems[menu].menuItems[command].firstMatch)
     }
 
     private func captureMenus() throws {
