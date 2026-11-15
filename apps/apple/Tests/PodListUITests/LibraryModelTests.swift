@@ -151,3 +151,73 @@ func fixtureModel() async throws -> LibraryModel {
     let library = try await fixtureModel()
     #expect(ViewDescription.text(library.state.views[1], library: library) == "Unplayed · Shortest first · Show 1")
 }
+
+@Test func episodeSelectionSummaryCountsEveryEpisodeAndReportsIncompleteLengths() async throws {
+    let library = try await fixtureModel()
+    let selection = EpisodeSelectionSummary(ids: ["a", "t1", "a"], library: library)
+    #expect(selection.ids == ["a", "t1"])
+    #expect(selection.title == "2 Episodes selected")
+    #expect(selection.knownLength == 600)
+    #expect(selection.lengthText == "10:00")
+    #expect(selection.allAvailable)
+
+    let partial = EpisodeSelectionSummary(ids: ["a", "b", "pending"], library: library)
+    #expect(partial.title == "3 Episodes selected")
+    #expect(partial.knownLength == 300 && partial.unknownLengths == 2)
+    #expect(partial.lengthText == "5:00 known · 2 unavailable")
+    #expect(!partial.allAvailable)
+    let unknown = EpisodeSelectionSummary(ids: ["b", "pending"], library: library)
+    #expect(unknown.lengthText == "Unavailable")
+}
+
+@MainActor @Test func podcastBackRestoresTheOriginatingListAndBrowsingState() {
+    for destination in [Destination.subscriptions, .search, .view("all")] {
+        let window = WindowModel()
+        window.navigate(to: destination)
+        window.search = "Science"
+        window.selection = ["a", "b"]
+        window.sortOrder = [KeyPathComparator(\.title, order: .reverse)]
+        window.scrollAnchor = RowAnchor(id: "b", index: 1)
+        window.navigate(to: .subscription("s"))
+        #expect(window.search.isEmpty && window.selection.isEmpty)
+        #expect(window.destination == .subscription("s"))
+        // Opening another Podcast must keep the same list as the Back destination.
+        window.navigate(to: .subscription("t"))
+        window.backFromPodcast()
+        #expect(window.destination == destination)
+        #expect(window.search == "Science" && window.selection == ["a", "b"])
+        #expect(window.sortOrder == [KeyPathComparator(\.title, order: .reverse)])
+        #expect(window.scrollAnchor == RowAnchor(id: "b", index: 1))
+        #expect(window.podcastOrigin == nil)
+    }
+}
+
+@MainActor @Test func discoveryPodcastBackSurvivesRestorationAndAbandonedNavigation() throws {
+    let window = WindowModel()
+    window.navigate(to: .search)
+    window.search = "Alpha"
+    window.selection = ["a"]
+    // Discovery overlays Search without changing its sidebar destination.
+    window.beginPodcastPage()
+    #expect(window.search.isEmpty && window.selection.isEmpty)
+    window.search = "Podcast filter"
+    let saved = window.context(libraryID: "standalone", playlistTab: .entries, columns: .all,
+        podcastFeed: "https://example.com/new-feed", subscriptionSelection: [])
+    let reopened = WindowModel()
+    reopened.restore(try #require(WindowContext.decode(saved.encoded)))
+    reopened.backFromPodcast()
+    #expect(reopened.destination == .search && reopened.search == "Alpha")
+    #expect(reopened.selection == ["a"])
+
+    window.navigate(to: .playlist("default"))
+    #expect(window.podcastOrigin == nil)
+    window.navigate(to: .subscription("s"))
+    window.backFromPodcast()
+    #expect(window.destination == .playlist("default"))
+
+    // A page restored from an older archive has no origin; Subscriptions is safe.
+    let legacy = WindowModel()
+    legacy.destination = .subscription("s")
+    legacy.backFromPodcast()
+    #expect(legacy.destination == .subscriptions)
+}

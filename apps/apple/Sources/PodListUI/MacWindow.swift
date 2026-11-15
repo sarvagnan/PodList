@@ -134,7 +134,6 @@ public struct PodListWindow: SwiftUI.View {
                     EditingFeedback(editing: editing).id(window.destination).id(podcastFeed)
                 }
                 if let podcastFeed, let editor = app.libraryEditing {
-                    HStack { Button("Back to Library", action: backToLibrary); Spacer() }.padding(.horizontal)
                     PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, scrollAnchor: $window.scrollAnchor, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)
                 } else { content(library) }
             }
@@ -143,6 +142,13 @@ public struct PodListWindow: SwiftUI.View {
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
             .navigationSubtitle(isPodcastPage ? "Podcast page" : summary(library))
             .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    if isPodcastPage {
+                        Button("Back to Library", systemImage: "chevron.left", action: backToLibrary)
+                            .help("Back to Library (⌘[)")
+                            .accessibilityLabel("Back to Library")
+                    }
+                }
                 ToolbarItemGroup(placement: .primaryAction) {
                     if !isPodcastPage {
                         switch window.destination {
@@ -175,7 +181,7 @@ public struct PodListWindow: SwiftUI.View {
             .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
             .searchFocused($searchFocused)
             .inspector(isPresented: Binding(get: { showsEpisodeInspector && inspectorVisible }, set: { inspectorVisible = $0 })) {
-                EpisodeInspector(row: selectedRow(library), library: library, app: app, playlistPresentation: playlistPresentation)
+                EpisodeInspector(row: selectedRow(library), library: library, app: app, playlistPresentation: playlistPresentation, selectedIDs: inspectorSelection(library))
                     .inspectorColumnWidth(min: 260, ideal: window.initialPaneWidths.inspector, max: 440)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                         if (260...440).contains(width) { window.paneWidths.inspector = width }
@@ -211,7 +217,7 @@ public struct PodListWindow: SwiftUI.View {
             }.padding(24) }.focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { editor.importPresented = false }])).onExitCommand { editor.importPresented = false } }
         }
         .sheet(isPresented: $showAddPodcasts) {
-            if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { podcastFeed = $0 }) }
+            if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { window.beginPodcastPage(); podcastFeed = $0 }) }
         }
         .sheet(isPresented: Binding(get: { editingView != nil }, set: { if !$0 { editingView = nil } })) {
             if let view = editingView, let editor = app.libraryEditing {
@@ -247,11 +253,15 @@ public struct PodListWindow: SwiftUI.View {
         }
     }
 
-    private func backToLibrary() { podcastFeed = nil; window.search = "" }
+    private func backToLibrary() {
+        podcastFeed = nil
+        window.backFromPodcast()
+        if let library = app.library { reconcileSelection(library) }
+    }
     private var windowMenuActions: MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
         if !window.search.isEmpty { actions[.clearSearch] = { window.search = "" } }
-        if podcastFeed != nil { actions[.backToLibrary] = { backToLibrary() } }
+        if isPodcastPage { actions[.backToLibrary] = { backToLibrary() } }
         if !app.syncing { actions[.refresh] = { Task { await app.sync(forceRefresh: true) } } }
         if let editor = app.libraryEditing {
             if editor.busy || !editor.importFeeds.isEmpty || editor.importReady { actions[.showImport] = { editor.importPresented = true } }
@@ -636,6 +646,11 @@ public struct PodListWindow: SwiftUI.View {
         if id.isEmpty { id = UUID().uuidString; editor.setDraft(id, field: "newViewID") }
         creatingView = true
         editingView = PodListDomain.View(id: id, name: "", filter: .init(text: text), sort: .publishedDesc, limit: nil)
+    }
+    private func inspectorSelection(_ library: LibraryModel) -> [String] {
+        let ordered = selectedIDs(library)
+        // Publisher rows not yet imported still count toward the selection summary.
+        return ordered + window.selection.subtracting(Set(ordered)).sorted()
     }
     private func selectedRow(_ library: LibraryModel) -> EpisodeRow? {
         if isPodcastPage {

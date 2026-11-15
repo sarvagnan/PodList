@@ -38,6 +38,30 @@ public struct EpisodeRow: Identifiable, Sendable {
     public var publishedDate: Date { Date(timeIntervalSince1970: Double(published) / 1000) }
 }
 
+/// Missing publisher lengths must not make an incomplete sum look like a total.
+struct EpisodeSelectionSummary {
+    let ids: [String]
+    let knownLength: Double
+    let unknownLengths: Int
+    let allAvailable: Bool
+
+    init(ids: [String], library: LibraryModel) {
+        var seen = Set<String>()
+        self.ids = ids.filter { seen.insert($0).inserted }
+        let episodes = self.ids.map { library.row($0).episode }
+        let lengths = episodes.compactMap { $0?.duration }.filter { $0.isFinite && $0 >= 0 }
+        knownLength = lengths.reduce(0, +)
+        unknownLengths = self.ids.count - lengths.count
+        allAvailable = episodes.allSatisfy { $0 != nil }
+    }
+    var title: String { "\(CountText.format(ids.count, .episode)) selected" }
+    var lengthText: String {
+        if unknownLengths == ids.count { return "Unavailable" }
+        let time = Presentation.time(knownLength)
+        return unknownLengths == 0 ? time : "\(time) known · \(unknownLengths) unavailable"
+    }
+}
+
 public struct SubscriptionGroup: Identifiable, Sendable {
     public let mode: DownloadMode
     public let subscriptions: [Subscription]
@@ -229,6 +253,7 @@ public final class WindowModel {
     /// into the columns' ideal width shrank the sidebar below its minimum.
     var initialPaneWidths = PaneWidths()
     var pendingDropSelections: [String: [String]] = [:]
+    var podcastOrigin: PodcastOrigin?
 
     func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true) {
         pendingDropSelections[playlistID] = ids
@@ -245,7 +270,30 @@ public final class WindowModel {
         if case .subscription = destination { return .subscriptions }
         return destination
     }
+    /// Feed discovery overlays the current destination; save its browsing state too.
+    func beginPodcastPage() {
+        if podcastOrigin == nil {
+            podcastOrigin = PodcastOrigin(destination: destination, search: search, selection: selection,
+                sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
+                timelineSelection: timelineSelection, scrollAnchor: scrollAnchor)
+        }
+        search = ""; selection = []; scrollAnchor = nil
+        podcastSort = [.init(column: .published, reversed: true)]
+    }
+    func backFromPodcast() {
+        guard let origin = podcastOrigin else { navigate(to: .subscriptions); return }
+        podcastOrigin = nil
+        destination = origin.destination; search = origin.search; selection = origin.selection
+        sortOrder = origin.sort.map(\.comparator); podcastSort = origin.podcastSort
+        timelineSelection = origin.timelineSelection; scrollAnchor = origin.scrollAnchor
+    }
     public func navigate(to destination: Destination?) {
+        if case .subscription = destination {
+            switch self.destination {
+            case .subscription: break
+            default: beginPodcastPage()
+            }
+        } else { podcastOrigin = nil }
         self.destination = destination; search = ""; selection = []; sortOrder = []
         podcastSort = [.init(column: .published, reversed: true)]; timelineSelection = nil; scrollAnchor = nil
         if case let .playlist(id) = destination, let ids = pendingDropSelections[id], let first = ids.first {

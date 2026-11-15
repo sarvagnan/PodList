@@ -35,6 +35,17 @@ struct WindowSort: Codable, Equatable, Sendable {
     }
 }
 
+/// A Podcast page returns to the originating list without losing its query or selection.
+struct PodcastOrigin: Codable, Equatable {
+    var destination: Destination?
+    var search: String
+    var selection: Set<String>
+    var sort: [WindowSort]
+    var podcastSort: [WindowSort]
+    var timelineSelection: String?
+    var scrollAnchor: RowAnchor?
+}
+
 /// Only browsing state: applying this value cannot edit the Library or start playback.
 /// SwiftUI owns each scene's lifetime; a new WindowGroup scene has no saved value.
 struct WindowContext: Codable, Equatable {
@@ -51,6 +62,7 @@ struct WindowContext: Codable, Equatable {
     var columns = Columns.all
     // Podcast pages opened from discovery need not have a Subscription yet.
     var podcastFeed: String?
+    var podcastOrigin: PodcastOrigin?
     var subscriptionSelection = Set<String>()
 
     var scrollAnchor: RowAnchor?
@@ -84,6 +96,7 @@ struct WindowContext: Codable, Equatable {
         if result.destination != destination {
             result.search = ""; result.selection = []; result.sort = []
             result.playlistTab = .entries; result.timelineSelection = nil; result.podcastFeed = nil
+            result.podcastOrigin = nil
             result.scrollAnchor = nil
         }
         result.subscriptionSelection.formIntersection(Set(library.subscriptions.map(\.id)))
@@ -131,11 +144,12 @@ extension WindowModel {
         WindowContext(libraryID: libraryID, destination: destination, search: search, selection: selection,
                       sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
                       playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns,
-                      podcastFeed: podcastFeed, subscriptionSelection: subscriptionSelection,
+                      podcastFeed: podcastFeed, podcastOrigin: podcastOrigin, subscriptionSelection: subscriptionSelection,
                       scrollAnchor: scrollAnchor, paneWidths: paneWidths)
     }
 
     func restore(_ context: WindowContext) {
+        podcastOrigin = context.podcastOrigin
         destination = context.destination; search = context.search; selection = context.selection
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection

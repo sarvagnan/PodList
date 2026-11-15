@@ -42,20 +42,26 @@ import SwiftUI
 }
 
 @MainActor @Test func playlistHeaderKeepsOneRowAcrossSectionsAndAppearancesWithoutAScreen() throws {
-    for width in [CGFloat(640), 900] {
-        var heights: [Int] = []
-        for appearance in [ColorScheme.light, .dark] {
-            for section in PlaylistTab.allCases {
-                let renderer = ImageRenderer(content: PlaylistHeader(selection: .constant(section), busy: false, play: {})
-                    .environment(\.colorScheme, appearance)
-                    .frame(width: width))
-                let image = try #require(renderer.cgImage)
-                #expect(image.width == Int(width))
-                #expect(image.height > 0 && image.height < 80)
-                heights.append(image.height)
+    // 318: 760 pt window minus the 180 pt sidebar, 260 pt Inspector and dividers.
+    // 418/578 cover 960 pt with both panes and 760 pt with the Inspector hidden.
+    for width in [CGFloat(318), 418, 478, 578, 640, 678, 900] {
+        for textScale in [1.0, 2.0] {
+            var heights: [Int] = []
+            for appearance in [ColorScheme.light, .dark] {
+                for section in PlaylistTab.allCases {
+                    let renderer = ImageRenderer(content: PlaylistHeader(selection: .constant(section), busy: false, play: {})
+                        .macContentFont(.body)
+                        .environment(\.macTextScale, textScale)
+                        .environment(\.colorScheme, appearance)
+                        .frame(width: width))
+                    let image = try #require(renderer.cgImage)
+                    #expect(image.width == Int(width))
+                    #expect(image.height > 0 && image.height < 80)
+                    heights.append(image.height)
+                }
             }
+            #expect(Set(heights).count == 1)
         }
-        #expect(Set(heights).count == 1)
     }
 }
 #endif
