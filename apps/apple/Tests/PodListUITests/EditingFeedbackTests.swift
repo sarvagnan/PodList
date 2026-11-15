@@ -40,6 +40,27 @@ import PodListData
     #expect(editor.notice == "Undone: Star")
 }
 
+@MainActor @Test func libraryFeedbackCollapsesEmptySpaceAndAddsOnlyItsOwnLineHeight() async throws {
+    let db = try await fixtureDatabase()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: UUID().uuidString,
+                                     defaults: UserDefaults(suiteName: UUID().uuidString)!)
+    func height() -> CGFloat {
+        NSHostingView(rootView: VStack(spacing: 0) {
+            LibraryFeedback(editor: editor, reservesSpace: false)
+            Color.clear.frame(height: 100)
+        }.frame(width: 600)).fittingSize.height
+    }
+    #expect(height() == 100)
+    editor.error = String(repeating: "An error ", count: 50)
+    #expect(height() > 100 && height() <= 132)
+    editor.error = nil
+    #expect(height() == 100)
+    _ = await editor.edits.edit([.setStar(episodeId: "a", starred: true)], name: "Star")
+    #expect(height() > 100 && height() <= 132)
+    await editor.undo()
+    #expect(height() > 100 && height() <= 132)
+}
+
 @MainActor @Test func editFeedbackCancelNoticeExpiresAndDoesNotFollowNavigationOrNewSheets() async throws {
     let db = try await fixtureDatabase()
     let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))

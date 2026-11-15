@@ -156,8 +156,11 @@ extension WindowModel {
         destination = context.destination; search = context.search; selection = context.selection
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection
-        scrollAnchor = context.scrollAnchor; paneWidths = context.paneWidths ?? PaneWidths()
-        initialPaneWidths = paneWidths
+        scrollAnchor = context.scrollAnchor; paneWidths = (context.paneWidths ?? PaneWidths()).reconciled
+        if !hasRestoredPaneWidths {
+            initialPaneWidths = paneWidths
+            hasRestoredPaneWidths = true
+        }
     }
 }
 
@@ -180,4 +183,32 @@ struct PaneWidths: Codable, Equatable {
         Self(sidebar: sidebar.isFinite ? min(max(sidebar, 180), 320) : 225,
              inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 310)
     }
+}
+
+/// Coalesce divider movement before writing scene storage. Invalid/collapsed geometry
+/// is ignored rather than replacing a valid preference with the minimum width.
+@MainActor
+final class SidebarWidthRecorder {
+    var changed: ((Double) -> Void)?
+    private var pending: Double?
+    private var task: Task<Void, Never>?
+
+    func record(_ width: Double) {
+        guard width.isFinite, (180...320).contains(width) else { return }
+        pending = width
+        task?.cancel()
+        task = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            self?.flush()
+        }
+    }
+
+    func flush() {
+        task?.cancel(); task = nil
+        guard let pending else { return }
+        self.pending = nil
+        changed?(pending)
+    }
+
+    deinit { task?.cancel() }
 }

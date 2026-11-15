@@ -42,15 +42,14 @@ import PodListData
     #expect(presentation.sheet == nil)
 }
 
-@MainActor @Test func playlistHeaderKeepsOneRowAcrossSectionsAndAppearancesWithoutAScreen() throws {
-    // 318: 760 pt window minus the 180 pt sidebar, 260 pt Inspector and dividers.
-    // 418/578 cover 960 pt with both panes and 760 pt with the Inspector hidden.
-    for width in [CGFloat(318), 418, 478, 578, 640, 678, 900] {
+@MainActor @Test func playlistToolbarKeepsOneRowAcrossSectionsAndAppearancesWithoutAScreen() throws {
+    // The toolbar uses window width, independently of the detail and Inspector panes.
+    for width in [CGFloat(500), 640, 760, 960, 1180] {
         for textScale in [1.0, 2.0] {
             var heights: [Int] = []
             for appearance in [ColorScheme.light, .dark] {
                 for section in PlaylistTab.allCases {
-                    let renderer = ImageRenderer(content: PlaylistHeader(selection: .constant(section), busy: false, play: {})
+                    let renderer = ImageRenderer(content: PlaylistToolbar(selection: .constant(section), busy: false, play: {})
                         .macContentFont(.body)
                         .environment(\.macTextScale, textScale)
                         .environment(\.colorScheme, appearance)
