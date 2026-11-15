@@ -219,7 +219,14 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(nowPlaying.sheets.firstMatch.exists, "Playlist edits must present on Library")
         try dismissSheet("Cancel")
         try click(library.buttons["Open Now Playing"])
-        try click(nowPlaying.buttons["Done"])
+        let done = nowPlaying.buttons["Done"]
+        // XCUITest can resolve Done to an off-screen frame (inf, inf) and then hang on the
+        // click; close the window with its standard command in that case.
+        if done.waitForExistence(timeout: 5), done.frame.origin.x.isFinite, done.frame.width > 0 {
+            done.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        } else {
+            nowPlaying.typeKey("w", modifierFlags: .command)
+        }
         XCTAssertTrue(nowPlaying.waitForNonExistence(timeout: 10))
 
         app.typeKey(",", modifierFlags: .command)
