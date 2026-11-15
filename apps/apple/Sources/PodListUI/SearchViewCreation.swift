@@ -17,19 +17,26 @@ struct SearchViewCreation: SwiftUI.View {
             HStack {
                 Text(CountText.format(count, .result))
                 Spacer()
-                if !naming { Button("Create View…") { name = editor.draft("searchView.name"); if name.isEmpty { name = query }; naming = true; editor.setDraft("true", field: "searchView.open") }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                if !naming { Button("Create View…", action: beginNaming).disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
             }
             if naming {
                 HStack {
                     TextField("View name", text: $name).onChange(of: name) { _, text in editor.setDraft(text, field: "searchView.name"); error = nil }.onSubmit { save() }
-                    Button("Cancel") { naming = false; editor.setDraft("", field: "searchView.open"); editor.setDraft("", field: "searchView.name") }
+                    Button("Cancel", action: cancelNaming)
                     Button("Create View") { save() }.disabled(saving)
                 }
                 if let error { Text(error).foregroundStyle(Color.podListError) }
             }
         }.onChange(of: error) { _, message in editor.edits.announcements.error(message) }
+        .focusedSceneValue(\.podListSearchViewActions, MenuActionContext(actions: [
+            .createViewFromSearch: !naming && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { beginNaming() } : nil,
+            .createView: naming && !saving ? { save() } : nil
+        ].compactMapValues { $0 }))
+        .focusedSceneValue(\.podListPanelActions, naming ? MenuActionContext(actions: [.cancel: { cancelNaming() }]) : nil)
         .padding().onAppear { naming = editor.draft("searchView.open") == "true"; name = editor.draft("searchView.name") }
     }
+    private func beginNaming() { name = editor.draft("searchView.name"); if name.isEmpty { name = query }; naming = true; editor.setDraft("true", field: "searchView.open") }
+    private func cancelNaming() { naming = false; editor.setDraft("", field: "searchView.open"); editor.setDraft("", field: "searchView.name") }
     private func save() {
         guard !saving else { return }
         if let problem = ViewNames.problem(name, views: library.state.views) { error = problem; return }

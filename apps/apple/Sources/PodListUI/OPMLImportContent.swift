@@ -14,7 +14,7 @@ struct OPMLImportContent: SwiftUI.View {
                 HStack {
                     Button("Import") { editor.startImport() }.keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
                     Button("Choose a Different File…", action: choose)
-                    Button("Cancel") { editor.cancelImportSelection(); editor.importPresented = false }
+                    Button("Cancel", action: cancelImport)
                 }
             } else if !editor.busy { Button("Choose a File…", action: choose) }
             if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
@@ -30,6 +30,13 @@ struct OPMLImportContent: SwiftUI.View {
             if let error = editor.error { Text(error).foregroundStyle(Color.podListError) }
             if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } }.disabled(editor.busy) }
         }
+        .focusedSceneValue(\.podListImportActions, MenuActionContext(actions: [
+            .importSelection: editor.importReady && editor.importTotal > 0 ? { editor.startImport() } : nil,
+            .chooseFile: editor.importReady || !editor.busy ? choose : nil,
+            .cancelImport: editor.importReady ? { cancelImport() } : nil,
+            .retryImport: !editor.importFailed.isEmpty && !editor.busy ? { Task { await editor.retryImport() } } : nil
+        ].compactMapValues { $0 }))
     }
+    private func cancelImport() { editor.cancelImportSelection(); editor.importPresented = false }
 }
 #endif

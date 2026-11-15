@@ -305,17 +305,23 @@ struct RewindSheet: SwiftUI.View {
                     HStack {
                         Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                         Spacer()
-                        Button("Rewind") {
-                            Task {
-                                if await editing.rewind(playlistID, to: target) { done() }
-                                else { problem = editing.error ?? "Could not rewind. Try again." }
-                            }
-                        }
+                        Button("Rewind", action: rewind)
                             .macDefaultAction().disabled(editing.busy)
                     }
                 } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
             }.padding(24)
         }.interactiveDismissDisabled(editing.busy)
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+            .cancel: { dismiss() },
+            .rewind: !editing.busy && TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) != nil ? { rewind() } : nil
+        ].compactMapValues { $0 }))
+    }
+    private func rewind() {
+        guard !editing.busy else { return }
+        Task {
+            if await editing.rewind(playlistID, to: target) { done() }
+            else { problem = editing.error ?? "Could not rewind. Try again." }
+        }
     }
     private func titles(_ ids: [String]) -> String { ids.isEmpty ? "None" : ids.map { library.row($0).title }.joined(separator: "\n") }
 }

@@ -36,6 +36,10 @@ struct WelcomeView: SwiftUI.View {
             }.frame(maxWidth: 470, alignment: .leading).padding(40).frame(maxWidth: .infinity)
         }
         .macContentFont(.body)
+        .focusedSceneValue(\.podListSettingsActions, MenuActionContext(actions: [
+            .connect: !app.connecting && !app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { connect() } : nil,
+            .standalone: !app.connecting ? { Task { await app.startStandalone() } } : nil
+        ].compactMapValues { $0 }))
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft }; addressFocused = true }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
     }

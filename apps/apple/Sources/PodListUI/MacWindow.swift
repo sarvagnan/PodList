@@ -134,7 +134,7 @@ public struct PodListWindow: SwiftUI.View {
                     EditingFeedback(editing: editing).id(window.destination).id(podcastFeed)
                 }
                 if let podcastFeed, let editor = app.libraryEditing {
-                    HStack { Button("Back to Library") { self.podcastFeed = nil; window.search = "" }; Spacer() }.padding(.horizontal)
+                    HStack { Button("Back to Library", action: backToLibrary); Spacer() }.padding(.horizontal)
                     PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, scrollAnchor: $window.scrollAnchor, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)
                 } else { content(library) }
             }
@@ -182,6 +182,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
             }
         }
+        .modifier(PlaybackSeekHost(app: app))
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let playback = app.playback, playback.hasDisplay {
                 PlayerBar(controller: playback, library: library,
@@ -199,6 +200,7 @@ public struct PodListWindow: SwiftUI.View {
             }
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
+        .focusedSceneValue(\.podListWindowActions, windowMenuActions)
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
@@ -206,7 +208,7 @@ public struct PodListWindow: SwiftUI.View {
                 Text("Import OPML").macContentFont(.title2).bold()
                 OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) }, inSheet: true)
                 Button("Done") { editor.importPresented = false }.keyboardShortcut(editor.importReady ? nil : .defaultAction)
-            }.padding(24) }.onExitCommand { editor.importPresented = false } }
+            }.padding(24) }.focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { editor.importPresented = false }])).onExitCommand { editor.importPresented = false } }
         }
         .sheet(isPresented: $showAddPodcasts) {
             if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { podcastFeed = $0 }) }
@@ -243,6 +245,19 @@ public struct PodListWindow: SwiftUI.View {
         .onChange(of: currentContext) { _, context in
             if contextLoaded, context.libraryID == contextLibraryID { savedContext = context.encoded }
         }
+    }
+
+    private func backToLibrary() { podcastFeed = nil; window.search = "" }
+    private var windowMenuActions: MenuActionContext {
+        var actions: [MenuAction: () -> Void] = [:]
+        if !window.search.isEmpty { actions[.clearSearch] = { window.search = "" } }
+        if podcastFeed != nil { actions[.backToLibrary] = { backToLibrary() } }
+        if !app.syncing { actions[.refresh] = { Task { await app.sync(forceRefresh: true) } } }
+        if let editor = app.libraryEditing {
+            if editor.busy || !editor.importFeeds.isEmpty || editor.importReady { actions[.showImport] = { editor.importPresented = true } }
+            if !editor.busy && !editor.importFailed.isEmpty { actions[.retryImport] = { Task { await editor.retryImport() } } }
+        }
+        return MenuActionContext(actions: actions)
     }
 
     @ViewBuilder private func content(_ library: LibraryModel) -> some SwiftUI.View {
@@ -413,6 +428,7 @@ public struct PodListWindow: SwiftUI.View {
             } : nil,
             settings: subscription != nil && available ? { subscriptionSelection = ids; showSubscriptionSettings = true } : nil,
             downloadRules: hasSelection && available ? { subscriptionSelection = ids; showBulkRules = true } : nil,
+            markAllPlayed: app.libraryEditing.flatMap { SubscriptionPlayedAction.action(subscription, editor: $0) },
             shareURL: subscription.flatMap { ShareLinks.podcast(page: library.snapshot.podcastLinks[$0.id], feed: $0.feedUrl) },
             feedURL: subscription.flatMap { ShareLinks.web($0.feedUrl) })
     }
@@ -485,6 +501,7 @@ public struct PodListWindow: SwiftUI.View {
                 .accessibilityLabel(textScale > 1 ? "Episodes, use Sort by and Descending to change order" : "Episodes, sortable columns")
             }
         }
+        .focusedSceneValue(\.podListSort, Binding(get: { window.sortOrder.compactMap(WindowSort.init) }, set: { window.sortOrder = $0.map(\.comparator) }))
     }
 
     private func episodeDragPayload(_ id: String, rows: [EpisodeRow], library: LibraryModel) -> EpisodeTransfer {

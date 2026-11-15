@@ -152,6 +152,13 @@ struct NowPlayingView: SwiftUI.View {
     @State private var presentation = PlaylistPresentation()
     var body: some SwiftUI.View {
         GlassEffectContainer(spacing: 12) { panel }
+            .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: done]))
+            .focusedSceneValue(\.podListNowPlayingEpisode, controller.display.map { NowPlayingEpisodeContext(id: detailID ?? $0.episodeID, library: app.library ?? library, presentation: presentation) })
+            .focusedSceneValue(\.podListEpisodeDetails, controller.display.map { value in { detailID = value.episodeID } })
+            .focusedSceneValue(\.podListPlayerActions, MenuActionContext(actions: [
+                .backToNowPlaying: detailID != nil ? { detailID = nil } : nil,
+                .retryPlayback: controller.error != nil ? { controller.play() } : nil
+            ].compactMapValues { $0 }))
             .onChange(of: controller.userPlaybackRevision) { _, _ in detailID = nil }
             .onChange(of: presentation.sheet?.id) { _, _ in
                 if case let .add(ids, preferNew) = presentation.sheet {
@@ -216,5 +223,49 @@ struct NowPlayingView: SwiftUI.View {
                 .padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
         }
     }
+}
+/// Each playback window owns its seek dialog; the focused menu never opens a
+/// sheet in another Library window.
+struct PlaybackSeekHost: ViewModifier {
+    let app: ApplicationModel
+    @State private var presented = false
+    func body(content: Content) -> some SwiftUI.View {
+        content
+            .focusedSceneValue(\.podListSeek, app.playback?.display?.duration.map { $0 > 0 } == true ? { presented = true } : nil)
+            .sheet(isPresented: $presented) {
+                if let controller = app.playback { PlaybackSeekSheet(controller: controller) }
+            }
+    }
+}
+private struct PlaybackSeekSheet: SwiftUI.View {
+    @Bindable var controller: PlaybackController
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
+    @State private var seconds = ""
+    @State private var episodeID: String?
+    private var position: Double? {
+        guard episodeID == controller.display?.episodeID,
+              let value = FormNumbers.nonnegative(seconds, locale: locale),
+              let duration = controller.display?.duration, value <= duration else { return nil }
+        return value
+    }
+    var body: some SwiftUI.View {
+        ContentSizedPanel(width: 420) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Go to Time").macContentFont(.title2).bold()
+                TextField("Position in seconds", text: $seconds).onSubmit { go() }
+                HStack {
+                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("Go", action: go).keyboardShortcut(.defaultAction).disabled(position == nil)
+                }
+            }.padding(24)
+        }
+        .onAppear { episodeID = controller.display?.episodeID; seconds = FormNumbers.string(controller.display?.position ?? 0, locale: locale) }
+        .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
+            .cancel: { dismiss() }, .go: position == nil ? nil : { go() }
+        ].compactMapValues { $0 }))
+    }
+    private func go() { guard let position else { return }; controller.seek(position); dismiss() }
 }
 #endif

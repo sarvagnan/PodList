@@ -10,11 +10,24 @@ struct PodcastCommandContext {
     var subscriptionAction: (() -> Void)?
     var settings: (() -> Void)?
     var downloadRules: (() -> Void)?
+    var markAllPlayed: (() -> Void)?
+    var refresh: (() -> Void)?
     var shareURL: URL?
     var feedURL: URL?
     var descriptionExpanded = false
     var toggleDescription: (() -> Void)?
 }
+struct EpisodeMenuOverrides {
+    var play: () -> Void
+    var add: () -> Void
+}
+struct NowPlayingEpisodeContext {
+    var id: String
+    var library: LibraryModel
+    var presentation: PlaylistPresentation
+}
+private struct RemoteEpisodeKey: FocusedValueKey { typealias Value = EpisodeMenuOverrides }
+private struct NowPlayingEpisodeKey: FocusedValueKey { typealias Value = NowPlayingEpisodeContext }
 struct PlaylistCommandContext {
     let playlist: Playlist
     let presentation: PlaylistPresentation
@@ -38,6 +51,22 @@ enum ViewRenameAction {
     }
 }
 
+enum TrashSelectionAction {
+    static func playlist(in library: LibraryModel, selection: String?, search: String, busy: Bool) -> Playlist? {
+        guard !busy else { return nil }
+        return library.trash.first {
+            $0.playlist.id == selection && (search.isEmpty || $0.playlist.name.localizedStandardContains(search))
+        }?.playlist
+    }
+}
+
+enum SubscriptionPlayedAction {
+    @MainActor static func action(_ subscription: Subscription?, editor: LibraryEditingModel) -> (() -> Void)? {
+        guard let subscription, subscription.unsubscribedAt == nil, !editor.busy, !editor.edits.busy else { return nil }
+        return { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
+    }
+}
+
 enum EpisodePlaybackAction {
     @MainActor static func chapter(_ start: Double, episodeID: String, app: ApplicationModel, started: () -> Void = {}) async {
         guard await app.editing?.add([episodeID], placement: .now) != nil else { return }
@@ -50,12 +79,48 @@ enum EpisodePlaybackAction {
     }
 }
 
+struct EditHistoryCommandContext {
+    var undo: (() -> Void)?
+    var redo: (() -> Void)?
+}
+private struct EditHistoryCommandKey: FocusedValueKey { typealias Value = EditHistoryCommandContext }
+struct PlaylistSettingsCommandContext {
+    var rename: (() -> Void)?
+    var delete: (() -> Void)?
+}
+private struct PlaylistSettingsCommandKey: FocusedValueKey { typealias Value = PlaylistSettingsCommandContext }
+struct ViewEditorCommandContext {
+    var rename: (() -> Void)?
+    var delete: (() -> Void)?
+}
+private struct ViewEditorCommandKey: FocusedValueKey { typealias Value = ViewEditorCommandContext }
 private struct EpisodeDetailsKey: FocusedValueKey { typealias Value = () -> Void }
 private struct PodcastCommandKey: FocusedValueKey { typealias Value = PodcastCommandContext }
 private struct PlaylistCommandKey: FocusedValueKey { typealias Value = PlaylistCommandContext }
 private struct RestoreCommandKey: FocusedValueKey { typealias Value = () -> Void }
+private struct DeletePermanentlyCommandKey: FocusedValueKey { typealias Value = () -> Void }
 private struct RewindCommandKey: FocusedValueKey { typealias Value = () -> Void }
 extension FocusedValues {
+    var podListEditHistory: EditHistoryCommandContext? {
+        get { self[EditHistoryCommandKey.self] }
+        set { self[EditHistoryCommandKey.self] = newValue }
+    }
+    var podListPlaylistSettingsActions: PlaylistSettingsCommandContext? {
+        get { self[PlaylistSettingsCommandKey.self] }
+        set { self[PlaylistSettingsCommandKey.self] = newValue }
+    }
+    var podListViewEditorActions: ViewEditorCommandContext? {
+        get { self[ViewEditorCommandKey.self] }
+        set { self[ViewEditorCommandKey.self] = newValue }
+    }
+    var podListRemoteEpisode: EpisodeMenuOverrides? {
+        get { self[RemoteEpisodeKey.self] }
+        set { self[RemoteEpisodeKey.self] = newValue }
+    }
+    var podListNowPlayingEpisode: NowPlayingEpisodeContext? {
+        get { self[NowPlayingEpisodeKey.self] }
+        set { self[NowPlayingEpisodeKey.self] = newValue }
+    }
     var podListEpisodeDetails: (() -> Void)? {
         get { self[EpisodeDetailsKey.self] }
         set { self[EpisodeDetailsKey.self] = newValue }
@@ -71,6 +136,10 @@ extension FocusedValues {
     var podListRestore: (() -> Void)? {
         get { self[RestoreCommandKey.self] }
         set { self[RestoreCommandKey.self] = newValue }
+    }
+    var podListDeletePermanently: (() -> Void)? {
+        get { self[DeletePermanentlyCommandKey.self] }
+        set { self[DeletePermanentlyCommandKey.self] = newValue }
     }
     var podListRewind: (() -> Void)? {
         get { self[RewindCommandKey.self] }

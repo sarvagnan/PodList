@@ -14,6 +14,7 @@ struct FailureFeedback: SwiftUI.View {
                 .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             Button("Retry") { announcements?.error(nil); retry() }
         }
+        .focusedValue(\.podListRecoveryActions, MenuActionContext(actions: [.retry: { announcements?.error(nil); retry() }]))
         .onChange(of: message, initial: true) { _, message in announcements?.error(message) }
     }
 }

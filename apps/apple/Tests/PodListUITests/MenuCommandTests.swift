@@ -136,4 +136,50 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     #expect(!ViewRenameAction.prepare(otherView, editor: editor))
     #expect(editor.draft("rename.\(otherView.id)").isEmpty)
 }
+@Test func trashCommandsRejectHiddenExpiredBusyAndOtherWindowSelections() async throws {
+    let library = try await fixtureModel()
+    #expect(TrashSelectionAction.playlist(in: library, selection: "deleted", search: "", busy: false)?.id == "deleted")
+    #expect(TrashSelectionAction.playlist(in: library, selection: "deleted", search: "dele", busy: false)?.id == "deleted")
+    #expect(TrashSelectionAction.playlist(in: library, selection: nil, search: "", busy: false) == nil)
+    #expect(TrashSelectionAction.playlist(in: library, selection: "default", search: "", busy: false) == nil)
+    #expect(TrashSelectionAction.playlist(in: library, selection: "deleted", search: "no match", busy: false) == nil)
+    #expect(TrashSelectionAction.playlist(in: library, selection: "deleted", search: "", busy: true) == nil)
+    let expired = LibraryModel(snapshot: library.snapshot, deviceID: library.deviceID, now: 400 * 86_400_000)
+    #expect(TrashSelectionAction.playlist(in: expired, selection: "deleted", search: "", busy: false) == nil)
+    // Two windows resolve independently, without a global or first-item fallback.
+    let first = TrashSelectionAction.playlist(in: library, selection: "deleted", search: "", busy: false)
+    let second = TrashSelectionAction.playlist(in: library, selection: "other", search: "", busy: false)
+    #expect(first?.id == "deleted")
+    #expect(second == nil)
+}
+
+@MainActor @Test func markAllPlayedMenuTargetsOneSubscriptionAndKeepsNamedUndo() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: "PodListMenuPlayed-" + UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "menu", defaults: defaults)
+    #expect(SubscriptionPlayedAction.action(nil, editor: editor) == nil)
+    #expect(SubscriptionPlayedAction.action(subscription("removed", removed: true), editor: editor) == nil)
+    editor.busy = true
+    #expect(SubscriptionPlayedAction.action(subscription(), editor: editor) == nil)
+    editor.busy = false
+    let action = try #require(SubscriptionPlayedAction.action(subscription(), editor: editor))
+    action()
+    // The shared button handler schedules an asynchronous, serialised library edit.
+    for _ in 0..<10_000 {
+        if editor.edits.history.undo != nil && !editor.edits.busy { break }
+        await Task.yield()
+    }
+    #expect(editor.edits.undoTitle == "Undo Mark Played")
+    let state = try await db.loadState()
+    #expect(state.episodeStates["a"]?.played != nil)
+    #expect(state.episodeStates["b"]?.played != nil)
+    #expect(state.episodeStates["t1"]?.played == nil)
+    #expect(state.episodeStates["orphan"]?.played == nil)
+    await editor.undo()
+    let restored = try await db.loadState()
+    #expect(restored.episodeStates["a"]?.played == nil)
+    #expect(restored.episodeStates["b"]?.played != nil)
+    #expect(restored.playlists[0].entries.map(\.episodeId) == fixtureState().playlists[0].entries.map(\.episodeId))
+    #expect(restored.episodeStates["t1"]?.played == nil)
+}
 #endif
