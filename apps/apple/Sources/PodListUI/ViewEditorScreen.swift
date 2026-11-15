@@ -46,7 +46,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             TextField("View name", text: Binding(get: { draft.name }, set: { text in
                                 nameValidation.edited(from: draft.name, to: text)
                                 update { $0.name = text }
-                            })).onSubmit { finish() }
+                            })).labelsHidden().accessibilityLabel("View name").onSubmit { finish() }
                         }
                         validation(nameValidation.message(nameProblem))
                     }
