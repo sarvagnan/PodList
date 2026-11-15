@@ -19,12 +19,13 @@ public struct NamedEdit: Sendable {
 public final class PlaylistEditingModel {
     public private(set) var history = EditHistory<NamedEdit>()
     public private(set) var busy = false
+    @ObservationIgnored let announcements = FeedbackAnnouncements()
     private(set) var feedbackNotice: EditingNotice?
     public private(set) var status: String? {
         get { feedbackNotice?.message }
-        set { feedbackNotice = newValue.map { EditingNotice($0) } }
+        set { feedbackNotice = newValue.map { EditingNotice($0) }; announcements.status(newValue) }
     }
-    public private(set) var error: String?
+    public private(set) var error: String? { didSet { announcements.error(error) } }
     public let drafts: PlaylistDrafts
     @ObservationIgnored private var ended = false
     @ObservationIgnored private let database: LocalDatabase
@@ -54,7 +55,7 @@ public final class PlaylistEditingModel {
             if !ended, recordHistory { history.record(step) }
             status = step.message ?? step.name
             await changed()
-        } catch { self.error = String(describing: error); throw error }
+        } catch { self.error = LibraryMessages.failure(error); throw error }
     }
     func showNotice(_ text: String?) { status = text }
     public var undoTitle: String { history.undo.map { "Undo \($0.name)" } ?? "Undo" }

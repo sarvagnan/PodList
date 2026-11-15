@@ -100,7 +100,13 @@ final class PodListUITour: XCTestCase {
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
         try click(button("Rename", in: library.sheets.firstMatch))
-        try ready(library.sheets.textFields["Playlist name"])
+        let renameField = library.sheets.textFields["Playlist name"]
+        try ready(renameField)
+        // Typing without clicking verifies Rename transferred keyboard focus.
+        app.typeText("Focus check")
+        XCTAssertTrue((renameField.value as? String)?.contains("Focus check") == true)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("Commute")
         try capture("12-playlist-rename", expectsSheet: true)
         try click(library.sheets.buttons["Cancel Rename"])
         try dismissSheet("Done")
@@ -109,6 +115,7 @@ final class PodListUITour: XCTestCase {
         // Use the documented command so the duplicate sidebar/toolbar buttons are irrelevant.
         app.typeKey("n", modifierFlags: [.command, .shift])
         try sheet("New Playlist")
+        XCTAssertFalse(library.sheets.staticTexts["Enter a Playlist name."].exists)
         try capture("13-new-playlist", expectsSheet: true)
         try dismissSheet("Cancel")
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
@@ -137,6 +144,10 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Cancel")
         app.typeKey("n", modifierFlags: .command)
         try sheet("New View")
+        XCTAssertFalse(library.sheets.staticTexts["Enter a View name."].exists)
+        for label in ["Mentions (Optional)", "Minimum length (Optional)", "Maximum length (Optional)", "Show (Optional)"] {
+            XCTAssertTrue(library.sheets.staticTexts[label].exists)
+        }
         try capture("17-new-view", expectsSheet: true)
         try dismissSheet("Cancel")
 

@@ -194,3 +194,30 @@ private struct RGB {
     withExtendedLifetime(controller) {}
 }
 #endif
+
+#if os(macOS)
+@Test @MainActor func roundTwoErrorsAndSecondaryTextMeetContrastInBothAppearances() {
+    for (name, surfaces) in [(NSAppearance.Name.aqua, [0xFFFFFF, 0xF6F6F6, 0xFFF5F5, 0xF5FCF7]),
+                             (.darkAqua, [0x222222, 0x2F2D2B, 0x292726, 0x2F2424, 0x252B25, 0x464646])] {
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            for hex in surfaces {
+                let background = RGB(hex)
+                let error = RGB(NSColor(Color.podListError), over: background)
+                let primary = RGB(NSColor.labelColor, over: background)
+                #expect(error.contrast(background) >= 4.5, "Error on \(String(hex, radix: 16)) in \(name)")
+                #expect(primary.contrast(background) >= 4.5, "Metadata / Subscribed on \(String(hex, radix: 16)) in \(name)")
+                print(String(format: "Contrast %@ #%06X: error %.2f, primary %.2f", name.rawValue, hex, error.contrast(background), primary.contrast(background)))
+            }
+            // The section picker opts out of the brand tint; selected labels use
+            // macOS's selection foreground on its native selection background.
+            let fill = RGB(NSColor.selectedContentBackgroundColor, over: RGB(0))
+            #expect(RGB(NSColor.alternateSelectedControlTextColor, over: fill).contrast(fill) >= 4.5)
+            print(String(format: "Contrast %@ native selection: %.2f", name.rawValue, RGB(NSColor.alternateSelectedControlTextColor, over: fill).contrast(fill)))
+        }
+    }
+    for name in [NSAppearance.Name.accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua] {
+        let background = RGB(name == .accessibilityHighContrastAqua ? 0xFFFFFF : 0x464646)
+        #expect(RGB(MacErrorPalette.color(for: name), over: background).contrast(background) >= 4.5)
+    }
+}
+#endif

@@ -70,7 +70,7 @@ public struct PodListWindow: SwiftUI.View {
                         if section.name == "Playlists" { Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }.buttonStyle(.plain).selectionDisabled() }
                         if section.name == "Library" { Button("Add Podcasts…", systemImage: "plus") { showAddPodcasts = true }.buttonStyle(.plain).selectionDisabled() }
                         if section.items.isEmpty {
-                            Text("No \(section.name)").foregroundStyle(.secondary)
+                            Text("No \(section.name)").foregroundStyle(.primary)
                         }
                         ForEach(section.items) { item in
                             HStack(spacing: 8) {
@@ -85,11 +85,11 @@ public struct PodListWindow: SwiftUI.View {
                                 }
                                 if let clear = item.clearOnPlayed {
                                     Image(systemName: clear ? "eraser.fill" : "eraser")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(.primary)
                                         .help(clear ? "Clear on Played on" : "Clear on Played off")
                                         .accessibilityLabel(clear ? "Clear on Played on" : "Clear on Played off")
                                 }
-                                Text(item.count, format: .number).foregroundStyle(.secondary).monospacedDigit()
+                                Text(item.count, format: .number).foregroundStyle(.primary).monospacedDigit()
                             }
                             .contentShape(Rectangle())
                             .tag(item.destination)
@@ -180,7 +180,7 @@ public struct PodListWindow: SwiftUI.View {
             if let playback = app.playback, playback.hasDisplay {
                 PlayerBar(controller: playback, library: library,
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
-                          openNowPlaying: { openWindow(id: "now-playing") })
+                          openNowPlaying: { openWindow(id: "now-playing") }, announcements: app.announcements)
             }
         }
         .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { drop in
@@ -250,7 +250,7 @@ public struct PodListWindow: SwiftUI.View {
             } else {
                 List(library.state.views, id: \.id) { view in
                     Button { window.navigate(to: .view(view.id)) } label: {
-                        HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(.secondary) }
+                        HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(.primary) }
                     }.buttonStyle(.plain)
                     .contextMenu { sidebarActions(.view(view.id), library: library) }
                 }
@@ -293,7 +293,7 @@ public struct PodListWindow: SwiftUI.View {
             } else {
                 VStack(alignment: .leading) {
                     HStack {
-                        Text("Grouped by Download Rule").foregroundStyle(.secondary)
+                        Text("Grouped by Download Rule").foregroundStyle(.primary)
                         Spacer()
                         Button(subscriptionSelection.isEmpty ? "Edit Download Rules…" : "Edit Download Rules for \(CountText.format(subscriptionSelection.count, .subscription))…") { showBulkRules = true }
                             .disabled(subscriptionSelection.isEmpty)
@@ -412,7 +412,7 @@ public struct PodListWindow: SwiftUI.View {
         let rows = window.rows(in: library)
         return VStack(alignment: .leading, spacing: 0) {
             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
-                Text(ViewDescription.text(view, library: library)).macContentFont(.subheadline).foregroundStyle(.secondary)
+                Text(ViewDescription.text(view, library: library)).macContentFont(.subheadline).foregroundStyle(.primary)
                     .padding(.horizontal, 16).padding(.vertical, 10)
             }
             if case let .subscription(id) = window.destination { DownloadRuleEditor(subscriptionID: id, library: library, app: app).padding(12) }
@@ -483,17 +483,17 @@ public struct PodListWindow: SwiftUI.View {
 
     private func episodeTitle(_ row: EpisodeRow, library: LibraryModel) -> some SwiftUI.View {
         HStack(spacing: 8) {
-            if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(.secondary).monospacedDigit() }
+            if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(.primary).monospacedDigit() }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
                 if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-                Text(row.podcast).macContentFont(.caption).foregroundStyle(.secondary).lineLimit(textScale > 1 ? nil : 1)
+                Text(row.podcast).macContentFont(.caption).foregroundStyle(.primary).lineLimit(textScale > 1 ? nil : 1)
             }.padding(.vertical, 5)
             Spacer(minLength: 4)
             // A status mark beside the row actions, never drawn over them.
             if app.downloadStatuses[row.id]?.phase == .stored {
-                Image(systemName: "arrow.down.circle.fill").foregroundStyle(.secondary).accessibilityLabel("Downloaded")
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(.primary).accessibilityLabel("Downloaded")
             }
             if let editing = app.editing {
                 Button { playlistPresentation.sheet = .add([row.id], false) } label: {
@@ -533,7 +533,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             Spacer(minLength: 0)
         }
-        .macContentFont(.caption).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 7)
+        .macContentFont(.caption).foregroundStyle(.primary).padding(.horizontal, 14).padding(.vertical, 7)
     }
 
     private func selectionRows(_ library: LibraryModel) -> [EpisodeRow] {

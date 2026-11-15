@@ -188,3 +188,64 @@ passed, including signing and metadata extraction (9 intents, 2 entities,
 3 shortcuts); no App Intents source was changed. The known
 `gettingStartedNeverReplacesNumbersWithCheckMarksOrDoneLabels` image-comparison
 flake failed once in an earlier full run and passed in both subsequent full runs.
+
+## Round 2 contrast and feedback fixes (pod-apx.5.44, .47, .48)
+
+Before measurements below use the supplied round-2 PNGs' fully covered glyph
+pixels and dominant local fill, read as raw RGB samples (no image-profile
+conversion). This reproduces the graders' sRGB calculation. The 2.13:1
+Subscribed failure is in **Light**, rather than Dark; Dark's original green
+passes, but now uses the same semantic label treatment as Light.
+
+After values are **headless color/surface checks**, rather than new app captures.
+The section picker opts out of inherited brand tint with `.tint(nil)` and uses
+native selection colors. Subscribed uses semantic primary on a neutral native
+button. Armed Unsubscribe uses the error foreground on that same neutral button.
+The brand accent and selected-row foreground rules remain unchanged.
+
+| Element / appearance | Before foreground / fill | Before | After foreground / reference fill | After |
+| --- | --- | ---: | --- | ---: |
+| Selected section, Dark (`dark/06`) | `#FFFFFF` / `#9FB3FF` | 2.03:1 | Native selection `#FFFFFF` / `#0059D1` | 6.27:1 |
+| Subscribed, Light (`light/18`) | `#34C759` / `#F5FCF7` | 2.13:1 | Native label on native control `#FFFFFF` | 14.94:1 |
+| Subscribed, Dark (`dark/18`) | `#30D158` / `#252B25` | 7.16:1 | Native label on native control `#3F3F3F` | 8.10:1 |
+| Armed Unsubscribe, Light (`light/20`) | `#FF383C` / `#FFF5F5` | 3.34:1 | `#B91C1C` on original fill / native white control | 6.05:1 / 6.47:1 |
+| Armed Unsubscribe, Dark (`dark/20`) | `#FF4245` / `#2F2424` | 4.37:1 | `#FF9FA1` on original fill / native `#3F3F3F` control | 7.67:1 / 5.38:1 |
+| Validation, Light (`light/17`, also `light/13`) | `#FF383C` / `#FFFFFF` | 3.57:1 | `#B91C1C` / `#FFFFFF` | 6.47:1 |
+| Validation, Dark (`dark/17`) | `#FF4245` / `#292726` | 4.33:1 | `#FF9FA1` / `#292726` | 7.59:1 |
+| Secondary/help text, Light (`light/27`; also rows, dates, descriptions, sync status) | `#808080` / `#FFFFFF` | 3.95:1 | Semantic primary / `#FFFFFF` | 14.94:1 |
+
+`AppearanceTests.roundTwoErrorsAndSecondaryTextMeetContrastInBothAppearances`
+keeps the exact captured surfaces as fixtures and checks regular text at 4.5:1.
+Dark's red was increased again after the test caught 4.03:1 on the documented
+inactive-selection gray: `#FF9FA1` now gives 4.82:1 on `#464646`.
+Increase Contrast has separate darker Light and brighter Dark error variants.
+Native semantic primary preserves SwiftUI's foreground on emphasized rows;
+hierarchy also retains its existing font sizes and weights.
+
+`FeedbackAnnouncements` is the shared posting path:
+`NSAccessibility.post(... notification: .announcementRequested ...)` targets the
+application, with medium priority for status and high priority for errors.
+`PlaylistEditingModel` posts each notice once at its source; Library/import
+notices already use that model. `ApplicationModel` shares its announcer and
+reports download completion/failure transitions, ignoring stored downloads loaded
+at startup. Error changes in models, inline forms, `EditingFeedback` and shared
+`FailureFeedback` route through the same error deduplication. Repeated attempts
+and repeated successful operations can still announce the same wording again.
+
+Rename focuses from the newly inserted name field's task. Optional View fields
+have persistent Optional labels while preserving their existing accessibility
+labels. New-name validation waits for an actual edit or submission, including
+when the person types and then deletes the first character. Tour assertions
+check keyboard entry after Rename, absence of initial empty-name errors, and
+persistent Optional labels. The tour is built here; focus, actual composed
+pixels and VoiceOver speech still require running it on a GUI host.
+
+Final validation: all **235 Swift tests passed** (152 UI, 29 domain, 54 data)
+using the required module-cache environment variables and
+`swift test --scratch-path .build --disable-sandbox`. The complete suite ran
+outside the filesystem sandbox for existing local MCP socket and macOS type
+registration tests. `scripts/build-mac-app.sh` succeeded, including signing and
+metadata extraction (13 intents, 2 entities, 4 shortcuts).
+`xcodebuild build-for-testing -project PodListUITour.xcodeproj -scheme PodListUITour
+-derivedDataPath .build/ui-tour-derived` succeeded. The UI tour itself was not
+run because this implementation sandbox has no screen.

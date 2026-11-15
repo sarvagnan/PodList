@@ -14,11 +14,11 @@ struct AutomationSettingsScreen: SwiftUI.View {
                 Section("MCP") {
                     Toggle("Enable MCP server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
                     Text("Any app running as this user on this Mac can then read the Library and control playback.")
-                        .macContentFont(.callout).foregroundStyle(.secondary)
+                        .macContentFont(.callout).foregroundStyle(.primary)
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
-                        .macContentFont(.caption).foregroundStyle(.secondary)
+                        .macContentFont(.caption).foregroundStyle(.primary)
                     if let error = settings.error {
-                        Text(error).foregroundStyle(.red)
+                        Text(error).foregroundStyle(Color.podListError)
                         if settings.isEnabled { Button("Retry") { settings.start() } }
                     }
                     if settings.isEnabled {
@@ -64,7 +64,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     Section("Publisher feeds") {
                         Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day; the wait survives restarting PodList.").macContentFont(.callout)
                         Button("Refresh Now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
-                        if let error = app.syncError { Text(error).foregroundStyle(.red) }
+                        if let error = app.syncError { Text(error).foregroundStyle(Color.podListError) }
                     }
                 }
                 Section("Appearance") {
@@ -80,14 +80,14 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                                 .macContentFont(.callout)
                             if !job.complete { Button("Retry") { Task { await app.sync() } }.disabled(app.syncing) }
                         }
-                        if let error = app.bringOverError { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+                        if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError).textSelection(.enabled) }
                         Button("Disconnect") { app.disconnect() }
                     } else {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
                         TextField("Server address", text: $app.serverInput)
                         Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
-                        if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(.secondary) }
-                        if let error = app.connectionError { Text(error).foregroundStyle(.red) }
+                        if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(.primary) }
+                        if let error = app.connectionError { Text(error).foregroundStyle(Color.podListError) }
                     }
                 }
             }.formStyle(.columns).padding(24)
@@ -113,7 +113,7 @@ private struct BringOverPreviewScreen: SwiftUI.View {
         ContentSizedPanel(width: 560) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Bring this Mac’s Library over?").macContentFont(.title2).bold()
-                Text("To \(app.origin ?? "the server")").foregroundStyle(.secondary).textSelection(.enabled)
+                Text("To \(app.origin ?? "the server")").foregroundStyle(.primary).textSelection(.enabled)
                 LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
                 LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
                 LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
@@ -122,8 +122,8 @@ private struct BringOverPreviewScreen: SwiftUI.View {
                 LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
                 LabeledContent("Views and downloads", value: "\(CountText.format(preview.views, .view)) · \(CountText.format(preview.downloads, .download))")
                 Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").macContentFont(.callout)
-                Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(.secondary)
-                if let error = app.bringOverError { Text(error).foregroundStyle(.red) }
+                Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry in Settings. Not Now keeps the Libraries separate; you can return here later.").macContentFont(.callout).foregroundStyle(.primary)
+                if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError) }
                 HStack {
                     Spacer()
                     Button("Not Now") { app.declineBringOver() }.keyboardShortcut(.cancelAction)
@@ -218,9 +218,9 @@ private struct PersistentNumberField: SwiftUI.View {
                     }))
                     .labelsHidden().accessibilityLabel(label)
                     .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
-                    Text("sec").foregroundStyle(.secondary)
+                    Text("sec").foregroundStyle(.primary)
                 }
-                if !valid { Text("\(label) must be a nonnegative number of seconds.").macContentFont(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+                if !valid { Text("\(label) must be a nonnegative number of seconds.").macContentFont(.caption).foregroundStyle(Color.podListError).fixedSize(horizontal: false, vertical: true) }
             }
         }
         .onChange(of: value) { _, _ in if !focused && valid { text = nil; editor.clearDraft(field) } }
@@ -235,13 +235,13 @@ struct GettingStartedScreen: SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("Getting Started").macContentFont(.headline); Spacer(); Button("Dismiss") { editor.showGettingStarted = false } }
             Label("Add podcasts to your Library", systemImage: "1.circle")
-            Text("Search by name or enter a feed address.").foregroundStyle(.secondary)
+            Text("Search by name or enter a feed address.").foregroundStyle(.primary)
             if let add { Button("Add Podcasts…", action: add) }
             else { Text("Use File ▸ Add Podcasts… (⇧⌘A) in the Library window.").macContentFont(.caption) }
             Label("Understand Views", systemImage: "2.circle")
-            Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(.secondary)
+            Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(.primary)
             Label("Add Episodes to Playlists", systemImage: "3.circle")
-            Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(.secondary)
+            Text("Use Add or Play Now. Each Playlist remembers its own Position.").foregroundStyle(.primary)
         }.padding(12)
     }
 }
@@ -263,7 +263,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                         ForEach(stats.totals, id: \.name) { total in
                             LabeledContent(total.name) { Text("\(Presentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
                         }
-                        Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(.secondary)
+                        Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(.primary)
                         Text("Listening Streak: \(CountText.format(stats.streak, .day))").macContentFont(.headline)
                         Toggle("Show Daily Table", isOn: $table)
                         if table {

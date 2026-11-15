@@ -135,6 +135,8 @@ private actor PublisherFixture: PublisherReader {
 @MainActor @Test func opmlPartialImportProgressAndRetryKeepSuccessfulFeeds() async throws {
     let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
     let http = PublisherFixture(), actions = editing(db, publisher: http)
+    var announcements: [String] = []
+    actions.edits.announcements.post = { message, _ in announcements.append(message) }
     let good = "https://example.com/good", bad = "https://example.com/bad"
     await http.setFailure(bad, true)
     await actions.selectOPML("<opml><body><outline xmlUrl='\(good)'/><outline xmlUrl='\(bad)'/><outline xmlUrl='\(good)'/></body></opml>", name: "My podcasts.opml")
@@ -142,6 +144,7 @@ private actor PublisherFixture: PublisherReader {
     #expect(try await db.readLibrary().subscriptions.isEmpty)
     await actions.importSelected()
     #expect(actions.importCompleted == 2 && actions.importTotal == 2 && actions.importFailed == [bad] && !actions.busy)
+    #expect(announcements.filter { $0 == "Imported 1; already in the Library 0; failed 1." }.count == 1)
     #expect(try await db.readLibrary().subscriptions.count == 1)
     await http.setFailure(bad, false); await actions.retryImport()
     #expect(actions.importFailed.isEmpty)

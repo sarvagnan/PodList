@@ -25,9 +25,10 @@ struct SearchViewCreation: SwiftUI.View {
                     Button("Cancel") { naming = false; editor.setDraft("", field: "searchView.open"); editor.setDraft("", field: "searchView.name") }
                     Button("Create View") { save() }.disabled(saving)
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Color.podListError) }
             }
-        }.padding().onAppear { naming = editor.draft("searchView.open") == "true"; name = editor.draft("searchView.name") }
+        }.onChange(of: error) { _, message in editor.edits.announcements.error(message) }
+        .padding().onAppear { naming = editor.draft("searchView.open") == "true"; name = editor.draft("searchView.name") }
     }
     private func save() {
         guard !saving else { return }

@@ -26,7 +26,7 @@ struct OPMLImportContent: SwiftUI.View {
                     }
                 }.frame(height: min(220, CGFloat(editor.importFeeds.count) * 44))
             }
-            if let error = editor.error { Text(error).foregroundStyle(.red) }
+            if let error = editor.error { Text(error).foregroundStyle(Color.podListError) }
             if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } }.disabled(editor.busy) }
         }
     }

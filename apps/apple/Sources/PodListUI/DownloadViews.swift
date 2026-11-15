@@ -66,10 +66,10 @@ struct DownloadStatusText: SwiftUI.View {
         case .stored: Text("Downloaded on this Device").foregroundStyle(.primary)
         case .queued: Text("Download queued").foregroundStyle(.primary)
         case .transferring: Text("Downloading on this Device").foregroundStyle(.primary)
-        case .failed: Text(app.downloadStatuses[id]?.error ?? "Download failed").foregroundStyle(.red)
+        case .failed: Text(app.downloadStatuses[id]?.error ?? "Download failed").foregroundStyle(Color.podListError)
         case nil: Text("Not downloaded on this Device").foregroundStyle(.primary)
         }
-        if let error = app.downloadError { Text(error).foregroundStyle(.red) }
+        if let error = app.downloadError { Text(error).foregroundStyle(Color.podListError) }
     }
 }
 struct DownloadIcon: SwiftUI.View {
@@ -142,7 +142,7 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
         ContentSizedPanel(width: 520) {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Download Rules for \(CountText.format(ids.count, .subscription))").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
-                Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.secondary)
+                Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.primary)
                 DownloadRuleFields(mode: $mode, cap: $cap)
                 if let editing = app.editing { EditingFeedback(editing: editing) }
                 HStack {

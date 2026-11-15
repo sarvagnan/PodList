@@ -107,3 +107,20 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     #expect(saved.playbackSettings.skipIntro == 1.5 && saved.playbackSettings.skipOutro == 2.5)
     #expect(saved.trashDays == 7 && draft.failures.isEmpty)
 }
+
+@Test func newNamesValidateOnlyAfterAnEditOrSubmitIncludingDeletingTheFirstInput() {
+    for problem in [PlaylistNames.problem("", playlists: []), ViewNames.problem("", views: [])] {
+        var field = FormValidationVisibility()
+        #expect(problem != nil)
+        #expect(field.message(problem) == nil)
+        field.edited(from: "", to: "")
+        #expect(field.message(problem) == nil)
+        field.edited(from: "", to: "A")
+        #expect(field.message(nil) == nil)
+        field.edited(from: "A", to: "")
+        #expect(field.message(problem) == problem)
+        var submitted = FormValidationVisibility()
+        submitted.submitted()
+        #expect(submitted.message(problem) == problem)
+    }
+}

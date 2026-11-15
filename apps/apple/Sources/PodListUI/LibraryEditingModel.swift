@@ -61,7 +61,7 @@ public struct UnsubscribeControl: Sendable {
 public final class LibraryEditingModel {
     public let source: PodcastLibrary
     public let scope: String
-    public var error: String?
+    public var error: String? { didSet { edits.announcements.error(error) } }
     public var notice: String? {
         get { edits.status }
         set { edits.showNotice(newValue) }
@@ -217,7 +217,7 @@ public final class LibraryEditingModel {
             return NamedEdit(name: "Unsubscribe", changes: [], reload: true,
                 action: { _ = try await source.subscribe(sub.feedUrl) }, inverseAction: { try await source.unsubscribe(sub.id) }, message: "Unsubscribed from \(sub.title)")
         }
-        notice = "Unsubscribed from \(sub.title)"; await changed()
+        await changed()
     }
     public func prepareEpisode(_ feed: String, guid: String) async throws -> String {
         let id = try await source.bringEpisode(feed, guid: guid)

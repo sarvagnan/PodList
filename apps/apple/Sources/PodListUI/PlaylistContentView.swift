@@ -46,7 +46,7 @@ struct PlaylistContentView: SwiftUI.View {
         VStack(spacing: 0) {
             if PlaylistRules.hasNoCurrentEntry(playlist) {
                 HStack {
-                    Text(playlist.entries.isEmpty ? "This Playlist has no Entries." : "No current Entry. This Playlist is past its end.").foregroundStyle(.secondary)
+                    Text(playlist.entries.isEmpty ? "This Playlist has no Entries." : "No current Entry. This Playlist is past its end.").foregroundStyle(.primary)
                     if playlist.entries.isEmpty { Button("Find Episodes") { window.navigate(to: .search) } }
                     Spacer()
                 }.padding(12)
@@ -98,12 +98,12 @@ struct PlaylistContentView: SwiftUI.View {
     }
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
-            if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.secondary) }
+            if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.primary) }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
                 if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-                Text(row.podcast).macContentFont(.caption).foregroundStyle(.secondary)
+                Text(row.podcast).macContentFont(.caption).foregroundStyle(.primary)
             }
             Spacer(minLength: 4)
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
@@ -148,7 +148,7 @@ struct PlaylistContentView: SwiftUI.View {
                     let row = library.row(item.episodeId)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(row.title).macContentFont(.headline)
-                        Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(.secondary)
+                        Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(.primary)
                     }.tag(item.episodeId)
                         .contextMenu {
                             EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation, app: app)
@@ -168,8 +168,8 @@ struct PlaylistContentView: SwiftUI.View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(library.row(event.episodeID).title).macContentFont(.headline)
-                            Text(date(event.at)).foregroundStyle(.secondary)
-                            Text(eventLabel(event)).macContentFont(.subheadline).foregroundStyle(.secondary)
+                            Text(date(event.at)).foregroundStyle(.primary)
+                            Text(eventLabel(event)).macContentFont(.subheadline).foregroundStyle(.primary)
                         }
                         Spacer()
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
@@ -227,6 +227,8 @@ struct PlaylistHeader: SwiftUI.View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
+            // System selected-segment colours: the brand tint fails contrast in Dark.
+            .tint(nil)
             .frame(maxWidth: 350)
             .layoutPriority(1)
             Button("Play This Playlist", systemImage: "play.fill", action: play)
@@ -263,7 +265,7 @@ struct RewindSheet: SwiftUI.View {
                         Text("Kept").macContentFont(.headline)
                         Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                    if let problem { Text(problem).foregroundStyle(.red) }
+                    if let problem { Text(problem).foregroundStyle(Color.podListError) }
                     HStack {
                         Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                         Spacer()
