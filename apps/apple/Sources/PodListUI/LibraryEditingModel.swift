@@ -82,6 +82,8 @@ public final class LibraryEditingModel {
     public var importResults: [String: String] = [:]
     @ObservationIgnored private var importSelectionVersion = 0
     @ObservationIgnored private var importTask: Task<Void, Never>?
+    public private(set) var importCancellationRequested = false
+    public private(set) var importPaused = false
     public var importCompleted = 0
     public var importTotal = 0
     public var importFailed: [String] = []
@@ -257,15 +259,26 @@ public final class LibraryEditingModel {
         importSelectionVersion += 1
         importReady = false; importName = ""; importFeeds = []; importResults = [:]
         importTotal = 0; importCompleted = 0; importFailed = []; importFailureReasons = [:]
+        importPaused = false; importCancellationRequested = false
+        defaults.removeObject(forKey: key("opmlImport"))
+    }
+    /// Finish the current subscription transaction before stopping. Cancelling its
+    /// network task could leave a server-side subscription with no recorded result.
+    public func cancelImport() {
+        guard busy, !importCancellationRequested else { return }
+        importCancellationRequested = true; importPaused = true
+        saveImport()
+        notice = "Cancelling import after the current podcast. Completed imports will stay in the Library."
     }
     private struct ImportJournal: Codable {
         let name: String
         let feeds: [String]
         let results: [String: String]
         let failures: [String: String]
+        let paused: Bool?
     }
     private func saveImport() {
-        if let data = try? JSONEncoder().encode(ImportJournal(name: importName, feeds: importFeeds, results: importResults, failures: importFailureReasons)) {
+        if let data = try? JSONEncoder().encode(ImportJournal(name: importName, feeds: importFeeds, results: importResults, failures: importFailureReasons, paused: importPaused)) {
             defaults.set(data, forKey: key("opmlImport"))
         }
     }
@@ -275,17 +288,22 @@ public final class LibraryEditingModel {
         importName = job.name; importFeeds = job.feeds; importResults = job.results
         importFailureReasons = job.failures; importFailed = job.feeds.filter { job.failures[$0] != nil }
         importTotal = job.feeds.count; importCompleted = job.results.count
+        if job.paused == true {
+            importPaused = true; importReady = importCompleted < importTotal
+            notice = cancelledImportSummary
+            return
+        }
         startImport(resuming: true)
     }
     public func startImport(resuming: Bool = false) {
         guard !busy, importTask == nil, resuming || importReady else { return }
         // This unstructured task belongs to the editor, not the sheet's lifetime.
-        importReady = false; busy = true; saveImport()
+        importReady = false; busy = true; importPaused = false; importCancellationRequested = false; saveImport()
         importTask = Task { await performImport(); importTask = nil }
     }
     public func importSelected() async {
         guard !busy, importReady else { return }
-        busy = true; importReady = false
+        busy = true; importReady = false; importPaused = false; importCancellationRequested = false
         await performImport()
     }
     private func performImport() async {
@@ -294,6 +312,7 @@ public final class LibraryEditingModel {
         do {
             var known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
             for feed in importFeeds where importResults[feed] == nil {
+                if importCancellationRequested { break }
                 if known.contains(feed) { importResults[feed] = "Already in the Library" }
                 else {
                     do { try await subscribe(feed); known.insert(feed); importResults[feed] = "Added" }
@@ -304,10 +323,23 @@ public final class LibraryEditingModel {
                 }
                 importCompleted = importResults.count; saveImport()
             }
-            notice = "Imported \(importResults.values.filter { $0 == "Added" }.count); already in the Library \(importResults.values.filter { $0 == "Already in the Library" }.count); failed \(importFailed.count)."
-            defaults.removeObject(forKey: key("opmlImport"))
+            if importCancellationRequested {
+                importReady = importCompleted < importTotal
+                saveImport()
+                notice = cancelledImportSummary
+            } else {
+                notice = importSummary
+                defaults.removeObject(forKey: key("opmlImport"))
+            }
             await changed()
         } catch { self.error = LibraryMessages.failure(error) }
+    }
+    private var importSummary: String {
+        "Imported \(importResults.values.filter { $0 == "Added" }.count); already in the Library \(importResults.values.filter { $0 == "Already in the Library" }.count); failed \(importFailed.count)."
+    }
+    var cancelledImportSummary: String {
+        "Import cancelled after \(importCompleted) of \(importTotal). \(importSummary) Completed imports remain in the Library."
+            + (importCompleted < importTotal ? " Choose Import to continue the remaining podcasts." : "")
     }
     public func retryImport() async {
         guard !busy else { return }

@@ -310,45 +310,53 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 let ids = Set(library.snapshot.episodes.map(\.id))
                 let facts = library.state.episodeStates.values.filter { ids.contains($0.episodeId) }.compactMap(\.played)
                 let stats = ListeningStats(log: library.state.listeningLog ?? [:], played: facts)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("Listening Stats").macContentFont(.largeTitle).bold()
-                        if stats.totals.allSatisfy({ $0.seconds == 0 && $0.finished == 0 }) { Text("Play an Episode to start your Listening log.") }
-                        ForEach(stats.totals, id: \.name) { total in
-                            LabeledContent(total.name) { Text("\(Presentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
-                        }
-                        Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-                        Text("Listening Streak: \(CountText.format(stats.streak, .day))").macContentFont(.headline)
-                        Toggle("Show Daily Table", isOn: $table)
-                        if table {
-                            ForEach(stats.days.reversed()) { day in LabeledContent(day.date.formatted(date: .abbreviated, time: .omitted), value: Presentation.time(day.seconds)) }
-                        } else {
-                            Chart(stats.days) { day in
-                                BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60))
-                                    .foregroundStyle(MacAccentForegroundStyle())
+                if stats.totals.allSatisfy({ $0.seconds == 0 && $0.finished == 0 }) {
+                    ContentUnavailableView("No Listening Yet", systemImage: "chart.bar",
+                                           description: Text("Play an Episode to start your Listening log."))
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            Text("Listening Stats").macContentFont(.largeTitle).bold()
+                            ForEach(stats.totals, id: \.name) { total in
+                                LabeledContent(total.name) { Text("\(Presentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
                             }
-                                .chartXAxis { AxisMarks { _ in
-                                    AxisGridLine()
-                                    AxisTick()
-                                    AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
-                                } }
-                                .chartYAxis { AxisMarks { _ in
-                                    AxisGridLine()
-                                    AxisTick()
-                                    AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
-                                } }
-                                .chartYAxisLabel { Text("Minutes").foregroundStyle(MacReadableSecondaryStyle()) }
-                                .frame(height: 200).accessibilityLabel("Daily listening in minutes for the last 30 days. Use Show Daily Table for exact values.")
-                        }
-                        Text("Top Podcasts").macContentFont(.title2)
-                        ForEach(stats.podcasts, id: \.id) { item in
-                            LabeledContent(library.snapshot.subscriptions.first { $0.id == item.id }?.title ?? "Removed Subscription", value: Presentation.time(item.seconds))
-                        }
-                    }.padding(25)
+                            Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                            Text("Listening Streak: \(CountText.format(stats.streak, .day))").macContentFont(.headline)
+                            if stats.days.contains(where: { $0.seconds > 0 }) {
+                                Toggle("Show Daily Table", isOn: $table)
+                                if table {
+                                    ForEach(stats.days.reversed()) { day in LabeledContent(day.date.formatted(date: .abbreviated, time: .omitted), value: Presentation.time(day.seconds)) }
+                                } else {
+                                    Chart(stats.days) { day in
+                                        BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60))
+                                            .foregroundStyle(MacAccentForegroundStyle())
+                                    }
+                                        .chartXAxis { AxisMarks { _ in
+                                            AxisGridLine()
+                                            AxisTick()
+                                            AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
+                                        } }
+                                        .chartYAxis { AxisMarks { _ in
+                                            AxisGridLine()
+                                            AxisTick()
+                                            AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
+                                        } }
+                                        .chartYAxisLabel { Text("Minutes").foregroundStyle(MacReadableSecondaryStyle()) }
+                                        .frame(height: 200).accessibilityLabel("Daily listening in minutes for the last 30 days. Use Show Daily Table for exact values.")
+                                }
+                            }
+                            if !stats.podcasts.isEmpty {
+                                Text("Top Podcasts").macContentFont(.title2)
+                                ForEach(stats.podcasts, id: \.id) { item in
+                                    LabeledContent(library.snapshot.subscriptions.first { $0.id == item.id }?.title ?? "Removed Subscription", value: Presentation.time(item.seconds))
+                                }
+                            }
+                        }.padding(25)
+                    }
+                    .focusedSceneValue(\.podListDailyTable, stats.days.contains(where: { $0.seconds > 0 }) ? $table : nil)
                 }
             } else { ContentUnavailableView("Open a Library to see Listening stats", systemImage: "chart.bar") }
         }.macContentFont(.body).frame(minWidth: 650, minHeight: 600)
-            .focusedSceneValue(\.podListDailyTable, app.library == nil ? nil : $table)
     }
 }
 

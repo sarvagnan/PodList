@@ -7,17 +7,22 @@ struct OPMLImportContent: SwiftUI.View {
     var inSheet = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Closing Add Podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").macContentFont(.callout).fixedSize(horizontal: false, vertical: true)
+            Text("Closing this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch unless you cancel.").macContentFont(.callout).fixedSize(horizontal: false, vertical: true)
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
+            if editor.importPaused && !editor.busy {
+                Text(editor.cancelledImportSummary).fixedSize(horizontal: false, vertical: true)
+            }
             if editor.importReady {
-                Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")
+                if !editor.importPaused {
+                    Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")
+                }
                 if !inSheet { HStack {
                     Button("Import") { editor.startImport() }.keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
                     Button("Choose a Different File…", action: choose)
                     Button("Cancel", action: cancelImport)
                 } }
             } else if !editor.busy { Button("Choose a File…", action: choose) }
-            if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
+            if editor.busy { OPMLImportProgress(editor: editor) }
             if !editor.importFeeds.isEmpty {
                 ScrollView {
                     VStack(alignment: .leading) {
@@ -33,10 +38,29 @@ struct OPMLImportContent: SwiftUI.View {
         .focusedSceneValue(\.podListImportActions, MenuActionContext(actions: [
             .importSelection: editor.importReady && editor.importTotal > 0 ? { editor.startImport() } : nil,
             .chooseFile: editor.importReady || !editor.busy ? choose : nil,
-            .cancelImport: editor.importReady ? { cancelImport() } : nil,
+            .cancelImport: editor.busy ? (editor.importCancellationRequested ? nil : { editor.cancelImport() }) : (editor.importReady ? { cancelImport() } : nil),
             .retryImport: !editor.importFailed.isEmpty && !editor.busy ? { Task { await editor.retryImport() } } : nil
         ].compactMapValues { $0 }))
     }
     private func cancelImport() { editor.cancelImportSelection(); editor.importPresented = false }
+}
+
+/// Identical count progress and cancellation policy in the sheet and Library.
+struct OPMLImportProgress: SwiftUI.View {
+    @Bindable var editor: LibraryEditingModel
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 8) {
+            ProgressView(value: Double(editor.importCompleted), total: Double(max(1, editor.importTotal))) {
+                Text("Importing \(editor.importCompleted) of \(editor.importTotal)")
+            }.progressViewStyle(.linear)
+            Text("Cancel finishes the current podcast and keeps completed imports. Choose Import later to continue the remainder.")
+                .macContentFont(.caption).fixedSize(horizontal: false, vertical: true)
+            Button(editor.importCancellationRequested ? "Cancelling after Current Podcast…" : "Cancel Import") { editor.cancelImport() }
+                .disabled(editor.importCancellationRequested)
+        }
+        .focusedSceneValue(\.podListImportActions, MenuActionContext(actions: [
+            .cancelImport: editor.importCancellationRequested ? nil : { editor.cancelImport() }
+        ].compactMapValues { $0 }))
+    }
 }
 #endif

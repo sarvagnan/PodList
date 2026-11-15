@@ -13,10 +13,14 @@ struct WelcomeView: SwiftUI.View {
                 Text("Your Library, Views and Playlists, together on this Mac.").foregroundStyle(MacReadableSecondaryStyle())
                 Text("Connect to a Server").macContentFont(.title2).bold().padding(.top, 12)
                 Text("Enter your PodList server address. Your Library stays available on this Device when the server is unreachable.")
-                TextField("Server address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
-                    .textFieldStyle(.roundedBorder).focused($addressFocused).disabled(app.connecting)
-                    .accessibilityLabel("Server address")
-                    .onSubmit { connect() }
+                Form {
+                    LabeledContent("Server address") {
+                        TextField("Server address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
+                            .textFieldStyle(.roundedBorder).focused($addressFocused).disabled(app.connecting)
+                            .accessibilityLabel("Server address")
+                            .onSubmit { connect() }
+                    }
+                }.formStyle(.columns)
                 Text("For the local demo, use http://127.0.0.1:PORT.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                 if let error = app.connectionError {
                     Label(error, systemImage: "exclamationmark.circle").foregroundStyle(Color.podListError).fixedSize(horizontal: false, vertical: true)

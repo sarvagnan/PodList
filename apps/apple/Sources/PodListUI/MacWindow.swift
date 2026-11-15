@@ -124,10 +124,13 @@ public struct PodListWindow: SwiftUI.View {
                     LibraryFeedback(editor: editor)
                         .id(window.destination).id(podcastFeed)
                     if editor.busy { VStack {
-                        ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)")
-                        Text("Closing Add Podcasts does not stop the import. Keep PodList running. Unfinished imports resume on next launch.").macContentFont(.caption)
+                        OPMLImportProgress(editor: editor)
+                        Text("Closing the import window does not stop the import. Unfinished imports resume on next launch unless you cancel.").macContentFont(.caption)
                         Button("Show Import Results") { editor.importPresented = true }
                     } }
+                    if editor.importPaused && !editor.busy {
+                        Button("Show Cancelled Import Results") { editor.importPresented = true }
+                    }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
                 } else if let editing = app.editing {
                     EditingFeedback(editing: editing).id(window.destination).id(podcastFeed)
@@ -216,6 +219,8 @@ public struct PodListWindow: SwiftUI.View {
                              cancel: { editor.cancelImportSelection(); editor.importPresented = false },
                              action: { if editor.importReady { editor.startImport() } else { editor.importPresented = false } }) {
                     OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) }, inSheet: true)
+                } status: {
+                    LibraryFeedback(editor: editor)
                 } secondary: {
                     if editor.importReady { Button("Choose a Different File…") { LibraryFileActions.importOPML(app) } }
                 }
