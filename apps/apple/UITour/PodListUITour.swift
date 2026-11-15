@@ -151,7 +151,7 @@ final class PodListUITour: XCTestCase {
         try navigate("New this week")
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
-        try sheet("Add Episode")
+        try sheet("to a Playlist")
         try capture("23-add-to-playlist", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Subscriptions")
