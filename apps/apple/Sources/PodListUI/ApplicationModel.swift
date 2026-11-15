@@ -104,8 +104,7 @@ public final class ApplicationModel {
     }
 
     nonisolated public static func openDatabase(_ id: String) throws -> LocalDatabase {
-        let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("PodList", isDirectory: true)
+        let directory = try ApplicationStorage.directory()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return try LocalDatabase(path: directory.appendingPathComponent(id + ".sqlite").path, standalone: id == "standalone")
     }
@@ -299,8 +298,7 @@ public final class ApplicationModel {
     }
 
     nonisolated private static func audioDirectory(_ key: String) throws -> URL {
-        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("PodList/Audio/" + key, isDirectory: true)
+        try ApplicationStorage.directory().appendingPathComponent("Audio/" + key, isDirectory: true)
     }
 
     /// Not now writes no transfer checkpoint; Settings can offer the retained Library again.

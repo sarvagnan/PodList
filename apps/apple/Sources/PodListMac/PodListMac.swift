@@ -10,6 +10,11 @@ struct PodListMac: App {
     @State private var textSize = MacTextSizePreference()
 
     init() {
+        #if DEBUG
+        // Validate before any app service can touch its persistent files.
+        do { _ = try ApplicationStorage.directory() }
+        catch { fatalError("Invalid UI test storage: \(error)") }
+        #endif
         let model = ApplicationModel()
         _model = State(initialValue: model)
         AutomationRuntime.app = model

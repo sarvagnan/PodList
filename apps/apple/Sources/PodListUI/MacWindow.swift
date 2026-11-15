@@ -64,7 +64,7 @@ public struct PodListWindow: SwiftUI.View {
                 ForEach(library.sidebar) { section in
                     Section {
                         if section.name == "Views" {
-                            Label("All Views", systemImage: "line.3.horizontal.decrease").tag(Destination.views)
+                            Label("All Views", systemImage: "line.3.horizontal.decrease").accessibilityIdentifier("sidebar.All Views").tag(Destination.views)
                             Button("New View…", systemImage: "plus") { newView() }.buttonStyle(.plain).selectionDisabled()
                         }
                         if section.name == "Playlists" { Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }.buttonStyle(.plain).selectionDisabled() }
@@ -104,6 +104,7 @@ public struct PodListWindow: SwiftUI.View {
                             .contextMenu { sidebarActions(item.destination, library: library) }
                             .modifier(PlaylistEpisodeDropTarget(destination: item.destination, editor: app.libraryEditing))
                             .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("sidebar.\(item.name)")
                             .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
                     } header: { Text(section.name) }
@@ -317,6 +318,7 @@ public struct PodListWindow: SwiftUI.View {
                             }
                         }
                     }.listStyle(.inset)
+                    .accessibilityIdentifier("subscriptions.list")
                     .contextMenu(forSelectionType: String.self) { ids in
                         subscriptionActions(library, ids: ids)
                     } primaryAction: { ids in
