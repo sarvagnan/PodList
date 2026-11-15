@@ -16,8 +16,9 @@ xcode="${developer%/Contents/Developer}"
 [ -d "$xcode/Contents/Developer" ] || { echo "Xcode not found at $xcode" >&2; exit 1; }
 
 tart clone "$base" "$vm"
-# 1180x760 pt windows fit comfortably; pt makes the guest display HiDPI (2x), like a Retina Mac.
-tart set "$vm" --cpu 4 --memory 8192 --display 1440x900pt
+# Large enough that the 1180x760 pt window and Settings stay clear of notification banners
+# (top right) and the Dock; pt makes the guest display HiDPI (2x), like a Retina Mac.
+tart set "$vm" --cpu 4 --memory 8192 --display 1920x1200pt
 tart run --no-graphics --dir="xcode:$xcode:ro" "$vm" > /dev/null 2>&1 &
 vm_pid=$!
 trap 'tart stop "$vm" > /dev/null 2>&1 || true; wait "$vm_pid" 2> /dev/null || true' EXIT
