@@ -52,9 +52,21 @@ public struct UnsubscribeControl: Sendable {
     public func isArmed(at now: Date) -> Bool { armedUntil.map { now < $0 } ?? false }
     public mutating func click(at now: Date) -> Bool {
         if isArmed(at: now) { reset(); return true }
-        armedUntil = now.addingTimeInterval(4); return false
+        armedUntil = now.addingTimeInterval(Self.armDuration); return false
     }
     public mutating func reset() { armedUntil = nil }
+
+    /// Four seconds. UI-test tours (disposable app.podlist.uitour.* builds only) can hold the
+    /// armed state longer, because a slow VM can take that long just to screenshot it.
+    static let armDuration: TimeInterval = {
+        #if DEBUG
+        if Bundle.main.bundleIdentifier?.hasPrefix("app.podlist.uitour.") == true {
+            let seconds = UserDefaults.standard.double(forKey: "PodList.uiTestUnsubscribeArmSeconds")
+            if seconds > 0 { return seconds }
+        }
+        #endif
+        return 4
+    }()
 }
 
 @MainActor @Observable

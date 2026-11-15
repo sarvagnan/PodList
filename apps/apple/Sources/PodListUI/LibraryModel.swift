@@ -223,7 +223,11 @@ public final class WindowModel {
     var podcastSort: [WindowSort] = [.init(column: .published, reversed: true)]
     var timelineSelection: String?
     var scrollAnchor: RowAnchor?
+    /// Measured widths, saved for the next launch. Never drives layout during a session.
     var paneWidths = PaneWidths()
+    /// The widths the columns open at: set once on restore. Feeding live measurements back
+    /// into the columns' ideal width shrank the sidebar below its minimum.
+    var initialPaneWidths = PaneWidths()
     var pendingDropSelections: [String: [String]] = [:]
 
     func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true) {

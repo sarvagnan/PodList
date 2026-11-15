@@ -39,6 +39,9 @@ struct EpisodeInspector: SwiftUI.View {
                 else { details(row) }
             }
             .macContentFont(.body)
+            // One labelled container. Without it, the unscrolled Inspector (inside Now Playing)
+            // passed this label to every child, so all its buttons read "Episode Inspector".
+            .accessibilityElement(children: .contain)
             .accessibilityLabel("Episode Inspector")
             .task(id: row.id) { await app.resolveEpisodeDetails(row.id) }
         } else {

@@ -40,7 +40,7 @@ final class PodListUITour: XCTestCase {
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
-                               "-PodList.mcpEnabled", "NO", "-PodList.inspectorVisible", "YES",
+                               "-PodList.mcpEnabled", "NO", "-PodList.uiTestUnsubscribeArmSeconds", "15", "-PodList.inspectorVisible", "YES",
                                "-ApplePersistenceIgnoreState", "YES"]
         defer {
             app.terminate()
@@ -66,10 +66,11 @@ final class PodListUITour: XCTestCase {
         try navigate("Default")
         try ready(episodeList)
         try capture("06-default-playlist")
-        let defaultHeader = library.buttons["Play This Playlist"].frame
-        let defaultSection = library.radioButtons["Entries"].frame
         try selectFirstEpisode()
         try capture("07-entry-inspector")
+        // Measure with the Inspector open: selecting an Episode opens it and narrows the content.
+        let defaultHeader = library.buttons["Play This Playlist"].frame
+        let defaultSection = library.radioButtons["Entries"].frame
         try segment("History")
         try capture("08-history")
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
@@ -161,10 +162,11 @@ final class PodListUITour: XCTestCase {
         try capture("19-description-expanded")
         try click(library.buttons["Subscribed"])
         let armedAt = Date()
-        // Never click Unsubscribe. The product's four-second arm expires naturally.
-        try ready(library.buttons["Unsubscribe"], timeout: 1)
+        // Never click Unsubscribe. The arm (held for 15 s in tour builds, 4 s otherwise)
+        // expires naturally.
+        try ready(library.buttons["Unsubscribe"], timeout: 3)
         try capture("20-unsubscribe-armed")
-        let remaining = 6 - Date().timeIntervalSince(armedAt)
+        let remaining = 17 - Date().timeIntervalSince(armedAt)
         if remaining > 0 { Thread.sleep(forTimeInterval: remaining) }
         try ready(library.buttons["Subscribed"])
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
@@ -210,14 +212,21 @@ final class PodListUITour: XCTestCase {
         try reveal(details, in: playerScroll)
         XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.buttons["Done"].frame.minY)
         try click(details)
-        let addFromDetails = nowPlaying.buttons["Add to a Playlist"]
+        let addFromDetails = button("Add to a Playlist", in: nowPlaying)
         try reveal(addFromDetails, in: playerScroll)
-        try click(addFromDetails)
+        addFromDetails.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         try sheet("to a Playlist")
         XCTAssertFalse(nowPlaying.sheets.firstMatch.exists, "Playlist edits must present on Library")
         try dismissSheet("Cancel")
         try click(library.buttons["Open Now Playing"])
-        try click(nowPlaying.buttons["Done"])
+        let done = nowPlaying.buttons["Done"]
+        // XCUITest can resolve Done to an off-screen frame (inf, inf) and then hang on the
+        // click; close the window with its standard command in that case.
+        if done.waitForExistence(timeout: 5), done.frame.origin.x.isFinite, done.frame.width > 0 {
+            done.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        } else {
+            nowPlaying.typeKey("w", modifierFlags: .command)
+        }
         XCTAssertTrue(nowPlaying.waitForNonExistence(timeout: 10))
 
         app.typeKey(",", modifierFlags: .command)
@@ -266,7 +275,7 @@ final class PodListUITour: XCTestCase {
         try selectFirstEpisode()
         episodeList.typeKey("a", modifierFlags: .command)
         XCTAssertGreaterThan(episodeRows.matching(NSPredicate(format: "selected == true")).count, 1)
-        try ready(library.buttons["Add to a Playlist"])
+        try ready(button("Add to a Playlist"))
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
         XCTAssertTrue(library.buttons["Open Now Playing"].exists)
@@ -316,7 +325,7 @@ final class PodListUITour: XCTestCase {
         try ready(row)
         // The row's centre can fall on its Play Now button; click the title area instead.
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).click()
-        try ready(library.buttons["Add to a Playlist"])
+        try ready(button("Add to a Playlist"))
     }
 
     private func segment(_ name: String) throws {
@@ -352,7 +361,10 @@ final class PodListUITour: XCTestCase {
 
     private func reveal(_ element: XCUIElement, in scroll: XCUIElement) throws {
         for _ in 0..<8 {
-            if element.exists && element.isHittable { return }
+            // Glass action strips can report isHittable == false although the control is
+            // visible; accept a control whose centre lies inside the scroll view.
+            if element.exists, !element.frame.isEmpty, element.isHittable
+                || scroll.frame.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) { return }
             scroll.scroll(byDeltaX: 0, deltaY: -180)
         }
         XCTFail("Could not reveal \(element)")
@@ -374,7 +386,7 @@ final class PodListUITour: XCTestCase {
         // Capturing the armed state must not silently turn into a disarmed-state image.
         if name == "20-unsubscribe-armed" {
             XCTAssertTrue(target.buttons["Unsubscribe"].exists,
-                          "XCUITest capture exceeded the four-second arm; inspect this attachment on a faster run")
+                          "Capture outlasted the armed state; raise -PodList.uiTestUnsubscribeArmSeconds")
         }
     }
 
