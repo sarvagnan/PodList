@@ -1,7 +1,15 @@
 #!/bin/bash
 # Run from a logged-in Mac desktop. XCUITest brings PodList forward and drives input.
 set -euo pipefail
-if [ "$#" -ne 1 ]; then echo "Usage: $0 <outdir>" >&2; exit 2; fi
+mode=tour
+if [ "${1:-}" = --system-checks ]; then mode=system; shift; fi
+if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks] <outdir>" >&2; exit 2; fi
+if [ "$mode" = system ] && [ -z "${PODLIST_UI_VM:-}" ]; then
+    echo "System checks require PODLIST_UI_VM (never run on the owner's desktop)" >&2
+    exit 2
+fi
+styles="light dark"
+if [ "$mode" = system ]; then styles=system; fi
 mkdir -p "$1"
 out="$(cd "$1" && pwd)"
 if [ -n "$(ls -A "$out")" ]; then echo "Output directory must be empty: $out" >&2; exit 2; fi
@@ -30,7 +38,7 @@ cleanup() {
 import os, signal, subprocess, sys, time
 from pathlib import Path
 root = Path(sys.argv[1]).resolve()
-owned = {str(root / style / 'PodList.app/Contents/MacOS/PodListMac') for style in ('light', 'dark')}
+owned = {str(root / style / 'PodList.app/Contents/MacOS/PodListMac') for style in ('light', 'dark', 'system')}
 for line in subprocess.check_output(['ps', '-axo', 'pid=,comm='], text=True).splitlines():
     fields = line.strip().split(None, 1)
     if len(fields) != 2 or fields[1] not in owned:
@@ -45,7 +53,7 @@ for line in subprocess.check_output(['ps', '-axo', 'pid=,comm='], text=True).spl
     except ProcessLookupError:
         pass
 PY
-    for style in light dark; do
+    for style in $styles; do
         identity="app.podlist.uitour.$run_id.$style"
         /usr/bin/defaults delete "$identity" >/dev/null 2>&1 || true
         # Delete only the fresh identities, never app.podlist.mac or shared PodList data.
@@ -58,12 +66,33 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
-for style in light dark; do
+for style in $styles; do
     mkdir -p "$run/$style/data"
     cp -Rf "$apple/.build/PodList.app" "$run/$style/PodList.app"
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier app.podlist.uitour.$run_id.$style" "$run/$style/PodList.app/Contents/Info.plist"
     codesign --force --sign - "$run/$style/PodList.app"
 done
+
+if [ "$mode" = system ]; then
+    mkdir -p "$run/checks"
+    cp -f "$apple/scripts/mcp-live-check.sh" "$apple/scripts/mcp-live-client.py" "$run/checks/"
+    # Generate expectations from source, including the discoverable Now Playing intent.
+    # Hidden snippet/control intents are deliberately excluded.
+    python3 - "$apple/Sources/PodListMac" "$run/system/catalog.json" <<'PYCATALOG'
+import json, re, sys
+from pathlib import Path
+source = Path(sys.argv[1])
+intents = []
+for file in (source / 'AppIntents.swift', source / 'NowPlayingSnippet.swift'):
+    for body in re.findall(r'struct \w+: (?:AppIntent|UndoableIntent|SnippetIntent) \{(.*?)(?=\n(?:struct|enum|private struct)|\Z)', file.read_text(), re.S):
+        title = re.search(r'static let title: LocalizedStringResource = "([^"]+)"', body)
+        if title and 'static let isDiscoverable = false' not in body:
+            intents.append(title[1])
+shortcuts = re.findall(r'shortTitle: "([^"]+)"', (source / 'AppIntents.swift').read_text())
+assert len(intents) == len(set(intents)) and intents and shortcuts
+Path(sys.argv[2]).write_text(json.dumps({'intents': sorted(intents), 'shortcuts': sorted(shortcuts)}, indent=2) + '\n')
+PYCATALOG
+fi
 
 # A tiny lifetime wrapper around the existing demo API, not a UI/capture tool.
 # startDemo owns its server child PID, fixture listener and temporary database.
@@ -126,43 +155,19 @@ if [ -n "$vm" ]; then
     done
     tart exec "$vm_clone" true
     status=0
-    tart exec "$vm_clone" /bin/bash -c "
-        set -u
-        shared='/Volumes/My Shared Files'
-        rm -rf '$guest_run' && mkdir -p '$guest_run'
-        for item in light dark products; do ditto \"\$shared/run/\$item\" '$guest_run'/\$item; done
-        PODLIST_TEST_DEMO_NOW=\$(node -e 'console.log(Date.now())') node \"\$shared/run/demo.mjs\" \\
-            \"\$shared/repo/packages/web/ui-flows/demo.mjs\" '$guest_run/origin' > '$guest_run/demo.log' 2>&1 &
-        demo=\$!
-        for i in \$(seq 1 600); do [ -s '$guest_run/origin' ] && break; sleep 0.1; done
-        if [ ! -s '$guest_run/origin' ]; then cat '$guest_run/demo.log'; kill \$demo; exit 1; fi
-        # Login-time banners (App Background Activity) would cover screenshots; let them go.
-        sleep 30
-        cd '$guest_run/products'
-        xctestrun=\$(ls *.xctestrun | head -1)
-        /usr/libexec/PlistBuddy -c \"Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN \$(cat '$guest_run/origin')\" \"\$xctestrun\"
-        xcodebuild test-without-building -xctestrun \"\$xctestrun\" \\
-            -destination 'platform=macOS' -parallel-testing-enabled NO \\
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 600 -maximum-test-execution-time-allowance 900 \\
-            -resultBundlePath '$guest_run/Tour.xcresult'
-        result=\$?
-        kill \$demo 2>/dev/null; wait \$demo 2>/dev/null
-        cp '$guest_run/demo.log' \"\$shared/run/guest-demo.log\"
-        # Diagnostics for a failed run: crash reports and the last minutes of relevant logs.
-        mkdir -p \"\$shared/run/guest-diagnostics\"
-        cp ~/Library/Logs/DiagnosticReports/*PodList* \"\$shared/run/guest-diagnostics/\" 2>/dev/null
-        log show --last 10m --style compact --predicate 'process CONTAINS \"PodList\" OR process == \"testmanagerd\" OR process == \"automationmodetool\" OR subsystem == \"com.apple.dt.xctest\"' \\
-            > \"\$shared/run/guest-diagnostics/log.txt\" 2>&1
-        if [ -d '$guest_run/Tour.xcresult' ]; then ditto '$guest_run/Tour.xcresult' \"\$shared/run/Tour.xcresult\"; fi
-        exit \$result
-    " >> "$out/xcodebuild.log" 2>&1 || status=$?
+    tart exec "$vm_clone" /bin/bash "/Volumes/My Shared Files/repo/apps/apple/scripts/ui-tour-guest.sh" \
+        "$guest_run" "$mode" >> "$out/xcodebuild.log" 2>&1 || status=$?
     if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
     if [ -d "$run/guest-diagnostics" ]; then cp -R "$run/guest-diagnostics" "$out/"; fi
-    if [ -d "$run/Tour.xcresult" ]; then ditto "$run/Tour.xcresult" "$out/Tour.xcresult"; fi
+    for bundle in Tour Shortcuts MCP; do
+        if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$out/$bundle.xcresult"; fi
+    done
+    if [ -d "$run/system-results" ]; then cp -R "$run/system-results" "$out/"; fi
 else
 # Serial tests share the foreground desktop. Build settings expand in the shared scheme.
 xcodebuild test -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
     -destination "platform=macOS,arch=$(uname -m)" -parallel-testing-enabled NO \
+    -only-testing:PodListUITour/PodListUITour \
     -derivedDataPath "$apple/.build/ui-tour-derived" \
     -resultBundlePath "$out/Tour.xcresult" \
     "PODLIST_UI_RUN_DIRECTORY=$run" "PODLIST_UI_SERVER_ORIGIN=$origin" \
@@ -171,6 +176,44 @@ test_pid=$!
 status=0
 wait "$test_pid" || status=$?
 test_pid=""
+fi
+
+if [ "$mode" = system ]; then
+    export_status=0
+    for bundle in Shortcuts MCP; do
+        if [ -d "$out/$bundle.xcresult" ]; then
+            xcrun xcresulttool export attachments --path "$out/$bundle.xcresult" \
+                --output-path "$out/$bundle-attachments" || export_status=$?
+        else
+            export_status=1
+        fi
+    done
+    python3 - "$out" "$status" "$export_status" <<'PYSUMMARY'
+import json, sys
+from pathlib import Path
+out = Path(sys.argv[1])
+summary = out / 'system-results/mcp-summary.json'
+def attachment_names(bundle):
+    manifest = out / (bundle + '-attachments/manifest.json')
+    if not manifest.exists():
+        return []
+    return [item['suggestedHumanReadableName'] for test in json.loads(manifest.read_text()) for item in test['attachments']]
+shortcuts_names = attachment_names('Shortcuts')
+mcp_names = attachment_names('MCP')
+evidence = any(name.startswith('shortcuts-actions') for name in shortcuts_names) and any(name.startswith('shortcuts-final') and name.endswith('.png') for name in shortcuts_names)
+evidence = evidence and any(name.startswith('mcp-reopened') and name.endswith('.png') for name in mcp_names)
+passed = sys.argv[2:] == ['0', '0'] and evidence and summary.exists() and json.loads(summary.read_text()).get('status') == 'passed'
+(out / 'README.md').write_text('# PodList VM system checks\n\nStatus: ' + ('passed' if passed else 'incomplete') +
+    '.\n\nShortcuts.xcresult: source-derived action discovery and optional App Shortcuts.\n'
+    'MCP.xcresult: bundled stdio client, native Undo, last-window close, same-process reopen and Quit.\n'
+    'Kept screenshots, trees and action names: Shortcuts-attachments/ and MCP-attachments/.\n'
+    'MCP transcript, summary and stderr: system-results/. Build/demo/test logs are retained.\n'
+    'A fresh throwaway Tart clone ran all UI; no host app was launched.\n')
+if not passed:
+    raise SystemExit('VM system checks incomplete; inspect xcresults, attachments and logs')
+PYSUMMARY
+    printf 'System checks exported to %s\n' "$out"
+    exit 0
 fi
 
 # Export kept attachments even after a failed tour, for diagnosis in the main session.
