@@ -116,7 +116,8 @@ if [ -n "$vm" ]; then
     cp -R "$apple/.build/ui-tour-derived/Build/Products/." "$run/products/"
     vm_clone="podlist-ui-run-$run_id"
     tart clone "$vm" "$vm_clone"
-    tart run --no-graphics --dir="run:$run" --dir="repo:$repo:ro" "$vm_clone" > "$out/vm.log" 2>&1 &
+    developer="$(xcode-select -p)"
+    tart run --no-graphics --dir="run:$run" --dir="repo:$repo:ro" --dir="xcode:${developer%/Contents/Developer}:ro" "$vm_clone" > "$out/vm.log" 2>&1 &
     vm_pid=$!
     for ((attempt = 0; attempt < 300; attempt++)); do
         if tart exec "$vm_clone" true >/dev/null 2>&1; then break; fi

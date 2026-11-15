@@ -4,7 +4,7 @@
 #   tart clone ghcr.io/cirruslabs/macos-golden-gate-base:latest podlist-base
 #   apps/apple/scripts/ui-tour-vm-prepare.sh [base-vm] [new-vm]
 #
-# Copies this Mac's Xcode into a clone of the base image, accepts its licence, and lets
+# Points a clone of the base image at this Mac's Xcode (shared read-only), accepts its licence, and lets
 # UI tests enable Automation Mode without a password. That is safe only because the VM is
 # a throwaway test machine; never run the automationmodetool step on a real Mac.
 # Cirrus Labs images use the documented default account admin/admin.
@@ -30,9 +30,9 @@ tart exec "$vm" true
 tart exec "$vm" /bin/bash -c '
 set -euo pipefail
 s() { echo admin | sudo -S -p "" "$@"; }
-# Keep APFS compression: Xcode is ~9 GB uncompressed and the base image has ~12 GB free.
-s ditto --hfsCompression "/Volumes/My Shared Files/xcode" /Applications/Xcode.app
-df -h /
+# The base image has too little free space for a 9 GB Xcode, so the VM uses the host
+# Xcode through a read-only share; every tour run mounts it at the same place.
+s ln -sfn "/Volumes/My Shared Files/xcode" /Applications/Xcode.app
 s xcode-select -s /Applications/Xcode.app
 s xcodebuild -license accept
 s xcodebuild -runFirstLaunch

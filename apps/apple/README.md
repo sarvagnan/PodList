@@ -427,7 +427,7 @@ tart clone ghcr.io/cirruslabs/macos-golden-gate-base:latest podlist-base   # ~32
 apps/apple/scripts/ui-tour-vm-prepare.sh podlist-base podlist-ui
 ```
 
-The prepare script copies this Mac's Xcode into the VM, accepts its licence and lets UI
+The prepare script points the VM at this Mac's Xcode (shared read-only on every run), accepts its licence and lets UI
 tests enable Automation Mode without a password (acceptable in a throwaway test VM only).
 Then each run:
 
