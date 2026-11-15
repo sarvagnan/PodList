@@ -264,8 +264,9 @@ struct PlaylistHeader: SwiftUI.View {
             .pickerStyle(.segmented)
             // System selected-segment colours: the brand tint fails contrast in Dark.
             .tint(nil)
-            .frame(maxWidth: 350)
-            .layoutPriority(1)
+            // Its natural width: a narrower cap lets AppKit redraw it full-width over its
+            // neighbours after a section change (seen on History).
+            .fixedSize()
             Button("Play This Playlist", systemImage: "play.fill", action: play)
                 .fixedSize().disabled(busy)
             Spacer(minLength: 0)
