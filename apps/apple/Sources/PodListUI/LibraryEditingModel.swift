@@ -29,7 +29,7 @@ public enum ViewEdits {
             errors[.minimumLength] = "Minimum length must not exceed Maximum length."
             errors[.maximumLength] = "Maximum length must be at least Minimum length."
         }
-        if let limit = view.limit, limit < 1 { errors[.show] = "Show must be a positive whole number." }
+        if let limit = view.limit, limit < 1 { errors[.show] = "Episodes to Show must be a positive whole number." }
         if case let .lastDays(days) = f.published, days < 1 { errors[.published] = "Published days must be positive." }
         if case let .between(from, to) = f.published, let from, let to, from > to { errors[.published] = "From must be before Through." }
         return errors

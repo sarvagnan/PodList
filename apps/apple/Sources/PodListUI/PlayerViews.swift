@@ -101,8 +101,9 @@ struct PlayerSeek: SwiftUI.View {
 }
 struct SpeedMenu: SwiftUI.View {
     let controller: PlaybackController?
+    var menuBar = false
     var body: some SwiftUI.View {
-        Menu("Speed \((controller?.display?.speed ?? 1).formatted())×") {
+        Menu(menuBar ? "Playback Speed" : "Speed \((controller?.display?.speed ?? 1).formatted())×") {
             Picker("Speed", selection: Binding(get: { controller?.display?.speed ?? 1 }, set: { controller?.setSpeed($0) })) {
                 ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4], id: \.self) { speed in
                     Text("\(speed.formatted())×").tag(speed)
@@ -113,6 +114,7 @@ struct SpeedMenu: SwiftUI.View {
 }
 struct SleepMenu: SwiftUI.View {
     let controller: PlaybackController?
+    var menuBar = false
     private var label: String {
         switch controller?.display?.sleep {
         case .until: "Sleep · Timer"
@@ -125,7 +127,7 @@ struct SleepMenu: SwiftUI.View {
         Toggle(title, isOn: Binding(get: { selected }, set: { if $0 { action() } }))
     }
     var body: some SwiftUI.View {
-        Menu(label) {
+        Menu(menuBar ? "Sleep Timer" : label) {
             ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { minutes in
                 choice("\(minutes) minutes", selected: timerSelected(minutes)) { controller?.sleepAfter(minutes: Double(minutes)) }
             }

@@ -25,55 +25,71 @@ struct EpisodeActionItems: SwiftUI.View {
     var keyboardShortcuts = false
     var overrides: EpisodeMenuOverrides? = nil
     var body: some SwiftUI.View {
-        Button("Play Now") {
-            if let overrides { overrides.play() } else { Task { await editing?.add(ids, placement: .now) } }
-        }
-        .keyboardShortcut(shortcut(.playNow))
-        Group {
-            Button("Play Next in \(activeName)") { Task { await editing?.add(ids, placement: .next) } }
-                .keyboardShortcut(shortcut(.playNext))
-            Button("Play Last in \(activeName)") { Task { await editing?.add(ids, placement: .last) } }
-                .keyboardShortcut(shortcut(.playLast))
-            ForEach([Placement.now, .next, .last], id: \.rawValue) { placement in
-                Menu(placement == .now ? "Play Now in" : placement == .next ? "Play Next in" : "Play Last in") {
-                    ForEach(library?.state.playlists ?? [], id: \.id) { playlist in
-                        Button(playlist.name) { Task { await editing?.add(ids, to: playlist.id, placement: placement) } }
+        if keyboardShortcuts || !ids.isEmpty || overrides != nil {
+            Button("Play Now") {
+                if let overrides { overrides.play() } else { Task { await editing?.add(ids, placement: .now) } }
+            }
+            .keyboardShortcut(shortcut(.playNow))
+            if keyboardShortcuts || overrides == nil {
+                Group {
+                    Button("Play Next in \(activeName)") { Task { await editing?.add(ids, placement: .next) } }
+                        .keyboardShortcut(shortcut(.playNext))
+                    Button("Play Last in \(activeName)") { Task { await editing?.add(ids, placement: .last) } }
+                        .keyboardShortcut(shortcut(.playLast))
+                    // Keep per-Playlist placement menus in the menu bar. Contexts
+                    // retain the common active-Playlist actions and the chooser.
+                    if keyboardShortcuts {
+                        ForEach([Placement.now, .next, .last], id: \.rawValue) { placement in
+                            Menu(placement == .now ? "Play Now in" : placement == .next ? "Play Next in" : "Play Last in") {
+                                ForEach(library?.state.playlists ?? [], id: \.id) { playlist in
+                                    Button(playlist.name) { Task { await editing?.add(ids, to: playlist.id, placement: placement) } }
+                                }
+                                Divider()
+                                Button("New Playlist…") { presentation?.sheet = .add(ids, true) }
+                            }
+                        }
+                    }
+                }.disabled(ids.isEmpty || overrides != nil)
+            }
+            Button("Add to a Playlist…") {
+                if let overrides { overrides.add() } else { presentation?.sheet = .add(ids, false) }
+            }
+                .keyboardShortcut(shortcut(.addToPlaylist))
+            if keyboardShortcuts || overrides == nil {
+                Group {
+                    if keyboardShortcuts || !memberships.isEmpty {
+                        Menu("Resume in Playlist") {
+                            ForEach(memberships, id: \.id) { membership in
+                                Button(membership.name) {
+                                    guard let id = ids.first else { return }
+                                    Task { await EpisodePlaybackAction.resume(episodeID: id, playlistID: membership.id, app: app) }
+                                }
+                            }
+                        }.disabled(memberships.isEmpty)
+                    }
+                    if keyboardShortcuts || !chapters.isEmpty {
+                        Menu("Play Chapter") {
+                            ForEach(chapters.enumerated(), id: \.element.start) { index, chapter in
+                                Button(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title) {
+                                    guard let id = ids.first else { return }
+                                    Task { await EpisodePlaybackAction.chapter(chapter.start, episodeID: id, app: app) }
+                                }
+                            }
+                        }.disabled(chapters.isEmpty)
                     }
                     Divider()
-                    Button("New Playlist…") { presentation?.sheet = .add(ids, true) }
-                }
+                    EpisodeDownloadItems(ids: ids, app: app, keyboardShortcuts: keyboardShortcuts)
+                    if keyboardShortcuts || shareURL != nil {
+                        ShareLink(items: shareURL.map { [$0] } ?? []) { Text("Share Episode…") }.disabled(shareURL == nil)
+                        Button("Copy Link") { if let shareURL { ShareLinks.copy(shareURL) } }.disabled(shareURL == nil)
+                    }
+                    Button(actionLabels.star) { Task { await editing?.setStar(ids, starred: !allStarred) } }
+                        .keyboardShortcut(shortcut(.star))
+                    Button(actionLabels.played) { Task { await editing?.markPlayed(ids, played: !allPlayed) } }
+                        .keyboardShortcut(shortcut(.played))
+                }.disabled(ids.isEmpty || overrides != nil)
             }
-        }.disabled(ids.isEmpty || overrides != nil)
-        Button("Add to a Playlist…") {
-            if let overrides { overrides.add() } else { presentation?.sheet = .add(ids, false) }
         }
-            .keyboardShortcut(shortcut(.addToPlaylist))
-        Group {
-            Menu("Resume in Playlist") {
-                ForEach(memberships, id: \.id) { membership in
-                    Button(membership.name) {
-                        guard let id = ids.first else { return }
-                        Task { await EpisodePlaybackAction.resume(episodeID: id, playlistID: membership.id, app: app) }
-                    }
-                }
-            }.disabled(memberships.isEmpty)
-            Menu("Play Chapter") {
-                ForEach(chapters.enumerated(), id: \.element.start) { index, chapter in
-                    Button(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title) {
-                        guard let id = ids.first else { return }
-                        Task { await EpisodePlaybackAction.chapter(chapter.start, episodeID: id, app: app) }
-                    }
-                }
-            }.disabled(chapters.isEmpty)
-            Divider()
-            EpisodeDownloadItems(ids: ids, app: app, keyboardShortcuts: keyboardShortcuts)
-            ShareLink(items: shareURL.map { [$0] } ?? []) { Text("Share Episode…") }.disabled(shareURL == nil)
-            Button("Copy Link") { if let shareURL { ShareLinks.copy(shareURL) } }.disabled(shareURL == nil)
-            Button(actionLabels.star) { Task { await editing?.setStar(ids, starred: !allStarred) } }
-                .keyboardShortcut(shortcut(.star))
-            Button(actionLabels.played) { Task { await editing?.markPlayed(ids, played: !allPlayed) } }
-                .keyboardShortcut(shortcut(.played))
-        }.disabled(ids.isEmpty || overrides != nil)
     }
     private var chapters: [Chapter] {
         guard ids.count == 1, let id = ids.first else { return [] }

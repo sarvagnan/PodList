@@ -31,6 +31,16 @@ private struct RGB {
     }
 }
 
+// Selection fills are deliberately separate from the pale identity foregrounds.
+private let multicolorSelectionVariants = ["false-false": 0x2B50C8, "true-false": 0x3652D0,
+                                           "false-true": 0x193A9B, "true-true": 0x2B43BA]
+private var multicolorSelectionColors: [NSColor] {
+    multicolorSelectionVariants.values.map {
+        let rgb = RGB($0)
+        return NSColor(srgbRed: rgb.r, green: rgb.g, blue: rgb.b, alpha: 1)
+    }
+}
+
 @Test @MainActor func identityBrandTracksTheDrawingAppearance() {
     // AppKit's accessibility appearance names are bestMatch targets, not a way
     // to force Increase Contrast with NSAppearance(named:). Check the provider
@@ -59,7 +69,7 @@ private struct RGB {
     for name in [NSAppearance.Name.darkAqua, .accessibilityHighContrastDarkAqua] {
         NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
             let accent = RGB(MacBrandPalette.color(for: name), over: RGB(0))
-            #expect(accent.contrast(RGB(0xFFFFFF)) >= 1.6, "Dark accent must remain distinct from white primary text")
+            #expect(accent.contrast(RGB(0xFFFFFF)) >= 1.6, "Dark identity foreground must remain distinct from white primary text")
             for (label, hex) in documentedSurfaces {
                 #expect(accent.contrast(RGB(hex)) >= 4.5, "\(name.rawValue): \(label)")
             }
@@ -260,7 +270,7 @@ private struct RGB {
         let colors: [NSColor] = [.systemBlue, .systemPurple, .systemPink, .systemRed,
             .systemOrange, .systemYellow, .systemGreen, .systemGray]
             + [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua,
-               .accessibilityHighContrastDarkAqua].map { MacBrandPalette.color(for: $0) }
+               .accessibilityHighContrastDarkAqua].map { MacBrandPalette.color(for: $0) } + multicolorSelectionColors
         for color in colors {
             let accent = Color(nsColor: color)
             for hasDefaultShortcut in [true, false] {
@@ -317,7 +327,7 @@ private struct RGB {
             let accents: [NSColor] = [.systemBlue, .systemPurple, .systemPink, .systemRed,
                 .systemOrange, .systemYellow, .systemGreen, .systemGray, .black, .white]
                 + [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua,
-                   .accessibilityHighContrastDarkAqua].map { MacBrandPalette.color(for: $0) }
+                   .accessibilityHighContrastDarkAqua].map { MacBrandPalette.color(for: $0) } + multicolorSelectionColors
             let surfaces: [NSColor] = [.windowBackgroundColor, .underPageBackgroundColor,
                                       .unemphasizedSelectedContentBackgroundColor]
             var minimum = Double.infinity
@@ -381,8 +391,12 @@ private struct RGB {
         let hex = try channel("red") << 16 | channel("green") << 8 | channel("blue")
         variants["\(dark)-\(high)"] = hex
     }
-    #expect(variants == ["false-false": 0x2B50C8, "true-false": 0x9DB1FF,
-                         "false-true": 0x193A9B, "true-true": 0xB2C1FF])
+    #expect(variants == multicolorSelectionVariants)
+    for (variant, hex) in variants {
+        let ratio = RGB(hex).contrast(RGB(0xFFFFFF))
+        #expect(ratio >= 4.5, "White selected text on \(variant) AccentColor")
+        print(String(format: "Selection %@ #%06X: white %.2f:1", variant, hex, ratio))
+    }
 }
 
 @Test @MainActor func roundTwoErrorsAndSecondaryTextMeetContrastInBothAppearances() {

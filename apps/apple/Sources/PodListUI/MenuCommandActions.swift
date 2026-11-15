@@ -12,7 +12,7 @@ enum MenuAction: String, CaseIterable {
     case refresh = "Refresh Library", showImport = "Show Import Results", retryImport = "Retry Failed Imports"
     case importSelection = "Import", chooseFile = "Choose a File…", cancelImport = "Cancel Import"
     case connect = "Check and Connect", standalone = "Start on This Mac", disconnect = "Disconnect"
-    case offerBringOver = "Bring Library from this Mac…", retryBringOver = "Retry Bring Over"
+    case offerBringOver = "Bring Library from This Mac…", retryBringOver = "Retry Bring Over"
     case clearSearch = "Clear Search", backToLibrary = "Back to Library", dismissTutorial = "Dismiss Getting Started"
     case createViewFromSearch = "Create View from Search…", searchPodcasts = "Search Podcasts"
     case retry = "Retry", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
@@ -107,7 +107,7 @@ public struct AdditionalMenuCommands: Commands {
                 Picker("Column", selection: Binding(get: { sort?.wrappedValue.first?.column }, set: { column in
                     sort?.wrappedValue = column.map { [.init(column: $0, reversed: sort?.wrappedValue.first?.reversed ?? false)] } ?? []
                 })) {
-                    Text("Default order").tag(Optional<WindowSort.Column>.none)
+                    Text("Default Order").tag(Optional<WindowSort.Column>.none)
                     Text("Title").tag(Optional(WindowSort.Column.title))
                     Text("Published").tag(Optional(WindowSort.Column.published))
                     Text("Length").tag(Optional(WindowSort.Column.length))

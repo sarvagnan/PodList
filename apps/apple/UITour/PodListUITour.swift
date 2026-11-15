@@ -148,7 +148,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.sheets.staticTexts["Enter a View name."].exists)
         XCTAssertFalse(library.sheets.buttons["Create View"].isEnabled)
         XCTAssertFalse(library.sheets.buttons["Done"].exists)
-        for label in ["Mentions (Optional)", "Minimum length (Optional)", "Maximum length (Optional)", "Show (Optional)"] {
+        for label in ["Mentions (Optional)", "Minimum length (Optional)", "Maximum length (Optional)", "Episodes to Show (Optional)"] {
             XCTAssertTrue(library.sheets.staticTexts[label].exists)
         }
         try capture("17-new-view", expectsSheet: true)
@@ -282,7 +282,7 @@ final class PodListUITour: XCTestCase {
         try ready(button("Disconnect", in: settings))
         try capture("29-settings-general-bottom", in: settings)
         try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
-        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP server", "Enable MCP server")).firstMatch
+        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
         try capture("30-settings-automation", in: settings)
@@ -545,15 +545,15 @@ final class PodListUITour: XCTestCase {
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [
-            "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from this Mac…"],
+            "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Show Import Results"],
             "Edit": ["Search Library", "Clear Search"],
-            "View": ["Sort by", "Descending", "Listening Stats", "Show Daily Table"],
+            "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
             "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist"],
             "Playlist": ["Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
-            "Controls": ["Go to Time…", "Back to Now Playing", "Go to Chapter"],
+            "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter"],
             "Window": ["Now Playing", "Listening Stats"],
             "Help": ["PodList Help", "Getting Started"]
         ]

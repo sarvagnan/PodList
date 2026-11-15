@@ -109,7 +109,7 @@ struct MacReadingSortControl: SwiftUI.View {
         Picker("Sort by", selection: Binding(get: { sort.first?.column }, set: { column in
             sort = column.map { [.init(column: $0, reversed: sort.first?.reversed ?? false)] } ?? []
         })) {
-            Text("Default order").tag(Optional<WindowSort.Column>.none)
+            Text("Default Order").tag(Optional<WindowSort.Column>.none)
             Text("Title").tag(Optional(WindowSort.Column.title))
             Text("Published").tag(Optional(WindowSort.Column.published))
             Text("Length").tag(Optional(WindowSort.Column.length))

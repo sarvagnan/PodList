@@ -54,7 +54,7 @@ extension SwiftUI.View {
 }
 
 /// Native chrome and keyboard behavior, with a contrast-safe enabled label.
-/// Native white default labels are unreadable on the pale Multicolor Dark accent.
+/// User-chosen pale system accents can make native white default labels unreadable.
 struct MacDefaultButtonStyle: PrimitiveButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some SwiftUI.View {

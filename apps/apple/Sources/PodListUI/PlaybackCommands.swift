@@ -45,8 +45,8 @@ public struct PlaybackCommands: Commands {
             Button("Stop") { if !PlaybackKeyboardGuard.sheetIsKey { app.playback?.stop() } }
                 .keyboardShortcut(".", modifiers: .command).disabled(app.playback?.display == nil || PlaybackKeyboardGuard.sheetIsKey)
             Divider()
-            SpeedMenu(controller: app.playback).disabled(app.playback?.display == nil)
-            SleepMenu(controller: app.playback).disabled(app.playback?.display == nil)
+            SpeedMenu(controller: app.playback, menuBar: true).disabled(app.playback?.display == nil)
+            SleepMenu(controller: app.playback, menuBar: true).disabled(app.playback?.display == nil)
             Button("Previous Chapter") { app.playback?.chapter(-1) }
                 .keyboardShortcut(PodListShortcut.previousChapter.shortcut).disabled(app.playback?.display?.chapters.isEmpty != false)
             Button("Next Chapter") { app.playback?.chapter(1) }

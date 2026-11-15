@@ -340,8 +340,8 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 Section {
                     Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle())
                     overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
-                    overrideNumber("Skip Intro (seconds)", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120])
-                    overrideNumber("Skip Outro (seconds)", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120])
+                    overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                    overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                     Picker("Volume Boost", selection: $draft.overrides.volumeBoost) {
                         Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
                     }
@@ -358,11 +358,11 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
         .focusedSceneValue(\.podListPodcast, PodcastCommandContext(subscribed: true,
             markAllPlayed: !saving && !editor.edits.busy ? { draft.markAllPlayed = true } : nil))
     }
-    private func overrideNumber(_ name: String, path: WritableKeyPath<PlaybackSettingsOverride, Double?>, choices: [Double]) -> some SwiftUI.View {
+    private func overrideNumber(_ name: String, path: WritableKeyPath<PlaybackSettingsOverride, Double?>, choices: [Double], seconds: Bool = false) -> some SwiftUI.View {
         Picker(name, selection: Binding(get: { draft.overrides[keyPath: path] }, set: { draft.overrides[keyPath: path] = $0 })) {
             Text("Default").tag(nil as Double?)
-            ForEach(choices, id: \.self) { Text($0.formatted()).tag(Optional($0)) }
-            if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(current.formatted()).tag(Optional(current)) }
+            ForEach(choices, id: \.self) { Text(seconds ? CountText.seconds($0) : $0.formatted()).tag(Optional($0)) }
+            if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(seconds ? CountText.seconds(current) : current.formatted()).tag(Optional(current)) }
         }
     }
     private func save() {

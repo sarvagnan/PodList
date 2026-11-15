@@ -5,6 +5,7 @@ struct OPMLImportContent: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     let choose: () -> Void
     var inSheet = false
+    var showsFileChooser = true
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Closing this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch unless you cancel.").macContentFont(.callout).fixedSize(horizontal: false, vertical: true)
@@ -18,10 +19,10 @@ struct OPMLImportContent: SwiftUI.View {
                 }
                 if !inSheet { HStack {
                     Button("Import") { editor.startImport() }.keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
-                    Button("Choose a Different File…", action: choose)
+                    if showsFileChooser { Button("Choose a Different File…", action: choose) }
                     Button("Cancel", action: cancelImport)
                 } }
-            } else if !editor.busy { Button("Choose a File…", action: choose) }
+            } else if !editor.busy && showsFileChooser { Button("Choose a File…", action: choose) }
             if editor.busy { OPMLImportProgress(editor: editor) }
             if !editor.importFeeds.isEmpty {
                 ScrollView {

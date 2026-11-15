@@ -380,17 +380,21 @@ public struct PodListWindow: SwiftUI.View {
                 Button("Play") { Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) } }
                     .disabled(editing.busy)
                 Button("Playlist Settings…") { playlistPresentation.sheet = .settings(id) }
-                Button("Rename…") {
-                    if PlaylistRenameAction.prepare(playlist, editing: editing) { playlistPresentation.sheet = .settings(id) }
-                }.disabled(playlist.isDefault || editing.busy)
+                if !playlist.isDefault {
+                    Button("Rename…") {
+                        if PlaylistRenameAction.prepare(playlist, editing: editing) { playlistPresentation.sheet = .settings(id) }
+                    }.disabled(editing.busy)
+                }
                 Toggle("Clear on Played", isOn: Binding(get: {
                     app.library?.state.playlists.first { $0.id == id }?.clearOnPlayed ?? playlist.clearOnPlayed
                 }, set: { value in
                     Task { await editing.edit([.setClearOnPlayed(playlistId: id, clearOnPlayed: value)], name: "Clear on Played") }
                 })).disabled(editing.busy)
-                Divider()
-                Button("Delete Playlist", role: .destructive) { Task { await editing.delete(playlist) } }
-                    .disabled(playlist.isDefault || editing.busy)
+                if !playlist.isDefault {
+                    Divider()
+                    Button("Delete Playlist", role: .destructive) { Task { await editing.delete(playlist) } }
+                        .disabled(editing.busy)
+                }
             }
         case let .view(id):
             Button("Open in New Window") { openDestinationInNewWindow(destination) }
@@ -410,13 +414,13 @@ public struct PodListWindow: SwiftUI.View {
 
     @ViewBuilder private func subscriptionActions(_ library: LibraryModel, ids: Set<String>) -> some SwiftUI.View {
         let commands = subscriptionCommands(library, selection: ids)
-        Button("Open") { commands.open?() }.disabled(commands.open == nil)
-        Button("Unsubscribe") { commands.subscriptionAction?() }.disabled(commands.subscriptionAction == nil)
-        Button("Subscription Settings…") { commands.settings?() }.disabled(commands.settings == nil)
-        Button("Edit Download Rules…") { commands.downloadRules?() }.disabled(commands.downloadRules == nil)
-        Divider()
-        Button("Copy Feed Address") { if let url = commands.feedURL { ShareLinks.copy(url) } }.disabled(commands.feedURL == nil)
-        ShareLink(items: commands.shareURL.map { [$0] } ?? []) { Text("Share Podcast…") }.disabled(commands.shareURL == nil)
+        if let open = commands.open { Button("Open", action: open) }
+        if let unsubscribe = commands.subscriptionAction { Button("Unsubscribe", action: unsubscribe) }
+        if let settings = commands.settings { Button("Subscription Settings…", action: settings) }
+        if let downloadRules = commands.downloadRules { Button("Edit Download Rules…", action: downloadRules) }
+        if commands.feedURL != nil || commands.shareURL != nil { Divider() }
+        if let url = commands.feedURL { Button("Copy Feed Address") { ShareLinks.copy(url) } }
+        if let url = commands.shareURL { ShareLink(item: url) { Text("Share Podcast…") } }
     }
 
     private func selectedSubscription(_ library: LibraryModel, selection: Set<String>? = nil) -> Subscription? {

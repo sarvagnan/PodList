@@ -184,15 +184,12 @@ struct InspectorActions: SwiftUI.View {
                     icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { Task { await editing.setStar([row.id], starred: !starred) } }
                     icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { Task { await editing.markPlayed([row.id], played: !played) } }
                     DownloadIcon(id: row.id, app: app)
-                    Menu {
-                        if let url = library.episodeShareURL(row.id) {
-                            ShareLink(item: url) { Text("Share Episode…") }
-                            Button("Copy Link") { ShareLinks.copy(url) }
-                        }
-                    } label: { Image(systemName: "square.and.arrow.up").frame(width: 28, height: 28) }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .help("Share Episode or Copy Link").accessibilityLabel("Share Episode: \(row.title)")
-                    .disabled(library.episodeShareURL(row.id) == nil)
+                    if let url = library.episodeShareURL(row.id) {
+                        ShareLink(item: url) {
+                            Image(systemName: "square.and.arrow.up").frame(width: 28, height: 28)
+                        }.buttonStyle(.borderless)
+                            .help("Share Episode").accessibilityLabel("Share Episode: \(row.title)")
+                    }
                 }.padding(8).macGlassSurface()
             }.frame(maxWidth: .infinity).foregroundStyle(.primary).tint(.primary).disabled(editing.busy)
         }
