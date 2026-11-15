@@ -475,7 +475,7 @@ final class PodListUITour: XCTestCase {
 
     private func menuCommand(_ menu: String, _ command: String) throws {
         try click(app.menuBars.menuBarItems[menu])
-        try click(app.menuItems[command])
+        try click(app.menuBars.menuBarItems[menu].menuItems[command].firstMatch)
     }
 
     private func captureMenus() throws {
