@@ -143,6 +143,7 @@ if [ -n "$vm" ]; then
         /usr/libexec/PlistBuddy -c \"Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN \$(cat '$guest_run/origin')\" \"\$xctestrun\"
         xcodebuild test-without-building -xctestrun \"\$xctestrun\" \\
             -destination 'platform=macOS' -parallel-testing-enabled NO \\
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 600 -maximum-test-execution-time-allowance 900 \\
             -resultBundlePath '$guest_run/Tour.xcresult'
         result=\$?
         kill \$demo 2>/dev/null; wait \$demo 2>/dev/null
