@@ -7,6 +7,10 @@ import PodListUI
 @MainActor
 enum AutomationRuntime {
     static var app: ApplicationModel?
+    static func performUndoable(_ name: String, _ arguments: JSONValue = [:], undoManager: UndoManager?) async throws -> JSONValue {
+        guard let app else { throw AutomationFailure("Open PodList and retry.") }
+        return try await app.actions.performUndoable(name, arguments: arguments, undoManager: undoManager)
+    }
     static func perform(_ name: String, _ arguments: JSONValue = [:]) async throws -> JSONValue {
         guard let app else { throw AutomationFailure("Open PodList and retry.") }
         return try await app.actions.perform(name, arguments: arguments)
@@ -98,16 +102,29 @@ struct PlaybackIntent: AppIntent {
     static let title: LocalizedStringResource = "Control Playback"
     static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Action") var action: TransportAction
-    @MainActor func perform() async throws -> some IntentResult & ReturnsValue<String> {
-        .result(value: try await AutomationRuntime.perform(action.action).text())
+    @MainActor func perform() async throws -> some IntentResult & ReturnsValue<String> & ShowsSnippetIntent {
+        .result(value: try await AutomationRuntime.perform(action.action).text(), snippetIntent: NowPlayingSnippetIntent())
     }
 }
-struct PlayEpisodeIntent: AppIntent {
+struct PlayEpisodeIntent: UndoableIntent {
     static let title: LocalizedStringResource = "Play Episode Now"
     static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Episode") var episode: EpisodeEntity
+    @Parameter(title: "Playlist") var playlist: PlaylistEntity?
     @MainActor func perform() async throws -> some IntentResult {
-        _ = try await AutomationRuntime.perform("play_episode", ["episode_id": .string(episode.id)]); return .result()
+        var args: [String: JSONValue] = ["episode_id": .string(episode.id)]
+        if let playlist { args["playlist_id"] = .string(playlist.id) }
+        _ = try await AutomationRuntime.performUndoable("play_episode", .object(args), undoManager: undoManager); return .result()
+    }
+}
+struct PlayInPlaylistIntent: UndoableIntent {
+    static let title: LocalizedStringResource = "Play Episode in Playlist"
+    static let supportedModes: IntentModes = .foreground
+    @Parameter(title: "Episode") var episode: EpisodeEntity
+    @Parameter(title: "Playlist") var playlist: PlaylistEntity
+    @MainActor func perform() async throws -> some IntentResult {
+        _ = try await AutomationRuntime.performUndoable("play_in_playlist", ["episode_id": .string(episode.id), "playlist_id": .string(playlist.id)], undoManager: undoManager)
+        return .result()
     }
 }
 enum AddPlacement: String, AppEnum {
@@ -115,7 +132,7 @@ enum AddPlacement: String, AppEnum {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Placement"
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [.next: "Play Next", .last: "Play Last"]
 }
-struct AddEpisodesIntent: AppIntent {
+struct AddEpisodesIntent: UndoableIntent {
     static let title: LocalizedStringResource = "Add Episodes to Playlist"
     static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Episodes") var episodes: [EpisodeEntity]
@@ -124,16 +141,16 @@ struct AddEpisodesIntent: AppIntent {
     @MainActor func perform() async throws -> some IntentResult {
         var args: [String: JSONValue] = ["episode_ids": .array(episodes.map { .string($0.id) }), "placement": .string(placement.rawValue)]
         if let playlist { args["playlist_id"] = .string(playlist.id) }
-        _ = try await AutomationRuntime.perform("add_episodes", .object(args)); return .result()
+        _ = try await AutomationRuntime.performUndoable("add_episodes", .object(args), undoManager: undoManager); return .result()
     }
 }
-struct AddCurrentIntent: AppIntent {
+struct AddCurrentIntent: UndoableIntent {
     static let title: LocalizedStringResource = "Add Current Episode to Playlist"
     static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Playlist") var playlist: PlaylistEntity?
     @MainActor func perform() async throws -> some IntentResult {
         let args: JSONValue = playlist.map { ["playlist_id": .string($0.id)] } ?? [:]
-        _ = try await AutomationRuntime.perform("add_current", args); return .result()
+        _ = try await AutomationRuntime.performUndoable("add_current", args, undoManager: undoManager); return .result()
     }
 }
 enum EpisodeMark: String, AppEnum {
@@ -141,7 +158,7 @@ enum EpisodeMark: String, AppEnum {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Episode mark"
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [.star: "Star", .unstar: "Unstar", .played: "Mark Played", .unplayed: "Mark Unplayed"]
 }
-struct MarkEpisodesIntent: AppIntent {
+struct MarkEpisodesIntent: UndoableIntent {
     static let title: LocalizedStringResource = "Mark Episodes"
     static let supportedModes: IntentModes = .foreground
     @Parameter(title: "Episodes") var episodes: [EpisodeEntity]
@@ -150,7 +167,7 @@ struct MarkEpisodesIntent: AppIntent {
         let star = mark == .star || mark == .unstar
         var args: [String: JSONValue] = ["episode_ids": .array(episodes.map { .string($0.id) })]
         args[star ? "starred" : "played"] = .bool(mark == .star || mark == .played)
-        _ = try await AutomationRuntime.perform(star ? "set_starred" : "set_played", .object(args)); return .result()
+        _ = try await AutomationRuntime.performUndoable(star ? "set_starred" : "set_played", .object(args), undoManager: undoManager); return .result()
     }
 }
 struct SearchEpisodesIntent: AppIntent {
@@ -187,6 +204,7 @@ struct PodListShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: PlayIntent(), phrases: ["Play my \(.applicationName) Playlist"], shortTitle: "Play", systemImageName: "play.fill")
         AppShortcut(intent: PauseIntent(), phrases: ["Pause \(.applicationName)"], shortTitle: "Pause", systemImageName: "pause.fill")
+        AppShortcut(intent: NowPlayingIntent(), phrases: ["What's playing in \(.applicationName)"], shortTitle: "Now Playing", systemImageName: "waveform")
         AppShortcut(intent: AddCurrentIntent(), phrases: ["Add the current Episode in \(.applicationName) to a Playlist"], shortTitle: "Add Current Episode", systemImageName: "text.badge.plus")
     }
 }

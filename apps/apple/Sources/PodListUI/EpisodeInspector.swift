@@ -136,31 +136,33 @@ struct InspectorActions: SwiftUI.View {
     private var played: Bool { library.state.episodeStates[row.id]?.played != nil }
     private var playing: Bool { app.playback?.display?.episodeID == row.id && app.playback?.wantsPlayback == true }
     var body: some SwiftUI.View {
-        VStack(spacing: 10) {
-            Button {
-                if playing { app.playback?.pause() }
-                else { Task { if await editing.add([row.id], placement: .now) != nil { startedPlayback() } } }
-            } label: {
-                Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(Color.podListOnAccent).frame(width: 44, height: 44).background(Color.podListAccent, in: Circle())
-            }.buttonStyle(.plain).help(playing ? "Pause (playing)" : "Play Now (not playing)")
-                .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
-            HStack(spacing: 8) {
-                icon("Add to a Playlist", symbol: "text.badge.plus") { presentation.sheet = .add([row.id], false) }
-                icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { Task { await editing.setStar([row.id], starred: !starred) } }
-                icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { Task { await editing.markPlayed([row.id], played: !played) } }
-                DownloadIcon(id: row.id, app: app)
-                Menu {
-                    if let url = library.episodeShareURL(row.id) {
-                        ShareLink(item: url) { Text("Share Episode…") }
-                        Button("Copy Link") { ShareLinks.copy(url) }
-                    }
-                } label: { Image(systemName: "square.and.arrow.up").frame(width: 28, height: 28) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .help("Share Episode or Copy Link").accessibilityLabel("Share Episode: \(row.title)")
-                .disabled(library.episodeShareURL(row.id) == nil)
-            }
-        }.frame(maxWidth: .infinity).disabled(editing.busy)
+        GlassEffectContainer(spacing: 8) {
+            VStack(spacing: 10) {
+                Button {
+                    if playing { app.playback?.pause() }
+                    else { Task { if await editing.add([row.id], placement: .now) != nil { startedPlayback() } } }
+                } label: {
+                    Image(systemName: playing ? "pause.fill" : "play.fill").macContentFont(.title3.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play Now (not playing)")
+                    .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
+                HStack(spacing: 8) {
+                    icon("Add to a Playlist", symbol: "text.badge.plus") { presentation.sheet = .add([row.id], false) }
+                    icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { Task { await editing.setStar([row.id], starred: !starred) } }
+                    icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { Task { await editing.markPlayed([row.id], played: !played) } }
+                    DownloadIcon(id: row.id, app: app)
+                    Menu {
+                        if let url = library.episodeShareURL(row.id) {
+                            ShareLink(item: url) { Text("Share Episode…") }
+                            Button("Copy Link") { ShareLinks.copy(url) }
+                        }
+                    } label: { Image(systemName: "square.and.arrow.up").frame(width: 28, height: 28) }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .help("Share Episode or Copy Link").accessibilityLabel("Share Episode: \(row.title)")
+                    .disabled(library.episodeShareURL(row.id) == nil)
+                }.padding(8).macGlassSurface()
+            }.frame(maxWidth: .infinity).foregroundStyle(.primary).tint(.primary).disabled(editing.busy)
+        }
     }
     private func icon(_ name: String, state: String? = nil, symbol: String, action: @escaping () -> Void) -> some SwiftUI.View {
         Button(action: action) { Image(systemName: symbol).frame(width: 28, height: 28) }

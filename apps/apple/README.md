@@ -293,6 +293,26 @@ appear in Edit > Undo with the same names as UI edits. Playback goes through
 PlaybackController. Both work with a Standalone Device or the current server Library.
 There are no connection changes, Empty Trash, Delete Playlist or Unsubscribe tools.
 
+The editing intents conform to `UndoableIntent`: Play Episode Now, Play Episode in
+Playlist, Add Episodes, Add Current Episode and Mark Episodes (Star/Unstar and
+Played/Unplayed). Their system Undo registrations reference the same named history
+steps used by Edit > Undo/Redo; no separate inverse history is kept. A stale system
+Undo cannot reverse an unrelated newer menu edit.
+
+Successful user actions donate matching App Intents from the shared editing and
+transport paths, including menus, toolbar, context menus, drag/drop and automation.
+Playback started internally by a Play Now edit does not donate a second Play action;
+Undo/Redo, refreshes and automatic playback do not donate. Donations are best effort
+and disabled when the bundle id starts with `app.podlist.uitour.` **or** the environment
+contains `PODLIST_UI_DATA_DIRECTORY` (including an empty value).
+
+**Show Now Playing** returns an interactive Siri/Shortcuts snippet with the current
+Episode title, podcast and Position, plus Play/Pause, Back 15 seconds and Forward
+30 seconds buttons. Each render reads live playback state; intent-backed controls
+refresh the snippet after the action. An empty Playlist shows a no-current-Episode
+message. Control Playback also returns this snippet alongside its JSON result.
+No entities are indexed in Spotlight.
+
 ### Connect an MCP client
 
 Build the bridge from this directory, using the module-cache environment above:
@@ -353,9 +373,9 @@ Add defaults to the Active Playlist and Play Last; choose `placement: "next"` fo
 
 ### Make App Intents visible
 
-The executable declares nine App Intents, Episode and Playlist App Entities with queries,
-and three App Shortcuts: Play, Pause and Add Current Episode. The other intents cover
-transport controls and Now Playing, Play Episode Now, Add Episodes with Next/Last,
+The executable declares App Intents, Episode and Playlist App Entities with queries,
+and four App Shortcuts: Play, Pause, Now Playing and Add Current Episode. The other intents cover
+transport controls and Now Playing, Play Episode Now and in a Playlist, Add Episodes with Next/Last,
 Search, list Views/Playlists/Episodes, Star and Played marks. Intents open PodList and
 use its live session. Add defaults to the Active Playlist when none is supplied.
 Search returns up to 100 Episode entities. List Library returns JSON with counts and ids;

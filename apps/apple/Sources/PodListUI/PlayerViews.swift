@@ -7,21 +7,25 @@ struct PlayerBar: SwiftUI.View {
     let library: LibraryModel
     let openPlaylist: () -> Void
     let openNowPlaying: () -> Void
+    @Environment(\.macTextScale) private var textScale
     var body: some SwiftUI.View {
         if let value = controller.metadata {
             VStack(spacing: 0) {
-                Divider()
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 18) { transport(value); middle(value).frame(minWidth: 220, maxWidth: .infinity); extras }
+                    HStack(spacing: 18) { transport(value); middle(value).frame(minWidth: 220 * textScale, maxWidth: .infinity); extras }
                     VStack(spacing: 10) {
                         HStack(spacing: 14) { transport(value); middle(value) }
                         extras.frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }.padding(.horizontal, 18).padding(.vertical, 14).frame(minHeight: 92)
                 if let error = controller.error {
-                    FailureFeedback(message: error) { controller.play() }.font(.caption).padding(.bottom, 8)
+                    FailureFeedback(message: error, onGlass: true) { controller.play() }.macContentFont(.caption).padding(.bottom, 8)
                 }
-            }.background(.bar).accessibilityElement(children: .contain).accessibilityLabel("Player")
+            }
+            .macContentFont(.body)
+            .macGlassSurface()
+            .padding(8)
+            .accessibilityElement(children: .contain).accessibilityLabel("Player")
         }
     }
     private func transport(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {
@@ -33,19 +37,19 @@ struct PlayerBar: SwiftUI.View {
     }
     private func middle(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {
         VStack(alignment: .center, spacing: 5) {
-            Text(value.title).font(.headline).lineLimit(1).help(value.title).frame(maxWidth: .infinity)
-            Text(value.podcast).font(.caption).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity)
+            Text(value.title).macContentFont(.headline).lineLimit(textScale > 1 ? 2 : 1).help(value.title).frame(maxWidth: .infinity)
+            Text(value.podcast).macContentFont(.caption).foregroundStyle(.primary).lineLimit(textScale > 1 ? 2 : 1).frame(maxWidth: .infinity)
             PlayerSeek(controller: controller)
         }.multilineTextAlignment(.center)
     }
     private var extras: some SwiftUI.View {
         HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) { SpeedMenu(controller: controller); SleepMenu(controller: controller) }.font(.caption)
+            VStack(alignment: .leading, spacing: 4) { SpeedMenu(controller: controller); SleepMenu(controller: controller) }.macContentFont(.caption)
             Button(action: openPlaylist) {
                 VStack(alignment: .leading, spacing: 4) {
                     Label(library.player?.playlistName ?? "Active Playlist", systemImage: "music.note.list").lineLimit(1)
-                    Text("\(library.player?.entriesAfter ?? 0) after current").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: 170, alignment: .leading)
+                    Text("\(library.player?.entriesAfter ?? 0) after current").macContentFont(.caption).foregroundStyle(.primary)
+                }.frame(maxWidth: 170 * textScale, alignment: .leading)
             }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist").help("Open Active Playlist")
         }
     }
@@ -90,7 +94,7 @@ struct PlayerSeek: SwiftUI.View {
                     }.frame(height: value.chapters.isEmpty ? 0 : 4).accessibilityHidden(true)
                 }
                 Text(value.duration.map { "−" + Presentation.time(max(0, $0 - (scrubbing ? draft : value.position))) } ?? "—").accessibilityHidden(true)
-            }.font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            }.macContentFont(.caption2).foregroundStyle(.primary).monospacedDigit()
         }
     }
 }
@@ -145,6 +149,10 @@ struct NowPlayingView: SwiftUI.View {
     @State private var presentation = PlaylistPresentation()
     @Environment(\.dismiss) private var dismiss
     var body: some SwiftUI.View {
+        GlassEffectContainer(spacing: 12) { panel }
+            .onChange(of: controller.userPlaybackRevision) { _, _ in detailID = nil }
+    }
+    private var panel: some SwiftUI.View {
         ContentSizedPanel(width: 560) {
             if case let .add(ids, new) = presentation.sheet, let editing = app.editing {
                 AddPlaylistSheet(ids: ids, preferNew: new, app: app, editing: editing, inline: true,
@@ -166,6 +174,7 @@ struct NowPlayingView: SwiftUI.View {
                                 if let chapter = value.chapter { Text(chapter.title).macContentFont(.headline) }
                                 PlayerSeek(controller: controller)
                                 TransportControls(controller: controller).controlSize(.large)
+                                    .padding(12).macGlassSurface()
                                 HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
                                 if let error = controller.error { FailureFeedback(message: error) { controller.play() } }
                                 Button("Episode Details", systemImage: "info.circle") { detailID = value.episodeID }
@@ -197,10 +206,10 @@ struct NowPlayingView: SwiftUI.View {
             }
         } footer: {
             if presentation.sheet == nil {
-                HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }.padding(20)
+                HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
+                    .padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
             }
         }
-        .onChange(of: controller.userPlaybackRevision) { _, _ in detailID = nil }
     }
 }
 #endif

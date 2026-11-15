@@ -141,6 +141,33 @@ private struct RGB {
     }
 }
 
+@Test @MainActor func glassAccessibilityFallbackBlocksTheBackdropAndKeepsTextReadable() {
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            for (reduceTransparency, contrast) in [(true, ColorSchemeContrast.standard), (false, .increased), (true, .increased)] {
+                var firstBackdrop: RGB?
+                for backdrop in [Color.red, .green] {
+                    let renderer = ImageRenderer(content: Color.clear.frame(width: 64, height: 64)
+                        .modifier(MacGlassSurface(cornerRadius: 16, reduceTransparency: reduceTransparency, contrast: contrast))
+                        .background(backdrop)
+                        .environment(\.colorScheme, name == .aqua ? .light : .dark))
+                    guard let image = renderer.cgImage else { Issue.record("No fallback image"); continue }
+                    let bitmap = NSBitmapImageRep(cgImage: image)
+                    guard let center = bitmap.colorAt(x: 32, y: 32) else { Issue.record("No center pixel"); continue }
+                    #expect(center.alphaComponent == 1)
+                    let actual = RGB(center, over: RGB(0))
+                    // Semantic window colors can resolve to a different elevation
+                    // in SwiftUI. Compare pixels across adversarial backdrops instead
+                    // of comparing that composited color to an AppKit color swatch.
+                    if let firstBackdrop { #expect(actual.isClose(to: firstBackdrop)) }
+                    else { firstBackdrop = actual }
+                    #expect(RGB(NSColor.labelColor, over: actual).contrast(actual) >= 4.5)
+                }
+            }
+        }
+    }
+}
+
 @Test @MainActor func appearanceObservesDefaultsForTheApplicationLifetimeAndClearsSystemOverride() async throws {
     let suite = "PodListAppearanceTests-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!

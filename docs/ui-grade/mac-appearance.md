@@ -41,10 +41,12 @@ not a fixed white colour; otherwise it returns the dynamic accent. On the native
 active blue fill, white selection text gives 6.27:1. The accents themselves would
 give 3.04:1 / 3.57:1 there and are intentionally not drawn on that fill.
 
-The player uses SwiftUI's `.bar` material; sheets use system backgrounds. The
-tests cover native window/control baselines, inactive selection and supplied
-tinted samples. Wallpaper-dependent composited pixels still need a real-app
-check.
+The player now uses untinted regular Liquid Glass. Its text, symbols and native
+control tint use semantic primary rather than drawing the brand blue against an
+unknown glass backdrop. Sheets retain system reading backgrounds; only their
+custom control chrome uses glass. The tests cover native window/control
+baselines, inactive selection and supplied tinted samples. Wallpaper-dependent
+composited pixels still need a real-app check.
 
 | Light surface | sRGB background | Light `#2B50C8` | Increase Contrast `#193A9B` |
 | --- | --- | ---: | ---: |
@@ -55,10 +57,10 @@ check.
 Artwork placeholders composite 12% dynamic accent over an opaque native window
 background, so initials cannot inherit a selected-row fill through the tile.
 Initials contrast is 5.67:1 / 8.04:1 in Light / increased Light and 6.40:1 /
-7.33:1 in Dark / increased Dark. Custom accent-filled Play uses white in Light
-and `#111827` in Dark: glyph contrast is 6.81:1 / 9.91:1 and 8.59:1 / 10.11:1,
-respectively. The same foreground is used for Welcome's prominent Connect
-button. Native controls retain their standard styles.
+7.33:1 in Dark / increased Dark. Welcome's prominent Connect button uses white
+in Light and `#111827` in Dark: glyph contrast is 6.81:1 / 9.91:1 and 8.59:1 /
+10.11:1, respectively. Inspector Play now uses a native glass button with a
+semantic primary glyph. Native controls retain their standard styles.
 
 Inspector metadata, download status, labelled values and the empty-state
 description use primary text. The native primary label's alpha is included in
@@ -129,9 +131,60 @@ resolution is exercised for ordinary Aqua and Dark Aqua. Real-window appearance,
 material rendering and live accessibility toggles remain for GUI verification;
 no GUI was launched or driven for this change.
 
-Validation of this revision: the required `swift test --scratch-path .build
+Validation of the accent revision: the required `swift test --scratch-path .build
 --disable-sandbox` command, with both module-cache environment variables set,
 passed all 178 tests (95 UI, 29 domain, 54 data). The full suite ran outside the
 agent sandbox for its local MCP socket tests. `apps/apple/scripts/build-mac-app.sh`
 also passed, including signing and App Intents extraction (9 intents, 2 entities,
 3 shortcuts). The six focused appearance tests passed headlessly in the sandbox.
+
+## Liquid Glass (pod-apx.5.37)
+
+`MacGlass.swift` applies `.glassEffect(.regular, in:)` after each custom control
+surface's padding and layout. The bottom player remains in the bottom safe-area
+inset, with an eight-point margin and one glass surface; its transport buttons
+remain borderless so glass is not stacked inside glass. The Inspector keeps its
+system pane and plain metadata/show notes. Its action strip uses regular glass,
+and its large Play/Pause button uses `.glass` with `.buttonBorderShape(.circle)`.
+`GlassEffectContainer` groups those neighboring effects. Now Playing groups its
+transport surface and pinned Done footer in another `GlassEffectContainer`.
+The View editor's pinned action footer also uses regular glass, with feedback
+kept outside it on the reading surface. Ordinary
+forms and sheet content keep their native backgrounds and controls. No toolbar
+or sidebar background/material overrides suppress the SDK's standard glass.
+
+All custom glass is untinted, with semantic primary text/symbols and control tint.
+Player failures also use primary text on glass, retaining their message and Retry.
+The dynamic brand palette still applies to known content backgrounds, selected
+rows, artwork placeholders and ordinary native controls. Artwork keeps its opaque
+base even inside the player, preserving the measured initials contrast above.
+
+Either Reduce Transparency (`accessibilityReduceTransparency`) or Increase
+Contrast (`colorSchemeContrast == .increased`) switches custom surfaces to an
+opaque native `windowBackgroundColor` with an outline; Increase Contrast gets
+the stronger outline. The Play/Pause glass button switches to the native
+bordered style under either setting. These are live SwiftUI environment values.
+System toolbar, sidebar, sheets and controls retain system accessibility handling.
+`glassAccessibilityFallbackBlocksTheBackdropAndKeepsTextReadable` renders both
+Light and Dark over red and green backdrops, passes each setting separately and
+jointly to the rendering modifier, and checks opaque center pixels and
+primary-text contrast ≥4.5:1. These system environment properties are read-only;
+the test doesn't change the user's settings or simulate their live propagation.
+
+Glass modifiers preserve `macTextScale`; player reading text now uses
+`macContentFont` and inherits the preference instead of resetting it to 100%.
+`glassPlayerBarReflowsAtEnlargedTextSizesWithoutAScreen` renders the actual bar
+at 100% and 200%, at 760- and 1180-point widths.
+No screen is available in this implementation sandbox: regular glass's live
+wallpaper compositing, inactive-window appearance and the native AX tree need
+the existing UI test tour on a GUI host. Existing labels and identifiers are
+preserved in source.
+
+Validation: the required `swift test --scratch-path .build --disable-sandbox`,
+with both module-cache environment variables set, passed all 218 tests
+(135 UI, 29 domain, 54 data). It ran outside the sandbox for the local MCP socket
+and system type-registration tests. `scripts/build-mac-app.sh` from `apps/apple`
+passed, including signing and metadata extraction (9 intents, 2 entities,
+3 shortcuts); no App Intents source was changed. The known
+`gettingStartedNeverReplacesNumbersWithCheckMarksOrDoneLabels` image-comparison
+flake failed once in an earlier full run and passed in both subsequent full runs.
