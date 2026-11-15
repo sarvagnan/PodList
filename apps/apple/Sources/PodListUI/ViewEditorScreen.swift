@@ -121,7 +121,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     Spacer()
                     Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
                     Button("Done") { finish() }.keyboardShortcut(.defaultAction).disabled(saving || renaming)
-                }.disabled(saving).padding(20)
+                }.disabled(saving).padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
             }
         }
         .interactiveDismissDisabled(saving)

@@ -175,7 +175,6 @@ public struct PodListWindow: SwiftUI.View {
                 PlayerBar(controller: playback, library: library,
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
                           openNowPlaying: { window.showNowPlaying = true })
-                    .environment(\.macTextScale, 1)
             }
         }
         .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { drop in
