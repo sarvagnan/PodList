@@ -120,13 +120,16 @@ public struct PodListWindow: SwiftUI.View {
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { showAddPodcasts = true }) }
                     LibraryFeedback(editor: editor)
+                        .id(window.destination).id(podcastFeed)
                     if editor.busy { VStack {
                         ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)")
                         Text("Closing Add Podcasts does not stop the import. Keep PodList running. Unfinished imports resume on next launch.").macContentFont(.caption)
                         Button("Show Import Results") { editor.importPresented = true }
                     } }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
-                } else if let editing = app.editing { EditingFeedback(editing: editing) }
+                } else if let editing = app.editing {
+                    EditingFeedback(editing: editing).id(window.destination).id(podcastFeed)
+                }
                 if let podcastFeed, let editor = app.libraryEditing {
                     HStack { Button("Back to Library") { self.podcastFeed = nil; window.search = "" }; Spacer() }.padding(.horizontal)
                     PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)

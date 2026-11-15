@@ -19,7 +19,11 @@ public struct NamedEdit: Sendable {
 public final class PlaylistEditingModel {
     public private(set) var history = EditHistory<NamedEdit>()
     public private(set) var busy = false
-    public private(set) var status: String?
+    private(set) var feedbackNotice: EditingNotice?
+    public private(set) var status: String? {
+        get { feedbackNotice?.message }
+        set { feedbackNotice = newValue.map { EditingNotice($0) } }
+    }
     public private(set) var error: String?
     public let drafts: PlaylistDrafts
     @ObservationIgnored private var ended = false

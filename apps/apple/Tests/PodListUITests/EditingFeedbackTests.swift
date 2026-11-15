@@ -39,4 +39,51 @@ import PodListData
     await editor.undo()
     #expect(editor.notice == "Undone: Star")
 }
+
+@MainActor @Test func editFeedbackCancelNoticeExpiresAndDoesNotFollowNavigationOrNewSheets() async throws {
+    let db = try await fixtureDatabase()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
+    let window = EditingFeedbackLifetime(currentNotice: editing.feedbackNotice)
+    editing.discardViewSession(UUID())
+    let notice = try #require(editing.feedbackNotice)
+    let beforeExpiry = notice.expiresAt.addingTimeInterval(-0.001)
+    #expect(window.message(for: notice, at: beforeExpiry) == "View edits cancelled.")
+    #expect(window.message(for: notice, at: notice.expiresAt) == nil)
+    #expect(window.message(for: notice, at: notice.expiresAt.addingTimeInterval(60)) == nil)
+
+    // Navigation changes the window row's identity; a new sheet also creates its own row.
+    let nextScreen = EditingFeedbackLifetime(currentNotice: editing.feedbackNotice)
+    let addPlaylistSheet = EditingFeedbackLifetime(currentNotice: editing.feedbackNotice)
+    #expect(nextScreen.message(for: notice, at: beforeExpiry) == nil)
+    #expect(addPlaylistSheet.message(for: notice, at: beforeExpiry) == nil)
+
+    editing.showNotice("Added to Playlist")
+    let newNotice = try #require(editing.feedbackNotice)
+    #expect(addPlaylistSheet.message(for: newNotice, at: newNotice.expiresAt.addingTimeInterval(-1)) == "Added to Playlist")
+}
+
+@Test func editFeedbackLifetimeRenewsRepeatedMessagesAndHandlesClearing() {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let initial = EditingNotice("View edits cancelled.", at: now)
+    let row = EditingFeedbackLifetime(currentNotice: initial)
+    #expect(row.message(for: initial, at: now) == nil)
+    let repeated = EditingNotice("View edits cancelled.", at: now.addingTimeInterval(4))
+    #expect(row.message(for: repeated, at: now.addingTimeInterval(5)) == "View edits cancelled.")
+    #expect(row.message(for: repeated, at: now.addingTimeInterval(9)) == nil)
+    #expect(row.message(for: nil, at: now) == nil)
+}
+
+@MainActor @Test func editFeedbackExpirationPreservesUndoAndLaterFeedback() async throws {
+    let db = try await fixtureDatabase()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
+    let row = EditingFeedbackLifetime(currentNotice: editing.feedbackNotice)
+    #expect(await editing.edit([.setStar(episodeId: "a", starred: true)], name: "Star"))
+    let notice = try #require(editing.feedbackNotice)
+    #expect(row.message(for: notice, at: notice.expiresAt) == nil)
+    #expect(editing.undoTitle == "Undo Star")
+    await editing.reverse()
+    let undoNotice = try #require(editing.feedbackNotice)
+    #expect(row.message(for: undoNotice, at: undoNotice.expiresAt.addingTimeInterval(-1)) == "Undone: Star")
+    #expect(editing.redoTitle == "Redo Star")
+}
 #endif
