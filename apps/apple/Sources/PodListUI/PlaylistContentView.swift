@@ -153,7 +153,7 @@ struct PlaylistContentView: SwiftUI.View {
         drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
     }
     private func drop(_ values: [EpisodeTransfer], before id: String?) -> Bool {
-        guard !editing.busy else { return false }
+        guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil else { return false }
         guard let ids = EpisodeDrop.reorderIDs(values, in: playlist) else {
             guard let editor = app.libraryEditing, EpisodeDrop.references(values) != nil else { return false }
             Task { await EpisodeDrop.add(values, to: playlist.id, editor: editor) { window.didDrop($0, into: playlist.id) } }

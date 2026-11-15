@@ -217,3 +217,155 @@ private struct DropPublisher: PublisherReader {
     #expect(try await db.outbox().contains { $0.change == .purgePlaylist(playlistId: id) })
 }
 #endif
+
+#if os(macOS)
+@MainActor @Test func libraryDropLoadsAllProvidersInOrderDeduplicatesAndAccountsForFailures() async {
+    func provider(_ text: String) -> NSItemProvider {
+        let item = NSItemProvider()
+        item.registerDataRepresentation(forTypeIdentifier: UTType.utf8PlainText.identifier, visibility: .all) { completion in
+            completion(Data(text.utf8), nil); return nil
+        }
+        return item
+    }
+    let first = URL(string: "https://example.com/first")!, second = URL(string: "https://example.com/second")!
+    let batch = await LibraryDropBatch.load([provider(first.absoluteString), provider("not a URL"), provider(second.absoluteString), provider(first.absoluteString)])
+    #expect(batch.items == [.feed(first), .feed(second)])
+    #expect(batch.failures.count == 1 && batch.failures[0].contains("Item 2"))
+}
+
+@MainActor @Test func mixedDroppedFilesAndFeedsStageOnePreviewAndOneUndoWithPartialFailures() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true)
+    try await db.ensureState()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: DropPublisher()), scope: "batch-drop", defaults: defaults)
+    let known = "https://example.com/known", first = "https://example.com/first", second = "https://example.com/second", third = "https://example.com/third"
+    try await editor.subscribe(known)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let a = directory.appendingPathComponent("a.opml"), b = directory.appendingPathComponent("b.opml"), broken = directory.appendingPathComponent("broken.opml")
+    try "<opml><body><outline xmlUrl='\(first)'/><outline xmlUrl='\(second)'/></body></opml>".write(to: a, atomically: true, encoding: .utf8)
+    try "<opml><body><outline xmlUrl='\(second)'/><outline xmlUrl='\(third)'/></body></opml>".write(to: b, atomically: true, encoding: .utf8)
+    try "broken".write(to: broken, atomically: true, encoding: .utf8)
+    await editor.selectLibraryDrops(.init(items: [.feed(URL(string: known)!), .opml(a), .opml(broken), .opml(b), .feed(URL(string: third)!)]))
+    #expect(editor.importReady && editor.importExisting == 1)
+    #expect(editor.importFeeds == [known, first, second, third])
+    #expect(editor.error?.contains("broken.opml") == true)
+    #expect(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.count == 1)
+    await editor.importSelected()
+    #expect(editor.importResults.values.filter { $0 == "Added" }.count == 3)
+    #expect(editor.edits.undoTitle == "Undo Import Podcasts")
+    await editor.undo()
+    #expect(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl) == [known])
+    #expect(editor.edits.undoTitle == "Undo Subscribe")
+    await editor.redo()
+    #expect(Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl)) == Set([known, first, second, third]))
+}
+
+private actor SlowDropPublisher: PublisherReader {
+    private var pending: CheckedContinuation<Data, any Error>?
+    private var observer: CheckedContinuation<Void, Never>?
+    private var held = false
+    func read(_ url: URL) async throws -> Data {
+        if held { return try await DropPublisher().read(url) }
+        held = true
+        return try await withCheckedThrowingContinuation { continuation in
+            pending = continuation; observer?.resume(); observer = nil
+        }
+    }
+    func waitForRead() async {
+        if pending != nil { return }
+        await withCheckedContinuation { observer = $0 }
+    }
+    func finish() async throws {
+        let data = try await DropPublisher().read(URL(string: "https://example.com/feed")!)
+        pending?.resume(returning: data); pending = nil
+    }
+}
+
+@MainActor @Test func slowEpisodeDropPublishesProgressAndAddsSuccessesDespiteOneFailure() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let publisher = SlowDropPublisher()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: publisher), scope: "slow-drop", defaults: defaults)
+    // Missing first must not prevent the local item or later publisher Episode being added.
+    let remote = EpisodeTransfer(episodes: ["missing", "one"].map { .init(episodeID: nil, feedURL: "https://example.com/feed", guid: $0) }, sourcePlaylistID: nil, title: "Remote", shareURL: nil)
+    var selected: [String] = []
+    let task = Task { await EpisodeDrop.add([remote, transfer(["pending"])], to: "default", editor: editor) { selected = $0 } }
+    await publisher.waitForRead()
+    #expect(editor.episodeDrop?.total == 3 && editor.episodeDrop?.completed == 0)
+    #expect(editor.episodeDrop?.playlistID == "default")
+    #expect(selected.isEmpty)
+    #expect(await EpisodeDrop.add([transfer(["a"])], to: "default", editor: editor) == false)
+    try await publisher.finish()
+    // Subsequent reads are immediate so the remaining references can finish.
+    #expect(await task.value)
+    #expect(editor.episodeDrop == nil)
+    #expect(selected.count == 2 && selected.last == "pending")
+    #expect(editor.failedEpisodeDrop?.message.contains("Added 2 Episodes; 1 failed") == true)
+    let after = try await db.loadState()
+    #expect(after.playlists[0].entries.suffix(2).map(\.episodeId) == selected)
+    #expect(editor.edits.undoTitle == "Undo Play Last")
+    await editor.undo()
+    #expect(try await db.loadState().playlists[0].entries.map(\.episodeId) == fixtureState().playlists[0].entries.map(\.episodeId))
+    #expect(editor.edits.history.undo == nil)
+}
+#endif
+
+#if os(macOS)
+private actor RetryDropPublisher: PublisherReader {
+    private var attempts = 0
+    func read(_ url: URL) async throws -> Data {
+        attempts += 1
+        if attempts == 1 { throw URLError(.timedOut) }
+        return try await DropPublisher().read(url)
+    }
+}
+
+@MainActor @Test func retryingFailedEpisodeDropAddsOnlyTheFailedItemsAndSelectsThem() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: RetryDropPublisher()), scope: "retry-drop", defaults: defaults)
+    let remote = EpisodeTransfer(episodes: [.init(episodeID: nil, feedURL: "https://example.com/feed", guid: "one")], sourcePlaylistID: nil, title: "Remote", shareURL: nil)
+    var selected: [String] = []
+    #expect(await EpisodeDrop.add([remote, transfer(["t1"])], to: "default", editor: editor) { selected = $0 })
+    #expect(selected == ["t1"])
+    let failure = try #require(editor.failedEpisodeDrop)
+    await failure.retry()
+    #expect(editor.failedEpisodeDrop == nil && selected.count == 1 && selected != ["t1"])
+    let after = try await db.loadState()
+    #expect(after.playlists[0].entries.filter { $0.episodeId == "t1" }.count == 1)
+    #expect(after.playlists[0].entries.last?.episodeId == selected.first)
+    await editor.undo()
+    #expect(try await db.loadState().playlists[0].entries.last?.episodeId == "t1")
+    await editor.undo()
+    let restored = try await db.loadState().playlists[0], original = fixtureState().playlists[0]
+    #expect(restored.entries == original.entries && restored.cursor == original.cursor && restored.history == original.history)
+}
+
+@MainActor @Test func droppedImportWithOneUnreachableFeedKeepsOneUndoAndRetrySkipsSuccesses() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true)
+    try await db.ensureState()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: RetryDropPublisher()), scope: "partial-import", defaults: defaults)
+    let first = "https://example.com/first", second = "https://example.com/second"
+    await editor.selectLibraryDrops(.init(items: [.feed(URL(string: first)!), .feed(URL(string: second)!)]))
+    await editor.importSelected()
+    #expect(editor.importFailed == [first] && editor.importFailureReasons[first] != nil)
+    #expect(editor.importResults[second] == "Added" && editor.edits.undoTitle == "Undo Import Podcasts")
+    await editor.retryImport()
+    #expect(editor.importFailed.isEmpty && editor.importResults[first] == "Added")
+    await editor.undo()
+    #expect(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl) == [second])
+    await editor.undo()
+    #expect(try await db.readLibrary().subscriptions.allSatisfy { $0.unsubscribedAt != nil })
+    #expect(editor.edits.history.undo == nil)
+    // An already subscribed batch must not add an empty Undo step.
+    await editor.selectLibraryDrops(.init(items: [.feed(URL(string: first)!)]))
+    await editor.importSelected()
+    await editor.selectLibraryDrops(.init(items: [.feed(URL(string: first)!)]))
+    await editor.importSelected()
+    await editor.undo()
+    #expect(editor.edits.history.undo == nil)
+}
+#endif

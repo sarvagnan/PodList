@@ -74,6 +74,12 @@ public final class LibraryEditingModel {
         set { edits.showNotice(newValue) }
     }
     public var busy = false
+    var groupsDroppedImport = false
+    #if os(macOS)
+    var episodeDrop: EpisodeDropProgress?
+    var failedEpisodeDrop: FailedEpisodeDrop?
+    let podcastDiscovery = PodcastDiscoveryModel()
+    #endif
     public var importName = ""
     public var importFeeds: [String] = []
     public var importExisting = 0
@@ -244,18 +250,27 @@ public final class LibraryEditingModel {
     }
     public func selectOPML(_ xml: String, name: String) async {
         guard !busy else { return }
-        cancelImportSelection(); importName = name; importPresented = true; error = nil
+        do { await selectImportFeeds(try OPML.parse(xml), name: name) }
+        catch {
+            cancelImportSelection(); importName = name; importPresented = true
+            self.error = LibraryMessages.failure(error)
+        }
+    }
+    func selectImportFeeds(_ feeds: [String], name: String, droppedBatch: Bool = false, selectionError: String? = nil) async {
+        guard !busy else { return }
+        cancelImportSelection(); importName = name; importPresented = true; error = selectionError
+        groupsDroppedImport = droppedBatch
         let version = importSelectionVersion
         do {
-            let feeds = try OPML.parse(xml)
             let known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
             guard version == importSelectionVersion, !busy else { return }
             importFeeds = feeds; importTotal = feeds.count
-            importExisting = feeds.filter { known.contains($0) }.count; importReady = true
+            importExisting = feeds.filter { known.contains($0) }.count; importReady = !feeds.isEmpty
         } catch { if version == importSelectionVersion { self.error = LibraryMessages.failure(error) } }
     }
     public func cancelImportSelection() {
         guard !busy else { return }
+        groupsDroppedImport = false
         importSelectionVersion += 1
         importReady = false; importName = ""; importFeeds = []; importResults = [:]
         importTotal = 0; importCompleted = 0; importFailed = []; importFailureReasons = [:]
@@ -276,15 +291,17 @@ public final class LibraryEditingModel {
         let results: [String: String]
         let failures: [String: String]
         let paused: Bool?
+        var droppedBatch: Bool? = nil
     }
     private func saveImport() {
-        if let data = try? JSONEncoder().encode(ImportJournal(name: importName, feeds: importFeeds, results: importResults, failures: importFailureReasons, paused: importPaused)) {
+        if let data = try? JSONEncoder().encode(ImportJournal(name: importName, feeds: importFeeds, results: importResults, failures: importFailureReasons, paused: importPaused, droppedBatch: groupsDroppedImport)) {
             defaults.set(data, forKey: key("opmlImport"))
         }
     }
     public func resumeImport() {
         guard !busy, importTask == nil, let data = defaults.data(forKey: key("opmlImport")),
               let job = try? JSONDecoder().decode(ImportJournal.self, from: data) else { return }
+        groupsDroppedImport = job.droppedBatch == true
         importName = job.name; importFeeds = job.feeds; importResults = job.results
         importFailureReasons = job.failures; importFailed = job.feeds.filter { job.failures[$0] != nil }
         importTotal = job.feeds.count; importCompleted = job.results.count
@@ -310,29 +327,49 @@ public final class LibraryEditingModel {
         error = nil; saveImport()
         defer { busy = false }
         do {
-            var known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
-            for feed in importFeeds where importResults[feed] == nil {
-                if importCancellationRequested { break }
-                if known.contains(feed) { importResults[feed] = "Already in the Library" }
-                else {
-                    do { try await subscribe(feed); known.insert(feed); importResults[feed] = "Added" }
-                    catch {
-                        importResults[feed] = "Failed"; importFailed.append(feed)
-                        importFailureReasons[feed] = LibraryMessages.failure(error)
-                    }
+            if groupsDroppedImport {
+                let group = DroppedSubscriptionEdit(), source = source
+                // Serialize the whole batch with other edits. The successful subset
+                // becomes one history step, including when some feeds fail.
+                try await edits.performExternal {
+                    try await self.performImportFeeds(group: group)
+                    let subscriptions = group.subscriptions
+                    guard !subscriptions.isEmpty else { return nil }
+                    return NamedEdit(name: "Import Podcasts", changes: [], reload: true,
+                        action: { for sub in subscriptions.reversed() { try await source.unsubscribe(sub.id) } },
+                        inverseAction: { for sub in subscriptions { _ = try await source.subscribe(sub.feedUrl) } }, message: self.notice)
                 }
-                importCompleted = importResults.count; saveImport()
-            }
-            if importCancellationRequested {
-                importReady = importCompleted < importTotal
-                saveImport()
-                notice = cancelledImportSummary
-            } else {
-                notice = importSummary
-                defaults.removeObject(forKey: key("opmlImport"))
-            }
-            await changed()
+            } else { try await performImportFeeds(group: nil) }
         } catch { self.error = LibraryMessages.failure(error) }
+    }
+    private func performImportFeeds(group: DroppedSubscriptionEdit?) async throws {
+        var known = Set(try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }.map(\.feedUrl))
+        for feed in importFeeds where importResults[feed] == nil {
+            if importCancellationRequested { break }
+            if known.contains(feed) { importResults[feed] = "Already in the Library" }
+            else {
+                do { try await subscribeImportedFeed(feed, group: group); known.insert(feed); importResults[feed] = "Added" }
+                catch {
+                    importResults[feed] = "Failed"; importFailed.append(feed)
+                    importFailureReasons[feed] = LibraryMessages.failure(error)
+                }
+            }
+            importCompleted = importResults.count; saveImport()
+        }
+        if importCancellationRequested {
+            importReady = importCompleted < importTotal
+            saveImport()
+            notice = cancelledImportSummary
+        } else {
+            notice = importSummary
+            defaults.removeObject(forKey: key("opmlImport"))
+        }
+        await changed()
+    }
+    private func subscribeImportedFeed(_ feed: String, group: DroppedSubscriptionEdit?) async throws {
+        guard let group else { try await subscribe(feed); return }
+        group.subscriptions.append(try await source.subscribe(feed))
+        await changed()
     }
     private var importSummary: String {
         "Imported \(importResults.values.filter { $0 == "Added" }.count); already in the Library \(importResults.values.filter { $0 == "Already in the Library" }.count); failed \(importFailed.count)."
@@ -362,4 +399,10 @@ extension LocalDatabase {
         try record(.saveView(view: clean), at: at)
         return previous
     }
+}
+
+/// Collect the successful subset while the shared edit serializer is held.
+/// Existing subscriptions are skipped and never included in the inverse.
+@MainActor private final class DroppedSubscriptionEdit {
+    var subscriptions: [Subscription] = []
 }

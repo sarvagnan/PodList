@@ -54,14 +54,16 @@ public final class PlaylistEditingModel {
         status = "View edits cancelled."; error = nil
     }
     /// Share the same serialization and history for metadata requests and State edits.
-    public func performExternal(recordHistory: Bool = true, _ apply: @MainActor () async throws -> NamedEdit) async throws {
+    /// Return nil when a batch has no successful changes to undo.
+    public func performExternal(recordHistory: Bool = true, _ apply: @MainActor () async throws -> NamedEdit?) async throws {
         guard !busy else { throw DatabaseFailure(description: "An edit is already in progress. Try again.") }
         busy = true; error = nil; retryAction = nil; retryKind = nil
         defer { busy = false }
         do {
-            let step = try await apply()
-            if !ended, recordHistory { history.record(step) }
-            status = step.message ?? step.name
+            if let step = try await apply() {
+                if !ended, recordHistory { history.record(step) }
+                status = step.message ?? step.name
+            }
             await changed()
         } catch { self.error = LibraryMessages.failure(error); throw error }
     }
