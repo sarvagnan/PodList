@@ -89,35 +89,46 @@ struct PlayerSeek: SwiftUI.View {
     }
 }
 struct SpeedMenu: SwiftUI.View {
-    @Bindable var controller: PlaybackController
+    let controller: PlaybackController?
     var body: some SwiftUI.View {
-        Menu("Speed \((controller.display?.speed ?? 1).formatted())×") {
-            ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4], id: \.self) { speed in
-                Button("\(speed.formatted())×") { controller.setSpeed(speed) }
-            }
+        Menu("Speed \((controller?.display?.speed ?? 1).formatted())×") {
+            Picker("Speed", selection: Binding(get: { controller?.display?.speed ?? 1 }, set: { controller?.setSpeed($0) })) {
+                ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4], id: \.self) { speed in
+                    Text("\(speed.formatted())×").tag(speed)
+                }
+            }.pickerStyle(.inline)
         }.menuStyle(.borderlessButton).fixedSize()
     }
 }
 struct SleepMenu: SwiftUI.View {
-    @Bindable var controller: PlaybackController
+    let controller: PlaybackController?
     private var label: String {
-        switch controller.display?.sleep {
+        switch controller?.display?.sleep {
         case .until: "Sleep · Timer"
         case .chapterEnd: "Sleep · End of Chapter"
         case .episodeEnd: "Sleep · End of Episode"
         case nil: "Sleep Off"
         }
     }
+    private func choice(_ title: String, selected: Bool, action: @escaping () -> Void) -> some SwiftUI.View {
+        Toggle(title, isOn: Binding(get: { selected }, set: { if $0 { action() } }))
+    }
     var body: some SwiftUI.View {
         Menu(label) {
             ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { minutes in
-                Button("\(minutes) minutes") { controller.sleepAfter(minutes: Double(minutes)) }
+                choice("\(minutes) minutes", selected: timerSelected(minutes)) { controller?.sleepAfter(minutes: Double(minutes)) }
             }
-            if controller.display?.chapters.isEmpty == false { Button("End of Chapter") { controller.sleepAtChapterEnd() } }
-            Button("End of Episode") { controller.setSleep(.episodeEnd) }
-            Button("Cancel Sleep") { controller.setSleep(nil) }.disabled(controller.display?.sleep == nil)
+            choice("End of Chapter", selected: chapterSelected) { controller?.sleepAtChapterEnd() }
+                .disabled(controller?.display?.chapters.isEmpty != false)
+            choice("End of Episode", selected: controller?.display?.sleep == .episodeEnd) { controller?.setSleep(.episodeEnd) }
+            choice("Sleep Off", selected: controller?.display?.sleep == nil) { controller?.setSleep(nil) }
         }.menuStyle(.borderlessButton).fixedSize()
     }
+    private func timerSelected(_ minutes: Int) -> Bool {
+        guard case .until = controller?.display?.sleep else { return false }
+        return controller?.sleepMinutes == Double(minutes)
+    }
+    private var chapterSelected: Bool { if case .chapterEnd = controller?.display?.sleep { true } else { false } }
 }
 struct NowPlayingView: SwiftUI.View {
     @Bindable var controller: PlaybackController

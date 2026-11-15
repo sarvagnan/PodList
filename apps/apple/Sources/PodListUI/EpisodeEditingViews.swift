@@ -18,39 +18,43 @@ final class PlaylistPresentation {
 
 struct EpisodeActionItems: SwiftUI.View {
     let ids: [String]
-    let library: LibraryModel
-    let editing: PlaylistEditingModel
-    let presentation: PlaylistPresentation
+    let library: LibraryModel?
+    let editing: PlaylistEditingModel?
+    let presentation: PlaylistPresentation?
     let app: ApplicationModel
+    var keyboardShortcuts = false
     var body: some SwiftUI.View {
-        Button("Play Now") { Task { await editing.add(ids, placement: .now) } }
-        Button("Play Next in \(activeName)") { Task { await editing.add(ids, placement: .next) } }
-        Button("Play Last in \(activeName)") { Task { await editing.add(ids, placement: .last) } }
-        Menu("Play in Another Playlist") {
-            ForEach(library.state.playlists, id: \.id) { playlist in
-                Menu(playlist.name) {
-                    Button("Play Now") { Task { await editing.add(ids, to: playlist.id, placement: .now) } }
-                    Button("Play Next") { Task { await editing.add(ids, to: playlist.id, placement: .next) } }
-                    Button("Play Last") { Task { await editing.add(ids, to: playlist.id, placement: .last) } }
+        Button("Play Now") { Task { await editing?.add(ids, placement: .now) } }
+        Button("Play Next in \(activeName)") { Task { await editing?.add(ids, placement: .next) } }
+            .keyboardShortcut(shortcut(.playNext))
+        Button("Play Last in \(activeName)") { Task { await editing?.add(ids, placement: .last) } }
+            .keyboardShortcut(shortcut(.playLast))
+        ForEach([Placement.now, .next, .last], id: \.rawValue) { placement in
+            Menu(placement == .now ? "Play Now in" : placement == .next ? "Play Next in" : "Play Last in") {
+                ForEach(library?.state.playlists ?? [], id: \.id) { playlist in
+                    Button(playlist.name) { Task { await editing?.add(ids, to: playlist.id, placement: placement) } }
                 }
+                Divider()
+                Button("New Playlist…") { presentation?.sheet = .add(ids, true) }
             }
-            Divider()
-            Button("New Playlist…") { presentation.sheet = .add(ids, true) }
         }
-        Button("Add to a Playlist…") { presentation.sheet = .add(ids, false) }
+        Button("Add to a Playlist…") { presentation?.sheet = .add(ids, false) }
+            .keyboardShortcut(shortcut(.addToPlaylist))
         Divider()
-        Button("Download") { app.download(ids) }
-        if ids.count == 1, let id = ids.first, let url = library.episodeShareURL(id) {
-            ShareLink(item: url) { Text("Share Episode…") }
-            Button("Copy Link") { ShareLinks.copy(url) }
-        }
-        Button(actionLabels.star) { Task { await editing.setStar(ids, starred: !allStarred) } }
-        Button(actionLabels.played) { Task { await editing.markPlayed(ids, played: !allPlayed) } }
+        Button("Download") { app.download(ids) }.keyboardShortcut(shortcut(.download))
+        ShareLink(items: shareURL.map { [$0] } ?? []) { Text("Share Episode…") }.disabled(shareURL == nil)
+        Button("Copy Link") { if let shareURL { ShareLinks.copy(shareURL) } }.disabled(shareURL == nil)
+        Button(actionLabels.star) { Task { await editing?.setStar(ids, starred: !allStarred) } }
+            .keyboardShortcut(shortcut(.star))
+        Button(actionLabels.played) { Task { await editing?.markPlayed(ids, played: !allPlayed) } }
+            .keyboardShortcut(shortcut(.played))
     }
+    private func shortcut(_ action: PodListShortcut) -> KeyboardShortcut? { keyboardShortcuts ? action.shortcut : nil }
+    private var shareURL: URL? { ids.count == 1 ? ids.first.flatMap { library?.episodeShareURL($0) } : nil }
     private var actionLabels: EpisodeActionLabels { .init(allStarred: allStarred, allPlayed: allPlayed) }
-    private var activeName: String { library.state.playlists.first { $0.id == library.state.activePlaylistId }?.name ?? "Active Playlist" }
-    private var allStarred: Bool { !ids.isEmpty && ids.allSatisfy { library.state.episodeStates[$0]?.starred == true } }
-    private var allPlayed: Bool { !ids.isEmpty && ids.allSatisfy { library.state.episodeStates[$0]?.played != nil } }
+    private var activeName: String { library?.state.playlists.first { $0.id == library?.state.activePlaylistId }?.name ?? "Active Playlist" }
+    private var allStarred: Bool { !ids.isEmpty && ids.allSatisfy { library?.state.episodeStates[$0]?.starred == true } }
+    private var allPlayed: Bool { !ids.isEmpty && ids.allSatisfy { library?.state.episodeStates[$0]?.played != nil } }
 }
 
 /// The visible and spoken action vocabulary is shared by the toolbar and menus.
@@ -184,10 +188,10 @@ public struct PlaylistEditingCommands: Commands {
                 .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(context == nil || app.editing == nil)
         }
         CommandGroup(replacing: .undoRedo) {
-            Button(textEditor == nil ? app.editing?.undoTitle ?? "Undo" : "Undo") {
+            Button(textEditor == nil ? app.editing?.undoTitle ?? "Undo" : textEditor?.undoManager?.undoMenuItemTitle ?? "Undo") {
                 if let editor = textEditor { editor.undoManager?.undo() } else { Task { await app.editing?.reverse() } }
             }.keyboardShortcut("z").disabled(textEditor == nil ? app.editing?.history.undo == nil || app.editing?.busy == true : textEditor?.undoManager?.canUndo != true)
-            Button(textEditor == nil ? app.editing?.redoTitle ?? "Redo" : "Redo") {
+            Button(textEditor == nil ? app.editing?.redoTitle ?? "Redo" : textEditor?.undoManager?.redoMenuItemTitle ?? "Redo") {
                 if let editor = textEditor { editor.undoManager?.redo() } else { Task { await app.editing?.reverse(redo: true) } }
             }.keyboardShortcut("z", modifiers: [.command, .shift]).disabled(textEditor == nil ? app.editing?.history.redo == nil || app.editing?.busy == true : textEditor?.undoManager?.canRedo != true)
         }
@@ -196,20 +200,22 @@ public struct PlaylistEditingCommands: Commands {
                 if let episodeDetails { episodeDetails() } else { context?.showDetails() }
             }.disabled(episodeDetails == nil && context?.ids.isEmpty != false)
             Divider()
-            if let context, let editing = app.editing {
-                EpisodeActionItems(ids: context.ids, library: context.library, editing: editing, presentation: context.presentation, app: app)
-                    .disabled(context.ids.isEmpty || editing.busy)
-                if case let .playlist(id) = context.window.destination {
-                    Divider()
-                    Button("Play from Here") { Task { await editing.playFromHere(playlistID: id, episodeID: context.ids.first) } }.disabled(context.ids.isEmpty || editing.busy)
-                    Button("Move Up") { Task { await editing.move(Set(context.ids), playlistID: id, down: false) } }
-                        .keyboardShortcut(.upArrow, modifiers: [.command, .option]).disabled(context.ids.isEmpty || editing.busy)
-                    Button("Move Down") { Task { await editing.move(Set(context.ids), playlistID: id, down: true) } }
-                        .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(context.ids.isEmpty || editing.busy)
-                    Button("Remove from Playlist") { Task { await editing.remove(context.ids, playlistID: id) } }
-                        .keyboardShortcut(.delete, modifiers: .command).disabled(context.ids.isEmpty || editing.busy)
-                }
-            } else { Button("Play Now") {}.disabled(true) }
+            EpisodeActionItems(ids: context?.ids ?? [], library: context?.library ?? app.library, editing: app.editing,
+                               presentation: context?.presentation, app: app, keyboardShortcuts: true)
+                .disabled(selectionUnavailable)
+            Divider()
+            Button("Play from Here") {
+                guard let id = entriesPlaylistID else { return }
+                Task { await app.editing?.playFromHere(playlistID: id, episodeID: context?.ids.first) }
+            }.disabled(entriesPlaylistID == nil || selectionUnavailable)
+            Button("Move Up") { move(down: false) }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
+            Button("Move Down") { move(down: true) }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
+            Button("Remove from Playlist") {
+                guard let id = entriesPlaylistID else { return }
+                Task { await app.editing?.remove(context?.ids ?? [], playlistID: id) }
+            }.keyboardShortcut(.delete, modifiers: .command).disabled(entriesPlaylistID == nil || selectionUnavailable || textEditor != nil)
         }
         CommandMenu("Playlist") {
             Picker("Section", selection: Binding(get: { playlistContext?.presentation.playlistTab ?? .entries }, set: { playlistContext?.presentation.playlistTab = $0 })) {
@@ -223,16 +229,30 @@ public struct PlaylistEditingCommands: Commands {
             Button("Restore") { restore?() }.disabled(restore == nil)
             Button("Rewind to Here…") { rewind?() }.disabled(rewind == nil)
             Divider()
-            if let context, let editing = app.editing {
-                Button("Trash") { context.window.navigate(to: .trash) }
-                if case let .playlist(id) = context.window.destination,
-                   let playlist = context.library.state.playlists.first(where: { $0.id == id }) {
-                    Button("Play this Playlist") { Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) } }.disabled(editing.busy)
-                    Button("Playlist Settings…") { context.presentation.sheet = .settings(id) }
-                    Button("Delete Playlist", role: .destructive) { Task { await editing.delete(playlist) } }.disabled(playlist.isDefault || editing.busy)
-                }
-            }
+            Button("Trash") { context?.window.navigate(to: .trash) }.disabled(context == nil)
+            Button("Play this Playlist") {
+                guard let playlist = playlistContext?.playlist else { return }
+                Task { await app.editing?.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
+            }.disabled(playlistUnavailable || playlistContext?.playlist.entries.isEmpty != false)
+            Button("Playlist Settings…") {
+                guard let playlistContext else { return }
+                playlistContext.presentation.sheet = .settings(playlistContext.playlist.id)
+            }.keyboardShortcut(PodListShortcut.playlistSettings.shortcut).disabled(playlistUnavailable)
+            Button("Delete Playlist", role: .destructive) {
+                guard let playlist = playlistContext?.playlist else { return }
+                Task { await app.editing?.delete(playlist) }
+            }.disabled(playlistUnavailable || playlistContext?.playlist.isDefault != false)
         }
+    }
+    private var selectionUnavailable: Bool { context?.ids.isEmpty != false || app.editing == nil || app.editing?.busy == true }
+    private var playlistUnavailable: Bool { playlistContext == nil || app.editing == nil || app.editing?.busy == true }
+    private var entriesPlaylistID: String? {
+        guard playlistContext?.presentation.playlistTab == .entries else { return nil }
+        return playlistContext?.playlist.id
+    }
+    private func move(down: Bool) {
+        guard let id = entriesPlaylistID else { return }
+        Task { await app.editing?.move(Set(context?.ids ?? []), playlistID: id, down: down) }
     }
     private var textEditor: NSTextView? {
         guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isEditable else { return nil }

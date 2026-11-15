@@ -23,6 +23,7 @@ struct PodListMac: App {
         .defaultSize(width: 1180, height: 760)
         .commands {
             SidebarCommands()
+            TextEditingCommands()
             PodListCommands()
             LibraryCommands(app: model)
             PlaybackCommands(app: model)
@@ -32,7 +33,7 @@ struct PodListMac: App {
             }
         }
         Settings { PodListSettings(app: model).tint(.podListAccent) }
-        Window("Listening stats", id: "listening-stats") { ListeningStatsScreen(app: model).tint(.podListAccent) }
+        Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).tint(.podListAccent) }
         Window("PodList Help", id: "help") { PodListHelp().tint(.podListAccent) }
             .windowResizability(.contentSize)
     }
