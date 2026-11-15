@@ -15,21 +15,23 @@ for item in light dark system products checks; do
     if [ -d "$shared/run/$item" ]; then ditto "$shared/run/$item" "$run/$item"; fi
 done
 demo=""
+warmup=""
 result=0
 finish() {
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
+    if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
     if [ -n "$demo" ]; then kill "$demo" 2>/dev/null || true; wait "$demo" 2>/dev/null || true; fi
     cp -f "$run/demo.log" "$shared/run/guest-demo.log" 2>/dev/null || true
     mkdir -p "$shared/run/guest-diagnostics"
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$shared/run/guest-diagnostics/" 2>/dev/null || true
-    log show --last 10m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "testmanagerd" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
+    log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$shared/run/guest-diagnostics/log.txt" 2>&1 || true
     for bundle in Tour Shortcuts MCP; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$shared/run/$bundle.xcresult"; fi
     done
     if [ "$mode" = system ]; then
         mkdir -p "$shared/run/system-results"
-        for file in "$run/system"/mcp-* "$run/system/catalog.json"; do
+        for file in "$run/system"/mcp-* "$run/system"/app-* "$run/system/catalog.json"; do
             [ ! -f "$file" ] || cp -f "$file" "$shared/run/system-results/"
         done
     fi
@@ -59,6 +61,25 @@ if [ "$mode" = tour ]; then
         -maximum-test-execution-time-allowance 900 -resultBundlePath "$run/Tour.xcresult" || result=$?
 else
     touch "$run/system-vm"
+    # This script is invoked only by tart exec in a throwaway clone. Installation,
+    # the fixed test identity and LaunchServices registration never touch the host.
+    app='/Applications/PodList UI Check.app'
+    ditto "$run/system/PodList.app" "$app"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier app.podlist.uitour.system' "$app/Contents/Info.plist"
+    codesign --force --sign - "$app" > "$run/system/app-registration.log" 2>&1
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+        -f "$app" >> "$run/system/app-registration.log" 2>&1
+    PODLIST_UI_DATA_DIRECTORY="$run/system/data" "$app/Contents/MacOS/PodListMac" \
+        -PodList.serverOrigin "$(cat "$run/origin")" -PodList.mcpEnabled NO \
+        -AppleLanguages '(en)' -AppleLocale en_US -ApplePersistenceIgnoreState YES \
+        > "$run/system/app-warmup.log" 2>&1 &
+    warmup=$!
+    # Give appintentsd time to ingest the installed app before opening Shortcuts.
+    sleep 30
+    kill -0 "$warmup" || { echo 'Installed test app exited during indexing warmup' >&2; exit 1; }
+    kill "$warmup"
+    wait "$warmup" || true
+    warmup=""
     xcodebuild test-without-building -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListSystemChecks/testShortcutsDiscovery \

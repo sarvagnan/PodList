@@ -470,23 +470,32 @@ PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --system-checks /private/
 
 Choose a fresh, empty output directory. The host builds; a new headless Tart clone runs
 both checks, copies back partial or complete results, and is deleted on exit. This mode
-refuses to run unless `PODLIST_UI_VM` is set. It uses
-`app.podlist.uitour.<UUID>.system`, isolated temporary data and a guest-local demo server.
+refuses to run unless `PODLIST_UI_VM` is set. Inside the guest only, it installs
+`/Applications/PodList UI Check.app` with the fixed identity `app.podlist.uitour.system`,
+registers it with `lsregister -f`, and launches it for a 30-second indexing warmup.
+It uses isolated temporary data and a guest-local demo server. The host staging bundle
+keeps its disposable UUID identity; no host app is installed or registered.
 `ui-tour-guest.sh` shares the existing tour's guest startup, diagnostics and result copying.
 No sign-in, Shortcuts action execution, or owner Library is involved.
 
 `PodListSystemChecks` is a separate class in the existing `PodListUITour` test target:
 
-- `testShortcutsDiscovery` launches the disposable PodList bundle through XCUITest so
-  LaunchServices can register it, opens `com.apple.shortcuts`, creates an empty shortcut
+- `testShortcutsDiscovery` launches the installed test bundle through XCUITest,
+  opens `com.apple.shortcuts`, creates an empty shortcut
   and searches the action library for **PodList**. It compares the action names against
   a catalog generated from `AppIntents.swift` and `NowPlayingSnippet.swift`, excluding
   intents with `isDiscoverable = false`. Currently that is eleven discoverable intents.
+  It polls for up to three minutes, refreshing the search while indexing catches up,
+  and attaches the action-library and application trees if no actions appear.
   It records the four App Shortcuts' short titles when shown; if this search exposes any,
   it requires all four. No action is added or run. It closes the blank editor, chooses
   Discard/Don't Save if prompted, and quits Shortcuts without issuing Save.
-- `testMCPWindowLifecycle` launches PodList with `-PodList.mcpEnabled YES` and runs
-  `Contents/MacOS/podlist-mcp` from that exact disposable bundle. The client sends
+- `testMCPWindowLifecycle` launches PodList with `-PodList.mcpEnabled YES` and publishes
+  a fresh exchange directory in the runner's own temporary directory through flushed
+  stdout (also retained as an attachment). The guest script launches
+  `Contents/MacOS/podlist-mcp` from that exact installed test bundle outside the runner's
+  sandbox. XCTest writes only its sandbox's checkpoint files; the guest client writes
+  transcripts and logs in the guest run directory. The client sends
   newline-delimited JSON-RPC through the bridge's stdin/stdout with revision
   `2026-07-28` and the required per-request metadata. It asserts that `initialize` is
   rejected with `-32022` (this revision has **no initialization handshake**), then uses
@@ -498,17 +507,19 @@ No sign-in, Shortcuts action execution, or owner Library is involved.
 - The same MCP client stays connected while XCUITest closes the last window. The test
   checks that the app is still running with zero windows, the socket remains, the
   existing bridge still responds, and a second bundled bridge can connect. Opening
-  the exact app bundle through LaunchServices must restore the Library window with
-  the same process ID and restored Star mark. Native Quit must terminate the app,
+  the exact app bundle through LaunchServices from the guest client must restore the
+  Library window with the same process ID and restored Star mark. Native Quit must terminate the app,
   remove its socket and close the original bridge connection. Socket ownership and
   0600/0700 permissions are checked too.
 
 `Shortcuts.xcresult` and `MCP.xcresult` retain `.keepAlways` screenshots, UI trees,
-found action names, and the MCP transcript. Exported attachments are in
+found action names, and the runner exchange path. Exported attachments are in
 `Shortcuts-attachments/` and `MCP-attachments/`. `system-results/` contains the
-source-derived catalog, `mcp-transcript.jsonl`, `mcp-summary.json`, client log and bridge
-stderr. `README.md` reports passed/incomplete; build, demo, test and guest logs survive
-failures. Both independent tests run even if the first fails. The ordinary tour selects
+source-derived catalog, `mcp-transcript.jsonl`, `mcp-summary.json`, client log, bridge
+stderr, MCP test log and app registration/warmup logs. Guest diagnostics include
+`appintentsd` and LaunchServices (`lsd`). `README.md` reports passed/incomplete;
+build, demo, test and guest logs survive failures. Both independent tests run even if
+the first fails. The ordinary tour selects
 only `PodListUITour`, so it never opens Shortcuts or enables MCP.
 
 For a focused run **inside an already staged disposable guest**, while its demo server

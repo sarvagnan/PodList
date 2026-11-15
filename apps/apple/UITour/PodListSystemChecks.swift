@@ -8,8 +8,9 @@ import XCUIAutomation
 final class PodListSystemChecks: XCTestCase {
     private var app: XCUIApplication!
     private var run: URL!
+    private let bundle = URL(fileURLWithPath: "/Applications/PodList UI Check.app")
     private var identity = ""
-    private var exchange: URL { run.appendingPathComponent("system/exchange") }
+    private var exchange: URL!
     private var library: XCUIElement {
         app.windows.containing(.any, identifier: "sidebar.Subscriptions").firstMatch
     }
@@ -26,11 +27,10 @@ final class PodListSystemChecks: XCTestCase {
         // This marker is written only in the guest, never in the host staging directory.
         XCTAssertTrue(FileManager.default.fileExists(atPath: run.appendingPathComponent("system-vm").path),
                       "System checks require a throwaway VM; use ui-tour.sh --system-checks")
-        let bundle = run.appendingPathComponent("system/PodList.app")
         let info = try NSDictionary(contentsOf: bundle.appendingPathComponent("Contents/Info.plist"), error: ())
         let identifier = try XCTUnwrap(info["CFBundleIdentifier"] as? String)
         identity = identifier
-        guard identifier.hasPrefix("app.podlist.uitour.") else { throw failure("Production bundle refused") }
+        guard identifier == "app.podlist.uitour.system" else { throw failure("Non-test bundle refused") }
         let origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
         let server = try XCTUnwrap(URLComponents(string: origin))
         guard server.scheme == "http", server.host == "127.0.0.1", server.port != nil,
@@ -92,8 +92,10 @@ final class PodListSystemChecks: XCTestCase {
         var names = Set<String>()
         // Bounded polling allows LaunchServices/App Intents indexing to finish. Only inspect
         // the blank editor's action library; never open or run a result.
-        for attempt in 0..<12 {
-            if attempt == 6 {
+        let indexingDeadline = Date().addingTimeInterval(180)
+        var attempt = 0
+        while Date() < indexingDeadline {
+            if attempt > 0 && attempt.isMultiple(of: 6) {
                 // Re-query after LaunchServices has had time to register the new identity.
                 field.click()
                 field.typeKey("a", modifierFlags: .command)
@@ -113,8 +115,14 @@ final class PodListSystemChecks: XCTestCase {
             let scroll = editor.scrollViews.containing(.any, identifier: catalog.intents[0]).firstMatch
             if scroll.exists { scroll.scroll(byDeltaX: 0, deltaY: -300) }
             Thread.sleep(forTimeInterval: 5)
+            attempt += 1
         }
         capture(editor, name: "shortcuts-final")
+        if found.isEmpty {
+            // Include the entire library hierarchy, including empty/loading result containers.
+            attach(editor.debugDescription, name: "shortcuts-empty-action-library.txt")
+            attach(shortcuts.debugDescription, name: "shortcuts-empty-application.txt")
+        }
         attach("Expected intents:\n\(catalog.intents.joined(separator: "\n"))\n\nFound intents:\n\(found.sorted().joined(separator: "\n"))\n\nApp Shortcuts shown (optional):\n\(foundShortcuts.sorted().joined(separator: "\n"))\n\nAll action-library labels:\n\(names.sorted().joined(separator: "\n"))", name: "shortcuts-actions.txt")
         XCTAssertEqual(found, Set(catalog.intents), "Missing PodList actions: \(Set(catalog.intents).subtracting(found).sorted())")
         // Shortcuts versions differ in whether App Shortcut tiles appear in this search.
@@ -127,27 +135,15 @@ final class PodListSystemChecks: XCTestCase {
     func testMCPWindowLifecycle() throws {
         try launch(mcp: true)
         defer { app.terminate() }
-        if FileManager.default.fileExists(atPath: exchange.path) { try FileManager.default.removeItem(at: exchange) }
+        // XCTest's runner is sandboxed even when the target disables App Sandbox.
+        // Only write inside its own temporary directory. The guest supervisor reads
+        // this flushed stdout marker and launches the MCP client outside that sandbox.
+        exchange = FileManager.default.temporaryDirectory.appendingPathComponent("podlist-mcp-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: exchange, withIntermediateDirectories: true)
-        let log = run.appendingPathComponent("system/mcp-client.log")
-        FileManager.default.createFile(atPath: log.path, contents: nil)
-        let output = try FileHandle(forWritingTo: log)
-        let client = Process()
-        client.executableURL = URL(fileURLWithPath: "/bin/bash")
-        client.arguments = [run.appendingPathComponent("checks/mcp-live-check.sh").path, "--client", run.path]
-        client.standardOutput = output
-        client.standardError = output
-        try client.run()
-        defer {
-            if client.isRunning { client.terminate(); client.waitUntilExit() }
-            try? output.close()
-            for name in ["mcp-client.log", "mcp-transcript.jsonl", "mcp-summary.json", "mcp-bridge.stderr"] {
-                if let text = try? String(contentsOf: run.appendingPathComponent("system/" + name), encoding: .utf8) {
-                    attach(text, name: name)
-                }
-            }
-        }
-        try waitFor("edit-ready", client: client)
+        attach(exchange.path, name: "mcp-exchange-path.txt")
+        print("PODLIST_MCP_EXCHANGE=\(exchange.path)")
+        fflush(stdout)
+        try waitFor("edit-ready")
         app.activate()
         app.menuBars.menuBarItems["Edit"].click()
         let undoName = try String(contentsOf: exchange.appendingPathComponent("undo-title"), encoding: .utf8)
@@ -157,7 +153,7 @@ final class PodListSystemChecks: XCTestCase {
         capture(app, name: "mcp-native-undo")
         undo.click()
         try signal("undo-done")
-        try waitFor("undo-verified", client: client)
+        try waitFor("undo-verified")
         capture(app, name: "mcp-restored")
         let pid = try XCTUnwrap(NSRunningApplication.runningApplications(withBundleIdentifier: identity).first?.processIdentifier)
         // Close the last native window, not the process. The delegate keeps services alive.
@@ -166,33 +162,30 @@ final class PodListSystemChecks: XCTestCase {
         XCTAssertEqual(app.windows.count, 0)
         XCTAssertNotEqual(app.state, .notRunning)
         try signal("window-closed")
-        try waitFor("closed-verified", client: client)
+        try waitFor("closed-verified")
         // LaunchServices reopen is the same path as opening the running app from Finder/Dock.
-        let reopen = Process()
-        reopen.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        reopen.arguments = [run.appendingPathComponent("system/PodList.app").path]
-        try reopen.run()
-        reopen.waitUntilExit()
-        XCTAssertEqual(reopen.terminationStatus, 0)
+        try signal("reopen-requested")
+        try waitFor("reopen-opened")
         XCTAssertTrue(library.waitForExistence(timeout: 20), "Reopening must restore the Library window")
         XCTAssertEqual(NSRunningApplication.runningApplications(withBundleIdentifier: identity).first?.processIdentifier, pid, "Reopen must preserve the same app process")
         capture(app, name: "mcp-reopened")
         try signal("window-reopened")
-        try waitFor("reopen-verified", client: client)
+        try waitFor("reopen-verified")
         // Use native Quit so applicationShouldTerminate stops the listener gracefully.
         app.typeKey("q", modifierFlags: .command)
         XCTAssertTrue(app.wait(for: .notRunning, timeout: 20))
         try signal("app-quit")
-        try waitFor("complete", client: client)
-        client.waitUntilExit()
-        XCTAssertEqual(client.terminationStatus, 0)
+        try waitFor("complete")
     }
 
-    private func waitFor(_ name: String, client: Process) throws {
+    private func waitFor(_ name: String) throws {
         let deadline = Date().addingTimeInterval(60)
         while Date() < deadline {
+            if let message = try? String(contentsOf: exchange.appendingPathComponent("client-failed"), encoding: .utf8) {
+                attach(message, name: "mcp-client-failed.txt")
+                throw failure("MCP client failed: \(message); see system-results/mcp-client.log")
+            }
             if FileManager.default.fileExists(atPath: exchange.appendingPathComponent(name).path) { return }
-            guard client.isRunning else { throw failure("MCP client exited waiting for \(name); see mcp-client.log") }
             Thread.sleep(forTimeInterval: 0.1)
         }
         throw failure("Timed out waiting for MCP client: \(name)")

@@ -95,16 +95,17 @@ class Client:
 
 
 def main():
-    require(len(sys.argv) == 2, 'Usage: mcp-live-client.py <guest-run-directory>')
+    require(len(sys.argv) == 3, 'Usage: mcp-live-client.py <guest-run-directory> <runner-exchange-directory>')
     run = Path(sys.argv[1]).resolve()
     require((run / 'system-vm').is_file(), 'Disposable VM marker is required')
-    app = run / 'system/PodList.app'
+    app = Path('/Applications/PodList UI Check.app')
     with (app / 'Contents/Info.plist').open('rb') as file:
         identity = plistlib.load(file)['CFBundleIdentifier']
-    require(identity.startswith('app.podlist.uitour.'), 'Production identity refused')
+    require(identity == 'app.podlist.uitour.system', 'Non-test identity refused')
     data = (run / 'system/data').resolve()
     require(str(data).startswith(('/private/tmp/', '/tmp/')), 'Non-temporary data refused')
-    exchange = run / 'system/exchange'
+    exchange = Path(sys.argv[2]).resolve()
+    require(exchange.is_dir() and exchange.name.startswith('podlist-mcp-'), 'Runner exchange is required')
     environment = {**os.environ, 'PODLIST_UI_DATA_DIRECTORY': str(data)}
     bridge = app / 'Contents/MacOS/podlist-mcp'
     socket = data / 'Automation/mcp.sock'
@@ -170,6 +171,10 @@ def main():
             finally:
                 fresh.stop()
             (exchange / 'closed-verified').touch()
+            wait_for(exchange / 'reopen-requested')
+            # Launch outside XCTest's sandbox, while XCTest asserts the window and PID.
+            subprocess.run(['/usr/bin/open', str(app)], check=True, timeout=20)
+            (exchange / 'reopen-opened').touch()
             wait_for(exchange / 'window-reopened')
             require(starred() == original, 'Reopen lost the restored Episode state')
             client.tool('now_playing')
@@ -192,4 +197,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as error:
+        # Fail the UI checkpoint promptly, and keep the full traceback in the guest log.
+        if len(sys.argv) == 3:
+            (Path(sys.argv[2]) / 'client-failed').write_text(str(error))
+        raise
