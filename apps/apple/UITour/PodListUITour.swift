@@ -248,7 +248,9 @@ final class PodListUITour: XCTestCase {
 
     private func selectFirstEpisode() throws {
         let row = episodeRows.firstMatch
-        try click(row)
+        // SwiftUI outline rows report isEnabled == false to accessibility; they still select on click.
+        try ready(row)
+        row.click()
         try ready(library.buttons["Add to a Playlist"])
     }
 
