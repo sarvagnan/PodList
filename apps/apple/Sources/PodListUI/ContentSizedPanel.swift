@@ -41,7 +41,7 @@ extension ContentSizedPanel where Footer == EmptyView {
     }
 }
 
-private struct PanelHeightReader: NSViewRepresentable {
+struct PanelHeightReader: NSViewRepresentable {
     let settings: Bool
     let changed: (CGFloat) -> Void
     func makeNSView(context: Context) -> HeightView { HeightView(settings: settings, changed: changed) }

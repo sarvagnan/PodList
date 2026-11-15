@@ -160,16 +160,22 @@ final class PodListUITour: XCTestCase {
         try click(button("Show description"))
         try ready(button("Show less"))
         try capture("19-description-expanded")
+        let subscriptionFrame = library.buttons["Subscribed"].frame
+        let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
         let armedAt = Date()
         // Never click Unsubscribe. The arm (held for 15 s in tour builds, 4 s otherwise)
         // expires naturally.
         try ready(library.buttons["Unsubscribe"], timeout: 3)
+        XCTAssertEqual(library.buttons["Unsubscribe"].frame, subscriptionFrame)
+        XCTAssertEqual(library.buttons["Share Podcast"].frame, shareFrame)
         try capture("20-unsubscribe-armed")
         let remaining = 17 - Date().timeIntervalSince(armedAt)
         if remaining > 0 { Thread.sleep(forTimeInterval: remaining) }
         try ready(library.buttons["Subscribed"])
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
+        XCTAssertEqual(library.buttons["Subscribed"].frame, subscriptionFrame)
+        XCTAssertEqual(library.buttons["Share Podcast"].frame, shareFrame)
         try capture("21-unsubscribe-disarmed")
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
@@ -204,6 +210,12 @@ final class PodListUITour: XCTestCase {
         let nowPlaying = app.windows.matching(NSPredicate(format: "title == %@", "Now Playing")).firstMatch
         try ready(nowPlaying)
         XCTAssertFalse(library.sheets.firstMatch.exists)
+        for name in ["Play", "Episode Details", "Open Active Playlist"] {
+            let control = nowPlaying.buttons[name]
+            try ready(control)
+            XCTAssertTrue(nowPlaying.frame.contains(control.frame), "Main playback controls must fit without scrolling")
+            XCTAssertLessThanOrEqual(control.frame.maxY, nowPlaying.buttons["Done"].frame.minY)
+        }
         try capture("26-now-playing", in: nowPlaying)
         // Playback stays open while the person browses Library.
         try navigate("Trash")
@@ -308,14 +320,11 @@ final class PodListUITour: XCTestCase {
                                       file: StaticString = #filePath, line: UInt = #line) {
         let actualPlay = library.buttons["Play This Playlist"].frame
         let actualSection = library.radioButtons["Entries"].frame
-        // The header adapts to its width (Play This Playlist turns icon-only when the Inspector
-        // narrows the content), so horizontal positions only compare at the same form.
-        let sameForm = abs(actualPlay.width - play.width) <= 1
-        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: sameForm ? 1 : 2, "Playlist action moved", file: file, line: line)
-        if sameForm {
-            XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
-            XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
-        }
+        // Switching sections preserves the Inspector and therefore the header's form.
+        XCTAssertEqual(actualPlay.width, play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
+        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
+        XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
+        XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
         XCTAssertEqual(actualSection.minY, section.minY, accuracy: 1, "Section control moved", file: file, line: line)
         XCTAssertLessThan(abs(actualPlay.midY - actualSection.midY), 8, "Controls must share a row", file: file, line: line)
     }

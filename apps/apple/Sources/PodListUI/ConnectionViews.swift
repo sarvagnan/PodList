@@ -63,7 +63,7 @@ public struct PodListSettings: SwiftUI.View {
                 .tabItem { Label("Automation", systemImage: "terminal") }
                 .tag("automation")
         }
-        .frame(width: 600, height: heights[pane] ?? 440)
+        .frame(width: 640, height: heights[pane] ?? 440)
         .onPreferenceChange(SettingsPaneHeights.self) { measured in
             for (pane, height) in measured where height > 0 { heights[pane] = height }
         }

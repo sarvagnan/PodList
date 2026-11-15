@@ -48,9 +48,12 @@ public struct LibrarySettingsScreen: SwiftUI.View {
     @AppStorage("PodList.appearance") private var appearance = "System"
     @Environment(\.openWindow) private var openWindow
     @State private var gettingStarted = false
+    @State private var availableHeight: CGFloat = 680
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
-        ContentSizedPanel(width: 600, settings: true, pane: "general") {
+        // A grouped Form owns its scrolling and keeps labels and prose inside
+        // the pane. A columns Form can grow wider than its proposed width.
+        Group {
             Form {
                 if let library = app.library {
                     if let editor = app.libraryEditing, let editing = app.editing {
@@ -96,8 +99,11 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         if let error = app.connectionError { Text(error).foregroundStyle(Color.podListError) }
                     }
                 }
-            }.formStyle(.columns).padding(24)
+            }.formStyle(.grouped)
         }
+        .frame(width: 640, height: min(680, availableHeight))
+        .preference(key: SettingsPaneHeights.self, value: ["general": min(680, availableHeight)])
+        .background(PanelHeightReader(settings: true) { availableHeight = $0 })
         .sheet(isPresented: Binding(get: { app.bringOverPreview != nil }, set: { if !$0 { app.declineBringOver() } })) {
             if let preview = app.bringOverPreview { BringOverPreviewScreen(app: app, preview: preview) }
         }
@@ -184,7 +190,7 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
                 playbackFailure("Volume boost")
             }
             Section("Trash") {
-                Picker("Keep Playlists in Trash", selection: Binding(get: { draft.trashDays }, set: {
+                Picker("Keep in Trash", selection: Binding(get: { draft.trashDays }, set: {
                     draft.trashDays = $0; draft.save(.setTrashDays(days: $0), setting: "Keep Playlists in Trash", using: editing)
                 })) {
                     ForEach([1, 7, 14, 30, 60, 90, 365] as [Int64], id: \.self) { Text(CountText.format($0, .day)).tag($0) }

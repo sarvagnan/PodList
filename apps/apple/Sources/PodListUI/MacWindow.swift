@@ -488,7 +488,9 @@ public struct PodListWindow: SwiftUI.View {
                                 else { Text("—") }
                             }.width(min: 95, ideal: 110, max: 150)
                             TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                            TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                            TableColumn("State", value: \.stateText) { row in
+                                Text(row.stateText).fixedSize(horizontal: false, vertical: true)
+                            }.width(min: 140, ideal: 150, max: 200)
                         } rows: {
                             ForEach(rows) { row in
                                 TableRow(row).draggable(episodeDragPayload(row.id, rows: rows, library: library))
@@ -662,7 +664,9 @@ public struct PodListWindow: SwiftUI.View {
         if isPodcastPage { return true }
         switch window.destination {
         case .view, .search: return true
-        case .playlist: return playlistPresentation.playlistTab != .timeline
+        // Timeline rows describe Episodes too. Keep the user's Inspector choice
+        // across sections, including its empty state when no Episode is selected.
+        case .playlist: return true
         default: return false
         }
     }

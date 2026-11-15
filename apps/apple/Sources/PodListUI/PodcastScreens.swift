@@ -205,7 +205,7 @@ struct PodcastPageScreen: SwiftUI.View {
                                 if subscribed, !control.click(at: Date()) { return }
                                 changeSubscription()
                             } label: {
-                                Label(subscribed ? (control.isArmed(at: context.date) ? "Unsubscribe" : "Subscribed") : "Subscribe", systemImage: subscribed ? (control.isArmed(at: context.date) ? "minus.circle.fill" : "checkmark.circle.fill") : "plus.circle")
+                                SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed(at: context.date))
                                     .foregroundStyle(subscribed ? (control.isArmed(at: context.date) ? Color.podListError : Color.primary) : Color.podListAccent)
                             }.tint(subscribed ? nil : .podListAccent).disabled(subscriptionBusy)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
@@ -255,7 +255,9 @@ struct PodcastPageScreen: SwiftUI.View {
                             }.width(min: 95, ideal: 110, max: 150)
                             TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
                                 .width(min: 60, ideal: 70, max: 100)
-                            TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                            TableColumn("State", value: \.stateText) { episode in
+                                Text(episode.stateText).fixedSize(horizontal: false, vertical: true)
+                            }.width(min: 140, ideal: 150, max: 200)
                         } rows: {
                             ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                         }
@@ -444,5 +446,21 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
         }
     }
     private func save() { let value = overrides, played = threshold; editor.run { try await editor.edit(.setSubscriptionOverrides(subscriptionId: subscription.id, playbackSettings: value, playedThreshold: played)) } }
+}
+
+/// Reserve the widest native label at the current font size, including its icon.
+/// Arming and automatic disarming must not move the neighbouring actions.
+struct SubscriptionButtonLabel: SwiftUI.View {
+    let subscribed: Bool
+    let armed: Bool
+    var body: some SwiftUI.View {
+        ZStack {
+            Label("Subscribed", systemImage: "checkmark.circle.fill").hidden().accessibilityHidden(true)
+            Label("Unsubscribe", systemImage: "minus.circle.fill").hidden().accessibilityHidden(true)
+            Label("Subscribe", systemImage: "plus.circle").hidden().accessibilityHidden(true)
+            Label(subscribed ? (armed ? "Unsubscribe" : "Subscribed") : "Subscribe",
+                  systemImage: subscribed ? (armed ? "minus.circle.fill" : "checkmark.circle.fill") : "plus.circle")
+        }.fixedSize()
+    }
 }
 #endif
