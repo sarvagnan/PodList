@@ -134,9 +134,14 @@ public struct PodListWindow: SwiftUI.View {
                 } else if let editing = app.editing {
                     EditingFeedback(editing: editing).id(window.destination).id(podcastFeed)
                 }
-                if let podcastFeed, let editor = app.libraryEditing {
-                    PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, scrollAnchor: $window.scrollAnchor, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)
-                } else { content(library) }
+                // Lists and AppKit tables must fit the space left by window feedback.
+                GeometryReader { viewport in
+                    Group {
+                        if let podcastFeed, let editor = app.libraryEditing {
+                            PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, scrollAnchor: $window.scrollAnchor, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)
+                        } else { content(library) }
+                    }.frame(width: viewport.size.width, height: viewport.size.height)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .macContentFont(.body)

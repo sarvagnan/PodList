@@ -258,18 +258,25 @@ private struct PlaybackSeekSheet: SwiftUI.View {
     @Environment(\.locale) private var locale
     @State private var seconds = ""
     @State private var episodeID: String?
+    @State private var validation = FormValidationVisibility()
     private var position: Double? {
-        guard episodeID == controller.display?.episodeID,
-              let value = FormNumbers.nonnegative(seconds, locale: locale),
-              let duration = controller.display?.duration, value <= duration else { return nil }
-        return value
+        guard episodeID == controller.display?.episodeID else { return nil }
+        return FormNumbers.seekPosition(seconds, duration: controller.display?.duration, locale: locale)
     }
     var body: some SwiftUI.View {
         PodListSheet(title: "Go to Time", width: 420, actionTitle: "Go", actionEnabled: position != nil,
                      cancel: { dismiss() }, action: go) {
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Position (seconds)") {
-                    TextField("Position in seconds", text: $seconds).labelsHidden().onSubmit { go() }
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Position in seconds", text: Binding(get: { seconds }, set: { text in
+                            validation.edited(from: seconds, to: text); seconds = text
+                        })).labelsHidden().onSubmit { go() }
+                        if let message = validation.message(FormNumbers.seekProblem(seconds, duration: controller.display?.duration, locale: locale)) {
+                            Text(message).macContentFont(.caption).foregroundStyle(Color.podListError)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
             }
         }

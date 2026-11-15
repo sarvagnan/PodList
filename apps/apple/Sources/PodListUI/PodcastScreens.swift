@@ -23,6 +23,25 @@ struct LibraryFeedback: SwiftUI.View {
     }
 }
 
+/// The parent offers a detail viewport, never the table's AppKit ideal height.
+/// Keep metadata bounded and give only the Episode list the remaining space.
+struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.View {
+    @ViewBuilder let header: () -> Header
+    @ViewBuilder let episodes: () -> Episodes
+    var body: some SwiftUI.View {
+        GeometryReader { viewport in
+            VStack(alignment: .leading, spacing: 12) {
+                header()
+                GeometryReader { table in
+                    episodes().frame(width: table.size.width, height: table.size.height)
+                }
+            }
+            .padding(18)
+            .frame(width: viewport.size.width, height: viewport.size.height, alignment: .topLeading)
+        }
+    }
+}
+
 struct PodcastPageScreen: SwiftUI.View {
     let feedURL: String
     @Bindable var app: ApplicationModel
@@ -105,40 +124,43 @@ struct PodcastPageScreen: SwiftUI.View {
         }.sorted(using: sortOrder)
     }
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 16) {
-                ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title).macContentFont(.title2).bold()
-                    Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle())
-                    Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? nil : 5).textSelection(.enabled)
-                    Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
-                    HStack {
-                        TimelineView(.periodic(from: .now, by: 0.25)) { context in
-                            Button {
-                                if subscribed, !control.click(at: Date()) { return }
-                                changeSubscription()
-                            } label: {
-                                SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed(at: context.date))
-                                    .foregroundStyle(control.isArmed(at: context.date) ? Color.podListError : Color.primary)
-                            }.disabled(subscriptionBusy)
-                                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
-                                .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
+        PodcastPageLayout {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 16) {
+                    ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title).macContentFont(.title2).bold().lineLimit(2)
+                        Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
+                        Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? 8 : 3).textSelection(.enabled)
+                        Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(.link)
+                        HStack {
+                            TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                                Button {
+                                    if subscribed, !control.click(at: Date()) { return }
+                                    changeSubscription()
+                                } label: {
+                                    SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed(at: context.date))
+                                        .foregroundStyle(control.isArmed(at: context.date) ? Color.podListError : Color.primary)
+                                }.disabled(subscriptionBusy)
+                                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
+                                    .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
+                            }
+                            if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
+                                ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
+                                Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
+                            }
+                            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly) }
                         }
-                        if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
-                            ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
-                            Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
-                        }
-                        if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly) }
                     }
                 }
+                if subscribed, let subscription {
+                    DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
+                }
+                if loading { ProgressView("Reading Episodes…") }
+                if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { control.reset(); load() } }
+                Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
             }
-            if subscribed, let subscription {
-                DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
-            }
-            if loading { ProgressView("Reading Episodes…") }
-            if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { control.reset(); load() } }
-            Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
+        } episodes: {
             if episodes.isEmpty, !loading, error == nil {
                 ContentUnavailableView {
                     Label(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet")
@@ -196,7 +218,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
                 .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
             }
-        }.padding(18)
+        }
         .focusedSceneValue(\.podListRecoveryActions, MenuActionContext(actions: error != nil && !loading ? [.retry: { control.reset(); load() }] : [:]))
         .focusedSceneValue(\.podListSort, $savedSort)
         .focusedSceneValue(\.podListPodcast, podcastCommands)
@@ -333,7 +355,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             .cancel: saving ? nil : cancel, .save: !saving && !editor.edits.busy ? save : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListPodcast, PodcastCommandContext(subscribed: true,
-            markAllPlayed: !saving && !editor.edits.busy ? { value(\.markAllPlayed).wrappedValue = true } : nil))
+            markAllPlayed: markAllPlayed))
     }
     private var settingsFields: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
@@ -348,8 +370,8 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                         if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
                     }.labelsHidden()
                 }
-                Toggle("Mark All Played", isOn: value(\.markAllPlayed))
-                Text("Save applies these settings and any Mark All Played selection. Cancel discards changes.")
+                Button("Mark All Played") { markAllPlayed?() }.disabled(markAllPlayed == nil)
+                Text("Mark All Played takes effect immediately and can be undone. Save applies these settings. Cancel discards settings changes.")
                     .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
             }
             Text("Playback Settings Overrides").macContentFont(.headline)
@@ -382,10 +404,13 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             editor.edits.drafts.stage(updated); draft = updated
         })
     }
+    private var markAllPlayed: (() -> Void)? {
+        saving ? nil : SubscriptionPlayedAction.action(subscription, editor: editor)
+    }
     private func cancel() { editor.edits.drafts.remove(draft.field); dismiss() }
     private func save() {
         guard !saving, !editor.edits.busy else { return }
-        let changes = draft.changes(episodeIDs: library.snapshot.episodes.filter { $0.subscriptionId == subscription.id }.map(\.id))
+        let changes = draft.changes
         saving = true
         Task {
             let saved = changes.isEmpty ? true : await editor.edits.edit(changes, name: "Subscription Settings", reload: true)

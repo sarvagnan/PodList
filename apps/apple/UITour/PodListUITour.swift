@@ -158,9 +158,11 @@ final class PodListUITour: XCTestCase {
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(button("Show description"))
         try ready(text("Who sets the price of rice?", in: episodeList))
+        try assertPodcastWindowBounds()
         try capture("18-podcast-market-hours")
         try click(button("Show description"))
         try ready(button("Show less"))
+        try assertPodcastWindowBounds()
         try capture("19-description-expanded")
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
@@ -178,6 +180,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
         XCTAssertEqual(library.buttons["Subscribed"].frame, subscriptionFrame)
         XCTAssertEqual(library.buttons["Share Podcast"].frame, shareFrame)
+        try assertPodcastWindowBounds()
         try capture("21-unsubscribe-disarmed")
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
@@ -336,6 +339,16 @@ final class PodListUITour: XCTestCase {
         try ready(element, file: file, line: line)
         XCTAssertTrue(element.isEnabled, "Disabled \(element)", file: file, line: line)
         element.click()
+    }
+
+    private func assertPodcastWindowBounds(file: StaticString = #filePath, line: UInt = #line) throws {
+        let firstHeader = library.outlines["Sidebar"].staticTexts["Views"]
+        let play = library.buttons["Play"]
+        for control in [firstHeader, play] {
+            try ready(control, file: file, line: line)
+            XCTAssertFalse(control.frame.isEmpty, "Control must have a visible frame", file: file, line: line)
+            XCTAssertTrue(library.frame.contains(control.frame), "Podcast page pushed \(control) outside the window", file: file, line: line)
+        }
     }
 
     private func assertPlaylistHeader(play: CGRect, section: CGRect,

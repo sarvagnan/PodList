@@ -139,3 +139,47 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
         #expect(submitted.message(problem) == problem)
     }
 }
+
+@Test(arguments: ["en_US", "de_DE", "fr_FR", "hi_IN"])
+func lastDaysDraftsRequireAnEditableWholeNumberWithinRange(_ identifier: String) {
+    let locale = Locale(identifier: identifier)
+    for days in [Int64(1), 7, 3650] {
+        let text = days.formatted(.number.locale(locale).grouping(.never))
+        #expect(FormNumbers.lastDays(text, locale: locale) == days)
+        #expect(FormNumbers.lastDaysProblem(text, locale: locale) == nil)
+    }
+    for text in ["", " ", "0", "-1", "3651", "1.5", "1,5", "seven", "9223372036854775808"] {
+        #expect(FormNumbers.lastDays(text, locale: locale) == nil)
+        #expect(FormNumbers.lastDaysProblem(text, locale: locale) == "Last Days must be a whole number from 1 to 3650.")
+    }
+}
+
+@Test func seekValidationExplainsTheRangeAfterEditingAndPreservesLocaleParsing() {
+    let locale = Locale(identifier: "de_DE"), duration = 1748.0
+    var visibility = FormValidationVisibility()
+    #expect(visibility.message(FormNumbers.seekProblem("", duration: duration, locale: locale)) == nil)
+    visibility.edited(from: "", to: "-")
+    for raw in ["", "-", "-1", "NaN", "∞", "word", "1748,1"] {
+        #expect(FormNumbers.seekPosition(raw, duration: duration, locale: locale) == nil)
+        #expect(visibility.message(FormNumbers.seekProblem(raw, duration: duration, locale: locale)) == "Enter a time from 0:00 to 29:08 (in seconds).")
+    }
+    for (raw, expected) in [("0", 0.0), ("1,5", 1.5), ("1748", duration)] {
+        #expect(FormNumbers.seekPosition(raw, duration: duration, locale: locale) == expected)
+        #expect(visibility.message(FormNumbers.seekProblem(raw, duration: duration, locale: locale)) == nil)
+    }
+    #expect(FormNumbers.seekProblem("1", duration: nil, locale: locale) == "The Episode duration is unavailable.")
+}
+
+@MainActor @Test func invalidLastDaysDraftSurvivesReopeningAndClearsWithTheViewSession() async throws {
+    let suite = UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let db = try await fixtureDatabase()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "days", defaults: defaults)
+    editor.setDraft("3651", field: "days.all")
+    let reopened = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "days", defaults: defaults)
+    #expect(reopened.draft("days.all") == "3651")
+    #expect(FormNumbers.lastDaysProblem(reopened.draft("days.all"), locale: Locale(identifier: "en_US")) != nil)
+    reopened.clearViewDrafts("all", creating: false)
+    #expect(!reopened.hasDraft("days.all"))
+}

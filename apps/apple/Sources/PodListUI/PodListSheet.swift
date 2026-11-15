@@ -56,6 +56,7 @@ struct PodListSheetReadingSurface<Content: SwiftUI.View>: SwiftUI.View {
             content()
         }
         .labeledContentStyle(PodListSheetLabelStyle())
+        .toggleStyle(.checkbox)
         .frame(width: max(1, width - 48), alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .padding(24)
@@ -81,6 +82,7 @@ struct PodListSheetField<Content: SwiftUI.View>: SwiftUI.View {
 struct PodListSheetFormStyle: FormStyle {
     func makeBody(configuration: Configuration) -> some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) { configuration.content }
+            .toggleStyle(.checkbox)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

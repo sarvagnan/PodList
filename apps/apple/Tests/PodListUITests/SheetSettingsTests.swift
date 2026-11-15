@@ -21,23 +21,23 @@ import PodListDomain
     #expect(PlaylistSettingsDraft(original).changes.isEmpty)
 }
 
-@MainActor @Test func subscriptionSheetStagesEverySettingIncludingPlayedAndSupportsUndo() async throws {
+@MainActor @Test func subscriptionSheetStagesSettingsWithoutMarkingPlayedAndSupportsUndo() async throws {
     let db = try await fixtureDatabase()
     let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
     let before = try await db.readLibrary()
     let sub = try #require(before.subscriptions.first { $0.id == "s" })
     var draft = SubscriptionSettingsDraft(sub, rule: nil, deviceID: "this")
-    #expect(draft.changes(episodeIDs: ["a", "b"]).isEmpty)
+    #expect(draft.changes.isEmpty)
     draft.overrides.speed = 2; draft.threshold = 60
-    draft.mode = .allNew; draft.cap = 5; draft.markAllPlayed = true
+    draft.mode = .allNew; draft.cap = 5
     let staged = try await db.readLibrary()
     #expect(staged.state == before.state && staged.subscriptions == before.subscriptions)
-    #expect(await editing.edit(draft.changes(episodeIDs: ["a", "b"]), name: "Subscription Settings", reload: true))
+    #expect(await editing.edit(draft.changes, name: "Subscription Settings", reload: true))
     let saved = try await db.readLibrary()
     #expect(saved.subscriptions.first { $0.id == "s" }?.playbackSettings.speed == 2)
     #expect(saved.subscriptions.first { $0.id == "s" }?.playedThreshold == 60)
     #expect(saved.state.downloadRules.contains { $0.subscriptionId == "s" && $0.deviceId == "this" && $0.mode == .allNew && $0.keepAtMost == 5 })
-    #expect(saved.state.episodeStates["a"]?.played?.source == .user)
+    #expect(saved.state.episodeStates == before.state.episodeStates)
     await editing.reverse()
     let restored = try await db.readLibrary()
     #expect(restored.subscriptions == before.subscriptions)
@@ -58,8 +58,8 @@ import PodListDomain
     #expect(draft.changes == [.setClearOnPlayed(playlistId: original.id, clearOnPlayed: !original.clearOnPlayed)])
     var subscriptionDraft = SubscriptionSettingsDraft(subscription(), rule: nil, deviceID: "this")
     subscriptionDraft.mode = .onEntry
-    #expect(subscriptionDraft.changes(episodeIDs: []).count == 1)
-    #expect(subscriptionDraft.changes(episodeIDs: []) == [.setDownloadRule(rule: .init(subscriptionId: "s", deviceId: "this", mode: .onEntry, keepAtMost: nil))])
+    #expect(subscriptionDraft.changes.count == 1)
+    #expect(subscriptionDraft.changes == [.setDownloadRule(rule: .init(subscriptionId: "s", deviceId: "this", mode: .onEntry, keepAtMost: nil))])
 }
 
 @MainActor @Test func playlistSettingsJournalSurvivesReopeningAndRelaunchWithBothRenameStages() async throws {
@@ -108,18 +108,18 @@ import PodListDomain
     sub.playedThreshold = 60
     let rule = DownloadRule(subscriptionId: sub.id, deviceId: "this", mode: .allNew, keepAtMost: 5)
     var stage = drafts.subscriptionSettings(sub, rule: rule, deviceID: "this")
-    stage.overrides = .init(); stage.threshold = nil; stage.cap = nil; stage.mode = .onEntry; stage.markAllPlayed = true
+    stage.overrides = .init(); stage.threshold = nil; stage.cap = nil; stage.mode = .onEntry
     drafts.stage(stage)
     let relaunched = PlaylistDrafts(scope: "one", defaults: try #require(UserDefaults(suiteName: suite)))
     let restored = relaunched.subscriptionSettings(sub, rule: rule, deviceID: "this")
-    #expect(restored.changes(episodeIDs: ["a"]) == stage.changes(episodeIDs: ["a"]))
-    #expect(restored.overrides == .init() && restored.threshold == nil && restored.cap == nil && restored.markAllPlayed)
-    #expect(relaunched.subscriptionSettings(sub, rule: nil, deviceID: "other").changes(episodeIDs: []).isEmpty)
-    #expect(PlaylistDrafts(scope: "two", defaults: defaults).subscriptionSettings(sub, rule: rule, deviceID: "this").changes(episodeIDs: []).isEmpty)
+    #expect(restored.changes == stage.changes)
+    #expect(restored.overrides == .init() && restored.threshold == nil && restored.cap == nil)
+    #expect(relaunched.subscriptionSettings(sub, rule: nil, deviceID: "other").changes.isEmpty)
+    #expect(PlaylistDrafts(scope: "two", defaults: defaults).subscriptionSettings(sub, rule: rule, deviceID: "this").changes.isEmpty)
     var synced = sub; synced.title = "Updated elsewhere"
-    #expect(relaunched.subscriptionSettings(synced, rule: nil, deviceID: "this").changes(episodeIDs: ["a"]) == stage.changes(episodeIDs: ["a"]))
+    #expect(relaunched.subscriptionSettings(synced, rule: nil, deviceID: "this").changes == stage.changes)
     relaunched.remove(stage.field) // Explicit Cancel and successful Save use the same removal.
-    #expect(PlaylistDrafts(scope: "one", defaults: defaults).subscriptionSettings(sub, rule: rule, deviceID: "this").changes(episodeIDs: []).isEmpty)
+    #expect(PlaylistDrafts(scope: "one", defaults: defaults).subscriptionSettings(sub, rule: rule, deviceID: "this").changes.isEmpty)
     #expect(!relaunched[playlistDraft.field].isEmpty) // Cancelling one sheet keeps other drafts.
     relaunched["rename/\(original.id)"] = "Unfinished"; relaunched["rename-open/\(original.id)"] = "true"
     relaunched.discardPlaylistSettings(original.id)
@@ -140,4 +140,13 @@ import PodListDomain
     #expect(await editing.edit(draft.changes, name: "Playlist Settings") == false)
     #expect(PlaylistDrafts(scope: "test", defaults: defaults).playlistSettings(original).changes == draft.changes)
     #expect(try await db.loadState().playlists.first { $0.id == id } == original)
+}
+
+@Test func oldSubscriptionSettingsJournalsCannotStageMarkAllPlayed() throws {
+    let draft = SubscriptionSettingsDraft(subscription(), rule: nil, deviceID: "this")
+    let encoded = try JSONEncoder().encode(draft)
+    var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    object["markAllPlayed"] = true
+    let restored = try JSONDecoder().decode(SubscriptionSettingsDraft.self, from: JSONSerialization.data(withJSONObject: object))
+    #expect(restored.changes.isEmpty)
 }
