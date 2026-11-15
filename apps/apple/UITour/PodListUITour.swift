@@ -104,8 +104,10 @@ final class PodListUITour: XCTestCase {
         try capture("14-trash")
         try navigate("Search")
         // Only an on-screen field: a toolbar can also hold an off-screen overflow copy.
-        let search = library.searchFields.matching(NSPredicate(format: "hittable == true")).firstMatch
-        try ready(search)
+        try ready(library.searchFields.firstMatch)
+        let search = try XCTUnwrap(library.searchFields.allElementsBoundByIndex.first {
+            $0.frame.origin.x.isFinite && $0.frame.width > 0 && $0.isHittable
+        }, "No on-screen search field")
         search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         app.typeText("rice")
         try ready(text("Who sets the price of rice?", in: episodeList))
