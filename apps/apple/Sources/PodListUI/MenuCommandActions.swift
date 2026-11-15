@@ -124,9 +124,6 @@ public struct AdditionalMenuCommands: Commands {
                 Toggle("Show Daily Table", isOn: Binding(get: { dailyTable?.wrappedValue ?? false }, set: { dailyTable?.wrappedValue = $0 }))
             }.disabled(dailyTable == nil)
         }
-        CommandGroup(after: .help) {
-            Button("Getting Started") { openWindow(id: "getting-started") }.disabled(app.libraryEditing == nil)
-        }
         // Window › Listening Stats comes from its Window scene; a custom item here listed it
         // twice (WMENU-03).
     }
