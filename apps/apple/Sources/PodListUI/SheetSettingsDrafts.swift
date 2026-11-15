@@ -34,7 +34,6 @@ struct SubscriptionSettingsDraft: Codable {
     var threshold: Double?
     var mode: DownloadMode
     var cap: Int64?
-    var markAllPlayed = false
     var field: String { Self.field(subscriptionID: subscriptionID, deviceID: deviceID) }
     static func field(subscriptionID: String, deviceID: String) -> String {
         "settings/subscription/\(subscriptionID.utf8.count):\(subscriptionID)\(deviceID)"
@@ -45,7 +44,7 @@ struct SubscriptionSettingsDraft: Codable {
         overrides = subscription.playbackSettings; threshold = subscription.playedThreshold
         mode = rule?.mode ?? .never; cap = rule?.keepAtMost
     }
-    func changes(episodeIDs: [String]) -> [Change] {
+    var changes: [Change] {
         var result: [Change] = []
         if overrides != originalOverrides || threshold != originalThreshold {
             result.append(.setSubscriptionOverrides(subscriptionId: subscriptionID, playbackSettings: overrides, playedThreshold: threshold))
@@ -53,8 +52,6 @@ struct SubscriptionSettingsDraft: Codable {
         if mode != (originalRule?.mode ?? .never) || cap != originalRule?.keepAtMost {
             result.append(.setDownloadRule(rule: DownloadRule(subscriptionId: subscriptionID, deviceId: deviceID, mode: mode, keepAtMost: cap)))
         }
-        // Concrete Episode changes retain the shared reversible Mark Played semantics.
-        if markAllPlayed { result += episodeIDs.map { .markPlayed(episodeId: $0, source: .user) } }
         return result
     }
 }

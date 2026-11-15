@@ -202,7 +202,7 @@ public final class LibraryEditingModel {
         error = nil
     }
     public func clearViewDrafts(_ id: String, creating: Bool) {
-        for field in ["view.\(id)", "rename.\(id)", "limit.\(id)", "\(id).Minimum length (minutes)", "\(id).Maximum length (minutes)"] {
+        for field in ["view.\(id)", "rename.\(id)", "limit.\(id)", "days.\(id)", "\(id).Minimum length (minutes)", "\(id).Maximum length (minutes)"] {
             clearDraft(field)
         }
         if creating { clearDraft("newViewID") }

@@ -18,6 +18,27 @@ enum FormNumbers {
         return match.output
     }
 
+    static func lastDays(_ text: String, locale: Locale) -> Int64? {
+        guard let days = positiveCount(text, locale: locale), days <= 3650 else { return nil }
+        return days
+    }
+
+    static func lastDaysProblem(_ text: String, locale: Locale) -> String? {
+        lastDays(text, locale: locale) == nil ? "Last Days must be a whole number from 1 to 3650." : nil
+    }
+
+    static func seekPosition(_ text: String, duration: Double?, locale: Locale) -> Double? {
+        guard let duration, duration.isFinite, duration > 0,
+              let seconds = nonnegative(text, locale: locale), seconds <= duration else { return nil }
+        return seconds
+    }
+
+    static func seekProblem(_ text: String, duration: Double?, locale: Locale) -> String? {
+        guard seekPosition(text, duration: duration, locale: locale) == nil else { return nil }
+        guard let duration, duration.isFinite, duration > 0 else { return "The Episode duration is unavailable." }
+        return "Enter a time from 0:00 to \(Presentation.time(duration)) (in seconds)."
+    }
+
     static func countProblem(_ text: String, locale: Locale) -> String? {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return positiveCount(text, locale: locale) == nil ? "Episodes to Show must be a positive whole number." : nil

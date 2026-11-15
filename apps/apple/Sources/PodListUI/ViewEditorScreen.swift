@@ -66,18 +66,32 @@ struct ViewEditorScreen: SwiftUI.View {
                 }
                 Section("All Conditions Must Match") {
                     Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
+                        guard mode != publishedMode else { return }
+                        editor.clearDraft(daysField)
                         update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
                     })) {
                         Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
                     }
                     if publishedMode == "days" {
-                        Stepper("Last \(CountText.format(lastDays, .day))", value: Binding(get: { lastDays }, set: { days in update { $0.filter.published = .lastDays(days: days) } }), in: 1...3650)
+                        PodListSheetField("Last Days") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    TextField("Last Days", text: Binding(get: { daysDraft }, set: setDaysDraft))
+                                        .labelsHidden().textFieldStyle(.roundedBorder).frame(width: 88)
+                                    Text("days")
+                                    Stepper("Last Days", value: Binding(get: { lastDays }, set: { days in
+                                        setDaysDraft(days.formatted(.number.locale(locale).grouping(.never)))
+                                    }), in: 1...3650).labelsHidden()
+                                }
+                                validation(fieldProblems[.published])
+                            }
+                        }
                     }
                     if publishedMode == "between" {
                         DatePicker("From", selection: $from, displayedComponents: .date).onChange(of: from) { _, _ in updateDates() }
                         DatePicker("Through", selection: $to, displayedComponents: .date).onChange(of: to) { _, _ in updateDates() }
                     }
-                    validation(fieldProblems[.published])
+                    if publishedMode != "days" { validation(fieldProblems[.published]) }
                     Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
                         Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
                     }
@@ -164,6 +178,14 @@ struct ViewEditorScreen: SwiftUI.View {
     private var publishedMode: String {
         switch draft.filter.published { case .lastDays: "days"; case .between: "between"; case nil: "any" }
     }
+    private var daysField: String { "days.\(draft.id)" }
+    private var daysDraft: String {
+        editor.hasDraft(daysField) ? editor.draft(daysField) : lastDays.formatted(.number.locale(locale).grouping(.never))
+    }
+    private func setDaysDraft(_ text: String) {
+        editor.setDraft(text, field: daysField)
+        if let days = FormNumbers.lastDays(text, locale: locale) { update { $0.filter.published = .lastDays(days: days) } }
+    }
     private var lastDays: Int64 { if case let .lastDays(days) = draft.filter.published { days } else { 7 } }
     private func millis(_ date: Date) -> Int64 { Int64(date.timeIntervalSince1970 * 1000) }
     private var publishedDates: PublishedFilter {
@@ -203,6 +225,7 @@ struct ViewEditorScreen: SwiftUI.View {
         for (label, field, path) in [("Minimum length", ViewEdits.Field.minimumLength, \PodListDomain.View.filter.minDuration), ("Maximum length", .maximumLength, \PodListDomain.View.filter.maxDuration)] {
             if let message = FormNumbers.minutesProblem(numberDraft(label, path: path), label: label, locale: locale) { errors[field] = message }
         }
+        if publishedMode == "days", let message = FormNumbers.lastDaysProblem(daysDraft, locale: locale) { errors[.published] = message }
         let limit = editor.draft("limit.\(draft.id)")
         if let message = FormNumbers.countProblem(limit, locale: locale) { errors[.show] = message }
         return errors
@@ -233,6 +256,7 @@ struct ViewEditorScreen: SwiftUI.View {
         editor.setDraft(String(decoding: (try? JSONEncoder().encode(draft)) ?? Data(), as: UTF8.self), field: "view.\(draft.id)")
         for label in ["Minimum length (minutes)", "Maximum length (minutes)"] { editor.clearDraft("\(draft.id).\(label)") }
         editor.clearDraft("limit.\(draft.id)")
+        editor.clearDraft(daysField)
         problem = nil
         unappliedDraft = false
     }
