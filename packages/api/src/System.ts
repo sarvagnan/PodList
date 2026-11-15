@@ -5,8 +5,6 @@ export class Health extends Schema.Class<Health>("@podlist/api/Health")({
   status: Schema.Literal("ok"),
   /** The sync protocol this server speaks (ADR 0007). */
   protocolVersion: Schema.Int,
-  /** Opt-in operation extensions. Absent on older servers; absence means unsupported. */
-  supportedOperations: Schema.optionalKey(Schema.Array(Schema.String)),
   /** The deployed release (its git commit), when the deploy set one. */
   release: Schema.optionalKey(Schema.String)
 }) {}

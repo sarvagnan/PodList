@@ -199,8 +199,8 @@ public actor LocalDatabase {
 
     /// Guard every enqueue path, including generic edits and Standalone bring-over.
     func requireServerSupport(_ change: Change) throws {
-        if case .purgePlaylist = change, !standalone, try getMeta("supportsPurgePlaylist") != "true" {
-            throw DatabaseFailure(description: "This server does not support permanent Playlist deletion. Update the server, then retry.")
+        if !standalone, try SyncProtocol.minimumVersion(change) > (getMeta("serverProtocolVersion").flatMap(Int.init) ?? SyncProtocol.legacyVersion) {
+            throw DatabaseFailure(description: "Update the PodList server to save this change.")
         }
     }
 

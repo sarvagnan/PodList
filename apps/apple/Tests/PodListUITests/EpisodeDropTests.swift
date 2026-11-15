@@ -198,7 +198,7 @@ private struct DropPublisher: PublisherReader {
     let db = try await fixtureDatabase()
     let defaults = UserDefaults(suiteName: UUID().uuidString)!
     let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "purge", defaults: defaults))
-    try await db.setMeta("supportsPurgePlaylist", "true")
+    try await db.setMeta("serverProtocolVersion", "5")
     let id = try #require(await editing.create(name: "To Delete"))
     #expect(await editing.add(["a"], to: id, placement: .last) == id)
     #expect(await editing.setStar(["a"], starred: true))

@@ -25,7 +25,8 @@ interface LibrarySource {
 class ServerLibrary(private val db: LocalDatabase, override val server: ServerAddress, private val http: SyncTransport = HttpTransport(server), onFailure: (Exception) -> Unit = {}) : LibrarySource {
     private val sync = SyncClient(db, http, onFailure)
     override val key = server.origin
-    override fun refresh() = sync.sync()
+    override fun refresh() = sync.sync(refreshHealth = true)
+    fun retrySync() = sync.retry()
     override fun search(query: String): List<DirectoryResult> = ProtocolJson.decodeFromString(http.request("GET", "/api/directory/search?q=${URLEncoder.encode(query, "UTF-8")}", null))
     override fun readPodcast(feedUrl: String): ParsedFeed = ProtocolJson.decodeFromString(http.request("POST", "/api/podcasts/read", ProtocolJson.encodeToString(mapOf("feedUrl" to feedUrl))))
     override fun bringEpisode(feedUrl: String, guid: String): String {

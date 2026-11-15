@@ -1,6 +1,8 @@
 // The server parser is the reference implementation for Standalone Devices (ADR 0012).
+
 import { readFileSync } from "node:fs"
 import { parseDuration, parseFeed } from "../../server/src/FeedParser.ts"
+import { Protocol } from "../src/index.ts"
 
 const rss = (body: string) =>
   `<rss xmlns:itunes="urn:itunes" xmlns:content="urn:content" xmlns:podcast="urn:podcast"><channel>${body}</channel></rss>`
@@ -142,7 +144,7 @@ const recovered = [
   }
 ]
 export const buildFeedVectors = () => ({
-  protocolVersion: 4,
+  protocolVersion: Protocol.version,
   feeds: [
     ...[...sources, ...recovered].map((source) => ({ ...source, expected: parseFeed(source.xml) })),
     ...rejected.map((source) => ({ ...source, error: true }))

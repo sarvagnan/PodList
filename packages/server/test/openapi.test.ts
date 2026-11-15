@@ -12,7 +12,7 @@ import { Poller } from "../src/Poller.ts"
 import { Subscriptions } from "../src/Subscriptions.ts"
 import { SyncStore } from "../src/SyncStore.ts"
 
-it("serves the complete committed OpenAPI including raw streams and auth", async () => {
+const createAPI = () => {
   const services = Layer.mergeAll(
     SyncStore.layer,
     Poller.layer,
@@ -25,14 +25,18 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     Layer.provide(FetchHttpClient.layer),
     Layer.provideMerge(Database.layer(":memory:"))
   )
-  const { handler, dispose } = HttpRouter.toWebHandler(
+  return HttpRouter.toWebHandler(
     ApiRoutes.pipe(Layer.provide(services), Layer.provide(HttpServer.layerServices)),
     { disableLogger: true }
   )
+}
+
+it("serves the complete committed OpenAPI including raw streams and auth", async () => {
+  const { handler, dispose } = createAPI()
   try {
     const health = await handler(new Request("http://podlist.test/api/health"))
     expect(health.status).toBe(200)
-    expect(await health.json()).toMatchObject({ supportedOperations: ["PurgePlaylist"] })
+    expect(await health.json()).toMatchObject({ protocolVersion: 5 })
     const response = await handler(new Request("http://podlist.test/api/openapi.json"))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(
@@ -161,10 +165,18 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     const pushed = await post("sync/push", { operations })
     expect(pushed.status).toBe(200)
     expect(await pushed.json()).toMatchObject({ accepted: 3, cursor: 3 })
-    const pulled = await handler(new Request("http://podlist.test/api/sync/pull?since=1"))
+    const pulled = await handler(
+      new Request("http://podlist.test/api/sync/pull?since=1", {
+        headers: { "x-podlist-protocol-version": "5" }
+      })
+    )
     expect(pulled.status).toBe(200)
     expect(await pulled.json()).toMatchObject({ cursor: 3, operations: operations.slice(1) })
-    const snapshot = await handler(new Request("http://podlist.test/api/sync/pull?since=0"))
+    const snapshot = await handler(
+      new Request("http://podlist.test/api/sync/pull?since=0", {
+        headers: { "x-podlist-protocol-version": "5" }
+      })
+    )
     expect(await snapshot.json()).toMatchObject({ snapshot: { trash: [] } })
     // Unknown variants reject the whole batch, including preceding valid changes.
     const invalid = await post("sync/push", {
@@ -173,10 +185,78 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
         { ...operations[2], id: "unknown", change: { _tag: "UnknownChange" } }
       ]
     })
-    expect(invalid.status).toBe(400)
-    expect(await invalid.text()).toBe("")
+    expect(invalid.status).toBe(422)
+    expect(await invalid.json()).toEqual({
+      _tag: "UnsupportedOperation",
+      serverProtocolVersion: 5,
+      unsupportedOperations: ["UnknownChange"]
+    })
     const unchanged = await handler(new Request("http://podlist.test/api/sync/pull?since=3"))
     expect(await unchanged.json()).toMatchObject({ cursor: 3, operations: [] })
+  } finally {
+    await dispose()
+  }
+})
+
+it("refuses unreadable pulls and unknown pushes without partial progress", async () => {
+  const { handler, dispose } = createAPI()
+  try {
+    // Unknown discriminators reject the entire push before any State/log mutation.
+    const operation = (id: string, tag: string) => ({
+      id,
+      deviceId: "phone",
+      sequence: 0,
+      recordedAt: 1,
+      change:
+        tag === "SetStar"
+          ? { _tag: tag, episodeId: "a", starred: true }
+          : { _tag: tag, playlistId: "p" }
+    })
+    const push = (operations: unknown[]) =>
+      handler(
+        new Request("http://podlist.test/api/sync/push", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-podlist-protocol-version": "5" },
+          body: JSON.stringify({ operations })
+        })
+      )
+    const refusedPush = await push([
+      operation("safe", "SetStar"),
+      operation("future", "FutureOperation")
+    ])
+    expect(refusedPush.status).toBe(422)
+    expect(await refusedPush.json()).toEqual({
+      _tag: "UnsupportedOperation",
+      serverProtocolVersion: 5,
+      unsupportedOperations: ["FutureOperation"]
+    })
+    const empty = await handler(new Request("http://podlist.test/api/sync/pull?since=0"))
+    expect(((await empty.json()) as { cursor: number }).cursor).toBe(0)
+    expect(
+      (await push([operation("safe", "SetStar"), operation("purge", "PurgePlaylist")])).status
+    ).toBe(200)
+    for (const since of [0, 1]) {
+      for (const version of [undefined, "4"]) {
+        const refused = await handler(
+          new Request(`http://podlist.test/api/sync/pull?since=${since}`, {
+            headers: version ? { "x-podlist-protocol-version": version } : {}
+          })
+        )
+        expect(refused.status).toBe(426)
+        expect(await refused.json()).toEqual({
+          _tag: "UpdateRequired",
+          minimumProtocolVersion: 5,
+          unsupportedOperations: ["PurgePlaylist"]
+        })
+      }
+    }
+    const current = await handler(
+      new Request("http://podlist.test/api/sync/pull?since=1", {
+        headers: { "x-podlist-protocol-version": "5" }
+      })
+    )
+    expect(current.status).toBe(200)
+    expect(await current.json()).toMatchObject({ cursor: 2, operations: [{ id: "purge" }] })
   } finally {
     await dispose()
   }

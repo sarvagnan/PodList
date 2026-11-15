@@ -8,7 +8,6 @@ public protocol SyncTransport: Sendable {
 public struct Health: Codable, Equatable, Sendable {
     public let status: String
     public let protocolVersion: Int
-    public let supportedOperations: [String]?
     public let release: String?
 }
 public struct PullPage: Codable, Equatable, Sendable {
@@ -48,6 +47,17 @@ public struct SyncResponseFailure: Error, Sendable {
     public init(_ reason: String = "Invalid PodList response") { self.reason = reason }
 }
 
+public struct SyncCompatibilityFailure: Error, Codable, Sendable, Equatable {
+    public let _tag: String
+    public let minimumProtocolVersion: Int?
+    public let serverProtocolVersion: Int?
+    public var isCompatibilityError: Bool { _tag == "UpdateRequired" || _tag == "UnsupportedOperation" }
+    public var message: String { _tag == "UpdateRequired" ? "Update PodList to keep syncing" : "Update the PodList server to keep syncing" }
+    public init(_ tag: String, minimumProtocolVersion: Int? = nil, serverProtocolVersion: Int? = nil) {
+        _tag = tag; self.minimumProtocolVersion = minimumProtocolVersion; self.serverProtocolVersion = serverProtocolVersion
+    }
+}
+
 /// Coalesces overlapping runs while allowing the database actor to accept edits during network calls.
 public actor SyncClient {
     private let db: LocalDatabase
@@ -55,6 +65,7 @@ public actor SyncClient {
     private let onFailure: @Sendable (any Error) async -> Void
     private var onLibraryPage: @Sendable () async -> Void
     private var inFlight: Task<Void, any Error>?
+    private var blocked: SyncCompatibilityFailure?
 
     public init(db: LocalDatabase, transport: any SyncTransport, onFailure: @escaping @Sendable (any Error) async -> Void = { _ in },
                 onLibraryPage: @escaping @Sendable () async -> Void = {}) {
@@ -64,24 +75,30 @@ public actor SyncClient {
         onLibraryPage = handler
     }
     public func health() async throws -> Health {
-        try await db.setMeta("supportsPurgePlaylist", "false")
+        // Invalidate before the request so failed refreshes cannot leave a stale grant.
+        try await db.setMeta("serverProtocolVersion", String(SyncProtocol.legacyVersion))
         let health: Health = try ProtocolJSON.decode(from: await transport.request(method: "GET", path: "/api/health", body: nil))
         guard health.status == "ok" else { throw SyncResponseFailure() }
-        try await db.setMeta("supportsPurgePlaylist", health.supportedOperations?.contains("PurgePlaylist") == true ? "true" : "false")
+        try await db.setMeta("serverProtocolVersion", String(health.protocolVersion))
         return health
     }
-    /// Refresh before an irreversible edit; protocolVersion alone does not advertise extensions.
-    public func requirePurgePlaylistSupport() async throws {
-        guard try await health().supportedOperations?.contains("PurgePlaylist") == true else {
-            throw SyncResponseFailure("This server does not support permanent Playlist deletion. Update the server, then retry.")
+    public func requireServerVersion(_ minimum: Int) async throws {
+        guard try await health().protocolVersion >= minimum else {
+            throw SyncCompatibilityFailure("UnsupportedOperation", serverProtocolVersion: try await db.getMeta("serverProtocolVersion").flatMap(Int.init) ?? SyncProtocol.legacyVersion)
         }
     }
+    public func requirePurgePlaylistSupport() async throws {
+        try await requireServerVersion(SyncProtocol.minimumVersion(.purgePlaylist(playlistId: "")))
+    }
+    public func retry() { blocked = nil }
     public func sync() async throws {
         if let inFlight { return try await inFlight.value }
+        if let blocked { throw blocked }
         let task = Task { try await performSync() }
         inFlight = task
         defer { inFlight = nil }
-        try await task.value
+        do { try await task.value }
+        catch let error as SyncCompatibilityFailure { blocked = error; throw error }
     }
     private func performSync() async throws {
         if try await db.getMeta("registered") != "true" {
@@ -92,22 +109,28 @@ public actor SyncClient {
         }
         var failure: (any Error)?
         do { try await syncState() }
-        catch { failure = error; await onFailure(error) }
+        catch { failure = error; if let compatibility = error as? SyncCompatibilityFailure { blocked = compatibility }; await onFailure(error) }
         // State and Library have independent cursors and failures.
-        try await syncLibrary()
+        do { try await syncLibrary() } catch { if let compatibility = failure as? SyncCompatibilityFailure { throw compatibility }; throw error }
         if let failure { throw failure }
     }
     private func syncState() async throws {
         let sent = try await db.outbox()
         // Recheck after restart or a server rollback, including Operations imported by bring-over.
-        if sent.contains(where: { if case .purgePlaylist = $0.change { true } else { false } }) {
-            try await requirePurgePlaylistSupport()
-        }
+        let minimum = try sent.map { try SyncProtocol.minimumVersion($0.change) }.max() ?? SyncProtocol.legacyVersion
+        if minimum > SyncProtocol.legacyVersion { try await requireServerVersion(minimum) }
         if !sent.isEmpty {
             let _: PushResult = try ProtocolJSON.decode(from: await transport.request(method: "POST", path: "/api/sync/push", body: ProtocolJSON.encode(PushBody(operations: sent))))
         }
         let since = try await db.getMeta("userCursor").flatMap(Int64.init) ?? 0
-        let page: PullPage = try ProtocolJSON.decode(from: await transport.request(method: "GET", path: "/api/sync/pull?since=\(since)", body: nil))
+        let text = try await transport.request(method: "GET", path: "/api/sync/pull?since=\(since)", body: nil)
+        let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
+        let operations = object?["operations"] as? [[String: Any]] ?? []
+        if operations.contains(where: { operation in
+            guard let change = operation["change"] as? [String: Any], let tag = change["_tag"] as? String else { return false }
+            return SyncProtocol.minimumVersions[tag] == nil
+        }) { throw SyncCompatibilityFailure("UpdateRequired", minimumProtocolVersion: SyncProtocol.version + 1) }
+        let page: PullPage = try ProtocolJSON.decode(from: text)
         guard page.cursor >= since else { throw SyncResponseFailure("State cursor moved backwards") }
         try await db.commitPull(page, sent: sent)
     }

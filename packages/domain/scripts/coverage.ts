@@ -3,64 +3,17 @@ import { buildVectors } from "./protocol.ts"
 import { buildServerVectors } from "./server-vectors.ts"
 
 const purgeCompatibility = `
-## PurgePlaylist compatibility and rollout
+## Compatibility and rollout
 
-PurgePlaylist is a new Change discriminator, not a backwards-compatible change for
-operation readers. The sync envelope remains version 4. Version 4 alone does not
-imply support: GET /api/health now optionally advertises
-\`supportedOperations: ["PurgePlaylist"]\`. Missing or empty means unsupported.
-This is an additive health field, not a general version-negotiation handshake.
-
-**Previous server:** its PushRequest schema does not recognize PurgePlaylist and
-rejects the entire push with an empty HTTP 400 before committing any operations.
-The Mac sync client retains that outbox batch and does not advance its State pull
-cursor, so blindly queuing a purge would block subsequent State sync (the separate
-Library stream can still advance). Deploy the updated server before using Mac
-permanent deletion. Mac checks fresh health before deleting, then guards every
-enqueue path, including generic edits and Standalone bring-over. Unsupported or
-unreachable servers leave Trash and the outbox unchanged and show a retry/update
-error. Ordinary edits continue syncing. Standalone deletion needs no server.
-Bring-over of a local log containing a purge waits for support before importing or
-queuing it, retaining the source Library. Push also rechecks support for already
-queued purges after restart/server rollback. Such existing operations are retained
-with an actionable error until the supporting server returns; they are never
-silently dropped. That pending batch still blocks State sync during the rollback.
-
-**Already-installed Android without this change:** Kotlin's sealed Change decoder
-throws on the unknown PurgePlaylist discriminator. \`ignoreUnknownKeys = true\`
-allows extra object fields, not unknown sealed variants. Decoding the whole pull
-fails before commitPull, so the State cursor and outbox acknowledgement stay put;
-retrying the same incremental pull fails again. Library sync remains independent.
-A first-sync State snapshot has no new fields and is readable, but this is not an
-automatic recovery path for an existing installation. Update every Android
-installation that shares this server before emitting a purge. This branch adds
-the Kotlin decoder, reducer and bring-over mapping; the shared purge vector
-exercises replay, no-ops and duplicate delivery. The new health capability gates
-Mac writers only; it cannot protect an Android binary already installed.
-
-**Web:** the shared TypeScript Change schema and State reducer are sufficient;
-ServerDataLayer and the desktop SyncEngine already decode/replay that shared
-contract. There is no separate web reducer or database migration, and this change
-does not add a web permanent-delete control. Deploy/reload the rebuilt web bundle
-before emitting purges: an already-open old bundle can reject the unknown variant
-until refreshed, just as other old operation readers do.
-
-**Required order:** update Android readers (and other retained older clients),
-deploy the updated server and web bundle, then use the updated Mac client's
-permanent deletion. A guarded Mac can be installed earlier, but permanent deletion
-on a server connection stays unavailable until the server advertises support.
-Do not roll back to an older server binary once its operation log contains purges:
-the older decoder cannot read those log entries. No automatic reader upgrade,
-operation translation or safe log downgrade is provided.
-
-Sources: [HTTP schemas](../../packages/api/src/Sync.ts),
-[health capability](../../packages/api/src/System.ts),
-[Mac sync and health checks](../../apps/apple/Sources/PodListData/SyncClient.swift),
-[Mac enqueue guards](../../apps/apple/Sources/PodListData/LocalDatabase.swift),
-[Android wire decoder](../../apps/android/domain/src/main/kotlin/app/podlist/domain/Models.kt),
-[Android sync](../../apps/android/data/src/main/kotlin/app/podlist/data/SyncClient.kt),
-[web server data](../../packages/web/src/data/ServerDataLayer.ts),
-[desktop sync](../../packages/web/src/sync/SyncEngine.ts).
+PurgePlaylist requires protocol version 5. The frozen version registry, negotiation,
+structured refusals, existing-client limits and operation checklist are specified in
+[the versioned protocol](README.md#version-negotiation) and
+[ADR 0014](../adr/0014-versioned-sync-and-safe-refusals.md).
+An undeclared client is v4. Its pull refuses pending v5 operations, including on a
+snapshot, without returning or advancing a cursor. Updated clients pause sync and
+keep edits; an already-installed old binary still has its existing generic error
+and retry behavior until the application is updated. A server response cannot add
+that new UI to an old binary. Never downgrade a server past the types in its log.
 `
 
 /** The audit table is generated from the same committed vector sources as the tests. */

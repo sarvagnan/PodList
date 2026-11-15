@@ -3,6 +3,7 @@ package app.podlist.data
 import app.podlist.domain.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
 
 /** The entire HTTP boundary; fake transports exercise the real wire decoder and SQLite commits. */
 fun interface SyncTransport {
@@ -16,11 +17,23 @@ fun interface SyncTransport {
 @Serializable private data class PushResult(val cursor: Long, val accepted: Long)
 
 /** Blocking, platform-independent protocol owner. Calls are serialized; edits can commit during HTTP. */
+@Serializable
+class SyncCompatibilityFailure(val _tag: String, val minimumProtocolVersion: Int? = null, val serverProtocolVersion: Int? = null) : Exception(
+    if (_tag == "UpdateRequired") "Update PodList to keep syncing" else "Update the PodList server to keep syncing"
+)
+
 class SyncClient(private val db: LocalDatabase, private val transport: SyncTransport, private val onFailure: (Exception) -> Unit = {}) {
-    fun health(): Health = checkHealth(transport)
+    private var blocked: SyncCompatibilityFailure? = null
+    fun health(): Health {
+        db.setMeta("serverProtocolVersion", SyncProtocol.LegacyVersion.toString())
+        return checkHealth(transport).also { db.setMeta("serverProtocolVersion", it.protocolVersion.toString()) }
+    }
+    @Synchronized fun retry() { blocked = null }
 
     @Synchronized
-    fun sync() {
+    fun sync(refreshHealth: Boolean = false) {
+        blocked?.let { throw it }
+        if (refreshHealth) runCatching { health() }
         if (db.getMeta("registered") != "true") {
             val device = db.installation()
             val registered = ProtocolJson.decodeFromString<Device>(transport.request("POST", "/api/devices", ProtocolJson.encodeToString(device)))
@@ -28,8 +41,9 @@ class SyncClient(private val db: LocalDatabase, private val transport: SyncTrans
             db.setMeta("registered", "true")
         }
         var stateFailure: Exception? = null
-        try { syncState() } catch (error: Exception) { stateFailure = error; onFailure(error) }
+        try { syncState() } catch (error: Exception) { if (error is SyncCompatibilityFailure) blocked = error; stateFailure = error; onFailure(error) }
         try { syncLibrary() } catch (error: Exception) {
+            if (stateFailure is SyncCompatibilityFailure) throw stateFailure
             stateFailure?.let { error.addSuppressed(it) }
             throw error
         }
@@ -38,12 +52,23 @@ class SyncClient(private val db: LocalDatabase, private val transport: SyncTrans
 
     private fun syncState() {
         val sent = db.outbox()
+        val minimum = sent.maxOfOrNull { SyncProtocol.minimumVersion(it.change) } ?: SyncProtocol.LegacyVersion
+        if (minimum > SyncProtocol.LegacyVersion) {
+            val version = health().protocolVersion
+            if (version < minimum) throw SyncCompatibilityFailure("UnsupportedOperation", serverProtocolVersion = version)
+        }
         if (sent.isNotEmpty()) {
             // accepted=0 is normal on retries; the push cursor must never become the pull cursor.
             ProtocolJson.decodeFromString<PushResult>(transport.request("POST", "/api/sync/push", ProtocolJson.encodeToString(PushBody(sent))))
         }
         val since = db.getMeta("userCursor")?.toLong() ?: 0
-        val pull = ProtocolJson.decodeFromString<PullPage>(transport.request("GET", "/api/sync/pull?since=$since", null))
+        val text = transport.request("GET", "/api/sync/pull?since=$since", null)
+        val operations = ProtocolJson.parseToJsonElement(text).jsonObject["operations"] as? JsonArray
+        if (operations.orEmpty().any { operation ->
+            val tag = (operation as? JsonObject)?.get("change")?.let { it as? JsonObject }?.get("_tag")?.jsonPrimitive?.content
+            tag != null && tag !in SyncProtocol.minimumVersions
+        }) throw SyncCompatibilityFailure("UpdateRequired", minimumProtocolVersion = SyncProtocol.Version + 1)
+        val pull = ProtocolJson.decodeFromString<PullPage>(text)
         require(pull.cursor >= since) { "State cursor moved backwards" }
         db.commitPull(pull, sent)
     }
@@ -72,5 +97,5 @@ class SyncResponseFailure : Exception("Invalid PodList response")
 
 fun checkHealth(transport: SyncTransport): Health = ProtocolJson.decodeFromString<Health>(transport.request("GET", "/api/health", null)).also {
     if (it.status != "ok") throw SyncResponseFailure()
-    // No version rejection or upgrade handshake is defined by the protocol.
+    // Older servers are usable for the operation versions they implement.
 }

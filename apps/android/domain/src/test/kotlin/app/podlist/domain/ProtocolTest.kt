@@ -32,15 +32,25 @@ class ProtocolTest {
     @Test
     fun `every contract document has a runner`() {
         val rootFiles = Files.list(protocol).use { paths -> paths.filter { Files.isRegularFile(it) }.map { it.fileName.toString() }.toList().toSet() }
-        assertEquals(setOf("operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json"), rootFiles)
+        assertEquals(setOf("operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "sync-compatibility.json"), rootFiles)
         val directories = Files.list(protocol).use { paths -> paths.filter { Files.isDirectory(it) }.map { it.fileName.toString() }.toList().toSet() }
         assertEquals(setOf("vectors"), directories)
         Files.walk(protocol.resolve("vectors")).use { paths ->
             assertTrue(paths.filter { Files.isRegularFile(it) }.allMatch { it.toString().endsWith(".json") }, "Unrecognized vector file")
         }
-        assertEquals(4, document(protocol.resolve("views.json")).field("protocolVersion").jsonPrimitive.int)
-        assertEquals(4, document(protocol.resolve("listening.json")).field("protocolVersion").jsonPrimitive.int)
+        assertEquals(SyncProtocol.Version, document(protocol.resolve("views.json")).field("protocolVersion").jsonPrimitive.int)
+        assertEquals(SyncProtocol.Version, document(protocol.resolve("listening.json")).field("protocolVersion").jsonPrimitive.int)
         assertTrue(document(protocol.resolve("openapi.json")).field("openapi").jsonPrimitive.content.startsWith("3.1"))
+    }
+
+    @TestFactory
+    fun `version negotiation vectors`() = document(protocol.resolve("sync-compatibility.json")).field("cases").jsonArray.map { scenario ->
+        DynamicTest.dynamicTest(scenario.field("name").jsonPrimitive.content) {
+            val declared = scenario.field("clientVersion").jsonPrimitive.intOrNull ?: SyncProtocol.LegacyVersion
+            val minimum = maxOf(SyncProtocol.LegacyVersion, scenario.field("operations").jsonArray.maxOf { SyncProtocol.minimumVersions[it.jsonPrimitive.content] ?: (SyncProtocol.Version + 1) })
+            assertEquals(scenario.field("minimumProtocolVersion").jsonPrimitive.int, minimum)
+            assertEquals(scenario.field("allowed").jsonPrimitive.boolean, declared >= minimum)
+        }
     }
 
     @TestFactory
@@ -57,7 +67,7 @@ class ProtocolTest {
     @TestFactory
     fun `sync vectors and every checkpoint`() = syncFiles().map { path -> DynamicTest.dynamicTest("sync: ${path.fileName}") {
         val vector = document(path)
-        assertEquals(4, vector.field("protocolVersion").jsonPrimitive.int)
+        assertEquals(SyncProtocol.Version, vector.field("protocolVersion").jsonPrimitive.int)
         val initial = vector.field("initial")
         var replayed = Replayed(initial.decode(), emptySet())
         assertState(initial, replayed.state, "initial")

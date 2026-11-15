@@ -1,7 +1,7 @@
 {
   "name": "play-now-next-last",
   "description": "Play Now goes before the current Entry and starts; Next after it; Last at the end.",
-  "protocolVersion": 4,
+  "protocolVersion": 5,
   "initial": {
     "playlists": [
       {

@@ -192,6 +192,10 @@ class LocalDatabase(path: String, private val standalone: Boolean = false) : Aut
     fun recordAll(changes: List<Change>, recordedAt: Long, ids: List<String> = changes.map { UUID.randomUUID().toString() }): List<Operation> {
         require(ids.size == changes.size)
         if (changes.isEmpty()) return emptyList()
+        if (!standalone) {
+            val version = getMeta("serverProtocolVersion")?.toIntOrNull() ?: SyncProtocol.LegacyVersion
+            require(changes.all { SyncProtocol.minimumVersion(it) <= version }) { "Update the PodList server to save this change" }
+        }
         val result = transaction {
             val deviceId = getMeta("deviceId") ?: UUID.randomUUID().toString().also { setMeta("deviceId", it) }
             val sequence = getMeta("sequence")?.toLong() ?: 0L

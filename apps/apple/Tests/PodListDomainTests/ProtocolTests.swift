@@ -12,7 +12,7 @@ private func assertState(_ expected: JSON, _ state: State, context: String) thro
 @Test(arguments: try Fixtures.vectorNames)
 func syncVector(_ name: String) throws {
     let vector = try Fixtures.document(name)
-    #expect(vector["protocolVersion"].int == 4)
+    #expect(vector["protocolVersion"].int == SyncProtocol.version)
     let initial = try vector["initial"].decode(State.self)
     var replayed = Replayed(state: initial)
     try assertState(vector["initial"], initial, context: "initial")
@@ -43,11 +43,11 @@ func serverLog(_ vector: JSON) throws {
 
 @Test func contractCoverage() throws {
     let names = Set(try FileManager.default.contentsOfDirectory(atPath: Fixtures.protocolURL.path))
-    #expect(names == ["operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "vectors"])
+    #expect(names == ["operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "sync-compatibility.json", "vectors"])
     let vectors = try FileManager.default.contentsOfDirectory(atPath: Fixtures.protocolURL.appendingPathComponent("vectors").path)
     #expect(!vectors.isEmpty)
     #expect(vectors.allSatisfy { $0.hasSuffix(".json") })
-    for document in ["views.json", "listening.json", "feeds.json"] { #expect(try Fixtures.document(document)["protocolVersion"].int == 4) }
+    for document in ["views.json", "listening.json", "feeds.json"] { #expect(try Fixtures.document(document)["protocolVersion"].int == SyncProtocol.version) }
     #expect(try Fixtures.document("openapi.json")["openapi"].string.hasPrefix("3.1"))
     let members = try Fixtures.document("operation.schema.json")["$defs"]["@podlist/domain/OperationEncoded"]["properties"]["change"]["anyOf"].array
     let tags = Set(members.map { $0["properties"]["_tag"]["enum"].array[0].string })
@@ -128,4 +128,12 @@ func memoryView(_ example: JSON) throws {
 func deviceRegistration(_ vector: JSON) throws {
     let device = try vector.decode(Device.self)
     #expect(try JSON.encoded(device) == vector)
+}
+
+@Test(arguments: try Fixtures.document("sync-compatibility.json")["cases"].array)
+func versionNegotiation(_ scenario: JSON) throws {
+    let declared = scenario["clientVersion"] == .null ? SyncProtocol.legacyVersion : Int(scenario["clientVersion"].int)
+    let minimum = max(SyncProtocol.legacyVersion, scenario["operations"].array.map { SyncProtocol.minimumVersions[$0.string] ?? SyncProtocol.version + 1 }.max() ?? SyncProtocol.legacyVersion)
+    #expect(minimum == scenario["minimumProtocolVersion"].int)
+    #expect(try JSON.encoded(declared >= minimum) == scenario["allowed"])
 }

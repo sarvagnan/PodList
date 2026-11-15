@@ -223,7 +223,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                 defaultBackBehavior = BackNavigationBehavior.PopLatest,
                 listPane = {
                     AnimatedPane {
-                        ScreenFrame(stringResource(destination.title), status, model::requestSync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, search = if (destination == Destination.Views || destination == Destination.Library) ({ open("search") }) else null, add = ({ when (destination) {
+                        ScreenFrame(stringResource(destination.title), status, model::retrySync, addLabel = when (destination) { Destination.Views -> R.string.m4_new_view; Destination.Playlists -> R.string.new_playlist; Destination.Library -> R.string.add_podcasts }, settings = { open("settings") }, search = if (destination == Destination.Views || destination == Destination.Library) ({ open("search") }) else null, add = ({ when (destination) {
                             Destination.Library -> open("add-podcasts")
                             Destination.Playlists -> open("new-playlist")
                             Destination.Views -> open("new-view")
@@ -266,7 +266,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                             if (result == null || loaded == null) Loading() else pages.SaveableStateProvider(route) {
                                 PodcastPageScreen(result, loaded, session, fromSearch = route.startsWith("podcast:"), open = open, back = back)
                             }
-                        } else ScreenFrame(title, status, model::requestSync, back = back, selectionData = loaded, selectionSession = session, route = route, edit = when {
+                        } else ScreenFrame(title, status, model::retrySync, back = back, selectionData = loaded, selectionSession = session, route = route, edit = when {
                             route?.startsWith("view:") == true -> ({ open("view-edit:${route.substringAfter(':')}") })
                             route?.startsWith("playlist:") == true -> ({ open("playlist-settings:${route.substringAfter(':')}") })
                             else -> null
@@ -314,7 +314,7 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
                 if (route?.startsWith("episode:") == true && selectionData != null && selectionSession != null) EpisodeOverflow(selectionData, selectionSession)
 
             })
-            if (status == SyncStatus.Offline || status == SyncStatus.Error) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (status == SyncStatus.Offline || status == SyncStatus.Error || status == SyncStatus.UpdateRequired) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(if (status == SyncStatus.Offline) R.string.offline else syncFailure), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 ContentTextButton(onClick = retry) { Text(stringResource(R.string.retry)) }
             }

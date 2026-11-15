@@ -35,6 +35,7 @@ public enum ConnectionValidation {
     }
     public static func message(for error: any Error) -> String {
         LibraryMessages.log(error, operation: "Open or sync Library")
+        if let failure = error as? SyncCompatibilityFailure { return failure.message }
         if let failure = error as? HttpFailure { return "The server returned HTTP \(failure.status). Try again." }
         if error is SyncResponseFailure { return "The server response could not be read. Check the server address and try again. If it keeps failing, check for updates." }
         if error is DecodingError { return "The server returned an unreadable response. Check the address and try again." }
@@ -66,6 +67,7 @@ public final class ApplicationModel {
     public private(set) var connecting = false
     public private(set) var starting = true
     public private(set) var connectionError: String? { didSet { announcements.error(connectionError) } }
+    private var compatibilityFailure: SyncCompatibilityFailure?
     public private(set) var syncError: String? { didSet { announcements.error(syncError) } }
     public private(set) var syncing = false
     public private(set) var library: LibraryModel?
@@ -286,10 +288,12 @@ public final class ApplicationModel {
             return
         }
         guard let client, let database else { return }
+        if forceRefresh { compatibilityFailure = nil; await client.retry() }
         let token = generation
         syncing = true
         var failure: String?
         do {
+            if let compatibilityFailure { throw compatibilityFailure }
             if let bringOver, let job = try await database.bringOverJob(), !job.complete {
                 let result = try await bringOver.resume()
                 guard generation == token else { return }
@@ -297,6 +301,7 @@ public final class ApplicationModel {
                 bringOverError = LibraryMessages.bringOverIssues(result.issues)
             } else { try await client.sync() }
         } catch {
+            if generation == token, let compatibility = error as? SyncCompatibilityFailure { compatibilityFailure = compatibility }
             failure = ConnectionValidation.message(for: error)
             if generation == token, let job = try? await database.bringOverJob(), !job.complete {
                 bringOverJob = job; bringOverError = LibraryMessages.failure(error, operation: .bringOver)
@@ -311,7 +316,7 @@ public final class ApplicationModel {
             playback?.refresh(); scheduleRules()
         } catch { failure = ConnectionValidation.message(for: error) }
         guard generation == token else { return }
-        syncing = false; syncError = failure
+        syncing = false; syncError = compatibilityFailure?.message ?? failure
         if failure == nil { lastSync = Date(); try? await libraryEditing?.initialize(); libraryEditing?.resumeImport() }
     }
 
@@ -529,6 +534,6 @@ public final class ApplicationModel {
         store.currentOrigin = nil
         database = nil; client = nil; library = nil; libraryEditing = nil; origin = nil
         bringOver = nil; bringOverSnapshot = nil; bringOverPreview = nil; bringOverJob = nil; bringOverError = nil; bringOverAvailable = false
-        connecting = false; syncing = false; connectionError = nil; syncError = nil; lastSync = nil
+        connecting = false; syncing = false; connectionError = nil; syncError = nil; compatibilityFailure = nil; lastSync = nil
     }
 }

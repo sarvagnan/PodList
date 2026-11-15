@@ -63,7 +63,7 @@ private actor BringOverServer: SyncTransport {
     func request(method: String, path: String, body: String?) async throws -> String {
         switch path {
         case "/api/health": return purgeSupported
-            ? #"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#
+            ? #"{"status":"ok","protocolVersion":5}"#
             : #"{"status":"ok","protocolVersion":4}"#
         case "/api/devices":
             let device: Device = try ProtocolJSON.decode(from: body!); registered.insert(device.id); return body!
@@ -138,7 +138,7 @@ private actor BringOverServer: SyncTransport {
     try await db.beginBringOver(snapshot)
     let server = BringOverServer()
     let transfer = BringOver(destination: db, transport: server)
-    await #expect(throws: SyncResponseFailure.self) { try await transfer.resume() }
+    await #expect(throws: SyncCompatibilityFailure.self) { try await transfer.resume() }
     #expect(try await db.loadState() == before)
     #expect(try await db.outbox().isEmpty)
     #expect(try await db.bringOverJob()?.queued == false)

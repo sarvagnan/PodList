@@ -84,7 +84,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         if let job = app.bringOverJob {
                             Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(CountText.format(job.imported.count, .podcast)) transferred, \(CountText.format(job.copied.count, .download)) copied. Progress is saved.")
                                 .macContentFont(.callout)
-                            if !job.complete { Button("Retry") { Task { await app.sync() } }.disabled(app.syncing) }
+                            if !job.complete { Button("Retry") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing) }
                         }
                         if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError).textSelection(.enabled) }
                         Button("Disconnect") { app.disconnect() }
@@ -118,7 +118,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         if app.origin != nil {
             actions[.disconnect] = { app.disconnect() }
             if app.bringOverAvailable && !app.syncing { actions[.offerBringOver] = { Task { await app.offerBringOver() } } }
-            if app.bringOverJob?.complete == false && !app.syncing { actions[.retryBringOver] = { Task { await app.sync() } } }
+            if app.bringOverJob?.complete == false && !app.syncing { actions[.retryBringOver] = { Task { await app.sync(forceRefresh: true) } } }
         } else if !app.connecting && !app.serverInput.isEmpty { actions[.connect] = { Task { await app.connect() } } }
         return MenuActionContext(actions: actions)
     }

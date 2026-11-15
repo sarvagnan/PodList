@@ -1,4 +1,5 @@
 import Foundation
+import PodListDomain
 
 public struct ServerAddress: Sendable, Equatable {
     public let origin: URL
@@ -41,12 +42,14 @@ public struct HttpTransport: SyncTransport {
         request.timeoutInterval = ["/api/subscriptions/import", "/api/subscriptions/bring-over"].contains(path) ? 120 : (["/api/subscriptions", "/api/podcasts/read", "/api/podcasts/episodes"].contains(path) ? 30 : 2)
         request.setValue("PodList Apple", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(String(SyncProtocol.version), forHTTPHeaderField: SyncProtocol.header)
         if let body {
             request.httpBody = Data(body.utf8)
             request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw SyncResponseFailure() }
+        if [426, 422].contains(http.statusCode), let failure = try? JSONDecoder().decode(SyncCompatibilityFailure.self, from: data), failure.isCompatibilityError { throw failure }
         guard (200...299).contains(http.statusCode) else { throw HttpFailure(status: http.statusCode) }
         guard let text = String(data: data, encoding: .utf8) else { throw SyncResponseFailure("Response is not UTF-8") }
         return text

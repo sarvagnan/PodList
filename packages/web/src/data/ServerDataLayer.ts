@@ -1,11 +1,11 @@
 import { PodListApi, Reads } from "@podlist/api"
-import { Device, Operation, type PlaybackSettings, State, Units } from "@podlist/domain"
+import { Device, Operation, type PlaybackSettings, Protocol, State, Units } from "@podlist/domain"
 import { Effect, Layer, Queue, Schema, Semaphore, SubscriptionRef } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { toPlayerChapter } from "../lib/chapters.ts"
-import { Offline, Transport } from "../sync/Transport.ts"
+import { Offline, SyncBlocked, Transport } from "../sync/Transport.ts"
 import { BrowserDevice } from "./BrowserDevice.ts"
 import { catalogueKey, DataLayer, type DataStatus } from "./DataLayer.ts"
 import { LiveConnection } from "./LiveConnection.ts"
@@ -35,6 +35,7 @@ export const serverDataLayer = (options: {
       let reset = false
       let refresh = true
       let registered = false
+      let blocked: SyncBlocked | undefined
       let knownOffline = !navigator.onLine
       type Pending = {
         readonly id: string
@@ -64,14 +65,17 @@ export const serverDataLayer = (options: {
           )
         )
       const failure = (error: unknown) => {
+        if (error instanceof SyncBlocked) blocked = error
         knownOffline = true
         return SubscriptionRef.update(status, (s) => ({
           ...s,
-          error: error instanceof Error ? error.message : String(error),
+          error: blocked?.message ?? (error instanceof Error ? error.message : String(error)),
+          ...(blocked ? { syncBlocked: blocked.reason } : {}),
           writable: false
         }))
       }
       const sync = Effect.gen(function* () {
+        if (blocked) return yield* Effect.fail(blocked)
         if (!registered) {
           yield* transport.registerDevice(
             Schema.decodeUnknownSync(Device.Device)({
@@ -125,6 +129,7 @@ export const serverDataLayer = (options: {
             pending: pending.length,
             lastSyncedAt: Date.now(),
             error: null,
+            syncBlocked: undefined,
             writable: !knownOffline
           }))
         }).pipe(edits.withPermits(1))
@@ -144,6 +149,15 @@ export const serverDataLayer = (options: {
             (change._tag === "MarkPlayed" && change.source._tag === "Playback")
           if ((knownOffline || !navigator.onLine) && !report)
             return yield* Effect.die(new Error("New edits need a connection to your server."))
+          if (
+            (Protocol.minimumVersion(change._tag) ?? Protocol.version + 1) > Protocol.legacyVersion
+          ) {
+            const version = yield* (
+              transport.serverVersion ?? Effect.succeed(Protocol.legacyVersion)
+            ).pipe(Effect.orDie)
+            if (version < (Protocol.minimumVersion(change._tag) ?? Protocol.version + 1))
+              return yield* Effect.die(new Error("Update the PodList server to save this change"))
+          }
           pending.push({ id: crypto.randomUUID(), recordedAt: Date.now(), change })
           yield* updateState()
           yield* SubscriptionRef.update(status, (s) => ({ ...s, pending: pending.length }))
@@ -253,7 +267,10 @@ export const serverDataLayer = (options: {
         status,
         deviceId: identity.id,
         record,
-        sync,
+        sync: Effect.suspend(() => {
+          blocked = undefined
+          return sync
+        }),
         runInBackground,
         entryEpisodes: (ids) =>
           Effect.gen(function* () {

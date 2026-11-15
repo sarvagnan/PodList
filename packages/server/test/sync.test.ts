@@ -44,18 +44,24 @@ describe("sync API", () => {
       assert.strictEqual((yield* api.sync.registerDevice({ payload: device })).id, "phone")
 
       const ops = [add("phone", "A"), add("phone", "B")]
-      const first = yield* api.sync.push({ payload: new Sync.PushRequest({ operations: ops }) })
+      const first = yield* api.sync.push({
+        headers: {},
+        payload: new Sync.PushRequest({ operations: ops })
+      })
       assert.deepStrictEqual(
         { ...first },
         { cursor: 2, accepted: 2, acknowledged: ops.map((o) => o.id) }
       )
-      const again = yield* api.sync.push({ payload: new Sync.PushRequest({ operations: ops }) })
+      const again = yield* api.sync.push({
+        headers: {},
+        payload: new Sync.PushRequest({ operations: ops })
+      })
       assert.deepStrictEqual(
         { ...again },
         { cursor: 2, accepted: 0, acknowledged: ops.map((o) => o.id) }
       )
 
-      const pulled = yield* api.sync.pull({ query: { since: 0 } })
+      const pulled = yield* api.sync.pull({ headers: {}, query: { since: 0 } })
       assert.deepStrictEqual(order(pulled.snapshot as State.State), ["A", "B"])
     }).pipe(Effect.provide(serverAt(":memory:")))
   )
@@ -63,11 +69,15 @@ describe("sync API", () => {
   it.effect("lets a Device catch up by replaying only the operations it has not seen", () =>
     Effect.gen(function* () {
       const api = yield* client
-      yield* api.sync.push({ payload: new Sync.PushRequest({ operations: [add("phone", "A")] }) })
-      const phoneView = yield* api.sync.pull({ query: { since: 0 } })
+      yield* api.sync.push({
+        headers: {},
+        payload: new Sync.PushRequest({ operations: [add("phone", "A")] })
+      })
+      const phoneView = yield* api.sync.pull({ headers: {}, query: { since: 0 } })
 
       // Meanwhile the Mac adds and reorders.
       yield* api.sync.push({
+        headers: {},
         payload: new Sync.PushRequest({
           operations: [
             add("mac", "B"),
@@ -76,14 +86,15 @@ describe("sync API", () => {
         })
       })
 
-      const delta = yield* api.sync.pull({ query: { since: phoneView.cursor } })
+      const delta = yield* api.sync.pull({ headers: {}, query: { since: phoneView.cursor } })
       assert.strictEqual(delta.snapshot, null)
       assert.strictEqual(delta.operations.length, 2)
       const replayed = State.applyOperations(
         phoneView.snapshot as State.State,
         delta.operations
       ).state
-      const server = (yield* api.sync.pull({ query: { since: 0 } })).snapshot as State.State
+      const server = (yield* api.sync.pull({ headers: {}, query: { since: 0 } }))
+        .snapshot as State.State
       assert.deepStrictEqual(
         Schema.encodeSync(State.State)(replayed),
         Schema.encodeSync(State.State)(server)
@@ -98,6 +109,7 @@ describe("sync API", () => {
       yield* Effect.gen(function* () {
         const api = yield* client
         yield* api.sync.push({
+          headers: {},
           payload: new Sync.PushRequest({
             operations: [
               add("phone", "A"),
@@ -109,7 +121,7 @@ describe("sync API", () => {
 
       const restarted = yield* Effect.gen(function* () {
         const api = yield* client
-        return yield* api.sync.pull({ query: { since: 0 } })
+        return yield* api.sync.pull({ headers: {}, query: { since: 0 } })
       }).pipe(Effect.provide(serverAt(file)))
       assert.deepStrictEqual(order(restarted.snapshot as State.State), ["A"])
       assert.isTrue(restarted.snapshot?.episodeStates.A?.starred)

@@ -2,7 +2,7 @@
   {
     "name": "subscription-played-and-retry",
     "description": "Only currently Unplayed Episodes in the Subscription are marked by hand; Entries clear; retry adds no operations; missing Subscription has no Episode effects.",
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "subscriptions": [
       {
         "id": "sci",
@@ -789,7 +789,7 @@
   {
     "name": "unplayed-before-subscription-played",
     "description": "Server expansion observes earlier changes in the same push: Unplayed then mark Subscription Played marks that Episode again.",
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "subscriptions": [
       {
         "id": "sci",
@@ -1140,7 +1140,7 @@
   {
     "name": "played-before-subscription-played",
     "description": "An Episode marked Played earlier in the same push is excluded from the Subscription expansion; expansion is ordered by Published ascending.",
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "subscriptions": [
       {
         "id": "sci",
@@ -1376,7 +1376,7 @@
   {
     "name": "subscription-overrides-replace",
     "description": "Overrides replace the whole override document, not individual keys; null threshold restores the default. Missing Subscription is a logged no-op. These operations never change shared State.",
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "subscriptions": [
       {
         "id": "sci",

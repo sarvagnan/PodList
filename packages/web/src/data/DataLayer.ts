@@ -82,6 +82,7 @@ export interface PlaybackEpisode {
 }
 
 export interface DataStatus {
+  readonly syncBlocked?: "UpdateRequired" | "UnsupportedOperation" | undefined
   readonly pending: number
   readonly lastSyncedAt: number | null
   readonly error: string | null
