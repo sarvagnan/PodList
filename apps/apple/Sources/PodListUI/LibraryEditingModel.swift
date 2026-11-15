@@ -24,14 +24,24 @@ public enum ViewNames {
 }
 
 public enum ViewEdits {
-    public static func problem(_ view: PodListDomain.View) -> String? {
+    public enum Field: Hashable { case minimumLength, maximumLength, show, published }
+    public static func problems(_ view: PodListDomain.View) -> [Field: String] {
+        var errors: [Field: String] = [:]
         let f = view.filter
-        if [f.minDuration, f.maxDuration].compactMap({ $0 }).contains(where: { !$0.isFinite || $0 < 0 }) { return "Length must be a nonnegative number." }
-        if let min = f.minDuration, let max = f.maxDuration, min > max { return "Minimum length must not exceed maximum length." }
-        if let limit = view.limit, limit < 1 { return "Show must be a positive whole number." }
-        if case let .lastDays(days) = f.published, days < 1 { return "Published days must be positive." }
-        if case let .between(from, to) = f.published, let from, let to, from > to { return "From must be before Through." }
-        return nil
+        if let min = f.minDuration, !min.isFinite || min < 0 { errors[.minimumLength] = "Minimum length must be a nonnegative number of minutes." }
+        if let max = f.maxDuration, !max.isFinite || max < 0 { errors[.maximumLength] = "Maximum length must be a nonnegative number of minutes." }
+        if let min = f.minDuration, let max = f.maxDuration, min > max {
+            errors[.minimumLength] = "Minimum length must not exceed Maximum length."
+            errors[.maximumLength] = "Maximum length must be at least Minimum length."
+        }
+        if let limit = view.limit, limit < 1 { errors[.show] = "Show must be a positive whole number." }
+        if case let .lastDays(days) = f.published, days < 1 { errors[.published] = "Published days must be positive." }
+        if case let .between(from, to) = f.published, let from, let to, from > to { errors[.published] = "From must be before Through." }
+        return errors
+    }
+    public static func problem(_ view: PodListDomain.View) -> String? {
+        let errors = problems(view)
+        return [.minimumLength, .maximumLength, .show, .published].compactMap { errors[$0] }.first
     }
 }
 

@@ -168,11 +168,11 @@ public struct PodListWindow: SwiftUI.View {
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, playSelection: { await playSelection(library) }, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
-            if let editor = app.libraryEditing { VStack(alignment: .leading) {
+            if let editor = app.libraryEditing { ContentSizedPanel(width: 600) { VStack(alignment: .leading) {
                 Text("Import OPML").font(.title2).bold()
                 OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
                 Button("Done") { editor.importPresented = false }.keyboardShortcut(.cancelAction)
-            }.padding(24).frame(width: 600) }
+            }.padding(24) } }
         }
         .sheet(isPresented: $showAddPodcasts) {
             if let editor = app.libraryEditing { AddPodcastsScreen(editor: editor, library: library, open: { podcastFeed = $0 }) }

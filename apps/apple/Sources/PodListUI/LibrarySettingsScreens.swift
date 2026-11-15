@@ -9,28 +9,30 @@ import PodListData
 struct AutomationSettingsScreen: SwiftUI.View {
     @Bindable var settings: AutomationSettings
     var body: some SwiftUI.View {
-        Form {
-            Section("MCP") {
-                Toggle("Enable MCP server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
-                Text("Any app running as this user on this Mac can then read the Library and control playback.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let error = settings.error {
-                    Text(error).foregroundStyle(.red)
-                    if settings.isEnabled { Button("Retry starting MCP") { settings.start() } }
-                }
-                if settings.isEnabled {
-                    LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
-                    Text("MCP client configuration").font(.headline)
-                    Text(settings.clientConfiguration).font(.system(.caption, design: .monospaced, weight: nil)).textSelection(.enabled)
-                    Button("Copy configuration") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(settings.clientConfiguration, forType: .string)
+        ContentSizedPanel(width: 600, settings: true, pane: "automation") {
+            Form {
+                Section("MCP") {
+                    Toggle("Enable MCP server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
+                    Text("Any app running as this user on this Mac can then read the Library and control playback.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let error = settings.error {
+                        Text(error).foregroundStyle(.red)
+                        if settings.isEnabled { Button("Retry starting MCP") { settings.start() } }
+                    }
+                    if settings.isEnabled {
+                        LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
+                        Text("MCP client configuration").font(.headline)
+                        Text(settings.clientConfiguration).font(.system(.caption, design: .monospaced, weight: nil)).textSelection(.enabled)
+                        Button("Copy configuration") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(settings.clientConfiguration, forType: .string)
+                        }
                     }
                 }
-            }
-        }.formStyle(.grouped).frame(width: 600, height: 690)
+            }.formStyle(.columns).padding(24)
+        }
     }
 }
 
@@ -42,55 +44,53 @@ public struct LibrarySettingsScreen: SwiftUI.View {
     @State private var gettingStarted = false
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
-        Form {
-            if let library = app.library {
-                if let editor = app.libraryEditing {
-                    Section("Playback Settings") { PlaybackSettingsFields(settings: library.state.playbackSettings, editor: editor) { next in Task { await app.record(.setPlaybackSettings(settings: next)) } }.id(editor.scope) }
-                }
-                Section("Library") {
-                    Picker("Keep Playlists in Trash", selection: Binding(get: { library.state.trashDays ?? 30 }, set: { days in Task { await app.record(.setTrashDays(days: days)) } })) {
-                        ForEach([1, 7, 14, 30, 60, 90, 365] as [Int64], id: \.self) { Text("\($0) days").tag($0) }
-                        if let days = library.state.trashDays, ![1, 7, 14, 30, 60, 90, 365].contains(days) { Text("\(days) days").tag(days) }
+        ContentSizedPanel(width: 600, settings: true, pane: "general") {
+            Form {
+                if let library = app.library {
+                    if let editor = app.libraryEditing, let editing = app.editing {
+                        GeneralLibrarySettingsFields(library: library, editor: editor, editing: editing).id(editor.scope)
                     }
-                    Button("Import OPML…") { LibraryFileActions.importOPML(app) }
-                    Button("Export OPML…") { LibraryFileActions.exportOPML(app) }
-                    if let editor = app.libraryEditing {
-                        OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
+                    Section("Library") {
+                        Button("Import OPML…") { LibraryFileActions.importOPML(app) }
+                        if let editor = app.libraryEditing {
+                            OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
+                        }
+                        Button("Export OPML…") { LibraryFileActions.exportOPML(app) }
+                        Button("Listening stats") { openWindow(id: "listening-stats") }
+                        Button("Getting started") { app.libraryEditing?.showGettingStarted = true; gettingStarted = true }
                     }
-                    Button("Listening stats") { openWindow(id: "listening-stats") }
-                    Button("Getting started") { app.libraryEditing?.showGettingStarted = true; gettingStarted = true }
                 }
-            }
-            if app.isStandalone {
-                Section("Publisher feeds") {
-                    Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day; the wait survives restarting PodList.").font(.callout)
-                    Button("Refresh now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
-                    if let error = app.syncError { Text(error).foregroundStyle(.red) }
-                }
-            }
-            Section("Appearance") {
-                Picker("Appearance", selection: $appearance) { ForEach(["System", "Light", "Dark"], id: \.self) { Text($0).tag($0) } }
-            }
-            Section("Server connection") {
-                if let origin = app.origin {
-                    LabeledContent("Server address", value: origin)
-                    if app.bringOverAvailable { Button("Bring Library from this Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
-                    if let job = app.bringOverJob {
-                        Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(job.imported.count) podcasts transferred, \(job.copied.count) downloads copied. Progress is saved.")
-                            .font(.callout)
-                        if !job.complete { Button("Retry bring-over") { Task { await app.sync() } }.disabled(app.syncing) }
+                if app.isStandalone {
+                    Section("Publisher feeds") {
+                        Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day; the wait survives restarting PodList.").font(.callout)
+                        Button("Refresh now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
+                        if let error = app.syncError { Text(error).foregroundStyle(.red) }
                     }
-                    if let error = app.bringOverError { Text(error).foregroundStyle(.red).textSelection(.enabled) }
-                    Button("Disconnect") { app.disconnect() }
-                } else {
-                    Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
-                    TextField("Server address", text: $app.serverInput)
-                    Button("Check and connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
-                    if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").font(.caption).foregroundStyle(.secondary) }
-                    if let error = app.connectionError { Text(error).foregroundStyle(.red) }
                 }
-            }
-        }.formStyle(.grouped).frame(width: 600, height: 690)
+                Section("Appearance") {
+                    Picker("Appearance", selection: $appearance) { ForEach(["System", "Light", "Dark"], id: \.self) { Text($0).tag($0) } }
+                }
+                Section("Server connection") {
+                    if let origin = app.origin {
+                        LabeledContent("Server address", value: origin)
+                        if app.bringOverAvailable { Button("Bring Library from this Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
+                        if let job = app.bringOverJob {
+                            Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(job.imported.count) podcasts transferred, \(job.copied.count) downloads copied. Progress is saved.")
+                                .font(.callout)
+                            if !job.complete { Button("Retry bring-over") { Task { await app.sync() } }.disabled(app.syncing) }
+                        }
+                        if let error = app.bringOverError { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+                        Button("Disconnect") { app.disconnect() }
+                    } else {
+                        Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
+                        TextField("Server address", text: $app.serverInput)
+                        Button("Check and connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
+                        if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").font(.caption).foregroundStyle(.secondary) }
+                        if let error = app.connectionError { Text(error).foregroundStyle(.red) }
+                    }
+                }
+            }.formStyle(.columns).padding(24)
+        }
         .sheet(isPresented: Binding(get: { app.bringOverPreview != nil }, set: { if !$0 { app.declineBringOver() } })) {
             if let preview = app.bringOverPreview { BringOverPreviewScreen(app: app, preview: preview) }
         }
@@ -98,7 +98,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
         .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
             if let editor = app.libraryEditing {
-                GettingStartedScreen(editor: editor, add: nil).padding(25).frame(width: 500)
+                ContentSizedPanel(width: 500) { GettingStartedScreen(editor: editor, add: nil).padding(25) }
                     .onChange(of: editor.showGettingStarted) { _, visible in if !visible { gettingStarted = false } }
             }
         }
@@ -109,47 +109,92 @@ private struct BringOverPreviewScreen: SwiftUI.View {
     @Bindable var app: ApplicationModel
     let preview: BringOverPreview
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Bring this Mac’s Library over?").font(.title2).bold()
-            Text("To \(app.origin ?? "the server")").foregroundStyle(.secondary).textSelection(.enabled)
-            LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
-            LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
-            LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
-            LabeledContent("Entries and Positions", value: "\(preview.entries) Entries · \(preview.positions) Positions")
-            LabeledContent("Played and Starred", value: "\(preview.played) Played · \(preview.starred) Starred")
-            LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
-            LabeledContent("Views and downloads", value: "\(preview.views) Views · \(preview.downloads) downloads")
-            Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").font(.callout)
-            Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry bring-over in Settings. Not now keeps the Libraries separate; you can return here later.").font(.callout).foregroundStyle(.secondary)
-            if let error = app.bringOverError { Text(error).foregroundStyle(.red) }
-            HStack {
-                Spacer()
-                Button("Not now") { app.declineBringOver() }.keyboardShortcut(.cancelAction)
-                Button("Bring over") { Task { await app.acceptBringOver() } }.keyboardShortcut(.defaultAction)
-            }
-        }.padding(25).frame(width: 560)
+        ContentSizedPanel(width: 560) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Bring this Mac’s Library over?").font(.title2).bold()
+                Text("To \(app.origin ?? "the server")").foregroundStyle(.secondary).textSelection(.enabled)
+                LabeledContent("Subscriptions", value: "\(preview.addedSubscriptions) added · \(preview.mergedSubscriptions) merged")
+                LabeledContent("Episodes", value: "\(preview.addedEpisodes) added · \(preview.mergedEpisodes) matched")
+                LabeledContent("Playlists", value: "\(preview.playlists) added · Default merged")
+                LabeledContent("Entries and Positions", value: "\(preview.entries) Entries · \(preview.positions) Positions")
+                LabeledContent("Played and Starred", value: "\(preview.played) Played · \(preview.starred) Starred")
+                LabeledContent("Listening log", value: Presentation.time(preview.listeningSeconds))
+                LabeledContent("Views and downloads", value: "\(preview.views) Views · \(preview.downloads) downloads")
+                Text("Podcasts match by feed address and Episodes by guid. Default Playlist Entries, Positions, Played and Starred marks and the Listening log merge with the server. Other Playlists and Views are kept with unique names. Saved settings and this Mac’s Download Rules come too; downloads are kept as Manual Downloads.").font(.callout)
+                Text("The original Library stays on this Mac. An interrupted bring-over resumes automatically, or use Retry bring-over in Settings. Not now keeps the Libraries separate; you can return here later.").font(.callout).foregroundStyle(.secondary)
+                if let error = app.bringOverError { Text(error).foregroundStyle(.red) }
+                HStack {
+                    Spacer()
+                    Button("Not now") { app.declineBringOver() }.keyboardShortcut(.cancelAction)
+                    Button("Bring over") { Task { await app.acceptBringOver() } }.keyboardShortcut(.defaultAction)
+                }
+            }.padding(25)
+        }
     }
 }
 
-private struct PlaybackSettingsFields: SwiftUI.View {
-    let settings: PlaybackSettings
+private struct GeneralLibrarySettingsFields: SwiftUI.View {
+    let library: LibraryModel
     @Bindable var editor: LibraryEditingModel
-    let changed: (PlaybackSettings) -> Void
-    @State private var draft: PlaybackSettings
-    init(settings: PlaybackSettings, editor: LibraryEditingModel, changed: @escaping (PlaybackSettings) -> Void) {
-        self.settings = settings; self.editor = editor; self.changed = changed; _draft = State(initialValue: settings)
+    let editing: PlaylistEditingModel
+    @State private var draft: GeneralSettingsEdits
+    init(library: LibraryModel, editor: LibraryEditingModel, editing: PlaylistEditingModel) {
+        self.library = library; self.editor = editor; self.editing = editing
+        _draft = State(initialValue: GeneralSettingsEdits(playback: library.state.playbackSettings, trashDays: library.state.trashDays ?? 30))
     }
     var body: some SwiftUI.View {
-        Picker("Speed", selection: field(\.speed)) {
-            ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3], id: \.self) { Text("\($0.formatted())×").tag($0) }
-            if ![0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].contains(draft.speed) { Text("\(draft.speed.formatted())×").tag(draft.speed) }
+        Group {
+            Section("Playback Settings") {
+                Picker("Speed", selection: field(\.speed, setting: "Speed")) {
+                    ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3], id: \.self) { Text("\($0.formatted())×").tag($0) }
+                    if ![0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].contains(draft.playback.speed) { Text("\(draft.playback.speed.formatted())×").tag(draft.playback.speed) }
+                }
+                playbackFailure("Speed")
+                PersistentNumberField(label: "Skip intro", field: "settings.skipIntro", value: draft.playback.skipIntro, editor: editor) {
+                    draft.playback.skipIntro = $0; savePlayback("Skip intro")
+                }
+                playbackFailure("Skip intro")
+                PersistentNumberField(label: "Skip outro", field: "settings.skipOutro", value: draft.playback.skipOutro, editor: editor) {
+                    draft.playback.skipOutro = $0; savePlayback("Skip outro")
+                }
+                playbackFailure("Skip outro")
+                Toggle("Volume boost", isOn: field(\.volumeBoost, setting: "Volume boost"))
+                playbackFailure("Volume boost")
+            }
+            Section("Trash") {
+                Picker("Keep Playlists in Trash", selection: Binding(get: { draft.trashDays }, set: {
+                    draft.trashDays = $0; draft.save(.setTrashDays(days: $0), setting: "Keep Playlists in Trash", using: editing)
+                })) {
+                    ForEach([1, 7, 14, 30, 60, 90, 365] as [Int64], id: \.self) { Text("\($0) days").tag($0) }
+                    if ![1, 7, 14, 30, 60, 90, 365].contains(draft.trashDays) { Text("\(draft.trashDays) days").tag(draft.trashDays) }
+                }
+                if let error = draft.failures["Keep Playlists in Trash"] {
+                    SettingFailure(message: error) { draft.save(.setTrashDays(days: draft.trashDays), setting: "Keep Playlists in Trash", using: editing) }
+                }
+            }
         }
-        PersistentNumberField(label: "Skip intro (seconds)", field: "settings.skipIntro", value: draft.skipIntro, editor: editor) { value in draft.skipIntro = value; changed(draft) }
-        PersistentNumberField(label: "Skip outro (seconds)", field: "settings.skipOutro", value: draft.skipOutro, editor: editor) { value in draft.skipOutro = value; changed(draft) }
-        Toggle("Volume boost", isOn: field(\.volumeBoost))
-            .onChange(of: settings) { _, value in draft = value }
+        .onChange(of: library.state.playbackSettings) { _, _ in reconcile() }
+        .onChange(of: library.state.trashDays) { _, _ in reconcile() }
     }
-    private func field<T>(_ path: WritableKeyPath<PlaybackSettings, T>) -> Binding<T> { Binding(get: { draft[keyPath: path] }, set: { value in draft[keyPath: path] = value; changed(draft) }) }
+    private func reconcile() { draft.reconcile(playback: library.state.playbackSettings, trashDays: library.state.trashDays ?? 30) }
+    private func field<T>(_ path: WritableKeyPath<PlaybackSettings, T>, setting: String) -> Binding<T> {
+        Binding(get: { draft.playback[keyPath: path] }, set: { draft.playback[keyPath: path] = $0; savePlayback(setting) })
+    }
+    private func savePlayback(_ setting: String) { draft.save(.setPlaybackSettings(settings: draft.playback), setting: setting, using: editing) }
+    @ViewBuilder private func playbackFailure(_ setting: String) -> some SwiftUI.View {
+        if let error = draft.failures[setting] { SettingFailure(message: error) { savePlayback(setting) } }
+    }
+}
+
+private struct SettingFailure: SwiftUI.View {
+    let message: String
+    let retry: () -> Void
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(message).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            Button("Retry", action: retry)
+        }
+    }
 }
 
 private struct PersistentNumberField: SwiftUI.View {
@@ -158,25 +203,27 @@ private struct PersistentNumberField: SwiftUI.View {
     let value: Double
     @Bindable var editor: LibraryEditingModel
     let changed: (Double) -> Void
-    @State private var text: String
+    @Environment(\.locale) private var locale
+    @State private var text: String?
     @FocusState private var focused: Bool
-    init(label: String, field: String, value: Double, editor: LibraryEditingModel, changed: @escaping (Double) -> Void) {
-        self.label = label; self.field = field; self.value = value; self.editor = editor; self.changed = changed
-        let saved = editor.draft(field)
-        _text = State(initialValue: editor.hasDraft(field) ? saved : String(value))
-    }
-    private var valid: Bool { Double(text).map { $0.isFinite && $0 >= 0 } == true }
+    private var raw: String { text ?? (editor.hasDraft(field) ? editor.draft(field) : FormNumbers.string(value, locale: locale)) }
+    private var valid: Bool { FormNumbers.nonnegative(raw, locale: locale) != nil }
     var body: some SwiftUI.View {
-        VStack(alignment: .leading) {
-            TextField(label, text: $text).focused($focused)
-                .onChange(of: text) { _, raw in
-                    editor.setDraft(raw, field: field)
-                    if let number = Double(raw), number.isFinite, number >= 0, number != value { changed(number) }
+        LabeledContent(label) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    TextField(label, text: Binding(get: { raw }, set: { raw in
+                        text = raw; editor.setDraft(raw, field: field)
+                        if let number = FormNumbers.nonnegative(raw, locale: locale), number != value { changed(number) }
+                    }))
+                    .frame(width: 72).textFieldStyle(.roundedBorder).focused($focused)
+                    Text("sec").foregroundStyle(.secondary)
                 }
-                .onChange(of: value) { _, number in if !focused && valid { text = String(number) } }
-                .onChange(of: focused) { _, active in if !active && valid { editor.clearDraft(field) } }
-            if !valid { Text("Enter a nonnegative number of seconds.").font(.caption).foregroundStyle(.red) }
+                if !valid { Text("\(label) must be a nonnegative number of seconds.").font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+            }
         }
+        .onChange(of: value) { _, _ in if !focused && valid { text = nil; editor.clearDraft(field) } }
+        .onChange(of: focused) { _, active in if !active && valid { text = nil; editor.clearDraft(field) } }
     }
 }
 

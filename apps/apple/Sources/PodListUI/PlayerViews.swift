@@ -145,53 +145,61 @@ struct NowPlayingView: SwiftUI.View {
     @State private var presentation = PlaylistPresentation()
     @Environment(\.dismiss) private var dismiss
     var body: some SwiftUI.View {
-        VStack(spacing: 12) {
-            HStack { Text("Now Playing").font(.title2).bold(); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
-                .padding(.horizontal, 28).padding(.top, 20)
-            if let detailID, let current = app.library {
-                Button("Back to Now Playing", systemImage: "chevron.left") { self.detailID = nil }
-                EpisodeInspector(row: current.row(detailID), library: current, app: app, playlistPresentation: presentation,
-                                 startedPlayback: { self.detailID = nil })
+        ContentSizedPanel(width: 560) {
+            if case let .add(ids, new) = presentation.sheet, let editing = app.editing {
+                AddPlaylistSheet(ids: ids, preferNew: new, app: app, editing: editing, inline: true,
+                                 cancelled: { presentation.sheet = nil }, done: { presentation.sheet = nil })
             } else {
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if let value = controller.display {
-                            ArtworkView(url: value.artwork, title: value.podcast, size: 230)
-                            Text(value.title).font(.title).multilineTextAlignment(.center).textSelection(.enabled)
-                            Text(value.podcast).font(.headline).foregroundStyle(.secondary)
-                            if let chapter = value.chapter { Text(chapter.title).font(.headline) }
-                            PlayerSeek(controller: controller)
-                            TransportControls(controller: controller).controlSize(.large)
-                            HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
-                            if let error = controller.error { Text(error); Button("Retry") { controller.play() } }
-                            Button("Episode detail", systemImage: "info.circle") { detailID = value.episodeID }
-                            Button("Open Active Playlist", systemImage: "music.note.list", action: openPlaylist)
-                            if !value.chapters.isEmpty {
-                                HStack {
-                                    Button("Previous Chapter", systemImage: "backward.end") { controller.chapter(-1) }
-                                    Button("Next Chapter", systemImage: "forward.end") { controller.chapter(1) }
+                VStack(spacing: 12) {
+                    HStack { Text("Now Playing").font(.title2).bold(); Spacer() }
+                        .padding(.horizontal, 28).padding(.top, 20)
+                    if let detailID, let current = app.library {
+                        Button("Back to Now Playing", systemImage: "chevron.left") { self.detailID = nil }
+                        EpisodeInspector(row: current.row(detailID), library: current, app: app, playlistPresentation: presentation,
+                                         startedPlayback: { self.detailID = nil }, scrolls: false)
+                    } else {
+                        VStack(spacing: 20) {
+                            if let value = controller.display {
+                                ArtworkView(url: value.artwork, title: value.podcast, size: 230)
+                                Text(value.title).font(.title).multilineTextAlignment(.center).textSelection(.enabled)
+                                Text(value.podcast).font(.headline).foregroundStyle(.secondary)
+                                if let chapter = value.chapter { Text(chapter.title).font(.headline) }
+                                PlayerSeek(controller: controller)
+                                TransportControls(controller: controller).controlSize(.large)
+                                HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
+                                if let error = controller.error { Text(error); Button("Retry") { controller.play() } }
+                                Button("Episode detail", systemImage: "info.circle") { detailID = value.episodeID }
+                                Button("Open Active Playlist", systemImage: "music.note.list", action: openPlaylist)
+                                if !value.chapters.isEmpty {
+                                    HStack {
+                                        Button("Previous Chapter", systemImage: "backward.end") { controller.chapter(-1) }
+                                        Button("Next Chapter", systemImage: "forward.end") { controller.chapter(1) }
+                                    }
+                                    Divider()
+                                    ForEach(value.chapters.enumerated(), id: \.element.start) { index, chapter in
+                                        Button { controller.seek(chapter.start) } label: {
+                                            HStack {
+                                                let current = app.library ?? library
+                                                let episode = current.row(value.episodeID).episode
+                                                let podcast = current.snapshot.subscriptions.first { $0.id == episode?.subscriptionId }
+                                                ArtworkView(url: PlaybackPolicy.artwork(value.chapters, position: chapter.start, episode: episode?.artwork, podcast: podcast?.artwork).flatMap { URL(string: $0.url) }, title: value.podcast, size: 36)
+                                                if value.chapterIndex == index { Image(systemName: "speaker.wave.2.fill") }
+                                                Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
+                                                Spacer(); Text(Presentation.time(chapter.start)).monospacedDigit()
+                                            }.frame(maxWidth: .infinity)
+                                        }.buttonStyle(.plain).padding(.vertical, 5)
+                                    }
                                 }
-                                Divider()
-                                ForEach(value.chapters.enumerated(), id: \.element.start) { index, chapter in
-                                    Button { controller.seek(chapter.start) } label: {
-                                        HStack {
-                                            let current = app.library ?? library
-                                            let episode = current.row(value.episodeID).episode
-                                            let podcast = current.snapshot.subscriptions.first { $0.id == episode?.subscriptionId }
-                                            ArtworkView(url: PlaybackPolicy.artwork(value.chapters, position: chapter.start, episode: episode?.artwork, podcast: podcast?.artwork).flatMap { URL(string: $0.url) }, title: value.podcast, size: 36)
-                                            if value.chapterIndex == index { Image(systemName: "speaker.wave.2.fill") }
-                                            Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                                            Spacer(); Text(Presentation.time(chapter.start)).monospacedDigit()
-                                        }.frame(maxWidth: .infinity)
-                                    }.buttonStyle(.plain).padding(.vertical, 5)
-                                }
-                            }
-                        } else { ContentUnavailableView("No current Entry", systemImage: "music.note") }
-                    }.padding(28)
+                            } else { ContentUnavailableView("No current Entry", systemImage: "music.note") }
+                        }.padding(28)
+                    }
                 }
             }
-        }.frame(width: 560, height: 700)
-        .modifier(PlaylistSheetHost(presentation: presentation, app: app, created: { _ in }))
+        } footer: {
+            if presentation.sheet == nil {
+                HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }.padding(20)
+            }
+        }
         .onChange(of: controller.userPlaybackRevision) { _, _ in detailID = nil }
     }
 }

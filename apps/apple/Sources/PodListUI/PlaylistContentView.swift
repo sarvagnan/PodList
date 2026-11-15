@@ -191,11 +191,11 @@ struct RewindSheet: SwiftUI.View {
     @Environment(\.dismiss) private var dismiss
     @State private var problem: String?
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Rewind Playlist").font(.title2).accessibilityAddTraits(.isHeader)
-            Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
-            if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
-                ScrollView {
+        ContentSizedPanel(width: 520) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Rewind Playlist").font(.title2).accessibilityAddTraits(.isHeader)
+                Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
+                if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Goes back to").font(.headline)
                         Text("\(preview.cursor.map { library.row($0).title } ?? "No current Entry") · \(Presentation.time(preview.position))")
@@ -206,21 +206,21 @@ struct RewindSheet: SwiftUI.View {
                         Text("Kept").font(.headline)
                         Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(maxHeight: 360)
-                if let problem { Text(problem).foregroundStyle(.red) }
-                HStack {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Spacer()
-                    Button("Rewind") {
-                        Task {
-                            if await editing.rewind(playlistID, to: target) { done() }
-                            else { problem = editing.error ?? "Could not rewind. Try again." }
+                    if let problem { Text(problem).foregroundStyle(.red) }
+                    HStack {
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                        Spacer()
+                        Button("Rewind") {
+                            Task {
+                                if await editing.rewind(playlistID, to: target) { done() }
+                                else { problem = editing.error ?? "Could not rewind. Try again." }
+                            }
                         }
+                            .keyboardShortcut(.defaultAction).disabled(editing.busy)
                     }
-                        .keyboardShortcut(.defaultAction).disabled(editing.busy)
-                }
-            } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
-        }.padding(24).frame(width: 520).interactiveDismissDisabled(editing.busy)
+                } else { Text("This moment is no longer available."); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
+            }.padding(24)
+        }.interactiveDismissDisabled(editing.busy)
     }
     private func titles(_ ids: [String]) -> String { ids.isEmpty ? "None" : ids.map { library.row($0).title }.joined(separator: "\n") }
 }
