@@ -90,6 +90,7 @@ public struct NowPlayingWindow: SwiftUI.View {
                                openPlaylist: { route(.playlist(library.state.activePlaylistId)) },
                                addToPlaylist: { ids, preferNew in route(.add(ids, preferNew: preferNew)) },
                                done: { dismissWindow(id: "now-playing") })
+                    .environment(\.podListRecoveryIndexed, true)
             } else {
                 ScrollableEmptyState("No Current Entry", systemImage: "music.note", description: "Choose an Episode in Library to begin.")
             }

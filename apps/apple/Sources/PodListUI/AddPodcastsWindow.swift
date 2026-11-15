@@ -67,7 +67,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                         }
                     }
                     if state.loading { ProgressView("Finding Podcasts…") }
-                    if let error = state.error { FailureFeedback(message: error, announcements: editor.edits.announcements) { search() } }
+                    if let error = state.error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { search() } }
                     if state.searched && !state.loading && state.results.isEmpty && state.error == nil { Text("No podcasts found. Try a name or a feed address.") }
                     if !state.results.isEmpty {
                         List(state.results, selection: $state.selectedFeed) { result in
@@ -98,8 +98,7 @@ struct AddPodcastsScreen: SwiftUI.View {
         .onExitCommand { close() }
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { close() }]))
         .focusedSceneValue(\.podListDiscoveryActions, MenuActionContext(actions: [
-            .searchPodcasts: !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil,
-            .retry: state.error != nil && !state.loading ? { search() } : nil
+            .searchPodcasts: !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListPodcast, discoveryCommands)
         .onAppear { editor.beginAddingPodcasts(); state.restoreDraft(from: editor); focused = true }

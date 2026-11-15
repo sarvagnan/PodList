@@ -9,9 +9,10 @@ import UniformTypeIdentifiers
 
 @Test func supplementalCommandsAreFiledByTaskAndObject() {
     #expect(Set(MenuActionMenu.file.items) == [.showImport, .cancelImport, .retryImport])
-    #expect(MenuActionMenu.edit.items == [.clearSearch])
+    #expect(MenuActionMenu.edit.items == [.clearSearch, .retry])
     #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .backToLibrary, .searchPodcasts])
     #expect(MenuActionMenu.views.items == [.createViewFromSearch])
+    #expect(MenuActionMenu.episode.items == [.retryEpisodeDrop])
     #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver, .retryBringOver])
     #expect(MenuActionMenu.controls.items == [.backToNowPlaying, .retryPlayback])
     #expect(MenuActionMenu.automation.items == [.copyConfiguration, .retryAutomation])
@@ -23,17 +24,89 @@ import UniformTypeIdentifiers
     let surfaceOnly: [MenuAction] = [
         .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
         .playNow, .playNext, .playLast, .go, .deletePermanently, .apply, .rewind,
-        .bringOver, .notNow, .importSelection, .chooseFile, .retry, .dismissTutorial
+        .bringOver, .notNow, .importSelection, .chooseFile, .dismissTutorial
     ]
     for action in surfaceOnly {
         #expect(action.menu == nil)
         #expect(!MenuActionMenu.allCases.flatMap(\.items).contains(action))
     }
-    // These are persistent Episode commands, despite the transient Retry controls
-    // being excluded above. Their existing state/selection validation still applies.
+    // Existing download recovery stays in Episode, without a second generic entry.
     #expect(EpisodeDownloadAction.allCases.map(\.title) == [
         "Download", "Cancel Download", "Retry Download", "Remove Download"
     ])
+}
+
+@MainActor @Test(.timeLimit(.minutes(1))) func failedEpisodeDropCommandUsesRetainedRecoveryAndValidatesBusyState() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: "PodListDropMenu-" + UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "menu", defaults: defaults)
+    #expect(PersistentMenuActions.owns(.retryEpisodeDrop))
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+
+    var retried = 0
+    var complete: (() -> Void)?
+    editor.failedEpisodeDrop = FailedEpisodeDrop(message: "Failed remote Episode") {
+        retried += 1
+        complete?()
+    }
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] != nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retry] == nil)
+    editor.busy = true
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+    editor.busy = false
+    try await editor.edits.performExternal {
+        #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+        return nil
+    }
+    editor.episodeDrop = EpisodeDropProgress(playlistID: "default", total: 1)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+    editor.episodeDrop = nil
+    let command = try #require(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop])
+    await withCheckedContinuation { continuation in
+        complete = { continuation.resume() }
+        command()
+    }
+    #expect(retried == 1)
+    editor.failedEpisodeDrop = nil
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+}
+
+@Test func focusedRetryCommandValidatesAndInvokesTheSurfaceHandler() throws {
+    var calls = 0
+    let disabled = FocusedRecoveryActions.context(enabled: false) { calls += 1 }
+    #expect(disabled[.retry] == nil)
+    let enabled = FocusedRecoveryActions.context(enabled: true) { calls += 1 }
+    let command = try #require(enabled[.retry])
+    command()
+    #expect(calls == 1)
+}
+
+@Test func viewCommandsResolveTheSelectedViewWithoutNavigating() async throws {
+    let library = try await fixtureModel()
+    let id = try #require(library.state.views.first?.id)
+    #expect(ViewSelectionAction.view(in: library, destination: .views, selection: [id])?.id == id)
+    #expect(ViewSelectionAction.view(in: library, destination: .view(id), selection: [])?.id == id)
+    #expect(ViewSelectionAction.view(in: library, destination: .views, selection: []) == nil)
+    #expect(ViewSelectionAction.view(in: library, destination: .views, selection: [id, "other"]) == nil)
+    #expect(ViewSelectionAction.view(in: library, destination: .views, selection: ["deleted"]) == nil)
+    #expect(ViewSelectionAction.view(in: library, destination: .subscriptions, selection: [id]) == nil)
+}
+
+@Test func viewTypeSelectionMatchesPrefixesCyclesAndExpires() {
+    var views = fixtureState().views
+    views = Array(repeating: views[0], count: 3)
+    for index in views.indices { views[index].id = "\(index)" }
+    views[0].name = "Café"
+    views[1].name = "Commute"
+    views[2].name = "News"
+    var typing = ViewTypeSelection()
+    #expect(typing.select("c", in: views, selected: nil, at: 1) == "0")
+    #expect(typing.select("c", in: views, selected: "0", at: 1.2) == "1")
+    #expect(typing.select("o", in: views, selected: "1", at: 1.3) == "1")
+    #expect(typing.select("n", in: views, selected: "1", at: 3) == "2")
+    #expect(typing.select("CAFE", in: views, selected: "2", at: 5) == "0")
+    #expect(typing.select("z", in: views, selected: "0", at: 7) == nil)
+    #expect(typing.select("n", in: [], selected: nil, at: 9) == nil)
 }
 
 @MainActor @Test func textNavigationAndSheetCancellationWinOverPlayback() {

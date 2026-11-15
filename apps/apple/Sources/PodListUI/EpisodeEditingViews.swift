@@ -185,6 +185,11 @@ struct EditingFeedback: SwiftUI.View {
             .frame(height: textScale > 1 ? nil : 32).frame(minHeight: 32)
             .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
             .focusedSceneValue(\.podListEditHistory, undo != nil || redo != nil ? EditHistoryCommandContext(undo: undo, redo: redo) : nil)
+            .modifier(FocusedRetry(action: retryCommand))
+    }
+    private var retryCommand: (() -> Void)? {
+        guard error == editing.error, editing.canRetry else { return nil }
+        return { retryFailure() }
     }
     private func retryFailure() {
         switch editing.retryKind {
@@ -260,6 +265,7 @@ public struct PlaylistEditingCommands: Commands {
             }.keyboardShortcut("z", modifiers: [.command, .shift]).disabled(textEditor == nil ? app.editing?.history.redo == nil || app.editing?.busy == true : textEditor?.undoManager?.canRedo != true)
         }
         CommandMenu("Episode") {
+            MenuActionItems(menu: .episode, app: app)
             Button("Show Episode Details") {
                 if let episodeDetails { episodeDetails() } else { context?.showDetails() }
             }.disabled(episodeDetails == nil && context?.ids.isEmpty != false)
