@@ -93,7 +93,6 @@ public struct NowPlayingWindow: SwiftUI.View {
         .modifier(PlaybackSeekHost(app: app))
         .macContentFont(.body)
         .frame(minWidth: 420, minHeight: 360)
-        .tint(.podListAccent)
         .focusedSceneValue(\.podListNowPlaying, { openWindow(id: "now-playing") })
         .focusedSceneValue(\.podListOpenPlaylist, {
             if let library = app.library { route(.playlist(library.state.activePlaylistId)) }

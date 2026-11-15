@@ -8,7 +8,19 @@ The mock-ups were throwaway and are not kept in the repo.
 
 ## Look
 
-SwiftUI with AppKit conventions: system font, sidebar material, unified toolbar, PodList blue `#2b50c8` as the accent, light and dark following the system. Only macOS is built out in this phase; the codebase stays multiplatform so iPhone and iPad follow later.
+SwiftUI with AppKit conventions: system font, sidebar material, unified toolbar, the macOS accent convention, and light and dark following the system. Only macOS is built out in this phase; the codebase stays multiplatform so iPhone and iPad follow later.
+
+Owner decision, 15 Nov 2026 (APPEAR-02): respect System Settings › Appearance ›
+Accent colour. In Multicolor, use PodList blue through the main bundle's
+`AccentColor` asset: Light `#2B50C8`, Dark `#9DB1FF`, Increase Contrast
+`#193A9B` / `#B2C1FF`. In every other accent mode, macOS supplies the person's
+chosen accent. No app-wide tint overrides it. Native controls own their contrast;
+default buttons retain native chrome with an enabled label chosen for contrast
+against the resolved accent. Custom accent text and row symbols use semantic
+primary if the chosen accent cannot reach 4.5:1 on the reading surfaces; emphasized
+rows always inherit the selection foreground. Artwork placeholders and the
+non-interactive Welcome mark keep the brand palette as identity. The existing
+app icon is unchanged. See [appearance and contrast](../ui-grade/mac-appearance.md).
 
 ## Window
 

@@ -325,7 +325,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                         } else {
                             Chart(stats.days) { day in
                                 BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60))
-                                    .foregroundStyle(Color.podListAccent)
+                                    .foregroundStyle(MacAccentForegroundStyle())
                             }
                                 .chartXAxis { AxisMarks { _ in
                                     AxisGridLine()

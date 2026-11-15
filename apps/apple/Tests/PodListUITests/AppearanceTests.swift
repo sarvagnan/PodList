@@ -31,7 +31,7 @@ private struct RGB {
     }
 }
 
-@Test @MainActor func dynamicAccentTracksTheDrawingAppearance() {
+@Test @MainActor func identityBrandTracksTheDrawingAppearance() {
     // AppKit's accessibility appearance names are bestMatch targets, not a way
     // to force Increase Contrast with NSAppearance(named:). Check the provider
     // against the actual match so this test also works with Increase Contrast on.
@@ -39,14 +39,14 @@ private struct RGB {
     for name in [NSAppearance.Name.aqua, .darkAqua] {
         let appearance = NSAppearance(named: name)!
         appearance.performAsCurrentDrawingAppearance {
-            let expected = MacAccentPalette.color(for: appearance.bestMatch(from: matches))
-            let actual = RGB(NSColor(Color.podListAccent), over: RGB(0))
+            let expected = MacBrandPalette.color(for: appearance.bestMatch(from: matches))
+            let actual = RGB(NSColor(Color.podListBrand), over: RGB(0))
             #expect(actual.isClose(to: RGB(expected, over: RGB(0))))
         }
     }
 }
 
-@Test @MainActor func darkAccentContrastsWithSystemAndAuditedSurfaces() {
+@Test @MainActor func multicolorBrandContrastsWithSystemAndAuditedSurfaces() {
     // AppKit macOS 26 sRGB colours, plus composited surfaces sampled in round 1.
     // Materials vary with the wallpaper; retain the audit's tinted samples as
     // well as semantic colours. Emphasised selections use the selection foreground.
@@ -58,7 +58,7 @@ private struct RGB {
     ]
     for name in [NSAppearance.Name.darkAqua, .accessibilityHighContrastDarkAqua] {
         NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
-            let accent = RGB(MacAccentPalette.color(for: name), over: RGB(0))
+            let accent = RGB(MacBrandPalette.color(for: name), over: RGB(0))
             #expect(accent.contrast(RGB(0xFFFFFF)) >= 1.6, "Dark accent must remain distinct from white primary text")
             for (label, hex) in documentedSurfaces {
                 #expect(accent.contrast(RGB(hex)) >= 4.5, "\(name.rawValue): \(label)")
@@ -75,21 +75,20 @@ private struct RGB {
     }
 }
 
-@Test @MainActor func accentResolvesAllFourVariantsAndKeepsArtworkAndPlayGlyphReadable() {
+@Test @MainActor func multicolorBrandResolvesAllFourVariantsAndKeepsArtworkReadable() {
     let variants: [(NSAppearance.Name, Int)] = [
         (.aqua, 0x2B50C8), (.darkAqua, 0x9DB1FF),
         (.accessibilityHighContrastAqua, 0x193A9B), (.accessibilityHighContrastDarkAqua, 0xB2C1FF)
     ]
     for (name, hex) in variants {
         NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
-            let color = MacAccentPalette.color(for: name)
+            let color = MacBrandPalette.color(for: name)
             let accent = RGB(color, over: RGB(0))
             #expect(accent.isClose(to: RGB(hex)))
             let window = RGB(NSColor.windowBackgroundColor, over: RGB(0))
             let artwork = RGB(color.withAlphaComponent(0.12), over: window)
             #expect(accent.contrast(window) >= 4.5)
             #expect(accent.contrast(artwork) >= 4.5)
-            #expect(accent.contrast(RGB(NSColor(Color.podListOnAccent), over: accent)) >= 4.5)
             if name == .aqua || name == .accessibilityHighContrastAqua {
                 for hex in [0xFFFFFF, 0xF6F6F6, 0xDCDCDC] {
                     #expect(accent.contrast(RGB(hex)) >= 4.5)
@@ -103,7 +102,8 @@ private struct RGB {
 
 @Test @MainActor func rowAccentInheritsSelectionForegroundOnlyOnEmphasisedRows() {
     // Render the same ShapeStyle used by row labels, symbols and buttons without
-    // a window or screen. Distinct supplied foregrounds catch hard-coded white.
+    // a window or screen. A readable accent keeps the standard row distinct;
+    // supplied selection foregrounds catch hard-coded white.
     for name in [NSAppearance.Name.aqua, .darkAqua] {
         NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
             for foreground in [Color.white, Color.green] {
@@ -112,6 +112,7 @@ private struct RGB {
                         let renderer = ImageRenderer(content: Rectangle()
                             .fill(style)
                             .foregroundStyle(foreground)
+                            .accentColor(.podListBrand)
                             .environment(\.backgroundProminence, prominence)
                             .environment(\.colorScheme, name == .aqua ? .light : .dark)
                             .frame(width: 8, height: 8))
@@ -119,7 +120,7 @@ private struct RGB {
                         return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
                     }
                     let actual = render(AnyShapeStyle(MacRowAccentStyle()))
-                    let accent = render(AnyShapeStyle(Color.podListAccent))
+                    let accent = render(AnyShapeStyle(MacAccentForegroundStyle()))
                     let selected = render(AnyShapeStyle(foreground))
                     // Compare rendered pixels in the same output colour space.
                     #expect(actual != nil)
@@ -254,62 +255,134 @@ private struct RGB {
     }
 }
 
-@Test @MainActor func defaultActionsRenderReadableLabelsOnTheBrandFill() throws {
+@Test @MainActor func defaultActionsRenderReadableLabelsForEveryAccent() throws {
     for scheme in [ColorScheme.light, .dark] {
-        for enabled in [true, false] {
-            @MainActor func render(_ kind: Int) throws -> Data {
-                let button = Button("Apply") {}
-                let content = Group {
-                    if kind == 0 { button.macDefaultAction() }
-                    else if kind == 1 {
-                        Button {} label: { Text("Apply").foregroundStyle(Color.podListOnAccent) }
-                            .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(.podListAccent)
+        let colors: [NSColor] = [.systemBlue, .systemPurple, .systemPink, .systemRed,
+            .systemOrange, .systemYellow, .systemGreen, .systemGray]
+            + [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua,
+               .accessibilityHighContrastDarkAqua].map { MacBrandPalette.color(for: $0) }
+        for color in colors {
+            let accent = Color(nsColor: color)
+            for hasDefaultShortcut in [true, false] {
+                for enabled in [true, false] {
+                    @MainActor func render(_ helper: Bool) throws -> NSBitmapImageRep {
+                        let button = Button("Apply") {}
+                        let content = Group {
+                            if helper {
+                                if hasDefaultShortcut { button.macDefaultAction() }
+                                else { button.buttonStyle(MacDefaultButtonStyle()) }
+                            } else {
+                                button.keyboardShortcut(hasDefaultShortcut ? .defaultAction : nil)
+                                    .buttonStyle(.borderedProminent).tint(nil)
+                            }
+                        }.tint(.primary).accentColor(accent).environment(\.colorScheme, scheme).disabled(!enabled).padding(12)
+                        return NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: content).cgImage))
                     }
-                    else if kind == 2 { button.keyboardShortcut(.defaultAction) }
-                    else { button.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(.podListAccent) }
-                }.tint(.podListAccent)
-                    .environment(\.colorScheme, scheme)
-                    .disabled(!enabled)
-                    .padding(12)
-                let bitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: content).cgImage))
-                return try #require(bitmap.representation(using: .png, properties: [:]))
-            }
-            let actual = try render(0)
-            let image = { (data: Data) throws -> NSBitmapImageRep in try #require(NSBitmapImageRep(data: data)) }
-            #expect(differingPixels(try image(actual), try image(try render(enabled ? 1 : 3))) < 50,
-                    "Disabled defaults must use the system's complete disabled style")
-            if enabled {
-                if scheme == .dark {
-                    #expect(differingPixels(try image(actual), try image(try render(2))) >= 50,
-                            "Dark default action must use its contrasting label")
+                    let bitmap = try render(true)
+                    if !enabled {
+                        #expect(differingPixels(bitmap, try render(false)) < 50,
+                                "Disabled defaults retain the complete native treatment")
+                        continue
+                    }
+                    var colors: [Int: Int] = [:]
+                    // Fully covered pixels inside the button, excluding border/shadow.
+                    for y in 17..<(bitmap.pixelsHigh - 17) { for x in 20..<(bitmap.pixelsWide - 20) {
+                        guard let pixel = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB), pixel.alphaComponent == 1 else { continue }
+                        let hex = Int((pixel.redComponent * 255).rounded()) << 16
+                            | Int((pixel.greenComponent * 255).rounded()) << 8
+                            | Int((pixel.blueComponent * 255).rounded())
+                        colors[hex, default: 0] += 1
+                    } }
+                    let fill = try #require(colors.max { $0.value < $1.value }?.key)
+                    let swatch = Rectangle().fill(MacOnAccentStyle()).frame(width: 8, height: 8)
+                        .accentColor(accent).environment(\.colorScheme, scheme)
+                    let glyphBitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: swatch).cgImage))
+                    let glyphColor = try #require(glyphBitmap.colorAt(x: 4, y: 4)?.usingColorSpace(.sRGB))
+                    let glyph = glyphColor.redComponent > 0.5 ? 0xFFFFFF : 0x000000
+                    #expect(colors[glyph, default: 0] >= 8, "The actual label must contain the contrasting glyph")
+                    let ratio = RGB(glyph).contrast(RGB(fill))
+                    #expect(ratio >= 4.5)
+                    print(String(format: "Native accent default %@: #%06X on #%06X, %.2f:1", String(describing: scheme), glyph, fill, ratio))
                 }
-                let bitmap = try #require(NSBitmapImageRep(data: actual))
-                var colors: [Int: Int] = [:]
-                for y in 0..<bitmap.pixelsHigh { for x in 0..<bitmap.pixelsWide {
-                    guard let color = bitmap.colorAt(x: x, y: y), color.alphaComponent == 1 else { continue }
-                    let srgb = try #require(color.usingColorSpace(.sRGB))
-                    let hex = Int((srgb.redComponent * 255).rounded()) << 16
-                        | Int((srgb.greenComponent * 255).rounded()) << 8
-                        | Int((srgb.blueComponent * 255).rounded())
-                    colors[hex, default: 0] += 1
-                } }
-                let swatch = ImageRenderer(content: Rectangle().fill(Color.podListOnAccent)
-                    .environment(\.colorScheme, scheme).frame(width: 8, height: 8))
-                let swatchBitmap = NSBitmapImageRep(cgImage: try #require(swatch.cgImage))
-                let glyph = try #require(swatchBitmap.colorAt(x: 4, y: 4)?.usingColorSpace(.sRGB))
-                let glyphHex = Int((glyph.redComponent * 255).rounded()) << 16
-                    | Int((glyph.greenComponent * 255).rounded()) << 8
-                    | Int((glyph.blueComponent * 255).rounded())
-                // Fully covered glyph interiors must actually carry on-accent;
-                // checking palette tokens alone missed the native white label.
-                #expect(colors[glyphHex, default: 0] >= 8)
-                let fill = try #require(colors.max { $0.value < $1.value }?.key)
-                let ratio = RGB(glyphHex).contrast(RGB(fill))
-                #expect(ratio >= 4.5)
-                print(String(format: "Rendered brand default %@: #%06X on #%06X, %.2f:1", String(describing: scheme), glyphHex, fill, ratio))
             }
         }
     }
+}
+
+@Test @MainActor func accentForegroundFallsBackToPrimaryWhenSystemAccentsAreTooPale() {
+    for (name, scheme) in [(NSAppearance.Name.aqua, ColorScheme.light), (.darkAqua, .dark)] {
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            // Include each system color family, the exact four Multicolor values,
+            // and extreme accent fixtures. No preferences on the host are changed.
+            let accents: [NSColor] = [.systemBlue, .systemPurple, .systemPink, .systemRed,
+                .systemOrange, .systemYellow, .systemGreen, .systemGray, .black, .white]
+                + [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua,
+                   .accessibilityHighContrastDarkAqua].map { MacBrandPalette.color(for: $0) }
+            let surfaces: [NSColor] = [.windowBackgroundColor, .underPageBackgroundColor,
+                                      .unemphasizedSelectedContentBackgroundColor]
+            var minimum = Double.infinity
+            var fallbackCount = 0
+            for accent in accents {
+                let resolved = RGB(accent, over: RGB(0))
+                let fallback = surfaces.contains { resolved.contrast(RGB($0, over: RGB(0))) < 4.5 }
+                if fallback { fallbackCount += 1 }
+                for prominence in [BackgroundProminence.standard, .increased] {
+                    @MainActor func render(_ style: AnyShapeStyle) -> Data? {
+                        let view = Rectangle().fill(style).frame(width: 8, height: 8)
+                            .accentColor(Color(nsColor: accent))
+                            .environment(\.colorScheme, scheme)
+                            .environment(\.backgroundProminence, prominence)
+                        guard let image = ImageRenderer(content: view).cgImage else { return nil }
+                        return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+                    }
+                    let primary = prominence == .increased || fallback
+                    let actual = render(AnyShapeStyle(MacRowAccentStyle()))
+                    #expect(actual != nil)
+                    #expect(actual == render(primary
+                        ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.accentColor)))
+                }
+                for surface in surfaces {
+                    let background = RGB(surface, over: RGB(0))
+                    let foreground = fallback ? RGB(.labelColor, over: background) : resolved
+                    let ratio = foreground.contrast(background)
+                    minimum = min(minimum, ratio)
+                    #expect(ratio >= 4.5)
+                }
+            }
+            print(String(format: "Accent foreground %@: minimum %.2f:1, %d of %d fixtures use primary", name.rawValue, minimum, fallbackCount, accents.count))
+        }
+    }
+    let white = Color.white.resolve(in: EnvironmentValues())
+    let translucent = Color.white.opacity(0.5).resolve(in: EnvironmentValues())
+    #expect(MacAccentContrast.needsPrimary(translucent, on: [white]))
+}
+
+@Test func accentAssetContainsTheFourMulticolorVariants() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+    let asset = root.appendingPathComponent("Resources/MacAssets.xcassets/AccentColor.colorset/Contents.json")
+    let json = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: asset)) as? [String: Any])
+    let colors = try #require(json["colors"] as? [[String: Any]])
+    #expect(colors.count == 4)
+    var variants: [String: Int] = [:]
+    for entry in colors {
+        #expect(entry["idiom"] as? String == "mac")
+        let appearances = entry["appearances"] as? [[String: String]] ?? []
+        let dark = appearances.contains { $0["appearance"] == "luminosity" && $0["value"] == "dark" }
+        let high = appearances.contains { $0["appearance"] == "contrast" && $0["value"] == "high" }
+        let color = try #require(entry["color"] as? [String: Any])
+        #expect(color["color-space"] as? String == "srgb")
+        let components = try #require(color["components"] as? [String: String])
+        #expect(components["alpha"] == "1.000")
+        func channel(_ name: String) throws -> Int {
+            let value = try #require(components[name])
+            return try #require(Int(value.replacingOccurrences(of: "0x", with: ""), radix: 16))
+        }
+        let hex = try channel("red") << 16 | channel("green") << 8 | channel("blue")
+        variants["\(dark)-\(high)"] = hex
+    }
+    #expect(variants == ["false-false": 0x2B50C8, "true-false": 0x9DB1FF,
+                         "false-true": 0x193A9B, "true-true": 0xB2C1FF])
 }
 
 @Test @MainActor func roundTwoErrorsAndSecondaryTextMeetContrastInBothAppearances() {

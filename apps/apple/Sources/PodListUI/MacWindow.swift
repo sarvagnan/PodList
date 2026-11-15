@@ -41,7 +41,6 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .frame(minWidth: 760, minHeight: 500)
-        .tint(.podListAccent)
         .task { await app.start() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } else { app.playback?.flush() } }
         .onChange(of: app.library?.snapshot, initial: true) { _, _ in

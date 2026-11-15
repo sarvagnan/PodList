@@ -205,8 +205,8 @@ struct PodcastPageScreen: SwiftUI.View {
                                 changeSubscription()
                             } label: {
                                 SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed(at: context.date))
-                                    .foregroundStyle(subscribed ? (control.isArmed(at: context.date) ? Color.podListError : Color.primary) : Color.podListAccent)
-                            }.tint(subscribed ? nil : .podListAccent).disabled(subscriptionBusy)
+                                    .foregroundStyle(control.isArmed(at: context.date) ? Color.podListError : Color.primary)
+                            }.disabled(subscriptionBusy)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
                                 .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
                         }
