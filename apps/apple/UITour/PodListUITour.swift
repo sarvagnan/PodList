@@ -212,7 +212,7 @@ final class PodListUITour: XCTestCase {
         try reveal(details, in: playerScroll)
         XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.buttons["Done"].frame.minY)
         try click(details)
-        let addFromDetails = nowPlaying.buttons["Add to a Playlist"]
+        let addFromDetails = button("Add to a Playlist", in: nowPlaying)
         try reveal(addFromDetails, in: playerScroll)
         try click(addFromDetails)
         try sheet("to a Playlist")
@@ -268,7 +268,7 @@ final class PodListUITour: XCTestCase {
         try selectFirstEpisode()
         episodeList.typeKey("a", modifierFlags: .command)
         XCTAssertGreaterThan(episodeRows.matching(NSPredicate(format: "selected == true")).count, 1)
-        try ready(library.buttons["Add to a Playlist"])
+        try ready(button("Add to a Playlist"))
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
         XCTAssertTrue(library.buttons["Open Now Playing"].exists)
@@ -318,7 +318,7 @@ final class PodListUITour: XCTestCase {
         try ready(row)
         // The row's centre can fall on its Play Now button; click the title area instead.
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).click()
-        try ready(library.buttons["Add to a Playlist"])
+        try ready(button("Add to a Playlist"))
     }
 
     private func segment(_ name: String) throws {
