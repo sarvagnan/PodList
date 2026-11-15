@@ -85,9 +85,30 @@ struct PodcastPageScreen: SwiftUI.View {
     let library: LibraryModel
     var selection: Binding<Set<String>> = .constant([])
     @Binding var search: String
+    @Binding var savedSort: [WindowSort]
     let openEpisode: () -> Void
     let displayed: ([String]) -> Void
-    @State private var sortOrder = [KeyPathComparator<PageEpisode>(\.published, order: .reverse)]
+    private var sortOrder: [KeyPathComparator<PageEpisode>] {
+        get { savedSort.map { sort in
+            switch sort.column {
+            case .title: KeyPathComparator(\.title, order: sort.order)
+            case .published: KeyPathComparator(\.published, order: sort.order)
+            case .length: KeyPathComparator(\.length, order: sort.order)
+            case .state: KeyPathComparator(\.stateText, order: sort.order)
+            }
+        } }
+        nonmutating set { savedSort = newValue.compactMap { comparator in
+            let column: WindowSort.Column
+            switch comparator.keyPath {
+            case \PageEpisode.title: column = .title
+            case \PageEpisode.published: column = .published
+            case \PageEpisode.length: column = .length
+            case \PageEpisode.stateText: column = .state
+            default: return nil
+            }
+            return WindowSort(column: column, reversed: comparator.order == .reverse)
+        } }
+    }
     @State private var feed: ParsedFeed?
     @State private var loading = true
     @State private var error: String?
@@ -163,7 +184,7 @@ struct PodcastPageScreen: SwiftUI.View {
                     else { Button("Clear Search") { search = "" } }
                 }
             } else {
-                Table(episodes, selection: selection, sortOrder: $sortOrder) {
+                Table(episodes, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                     TableColumn("Episode", value: \.title) { episode in
                         HStack {
                             Text(episode.title).lineLimit(2)
@@ -217,10 +238,13 @@ struct PodcastPageScreen: SwiftUI.View {
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
         .simultaneousGesture(SpatialTapGesture().onEnded { if !subscribedBounds.contains($0.location) { control.reset() } })
-        .task(id: feedURL) { control.reset(); search = editor.draft("podcast.\(feedURL).search"); await read() }
+        .task(id: feedURL) { control.reset(); await read() }
         .onChange(of: search) { _, text in control.reset(); editor.setDraft(text, field: "podcast.\(feedURL).search") }
         .onChange(of: episodes.map(\.id), initial: true) { _, ids in
-            selection.wrappedValue.formIntersection(Set(ids)); displayed(ids)
+            if !loading { selection.wrappedValue.formIntersection(Set(ids)) }; displayed(ids)
+        }
+        .onChange(of: loading) { _, loading in
+            if !loading { selection.wrappedValue.formIntersection(Set(episodes.map(\.id))) }
         }
         .onDisappear { control.reset() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in control.reset() }

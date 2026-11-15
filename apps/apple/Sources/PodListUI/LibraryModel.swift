@@ -3,7 +3,7 @@ import Observation
 import PodListData
 import PodListDomain
 
-public enum Destination: Hashable, Sendable {
+public enum Destination: Hashable, Sendable, Codable {
     case view(String), playlist(String), views, subscriptions, subscription(String), search, trash
 }
 
@@ -222,6 +222,8 @@ public final class WindowModel {
     public private(set) var returnToNowPlaying = false
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
+    var podcastSort: [WindowSort] = [.init(column: .published, reversed: true)]
+    var timelineSelection: String?
 
     public init() {}
     /// Podcast pages belong to Subscriptions even though they have no sidebar row.
@@ -238,6 +240,7 @@ public final class WindowModel {
     public func navigate(to destination: Destination?) {
         returnToNowPlaying = false
         self.destination = destination; search = ""; selection = []; sortOrder = []
+        podcastSort = [.init(column: .published, reversed: true)]; timelineSelection = nil
     }
     public func rows(in library: LibraryModel) -> [EpisodeRow] {
         let rows = library.rows(for: destination, search: search)
@@ -247,6 +250,7 @@ public final class WindowModel {
     public func reconcile(in library: LibraryModel) {
         if case let .view(id) = destination, !library.state.views.contains(where: { $0.id == id }) { navigate(to: .views) }
         if case let .playlist(id) = destination, !library.state.playlists.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
+        if case let .subscription(id) = destination, !library.subscriptions.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
         selection.formIntersection(Set(rows(in: library).map(\.id)))
     }
 }
