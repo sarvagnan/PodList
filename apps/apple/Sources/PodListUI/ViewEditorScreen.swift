@@ -36,7 +36,7 @@ struct ViewEditorScreen: SwiftUI.View {
         ContentSizedPanel(width: 600) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text(creating ? "New View" : "Edit View").font(.title2).bold()
+                    Text(creating ? "New View" : "Edit View").macContentFont(.title2).bold()
                     Spacer()
                     Text(CountText.format(count, .matchingEpisode)).monospacedDigit()
                 }
@@ -165,7 +165,7 @@ struct ViewEditorScreen: SwiftUI.View {
         }
     }
     @ViewBuilder private func validation(_ message: String?) -> some SwiftUI.View {
-        if let message { Text(message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+        if let message { Text(message).macContentFont(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
     }
     private var nameProblem: String? { creating ? ViewNames.problem(draft.name, views: library.state.views, excluding: draft.id) : nil }
     private var fieldProblems: [ViewEdits.Field: String] {

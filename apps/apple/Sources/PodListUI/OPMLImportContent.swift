@@ -6,7 +6,7 @@ struct OPMLImportContent: SwiftUI.View {
     let choose: () -> Void
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Closing Add Podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").font(.callout).fixedSize(horizontal: false, vertical: true)
+            Text("Closing Add Podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").macContentFont(.callout).fixedSize(horizontal: false, vertical: true)
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
             if editor.importReady {
                 Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")

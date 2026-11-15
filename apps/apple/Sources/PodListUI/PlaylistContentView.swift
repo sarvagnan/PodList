@@ -10,6 +10,7 @@ struct PlaylistContentView: SwiftUI.View {
     let editing: PlaylistEditingModel
     @Bindable var presentation: PlaylistPresentation
     let openEpisode: () -> Void
+    @Environment(\.macTextScale) private var textScale
     @State private var rewindTarget: TimelineEvent?
 
     var body: some SwiftUI.View {
@@ -52,20 +53,34 @@ struct PlaylistContentView: SwiftUI.View {
                     Spacer()
                 }.padding(12)
             }
-            Table(of: EpisodeRow.self, selection: $window.selection) {
-                TableColumn("Entry") { (row: EpisodeRow) in entryTitle(row) }
-                TableColumn("Position") { row in Text(Presentation.time(row.position ?? 0)).monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
-                TableColumn("Length") { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                TableColumn("State") { row in Text(row.stateText) }.width(min: 80, ideal: 110, max: 150)
-            } rows: {
-                ForEach(rows) { row in
-                    TableRow(row).draggable(EpisodeTransfer.local(row.id, selection: ordered(window.selection), sourcePlaylistID: playlist.id, library: library))
-                }
-                    .dropDestination(for: EpisodeTransfer.self) { index, values in
-                        _ = drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
+            Group {
+                if textScale > 1 {
+                    List(selection: $window.selection) {
+                        ForEach(rows) { row in
+                            MacReadingRow { entryTitle(row) } metadata: {
+                                "Position \(Presentation.time(row.position ?? 0)) · Length \(row.durationText) · \(row.stateText)"
+                            }
+                            .tag(row.id).draggable(dragPayload(row.id))
+                        }
+                        .dropDestination(for: EpisodeTransfer.self) { values, index in
+                            _ = drop(values, at: index)
+                        }
                     }
+                } else {
+                    Table(of: EpisodeRow.self, selection: $window.selection) {
+                        TableColumn("Entry") { (row: EpisodeRow) in entryTitle(row) }
+                        TableColumn("Position") { row in Text(Presentation.time(row.position ?? 0)).monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
+                        TableColumn("Length") { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                        TableColumn("State") { row in Text(row.stateText) }.width(min: 80, ideal: 110, max: 150)
+                    } rows: {
+                        ForEach(rows) { row in TableRow(row).draggable(dragPayload(row.id)) }
+                            .dropDestination(for: EpisodeTransfer.self) { index, values in
+                                _ = drop(values, at: index)
+                            }
+                    }
+                    .tableStyle(.inset)
+                }
             }
-            .tableStyle(.inset)
             .alternatingRowBackgrounds(.disabled)
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
@@ -88,9 +103,9 @@ struct PlaylistContentView: SwiftUI.View {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.secondary) }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
-                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(MacRowAccentStyle()) }
-                Text(row.title).lineLimit(2)
-                Text(row.podcast).font(.caption).foregroundStyle(.secondary)
+                if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
+                Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
+                Text(row.podcast).macContentFont(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
@@ -110,6 +125,12 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private func ordered(_ selection: Set<String>) -> [String] { rows.map(\.id).filter { selection.contains($0) } }
+    private func dragPayload(_ id: String) -> EpisodeTransfer {
+        EpisodeTransfer.local(id, selection: ordered(window.selection), sourcePlaylistID: playlist.id, library: library)
+    }
+    private func drop(_ values: [EpisodeTransfer], at index: Int) -> Bool {
+        drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
+    }
     private func drop(_ values: [EpisodeTransfer], before id: String?) -> Bool {
         guard !editing.busy, let ids = EpisodeDrop.reorderIDs(values, in: playlist) else { return false }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count
@@ -128,7 +149,7 @@ struct PlaylistContentView: SwiftUI.View {
                 List(Array(playlist.history.enumerated().reversed()), id: \.offset, selection: $window.selection) { _, item in
                     let row = library.row(item.episodeId)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(row.title).font(.headline)
+                        Text(row.title).macContentFont(.headline)
                         Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(.secondary)
                     }.tag(item.episodeId)
                         .contextMenu {
@@ -148,9 +169,9 @@ struct PlaylistContentView: SwiftUI.View {
                 List(events, selection: $window.timelineSelection) { event in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(library.row(event.episodeID).title).font(.headline)
+                            Text(library.row(event.episodeID).title).macContentFont(.headline)
                             Text(date(event.at)).foregroundStyle(.secondary)
-                            Text(eventLabel(event)).font(.subheadline).foregroundStyle(.secondary)
+                            Text(eventLabel(event)).macContentFont(.subheadline).foregroundStyle(.secondary)
                         }
                         Spacer()
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
@@ -193,17 +214,17 @@ struct RewindSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 520) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Rewind Playlist").font(.title2).bold().accessibilityAddTraits(.isHeader)
+                Text("Rewind Playlist").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
                 Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
                 if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Goes back to").font(.headline)
+                        Text("Goes back to").macContentFont(.headline)
                         Text("\(preview.cursor.map { library.row($0).title } ?? "No Current Entry") · \(Presentation.time(preview.position))")
-                        Text("Unplayed again").font(.headline)
+                        Text("Unplayed again").macContentFont(.headline)
                         Text(titles(preview.unplayed))
-                        Text("Back in the Playlist").font(.headline)
+                        Text("Back in the Playlist").macContentFont(.headline)
                         Text(titles(preview.restored))
-                        Text("Kept").font(.headline)
+                        Text("Kept").macContentFont(.headline)
                         Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if let problem { Text(problem).foregroundStyle(.red) }

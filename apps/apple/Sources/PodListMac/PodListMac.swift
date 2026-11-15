@@ -7,6 +7,7 @@ import AppIntents
 struct PodListMac: App {
     @NSApplicationDelegateAdaptor(MacApplicationDelegate.self) private var delegate
     @State private var model: ApplicationModel
+    @State private var textSize = MacTextSizePreference()
 
     init() {
         let model = ApplicationModel()
@@ -17,12 +18,13 @@ struct PodListMac: App {
 
     var body: some Scene {
         WindowGroup("PodList", id: "library", for: LibraryWindowTarget.self) { $target in
-            PodListWindow(app: model, initialDestination: target?.destination)
+            PodListWindow(app: model, initialDestination: target?.destination).macTextSize(textSize)
                 .onAppear { delegate.model = model }
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
             SidebarCommands()
+            MacTextSizeCommands(preference: textSize)
             TextEditingCommands()
             PodListCommands()
             LibraryCommands(app: model)
@@ -32,9 +34,9 @@ struct PodListMac: App {
                 Button("PodList Help") { openWindow(id: "help") }
             }
         }
-        Settings { PodListSettings(app: model).tint(.podListAccent) }
-        Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).tint(.podListAccent) }
-        Window("PodList Help", id: "help") { PodListHelp().tint(.podListAccent) }
+        Settings { PodListSettings(app: model).macTextSize(textSize).tint(.podListAccent) }
+        Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).macTextSize(textSize).tint(.podListAccent) }
+        Window("PodList Help", id: "help") { PodListHelp().macTextSize(textSize).tint(.podListAccent) }
             .windowResizability(.contentSize)
     }
 }

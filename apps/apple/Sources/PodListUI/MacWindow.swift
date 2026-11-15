@@ -21,6 +21,7 @@ public struct PodListWindow: SwiftUI.View {
     @State private var contextLibraryID: String?
     @State private var restoredContext = false
     @AppStorage("PodList.inspectorVisible") private var inspectorVisible = true
+    @Environment(\.macTextScale) private var textScale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
     private let initialDestination: Destination?
@@ -76,10 +77,10 @@ public struct PodListWindow: SwiftUI.View {
                                 Label { Text(item.name) } icon: {
                                     Image(systemName: symbol(item.destination)).foregroundStyle(MacRowAccentStyle())
                                 }
-                                    .lineLimit(2)
+                                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
                                 Spacer(minLength: 4)
                                 if item.active {
-                                    Image(systemName: "speaker.wave.2.fill").font(.caption)
+                                    Image(systemName: "speaker.wave.2.fill").macContentFont(.caption)
                                         .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist")
                                 }
                                 if let clear = item.clearOnPlayed {
@@ -108,6 +109,7 @@ public struct PodListWindow: SwiftUI.View {
                     } header: { Text(section.name) }
                 }
             }
+            .macContentFont(.body)
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 180, ideal: 225, max: 320)
             .navigationTitle("PodList")
@@ -119,7 +121,7 @@ public struct PodListWindow: SwiftUI.View {
                     LibraryFeedback(editor: editor)
                     if editor.busy { VStack {
                         ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)")
-                        Text("Closing Add Podcasts does not stop the import. Keep PodList running. Unfinished imports resume on next launch.").font(.caption)
+                        Text("Closing Add Podcasts does not stop the import. Keep PodList running. Unfinished imports resume on next launch.").macContentFont(.caption)
                         Button("Show Import Results") { editor.importPresented = true }
                     } }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
@@ -130,6 +132,7 @@ public struct PodListWindow: SwiftUI.View {
                 } else { content(library) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .macContentFont(.body)
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
             .navigationSubtitle(isPodcastPage ? "Podcast page" : summary(library))
             .toolbar {
@@ -172,6 +175,7 @@ public struct PodListWindow: SwiftUI.View {
                 PlayerBar(controller: playback, library: library,
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
                           openNowPlaying: { window.showNowPlaying = true })
+                    .environment(\.macTextScale, 1)
             }
         }
         .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { drop in
@@ -188,7 +192,7 @@ public struct PodListWindow: SwiftUI.View {
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { showAddPodcasts = true }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing { ContentSizedPanel(width: 600) { VStack(alignment: .leading) {
-                Text("Import OPML").font(.title2).bold()
+                Text("Import OPML").macContentFont(.title2).bold()
                 OPMLImportContent(editor: editor, choose: { LibraryFileActions.importOPML(app) })
                 Button("Done") { editor.importPresented = false }.keyboardShortcut(.cancelAction)
             }.padding(24) } }
@@ -302,7 +306,7 @@ public struct PodListWindow: SwiftUI.View {
                                 ForEach(group.subscriptions, id: \.id) { subscription in
                                     HStack(spacing: 12) {
                                         ArtworkView(url: subscription.artwork.flatMap { URL(string: $0.url) }, title: subscription.title, size: 44)
-                                        Text(subscription.title).font(.headline)
+                                        Text(subscription.title).macContentFont(.headline).fixedSize(horizontal: false, vertical: true)
                                         Spacer()
                                         Button { window.navigate(to: .subscription(subscription.id)) } label: {
                                             MacIconLabel(title: "Open", systemImage: "chevron.right")
@@ -414,7 +418,7 @@ public struct PodListWindow: SwiftUI.View {
         let rows = window.rows(in: library)
         return VStack(alignment: .leading, spacing: 0) {
             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
-                Text(ViewDescription.text(view, library: library)).font(.subheadline).foregroundStyle(.secondary)
+                Text(ViewDescription.text(view, library: library)).macContentFont(.subheadline).foregroundStyle(.secondary)
                     .padding(.horizontal, 16).padding(.vertical, 10)
             }
             if case let .subscription(id) = window.destination { DownloadRuleEditor(subscriptionID: id, library: library, app: app).padding(12) }
@@ -436,20 +440,34 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
             } else {
-                Table(of: EpisodeRow.self, selection: $window.selection, sortOrder: $window.sortOrder) {
-                    TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }
-                    TableColumn("Published", value: \.published) { row in
-                        if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
-                        else { Text("—") }
-                    }.width(min: 95, ideal: 110, max: 150)
-                    TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                    TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
-                } rows: {
-                    ForEach(rows) { row in
-                        TableRow(row).draggable(EpisodeTransfer.local(row.id, selection: rows.map(\.id).filter { window.selection.contains($0) }, library: library))
+                Group {
+                    if textScale > 1 {
+                        List(selection: $window.selection) {
+                            Section {
+                                ForEach(rows) { row in
+                                    MacReadingRow { episodeTitle(row, library: library) } metadata: {
+                                        "Published \(row.episode == nil ? "—" : row.publishedDate.formatted(date: .abbreviated, time: .omitted)) · Length \(row.durationText) · \(row.stateText)"
+                                    }.tag(row.id).draggable(episodeDragPayload(row.id, rows: rows, library: library))
+                                }
+                            } header: { MacReadingSortControl(sort: Binding(get: { window.sortOrder.compactMap(WindowSort.init) }, set: { window.sortOrder = $0.map(\.comparator) })) }
+                        }
+                    } else {
+                        Table(of: EpisodeRow.self, selection: $window.selection, sortOrder: $window.sortOrder) {
+                            TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }
+                            TableColumn("Published", value: \.published) { row in
+                                if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
+                                else { Text("—") }
+                            }.width(min: 95, ideal: 110, max: 150)
+                            TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                            TableColumn("State", value: \.stateText).width(min: 80, ideal: 110, max: 150)
+                        } rows: {
+                            ForEach(rows) { row in
+                                TableRow(row).draggable(episodeDragPayload(row.id, rows: rows, library: library))
+                            }
+                        }
+                        .tableStyle(.inset)
                     }
                 }
-                .tableStyle(.inset)
                 .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { selection in
                     if let editing = app.editing {
@@ -460,9 +478,13 @@ public struct PodListWindow: SwiftUI.View {
                 .onCopyCommand(perform: window.selection.isEmpty ? nil : {
                     EpisodeCopyContent.providers(ids: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
                 })
-                .accessibilityLabel("Episodes, sortable columns")
+                .accessibilityLabel(textScale > 1 ? "Episodes, use Sort by and Descending to change order" : "Episodes, sortable columns")
             }
         }
+    }
+
+    private func episodeDragPayload(_ id: String, rows: [EpisodeRow], library: LibraryModel) -> EpisodeTransfer {
+        EpisodeTransfer.local(id, selection: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
     }
 
     private func episodeTitle(_ row: EpisodeRow, library: LibraryModel) -> some SwiftUI.View {
@@ -470,9 +492,9 @@ public struct PodListWindow: SwiftUI.View {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(.secondary).monospacedDigit() }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
-                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(MacRowAccentStyle()) }
-                Text(row.title).lineLimit(2)
-                Text(row.podcast).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
+                Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
+                Text(row.podcast).macContentFont(.caption).foregroundStyle(.secondary).lineLimit(textScale > 1 ? nil : 1)
             }.padding(.vertical, 5)
             Spacer(minLength: 4)
             // A status mark beside the row actions, never drawn over them.
@@ -517,7 +539,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             Spacer(minLength: 0)
         }
-        .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 7)
+        .macContentFont(.caption).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 7)
     }
 
     private func selectionRows(_ library: LibraryModel) -> [EpisodeRow] {

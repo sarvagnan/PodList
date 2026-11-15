@@ -75,7 +75,7 @@ struct DownloadRuleFields: SwiftUI.View {
                     if let cap, cap > 0, ![1, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(Optional(cap)) }
                 }
             }
-        }.font(.subheadline)
+        }.macContentFont(.subheadline)
     }
 }
 struct BulkDownloadRuleSheet: SwiftUI.View {
@@ -88,7 +88,7 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         ContentSizedPanel(width: 520) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Download Rules for \(CountText.format(ids.count, .subscription))").font(.title2).bold().accessibilityAddTraits(.isHeader)
+                Text("Download Rules for \(CountText.format(ids.count, .subscription))").macContentFont(.title2).bold().accessibilityAddTraits(.isHeader)
                 Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.secondary)
                 DownloadRuleFields(mode: $mode, cap: $cap)
                 if let editing = app.editing { EditingFeedback(editing: editing) }
