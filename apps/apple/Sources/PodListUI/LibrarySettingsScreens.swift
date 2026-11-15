@@ -238,7 +238,7 @@ private struct PersistentNumberField: SwiftUI.View {
                         text = raw; editor.setDraft(raw, field: field)
                         if let number = FormNumbers.nonnegative(raw, locale: locale), number != value { changed(number) }
                     }))
-                    .labelsHidden().accessibilityLabel(label)
+                    .labelsHidden()
                     .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
                     Text("sec").foregroundStyle(MacReadableSecondaryStyle())
                 }

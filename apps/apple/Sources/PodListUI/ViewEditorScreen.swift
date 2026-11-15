@@ -171,7 +171,7 @@ struct ViewEditorScreen: SwiftUI.View {
                         editor.setDraft(text, field: "\(draft.id).\(label) (minutes)")
                         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { update { $0[keyPath: path] = nil } }
                         else if let seconds = FormNumbers.seconds(fromMinutes: text, locale: locale) { update { $0[keyPath: path] = seconds } }
-                    }), prompt: Text("No limit")).labelsHidden().accessibilityLabel(label)
+                    }), prompt: Text("No limit")).labelsHidden()
                         .textFieldStyle(.roundedBorder).frame(width: 88)
                     Text("min").foregroundStyle(.primary)
                 }
