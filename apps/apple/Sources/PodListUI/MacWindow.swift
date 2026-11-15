@@ -2,10 +2,6 @@
 import SwiftUI
 import PodListDomain
 
-public extension Color {
-    static let podListAccent = Color(red: 43 / 255, green: 80 / 255, blue: 200 / 255)
-}
-
 public struct PodListWindow: SwiftUI.View {
     @Bindable private var app: ApplicationModel
     @State private var window = WindowModel()
@@ -19,7 +15,6 @@ public struct PodListWindow: SwiftUI.View {
     @State private var showSubscriptionSettings = false
     @State private var podcastFeed: String?
     @State private var podcastEpisodeIDs: [String] = []
-    @AppStorage("PodList.appearance") private var appearance = "System"
     @State private var columns = NavigationSplitViewVisibility.all
     @AppStorage("PodList.inspectorVisible") private var inspectorVisible = true
     @Environment(\.scenePhase) private var scenePhase
@@ -38,7 +33,6 @@ public struct PodListWindow: SwiftUI.View {
         }
         .frame(minWidth: 760, minHeight: 500)
         .tint(.podListAccent)
-        .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
         .task { await app.start() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } else { app.playback?.flush() } }
         .onChange(of: app.origin) { _, _ in window.navigate(to: .subscriptions); playlistPresentation.sheet = nil; subscriptionSelection = [] }
@@ -60,12 +54,14 @@ public struct PodListWindow: SwiftUI.View {
                         }
                         ForEach(section.items) { item in
                             HStack(spacing: 8) {
-                                Label(item.name, systemImage: symbol(item.destination))
+                                Label { Text(item.name) } icon: {
+                                    Image(systemName: symbol(item.destination)).foregroundStyle(MacRowAccentStyle())
+                                }
                                     .lineLimit(2)
                                 Spacer(minLength: 4)
                                 if item.active {
                                     Image(systemName: "speaker.wave.2.fill").font(.caption)
-                                        .foregroundStyle(Color.podListAccent).accessibilityLabel("Active Playlist")
+                                        .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist")
                                 }
                                 if let clear = item.clearOnPlayed {
                                     Image(systemName: clear ? "checkmark.circle" : "minus.circle")
@@ -263,7 +259,7 @@ public struct PodListWindow: SwiftUI.View {
                                         Text(subscription.title).font(.headline)
                                         Spacer()
                                         Button("Open", systemImage: "chevron.right") { window.navigate(to: .subscription(subscription.id)) }
-                                            .labelStyle(.iconOnly).buttonStyle(.borderless)
+                                            .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle())
                                             .help("Open \(subscription.title)").accessibilityLabel("Open \(subscription.title), Subscription")
                                     }.padding(.vertical, 5).contentShape(Rectangle()).tag(subscription.id)
                                 }
@@ -363,9 +359,9 @@ public struct PodListWindow: SwiftUI.View {
     private func episodeTitle(_ row: EpisodeRow, library: LibraryModel) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(.secondary).monospacedDigit() }
-            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(Color.podListAccent).accessibilityLabel("Current Entry") }
+            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
-                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(Color.podListAccent) }
+                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(2)
                 Text(row.podcast).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }.padding(.vertical, 5)
@@ -376,9 +372,9 @@ public struct PodListWindow: SwiftUI.View {
             }
             if let editing = app.editing {
                 Button("Add", systemImage: "plus") { playlistPresentation.sheet = .add([row.id], false) }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Add \(row.title) to a Playlist")
+                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
                 Button("Play Now", systemImage: "play.fill") { Task { await editing.add([row.id], placement: .now) } }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Play Now: \(row.title)")
+                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play Now: \(row.title)")
             }
         }
         .accessibilityElement(children: .contain)

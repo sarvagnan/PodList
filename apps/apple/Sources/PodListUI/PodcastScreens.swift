@@ -169,9 +169,9 @@ struct PodcastPageScreen: SwiftUI.View {
                             Text(episode.title).lineLimit(2)
                             Spacer()
                             Button("Add", systemImage: "plus") { bring(episode, play: false) }
-                                .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Add \(episode.title) to a Playlist")
+                                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
                             Button("Play", systemImage: "play.fill") { bring(episode, play: true) }
-                                .labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityLabel("Play \(episode.title) now")
+                                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play \(episode.title) now")
                         }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
                     }
                     TableColumn("Published", value: \.published) { episode in

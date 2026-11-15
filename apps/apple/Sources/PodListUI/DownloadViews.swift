@@ -8,11 +8,11 @@ struct DownloadStatusText: SwiftUI.View {
     @Bindable var app: ApplicationModel
     var body: some SwiftUI.View {
         switch app.downloadStatuses[id]?.phase {
-        case .stored: Text("Downloaded on this Device").foregroundStyle(.secondary)
-        case .queued: Text("Download queued").foregroundStyle(.secondary)
-        case .transferring: Text("Downloading on this Device").foregroundStyle(.secondary)
+        case .stored: Text("Downloaded on this Device").foregroundStyle(.primary)
+        case .queued: Text("Download queued").foregroundStyle(.primary)
+        case .transferring: Text("Downloading on this Device").foregroundStyle(.primary)
         case .failed: Text(app.downloadStatuses[id]?.error ?? "Download failed").foregroundStyle(.red)
-        case nil: Text("Not downloaded on this Device").foregroundStyle(.secondary)
+        case nil: Text("Not downloaded on this Device").foregroundStyle(.primary)
         }
         if let error = app.downloadError { Text(error).foregroundStyle(.red) }
     }
