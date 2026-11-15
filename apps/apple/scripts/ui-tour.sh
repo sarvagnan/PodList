@@ -15,10 +15,8 @@ test_pid=""
 vm="${PODLIST_UI_VM:-}"
 vm_clone=""
 vm_pid=""
-tunnel_pid=""
 cleanup() {
     # No process-name matching: these PIDs belong to this invocation only.
-    if [ -n "$tunnel_pid" ]; then kill -TERM "$tunnel_pid" 2>/dev/null || true; wait "$tunnel_pid" 2>/dev/null || true; fi
     if [ -n "$vm_clone" ]; then
         tart stop "$vm_clone" >/dev/null 2>&1 || true
         if [ -n "$vm_pid" ]; then wait "$vm_pid" 2>/dev/null || true; fi
@@ -88,6 +86,7 @@ demo = await startDemo()
 if (requestedStop) await stop()
 else writeFileSync(process.argv[3], demo.base)
 JS
+if [ -z "$vm" ]; then
 PODLIST_TEST_DEMO_NOW="$(node -e 'console.log(Date.now())')" \
     node "$run/demo.mjs" "$repo/packages/web/ui-flows/demo.mjs" "$run/origin" > "$out/demo.log" 2>&1 &
 demo_pid=$!
@@ -98,22 +97,26 @@ for ((attempt = 0; attempt < 300; attempt++)); do
 done
 if [ ! -s "$run/origin" ]; then echo "Demo startup timed out; see demo.log" >&2; exit 1; fi
 origin="$(cat "$run/origin")"
+fi
 
 if [ -n "$vm" ]; then
     # Run inside a throwaway clone of a prepared macOS VM (ui-tour-vm-prepare.sh), so the
-    # tour drives the VM's desktop, not this Mac's. The host builds; the guest only tests.
+    # tour drives the VM's desktop, not this Mac's. This Mac builds; the guest runs the demo
+    # server (from the repo, shared read-only) and the tests. No network path from this Mac
+    # into the VM is needed; tart exec uses the VM's own channel.
     command -v tart >/dev/null || { echo "PODLIST_UI_VM needs tart" >&2; exit 2; }
     guest_run=/private/tmp/podlist-uitour-run
+    # The guest's demo origin is only known once it starts; it replaces this placeholder.
     xcodebuild build-for-testing -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
         -destination "platform=macOS,arch=$(uname -m)" \
         -derivedDataPath "$apple/.build/ui-tour-derived" \
-        "PODLIST_UI_RUN_DIRECTORY=$guest_run" "PODLIST_UI_SERVER_ORIGIN=$origin" \
+        "PODLIST_UI_RUN_DIRECTORY=$guest_run" "PODLIST_UI_SERVER_ORIGIN=http://127.0.0.1:1" \
         > "$out/xcodebuild.log" 2>&1
     mkdir "$run/products"
     cp -R "$apple/.build/ui-tour-derived/Build/Products/." "$run/products/"
     vm_clone="podlist-ui-run-$run_id"
     tart clone "$vm" "$vm_clone"
-    tart run --no-graphics --dir="run:$run" "$vm_clone" > "$out/vm.log" 2>&1 &
+    tart run --no-graphics --dir="run:$run" --dir="repo:$repo:ro" "$vm_clone" > "$out/vm.log" 2>&1 &
     vm_pid=$!
     for ((attempt = 0; attempt < 300; attempt++)); do
         if tart exec "$vm_clone" true >/dev/null 2>&1; then break; fi
@@ -121,31 +124,30 @@ if [ -n "$vm" ]; then
         sleep 1
     done
     tart exec "$vm_clone" true
-    # The demo server listens on this Mac's loopback; a reverse SSH tunnel gives the guest
-    # the same 127.0.0.1 origin. The key is created per run and deleted with $run.
-    ssh-keygen -q -t ed25519 -N '' -C podlist-uitour -f "$run/tunnel-key"
-    tart exec -i "$vm_clone" /bin/sh -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys' < "$run/tunnel-key.pub"
-    port="${origin##*:}"
-    ssh -i "$run/tunnel-key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-        -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -N -R "$port:127.0.0.1:$port" \
-        "admin@$(tart ip "$vm_clone")" > "$out/tunnel.log" 2>&1 &
-    tunnel_pid=$!
-    sleep 2
-    if ! kill -0 "$tunnel_pid" 2>/dev/null; then cat "$out/tunnel.log" >&2; exit 1; fi
     status=0
     tart exec "$vm_clone" /bin/bash -c "
         set -u
-        shared='/Volumes/My Shared Files/run'
+        shared='/Volumes/My Shared Files'
         rm -rf '$guest_run' && mkdir -p '$guest_run'
-        for item in light dark products; do ditto \"\$shared/\$item\" '$guest_run'/\$item; done
+        for item in light dark products; do ditto \"\$shared/run/\$item\" '$guest_run'/\$item; done
+        PODLIST_TEST_DEMO_NOW=\$(node -e 'console.log(Date.now())') node \"\$shared/run/demo.mjs\" \\
+            \"\$shared/repo/packages/web/ui-flows/demo.mjs\" '$guest_run/origin' > '$guest_run/demo.log' 2>&1 &
+        demo=\$!
+        for i in \$(seq 1 600); do [ -s '$guest_run/origin' ] && break; sleep 0.1; done
+        if [ ! -s '$guest_run/origin' ]; then cat '$guest_run/demo.log'; kill \$demo; exit 1; fi
         cd '$guest_run/products'
-        xcodebuild test-without-building -xctestrun \"\$(ls *.xctestrun | head -1)\" \\
+        xctestrun=\$(ls *.xctestrun | head -1)
+        /usr/libexec/PlistBuddy -c \"Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN \$(cat '$guest_run/origin')\" \"\$xctestrun\"
+        xcodebuild test-without-building -xctestrun \"\$xctestrun\" \\
             -destination 'platform=macOS' -parallel-testing-enabled NO \\
             -resultBundlePath '$guest_run/Tour.xcresult'
         result=\$?
-        if [ -d '$guest_run/Tour.xcresult' ]; then ditto '$guest_run/Tour.xcresult' \"\$shared/Tour.xcresult\"; fi
+        kill \$demo 2>/dev/null; wait \$demo 2>/dev/null
+        cp '$guest_run/demo.log' \"\$shared/run/guest-demo.log\"
+        if [ -d '$guest_run/Tour.xcresult' ]; then ditto '$guest_run/Tour.xcresult' \"\$shared/run/Tour.xcresult\"; fi
         exit \$result
     " >> "$out/xcodebuild.log" 2>&1 || status=$?
+    if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
     if [ -d "$run/Tour.xcresult" ]; then ditto "$run/Tour.xcresult" "$out/Tour.xcresult"; fi
 else
 # Serial tests share the foreground desktop. Build settings expand in the shared scheme.

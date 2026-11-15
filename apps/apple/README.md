@@ -435,9 +435,9 @@ Then each run:
 PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh /private/tmp/podlist-mac-tour
 ```
 
-This Mac builds the app and the test bundle and runs the demo server; the tour runs in
-a fresh clone of `podlist-ui` with no window, reaching the demo server through a
-reverse SSH tunnel on the same `127.0.0.1` port. The clone is deleted afterwards.
+This Mac builds the app and the test bundle. The tour runs in a fresh clone of `podlist-ui`
+with no window; the clone also runs the demo server from the repository, shared read-only,
+with the image's Node. Nothing connects from this Mac into the VM's network. The clone is deleted afterwards.
 
 The 35 states (01–33, 34a and 34) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
