@@ -231,10 +231,6 @@ public struct PlaylistEditingCommands: Commands {
     @FocusedValue(\.podListRewind) private var rewind
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
-        CommandGroup(after: .newItem) {
-            Button("New Playlist…") { context?.presentation.sheet = .newPlaylist }
-                .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(context == nil || app.editing == nil)
-        }
         CommandGroup(replacing: .undoRedo) {
             Button(textEditor == nil ? app.editing?.undoTitle ?? "Undo" : textEditor?.undoManager?.undoMenuItemTitle ?? "Undo") {
                 if let editor = textEditor { editor.undoManager?.undo() }

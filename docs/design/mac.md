@@ -67,7 +67,41 @@ explicit Quit flushes local Position/listening before termination.
 
 ## Menus and shortcuts
 
-Native menu bar with the standard App, File, Edit, View, Controls (playback), Window and Help menus; every command reachable from a menu, with the usual shortcuts shown there (⌘N new View/Playlist, ⌘Z / ⇧⌘Z Undo and Redo, Space play selection or toggle playback, ⌘→ / ⌘← skip, ⌘, Settings, ⌘⌥I Inspector). Settings is the standard Settings window.
+The native menu bar follows [Apple’s menu-bar structure](https://developer.apple.com/design/human-interface-guidelines/the-menu-bar): standard menus cover application settings, files, editing, presentation and windows; object menus cover Episodes, Playlists, Podcasts and saved Views. Every persistent object command remains reachable from a menu (MENU-02). Sheet buttons, transient recovery controls and Settings configuration helpers stay on their own surfaces.
+
+The usual shortcuts are shown in the menus: ⌘N New View, ⇧⌘N New Playlist, ⌘Z / ⇧⌘Z Undo and Redo, Space playback, ⌘→ / ⌘← skip, ⌘, Settings and ⌥⌘I Inspector. Settings uses the standard Settings window. Moving commands preserves their shortcuts, focused object, validation and busy state.
+
+### Final menu map (round 4, MENU-01)
+
+| Menu | Commands and groups |
+| --- | --- |
+| PodList | Standard About, Settings…, Services, Hide and Quit. **Connection** submenu: Check and Connect, Start on This Mac, Disconnect, Bring Library from this Mac…. These use the existing Welcome/Settings handlers and validation. Server options and MCP configuration remain in Settings › General and Automation. |
+| File | New Window, New View…, New Playlist…, Open in New Window; Import OPML…, Export OPML…, Show Import Results; standard Close / Close All. Open in New Window opens the current destination. |
+| Edit | Standard text editing, named Undo/Redo, Cut/Copy/Paste and Select All; Search Library and Clear Search. Text editing keeps native Undo and keyboard behavior. |
+| View | Presentation only: sidebar, Inspector, Text Size, Sort by (Default order, Title, Published, Length, State), Descending, Show/Hide Description, **Listening Stats › Show Daily Table**, and standard full-screen controls. |
+| Podcast | Subscriptions, Add Podcasts…, Search Podcasts, Open Subscription, Back to Library, Refresh Library; Subscribe/Unsubscribe, Mark All Played, Refresh Episodes, Subscription Settings…, Edit Download Rules…; Share Podcast…, Copy Feed Address. |
+| Views | Open View, All Views, Create View from Search…, Edit View…, Rename View…, Delete View. New View… remains in File. |
+| Episode | Show Episode Details; Play Now, Play Next/Last in the Active Playlist, Play Now/Next/Last in a chosen Playlist (including New Playlist…), Add to a Playlist…, Resume in Playlist, Play Chapter; Download, Cancel Download, Retry Download, Remove Download; Share Episode…, Copy Link, Star/Unstar, Mark Played/Unplayed; Play from Here, Move Up/Down, Remove from Playlist. |
+| Playlist | Open Playlist; Entries, History, Listening Timeline; Clear on Played, Restore, Delete Permanently…, Rewind to Here…; Trash, Play This Playlist, Playlist Settings…, Rename Playlist…, Delete Playlist. New Playlist… remains in File. |
+| Controls | Play/Pause, Resume Playback, Pause Playback, Go to Time…, Back 15 Seconds, Forward 30 Seconds, Stop; speed, sleep, Previous/Next Chapter, Go to Chapter; Now Playing, Open Active Playlist, Back to Now Playing. |
+| Window | Standard window management and window list, including Now Playing and **Listening Stats**. `Window › Listening Stats` remains the UI tour’s route; it comes from its Window scene, without a duplicate custom command. Getting Started and PodList Help windows also retain their standard scene entries. |
+| Help | Standard Help search, PodList Help, Getting Started. |
+
+### What changed from round 3
+
+| Before | After and reason |
+| --- | --- |
+| File › Connection | PodList › Connection: connection and server actions belong with application settings. |
+| File › Add Podcasts… / Refresh Library | Podcast › Add Podcasts… / Refresh Library: these act on podcast subscriptions and their feeds. |
+| View › Back to Library / Clear Search | Podcast › Back to Library / Edit › Clear Search: object navigation and search editing do not change presentation. |
+| Podcast › Show/Hide Description | View › Show/Hide Description: this changes presentation. |
+| View › Show Daily Table | View › Listening Stats › Show Daily Table: a presentation option grouped by the window it affects. |
+| File › Current Dialog | Removed the entire submenu: Done, Cancel, Save, Cancel Rename, Create Playlist/View, Play Now/Next/Last, Apply, Rewind, Bring Over, Not Now, Go and Delete Permanently were mirrors of sheet buttons. The sheet’s buttons, Return, Esc and ⌘. suffice. The persistent entry points remain in File and the object menus, including Playlist › Delete Permanently… and Rewind to Here…. |
+| File › OPML Import | Removed Import, Choose a File… and Cancel Import button mirrors. File › Import OPML… opens the workflow; File › Show Import Results returns to it. |
+| File › Retry Failed Imports / Connection › Retry Bring Over; View › Retry / Retry MCP Server / Dismiss Getting Started; Controls › Retry Playback | Removed transient recovery and dismissal controls. They remain next to the window’s or Settings pane’s message. Persistent Episode › Retry Download, Cancel Download and Remove Download remain available. |
+| View › Copy Configuration | Removed from the menu; the helper remains next to the MCP configuration in Settings › Automation. |
+
+Supplemental actions declare their menu destination independently of the surface publishing their handlers. Unit tests enforce that destination policy and the sheet/recovery exclusions; the standard XCUITest tour checks the actual menu hierarchy and persistent-command coverage when capturing menus. No layout changes are part of MENU-01.
 
 ## Carried over from the other clients
 
@@ -115,7 +149,7 @@ Playlist. With no Episode selected, Space toggles playback. Editable text keeps 
 Selection, opening detail, changing sections, Undo and Rewind previews never start playback.
 Audio callbacks cannot start a paused player. A late end notification after Pause is ignored.
 Automatic advance continues only while playback is requested.
-View editing and deletion are in the View menu. Download is in the Episode menu.
+View editing and deletion are in the Views menu. Download is in the Episode menu.
 Podcast Add and Play use the same named Undo history before and after Subscribe.
 Getting started appears only on the screen the app opens to, not on other Views. It is a skippable introduction with three numbered points: adding podcasts, what Views do and what Playlists hold. The wording stays visible, with no completed states, check marks or “(done)” labels. It hides once the loaded Library has a Subscription, after any open Add flow closes; subscribing never closes that flow or clears its input. Settings can reopen it until dismissed, even with Subscriptions. Loading preserves the last visibility decision and never counts as an empty Library. The first View is its landing screen; other empty Views keep their short empty state and offer **Add podcasts** when the Library is empty.
 

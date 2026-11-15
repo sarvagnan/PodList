@@ -479,6 +479,7 @@ final class PodListUITour: XCTestCase {
     }
 
     private func captureMenus() throws {
+        var capturedMenus = Set<String>()
         var text = "XCUITest public snapshots expose elementType, not AXRole/AXSubrole.\n"
         text += "Keyboard shortcuts are not exposed by XCUIElementAttributes in Xcode 27.2.\n"
         text += "Standard alternative: inspect NSMenuItem.keyEquivalent and keyEquivalentModifierMask in Xcode's LLDB debugger, or read the visible menus.\n\n"
@@ -486,9 +487,57 @@ final class PodListUITour: XCTestCase {
         for item in app.menuBars.menuBarItems.allElementsBoundByIndex.dropFirst() {
             guard !["Apple", "\u{f8ff}", "Services"].contains(item.title.isEmpty ? item.label : item.title) else { continue }
             item.click()
-            text += try treeText(item.snapshot(), menus: true) + "\n"
+            let snapshot = try item.snapshot()
+            capturedMenus.insert(snapshot.title.isEmpty ? snapshot.label : snapshot.title)
+            assertMenuOrganization(snapshot)
+            text += treeText(snapshot, menus: true) + "\n"
             app.typeKey(.escape, modifierFlags: [])
         }
+        let expectedMenus: Set<String> = ["PodList", "File", "Edit", "View", "Podcast", "Views", "Episode", "Playlist", "Controls", "Window", "Help"]
+        XCTAssertTrue(expectedMenus.isSubset(of: capturedMenus), "Missing menus: \(expectedMenus.subtracting(capturedMenus))")
         attach(text, name: "menus.txt")
+    }
+
+    private func assertMenuOrganization(_ menu: any XCUIElementSnapshot) {
+        let name = menu.title.isEmpty ? menu.label : menu.title
+        func titles(_ node: any XCUIElementSnapshot) -> [String] {
+            guard !["Apple", "\u{f8ff}", "Services"].contains(node.title) else { return [] }
+            let own = node.elementType == .menuItem ? [node.title.isEmpty ? node.label : node.title] : []
+            return own + node.children.flatMap { titles($0) }
+        }
+        let items = Set(titles(menu))
+        let removed: Set<String> = [
+            "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
+            "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
+            "Import", "Choose a File…", "Cancel Import", "Retry", "Retry Failed Imports",
+            "Retry Bring Over", "Retry Playback", "Copy Configuration", "Retry MCP Server", "Dismiss Getting Started"
+        ]
+        XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
+        let required: [String: Set<String>] = [
+            "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from this Mac…"],
+            "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Import OPML…", "Export OPML…", "Show Import Results"],
+            "Edit": ["Search Library", "Clear Search"],
+            "View": ["Sort by", "Descending", "Listening Stats", "Show Daily Table"],
+            "Podcast": ["Add Podcasts…", "Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
+            "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
+            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist"],
+            "Playlist": ["Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
+            "Controls": ["Go to Time…", "Back to Now Playing", "Go to Chapter"],
+            "Window": ["Now Playing", "Listening Stats"],
+            "Help": ["PodList Help", "Getting Started"]
+        ]
+        XCTAssertTrue(required[name, default: []].isSubset(of: items), "\(name) is missing persistent commands: \(required[name, default: []].subtracting(items))")
+        if name == "Podcast" {
+            XCTAssertTrue(!items.isDisjoint(with: ["Subscribe", "Unsubscribe"]))
+        }
+        if name == "View" {
+            XCTAssertTrue(!items.isDisjoint(with: ["Show Description", "Hide Description"]))
+        }
+        let owners = ["Connection": "PodList", "Refresh Library": "Podcast", "Add Podcasts…": "Podcast",
+                      "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
+                      "Show Description": "View", "Hide Description": "View", "Show Daily Table": "View"]
+        for (command, owner) in owners where name != owner {
+            XCTAssertFalse(items.contains(command), "\(command) belongs in \(owner), not \(name)")
+        }
     }
 }

@@ -7,6 +7,36 @@ import Testing
 import UniformTypeIdentifiers
 @testable import PodListUI
 
+@Test func supplementalCommandsAreFiledByTaskAndObject() {
+    #expect(MenuActionMenu.file.items == [.showImport])
+    #expect(MenuActionMenu.edit.items == [.clearSearch])
+    #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .backToLibrary, .searchPodcasts])
+    #expect(MenuActionMenu.views.items == [.createViewFromSearch])
+    #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver])
+    #expect(MenuActionMenu.controls.items == [.backToNowPlaying])
+    let items = MenuActionMenu.allCases.flatMap(\.items)
+    #expect(Set(items).count == items.count)
+}
+
+@Test func sheetRecoveryAndConfigurationHelpersHaveNoMenuEntries() {
+    let surfaceOnly: [MenuAction] = [
+        .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
+        .playNow, .playNext, .playLast, .go, .deletePermanently, .apply, .rewind,
+        .bringOver, .notNow, .importSelection, .chooseFile, .cancelImport,
+        .retry, .retryImport, .retryBringOver, .retryAutomation, .retryPlayback,
+        .dismissTutorial, .copyConfiguration
+    ]
+    for action in surfaceOnly {
+        #expect(action.menu == nil)
+        #expect(!MenuActionMenu.allCases.flatMap(\.items).contains(action))
+    }
+    // These are persistent Episode commands, despite the transient Retry controls
+    // being excluded above. Their existing state/selection validation still applies.
+    #expect(EpisodeDownloadAction.allCases.map(\.title) == [
+        "Download", "Cancel Download", "Retry Download", "Remove Download"
+    ])
+}
+
 @MainActor @Test func textNavigationAndSheetCancellationWinOverPlayback() {
     let left = String(UnicodeScalar(NSLeftArrowFunctionKey)!)
     let right = String(UnicodeScalar(NSRightArrowFunctionKey)!)

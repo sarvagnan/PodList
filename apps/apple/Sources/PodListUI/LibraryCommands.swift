@@ -27,16 +27,19 @@ public struct LibraryCommands: Commands {
     public var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Window") { openWindow(id: "library") }.keyboardShortcut("n", modifiers: [.command, .option, .shift])
-            Button("Open in New Window") { actions?.openInNewWindow?() }.disabled(actions?.openInNewWindow == nil)
             Button("New View…", action: { actions?.newView() }).keyboardShortcut("n").disabled(actions == nil)
-            Button("Add Podcasts…", action: { actions?.add() }).keyboardShortcut("a", modifiers: [.command, .shift]).disabled(actions == nil)
+            Button("New Playlist…") { context?.presentation.sheet = .newPlaylist }
+                .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(context == nil || app.editing == nil)
+            Button("Open in New Window") { actions?.openInNewWindow?() }.disabled(actions?.openInNewWindow == nil)
             Divider()
             Button("Import OPML…") { LibraryFileActions.importOPML(app) }.disabled(app.library == nil || app.libraryEditing?.busy == true)
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
+            MenuActionItems(menu: .file)
         }
         CommandMenu("Podcast") {
             Button("Subscriptions") { context?.window.navigate(to: .subscriptions) }.disabled(context == nil)
-            MenuActionItems(items: [.searchPodcasts])
+            Button("Add Podcasts…", action: { actions?.add() }).keyboardShortcut("a", modifiers: [.command, .shift]).disabled(actions == nil)
+            MenuActionItems(menu: .podcast)
             Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()
             Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }
@@ -48,9 +51,6 @@ public struct LibraryCommands: Commands {
             Divider()
             ShareLink(items: podcast?.shareURL.map { [$0] } ?? []) { Text("Share Podcast…") }.disabled(podcast?.shareURL == nil)
             Button("Copy Feed Address") { if let url = podcast?.feedURL { ShareLinks.copy(url) } }.disabled(podcast?.feedURL == nil)
-            Divider()
-            Button(podcast?.descriptionExpanded == true ? "Hide Description" : "Show Description") { podcast?.toggleDescription?() }
-                .disabled(podcast?.toggleDescription == nil)
         }
         CommandMenu("Views") {
             Menu("Open View") {
@@ -58,7 +58,7 @@ public struct LibraryCommands: Commands {
                     Button(view.name) { context?.window.navigate(to: .view(view.id)) }
                 }
             }.disabled(context?.library.state.views.isEmpty != false)
-            MenuActionItems(items: [.createViewFromSearch])
+            MenuActionItems(menu: .views)
             Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)
             Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut).disabled(selectedViewID == nil || actions == nil)
             Button("Rename View…") {
@@ -72,6 +72,7 @@ public struct LibraryCommands: Commands {
         }
         CommandGroup(after: .textEditing) {
             Button("Search Library", action: { actions?.search() }).keyboardShortcut("f").disabled(actions == nil)
+            MenuActionItems(menu: .edit)
         }
     }
     private var selectedViewID: String? {
