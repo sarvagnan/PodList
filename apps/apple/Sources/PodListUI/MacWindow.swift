@@ -8,7 +8,6 @@ public struct PodListWindow: SwiftUI.View {
     @State private var playlistPresentation = PlaylistPresentation()
     @FocusState private var searchFocused: Bool
     @FocusState private var viewsFocused: Bool
-    @State private var viewTypeSelection = ViewTypeSelection()
     @State private var editingView: PodListDomain.View?
     @State private var creatingView = false
     @State private var subscriptionSelection = Set<String>()
@@ -107,7 +106,7 @@ public struct PodListWindow: SwiftUI.View {
                             .accessibilityIdentifier("sidebar.\(item.name)")
                             .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
-                    } header: { Text(section.name) }
+                    } header: { MacSidebarSectionHeader(section.name) }
                 }
             }
             // Sidebar metrics belong to macOS; app Text Size scales content only.
@@ -162,10 +161,14 @@ public struct PodListWindow: SwiftUI.View {
                     if !isPodcastPage {
                         switch window.destination {
                         case let .playlist(id):
-                            Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }
-                                .help("New Playlist (⇧⌘N)")
-                            Button("Playlist Settings…", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
-                                .help("Playlist Settings (\(PodListShortcut.playlistSettings.notation))")
+                            Button("Play This Playlist", systemImage: "play.fill") {
+                                guard let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing else { return }
+                                Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
+                            }.help("Play This Playlist").disabled(app.editing?.busy != false)
+                            Menu("Playlist Actions", systemImage: "slider.horizontal.3") {
+                                Button("New Playlist…") { playlistPresentation.sheet = .newPlaylist }
+                                Button("Playlist Settings…") { playlistPresentation.sheet = .settings(id) }
+                            }.help("Playlist Settings and New Playlist").accessibilityIdentifier("playlist.actions")
                         case .view, .views:
                             Button("New View…", systemImage: "plus") { newView() }
                             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
@@ -298,14 +301,6 @@ public struct PodListWindow: SwiftUI.View {
                 .accessibilityIdentifier("views.list")
                 .focused($viewsFocused)
                 .onAppear { viewsFocused = true }
-                .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { press in
-                    guard press.modifiers.intersection([.command, .control]).isEmpty,
-                          let id = viewTypeSelection.select(press.characters, in: library.state.views,
-                              selected: window.selection.first, at: Date.timeIntervalSinceReferenceDate) else { return .ignored }
-                    window.selection = [id]
-                    window.scrollAnchor = RowAnchor(id: id, index: library.state.views.firstIndex { $0.id == id } ?? 0)
-                    return .handled
-                }
                 .contextMenu(forSelectionType: String.self) { ids in
                     if let id = ids.first {
                         Button("Open") { window.navigate(to: .view(id)) }
@@ -314,7 +309,7 @@ public struct PodListWindow: SwiftUI.View {
                 } primaryAction: { ids in
                     if let id = ids.first { window.navigate(to: .view(id)) }
                 }
-                .restoringRows(library.state.views.map { Optional($0.id) }, anchor: $window.scrollAnchor)
+                .typeSelectingRows(library.state.views.map { TypeSelectionRow(id: $0.id, title: $0.name) }, selection: $window.selection, anchor: $window.scrollAnchor)
             }
         case .subscriptions:
             subscriptions(library)
@@ -376,7 +371,9 @@ public struct PodListWindow: SwiftUI.View {
                             } header: { Text(group.name).foregroundStyle(MacReadableSecondaryStyle()) }
                         }
                     }.listStyle(.inset)
-                    .restoringRows(groups.flatMap { [nil] + $0.subscriptions.map { Optional($0.id) } }, anchor: $window.scrollAnchor)
+                    .typeSelectingRows(groups.flatMap { $0.subscriptions.map { TypeSelectionRow(id: $0.id, title: $0.title) } },
+                        physicalIDs: groups.flatMap { [nil] + $0.subscriptions.map { Optional($0.id) } },
+                        selection: $subscriptionSelection, anchor: $window.scrollAnchor)
                     .accessibilityIdentifier("subscriptions.list")
                     .contextMenu(forSelectionType: String.self) { ids in
                         subscriptionActions(library, ids: ids)
@@ -526,7 +523,9 @@ public struct PodListWindow: SwiftUI.View {
                         .tableStyle(.inset)
                     }
                 }
-                .restoringRows((textScale > 1 ? [nil] : []) + rows.map { Optional($0.id) }, anchor: $window.scrollAnchor)
+                .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) },
+                    physicalIDs: (textScale > 1 ? [nil] : []) + rows.map { Optional($0.id) },
+                    selection: $window.selection, anchor: $window.scrollAnchor)
                 .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { selection in
                     if let editing = app.editing {

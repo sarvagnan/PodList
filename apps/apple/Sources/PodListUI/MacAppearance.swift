@@ -35,6 +35,15 @@ enum MacSecondaryPalette {
     }
 }
 
+/// Native Sidebar typography and spacing, with opaque readable secondary ink.
+struct MacSidebarSectionHeader: SwiftUI.View {
+    let title: String
+    init(_ title: String) { self.title = title }
+    var body: some SwiftUI.View {
+        Text(title).foregroundStyle(MacReadableSecondaryStyle())
+    }
+}
+
 /// Secondary reading text on ordinary surfaces. Selections use the inherited
 /// foreground, including inactive selections whose gray fill needs primary text.
 struct MacReadableSecondaryStyle: ShapeStyle {

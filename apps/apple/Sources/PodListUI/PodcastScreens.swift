@@ -200,7 +200,9 @@ struct PodcastPageScreen: SwiftUI.View {
                         .tableStyle(.inset)
                     }
                 }
-                .restoringRows((textScale > 1 ? [nil] : []) + episodes.map { Optional($0.id) }, anchor: $scrollAnchor)
+                .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },
+                    physicalIDs: (textScale > 1 ? [nil] : []) + episodes.map { Optional($0.id) },
+                    selection: selection, anchor: $scrollAnchor)
                 .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { ids in
                     let chosen = episodes.filter { ids.contains($0.id) }

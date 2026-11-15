@@ -247,7 +247,8 @@ struct PlaylistTrashView: SwiftUI.View {
                         Button("Delete Permanently…", role: .destructive) { confirmDeletion(item.playlist) }.disabled(editing.busy)
                     }
                 }
-                .restoringRows(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }.map { Optional($0.playlist.id) }, anchor: $scrollAnchor)
+                .typeSelectingRows(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }
+                    .map { TypeSelectionRow(id: $0.playlist.id, title: $0.playlist.name) }, selection: $selection, anchor: $scrollAnchor)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

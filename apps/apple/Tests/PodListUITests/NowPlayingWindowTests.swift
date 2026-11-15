@@ -49,7 +49,7 @@ import PodListData
             var heights: [Int] = []
             for appearance in [ColorScheme.light, .dark] {
                 for section in PlaylistTab.allCases {
-                    let renderer = ImageRenderer(content: PlaylistToolbar(selection: .constant(section), busy: false, play: {})
+                    let renderer = ImageRenderer(content: PlaylistToolbar(selection: .constant(section))
                         .macContentFont(.body)
                         .environment(\.macTextScale, textScale)
                         .environment(\.colorScheme, appearance)

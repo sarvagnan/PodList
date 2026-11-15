@@ -30,12 +30,8 @@ struct PlaylistContentView: SwiftUI.View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .toolbar {
-            // Leading placement keeps the switcher anchored when selection actions
-            // appear or disappear at the trailing edge of the toolbar.
-            ToolbarItem(placement: .navigation) {
-                PlaylistToolbar(selection: $presentation.playlistTab, busy: editing.busy) {
-                    Task { await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
-                }
+            ToolbarItem(placement: .principal) {
+                PlaylistToolbar(selection: $presentation.playlistTab)
             }
         }
         .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation))
@@ -91,7 +87,7 @@ struct PlaylistContentView: SwiftUI.View {
                 }
             }
             .onAppear { window.revealDrop(in: playlist.id) }
-            .restoringRows(rows.map { Optional($0.id) }, anchor: $window.scrollAnchor)
+            .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, selection: $window.selection, anchor: $window.scrollAnchor)
             .dragConfiguration(DragConfiguration(allowMove: true))
             .onDragSessionUpdated { session in
                 switch session.phase {
@@ -194,7 +190,8 @@ struct PlaylistContentView: SwiftUI.View {
                             EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation, app: app)
                                 .disabled(editing.busy)
                         }
-                }.restoringRows(playlist.history.reversed().map { Optional($0.episodeId) }, anchor: $window.scrollAnchor)
+                }.typeSelectingRows(playlist.history.reversed().map { TypeSelectionRow(id: $0.episodeId, title: library.row($0.episodeId).title) },
+                    selection: $window.selection, anchor: $window.scrollAnchor)
                     .accessibilityLabel("Playlist History")
             }
         }
@@ -229,7 +226,8 @@ struct PlaylistContentView: SwiftUI.View {
                         }
                     }
                     .tag(event.id)
-                }.restoringRows(events.map { Optional($0.id) }, anchor: $window.scrollAnchor)
+                }.typeSelectingRows(events.map { TypeSelectionRow(id: $0.id, title: library.row($0.episodeID).title) },
+                    selection: $window.timelineSelection, anchor: $window.scrollAnchor)
                     .accessibilityLabel("Listening Timeline")
             }
         }
@@ -255,34 +253,39 @@ struct PlaylistContentView: SwiftUI.View {
     private func date(_ at: Int64) -> String { Date(timeIntervalSince1970: Double(at) / 1000).formatted(date: .abbreviated, time: .shortened) }
 }
 
-/// Both controls stay in the same toolbar item across Playlist sections.
+/// A single, intrinsically sized centre item, independent of the current section.
 struct PlaylistToolbar: SwiftUI.View {
     @Binding var selection: PlaylistTab
-    let busy: Bool
-    let play: () -> Void
 
     var body: some SwiftUI.View {
-        HStack(spacing: 8) {
-            sections
-            playButton.labelStyle(.iconOnly)
-        }
-        .font(.body)
+        PlaylistSectionPicker(selection: $selection).fixedSize()
     }
-    private var sections: some SwiftUI.View {
-        Picker("Playlist section", selection: $selection) {
-            ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }
-        .labelsHidden()
-        .accessibilityIdentifier("playlist.section")
-        .pickerStyle(.segmented)
-        // System selected-segment colours: the brand tint fails contrast in Dark.
-        .tint(nil)
-        .fixedSize()
+}
+
+/// AppKit's fitted distribution keeps the long Timeline title readable without
+/// assigning that same width to Entries and History, leaving room for Search.
+private struct PlaylistSectionPicker: NSViewRepresentable {
+    @Binding var selection: PlaylistTab
+    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl(labels: PlaylistTab.allCases.map(\.rawValue), trackingMode: .selectOne,
+            target: context.coordinator, action: #selector(Coordinator.changed(_:)))
+        control.segmentDistribution = .fit
+        control.setAccessibilityLabel("Playlist section")
+        control.setAccessibilityIdentifier("playlist.section")
+        return control
     }
-    private var playButton: some SwiftUI.View {
-        Button("Play This Playlist", systemImage: "play.fill", action: play)
-            .fixedSize().disabled(busy)
-            .help("Play This Playlist")
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.selection = $selection
+        control.selectedSegment = PlaylistTab.allCases.firstIndex(of: selection) ?? 0
+    }
+    final class Coordinator: NSObject {
+        var selection: Binding<PlaylistTab>
+        init(selection: Binding<PlaylistTab>) { self.selection = selection }
+        @objc func changed(_ control: NSSegmentedControl) {
+            guard PlaylistTab.allCases.indices.contains(control.selectedSegment) else { return }
+            selection.wrappedValue = PlaylistTab.allCases[control.selectedSegment]
+        }
     }
 }
 

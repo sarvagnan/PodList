@@ -47,6 +47,7 @@ struct AddPodcastsScreen: SwiftUI.View {
     let open: (String) -> Void
     let close: () -> Void
     @FocusState private var focused: Bool
+    @State private var resultsAnchor: RowAnchor?
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
             ScrollView {
@@ -84,6 +85,8 @@ struct AddPodcastsScreen: SwiftUI.View {
                                 }
                             }.padding(.vertical, 5).tag(result.feedUrl)
                         }
+                        .typeSelectingRows(state.results.map { TypeSelectionRow(id: $0.feedUrl, title: $0.title) },
+                            selection: $state.selectedFeed, anchor: $resultsAnchor)
                         .frame(height: min(320, CGFloat(state.results.count) * 70))
                     }
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
