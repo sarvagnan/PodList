@@ -51,7 +51,9 @@ struct ViewEditorScreen: SwiftUI.View {
                         validation(nameValidation.message(nameProblem))
                     }
                     else if renaming {
-                        TextField("View name", text: $rename).onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
+                        PodListSheetField("Name") {
+                            TextField("View name", text: $rename).labelsHidden().onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
+                        }
                         validation(renameProblem)
                         HStack {
                             Button("Cancel", action: cancelRename)
@@ -87,8 +89,10 @@ struct ViewEditorScreen: SwiftUI.View {
                             } }))
                         }
                     }
-                    TextField("Mentions (Optional)", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
-                        .textFieldStyle(.roundedBorder).accessibilityLabel("Mentions")
+                    PodListSheetField("Mentions (Optional)") {
+                        TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
+                            .labelsHidden().textFieldStyle(.roundedBorder)
+                    }
                     Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
                         Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
                     }
