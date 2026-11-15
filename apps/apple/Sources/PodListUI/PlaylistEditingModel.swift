@@ -32,12 +32,15 @@ public final class PlaylistEditingModel {
     @ObservationIgnored private let donate: @MainActor (ActionDonation) -> Void
     @ObservationIgnored private var intentUndoTask: Task<Void, Never>?
     @ObservationIgnored private let player: @MainActor () -> PlaybackController?
+    @ObservationIgnored private let checkPurgeSupport: @MainActor () async throws -> Void
 
     public init(database: LocalDatabase, drafts: PlaylistDrafts,
                 player: @escaping @MainActor () -> PlaybackController? = { nil },
+                checkPurgeSupport: @escaping @MainActor () async throws -> Void = {},
                 donate: @escaping @MainActor (ActionDonation) -> Void = { _ in },
                 changed: @escaping @MainActor () async -> Void = {}) {
         self.database = database; self.drafts = drafts; self.donate = donate; self.player = player; self.changed = changed
+        self.checkPurgeSupport = checkPurgeSupport
     }
     public func endSession() { ended = true; history.clear() }
     func discardViewSession(_ id: UUID) {
@@ -189,6 +192,21 @@ public final class PlaylistEditingModel {
         let success = await edit([.restorePlaylist(playlistId: id)], name: "Restore Playlist")
         if success, let p = try? await database.loadState().playlists.first(where: { $0.id == id }) { status = "Restored Playlist “\(p.name)”" }
         return success
+    }
+    /// Confirmed by the caller. No undo step can recreate purged recovery data.
+    public func deletePermanently(_ id: String) async -> Bool {
+        do {
+            try await performExternal(recordHistory: false) {
+                try await self.checkPurgeSupport()
+                try await self.database.purgePlaylist(id, at: Self.now)
+                // Older Restore undo steps must not offer recovery of purged data.
+                self.history.removeAll { step in
+                    step.changes.contains(.restorePlaylist(playlistId: id)) || step.changes.contains(.deletePlaylist(playlistId: id))
+                }
+                return NamedEdit(name: "Delete Playlist Permanently", changes: [], reload: false)
+            }
+            return true
+        } catch { return false }
     }
     @discardableResult
     public func setStar(_ ids: [String], starred: Bool, undoManager: UndoManager? = nil) async -> Bool {

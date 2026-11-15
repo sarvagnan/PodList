@@ -78,6 +78,7 @@ private fun LocalDatabase.bringOverEpisodes(): List<Episode> = query("SELECT * F
         is Change.RenamePlaylist -> c.copy(playlistId = playlist(c.playlistId))
         is Change.SetClearOnPlayed -> c.copy(playlistId = playlist(c.playlistId))
         is Change.DeletePlaylist -> c.copy(playlistId = playlist(c.playlistId))
+        is Change.PurgePlaylist -> c.copy(playlistId = playlist(c.playlistId))
         is Change.RestorePlaylist -> c.copy(playlistId = playlist(c.playlistId))
         is Change.SetActivePlaylist -> c.copy(playlistId = playlist(c.playlistId))
         is Change.Rewind -> c.copy(playlistId = playlist(c.playlistId))
@@ -302,7 +303,7 @@ class BringOver(
                 is Change.SetDownloadRule -> neededSubscriptions += c.rule.subscriptionId
                 is Change.SetSubscriptionOverrides -> neededSubscriptions += c.subscriptionId
                 is Change.MarkSubscriptionPlayed, is Change.CreatePlaylist, is Change.RenamePlaylist, is Change.SetClearOnPlayed,
-                is Change.DeletePlaylist, is Change.RestorePlaylist, is Change.SetTrashDays, is Change.SetActivePlaylist,
+                is Change.DeletePlaylist, is Change.RestorePlaylist, is Change.PurgePlaylist, is Change.SetTrashDays, is Change.SetActivePlaylist,
                 is Change.Rewind, is Change.DeleteView, is Change.SetPlaybackSettings -> Unit
             }
         }

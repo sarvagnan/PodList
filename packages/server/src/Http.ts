@@ -32,6 +32,7 @@ export const SystemHandlers = HttpApiBuilder.group(
           new System.Health({
             status: "ok",
             protocolVersion: Protocol.version,
+            supportedOperations: ["PurgePlaylist"],
             ...Option.match(release, { onNone: () => ({}), onSome: (r) => ({ release: r }) })
           })
         )

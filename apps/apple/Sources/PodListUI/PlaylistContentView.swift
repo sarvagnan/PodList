@@ -1,5 +1,6 @@
 #if os(macOS)
 import SwiftUI
+import AppKit
 import PodListDomain
 
 struct PlaylistContentView: SwiftUI.View {
@@ -11,6 +12,7 @@ struct PlaylistContentView: SwiftUI.View {
     @Bindable var presentation: PlaylistPresentation
     let openEpisode: () -> Void
     @Environment(\.macTextScale) private var textScale
+    @State private var optionCopy = false
     @State private var rewindTarget: TimelineEvent?
 
     var body: some SwiftUI.View {
@@ -39,7 +41,9 @@ struct PlaylistContentView: SwiftUI.View {
             }
         }
         .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; window.timelineSelection = nil }
-        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; window.timelineSelection = nil }
+        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; window.timelineSelection = nil; window.scrollAnchor = nil
+            if presentation.playlistTab == .entries { window.revealDrop(in: playlist.id) }
+        }
     }
     private var rows: [EpisodeRow] { window.rows(in: library) }
     private var entries: some SwiftUI.View {
@@ -79,6 +83,23 @@ struct PlaylistContentView: SwiftUI.View {
                     .tableStyle(.inset)
                 }
             }
+            .onAppear { window.revealDrop(in: playlist.id) }
+            .restoringRows(rows.map { Optional($0.id) }, anchor: $window.scrollAnchor)
+            .dragConfiguration(DragConfiguration(allowMove: true))
+            .onDragSessionUpdated { session in
+                switch session.phase {
+                case .initial, .active: PlaylistDragSession.sourceID = playlist.id
+                case .ended, .dataTransferCompleted: PlaylistDragSession.sourceID = nil
+                @unknown default: break
+                }
+            }
+            .onDropSessionUpdated { session in
+                // Keep the last drag modifier through asynchronous payload decoding.
+                if session.phase == .entering || session.phase == .active {
+                    optionCopy = NSEvent.modifierFlags.contains(.option)
+                }
+            }
+            .modifier(PlaylistEpisodeDropTarget(destination: .playlist(playlist.id), editor: app.libraryEditing, window: window, allowsReorder: true))
             .alternatingRowBackgrounds(.disabled)
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
@@ -130,9 +151,21 @@ struct PlaylistContentView: SwiftUI.View {
         drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
     }
     private func drop(_ values: [EpisodeTransfer], before id: String?) -> Bool {
-        guard !editing.busy, let ids = EpisodeDrop.reorderIDs(values, in: playlist) else { return false }
+        guard !editing.busy else { return false }
+        guard let ids = EpisodeDrop.reorderIDs(values, in: playlist) else {
+            guard let editor = app.libraryEditing, EpisodeDrop.references(values) != nil else { return false }
+            Task { await EpisodeDrop.add(values, to: playlist.id, editor: editor) { window.didDrop($0, into: playlist.id) } }
+            return true
+        }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count
-        Task { await editing.move(ids, playlistID: playlist.id, to: boundary) }
+        // An Episode can occur only once in a Playlist. Option-copying its
+        // existing Entry therefore keeps it in place and selects it.
+        if optionCopy {
+            window.selection = ids
+            if let first = rows.first(where: { ids.contains($0.id) }) { window.scrollAnchor = RowAnchor(id: first.id, index: 0) }
+        } else {
+            Task { await editing.move(ids, playlistID: playlist.id, to: boundary) }
+        }
         return true
     }
     private var historyIDs: [String] {
@@ -154,7 +187,8 @@ struct PlaylistContentView: SwiftUI.View {
                             EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation, app: app)
                                 .disabled(editing.busy)
                         }
-                }.accessibilityLabel("Playlist History")
+                }.restoringRows(playlist.history.reversed().map { Optional($0.episodeId) }, anchor: $window.scrollAnchor)
+                    .accessibilityLabel("Playlist History")
             }
         }
     }
@@ -188,7 +222,8 @@ struct PlaylistContentView: SwiftUI.View {
                         }
                     }
                     .tag(event.id)
-                }.accessibilityLabel("Listening Timeline")
+                }.restoringRows(events.map { Optional($0.id) }, anchor: $window.scrollAnchor)
+                    .accessibilityLabel("Listening Timeline")
             }
         }
     }

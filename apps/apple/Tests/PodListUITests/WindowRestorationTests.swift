@@ -107,7 +107,8 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     let before = try await db.readLibrary()
     let window = WindowModel(), newWindow = WindowModel()
     let value = WindowContext(destination: .playlist("default"), search: "Alpha", selection: ["a"],
-                              sort: [.init(column: .published, reversed: true)], playlistTab: .history)
+                              sort: [.init(column: .published, reversed: true)], playlistTab: .history,
+                              scrollAnchor: .init(id: "past", index: 0), paneWidths: .init(sidebar: 280, inspector: 390))
     window.restore(try #require(WindowContext.decode(value.encoded)))
     #expect(window.destination == value.destination && window.selection == value.selection && window.search == value.search)
     #expect(window.sortOrder == value.sort.map(\.comparator))
@@ -126,4 +127,45 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
         #expect(restored.destination == destination)
         #expect(WindowContext(destination: restored.destination).reconciled(in: restorationLibrary()).destination == destination)
     }
+}
+
+@Test func readingPositionAndPaneWidthsRoundTripAndLegacyArchivesStillDecode() throws {
+    let original = WindowContext(destination: .playlist("default"), scrollAnchor: .init(id: "pending", index: 2),
+                                 paneWidths: .init(sidebar: 281, inspector: 397))
+    #expect(WindowContext.decode(original.encoded) == original)
+    let data = try #require(original.encoded)
+    var legacy = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    legacy.removeValue(forKey: "scrollAnchor"); legacy.removeValue(forKey: "paneWidths")
+    let restored = try #require(WindowContext.decode(JSONSerialization.data(withJSONObject: legacy)))
+    #expect(restored.destination == original.destination)
+    #expect(restored.scrollAnchor == nil && restored.paneWidths == nil)
+}
+
+@Test func readingAnchorReconcilesInDisplayOrderWithoutChangingSelection() {
+    let library = restorationLibrary()
+    let value = WindowContext(destination: .playlist("default"), selection: ["a"],
+                              scrollAnchor: .init(id: "removed", index: 1), paneWidths: .init(sidebar: 80, inspector: 900))
+    let restored = value.reconciled(in: library)
+    #expect(restored.scrollAnchor == RowAnchor(id: "a", index: 1))
+    #expect(restored.selection == ["a"])
+    #expect(restored.paneWidths == PaneWidths(sidebar: 180, inspector: 440))
+    #expect(value.reconciled(in: restorationLibrary(ready: false)) == value)
+    #expect(RowAnchor(id: "gone", index: 99).reconciled(with: ["a", "b"]) == RowAnchor(id: "b", index: 1))
+    #expect(RowAnchor(id: "b", index: 0).reconciled(with: ["a", "b"]) == RowAnchor(id: "b", index: 1))
+    #expect(RowAnchor(id: "gone", index: -1).reconciled(with: ["a"]) == RowAnchor(id: "a", index: 0))
+    #expect(RowAnchor(id: "gone", index: 1).reconciled(with: []) == nil)
+    #expect(WindowContext(destination: .playlist("missing"), scrollAnchor: .init(id: "a", index: 0)).reconciled(in: library).scrollAnchor == nil)
+    let sorted = WindowContext(destination: .view("all"), sort: [.init(column: .title, reversed: true)], scrollAnchor: .init(id: "gone", index: 0)).reconciled(in: library)
+    #expect(sorted.scrollAnchor?.id == "b")
+}
+
+@MainActor @Test func restoredReadingPositionAndWidthsStayWindowLocal() {
+    let window = WindowModel(), other = WindowModel()
+    let value = WindowContext(scrollAnchor: .init(id: "a", index: 4), paneWidths: .init(sidebar: 290, inspector: 400))
+    window.restore(value)
+    #expect(window.scrollAnchor == value.scrollAnchor && window.paneWidths == value.paneWidths)
+    #expect(other.scrollAnchor == nil && other.paneWidths == PaneWidths())
+    window.navigate(to: .search)
+    #expect(window.scrollAnchor == nil && window.paneWidths == value.paneWidths)
+    #expect(other.destination == .subscriptions && other.scrollAnchor == nil)
 }

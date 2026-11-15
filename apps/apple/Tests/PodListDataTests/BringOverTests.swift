@@ -47,6 +47,8 @@ private actor BringOverServer: SyncTransport {
     var loseImport = false
     var losePush = false
     var oldServer = false
+    var purgeSupported = false
+    func enablePurge() { purgeSupported = true }
     func configure(failFeeds: Set<String> = [], loseImport: Bool = false, losePush: Bool = false, oldServer: Bool = false) {
         self.failFeeds = failFeeds; self.loseImport = loseImport; self.losePush = losePush; self.oldServer = oldServer
     }
@@ -60,7 +62,9 @@ private actor BringOverServer: SyncTransport {
     }
     func request(method: String, path: String, body: String?) async throws -> String {
         switch path {
-        case "/api/health": return #"{"status":"ok","protocolVersion":4}"#
+        case "/api/health": return purgeSupported
+            ? #"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#
+            : #"{"status":"ok","protocolVersion":4}"#
         case "/api/devices":
             let device: Device = try ProtocolJSON.decode(from: body!); registered.insert(device.id); return body!
         case "/api/subscriptions/bring-over":
@@ -122,6 +126,29 @@ private actor BringOverServer: SyncTransport {
     #expect(try await db.bringOverJob() == nil)
     #expect(await server.imports.isEmpty)
     #expect(await server.pushes.isEmpty)
+}
+
+@Test func bringOverWithAPurgeWaitsForCapabilityBeforeImportingAndResumesAfterUpgrade() async throws {
+    let (source, _) = try await transferSource()
+    try await source.record(.deletePlaylist(playlistId: "p"), at: 1_000_020)
+    try await source.purgePlaylist("p", at: 1_000_021)
+    let snapshot = try await source.bringOverSnapshot()
+    let db = try LocalDatabase(path: ":memory:")
+    let before = try await db.ensureState()
+    try await db.beginBringOver(snapshot)
+    let server = BringOverServer()
+    let transfer = BringOver(destination: db, transport: server)
+    await #expect(throws: SyncResponseFailure.self) { try await transfer.resume() }
+    #expect(try await db.loadState() == before)
+    #expect(try await db.outbox().isEmpty)
+    #expect(try await db.bringOverJob()?.queued == false)
+    #expect(await server.imports.isEmpty)
+    #expect(await server.pushes.isEmpty)
+    await server.enablePurge()
+    #expect(try await transfer.resume().complete)
+    #expect(try await db.outbox().isEmpty)
+    #expect(try await db.loadState().trash?.isEmpty == true)
+    #expect(try await source.loadState() == snapshot.state)
 }
 
 @Test func bringOverRestartsAfterLostPushWithoutDuplicatingListeningOrEntries() async throws {

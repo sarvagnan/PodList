@@ -16,6 +16,7 @@ public enum Change: Codable, Equatable, Sendable {
     case setClearOnPlayed(playlistId: String, clearOnPlayed: Bool)
     case deletePlaylist(playlistId: String)
     case restorePlaylist(playlistId: String)
+    case purgePlaylist(playlistId: String)
     case setTrashDays(days: Int64)
     case setActivePlaylist(playlistId: String)
     case rewind(playlistId: String, to: Int64)
@@ -46,6 +47,7 @@ public enum Change: Codable, Equatable, Sendable {
         case "RenamePlaylist": self = .renamePlaylist(playlistId: try c.decode(String.self, forKey: .playlistId), name: try c.decode(String.self, forKey: .name))
         case "SetClearOnPlayed": self = .setClearOnPlayed(playlistId: try c.decode(String.self, forKey: .playlistId), clearOnPlayed: try c.decode(Bool.self, forKey: .clearOnPlayed))
         case "DeletePlaylist": self = .deletePlaylist(playlistId: try c.decode(String.self, forKey: .playlistId))
+        case "PurgePlaylist": self = .purgePlaylist(playlistId: try c.decode(String.self, forKey: .playlistId))
         case "RestorePlaylist": self = .restorePlaylist(playlistId: try c.decode(String.self, forKey: .playlistId))
         case "SetTrashDays": self = .setTrashDays(days: try c.decode(Int64.self, forKey: .days))
         case "SetActivePlaylist": self = .setActivePlaylist(playlistId: try c.decode(String.self, forKey: .playlistId))
@@ -119,6 +121,9 @@ public enum Change: Codable, Equatable, Sendable {
             try c.encode(clearOnPlayed, forKey: .clearOnPlayed)
         case let .deletePlaylist(playlistId):
             try c.encode("DeletePlaylist", forKey: ._tag)
+            try c.encode(playlistId, forKey: .playlistId)
+        case let .purgePlaylist(playlistId):
+            try c.encode("PurgePlaylist", forKey: ._tag)
             try c.encode(playlistId, forKey: .playlistId)
         case let .restorePlaylist(playlistId):
             try c.encode("RestorePlaylist", forKey: ._tag)

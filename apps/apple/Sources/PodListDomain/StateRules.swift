@@ -58,6 +58,7 @@ public enum StateRules {
             if let p = PlaylistRules.availableTrash(next, at: at).first(where: { $0.playlist.id == id }), !next.playlists.contains(where: { $0.id == id }) {
                 next.playlists.append(p.playlist); next.trash?.removeAll { $0.playlist.id == id }
             }
+        case let .purgePlaylist(id): next.trash?.removeAll { $0.playlist.id == id }
         case let .setTrashDays(days): next.trashDays = days
         case let .setActivePlaylist(id): if next.playlists.contains(where: { $0.id == id }) { next.activePlaylistId = id }
         case let .setStar(id, starred): next.setEpisodeFacts(id, played: next.episodeStates[id]?.played, starred: starred)

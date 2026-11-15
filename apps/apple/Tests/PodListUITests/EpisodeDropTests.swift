@@ -154,3 +154,66 @@ private struct DropPublisher: PublisherReader {
     #expect(editor.importPresented && !editor.importReady && editor.error != nil)
 }
 #endif
+
+#if os(macOS)
+@MainActor @Test func successfulDropsSelectAndRevealResultsNowOrWhenNavigatedTo() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "selection-drop", defaults: defaults)
+    let window = WindowModel()
+    #expect(await EpisodeDrop.add([transfer(["b", "a"])], to: "default", editor: editor) { ids in
+        window.didDrop(ids, into: "default")
+    })
+    #expect(window.destination == .subscriptions && window.selection.isEmpty)
+    window.navigate(to: .playlist("default"))
+    window.revealDrop(in: "default")
+    #expect(window.selection == ["b", "a"] && window.scrollAnchor?.id == "b")
+    window.search = "unrelated"
+    #expect(await EpisodeDrop.add([transfer(["pending"])], to: "default", editor: editor) { ids in
+        window.didDrop(ids, into: "default")
+    })
+    #expect(window.search.isEmpty && window.selection == ["pending"] && window.scrollAnchor?.id == "pending")
+    #expect(await EpisodeDrop.add([transfer(["a"])], to: "missing", editor: editor) { ids in
+        window.didDrop(ids, into: "missing")
+    } == false)
+    #expect(window.pendingDropSelections["missing"] == nil)
+    window.didDrop(["a"], into: "default", reveal: false)
+    #expect(window.selection == ["pending"])
+    window.revealDrop(in: "default")
+    #expect(window.selection == ["a"])
+    #expect(window.destination == .playlist("default"))
+}
+
+@MainActor @Test func dropCursorPromisesMoveOnlyForUnmodifiedSamePlaylistReorders() {
+    #expect(PlaylistDragSession.operation(source: "a", destination: "a", option: false, reorder: true) == .move)
+    #expect(PlaylistDragSession.operation(source: "a", destination: "a", option: true, reorder: true) == .copy)
+    for option in [true, false] {
+        #expect(PlaylistDragSession.operation(source: "a", destination: "b", option: option, reorder: true) == .copy)
+        #expect(PlaylistDragSession.operation(source: "a", destination: "a", option: option, reorder: false) == .copy)
+        #expect(PlaylistDragSession.operation(source: nil, destination: "b", option: option, reorder: true) == .copy)
+    }
+}
+
+@MainActor @Test func permanentTrashDeletionCannotBeRestoredAndPreservesOtherPlaylistsAndFacts() async throws {
+    let db = try await fixtureDatabase()
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "purge", defaults: defaults))
+    try await db.setMeta("supportsPurgePlaylist", "true")
+    let id = try #require(await editing.create(name: "To Delete"))
+    #expect(await editing.add(["a"], to: id, placement: .last) == id)
+    #expect(await editing.setStar(["a"], starred: true))
+    let playlist = try #require(try await db.loadState().playlists.first { $0.id == id })
+    #expect(await editing.delete(playlist))
+    let before = try await db.loadState()
+    #expect(await editing.deletePermanently(id))
+    let after = try await db.loadState()
+    #expect(after.trash?.contains { $0.playlist.id == id } == false)
+    #expect(after.playlists == before.playlists && after.episodeStates == before.episodeStates)
+    #expect(after.listeningLog == before.listeningLog)
+    #expect(await editing.restore(id) == false)
+    #expect(await editing.deletePermanently("default") == false)
+    #expect(await editing.deletePermanently(id) == false)
+    #expect(editing.history.undo?.name != "Move to Trash")
+    #expect(try await db.outbox().contains { $0.change == .purgePlaylist(playlistId: id) })
+}
+#endif

@@ -50,6 +50,72 @@ private func episode() -> Episode {
             duration: 60, audioUrl: "https://test/audio", artwork: nil, chapters: [], audioUpdatedAt: nil)
 }
 
+@Test func purgeRequiresAnExplicitServerCapabilityBeforeItCanEnterTheOutbox() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    try await db.ensureState()
+    try await db.recordAll([.createPlaylist(playlistId: "p", name: "Trash", clearOnPlayed: false), .deletePlaylist(playlistId: "p")], at: 1)
+    let before = try await db.loadState(), pending = try await db.outbox()
+    // A high version number alone must not enable an operation extension.
+    let transport = ScriptedTransport([
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":4}"#)),
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":99,"supportedOperations":[]}"#)),
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#)),
+        Step("/api/health", .offline)
+    ])
+    let client = SyncClient(db: db, transport: transport)
+    for _ in 0..<2 {
+        await #expect(throws: SyncResponseFailure.self) { try await client.requirePurgePlaylistSupport() }
+        await #expect(throws: DatabaseFailure.self) { try await db.purgePlaylist("p", at: 2) }
+        // Even a generic multi-edit cannot bypass the check or partially commit.
+        await #expect(throws: DatabaseFailure.self) {
+            try await db.recordAll([.setStar(episodeId: "a", starred: true), .purgePlaylist(playlistId: "p")], at: 2)
+        }
+        #expect(try await db.loadState() == before)
+        #expect(try await db.outbox() == pending)
+    }
+    try await client.requirePurgePlaylistSupport()
+    try await db.purgePlaylist("p", at: 2)
+    #expect(try await db.loadState().trash?.isEmpty == true)
+    #expect(try await db.outbox().last?.change == .purgePlaylist(playlistId: "p"))
+    await #expect(throws: Offline.self) { try await client.requirePurgePlaylistSupport() }
+    #expect(try await db.getMeta("supportsPurgePlaylist") == "false")
+    await transport.assertFinished()
+}
+
+@Test func queuedPurgeWaitsForASupportingServerWithoutSendingAnInvalidBatch() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    try await db.ensureState(); try await db.setMeta("registered", "true")
+    try await db.setMeta("supportsPurgePlaylist", "true")
+    let pending = try await db.recordAll([.purgePlaylist(playlistId: "p"), .setStar(episodeId: "a", starred: true)], at: 1)
+    let transport = try ScriptedTransport([
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":4}"#)),
+        Step("/api/library/changes?since=0", library(5)),
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#)),
+        Step("/api/sync/push", .text(#"{"cursor":2,"accepted":2}"#)),
+        Step("/api/sync/pull?since=0", pull(2, snapshot: StateRules.replay(.initial(), operations: pending).state)),
+        Step("/api/library/changes?since=5", library(5))
+    ])
+    let client = SyncClient(db: db, transport: transport)
+    await #expect(throws: SyncResponseFailure.self) { try await client.sync() }
+    #expect(try await db.outbox() == pending)
+    #expect(try await db.getMeta("userCursor") == nil)
+    #expect(try await db.getMeta("catalogueCursor") == "5")
+    #expect(await transport.requests.allSatisfy { $0.path != "/api/sync/push" })
+    try await client.sync()
+    #expect(try await db.outbox().isEmpty)
+    #expect(try await db.loadState().episodeStates["a"]?.starred == true)
+    await transport.assertFinished()
+}
+
+@Test func standalonePurgeNeedsNoServerAndNeverQueuesAnOutboxOperation() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true)
+    try await db.ensureState()
+    try await db.recordAll([.createPlaylist(playlistId: "p", name: "Trash", clearOnPlayed: false), .deletePlaylist(playlistId: "p")], at: 1)
+    try await db.purgePlaylist("p", at: 2)
+    #expect(try await db.loadState().trash?.isEmpty == true)
+    #expect(try await db.outbox().isEmpty)
+}
+
 @Test func registrationRetriesDurableDevice() async throws {
     let db = try LocalDatabase(path: ":memory:")
     try await db.ensureState()

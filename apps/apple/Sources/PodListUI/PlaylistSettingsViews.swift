@@ -152,6 +152,8 @@ struct PlaylistTrashView: SwiftUI.View {
     let editing: PlaylistEditingModel
     let search: String
     @State private var selection: String?
+    @State private var deleting: Playlist?
+    @Binding var scrollAnchor: RowAnchor?
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
             Text("Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
@@ -170,11 +172,25 @@ struct PlaylistTrashView: SwiftUI.View {
                         Button("Restore") { Task { await editing.restore(item.playlist.id) } }
                             .accessibilityLabel("Restore Playlist \(item.playlist.name)").disabled(editing.busy)
                     }.padding(.vertical, 4).tag(item.playlist.id)
+                    .contextMenu {
+                        Button("Restore") { Task { await editing.restore(item.playlist.id) } }.disabled(editing.busy)
+                        Button("Delete Permanently…", role: .destructive) { deleting = item.playlist }.disabled(editing.busy)
+                    }
                 }
+                .restoringRows(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }.map { Optional($0.playlist.id) }, anchor: $scrollAnchor)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .focusedSceneValue(\.podListRestore, restoreAction)
+        .confirmationDialog("Delete “\(deleting?.name ?? "Playlist")” Permanently?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+            Button("Delete Permanently", role: .destructive) {
+                if let id = deleting?.id { Task { await editing.deletePermanently(id) } }
+                deleting = nil
+            }
+            Button("Cancel", role: .cancel) { deleting = nil }
+        } message: {
+            Text("This removes the Playlist, its History and Listening Timeline from Trash. This cannot be undone. Episodes and the permanent Listening log are kept.")
+        }
     }
     private var restoreAction: (() -> Void)? {
         guard !editing.busy, let id = selection,

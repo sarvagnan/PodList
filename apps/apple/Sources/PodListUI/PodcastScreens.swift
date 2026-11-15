@@ -100,6 +100,7 @@ struct PodcastPageScreen: SwiftUI.View {
     var selection: Binding<Set<String>> = .constant([])
     @Binding var search: String
     @Binding var savedSort: [WindowSort]
+    @Binding var scrollAnchor: RowAnchor?
     let openEpisode: () -> Void
     let displayed: ([String]) -> Void
     private var sortOrder: [KeyPathComparator<PageEpisode>] {
@@ -243,6 +244,7 @@ struct PodcastPageScreen: SwiftUI.View {
                         .tableStyle(.inset)
                     }
                 }
+                .restoringRows((textScale > 1 ? [nil] : []) + episodes.map { Optional($0.id) }, anchor: $scrollAnchor)
                 .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { ids in
                     let chosen = episodes.filter { ids.contains($0.id) }
@@ -274,10 +276,16 @@ struct PodcastPageScreen: SwiftUI.View {
         .task(id: feedURL) { control.reset(); await read() }
         .onChange(of: search) { _, text in control.reset(); editor.setDraft(text, field: "podcast.\(feedURL).search") }
         .onChange(of: episodes.map(\.id), initial: true) { _, ids in
-            if !loading { selection.wrappedValue.formIntersection(Set(ids)) }; displayed(ids)
+            if !loading {
+                selection.wrappedValue.formIntersection(Set(ids))
+                scrollAnchor = scrollAnchor?.reconciled(with: ids)
+            }; displayed(ids)
         }
         .onChange(of: loading) { _, loading in
-            if !loading { selection.wrappedValue.formIntersection(Set(episodes.map(\.id))) }
+            if !loading {
+                selection.wrappedValue.formIntersection(Set(episodes.map(\.id)))
+                scrollAnchor = scrollAnchor?.reconciled(with: episodes.map(\.id))
+            }
         }
         .onDisappear { control.reset() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in control.reset() }

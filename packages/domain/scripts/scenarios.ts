@@ -30,6 +30,26 @@ const report = (episodeId: string, position: number, minute: number, playlistId 
 
 export const scenarios: ReadonlyArray<Scenario> = [
   {
+    name: "purge-trashed-playlist",
+    description:
+      "Permanent deletion removes only the named trashed Playlist; restoration and duplicate purges are no-ops, and live Playlists are protected.",
+    changes: [
+      { change: { _tag: "PurgePlaylist", playlistId: "default" } },
+      { change: { _tag: "CreatePlaylist", playlistId: "p", name: "Purge", clearOnPlayed: false } },
+      add("a", "last", "p"),
+      {
+        change: { _tag: "CreatePlaylist", playlistId: "keep", name: "Keep", clearOnPlayed: false }
+      },
+      { change: { _tag: "DeletePlaylist", playlistId: "keep" } },
+      { change: { _tag: "PurgePlaylist", playlistId: "p" } },
+      { change: { _tag: "DeletePlaylist", playlistId: "p" } },
+      { change: { _tag: "PurgePlaylist", playlistId: "p" } },
+      { change: { _tag: "RestorePlaylist", playlistId: "p" } },
+      { change: { _tag: "PurgePlaylist", playlistId: "p" } },
+      { change: { _tag: "PurgePlaylist", playlistId: "default" } }
+    ]
+  },
+  {
     name: "permanent-listening-log",
     description:
       "Daily listening from offline Devices adds once, survives Entry removal, and keeps each Device’s local calendar day.",

@@ -112,6 +112,37 @@ private actor FakeTransport: SyncTransport {
     #expect(try await db.readLibrary().episodes.count == 2)
 }
 
+@MainActor @Test func connectedPermanentDeletionChecksFreshSupportAndLeavesOldServerSyncUsable() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let transport = FakeTransport()
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db }, transportFactory: { _ in transport })
+    app.serverInput = "https://example.com"
+    await app.connect()
+    let editing = try #require(app.editing)
+    let id = try #require(await editing.create(name: "To Delete"))
+    let playlist = try #require(try await db.loadState().playlists.first { $0.id == id })
+    #expect(await editing.delete(playlist))
+    await app.sync()
+    let before = try await db.loadState()
+    let undo = editing.history.undo?.id
+    #expect(await editing.deletePermanently(id) == false)
+    #expect(editing.error?.contains("Update the server") == true)
+    #expect(editing.history.undo?.id == undo)
+    #expect(try await db.loadState() == before)
+    #expect(try await db.outbox().isEmpty)
+    #expect(await editing.setStar(["a"], starred: true))
+    await app.sync()
+    #expect(app.syncError == nil)
+    #expect(try await db.outbox().isEmpty)
+    await transport.setHealth(#"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#)
+    #expect(await editing.deletePermanently(id))
+    await app.sync()
+    #expect(app.syncError == nil)
+    #expect(try await db.outbox().isEmpty)
+    #expect(try await db.loadState().trash?.contains { $0.playlist.id == id } == false)
+    app.disconnect()
+}
+
 @MainActor @Test func failedHealthNeverPersistsConnectionAndInvalidInputDoesNotCallNetwork() async throws {
     let db = try LocalDatabase(path: ":memory:")
     let store = MemoryConnectionStore(), transport = FakeTransport()

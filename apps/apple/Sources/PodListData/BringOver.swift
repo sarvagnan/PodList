@@ -124,6 +124,7 @@ extension LocalDatabase {
                 default: break
                 }
                 try ProtocolValidation.validate(operation)
+                try requireServerSupport(operation.change)
                 try execute("INSERT INTO outbox (id, operation) VALUES (?, ?)", [.text(operation.id), .text(try ProtocolJSON.encode(operation))])
                 state = StateRules.apply(state, change: operation.change, at: operation.recordedAt)
                 if case let .restorePlaylist(id) = operation.change, let playlist = state.playlists.first(where: { $0.id == id }) {
@@ -180,6 +181,7 @@ struct BringOverIDs: Codable, Sendable {
         case let .renamePlaylist(id, name): return .renamePlaylist(playlistId: p(id), name: name)
         case let .setClearOnPlayed(id, clear): return .setClearOnPlayed(playlistId: p(id), clearOnPlayed: clear)
         case let .deletePlaylist(id): return .deletePlaylist(playlistId: p(id))
+        case let .purgePlaylist(id): return .purgePlaylist(playlistId: p(id))
         case let .restorePlaylist(id): return .restorePlaylist(playlistId: p(id))
         case let .setActivePlaylist(id): return .setActivePlaylist(playlistId: p(id))
         case let .rewind(id, to): return .rewind(playlistId: p(id), to: to)
@@ -258,6 +260,9 @@ public actor BringOver {
         let snapshot = try await destination.savedBringOverSnapshot()
         do {
             if !job.queued {
+                if snapshot.operations.contains(where: { if case .purgePlaylist = $0.change { true } else { false } }) {
+                    try await sync.requirePurgePlaylistSupport()
+                }
                 // Import metadata, including vanished Back Catalogue, via the existing identity-only API.
                 // Each feed is its own checkpoint. Lost responses are safe: the API inserts missing identities only.
                 var failures: [String] = []

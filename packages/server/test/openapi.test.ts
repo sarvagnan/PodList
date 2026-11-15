@@ -30,6 +30,9 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     { disableLogger: true }
   )
   try {
+    const health = await handler(new Request("http://podlist.test/api/health"))
+    expect(health.status).toBe(200)
+    expect(await health.json()).toMatchObject({ supportedOperations: ["PurgePlaylist"] })
     const response = await handler(new Request("http://podlist.test/api/openapi.json"))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(
@@ -130,6 +133,50 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     expect(await cursors.json()).toEqual({ state: 0, library: 0 })
     const missing = await handler(new Request("http://podlist.test/api/reads/views/missing"))
     expect(missing.status).toBe(404)
+
+    // The advertised capability must work through HTTP validation, SQLite and replay.
+    const post = (path: string, payload: unknown) =>
+      handler(
+        new Request(`http://podlist.test/api/${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+      )
+    expect(
+      (await post("devices", { id: "mac", name: "Test Mac", kind: "desktop", registeredAt: 0 }))
+        .status
+    ).toBe(200)
+    const operations = [
+      { _tag: "CreatePlaylist", playlistId: "trash", name: "Trash", clearOnPlayed: false },
+      { _tag: "DeletePlaylist", playlistId: "trash" },
+      { _tag: "PurgePlaylist", playlistId: "trash" }
+    ].map((change, index) => ({
+      id: `purge-${index}`,
+      deviceId: "mac",
+      sequence: index,
+      recordedAt: index,
+      change
+    }))
+    const pushed = await post("sync/push", { operations })
+    expect(pushed.status).toBe(200)
+    expect(await pushed.json()).toMatchObject({ accepted: 3, cursor: 3 })
+    const pulled = await handler(new Request("http://podlist.test/api/sync/pull?since=1"))
+    expect(pulled.status).toBe(200)
+    expect(await pulled.json()).toMatchObject({ cursor: 3, operations: operations.slice(1) })
+    const snapshot = await handler(new Request("http://podlist.test/api/sync/pull?since=0"))
+    expect(await snapshot.json()).toMatchObject({ snapshot: { trash: [] } })
+    // Unknown variants reject the whole batch, including preceding valid changes.
+    const invalid = await post("sync/push", {
+      operations: [
+        { ...operations[0], id: "uncommitted" },
+        { ...operations[2], id: "unknown", change: { _tag: "UnknownChange" } }
+      ]
+    })
+    expect(invalid.status).toBe(400)
+    expect(await invalid.text()).toBe("")
+    const unchanged = await handler(new Request("http://podlist.test/api/sync/pull?since=3"))
+    expect(await unchanged.json()).toMatchObject({ cursor: 3, operations: [] })
   } finally {
     await dispose()
   }

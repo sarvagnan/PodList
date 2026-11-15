@@ -159,6 +159,7 @@ public actor LocalDatabase {
             var state = try loadState()
             var operations: [Operation] = []
             for (change, id) in zip(changes, ids) {
+                try requireServerSupport(change)
                 let operation = Operation(id: id, deviceId: device.id, sequence: sequence, recordedAt: at, change: change)
                 try ProtocolValidation.validate(operation)
                 sequence += 1
@@ -186,6 +187,23 @@ public actor LocalDatabase {
             return operations
         }
     }
+    /// The confirmation's target must still be in Trash when the operation commits.
+    public func purgePlaylist(_ id: String, at: Int64) throws {
+        try storage.transaction {
+            guard PlaylistRules.availableTrash(try loadState(), at: at).contains(where: { $0.playlist.id == id }) else {
+                throw DatabaseFailure(description: "This Playlist is no longer in Trash.")
+            }
+            try record(.purgePlaylist(playlistId: id), at: at)
+        }
+    }
+
+    /// Guard every enqueue path, including generic edits and Standalone bring-over.
+    func requireServerSupport(_ change: Change) throws {
+        if case .purgePlaylist = change, !standalone, try getMeta("supportsPurgePlaylist") != "true" {
+            throw DatabaseFailure(description: "This server does not support permanent Playlist deletion. Update the server, then retry.")
+        }
+    }
+
     /// Validate names, capture inverses and write all Operations in one local transaction.
     /// The builder sees current State, including edits arriving while UI work was queued.
     public func reversibleEdit(at: Int64, validateNames: Bool = true,
