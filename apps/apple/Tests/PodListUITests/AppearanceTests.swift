@@ -49,22 +49,23 @@ private struct RGB {
 @Test @MainActor func darkAccentContrastsWithSystemAndAuditedSurfaces() {
     // AppKit macOS 26 sRGB colours, plus composited surfaces sampled in round 1.
     // Materials vary with the wallpaper; retain the audit's tinted samples as
-    // well as semantic colours, including the more demanding active selection.
+    // well as semantic colours. Emphasised selections use the selection foreground.
     let documentedSurfaces: [(String, Int)] = [
         ("window / control", 0x1E1E1E), ("under-page", 0x282828),
-        ("active selected row", 0x0059D1), ("inactive selected row", 0x464646),
+        ("inactive selected row", 0x464646),
         ("sidebar", 0x222B38), ("Inspector", 0x212931), ("row / player", 0x212427),
         ("sheet", 0x22262F)
     ]
     for name in [NSAppearance.Name.darkAqua, .accessibilityHighContrastDarkAqua] {
         NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
             let accent = RGB(MacAccentPalette.color(for: name), over: RGB(0))
+            #expect(accent.contrast(RGB(0xFFFFFF)) >= 1.6, "Dark accent must remain distinct from white primary text")
             for (label, hex) in documentedSurfaces {
                 #expect(accent.contrast(RGB(hex)) >= 4.5, "\(name.rawValue): \(label)")
             }
             let systemSurfaces: [(String, NSColor)] = [
                 ("window", .windowBackgroundColor), ("control / sheet", .controlBackgroundColor),
-                ("under-page", .underPageBackgroundColor), ("selected row", .selectedContentBackgroundColor),
+                ("under-page", .underPageBackgroundColor),
                 ("inactive selected row", .unemphasizedSelectedContentBackgroundColor)
             ]
             for (label, color) in systemSurfaces {
@@ -76,8 +77,8 @@ private struct RGB {
 
 @Test @MainActor func accentResolvesAllFourVariantsAndKeepsArtworkAndPlayGlyphReadable() {
     let variants: [(NSAppearance.Name, Int)] = [
-        (.aqua, 0x2B50C8), (.darkAqua, 0xD1DDFF),
-        (.accessibilityHighContrastAqua, 0x193A9B), (.accessibilityHighContrastDarkAqua, 0xE5EBFF)
+        (.aqua, 0x2B50C8), (.darkAqua, 0x9DB1FF),
+        (.accessibilityHighContrastAqua, 0x193A9B), (.accessibilityHighContrastDarkAqua, 0xB2C1FF)
     ]
     for (name, hex) in variants {
         NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
@@ -97,7 +98,37 @@ private struct RGB {
         }
     }
     #expect(RGB(0x193A9B).luminance < RGB(0x2B50C8).luminance)
-    #expect(RGB(0xE5EBFF).luminance > RGB(0xD1DDFF).luminance)
+    #expect(RGB(0xB2C1FF).luminance > RGB(0x9DB1FF).luminance)
+}
+
+@Test @MainActor func rowAccentInheritsSelectionForegroundOnlyOnEmphasisedRows() {
+    // Render the same ShapeStyle used by row labels, symbols and buttons without
+    // a window or screen. Distinct supplied foregrounds catch hard-coded white.
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            for foreground in [Color.white, Color.green] {
+                for prominence in [BackgroundProminence.standard, .increased] {
+                    @MainActor func render(_ style: AnyShapeStyle) -> Data? {
+                        let renderer = ImageRenderer(content: Rectangle()
+                            .fill(style)
+                            .foregroundStyle(foreground)
+                            .environment(\.backgroundProminence, prominence)
+                            .environment(\.colorScheme, name == .aqua ? .light : .dark)
+                            .frame(width: 8, height: 8))
+                        guard let image = renderer.cgImage else { return nil }
+                        return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+                    }
+                    let actual = render(AnyShapeStyle(MacRowAccentStyle()))
+                    let accent = render(AnyShapeStyle(Color.podListAccent))
+                    let selected = render(AnyShapeStyle(foreground))
+                    // Compare rendered pixels in the same output colour space.
+                    #expect(actual != nil)
+                    #expect(accent != selected)
+                    #expect(actual == (prominence == .increased ? selected : accent))
+                }
+            }
+        }
+    }
 }
 
 @Test @MainActor func inspectorPrimaryTextContrastsWithAuditedTintedFill() {

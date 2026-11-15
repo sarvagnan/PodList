@@ -76,15 +76,15 @@ struct PlaylistContentView: SwiftUI.View {
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(.secondary) }
-            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(Color.podListAccent).accessibilityLabel("Current Entry") }
+            if row.isCursor { Image(systemName: "location.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
-                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(Color.podListAccent) }
+                if row.isCursor { Text("Current Entry").font(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(2)
                 Text(row.podcast).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
             Button("Play from Here", systemImage: "play.fill") { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
         }.padding(.vertical, 5).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {

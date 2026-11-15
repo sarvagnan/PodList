@@ -10,7 +10,7 @@ public extension Color {
         MacAccentPalette.color(for: appearance.bestMatch(from: [.accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua, .darkAqua, .aqua]))
     })
 
-    /// Custom accent-filled controls need a dark glyph on the pale Dark accent.
+    /// Custom accent-filled controls need a dark glyph on the light Dark accent.
     static let podListOnAccent = Color(nsColor: NSColor(name: "PodList On Accent") { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(srgbRed: 17 / 255, green: 24 / 255, blue: 39 / 255, alpha: 1)
@@ -21,11 +21,22 @@ public extension Color {
 enum MacAccentPalette {
     static func color(for appearance: NSAppearance.Name?) -> NSColor {
         switch appearance {
-        case .accessibilityHighContrastDarkAqua: return NSColor(srgbRed: 229 / 255, green: 235 / 255, blue: 1, alpha: 1) // #E5EBFF
+        case .accessibilityHighContrastDarkAqua: return NSColor(srgbRed: 178 / 255, green: 193 / 255, blue: 1, alpha: 1) // #B2C1FF
         case .accessibilityHighContrastAqua: return NSColor(srgbRed: 25 / 255, green: 58 / 255, blue: 155 / 255, alpha: 1) // #193A9B
-        case .darkAqua: return NSColor(srgbRed: 209 / 255, green: 221 / 255, blue: 1, alpha: 1) // #D1DDFF
+        case .darkAqua: return NSColor(srgbRed: 157 / 255, green: 177 / 255, blue: 1, alpha: 1) // #9DB1FF
         default: return NSColor(srgbRed: 43 / 255, green: 80 / 255, blue: 200 / 255, alpha: 1) // #2B50C8
         }
+    }
+}
+
+/// Read prominence inside each row, rather than at the enclosing List / Table.
+/// Primary inherits the selection foreground supplied by SwiftUI; an inactive
+/// selection keeps the dynamic accent, which contrasts with its neutral fill.
+struct MacRowAccentStyle: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
+        environment.backgroundProminence == .increased
+            ? AnyShapeStyle(.primary)
+            : AnyShapeStyle(Color.podListAccent)
     }
 }
 
