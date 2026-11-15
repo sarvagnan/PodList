@@ -92,7 +92,6 @@ origin="$(cat "$run/origin")"
 # Serial tests share the foreground desktop. Build settings expand in the shared scheme.
 xcodebuild test -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
     -destination "platform=macOS,arch=$(uname -m)" -parallel-testing-enabled NO \
-    -maximum-concurrent-test-macos-destinations 1 \
     -derivedDataPath "$apple/.build/ui-tour-derived" \
     -resultBundlePath "$out/Tour.xcresult" \
     "PODLIST_UI_RUN_DIRECTORY=$run" "PODLIST_UI_SERVER_ORIGIN=$origin" \
