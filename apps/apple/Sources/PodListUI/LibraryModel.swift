@@ -224,6 +224,11 @@ public final class WindowModel {
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
 
     public init() {}
+    /// Podcast pages belong to Subscriptions even though they have no sidebar row.
+    public var sidebarSelection: Destination? {
+        if case .subscription = destination { return .subscriptions }
+        return destination
+    }
     public func openNowPlayingEntries(_ playlistID: String) {
         showNowPlaying = false; navigate(to: .playlist(playlistID)); returnToNowPlaying = true
     }

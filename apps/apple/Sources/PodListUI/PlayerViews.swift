@@ -46,7 +46,7 @@ struct PlayerBar: SwiftUI.View {
                     Label(library.player?.playlistName ?? "Active Playlist", systemImage: "music.note.list").lineLimit(1)
                     Text("\(library.player?.entriesAfter ?? 0) after current").font(.caption).foregroundStyle(.secondary)
                 }.frame(maxWidth: 170, alignment: .leading)
-            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist")
+            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist").help("Open Active Playlist")
         }
     }
 }
@@ -54,9 +54,15 @@ struct TransportControls: SwiftUI.View {
     @Bindable var controller: PlaybackController
     var body: some SwiftUI.View {
         HStack(spacing: 14) {
-            Button("Back 15 seconds", systemImage: "gobackward.15") { controller.skip(-15) }
-            Button(controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill") { controller.toggle() }
-            Button("Forward 30 seconds", systemImage: "goforward.30") { controller.skip(30) }
+            Button { controller.skip(-15) } label: {
+                MacIconLabel(title: "Back 15 seconds", systemImage: "gobackward.15")
+            }.help("Back 15 seconds")
+            Button { controller.toggle() } label: {
+                MacIconLabel(title: controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill")
+            }.help(controller.wantsPlayback ? "Pause" : "Play")
+            Button { controller.skip(30) } label: {
+                MacIconLabel(title: "Forward 30 seconds", systemImage: "goforward.30")
+            }.help("Forward 30 seconds")
         }.labelStyle(.iconOnly).buttonStyle(.borderless).font(.title3)
     }
 }

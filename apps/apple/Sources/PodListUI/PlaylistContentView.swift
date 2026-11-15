@@ -83,7 +83,9 @@ struct PlaylistContentView: SwiftUI.View {
                 Text(row.podcast).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
-            Button("Play from Here", systemImage: "play.fill") { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } }
+            Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
+                MacIconLabel(title: "Play from Here", systemImage: "play.fill")
+            }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
         }.padding(.vertical, 5).accessibilityElement(children: .contain)
     }
