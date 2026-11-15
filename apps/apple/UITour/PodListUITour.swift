@@ -49,6 +49,9 @@ final class PodListUITour: XCTestCase {
         try ready(library)
         try ready(library.buttons["Open Market Hours, Subscription"])
         try ready(library.buttons["Open Now Playing"])
+        let sidebar = library.outlines["Sidebar"]
+        try ready(sidebar)
+        XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
         XCTAssertFalse(library.buttons["Pause"].exists, "The restored player must be paused")
         try capture("01-subscriptions")
 
@@ -68,9 +71,9 @@ final class PodListUITour: XCTestCase {
         try capture("06-default-playlist")
         try selectFirstEpisode()
         try capture("07-entry-inspector")
-        // Measure with the Inspector open: selecting an Episode opens it and narrows the content.
-        let defaultHeader = library.buttons["Play This Playlist"].frame
-        let defaultSection = library.radioButtons["Entries"].frame
+        // The section switcher and Playlist action belong to the window toolbar.
+        let defaultHeader = playlistPlayButton.frame
+        let defaultSection = playlistSection("Entries").frame
         try segment("History")
         try capture("08-history")
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
@@ -94,8 +97,8 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Commute")
         try capture("10-commute")
-        let commuteHeader = library.buttons["Play This Playlist"].frame
-        let commuteSection = library.radioButtons["Entries"].frame
+        let commuteHeader = playlistPlayButton.frame
+        let commuteSection = playlistSection("Entries").frame
         let entryColumn = episodeList.buttons["Entry"].firstMatch.frame
         try click(button("Playlist Settings"))
         try sheet("Playlist Settings")
@@ -353,9 +356,12 @@ final class PodListUITour: XCTestCase {
 
     private func assertPlaylistHeader(play: CGRect, section: CGRect,
                                       file: StaticString = #filePath, line: UInt = #line) {
-        let actualPlay = library.buttons["Play This Playlist"].frame
-        let actualSection = library.radioButtons["Entries"].frame
-        // Switching sections preserves the Inspector and therefore the header's form.
+        let actualPlay = playlistPlayButton.frame
+        let actualSection = playlistSection("Entries").frame
+        let toolbar = library.toolbars.firstMatch
+        XCTAssertTrue(toolbar.frame.contains(actualSection), "The section switcher must be in the toolbar", file: file, line: line)
+        XCTAssertTrue(toolbar.frame.contains(actualPlay), "The Playlist action must be in the toolbar", file: file, line: line)
+        // Switching sections must preserve both toolbar controls' horizontal positions.
         XCTAssertEqual(actualPlay.width, play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
         XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
         XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
@@ -389,8 +395,11 @@ final class PodListUITour: XCTestCase {
 
     private func segment(_ name: String) throws {
         // macOS 27 exposes segmented pickers as radio groups.
-        try click(library.radioButtons[name])
+        try click(playlistSection(name))
     }
+
+    private var playlistPlayButton: XCUIElement { library.toolbars.buttons["Play This Playlist"].firstMatch }
+    private func playlistSection(_ name: String) -> XCUIElement { library.toolbars.radioButtons[name].firstMatch }
 
     /// Sheet headings and button titles are matched case-insensitively by prefix, so title-case
     /// and trailing-ellipsis changes in the app don't break the tour.

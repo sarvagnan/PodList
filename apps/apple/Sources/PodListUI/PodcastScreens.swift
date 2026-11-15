@@ -5,10 +5,12 @@ import PodListDomain
 
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
+    var reservesSpace = true
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             EditingFeedback(editing: editor.edits, additionalError: editor.error,
-                            undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } })
+                            undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } },
+                            reservesSpace: reservesSpace)
             if let drop = editor.episodeDrop {
                 ProgressView("Adding Episodes… \(drop.completed) of \(drop.total) prepared", value: Double(drop.completed), total: Double(drop.total))
                     .padding(.horizontal, 14).padding(.bottom, 8)

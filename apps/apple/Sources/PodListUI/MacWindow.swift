@@ -113,16 +113,17 @@ public struct PodListWindow: SwiftUI.View {
             // Sidebar metrics belong to macOS; app Text Size scales content only.
             .environment(\.macTextScale, 1)
             .listStyle(.sidebar)
-            // Measuring the List here (onGeometryChange) kept this width from reaching the split
-            // view: the sidebar opened at ~140 pt, below its minimum. Its width isn't restored.
-            .navigationSplitViewColumnWidth(min: 180, ideal: 225, max: 320)
+            // Observe AppKit's divider from the background, without wrapping the column
+            // root or feeding live measurements into its ideal width.
+            .background(MacSidebarWidth { window.paneWidths.sidebar = $0 })
+            .navigationSplitViewColumnWidth(min: 180, ideal: window.initialPaneWidths.sidebar, max: 320)
             .navigationTitle("PodList")
         } detail: {
             VStack(spacing: 0) {
                 syncStatus
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
-                    LibraryFeedback(editor: editor)
+                    LibraryFeedback(editor: editor, reservesSpace: false)
                         .id(window.destination).id(podcastFeed)
                     if editor.busy { VStack {
                         OPMLImportProgress(editor: editor)
@@ -134,7 +135,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
                 } else if let editing = app.editing {
-                    EditingFeedback(editing: editing).id(window.destination).id(podcastFeed)
+                    EditingFeedback(editing: editing, reservesSpace: false).id(window.destination).id(podcastFeed)
                 }
                 // Lists and AppKit tables must fit the space left by window feedback.
                 GeometryReader { viewport in

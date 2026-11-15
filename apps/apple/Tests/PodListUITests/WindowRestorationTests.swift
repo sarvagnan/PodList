@@ -178,3 +178,82 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(window.scrollAnchor == nil && window.paneWidths == value.paneWidths)
     #expect(other.destination == .subscriptions && other.scrollAnchor == nil)
 }
+
+@MainActor @Test func sidebarWidthIsStoredForNextLaunchWithoutChangingTheCurrentIdeal() throws {
+    let window = WindowModel()
+    window.restore(WindowContext(paneWidths: .init(sidebar: 270, inspector: 360)))
+    #expect(window.initialPaneWidths.sidebar == 270)
+
+    let recorder = SidebarWidthRecorder()
+    recorder.changed = { window.paneWidths.sidebar = $0 }
+    recorder.record(305)
+    #expect(window.paneWidths.sidebar == 270)
+    recorder.flush()
+    let context = window.context(libraryID: "standalone", playlistTab: .history, columns: .all,
+                                 podcastFeed: nil, subscriptionSelection: [])
+    let stored = try #require(WindowContext.decode(context.encoded))
+    #expect(stored.paneWidths?.sidebar == 305)
+
+    // Reconciliation during a session cannot feed the measured width back into layout.
+    window.restore(stored.reconciled(in: restorationLibrary()))
+    #expect(window.initialPaneWidths.sidebar == 270)
+    #expect(window.paneWidths.sidebar == 305)
+    let relaunched = WindowModel()
+    relaunched.restore(stored)
+    #expect(relaunched.initialPaneWidths.sidebar == 305)
+    #expect(relaunched.paneWidths.sidebar == 305)
+    #expect(WindowModel().initialPaneWidths.sidebar == 225)
+}
+
+@MainActor @Test func sidebarRestorationBoundsApplyEvenBeforeLibraryReadiness() throws {
+    for (width, expected) in [(80.0, 180.0), (180, 180), (281, 281), (320, 320), (900, 320)] {
+        let context = WindowContext(paneWidths: .init(sidebar: width))
+        let stored = try #require(WindowContext.decode(context.encoded))
+        let window = WindowModel()
+        window.restore(stored.reconciled(in: restorationLibrary(ready: false)))
+        #expect(window.paneWidths.sidebar == expected)
+        #expect(window.initialPaneWidths.sidebar == expected)
+    }
+    for invalid in [Double.nan, .infinity, -.infinity] {
+        let window = WindowModel()
+        window.restore(WindowContext(paneWidths: .init(sidebar: invalid)))
+        #expect(window.paneWidths.sidebar == 225)
+        #expect(window.initialPaneWidths.sidebar == 225)
+    }
+    let legacy = WindowModel()
+    legacy.restore(WindowContext())
+    #expect(legacy.initialPaneWidths.sidebar == 225)
+}
+
+@MainActor @Test func sidebarRecordingAcceptsBoundsAndIgnoresCollapsedOrInvalidWidths() {
+    let recorder = SidebarWidthRecorder()
+    var recorded: [Double] = []
+    recorder.changed = { recorded.append($0) }
+    for width in [180.0, 225, 320] {
+        recorder.record(width)
+        recorder.flush()
+    }
+    for invalid in [0.0, 140, 179, 321, 900, .nan, .infinity, -.infinity] {
+        recorder.record(invalid)
+        recorder.flush()
+    }
+    #expect(recorded == [180, 225, 320])
+}
+
+@MainActor @Test func sidebarRecordingDebouncesToTheLastUserWidth() async throws {
+    let recorder = SidebarWidthRecorder()
+    var recorded: [Double] = []
+    recorder.changed = { recorded.append($0) }
+    recorder.record(240)
+    recorder.record(290)
+    #expect(recorded.isEmpty)
+    // Offscreen AppKit layout tests share the main actor. Wait for delivery rather
+    // than assuming the recorder's task started before a fixed wall-clock sleep.
+    let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+    while recorded.isEmpty && ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(recorded == [290])
+    recorder.flush()
+    #expect(recorded == [290])
+}

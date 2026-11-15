@@ -252,6 +252,7 @@ public final class WindowModel {
     /// The widths the columns open at: set once on restore. Feeding live measurements back
     /// into the columns' ideal width shrank the sidebar below its minimum.
     var initialPaneWidths = PaneWidths()
+    var hasRestoredPaneWidths = false
     var pendingDropSelections: [String: [String]] = [:]
     var podcastOrigin: PodcastOrigin?
 

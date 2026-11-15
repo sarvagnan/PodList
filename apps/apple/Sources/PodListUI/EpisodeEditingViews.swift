@@ -153,9 +153,12 @@ struct EditingFeedback: SwiftUI.View {
     var undo: (() -> Void)? = nil
     var redo: (() -> Void)? = nil
     var retry: (() -> Void)? = nil
+    var reservesSpace: Bool
     init(editing: PlaylistEditingModel, additionalError: String? = nil,
-         undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil) {
+         undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil,
+         reservesSpace: Bool = true) {
         self.editing = editing; self.additionalError = additionalError; self.undo = undo; self.redo = redo; self.retry = retry
+        self.reservesSpace = reservesSpace
         _lifetime = State(initialValue: EditingFeedbackLifetime(currentNotice: editing.feedbackNotice))
     }
     private var error: String? { additionalError ?? editing.error }
@@ -166,8 +169,19 @@ struct EditingFeedback: SwiftUI.View {
         .onChange(of: additionalError) { _, message in editing.announcements.error(message) }
     }
     private func feedback(at now: Date) -> some SwiftUI.View {
+        let text = error ?? lifetime.message(for: editing.feedbackNotice, at: now)
+        return Group {
+            if reservesSpace || text != nil || retryCommand != nil || editing.history.undo != nil || editing.history.redo != nil {
+                feedbackRow(text: text)
+            }
+        }
+        // Keep menu commands available even when there is no visible status row.
+        .focusedSceneValue(\.podListEditHistory, undo != nil || redo != nil ? EditHistoryCommandContext(undo: undo, redo: redo) : nil)
+        .modifier(FocusedRetry(action: retryCommand))
+    }
+    private func feedbackRow(text: String?) -> some SwiftUI.View {
         HStack {
-            if let text = error ?? lifetime.message(for: editing.feedbackNotice, at: now) {
+            if let text {
                 Text(text).foregroundStyle(error == nil ? Color.primary : Color.podListError)
                     .fixedSize(horizontal: false, vertical: true).help(text).textSelection(.enabled)
             }
@@ -182,10 +196,10 @@ struct EditingFeedback: SwiftUI.View {
                 Button(editing.redoTitle) { if let redo { redo() } else { Task { await editing.reverse(redo: true) } } }.disabled(editing.busy)
             }
         }.macContentFont(.caption).lineLimit(textScale > 1 ? nil : 1).padding(.horizontal, 14)
-            .frame(height: textScale > 1 ? nil : 32).frame(minHeight: 32)
+            .padding(.vertical, reservesSpace ? 0 : 3)
+            .frame(height: reservesSpace && textScale <= 1 ? 32 : nil)
+            .frame(minHeight: reservesSpace ? 32 : nil)
             .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
-            .focusedSceneValue(\.podListEditHistory, undo != nil || redo != nil ? EditHistoryCommandContext(undo: undo, redo: redo) : nil)
-            .modifier(FocusedRetry(action: retryCommand))
     }
     private var retryCommand: (() -> Void)? {
         guard error == editing.error, editing.canRetry else { return nil }
