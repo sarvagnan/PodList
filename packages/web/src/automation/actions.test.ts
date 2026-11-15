@@ -1,7 +1,8 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Library, Operation, PlaybackSettings, Units } from "@podlist/domain"
-import { Effect, Layer, Schema, SubscriptionRef } from "effect"
+import { Cause, Effect, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
+import { vi } from "vitest"
 import { DataLayer } from "../data/DataLayer.ts"
 import { LocalDataLayer } from "../data/LocalDataLayer.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
@@ -38,6 +39,7 @@ const local = LocalDataLayer.pipe(
 const playback = Layer.effect(
   Playback,
   Effect.gen(function* () {
+    const data = yield* DataLayer
     return Playback.of({
       now: yield* SubscriptionRef.make<NowPlaying | null>(null),
       play: Effect.void,
@@ -46,13 +48,18 @@ const playback = Layer.effect(
       retry: Effect.void,
       seek: () => Effect.void,
       skip: () => Effect.void,
-      playEntry: () => Effect.void,
+      playEntry: vi.fn((playlistId: string, episodeId: string) =>
+        Effect.gen(function* () {
+          yield* data.record(change({ _tag: "SetActivePlaylist", playlistId }))
+          yield* data.record(change({ _tag: "SetCursor", playlistId, episodeId }))
+        })
+      ),
       setSpeed: () => Effect.void,
       setSleep: () => Effect.void
     })
   })
 )
-const layer = Layer.merge(local, playback)
+const layer = playback.pipe(Layer.provideMerge(local))
 const change = Schema.decodeUnknownSync(Operation.Change)
 const seed = Effect.gen(function* () {
   yield* upsertSubscriptions([
@@ -124,6 +131,98 @@ describe("automation uses the local edit layer and named Undo", () => {
       expect(after?.entries).toEqual(before?.entries)
       expect(after?.cursor).toEqual(before?.cursor)
     }).pipe(Effect.provide(layer))
+  )
+  for (const playlistId of ["default", "other"])
+    it.effect(
+      `Play from Here in ${playlistId} reuses playback and restores the Active Playlist and Cursor`,
+      () =>
+        Effect.gen(function* () {
+          const data = yield* seed
+          const player = yield* Playback
+          if (playlistId === "other") {
+            yield* data.record(
+              change({ _tag: "CreatePlaylist", playlistId, name: "Other", clearOnPlayed: false })
+            )
+            for (const episodeId of ["c", "b", "a"])
+              yield* data.record(
+                change({ _tag: "AddEntry", playlistId, episodeId, placement: "last" })
+              )
+          }
+          yield* data.record(
+            change({
+              _tag: "ReportPosition",
+              playlistId,
+              episodeId: "b",
+              position: 17,
+              listenedAt: 1
+            })
+          )
+          const before = yield* SubscriptionRef.get(data.state)
+          const result = yield* perform("play_in_playlist", {
+            episode_id: "b",
+            playlist_id: playlistId
+          })
+          expect(player.playEntry).toHaveBeenCalledExactlyOnceWith(playlistId, "b")
+          expect(result.value).toEqual({
+            playlist_id: playlistId,
+            episode_ids: ["b"],
+            undo: "Undo Play from Here"
+          })
+          expect(result.outcome?.message).toBe("Play from Here")
+          const after = yield* SubscriptionRef.get(data.state)
+          expect(after.activePlaylistId).toBe(playlistId)
+          expect(after.playlists.find((p) => p.id === playlistId)?.cursor).toBe("b")
+          for (const p of after.playlists)
+            expect(p.entries).toEqual(before.playlists.find((q) => q.id === p.id)?.entries)
+          for (const c of result.outcome?.undo ?? []) yield* data.record(c)
+          expect(yield* SubscriptionRef.get(data.state)).toEqual(before)
+        }).pipe(Effect.provide(layer))
+    )
+  it.effect("plays an existing Entry even when its catalogue details are pending sync", () =>
+    Effect.gen(function* () {
+      const data = yield* seed
+      yield* data.record(
+        change({ _tag: "AddEntry", playlistId: "default", episodeId: "pending", placement: "last" })
+      )
+      const result = yield* perform("play_in_playlist", {
+        episode_id: "pending",
+        playlist_id: "default"
+      })
+      expect(result.value.episode_ids).toEqual(["pending"])
+      expect((yield* Playback).playEntry).toHaveBeenCalledExactlyOnceWith("default", "pending")
+    }).pipe(Effect.provide(layer))
+  )
+  it.effect(
+    "rejects unavailable Playlists and Episodes outside the Playlist before playback or editing",
+    () =>
+      Effect.gen(function* () {
+        const data = yield* seed
+        yield* data.record(
+          change({
+            _tag: "CreatePlaylist",
+            playlistId: "trashed",
+            name: "Trashed",
+            clearOnPlayed: false
+          })
+        )
+        yield* data.record(
+          change({ _tag: "AddEntry", playlistId: "trashed", episodeId: "c", placement: "last" })
+        )
+        yield* data.record(change({ _tag: "DeletePlaylist", playlistId: "trashed" }))
+        const before = yield* SubscriptionRef.get(data.state)
+        for (const [playlist_id, episode_id, message] of [
+          ["missing", "missing", "Playlist unavailable. List Playlists again."],
+          ["default", "c", "The Episode is not in that Playlist."],
+          ["default", "missing", "The Episode is not in that Playlist."],
+          ["trashed", "c", "Playlist unavailable. List Playlists again."]
+        ]) {
+          const exit = yield* Effect.exit(perform("play_in_playlist", { episode_id, playlist_id }))
+          expect(exit._tag).toBe("Failure")
+          if (exit._tag === "Failure") expect(Cause.squash(exit.cause)).toEqual(new Error(message))
+          expect(yield* SubscriptionRef.get(data.state)).toEqual(before)
+        }
+        expect((yield* Playback).playEntry).not.toHaveBeenCalled()
+      }).pipe(Effect.provide(layer))
   )
   it.effect("keeps supplied Next order and returns Mac list, Position and pagination shapes", () =>
     Effect.gen(function* () {
