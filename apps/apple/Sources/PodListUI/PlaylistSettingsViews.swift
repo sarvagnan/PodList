@@ -18,7 +18,7 @@ struct NewPlaylistSheet: SwiftUI.View {
                     TextField("Playlist name", text: name).disabled(editing.busy).focused($focused).onSubmit { submit() }
                 }
                 if let problem = nameValidation.message(problem) { Text(problem).foregroundStyle(Color.podListError).macContentFont(.caption) }
-                EditingFeedback(editing: editing)
+                EditingFeedback(editing: editing, retry: { submit() })
                 HStack {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(editing.busy)
                     Spacer()
@@ -45,6 +45,7 @@ struct AddPlaylistSheet: SwiftUI.View {
     var cancelled: (() -> Void)? = nil
     let done: () -> Void
     @State private var target = ""
+    @State private var attemptedPlacement: Placement = .next
     @State private var nameValidation = FormValidationVisibility()
     @Environment(\.dismiss) private var dismiss
     private var prefix: String { "add/" + ((try? JSONEncoder().encode(ids))?.base64EncodedString() ?? "") }
@@ -80,7 +81,7 @@ struct AddPlaylistSheet: SwiftUI.View {
                 }
                 if let problem = nameValidation.message(problem) { Text(problem).macContentFont(.caption).foregroundStyle(Color.podListError) }
             }
-            EditingFeedback(editing: editing)
+            EditingFeedback(editing: editing, retry: { submit(attemptedPlacement) })
             HStack {
                 Button("Cancel") { if let cancelled { cancelled() } else { dismiss() } }.keyboardShortcut(.cancelAction).disabled(editing.busy)
                 Spacer()
@@ -91,6 +92,7 @@ struct AddPlaylistSheet: SwiftUI.View {
         }.padding(24)
     }
     private func submit(_ placement: Placement) {
+        attemptedPlacement = placement
         nameValidation.submitted()
         guard problem == nil, !editing.busy else { return }
         Task {
@@ -123,7 +125,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                             if let problem { Text(problem).macContentFont(.caption).foregroundStyle(Color.podListError) }
                             HStack {
                                 Button("Cancel Rename") { editing.drafts.remove("rename/\(id)"); editing.drafts.remove("rename-open/\(id)") }
-                                Button("Save") { save() }.disabled(problem != nil || name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) == playlist.name || editing.busy)
+                                Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(problem != nil || name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) == playlist.name || editing.busy)
                             }
                         } else {
                             Text(playlist.name).macContentFont(.headline).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
@@ -141,10 +143,11 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                         Text("Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     }
                 } else { Text("Playlist unavailable.") }
-                EditingFeedback(editing: editing)
-                HStack { Spacer(); Button("Done", action: done).keyboardShortcut(.cancelAction) }
+                EditingFeedback(editing: editing, retry: renaming ? { save() } : nil)
+                HStack { Spacer(); Button("Done", action: done).keyboardShortcut(renaming ? nil : .defaultAction) }
             }.padding(24)
         }.interactiveDismissDisabled(editing.busy)
+            .onExitCommand { if !editing.busy { done() } }
             .onChange(of: renaming ? problem : nil) { _, message in editing.announcements.error(message) }
     }
     private var problem: String? { PlaylistNames.problem(name.wrappedValue, playlists: app.library?.state.playlists ?? [], excluding: id) }

@@ -215,8 +215,11 @@ private final class FakePlayerClock: Sendable {
     player.play(); await player.settle()
     clock.advance(5); audio.tick(5); await player.settle()
     try await db.execute("CREATE TRIGGER fail_reports BEFORE INSERT ON outbox BEGIN SELECT RAISE(ABORT, 'disk unavailable'); END")
+    var spoken: [String] = []
+    player.announcements.post = { message, _ in spoken.append(message) }
     clock.advance(10); audio.tick(15); await player.settle()
-    #expect(player.error != nil && !player.wantsPlayback)
+    #expect(player.error == FailureOperation.playback.message && !player.wantsPlayback)
+    #expect(spoken == [FailureOperation.playback.message])
     #expect(try await db.outbox().isEmpty)
     try await db.execute("DROP TRIGGER fail_reports")
     player.flush(); await player.settle()

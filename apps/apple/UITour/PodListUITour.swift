@@ -174,7 +174,12 @@ final class PodListUITour: XCTestCase {
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         try capture("22-subscription-settings", expectsSheet: true)
-        try dismissSheet("Done")
+        library.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
+        try click(button("Subscription Settings"))
+        try sheet("Market Hours settings")
+        library.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
 
         try navigate("New this week")
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
@@ -268,7 +273,12 @@ final class PodListUITour: XCTestCase {
         try click(button("Getting started", in: settings))
         try ready(settings.sheets.firstMatch)
         try capture("32-getting-started", in: settings, expectsSheet: true)
-        try click(settings.sheets.buttons["Dismiss"])
+        settings.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(settings.sheets.firstMatch.waitForNonExistence(timeout: 10))
+        try click(button("Getting started", in: settings))
+        try ready(settings.sheets.firstMatch)
+        settings.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(settings.sheets.firstMatch.waitForNonExistence(timeout: 10))
         settings.typeKey("w", modifierFlags: .command)
 
         try navigate("New this week")

@@ -55,7 +55,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             validation(renameProblem)
                             HStack {
                                 Button("Cancel") { renaming = false; editor.setDraft("", field: "rename.\(draft.id)") }
-                                Button("Save") { saveRename() }.disabled(saving || !fieldProblems.isEmpty)
+                                Button("Save") { saveRename() }.keyboardShortcut(.defaultAction).disabled(saving || !fieldProblems.isEmpty)
                             }
                         } else {
                             LabeledContent("Name", value: draft.name)
@@ -124,7 +124,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     if !creating { Button("Delete View", role: .destructive) { editor.run { try await editor.deleteView(draft); finished(nil) } } }
                     Spacer()
                     Button("Cancel") { cancel() }.keyboardShortcut(.cancelAction).disabled(saving)
-                    Button("Done") { finish() }.macDefaultAction().disabled(saving || renaming)
+                    Button("Done") { finish() }.keyboardShortcut(renaming ? nil : .defaultAction).buttonStyle(MacDefaultButtonStyle()).disabled(saving || renaming)
                 }.disabled(saving).padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
             }
         }

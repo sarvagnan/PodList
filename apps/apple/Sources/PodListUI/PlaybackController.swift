@@ -33,7 +33,8 @@ public final class PlaybackController {
     public private(set) var sleepMinutes: Double?
     public private(set) var hasDisplay = false
     public private(set) var metadata: PlaybackDisplay.Metadata?
-    public private(set) var error: String?
+    public private(set) var error: String? { didSet { announcements.error(error) } }
+    @ObservationIgnored let announcements = FeedbackAnnouncements()
     public private(set) var wantsPlayback = false
     public private(set) var userPlaybackRevision = 0
     @ObservationIgnored private let donate: @MainActor (ActionDonation) -> Void
@@ -95,7 +96,7 @@ public final class PlaybackController {
             await previous?.value
             guard let self, !self.closed else { return }
             do { try await action(self) }
-            catch { self.audio.pause(); self.wantsPlayback = false; self.error = "Playback could not continue: \(error)"; self.publish() }
+            catch { self.audio.pause(); self.wantsPlayback = false; self.error = LibraryMessages.failure(error, operation: .playback); self.publish() }
         }
     }
     public func settle() async {
@@ -104,7 +105,7 @@ public final class PlaybackController {
     }
     public func refresh() { enqueue { try await $0.refreshState() } }
     public func toggle() { enqueue { if $0.wantsPlayback { try await $0.pauseAudio() } else { try await $0.start(); $0.donatePlay() } } }
-    public func play() { enqueue { try await $0.start(); $0.donatePlay() } }
+    public func play() { announcements.error(nil); enqueue { try await $0.start(); $0.donatePlay() } }
     private func donatePlay() { if wantsPlayback, error == nil { donate(.play) } }
     public func pause() { enqueue { try await $0.pauseAudio() } }
     public func stop() { enqueue { try await $0.pauseAudio(); $0.audio.stop(); $0.prepared = false; $0.publish() } }
@@ -173,7 +174,7 @@ public final class PlaybackController {
                     } else { try await controller.refreshState() }
                 } catch {
                     controller.audio.pause(); controller.wantsPlayback = false
-                    controller.error = "Playback could not continue: \(error)"; controller.publish()
+                    controller.error = LibraryMessages.failure(error, operation: .playback); controller.publish()
                 }
                 if start { controller.userPlaybackRevision += 1 }
                 continuation.resume()

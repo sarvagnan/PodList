@@ -6,7 +6,8 @@ import PodListAutomation
 @MainActor @Observable
 public final class AutomationSettings {
     public private(set) var isEnabled: Bool
-    public private(set) var error: String?
+    public private(set) var error: String? { didSet { announcements.error(error) } }
+    @ObservationIgnored let announcements = FeedbackAnnouncements()
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let socketURL: URL?
     @ObservationIgnored private let call: @Sendable (String, JSONValue) async throws -> JSONValue
@@ -26,6 +27,7 @@ public final class AutomationSettings {
     public func start() {
         guard isEnabled else { stop(); return }
         guard server == nil else { return }
+        error = nil
         do {
             let call = call
             let listener = LocalMCPServer(url: try socketURL ?? LocalSocket.defaultURL()) {
@@ -33,13 +35,13 @@ public final class AutomationSettings {
             }
             try listener.start()
             server = listener; error = nil
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = LibraryMessages.failure(error, operation: .automationStart) }
     }
     /// Quit stops the listener but retains the preference for the next launch.
     public func stop() {
         server?.stop(); server = nil; error = nil
         do { try LocalSocket.removeStaleSocket(at: socketURL ?? LocalSocket.defaultURL()) }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = LibraryMessages.failure(error, operation: .automationStop) }
     }
 
     public var bridgePath: String {

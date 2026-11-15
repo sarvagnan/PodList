@@ -32,7 +32,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                 HStack {
                     TextField("Podcast name or feed address", text: $query).textFieldStyle(.roundedBorder).focused($focused)
                         .onSubmit { search() }.onChange(of: query) { _, text in editor.setDraft(text, field: "addPodcasts"); searchTask?.cancel(); loading = false; searched = false; results = []; error = nil }
-                    Button("Search") { search() }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Search") { search() }.keyboardShortcut(.defaultAction).disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 Text("OPML import is in Settings. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                 if !searched, !loading {
@@ -408,6 +408,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 HStack { Spacer(); Button("Done") { dismiss() }.macDefaultAction() }
             }.padding(20)
         }
+        .onExitCommand { dismiss() }
         .onChange(of: overrides) { _, _ in save() }.onChange(of: threshold) { _, _ in save() }
     }
     private func overrideNumber(_ name: String, path: WritableKeyPath<PlaybackSettingsOverride, Double?>, choices: [Double]) -> some SwiftUI.View {
