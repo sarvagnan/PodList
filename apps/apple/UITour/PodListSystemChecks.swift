@@ -73,15 +73,9 @@ final class PodListSystemChecks: XCTestCase {
         let field = search.waitForExistence(timeout: 10) ? search : editor.searchFields.firstMatch
         defer {
             if editor.exists { capture(editor, name: "shortcuts-editor-at-close") }
-            // No action was added: the empty editor has nothing to save. Close it, then quit.
-            shortcuts.typeKey("w", modifierFlags: .command)
-            let discardLabels = NSPredicate(format: "label IN %@", ["Don't Save", "Delete", "Discard"])
-            let sheetDiscard = shortcuts.sheets.buttons.matching(discardLabels).firstMatch
-            let dialogDiscard = shortcuts.dialogs.buttons.matching(discardLabels).firstMatch
-            if sheetDiscard.waitForExistence(timeout: 2) { sheetDiscard.click() }
-            else if dialogDiscard.exists { dialogDiscard.click() }
-            XCTAssertTrue(editor.waitForNonExistence(timeout: 10), "Blank shortcut editor must close without saving")
-            shortcuts.typeKey("q", modifierFlags: .command)
+            // No action was added and the VM is discarded after the run, so just quit Shortcuts.
+            // (Closing the editor window made XCUITest re-resolve Shortcuts by path, which fails.)
+            shortcuts.terminate()
         }
         XCTAssertTrue(field.waitForExistence(timeout: 15), "New shortcut must expose the action library")
         field.click()
