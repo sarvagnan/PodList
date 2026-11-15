@@ -86,20 +86,22 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
     @State private var saving = false
     @Environment(\.dismiss) private var dismiss
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Download Rules for \(ids.count) Subscriptions").font(.title2)
-            Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.secondary)
-            DownloadRuleFields(mode: $mode, cap: $cap)
-            if let editing = app.editing { EditingFeedback(editing: editing) }
-            HStack {
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("Apply") {
-                    saving = true
-                    Task { if await app.setDownloadRules(subscriptions: ids, mode: mode, cap: cap) { dismiss() }; saving = false }
-                }.keyboardShortcut(.defaultAction)
-            }
-        }.padding(24).frame(width: 520).disabled(saving)
+        ContentSizedPanel(width: 520) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Download Rules for \(ids.count) Subscriptions").font(.title2)
+                Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(.secondary)
+                DownloadRuleFields(mode: $mode, cap: $cap)
+                if let editing = app.editing { EditingFeedback(editing: editing) }
+                HStack {
+                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("Apply") {
+                        saving = true
+                        Task { if await app.setDownloadRules(subscriptions: ids, mode: mode, cap: cap) { dismiss() }; saving = false }
+                    }.keyboardShortcut(.defaultAction)
+                }
+            }.padding(24)
+        }.disabled(saving)
     }
 }
 #endif

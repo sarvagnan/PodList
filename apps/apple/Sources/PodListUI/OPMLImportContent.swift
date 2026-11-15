@@ -6,7 +6,7 @@ struct OPMLImportContent: SwiftUI.View {
     let choose: () -> Void
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Closing Add podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").font(.callout)
+            Text("Closing Add podcasts or this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch.").font(.callout).fixedSize(horizontal: false, vertical: true)
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
             if editor.importReady {
                 Text("\(editor.importTotal) podcasts; \(editor.importExisting) already in the Library.")
@@ -17,13 +17,15 @@ struct OPMLImportContent: SwiftUI.View {
                 }
             } else if !editor.busy { Button("Choose a file…", action: choose) }
             if editor.busy { ProgressView("Importing \(editor.importCompleted) of \(editor.importTotal)") }
-            ScrollView {
-                VStack(alignment: .leading) {
-                    ForEach(editor.importFeeds, id: \.self) { feed in
-                        Text("\(feed): \(editor.importResults[feed] ?? "Waiting")\(editor.importFailureReasons[feed].map { ": " + $0 } ?? "")").textSelection(.enabled)
+            if !editor.importFeeds.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading) {
+                        ForEach(editor.importFeeds, id: \.self) { feed in
+                            Text("\(feed): \(editor.importResults[feed] ?? "Waiting")\(editor.importFailureReasons[feed].map { ": " + $0 } ?? "")").textSelection(.enabled)
+                        }
                     }
-                }
-            }.frame(maxHeight: 220)
+                }.frame(height: min(220, CGFloat(editor.importFeeds.count) * 44))
+            }
             if let error = editor.error { Text(error).foregroundStyle(.red) }
             if !editor.importFailed.isEmpty { Button("Retry failed imports") { Task { await editor.retryImport() } }.disabled(editor.busy) }
         }

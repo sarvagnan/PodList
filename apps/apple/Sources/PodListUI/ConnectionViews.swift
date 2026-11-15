@@ -46,13 +46,21 @@ struct WelcomeView: SwiftUI.View {
 
 public struct PodListSettings: SwiftUI.View {
     @Bindable private var app: ApplicationModel
+    @State private var pane = "general"
+    @State private var heights: [String: CGFloat] = [:]
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
-        TabView {
+        TabView(selection: $pane) {
             LibrarySettingsScreen(app: app)
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag("general")
             AutomationSettingsScreen(settings: app.automation)
                 .tabItem { Label("Automation", systemImage: "terminal") }
+                .tag("automation")
+        }
+        .frame(width: 600, height: heights[pane] ?? 440)
+        .onPreferenceChange(SettingsPaneHeights.self) { measured in
+            for (pane, height) in measured where height > 0 { heights[pane] = height }
         }
     }
 }
