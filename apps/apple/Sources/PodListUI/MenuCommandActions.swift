@@ -149,9 +149,9 @@ public struct AdditionalMenuCommands: Commands {
     @Environment(\.openWindow) private var openWindow
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
-        // Own this group so SwiftUI's synthesized Settings item cannot follow the additions.
-        CommandGroup(replacing: .appSettings) {
-            SettingsLink().keyboardShortcut(",", modifiers: .command)
+        // The Settings scene's own Settings… item follows anything placed in .appSettings
+        // (and survives replacing it), so configuration submenus go after it, before Services.
+        CommandGroup(before: .systemServices) {
             Menu("Connection") { MenuActionItems(menu: .connection, app: app) }
             Menu("Automation") { MenuActionItems(menu: .automation, app: app) }
         }
