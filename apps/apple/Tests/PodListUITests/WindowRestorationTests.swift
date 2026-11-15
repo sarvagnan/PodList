@@ -75,6 +75,15 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(filtered.selection == ["a"])
 }
 
+@Test func allViewsRestoresOnlyExistingViewSelections() throws {
+    let library = restorationLibrary()
+    let id = try #require(library.state.views.first?.id)
+    let archived = WindowContext(destination: .views, selection: [id, "deleted-view"])
+    let restored = try #require(WindowContext.decode(archived.encoded)).reconciled(in: library)
+    #expect(restored.destination == .views)
+    #expect(restored.selection == [id])
+}
+
 @Test func historyAndTimelineRestoreAgainstTheirOwnRows() {
     let library = restorationLibrary()
     let history = WindowContext(destination: .playlist("default"), selection: ["past", "a", "gone"], playlistTab: .history)

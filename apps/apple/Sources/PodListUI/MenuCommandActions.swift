@@ -18,28 +18,29 @@ enum MenuAction: String, CaseIterable {
     case createViewFromSearch = "Create View from Search…", searchPodcasts = "Search Podcasts"
     case retry = "Retry", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
     case backToNowPlaying = "Back to Now Playing", retryPlayback = "Retry Playback"
+    case retryEpisodeDrop = "Retry Failed Episode Drop"
 
     var menu: MenuActionMenu? {
         switch self {
         case .showImport, .cancelImport, .retryImport: .file
-        case .clearSearch: .edit
+        case .clearSearch, .retry: .edit
+        case .retryEpisodeDrop: .episode
         case .refresh, .backToLibrary, .searchPodcasts: .podcast
         case .createViewFromSearch: .views
         case .connect, .standalone, .disconnect, .offerBringOver, .retryBringOver: .connection
         case .backToNowPlaying, .retryPlayback: .controls
         case .copyConfiguration, .retryAutomation: .automation
-        // Dialog buttons and ambiguous, message-local Retry stay on their
-        // own surfaces. Persistent operation recovery remains searchable.
+        // Dialog submission stays on its own surface; recovery is indexed separately.
         case .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
              .playNow, .playNext, .playLast, .go, .deletePermanently, .apply,
              .rewind, .bringOver, .notNow, .importSelection, .chooseFile,
-             .dismissTutorial, .retry: nil
+             .dismissTutorial: nil
         }
     }
 }
 
 enum MenuActionMenu: CaseIterable {
-    case file, edit, podcast, views, connection, controls, automation
+    case file, edit, podcast, views, episode, connection, controls, automation
     var items: [MenuAction] { MenuAction.allCases.filter { $0.menu == self } }
 }
 struct MenuActionContext {
@@ -81,6 +82,7 @@ struct MenuActionItems: SwiftUI.View {
     @FocusedValue(\.podListSearchViewActions) private var searchView
     @FocusedValue(\.podListSettingsActions) private var settings
     @FocusedValue(\.podListPlayerActions) private var player
+    @FocusedValue(\.podListRecoveryActions) private var recovery
     var body: some SwiftUI.View {
         ForEach(menu.items, id: \.self) { item in
             Button(item.rawValue) { action(item)?() }
@@ -90,7 +92,7 @@ struct MenuActionItems: SwiftUI.View {
     }
     private func action(_ item: MenuAction) -> (() -> Void)? {
         if let app, PersistentMenuActions.owns(item) { return PersistentMenuActions.context(app)[item] }
-        return discovery?[item] ?? searchView?[item] ?? imports?[item] ?? settings?[item] ?? player?[item] ?? window?[item]
+        return recovery?[item] ?? discovery?[item] ?? searchView?[item] ?? imports?[item] ?? settings?[item] ?? player?[item] ?? window?[item]
     }
 }
 
@@ -99,7 +101,15 @@ struct MenuActionItems: SwiftUI.View {
 @MainActor enum PersistentMenuActions {
     static func owns(_ action: MenuAction) -> Bool {
         [.showImport, .cancelImport, .retryImport, .retryBringOver,
-         .retryPlayback, .copyConfiguration, .retryAutomation].contains(action)
+         .retryPlayback, .retryEpisodeDrop, .copyConfiguration, .retryAutomation].contains(action)
+    }
+    static func episodeDrops(_ editor: LibraryEditingModel) -> MenuActionContext {
+        guard let failure = editor.failedEpisodeDrop, editor.episodeDrop == nil,
+              !editor.busy, !editor.edits.busy else { return MenuActionContext() }
+        return MenuActionContext(actions: [.retryEpisodeDrop: {
+            editor.edits.announcements.error(nil)
+            Task { await failure.retry() }
+        }])
     }
     static func imports(_ editor: LibraryEditingModel) -> MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
@@ -112,6 +122,7 @@ struct MenuActionItems: SwiftUI.View {
     }
     static func context(_ app: ApplicationModel) -> MenuActionContext {
         var result = app.libraryEditing.map(imports) ?? MenuActionContext()
+        if let editor = app.libraryEditing { result.actions.merge(episodeDrops(editor).actions) { _, new in new } }
         if app.origin != nil && app.bringOverJob?.complete == false && !app.syncing {
             result.actions[.retryBringOver] = { Task { await app.sync(forceRefresh: true) } }
         }
@@ -122,7 +133,9 @@ struct MenuActionItems: SwiftUI.View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(automation.clientConfiguration, forType: .string)
             }
-            if automation.error != nil { result.actions[.retryAutomation] = { automation.start() } }
+        }
+        if automation.error != nil {
+            result.actions[.retryAutomation] = { if automation.isEnabled { automation.start() } else { automation.stop() } }
         }
         return result
     }

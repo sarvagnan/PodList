@@ -14,7 +14,7 @@ struct LibraryFeedback: SwiftUI.View {
                     .padding(.horizontal, 14).padding(.bottom, 8)
             }
             if let failure = editor.failedEpisodeDrop {
-                FailureFeedback(message: failure.message, announcements: editor.edits.announcements) {
+                FailureFeedback(message: failure.message, announcements: editor.edits.announcements, indexedElsewhere: true) {
                     Task { await failure.retry() }
                 }.disabled(editor.episodeDrop != nil || editor.busy || editor.edits.busy)
                     .padding(.horizontal, 14).padding(.bottom, 8)
@@ -137,7 +137,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
             }
             if loading { ProgressView("Reading Episodes…") }
-            if let error { FailureFeedback(message: error, announcements: editor.edits.announcements) { control.reset(); load() } }
+            if let error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { control.reset(); load() } }
             Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
             if episodes.isEmpty, !loading, error == nil {
                 ContentUnavailableView {
@@ -197,7 +197,6 @@ struct PodcastPageScreen: SwiftUI.View {
                 .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
             }
         }.padding(18)
-        .focusedSceneValue(\.podListRecoveryActions, MenuActionContext(actions: error != nil && !loading ? [.retry: { control.reset(); load() }] : [:]))
         .focusedSceneValue(\.podListSort, $savedSort)
         .focusedSceneValue(\.podListPodcast, podcastCommands)
         .focusedSceneValue(\.podListRemoteEpisode, remoteEpisodeActions)

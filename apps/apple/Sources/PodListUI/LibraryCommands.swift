@@ -9,6 +9,8 @@ public struct LibraryWindowActions {
     public var editView: () -> Void
     public var openInNewWindow: (() -> Void)?
     public var renameView: (() -> Void)? = nil
+    public var selectedViewID: String? = nil
+    public var deleteView: (() -> Void)? = nil
 }
 public extension FocusedValues {
     var podListLibraryActions: LibraryWindowActions? {
@@ -60,15 +62,15 @@ public struct LibraryCommands: Commands {
             }.disabled(context?.library.state.views.isEmpty != false)
             MenuActionItems(menu: .views)
             Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)
-            Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut).disabled(selectedViewID == nil || actions == nil)
+            Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut)
+                .disabled(selectedViewID == nil || app.libraryEditing?.busy != false || app.editing?.busy != false)
             Button("Rename View…") {
                 if let viewEditor { viewEditor.rename?() } else { actions?.renameView?() }
             }.disabled(viewEditor != nil ? viewEditor?.rename == nil : actions?.renameView == nil)
             Button("Delete View", role: .destructive) {
                 if let viewEditor { viewEditor.delete?(); return }
-                guard let id = selectedViewID, let view = app.library?.state.views.first(where: { $0.id == id }) else { return }
-                Task { do { try await app.libraryEditing?.deleteView(view) } catch { app.libraryEditing?.error = LibraryMessages.failure(error) } }
-            }.disabled(viewEditor != nil ? viewEditor?.delete == nil : selectedViewID == nil || app.editing?.busy == true)
+                actions?.deleteView?()
+            }.disabled(viewEditor != nil ? viewEditor?.delete == nil : actions?.deleteView == nil)
         }
         CommandGroup(after: .textEditing) {
             Button("Search Library", action: { actions?.search() }).keyboardShortcut("f").disabled(actions == nil)
@@ -76,8 +78,7 @@ public struct LibraryCommands: Commands {
         }
     }
     private var selectedViewID: String? {
-        guard case let .view(id) = context?.window.destination else { return nil }
-        return id
+        actions?.selectedViewID
     }
 }
 #endif

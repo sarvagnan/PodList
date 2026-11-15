@@ -114,6 +114,9 @@ struct WindowContext: Codable, Equatable {
             }
             let events = TimelinePresentation.events(playlist, now: library.now)
             if !events.contains(where: { $0.id == result.timelineSelection }) { result.timelineSelection = nil }
+        } else if result.destination == .views {
+            ids = Set(library.state.views.map(\.id))
+            result.timelineSelection = nil
         } else {
             ids = Set(library.rows(for: result.destination, search: result.search).map(\.id))
             result.timelineSelection = nil

@@ -309,6 +309,6 @@ public final class WindowModel {
         if case let .view(id) = destination, !library.state.views.contains(where: { $0.id == id }) { navigate(to: .views) }
         if case let .playlist(id) = destination, !library.state.playlists.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
         if case let .subscription(id) = destination, !library.subscriptions.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
-        selection.formIntersection(Set(rows(in: library).map(\.id)))
+        selection.formIntersection(Set(destination == .views ? library.state.views.map(\.id) : rows(in: library).map(\.id)))
     }
 }

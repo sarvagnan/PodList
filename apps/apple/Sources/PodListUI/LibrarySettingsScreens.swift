@@ -18,7 +18,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
                         .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if let error = settings.error {
-                        FailureFeedback(message: error) {
+                        FailureFeedback(message: error, indexedElsewhere: true) {
                             if settings.isEnabled { settings.start() } else { settings.stop() }
                         }
                     }
@@ -33,7 +33,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
         }
         .focusedSceneValue(\.podListSettingsActions, MenuActionContext(actions: [
             .copyConfiguration: settings.isEnabled ? { copyConfiguration() } : nil,
-            .retryAutomation: settings.isEnabled && settings.error != nil ? { settings.start() } : nil
+            .retryAutomation: settings.error != nil ? { if settings.isEnabled { settings.start() } else { settings.stop() } } : nil
         ].compactMapValues { $0 }))
     }
     private func copyConfiguration() {

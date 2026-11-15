@@ -71,10 +71,13 @@ struct DownloadStatusText: SwiftUI.View {
         case .queued: Text("Download queued").foregroundStyle(MacReadableSecondaryStyle())
         case .transferring: Text("Downloading on this Device").foregroundStyle(MacReadableSecondaryStyle())
         case .failed:
-            FailureFeedback(message: FailureOperation.download.message) { app.download(id) }
+            FailureFeedback(message: FailureOperation.download.message, indexedElsewhere: true) { app.download(id) }
         case nil: Text("Not downloaded on this Device").foregroundStyle(MacReadableSecondaryStyle())
         }
-        if let error = app.downloadError { FailureFeedback(message: error) { app.retryDownloadFailure() } }
+        if let error = app.downloadError {
+            FailureFeedback(message: error) { app.retryDownloadFailure() }
+                .environment(\.podListRecoveryIndexed, false)
+        }
     }
 }
 struct DownloadIcon: SwiftUI.View {

@@ -7,6 +7,8 @@ public struct PodListWindow: SwiftUI.View {
     @State private var window = WindowModel()
     @State private var playlistPresentation = PlaylistPresentation()
     @FocusState private var searchFocused: Bool
+    @FocusState private var viewsFocused: Bool
+    @State private var viewTypeSelection = ViewTypeSelection()
     @State private var editingView: PodListDomain.View?
     @State private var creatingView = false
     @State private var subscriptionSelection = Set<String>()
@@ -195,6 +197,7 @@ public struct PodListWindow: SwiftUI.View {
                 PlayerBar(controller: playback, library: library,
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
                           openNowPlaying: { openWindow(id: "now-playing") }, announcements: app.announcements)
+                    .environment(\.podListRecoveryIndexed, true)
             }
         }
         .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { batch in
@@ -203,7 +206,7 @@ public struct PodListWindow: SwiftUI.View {
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions)
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
-        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library)))
+        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library), selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing {
                 PodListSheet(title: editor.groupsDroppedImport ? "Import Podcasts" : "Import OPML", width: 600, actionTitle: editor.importReady ? "Import" : "Close",
@@ -281,11 +284,31 @@ public struct PodListWindow: SwiftUI.View {
                 } description: { Text("Create a View to find Episodes.").foregroundStyle(MacReadableSecondaryStyle()) }
                 actions: { Button("New View") { newView() } }
             } else {
-                List(library.state.views, id: \.id) { view in
-                    Button { window.navigate(to: .view(view.id)) } label: {
-                        HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle()) }
-                    }.buttonStyle(.plain)
-                    .contextMenu { sidebarActions(.view(view.id), library: library) }
+                List(library.state.views, id: \.id, selection: Binding<String?>(get: {
+                    window.selection.count == 1 ? window.selection.first : nil
+                }, set: { window.selection = $0.map { [$0] } ?? [] })) { view in
+                    HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle()) }
+                        .accessibilityElement(children: .combine)
+                        .tag(view.id)
+                }
+                .accessibilityIdentifier("views.list")
+                .focused($viewsFocused)
+                .onAppear { viewsFocused = true }
+                .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { press in
+                    guard press.modifiers.intersection([.command, .control]).isEmpty,
+                          let id = viewTypeSelection.select(press.characters, in: library.state.views,
+                              selected: window.selection.first, at: Date.timeIntervalSinceReferenceDate) else { return .ignored }
+                    window.selection = [id]
+                    window.scrollAnchor = RowAnchor(id: id, index: library.state.views.firstIndex { $0.id == id } ?? 0)
+                    return .handled
+                }
+                .contextMenu(forSelectionType: String.self) { ids in
+                    if let id = ids.first {
+                        Button("Open") { window.navigate(to: .view(id)) }
+                        sidebarActions(.view(id), library: library)
+                    }
+                } primaryAction: { ids in
+                    if let id = ids.first { window.navigate(to: .view(id)) }
                 }
                 .restoringRows(library.state.views.map { Optional($0.id) }, anchor: $window.scrollAnchor)
             }
@@ -571,7 +594,7 @@ public struct PodListWindow: SwiftUI.View {
                 Text("Syncing…")
             } else if let error = app.syncError {
                 Image(systemName: "exclamationmark.icloud").accessibilityHidden(true)
-                FailureFeedback(message: error) { Task { await app.sync(forceRefresh: true) } }
+                FailureFeedback(message: error, indexedElsewhere: true) { Task { await app.sync(forceRefresh: true) } }
             } else {
                 Image(systemName: "checkmark.icloud").accessibilityHidden(true)
                 Text(app.lastSync == nil ? "Local Library" : "Up to date")
@@ -630,13 +653,20 @@ public struct PodListWindow: SwiftUI.View {
         return podcastFeed != nil
     }
     private func editCurrentView(_ library: LibraryModel) {
-        guard case let .view(id) = window.destination,
-              let view = library.state.views.first(where: { $0.id == id }) else { return }
+        guard let view = selectedView(library) else { return }
         editView(view)
     }
+    private func selectedView(_ library: LibraryModel) -> PodListDomain.View? {
+        guard !isPodcastPage else { return nil }
+        return ViewSelectionAction.view(in: library, destination: window.destination, selection: window.selection)
+    }
+    private func deleteViewAction(_ library: LibraryModel) -> (() -> Void)? {
+        guard let view = selectedView(library), let editor = app.libraryEditing,
+              !editor.busy, app.editing?.busy == false else { return nil }
+        return { editor.run { try await editor.deleteView(view) } }
+    }
     private func renameViewAction(_ library: LibraryModel) -> (() -> Void)? {
-        guard !isPodcastPage, case let .view(id) = window.destination,
-              let view = library.state.views.first(where: { $0.id == id }),
+        guard let view = selectedView(library),
               app.libraryEditing != nil, app.libraryEditing?.busy == false, app.editing?.busy == false else { return nil }
         return { renameView(view) }
     }

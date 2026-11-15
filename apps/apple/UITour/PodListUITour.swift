@@ -60,7 +60,7 @@ final class PodListUITour: XCTestCase {
         try navigate("Starred")
         try capture("04-starred")
         try navigate("All Views")
-        try ready(library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "New this week, ")).firstMatch)
+        try ready(library.descendants(matching: .any).matching(identifier: "views.list").firstMatch)
         try capture("05-all-views")
 
         try navigate("Default")
@@ -540,17 +540,17 @@ final class PodListUITour: XCTestCase {
         let removed: Set<String> = [
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
-            "Import", "Choose a File…", "Retry", "Dismiss Getting Started"
+            "Import", "Choose a File…", "Dismiss Getting Started"
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…", "Retry Bring Over", "Automation", "Copy Configuration", "Retry MCP Server"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
-            "Edit": ["Search Library", "Clear Search"],
+            "Edit": ["Search Library", "Clear Search", "Retry"],
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
-            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist"],
+            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop"],
             "Playlist": ["Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],
@@ -565,7 +565,7 @@ final class PodListUITour: XCTestCase {
         }
         let owners = ["Connection": "PodList", "Refresh Library": "Podcast", "Add Podcasts…": "File",
                       "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
-                      "Cancel Import": "File", "Retry Failed Imports": "File",
+                      "Cancel Import": "File", "Retry Failed Imports": "File", "Retry": "Edit", "Retry Failed Episode Drop": "Episode",
                       "Retry Bring Over": "PodList", "Copy Configuration": "PodList", "Retry MCP Server": "PodList", "Retry Playback": "Controls",
                       "Show Description": "View", "Hide Description": "View", "Show Daily Table": "View"]
         for (command, owner) in owners where name != owner {
