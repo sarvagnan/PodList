@@ -40,8 +40,10 @@ struct PodListMac: App {
             AdditionalMenuCommands(app: model)
             PlaylistEditingCommands(app: model)
             PlaybackCommands(app: model)
+            // One Help group: a later replacing: .help removed items other groups added after it.
             CommandGroup(replacing: .help) {
                 Button("PodList Help") { openWindow(id: "help") }
+                Button("Getting Started") { openWindow(id: "getting-started") }.disabled(model.libraryEditing == nil)
             }
         }
         Window("Add Podcasts", id: "add-podcasts") { AddPodcastsWindow(app: model).macTextSize(textSize) }

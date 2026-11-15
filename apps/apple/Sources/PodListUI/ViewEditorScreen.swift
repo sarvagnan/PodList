@@ -46,7 +46,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             TextField("View name", text: Binding(get: { draft.name }, set: { text in
                                 nameValidation.edited(from: draft.name, to: text)
                                 update { $0.name = text }
-                            })).onSubmit { finish() }
+                            })).labelsHidden().onSubmit { finish() }
                         }
                         validation(nameValidation.message(nameProblem))
                     }
@@ -171,7 +171,7 @@ struct ViewEditorScreen: SwiftUI.View {
                         editor.setDraft(text, field: "\(draft.id).\(label) (minutes)")
                         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { update { $0[keyPath: path] = nil } }
                         else if let seconds = FormNumbers.seconds(fromMinutes: text, locale: locale) { update { $0[keyPath: path] = seconds } }
-                    }), prompt: Text("No limit")).labelsHidden().accessibilityLabel(label)
+                    }), prompt: Text("No limit")).labelsHidden()
                         .textFieldStyle(.roundedBorder).frame(width: 88)
                     Text("min").foregroundStyle(.primary)
                 }

@@ -267,7 +267,7 @@ private struct PlaybackSeekSheet: SwiftUI.View {
                      cancel: { dismiss() }, action: go) {
             Form {
                 LabeledContent("Position (seconds)") {
-                    TextField("Position in seconds", text: $seconds).onSubmit { go() }
+                    TextField("Position in seconds", text: $seconds).labelsHidden().onSubmit { go() }
                 }
             }.formStyle(.columns)
         }
