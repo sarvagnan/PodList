@@ -17,7 +17,7 @@ struct WelcomeView: SwiftUI.View {
                     LabeledContent("Server address") {
                         TextField("Server address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
                             .textFieldStyle(.roundedBorder).focused($addressFocused).disabled(app.connecting)
-                            .labelsHidden().accessibilityLabel("Server address")
+                            .labelsHidden()
                             .onSubmit { connect() }
                     }
                 }.formStyle(.columns)
