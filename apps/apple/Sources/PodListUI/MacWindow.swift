@@ -117,7 +117,7 @@ public struct PodListWindow: SwiftUI.View {
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button("New Playlist", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }
-                        .help("New Playlist (⌘⇧N)")
+                        .help("New Playlist (⇧⌘N)")
                     if case let .playlist(id) = window.destination {
                         Button("Playlist Settings", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
                     }
@@ -134,7 +134,7 @@ public struct PodListWindow: SwiftUI.View {
                     Button(inspectorVisible ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right") {
                         inspectorVisible.toggle()
                     }
-                    .help("Show or hide Inspector (⌘⌥I)")
+                    .help("Show or hide Inspector (⌥⌘I)")
                     .accessibilityLabel(inspectorVisible ? "Hide Inspector" : "Show Inspector")
                 }
             }
@@ -418,6 +418,9 @@ public struct PodListWindow: SwiftUI.View {
                             .disabled(selection.isEmpty || editing.busy)
                     }
                 } primaryAction: { _ in inspectorVisible = true }
+                .onCopyCommand(perform: window.selection.isEmpty ? nil : {
+                    EpisodeCopyContent.providers(ids: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
+                })
                 .accessibilityLabel("Episodes, sortable columns")
             }
         }

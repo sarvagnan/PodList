@@ -69,6 +69,13 @@ struct PlaylistContentView: SwiftUI.View {
             } primaryAction: { selection in
                 window.selection = selection; openEpisode()
             }
+            .onCopyCommand(perform: window.selection.isEmpty ? nil : {
+                EpisodeCopyContent.providers(ids: ordered(window.selection), library: library)
+            })
+            .onDeleteCommand(perform: window.selection.isEmpty || editing.busy ? nil : {
+                let ids = ordered(window.selection)
+                Task { await editing.remove(ids, playlistID: playlist.id) }
+            })
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 
         }
