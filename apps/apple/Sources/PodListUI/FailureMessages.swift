@@ -36,6 +36,7 @@ extension LibraryMessages {
     }
     static func failure(_ error: any Error, operation: FailureOperation) -> String {
         log(error, operation: String(describing: operation))
+        if let compatibility = error as? SyncCompatibilityFailure { return compatibility.message }
         // Preserve actionable form validation and explicit compatibility guidance.
         if operation == .playlistEdit || operation == .action, let message = validation(error) { return message }
         return operation.message
@@ -44,8 +45,8 @@ extension LibraryMessages {
         if let failure = error as? FormFailure { return failure.message }
         let reason = (error as? SyncResponseFailure)?.reason ?? (error as? DatabaseFailure)?.description
         switch reason {
-        case "This server does not support permanent Playlist deletion. Update the server, then retry.":
-            return "This server does not support permanent Playlist deletion. Update the server, then retry."
+        case "Update the PodList server to save this change.":
+            return "Update the PodList server to save this change."
         case "Enter a Playlist name.": return "Enter a Playlist name."
         case "This Playlist cannot be renamed.": return "This Playlist cannot be renamed. Choose another Playlist."
         case "This Playlist is no longer in Trash.": return "This Playlist is no longer in Trash. Refresh the Library."
@@ -59,6 +60,7 @@ extension LibraryMessages {
     }
     static func libraryFailure(_ error: any Error) -> String {
         log(error, operation: "Library action")
+        if let compatibility = error as? SyncCompatibilityFailure { return compatibility.message }
         if let message = validation(error) { return message }
         if error is FeedFailure { return "Could not read the podcast feed. Try again later, or check the feed address with the publisher." }
         if let failure = error as? HttpFailure {

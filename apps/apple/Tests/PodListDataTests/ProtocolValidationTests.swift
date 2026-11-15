@@ -15,7 +15,7 @@ func everyRecordedVectorOperationMatchesSchema(_ name: String) async throws {
     let db = try LocalDatabase(path: ":memory:")
     try await db.saveState(vector["initial"].decode())
     // Exercise all valid contract operations against a server advertising the extension.
-    try await db.setMeta("supportsPurgePlaylist", "true")
+    try await db.setMeta("serverProtocolVersion", "5")
     for operation in try vector["operations"].decode([Operation].self) {
         try ProtocolValidation.validate(operation)
         let recorded = try await db.record(operation.change, at: operation.recordedAt)

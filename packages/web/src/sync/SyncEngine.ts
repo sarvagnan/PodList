@@ -1,10 +1,17 @@
-import { Device, Operation, type PlaybackSettings, State, StateStore } from "@podlist/domain"
+import {
+  Device,
+  Operation,
+  type PlaybackSettings,
+  Protocol,
+  State,
+  StateStore
+} from "@podlist/domain"
 import { Context, Duration, Effect, Layer, Queue, Schema, Semaphore, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { catalogueKey, type DataStatus } from "../data/DataLayer.ts"
 import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
-import { type Offline, Transport } from "./Transport.ts"
+import { type Offline, SyncBlocked, Transport } from "./Transport.ts"
 
 export type { DataStatus as SyncStatus } from "../data/DataLayer.ts"
 export { catalogueKey } from "../data/DataLayer.ts"
@@ -78,6 +85,7 @@ export class SyncEngine extends Context.Service<
           ready: (yield* getMeta("catalogueCursor").pipe(Effect.orDie)) !== undefined
         })
         const triggers = yield* Queue.sliding<void>(1)
+        let blocked: SyncBlocked | undefined
 
         const outbox = sql<{
           seq: number
@@ -93,6 +101,16 @@ export class SyncEngine extends Context.Service<
 
         const record = (change: Operation.Change) =>
           Effect.gen(function* () {
+            if (
+              (Protocol.minimumVersion(change._tag) ?? Protocol.version + 1) >
+              Protocol.legacyVersion
+            ) {
+              const version = yield* (
+                transport.serverVersion ?? Effect.succeed(Protocol.legacyVersion)
+              ).pipe(Effect.orDie)
+              if (version < (Protocol.minimumVersion(change._tag) ?? Protocol.version + 1))
+                return yield* Effect.die(new Error("Update the PodList server to save this change"))
+            }
             const sequence = Number((yield* getMeta("sequence")) ?? "0")
             const operation = Schema.decodeUnknownSync(Operation.Operation)({
               id: crypto.randomUUID(),
@@ -136,6 +154,7 @@ export class SyncEngine extends Context.Service<
         })
 
         const sync = Effect.gen(function* () {
+          if (blocked) return yield* Effect.fail(blocked)
           if ((yield* getMeta("registered").pipe(Effect.orDie)) === undefined) {
             yield* transport.registerDevice(
               Schema.decodeUnknownSync(Device.Device)({
@@ -169,16 +188,22 @@ export class SyncEngine extends Context.Service<
               ...s,
               pending: stillPending.length,
               lastSyncedAt: Date.now(),
-              error: null
+              error: null,
+              syncBlocked: undefined
             }))
           }).pipe(sql.withTransaction, Effect.orDie, lock.withPermits(1))
 
           yield* syncCatalogue
           yield* SubscriptionRef.update(status, (s) => ({ ...s, ready: true }))
         }).pipe(
-          Effect.tapError((e) =>
-            SubscriptionRef.update(status, (s) => ({ ...s, error: e.message }))
-          )
+          Effect.tapError((e) => {
+            if (e instanceof SyncBlocked) blocked = e
+            return SubscriptionRef.update(status, (s) => ({
+              ...s,
+              error: blocked?.message ?? e.message,
+              ...(blocked ? { syncBlocked: blocked.reason } : {})
+            }))
+          })
         )
 
         const runInBackground = Effect.gen(function* () {
@@ -209,7 +234,17 @@ export class SyncEngine extends Context.Service<
           }
         }).pipe(Effect.scoped) as Effect.Effect<never>
 
-        return SyncEngine.of({ state, status, deviceId: myDevice, record, sync, runInBackground })
+        return SyncEngine.of({
+          state,
+          status,
+          deviceId: myDevice,
+          record,
+          sync: Effect.suspend(() => {
+            blocked = undefined
+            return sync
+          }),
+          runInBackground
+        })
       })
     )
 }

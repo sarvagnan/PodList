@@ -6,6 +6,78 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class SyncTest {
+    @Test fun `new operations and typed refusals latch sync until manual retry without losing edits`() {
+        for (kind in listOf("Unknown", "UpdateRequired", "UnsupportedOperation")) LocalDatabase(":memory:").use { db ->
+            db.ensureState(); db.setMeta("registered", "true"); db.setMeta("userCursor", "1")
+            val pending = db.record(Change.SetStar("local", true), 1)
+            var requests = 0
+            var fail = true
+            val sync = SyncClient(db, SyncTransport { _, path, _ ->
+                requests++
+                when {
+                    path == "/api/sync/push" -> """{"cursor":2,"accepted":1}"""
+                    path.startsWith("/api/sync/pull") && fail -> {
+                        if (kind != "Unknown") throw SyncCompatibilityFailure(kind, minimumProtocolVersion = 6, serverProtocolVersion = 4)
+                        """{"cursor":3,"snapshot":null,"operations":[{"id":"future","deviceId":"other","sequence":1,"recordedAt":1,"change":{"_tag":"FutureOperation"}}]}"""
+                    }
+                    path.startsWith("/api/sync/pull") -> ProtocolJson.encodeToString(PullPage(3, StateRules.apply(State.initial(), pending.change, 1), emptyList()))
+                    else -> """{"cursor":0,"subscriptions":[],"episodes":[],"more":false}"""
+                }
+            })
+            assertFailsWith<SyncCompatibilityFailure> { sync.sync() }
+            val stoppedAt = requests
+            db.record(Change.SetStar("another", true), 2)
+            repeat(3) { assertFailsWith<SyncCompatibilityFailure> { sync.sync() } }
+            assertEquals(stoppedAt, requests)
+            assertEquals("1", db.getMeta("userCursor")); assertEquals(2, db.outbox().size)
+            assertTrue(db.loadState().episodeStates["another"]?.starred == true)
+            fail = false; sync.retry(); sync.sync()
+            assertTrue(db.outbox().isEmpty()); assertEquals("3", db.getMeta("userCursor"))
+        }
+    }
+
+    @Test fun `production refresh learns versions and paused refresh never probes health`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState(); db.setMeta("registered", "true")
+            var requests = 0
+            var fail = false
+            val sync = SyncClient(db, SyncTransport { _, path, _ ->
+                requests++
+                when {
+                    path == "/api/health" -> """{"status":"ok","protocolVersion":5}"""
+                    path.startsWith("/api/sync/pull") && fail -> throw SyncCompatibilityFailure("UpdateRequired", minimumProtocolVersion = 6)
+                    path.startsWith("/api/sync/pull") -> ProtocolJson.encodeToString(PullPage(1, State.initial(), emptyList()))
+                    else -> """{"cursor":0,"subscriptions":[],"episodes":[],"more":false}"""
+                }
+            })
+            sync.sync(refreshHealth = true)
+            assertEquals("5", db.getMeta("serverProtocolVersion"))
+            fail = true
+            assertFailsWith<SyncCompatibilityFailure> { sync.sync(refreshHealth = true) }
+            val stopped = requests
+            assertFailsWith<SyncCompatibilityFailure> { sync.sync(refreshHealth = true) }
+            assertEquals(stopped, requests)
+        }
+    }
+
+    @Test fun `version gates prevent partial local batches and pushes to older servers`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState(); db.setMeta("registered", "true")
+            assertFails { db.recordAll(listOf(Change.SetStar("a", true), Change.PurgePlaylist("p")), 1) }
+            assertTrue(db.outbox().isEmpty()); assertTrue(db.loadState().episodeStates.isEmpty())
+            db.setMeta("serverProtocolVersion", "5")
+            db.record(Change.PurgePlaylist("p"), 1)
+            val paths = mutableListOf<String>()
+            val sync = SyncClient(db, SyncTransport { _, path, _ ->
+                paths += path
+                if (path == "/api/health") """{"status":"ok","protocolVersion":4}"""
+                else """{"cursor":0,"subscriptions":[],"episodes":[],"more":false}"""
+            })
+            assertFailsWith<SyncCompatibilityFailure> { sync.sync() }
+            assertFalse(paths.contains("/api/sync/push")); assertEquals(1, db.outbox().size)
+        }
+    }
+
     @Test fun `offline is exposed before independently attempting Library sync`() {
         LocalDatabase(":memory:").use { db ->
             db.ensureState()

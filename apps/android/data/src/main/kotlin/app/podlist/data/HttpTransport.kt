@@ -1,5 +1,7 @@
 package app.podlist.data
 
+import app.podlist.domain.SyncProtocol
+import app.podlist.domain.ProtocolJson
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -41,12 +43,20 @@ class HttpTransport(private val address: ServerAddress, private val subscription
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("User-Agent", "PodList Android")
             connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty(SyncProtocol.Header, SyncProtocol.Version.toString())
             if (body != null) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             }
-            if (connection.responseCode !in 200..299) throw HttpFailure(connection.responseCode)
+            if (connection.responseCode !in 200..299) {
+                if (connection.responseCode in listOf(426, 422)) {
+                    val text = connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                    val failure = text?.let { runCatching { ProtocolJson.decodeFromString<SyncCompatibilityFailure>(it) }.getOrNull() }
+                    if (failure?._tag in listOf("UpdateRequired", "UnsupportedOperation")) throw checkNotNull(failure)
+                }
+                throw HttpFailure(connection.responseCode)
+            }
             return connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally { connection.disconnect() }
     }

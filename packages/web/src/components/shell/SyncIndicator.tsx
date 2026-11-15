@@ -14,10 +14,18 @@ export function SyncIndicator({ variant }: { readonly variant: "phone" | "deskto
   const pending = status?.pending ?? 0
   const showing = unreachable || (!localClient && pending > 0)
   if (localClient && !showing) return null
-  const title = unreachable ? (online ? serverUnavailable : "Offline") : "Saving changes…"
-  const detail = localClient
-    ? `${pending > 0 ? `${pending} ${pending === 1 ? "change is" : "changes are"} kept. ` : "Edits are kept. "}${pending === 1 ? "It’ll" : "They’ll"} sync when your server is reachable. ${online ? "Episodes can stream directly or play from downloads." : "Downloaded Episodes still play."} Searching and adding podcasts need the server.`
-    : `${pending ? `${pending} ${pending === 1 ? "change is" : "changes are"} pending in this tab. Closing it drops unsent changes. ` : ""}${unreachable ? "New edits need a connection to your server." : ""}`
+  const title = status?.syncBlocked
+    ? status.error
+    : unreachable
+      ? online
+        ? serverUnavailable
+        : "Offline"
+      : "Saving changes…"
+  const detail = status?.syncBlocked
+    ? `${localClient ? "Local edits are kept." : "Pending edits stay in this tab. Keep it open until they sync."} Sync is paused. Update, then retry.`
+    : localClient
+      ? `${pending > 0 ? `${pending} ${pending === 1 ? "change is" : "changes are"} kept. ` : "Edits are kept. "}${pending === 1 ? "It’ll" : "They’ll"} sync when your server is reachable. ${online ? "Episodes can stream directly or play from downloads." : "Downloaded Episodes still play."} Searching and adding podcasts need the server.`
+      : `${pending ? `${pending} ${pending === 1 ? "change is" : "changes are"} pending in this tab. Closing it drops unsent changes. ` : ""}${unreachable ? "New edits need a connection to your server." : ""}`
   // Web writes briefly show a status. Reserve its row while idle, and keep the
   // changing pending count off the visual line so wrapping cannot move the player/toast.
   return (

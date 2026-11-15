@@ -16,6 +16,8 @@ import PodListDomain
 private struct Offline: Error {}
 private actor FakeTransport: SyncTransport {
     var offline = false
+    var updateRequired = false
+    func setUpdateRequired(_ value: Bool) { updateRequired = value }
     var healthResponse = #"{"status":"ok","protocolVersion":4}"#
     var snapshot = fixtureState()
     var paths: [String] = []
@@ -45,6 +47,7 @@ private actor FakeTransport: SyncTransport {
             snapshot = result.state; seen = result.applied
             return #"{"accepted":0,"cursor":8}"#
         case let p where p.hasPrefix("/api/sync/pull"):
+            if updateRequired { throw SyncCompatibilityFailure("UpdateRequired", minimumProtocolVersion: 6) }
             if pauseNextPull {
                 pauseNextPull = false
                 await withCheckedContinuation { continuation in
@@ -126,7 +129,7 @@ private actor FakeTransport: SyncTransport {
     let before = try await db.loadState()
     let undo = editing.history.undo?.id
     #expect(await editing.deletePermanently(id) == false)
-    #expect(editing.error?.contains("Update the server") == true)
+    #expect(editing.error?.contains("Update the PodList server") == true)
     #expect(editing.history.undo?.id == undo)
     #expect(try await db.loadState() == before)
     #expect(try await db.outbox().isEmpty)
@@ -134,7 +137,7 @@ private actor FakeTransport: SyncTransport {
     await app.sync()
     #expect(app.syncError == nil)
     #expect(try await db.outbox().isEmpty)
-    await transport.setHealth(#"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#)
+    await transport.setHealth(#"{"status":"ok","protocolVersion":5}"#)
     #expect(await editing.deletePermanently(id))
     await app.sync()
     #expect(app.syncError == nil)
@@ -247,4 +250,31 @@ private actor FakeTransport: SyncTransport {
     #expect(try await source.loadState().episodeStates["local-a"]?.starred == true)
     #expect(!restarted.bringOverAvailable && restarted.bringOverPreview == nil)
     restarted.disconnect()
+}
+
+@MainActor @Test func compatibilityPauseAnnouncesUpdateKeepsLocalEditsAndRequiresManualRetry() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let transport = FakeTransport()
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db }, transportFactory: { _ in transport })
+    app.serverInput = "https://example.com"
+    await app.connect()
+    var announcements: [String] = []
+    app.announcements.post = { text, _ in announcements.append(text) }
+    await transport.setUpdateRequired(true)
+    await app.sync()
+    #expect(app.syncError == "Update PodList to keep syncing")
+    #expect(announcements.contains("Update PodList to keep syncing"))
+    let count = await transport.paths.count
+    let editing = try #require(app.editing)
+    #expect(await editing.setStar(["a"], starred: true))
+    await app.sync()
+    #expect(app.syncError == "Update PodList to keep syncing")
+    #expect(await transport.paths.count == count)
+    #expect(try await db.outbox().count == 1)
+    await transport.setUpdateRequired(false)
+    await app.sync(forceRefresh: true)
+    #expect(app.syncError == nil)
+    #expect(try await db.outbox().isEmpty)
+    #expect(try await db.loadState().episodeStates["a"]?.starred == true)
+    app.disconnect()
 }

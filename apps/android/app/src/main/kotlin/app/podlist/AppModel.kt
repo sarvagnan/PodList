@@ -35,7 +35,7 @@ data class AppMessage(
 )
 
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
-enum class SyncStatus { Loading, Ready, Offline, Error }
+enum class SyncStatus { Loading, Ready, Offline, Error, UpdateRequired }
 data class Session(val source: LibrarySource, val db: LocalDatabase, val deviceId: String)
 data class BringOverUi(val origin: String, val counts: BringOverCounts, val job: BringOverJob? = null, val running: Boolean = false, val error: Boolean = false)
 
@@ -222,15 +222,18 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     val starting = MutableStateFlow(true)
     val status = MutableStateFlow(SyncStatus.Loading)
     internal val syncFailureResource = MutableStateFlow(R.string.sync_server_error)
+    @Volatile private var compatibilityFailure: SyncCompatibilityFailure? = null
     private fun syncFailed(error: Exception) {
+        if (error is SyncCompatibilityFailure) compatibilityFailure = error
         syncFailureResource.value = when {
+            error is SyncCompatibilityFailure -> if (error._tag == "UpdateRequired") R.string.sync_update_required else R.string.sync_server_update_required
             error is HttpFailure && error.status in listOf(401, 403) -> R.string.sync_signed_out
             error is HttpFailure -> R.string.sync_server_error
             error is SSLException -> R.string.sync_tls_error
             error is IOException -> R.string.offline
             else -> R.string.sync_response_error
         }
-        status.value = if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
+        status.value = if (error is SyncCompatibilityFailure) SyncStatus.UpdateRequired else if (classify(error) == ConnectionError.Offline) SyncStatus.Offline else SyncStatus.Error
     }
     val revision = MutableStateFlow(0L)
     val connecting = MutableStateFlow(false)
@@ -246,7 +249,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) { requestSync() }
         override fun onLost(network: Network) {
-            if (_session.value?.source?.server != null && connectivity.activeNetwork == null) status.value = SyncStatus.Offline
+            if (_session.value?.source?.server != null && connectivity.activeNetwork == null && status.value != SyncStatus.UpdateRequired) status.value = SyncStatus.Offline
         }
     }
 
@@ -294,6 +297,13 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun requestSync() { triggers.trySend(Unit) }
+    fun retrySync() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { (_session.value?.source as? ServerLibrary)?.retrySync() }
+            compatibilityFailure = null
+            requestSync()
+        }
+    }
 
     fun connect(input: String, connected: () -> Unit) {
         viewModelScope.launch { if (connectChecked(input)) connected() }
@@ -368,7 +378,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun retryBringOver() { requestSync() }
+    fun retryBringOver() { retrySync() }
 
     private suspend fun loadBringOver(next: Session) {
         bringOverVisible.value = false
@@ -403,14 +413,16 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
         loadBringOver(next)
         opml(next).resumeSaved()
+        compatibilityFailure = null
         status.value = if (address == null) SyncStatus.Ready else SyncStatus.Loading
         downloads(next)
         if (address == null) scheduleFeedRefresh(getApplication())
         worker = viewModelScope.launch {
             // Startup is immediate. Thereafter timeout starts after each completed pass.
             while (isActive) {
-                if (address != null && revision.value == 0L) status.value = SyncStatus.Loading
+                if (address != null && revision.value == 0L && status.value != SyncStatus.UpdateRequired) status.value = SyncStatus.Loading
                 try {
+                    compatibilityFailure?.let { throw it }
                     val pendingBringOver = address != null && withContext(Dispatchers.IO) { next.db.bringOverPending() }
                     if (pendingBringOver) {
                         _bringOver.update { it?.copy(running = true, error = false) }

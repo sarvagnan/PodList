@@ -542,4 +542,6 @@
     <string name="opml_existing">Already in the Library</string>
     <string name="opml_library_progress">Importing %1$d of %2$d</string>
     <string name="opml_library_finished">Imported %1$d of %2$d. Open Settings for results and retry.</string>
+    <string name="sync_update_required">Update PodList to keep syncing. Local edits are kept. Update, then retry.</string>
+    <string name="sync_server_update_required">Update the PodList server to keep syncing. Local edits are kept. Update, then retry.</string>
 </resources>

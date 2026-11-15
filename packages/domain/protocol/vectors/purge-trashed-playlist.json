@@ -1,7 +1,7 @@
 {
   "name": "purge-trashed-playlist",
   "description": "Permanent deletion removes only the named trashed Playlist; restoration and duplicate purges are no-ops, and live Playlists are protected.",
-  "protocolVersion": 4,
+  "protocolVersion": 5,
   "initial": {
     "playlists": [
       {

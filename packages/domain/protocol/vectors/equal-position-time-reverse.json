@@ -1,7 +1,7 @@
 {
   "name": "equal-position-time-reverse",
   "description": "Equal listenedAt uses the last arrival for Position; Timeline sampling retains the first point. Device id and sequence do not break ties.",
-  "protocolVersion": 4,
+  "protocolVersion": 5,
   "initial": {
     "playlists": [
       {

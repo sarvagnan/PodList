@@ -9,7 +9,7 @@ import {
 } from "@podlist/domain"
 import { Deferred, Effect, Fiber, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
-import { Offline, Transport } from "../sync/Transport.ts"
+import { Offline, SyncBlocked, Transport } from "../sync/Transport.ts"
 import { DataLayer } from "./DataLayer.ts"
 import { serverDataLayer } from "./ServerDataLayer.ts"
 
@@ -27,6 +27,8 @@ const setup = () => {
   let cursor = 1
   let legacy = false
   let offline = false
+  let blocked = false
+  let pulls = 0
   let loseResponse = false
   let delay: Effect.Effect<void> = Effect.void
   const committed = new Set<string>()
@@ -53,11 +55,13 @@ const setup = () => {
         })
       }),
     pull: () =>
-      Effect.suspend(() =>
-        offline
+      Effect.suspend(() => {
+        pulls++
+        if (blocked) return Effect.fail(new SyncBlocked("UpdateRequired", 6))
+        return offline
           ? Effect.fail(new Offline("offline"))
           : Effect.succeed(new Sync.PullResponse({ cursor, snapshot: confirmed, operations: [] }))
-      ),
+      }),
     catalogue: () => Effect.die("Web must never pull the local Library"),
     chapters: () => Effect.succeed([])
   })
@@ -80,6 +84,10 @@ const setup = () => {
     delay: (value: Effect.Effect<void>) => {
       delay = value
     },
+    block: (value: boolean) => {
+      blocked = value
+    },
+    pulls: () => pulls,
     confirmed: () => confirmed
   }
 }
@@ -193,4 +201,39 @@ describe("online State adapter", () => {
       }).pipe(Effect.provide(server.layer), Effect.scoped)
     })
   })
+})
+
+it.effect("pauses background sync, retains pending edits and only resumes on manual retry", () => {
+  const server = setup()
+  return Effect.gen(function* () {
+    const data = yield* DataLayer
+    yield* data.sync
+    yield* data.record(create("pending-update"))
+    server.block(true)
+    yield* Effect.ignore(data.sync)
+    const stoppedAt = server.pulls()
+    const background = yield* Effect.forkChild(data.runInBackground)
+    window.dispatchEvent(new Event("online"))
+    yield* Effect.yieldNow
+    yield* Effect.yieldNow
+    expect(server.pulls()).toBe(stoppedAt)
+    expect(yield* SubscriptionRef.get(data.status)).toMatchObject({
+      pending: 1,
+      writable: false,
+      syncBlocked: "UpdateRequired",
+      error: "Update PodList to keep syncing"
+    })
+    expect((yield* Effect.exit(data.record(create("blocked"))))._tag).toBe("Failure")
+    server.block(false)
+    yield* data.sync
+    expect(yield* SubscriptionRef.get(data.status)).toMatchObject({
+      pending: 0,
+      writable: true,
+      error: null
+    })
+    expect(
+      (yield* SubscriptionRef.get(data.state)).playlists.some((p) => p.id === "pending-update")
+    ).toBe(true)
+    yield* Fiber.interrupt(background)
+  }).pipe(Effect.provide(server.layer), Effect.scoped)
 })

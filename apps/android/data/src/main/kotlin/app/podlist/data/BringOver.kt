@@ -154,6 +154,13 @@ class BringOver(
         var job = checkNotNull(destination.bringOverJob()) { "Bring-over must be accepted before resuming" }
         if (job.complete) return job
         val snapshot = job.snapshot
+        val minimum = snapshot.operations.maxOfOrNull { SyncProtocol.minimumVersion(it.change) } ?: SyncProtocol.LegacyVersion
+        if (minimum > SyncProtocol.LegacyVersion) {
+            destination.setMeta("serverProtocolVersion", SyncProtocol.LegacyVersion.toString())
+            val version = checkHealth(transport).protocolVersion
+            destination.setMeta("serverProtocolVersion", version.toString())
+            if (version < minimum) throw SyncCompatibilityFailure("UnsupportedOperation", serverProtocolVersion = version)
+        }
         if (!job.queued) {
             val retryEpisodeFeeds = job.issues.filter { issue -> issue.kind == "episode" ||
                 (issue.kind == "feed" && snapshot.subscriptions.any { it.feedUrl == issue.feedUrl && it.id in job.subscribed })

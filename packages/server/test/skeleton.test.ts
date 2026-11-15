@@ -17,8 +17,7 @@ layer(Layer.mergeAll(SystemHandlers, HttpServer.layerServices))("HTTP API", (it)
         { ...health },
         {
           status: "ok",
-          protocolVersion: Protocol.version,
-          supportedOperations: ["PurgePlaylist"]
+          protocolVersion: Protocol.version
         }
       )
     })

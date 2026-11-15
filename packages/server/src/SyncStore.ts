@@ -1,4 +1,13 @@
-import { type Device, Operation, PlaybackSettings, State, StateStore, Units } from "@podlist/domain"
+import { Sync } from "@podlist/api"
+import {
+  type Device,
+  Operation,
+  PlaybackSettings,
+  Protocol,
+  State,
+  StateStore,
+  Units
+} from "@podlist/domain"
 import { Context, Effect, Layer, Schema, Semaphore } from "effect"
 import { SqlClient } from "effect/sql"
 
@@ -43,11 +52,17 @@ export class SyncStore extends Context.Service<
     readonly push: (
       operations: ReadonlyArray<Operation.Operation>
     ) => Effect.Effect<{ readonly cursor: number; readonly accepted: number }>
-    readonly pull: (since: number) => Effect.Effect<{
-      readonly cursor: number
-      readonly snapshot: State.State | null
-      readonly operations: ReadonlyArray<Operation.Operation>
-    }>
+    readonly pull: (
+      since: number,
+      clientVersion?: number
+    ) => Effect.Effect<
+      {
+        readonly cursor: number
+        readonly snapshot: State.State | null
+        readonly operations: ReadonlyArray<Operation.Operation>
+      },
+      Sync.UpdateRequired
+    >
   }
 >()("@podlist/server/SyncStore") {
   static readonly layer = Layer.effect(
@@ -152,18 +167,35 @@ export class SyncStore extends Context.Service<
           return { cursor: yield* cursorNow, accepted: unique.length }
         }).pipe(sql.withTransaction, Effect.orDie, lock.withPermits(1))
 
-      const pull = (since: number) =>
+      const pull = (since: number, clientVersion = Protocol.version) =>
         Effect.gen(function* () {
           const cursor = yield* cursorNow
-          if (since <= 0) return { cursor, snapshot: yield* loadState, operations: [] }
           const rows = yield* sql<{ operation: string }>`
-            SELECT operation FROM operation_log WHERE seq > ${since} ORDER BY seq`
+            SELECT operation FROM operation_log WHERE seq > ${Math.max(0, since)} ORDER BY seq`
+          const types = rows.map(
+            (r) => (JSON.parse(r.operation) as { change: { _tag: string } }).change._tag
+          )
+          const unsupportedOperations = [
+            ...new Set(
+              types.filter(
+                (name) => (Protocol.minimumVersion(name) ?? Protocol.version + 1) > clientVersion
+              )
+            )
+          ].sort()
+          if (clientVersion < Protocol.legacyVersion || unsupportedOperations.length)
+            return yield* Effect.fail(
+              new Sync.UpdateRequired({
+                minimumProtocolVersion: Protocol.requiredVersion(types),
+                unsupportedOperations
+              })
+            )
+          if (since <= 0) return { cursor, snapshot: yield* loadState, operations: [] }
           return {
             cursor,
             snapshot: null,
             operations: rows.map((r) => decodeOperation(r.operation))
           }
-        }).pipe(sql.withTransaction, Effect.orDie)
+        }).pipe(sql.withTransaction, Effect.catchTag("SqlError", Effect.die))
 
       return SyncStore.of({ registerDevice, push, pull })
     })

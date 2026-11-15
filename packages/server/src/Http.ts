@@ -8,8 +8,8 @@ import {
   System
 } from "@podlist/api"
 import { openApiDocument } from "@podlist/api/openapi"
-import { Protocol } from "@podlist/domain"
-import { ByteSize, Config, Effect, Layer, Option } from "effect"
+import { Operation, Protocol } from "@podlist/domain"
+import { ByteSize, Config, Effect, Layer, Option, Schema } from "effect"
 import { HttpIncomingMessage, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, OpenApi } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
@@ -32,7 +32,6 @@ export const SystemHandlers = HttpApiBuilder.group(
           new System.Health({
             status: "ok",
             protocolVersion: Protocol.version,
-            supportedOperations: ["PurgePlaylist"],
             ...Option.match(release, { onNone: () => ({}), onSome: (r) => ({ release: r }) })
           })
         )
@@ -48,16 +47,38 @@ export const SyncHandlers = HttpApiBuilder.group(
     return handlers.handleAll({
       registerDevice: ({ payload }) => store.registerDevice(payload),
       push: ({ payload }) =>
-        store.push(payload.operations).pipe(
-          Effect.map(
-            (r) =>
-              new Sync.PushResponse({
-                ...r,
-                acknowledged: [...new Set(payload.operations.map((o) => o.id))]
+        Effect.gen(function* () {
+          const unsupportedOperations = Protocol.unknownOperations(payload.operations)
+          if (unsupportedOperations.length)
+            return yield* Effect.fail(
+              new Sync.UnsupportedOperation({
+                serverProtocolVersion: Protocol.version,
+                unsupportedOperations
               })
+            )
+          const operations = yield* Schema.decodeUnknownEffect(Schema.Array(Operation.Operation))(
+            payload.operations.map((operation) =>
+              operation instanceof Operation.Operation
+                ? Schema.encodeSync(Operation.Operation)(operation)
+                : operation
+            )
+          ).pipe(Effect.mapError(() => new Sync.InvalidOperation()))
+          const result = yield* store.push(operations)
+          return new Sync.PushResponse({
+            ...result,
+            acknowledged: [...new Set(operations.map((o) => o.id))]
+          })
+        }),
+      pull: ({ query, headers }) => {
+        const declared = headers[Protocol.versionHeader]
+        const clientVersion = declared === undefined ? Protocol.legacyVersion : Number(declared)
+        return store
+          .pull(
+            query.since,
+            Number.isSafeInteger(clientVersion) && clientVersion >= 1 ? clientVersion : 0
           )
-        ),
-      pull: ({ query }) => store.pull(query.since).pipe(Effect.map((r) => new Sync.PullResponse(r)))
+          .pipe(Effect.map((r) => new Sync.PullResponse(r)))
+      }
     })
   })
 )

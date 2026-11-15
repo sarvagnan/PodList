@@ -260,9 +260,8 @@ public actor BringOver {
         let snapshot = try await destination.savedBringOverSnapshot()
         do {
             if !job.queued {
-                if snapshot.operations.contains(where: { if case .purgePlaylist = $0.change { true } else { false } }) {
-                    try await sync.requirePurgePlaylistSupport()
-                }
+                let minimum = try snapshot.operations.map { try SyncProtocol.minimumVersion($0.change) }.max() ?? SyncProtocol.legacyVersion
+                if minimum > SyncProtocol.legacyVersion { try await sync.requireServerVersion(minimum) }
                 // Import metadata, including vanished Back Catalogue, via the existing identity-only API.
                 // Each feed is its own checkpoint. Lost responses are safe: the API inserts missing identities only.
                 var failures: [String] = []

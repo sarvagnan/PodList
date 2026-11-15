@@ -1,0 +1,183 @@
+{
+  "protocolVersion": 5,
+  "versions": [
+    {
+      "version": 1,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "Initial Operation schema and conformance vectors"
+    },
+    {
+      "version": 2,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "RestorePlaylist",
+        "SetTrashDays",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "Trash, RestorePlaylist and SetTrashDays"
+    },
+    {
+      "version": 3,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "RestorePlaylist",
+        "SetTrashDays",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "Deliberate Timeline edits in State"
+    },
+    {
+      "version": 4,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "RecordListening",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "RestorePlaylist",
+        "SetTrashDays",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "Permanent listening log and RecordListening; frozen deployed v4 baseline"
+    },
+    {
+      "version": 5,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "RecordListening",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "RestorePlaylist",
+        "PurgePlaylist",
+        "SetTrashDays",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "PurgePlaylist; version negotiation and typed sync refusals"
+    }
+  ],
+  "cases": [
+    {
+      "name": "undeclared reader stops before purge",
+      "clientVersion": null,
+      "operations": ["PurgePlaylist"],
+      "minimumProtocolVersion": 5,
+      "allowed": false
+    },
+    {
+      "name": "v4 reader accepts baseline",
+      "clientVersion": 4,
+      "operations": ["SetStar", "RestorePlaylist"],
+      "minimumProtocolVersion": 4,
+      "allowed": true
+    },
+    {
+      "name": "v4 reader stops whole mixed batch",
+      "clientVersion": 4,
+      "operations": ["SetStar", "PurgePlaylist"],
+      "minimumProtocolVersion": 5,
+      "allowed": false
+    },
+    {
+      "name": "v5 reader accepts purge",
+      "clientVersion": 5,
+      "operations": ["PurgePlaylist"],
+      "minimumProtocolVersion": 5,
+      "allowed": true
+    },
+    {
+      "name": "future reader accepts current log",
+      "clientVersion": 6,
+      "operations": ["PurgePlaylist"],
+      "minimumProtocolVersion": 5,
+      "allowed": true
+    }
+  ]
+}

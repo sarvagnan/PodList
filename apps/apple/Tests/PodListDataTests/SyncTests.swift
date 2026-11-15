@@ -7,7 +7,7 @@ import PodListData
 private struct Offline: Error {}
 private struct Request: Equatable, Sendable { let method: String; let path: String; let body: String? }
 private struct Step: Sendable {
-    enum Reply: Sendable { case text(String), echo, offline }
+    enum Reply: Sendable { case text(String), echo, offline, updateRequired, unsupportedOperation }
     let path: String
     let reply: Reply
     let before: (@Sendable () async throws -> Void)?
@@ -27,6 +27,8 @@ private actor ScriptedTransport: SyncTransport {
         case let .text(text): return text
         case .echo: return try #require(body)
         case .offline: throw Offline()
+        case .updateRequired: throw SyncCompatibilityFailure("UpdateRequired", minimumProtocolVersion: 6)
+        case .unsupportedOperation: throw SyncCompatibilityFailure("UnsupportedOperation", serverProtocolVersion: 4)
         }
     }
     func assertFinished() { #expect(steps.isEmpty) }
@@ -55,16 +57,16 @@ private func episode() -> Episode {
     try await db.ensureState()
     try await db.recordAll([.createPlaylist(playlistId: "p", name: "Trash", clearOnPlayed: false), .deletePlaylist(playlistId: "p")], at: 1)
     let before = try await db.loadState(), pending = try await db.outbox()
-    // A high version number alone must not enable an operation extension.
+    // v3/v4 cannot accept a v5 operation, regardless of old extension lists.
     let transport = ScriptedTransport([
         Step("/api/health", .text(#"{"status":"ok","protocolVersion":4}"#)),
-        Step("/api/health", .text(#"{"status":"ok","protocolVersion":99,"supportedOperations":[]}"#)),
-        Step("/api/health", .text(#"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#)),
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":3}"#)),
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":5}"#)),
         Step("/api/health", .offline)
     ])
     let client = SyncClient(db: db, transport: transport)
     for _ in 0..<2 {
-        await #expect(throws: SyncResponseFailure.self) { try await client.requirePurgePlaylistSupport() }
+        await #expect(throws: SyncCompatibilityFailure.self) { try await client.requirePurgePlaylistSupport() }
         await #expect(throws: DatabaseFailure.self) { try await db.purgePlaylist("p", at: 2) }
         // Even a generic multi-edit cannot bypass the check or partially commit.
         await #expect(throws: DatabaseFailure.self) {
@@ -78,29 +80,30 @@ private func episode() -> Episode {
     #expect(try await db.loadState().trash?.isEmpty == true)
     #expect(try await db.outbox().last?.change == .purgePlaylist(playlistId: "p"))
     await #expect(throws: Offline.self) { try await client.requirePurgePlaylistSupport() }
-    #expect(try await db.getMeta("supportsPurgePlaylist") == "false")
+    #expect(try await db.getMeta("serverProtocolVersion") == "4")
     await transport.assertFinished()
 }
 
 @Test func queuedPurgeWaitsForASupportingServerWithoutSendingAnInvalidBatch() async throws {
     let db = try LocalDatabase(path: ":memory:")
     try await db.ensureState(); try await db.setMeta("registered", "true")
-    try await db.setMeta("supportsPurgePlaylist", "true")
+    try await db.setMeta("serverProtocolVersion", "5")
     let pending = try await db.recordAll([.purgePlaylist(playlistId: "p"), .setStar(episodeId: "a", starred: true)], at: 1)
     let transport = try ScriptedTransport([
         Step("/api/health", .text(#"{"status":"ok","protocolVersion":4}"#)),
         Step("/api/library/changes?since=0", library(5)),
-        Step("/api/health", .text(#"{"status":"ok","protocolVersion":4,"supportedOperations":["PurgePlaylist"]}"#)),
+        Step("/api/health", .text(#"{"status":"ok","protocolVersion":5}"#)),
         Step("/api/sync/push", .text(#"{"cursor":2,"accepted":2}"#)),
         Step("/api/sync/pull?since=0", pull(2, snapshot: StateRules.replay(.initial(), operations: pending).state)),
         Step("/api/library/changes?since=5", library(5))
     ])
     let client = SyncClient(db: db, transport: transport)
-    await #expect(throws: SyncResponseFailure.self) { try await client.sync() }
+    await #expect(throws: SyncCompatibilityFailure.self) { try await client.sync() }
     #expect(try await db.outbox() == pending)
     #expect(try await db.getMeta("userCursor") == nil)
     #expect(try await db.getMeta("catalogueCursor") == "5")
     #expect(await transport.requests.allSatisfy { $0.path != "/api/sync/push" })
+    await client.retry()
     try await client.sync()
     #expect(try await db.outbox().isEmpty)
     #expect(try await db.loadState().episodeStates["a"]?.starred == true)
@@ -294,4 +297,34 @@ private func episode() -> Episode {
     await #expect(throws: Offline.self) { try await sync.sync() }
     #expect(await notifications.value)
     await transport.assertFinished()
+}
+
+@Test func unknownOperationsAndTypedRefusalsStopWithoutDroppingLocalEdits() async throws {
+    for kind in ["Unknown", "UpdateRequired", "UnsupportedOperation"] {
+        let db = try LocalDatabase(path: ":memory:")
+        try await db.ensureState(); try await db.setMeta("registered", "true"); try await db.setMeta("userCursor", "1")
+        let pending = try await db.record(.setStar(episodeId: "local", starred: true), at: 1)
+        let future = #"{"cursor":3,"snapshot":null,"operations":[{"id":"future","deviceId":"other","sequence":1,"recordedAt":1,"change":{"_tag":"FutureOperation"}}]}"#
+        let transport = try ScriptedTransport([
+            Step("/api/sync/push", .text(#"{"cursor":2,"accepted":1}"#)),
+            Step("/api/sync/pull?since=1", kind == "Unknown" ? .text(future) : (kind == "UpdateRequired" ? .updateRequired : .unsupportedOperation)),
+            Step("/api/library/changes?since=0", library()),
+            Step("/api/sync/push", .text(#"{"cursor":3,"accepted":0}"#)),
+            Step("/api/sync/pull?since=1", pull(3, snapshot: StateRules.apply(.initial(), change: pending.change, at: 1))),
+            Step("/api/library/changes?since=0", library())
+        ])
+        let client = SyncClient(db: db, transport: transport)
+        await #expect(throws: SyncCompatibilityFailure.self) { try await client.sync() }
+        let count = await transport.requests.count
+        try await db.record(.setStar(episodeId: "another", starred: true), at: 2)
+        for _ in 0..<3 { await #expect(throws: SyncCompatibilityFailure.self) { try await client.sync() } }
+        #expect(await transport.requests.count == count)
+        #expect(try await db.getMeta("userCursor") == "1")
+        #expect(try await db.outbox().count == 2)
+        #expect(try await db.loadState().episodeStates["another"]?.starred == true)
+        await client.retry(); try await client.sync()
+        #expect(try await db.outbox().isEmpty)
+        #expect(try await db.getMeta("userCursor") == "3")
+        await transport.assertFinished()
+    }
 }

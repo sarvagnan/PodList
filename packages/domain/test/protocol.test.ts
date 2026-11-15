@@ -4,7 +4,13 @@ import { Schema } from "effect"
 import { operationCoverage } from "../scripts/coverage.ts"
 import { buildDeviceVectors } from "../scripts/device-vectors.ts"
 import { buildVectors, operationJsonSchema } from "../scripts/protocol.ts"
-import { Device, Operation, State } from "../src/index.ts"
+import {
+  compatibilityVectors,
+  kotlinProtocol,
+  swiftProtocol,
+  versionTable
+} from "../scripts/sync-compatibility.ts"
+import { Device, Operation, Protocol, State } from "../src/index.ts"
 
 const protocolDir = new URL("../protocol/", import.meta.url)
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, protocolDir), "utf8"))
@@ -71,4 +77,23 @@ it("Device registration vectors cover every kind and round-trip", () => {
       Schema.encodeSync(Device.Device)(Schema.decodeUnknownSync(Device.Device)(device))
     ).toEqual(device)
   }
+})
+
+it("version boundaries, native constants, docs and compatibility vectors share one source", () => {
+  expect([...Protocol.supportedOperations].sort()).toEqual(Protocol.schemaOperations().sort())
+  expect(Protocol.minimumVersion("PurgePlaylist")).toBe(5)
+  expect(read("sync-compatibility.json")).toEqual(compatibilityVectors())
+  for (const scenario of compatibilityVectors().cases) {
+    const minimum = Protocol.requiredVersion(scenario.operations)
+    expect(minimum).toBe(scenario.minimumProtocolVersion)
+    expect((scenario.clientVersion ?? Protocol.legacyVersion) >= minimum).toBe(scenario.allowed)
+  }
+  const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8")
+  expect(source("../../../apps/apple/Sources/PodListDomain/SyncProtocol.swift")).toBe(
+    swiftProtocol()
+  )
+  expect(
+    source("../../../apps/android/domain/src/main/kotlin/app/podlist/domain/SyncProtocol.kt")
+  ).toBe(kotlinProtocol())
+  expect(source("../../../docs/protocol/README.md")).toContain(versionTable())
 })

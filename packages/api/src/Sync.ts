@@ -1,10 +1,10 @@
-import { Device, Operation, State } from "@podlist/domain"
+import { Device, Operation, Protocol, State } from "@podlist/domain"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api"
 
-/** A Device's queued operations, in the order it recorded them. */
+/** A Device's queued operations, in order. Inspect tags before closed-union validation. */
 export class PushRequest extends Schema.Class<PushRequest>("@podlist/api/PushRequest")({
-  operations: Schema.Array(Operation.Operation)
+  operations: Schema.Array(Schema.Union([Operation.Operation, Schema.Unknown]))
 }) {}
 
 export class PushResponse extends Schema.Class<PushResponse>("@podlist/api/PushResponse")({
@@ -27,6 +27,23 @@ export class PullResponse extends Schema.Class<PullResponse>("@podlist/api/PullR
   operations: Schema.Array(Operation.Operation)
 }) {}
 
+export class UpdateRequired extends Schema.TaggedError<UpdateRequired>()(
+  "UpdateRequired",
+  { minimumProtocolVersion: Schema.Int, unsupportedOperations: Schema.Array(Schema.String) },
+  { httpApiStatus: 426 }
+) {}
+export class UnsupportedOperation extends Schema.TaggedError<UnsupportedOperation>()(
+  "UnsupportedOperation",
+  { serverProtocolVersion: Schema.Int, unsupportedOperations: Schema.Array(Schema.String) },
+  { httpApiStatus: 422 }
+) {}
+export class InvalidOperation extends Schema.TaggedError<InvalidOperation>()(
+  "InvalidOperation",
+  {},
+  { httpApiStatus: 400 }
+) {}
+const versionHeaders = { [Protocol.versionHeader]: Schema.optionalKey(Schema.String) }
+
 export class SyncApi extends HttpApiGroup.make("sync")
   .add(
     HttpApiEndpoint.post("registerDevice", "/devices", {
@@ -34,10 +51,19 @@ export class SyncApi extends HttpApiGroup.make("sync")
       success: Device.Device
     })
   )
-  .add(HttpApiEndpoint.post("push", "/sync/push", { payload: PushRequest, success: PushResponse }))
+  .add(
+    HttpApiEndpoint.post("push", "/sync/push", {
+      payload: PushRequest,
+      headers: versionHeaders,
+      success: PushResponse,
+      error: [UnsupportedOperation, InvalidOperation]
+    })
+  )
   .add(
     HttpApiEndpoint.get("pull", "/sync/pull", {
       query: { since: Schema.NumberFromString.pipe(Schema.check(Schema.isInt())) },
-      success: PullResponse
+      headers: versionHeaders,
+      success: PullResponse,
+      error: UpdateRequired
     })
   ) {}

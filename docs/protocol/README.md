@@ -1,8 +1,160 @@
-# Shared client contract (protocol version 4)
+# PodList sync protocol (version 5)
 
-Implementations in every language must pass these JSON vectors. No TypeScript execution or SQL parsing is needed to consume them. Use the language in [CONTEXT.md](../../CONTEXT.md). The contract describes shipped behavior; the online-only web client in [ADR 0011](../adr/0011-a-client-per-platform-and-an-online-only-web-client.md) is a later phase.
+Implementations in every language must pass these JSON vectors. No TypeScript execution or SQL parsing is needed to consume them. Use the language in [CONTEXT.md](../../CONTEXT.md). The online-only web client uses server reads and tab-memory pending edits; Android, Mac and Electron keep local databases (ADR 0011).
 
 Start with [client duties](client-duties.md), the [operation coverage table](operation-coverage.md), and the generated [OpenAPI 3.1 file](../../packages/domain/protocol/openapi.json). The [Operation JSON Schema](../../packages/domain/protocol/operation.schema.json) is draft 2020-12. OpenAPI also contains the complete State, Subscription, Episode, View and Device schemas referenced by responses. All times named `at`, `recordedAt`, `listenedAt`, `published`, `registeredAt`, Download Rule `since` and `to` are nonnegative UTC epoch milliseconds; Positions, durations, thresholds and listening amounts are finite nonnegative seconds (fractional seconds allowed). IDs are opaque nonempty strings. Optional keys and explicit null are distinct: an absent Listening log means empty; a null Played fact means Unplayed. Array order is significant; JSON object key order is not. [Sources: Units.ts](../../packages/domain/src/Units.ts), [Ids.ts](../../packages/domain/src/Ids.ts), [State.ts](../../packages/domain/src/State.ts), [Library.ts](../../packages/domain/src/Library.ts).
+
+## Version negotiation
+
+The normative version registry is [Protocol.ts](../../packages/domain/src/Protocol.ts).
+It generates the version inventory below, native client constants and
+[sync-compatibility.json](../../packages/domain/protocol/sync-compatibility.json).
+Every wire change, including optional fields, new endpoints and changes to replay
+semantics, increments the protocol version. A bug fix that restores already
+specified behavior is not a wire change. Versions are cumulative and frozen;
+never infer compatibility from a new discriminator or skip an unknown operation.
+
+Clients send `x-podlist-protocol-version: 5` on every `/api/sync/push` and
+`/api/sync/pull` request. This is the version they can read, not an operation
+allowlist. Missing means **4**, the deployed baseline before PurgePlaylist.
+Invalid or pre-v4 declarations receive the structured pull refusal below; v1–v3
+are archival inventories, not supported negotiation targets. A future client can
+read the current log. The declaration does not grant authorization (ADR 0004).
+
+`GET /api/health` returns `{ "status": "ok", "protocolVersion": 5 }`, with an
+optional `release`. `supportedOperations` is removed: it duplicates the frozen
+version registry and previously let PurgePlaylist ship under version 4. Clients
+ignore that old extension list and require server version 5 for PurgePlaylist.
+A server temporarily deployed with PurgePlaylist while reporting 4 must update
+before new clients will offer permanent deletion.
+
+### Push
+
+`POST /api/sync/push` takes `{ "operations": [Operation, ...] }` in recorded order.
+An Operation has `id`, `deviceId`, `sequence` (nonnegative integer), `recordedAt`
+(epoch milliseconds) and `change` (`_tag` plus the variant's fields). Success is
+HTTP 200 `{ "cursor": 12, "accepted": 2, "acknowledged": ["id1", "id2"] }`.
+Retries use stable ids; `accepted: 0` can acknowledge an already committed batch.
+A push cursor must never become the local pull cursor.
+
+Before decoding the closed union or changing State, the server inspects every
+Change discriminator. Any unknown type rejects the **whole batch** with HTTP 422:
+
+```json
+{ "_tag": "UnsupportedOperation", "serverProtocolVersion": 5,
+  "unsupportedOperations": ["FutureOperation"] }
+```
+
+No operation in that batch is accepted. Known variants with invalid fields return
+HTTP 400 `{"_tag":"InvalidOperation"}`; malformed envelopes return empty HTTP 400.
+Previous servers may return empty HTTP 400 for an unknown discriminator. Emitters
+therefore compare each operation's required version with fresh server health
+before pushing extensions. Offline clients also guard every local enqueue path,
+including generic edits and bring-over, against the last verified server version
+(default 4). Standalone Devices need no server grant. Unsupported edits are not
+partially recorded. Existing queued edits survive a server rollback and pause
+until a compatible server returns. Ordinary supported local edits remain usable.
+
+### Pull
+
+`GET /api/sync/pull?since=12` returns HTTP 200
+`{ "cursor": 15, "snapshot": null, "operations": [...] }`. For `since <= 0`, it
+returns a complete State snapshot and an empty operations array. Otherwise replay
+all returned operations in server order, without sorting by Device or time.
+
+In the same database transaction as the pull, the server finds the minimum version
+needed by every pending operation. If any is newer than the declared reader,
+return **HTTP 426**, without a cursor, snapshot or partial operation list:
+
+```json
+{ "_tag": "UpdateRequired", "minimumProtocolVersion": 5,
+  "unsupportedOperations": ["PurgePlaylist"] }
+```
+
+The client keeps its cursor and pending edits. Initial snapshots check the entire
+log too, so resetting a cursor cannot bypass a refusal or silently replace State
+with semantics a reader cannot maintain. A new State shape or other incompatible
+wire change must additionally gate that response by its introducing version;
+operation gating alone does not authorize a new snapshot shape. A v4 client with
+no pending v5 operations can continue syncing. Nothing is translated or dropped.
+
+### Paused client state
+
+HTTP 426 `UpdateRequired`, HTTP 422 `UnsupportedOperation`, and an unknown Change
+discriminator from a pre-negotiation server enter a latched compatibility state.
+UpdateRequired shows **“Update PodList to keep syncing”**; UnsupportedOperation
+asks to update the PodList server. These are persistent accessible status messages
+with a manual Retry action. Further polling, edit, reconnect and foreground
+triggers issue no sync network requests. The first failed native pass may finish
+its independent Library pull, but a Library failure cannot mask the update message.
+Manual retry or a new process/session clears the latch; a compatible response
+clears the message. Relaunch after updating starts from the saved cursor and ids.
+
+Android and Mac retain their SQLite outboxes and optimistic edits and keep working
+locally. The online-only web client retains pending edits only in its open tab,
+blocks new user edits while paused, and retains its before-unload warning. Keep
+the tab open and retry after updating the server; reloading a web tab discards its
+in-memory edits, as before. Playback reports may remain queued in the tab.
+
+### Already-installed clients and deployment
+
+Today's Android builds omit the declaration, so the server treats them as v4 and
+refuses pulls containing PurgePlaylist before the Kotlin sealed decoder runs.
+Their cursor and outbox stay intact. **A server cannot retrofit the new UI or
+stop scheduling retries in an installed binary**: those builds still show their
+existing generic HTTP failure and retry on their existing schedule until updated.
+The same limitation applies to already-open old web bundles. Install the updated
+client to get the paused state and actionable message. Future rollouts need no
+reader-first ordering because clients implementing this rule stop safely.
+
+Update the server and clients; only a server reporting v5 enables new purge edits.
+Do not roll a server binary back past operation types already in its durable log:
+an old server cannot decode that log. This mechanism protects peers and queued
+work; it does not migrate a newer database/log back to an older implementation.
+
+## Changelog and operation inventory
+
+The historical boundaries below come from the version-bump commits:
+`572962d` (v1), `7c4e82c` (v2), `78db0f3` (v3), `c186939` (v4).
+Version 1 established the exported JSON Schema and replay vectors; the exact
+pre-v1 wire history is **unknown**. Version 2 added Trash, restore and retention.
+Version 3 added deliberate Timeline edits to State, with the same operation types.
+Version 4 added permanent listening amounts, RecordListening and Listening stats.
+Later optional fields, bring-over, Device kinds and query/reducer changes shipped
+under v4 without individual bumps; their exact historical release boundaries are
+**unknown**. The v4 registry freezes the complete deployed pre-purge baseline.
+Version 5 adds PurgePlaylist and the negotiation/error behavior specified above.
+The unversioned PurgePlaylist release reporting v4 is an acknowledged historical
+violation, not an alternative v4 definition.
+
+<!-- BEGIN GENERATED SYNC VERSIONS -->
+| Version | Change | Readable operation types |
+| --- | --- | --- |
+| 1 | Initial Operation schema and conformance vectors | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+| 2 | Trash, RestorePlaylist and SetTrashDays | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+| 3 | Deliberate Timeline edits in State | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+| 4 | Permanent listening log and RecordListening; frozen deployed v4 baseline | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+| 5 | PurgePlaylist; version negotiation and typed sync refusals | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `PurgePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+<!-- END GENERATED SYNC VERSIONS -->
+
+## Adding an operation or changing the wire
+
+1. Increment `Protocol.version`. Append a frozen registry entry with the complete
+   cumulative operation set and every wire/reducer change; preserve all prior entries.
+2. Implement the schema, reducer and emitters on every platform. Declare only a
+   version the client fully implements, including snapshots, Library and read shapes.
+3. Gate emission and enqueue by the server version, using the shared generated
+   minimum-version data. Bring-over and pending pushes must use the same rule.
+4. Gate any new response shape by its introducing version as well as operation
+   log types. Preserve the whole-batch refusal and unchanged-cursor invariants.
+5. Add replay scenarios in `packages/domain/scripts/scenarios.ts` or the contract
+   scenarios, compatibility cases, and server/client paused-state tests. Include
+   duplicate delivery, mixed batches, initial snapshots, old peers and rollback.
+6. Run `pnpm --filter @podlist/domain protocol`. Commit the schemas, OpenAPI,
+   vectors, generated native constants and this generated inventory together. Run
+   `pnpm format` after regeneration to apply repository JSON formatting.
+7. Run `pnpm check`, Swift tests and builds, and Android tests/lint. Document the
+   changelog, rollout and any migration requirement before releasing.
 
 ## Running the contract in another language
 
@@ -64,7 +216,7 @@ Queue the ordered State replay only after every needed reference has a mapping.
 Keep stable operation ids and use ordinary push/pull; this request never imports
 State or audio. On HTTP 404, Android preserves its previous partial-transfer
 behaviour and explanation for older servers. Other failures are retryable without
-discarding references. This is an additive version-4 endpoint with no migration.
+discarding references. This endpoint originally shipped during version 4 without a separate bump; no migration is needed. Future endpoints follow the version rule above.
 
 ## Feed parsing on a Standalone Device
 
@@ -97,4 +249,4 @@ Two bugs were fixed with regression tests: a late Timeline point could reintrodu
 
 Owner decisions settled on 9 November 2026: Mentions ignores case and accents; All New starts from its latest activation; Episodes finished includes stored Episodes of removed Subscriptions; “In a Playlist” keeps only Any and Not in any Playlist. LastDays continues to admit future Published dates. Equal `listenedAt` Position ties use later arrival while the Timeline keeps the first nearby sample. Whitespace-only Mentions matches everything. Server Subscription expansion and All New caps keep their existing ordering without a secondary tie-break for equal Published dates. Listening measurement continues using the ending timezone offset for the whole sample and accepting small unannounced seeks within the jitter allowance. [client duties](client-duties.md), [State.ts](../../packages/domain/src/State.ts), [SyncStore.ts](../../packages/server/src/SyncStore.ts).
 
-Device.kind accepts `pwa`, `desktop`, `android` and `web`. The generated `devices.json` registration vectors cover all four kinds. Web uses one Device per browser profile. Protocol remains version 4: `DownloadRule.since` is an optional, additive State/schema field and existing operations remain decodable. Older rules and persisted databases upgrade without invented activation dates. Clients must implement the updated reducer and Mentions algorithm to conform to the revised behavior; older clients retain their old download/search behavior until upgraded.
+Device.kind accepts `pwa`, `desktop`, `android` and `web`. The generated `devices.json` registration vectors cover all four kinds. Web uses one Device per browser profile. Historically, `DownloadRule.since` shipped under version 4 as an optional State/schema field while existing operations remained decodable. That history is retained; future additive fields require a version bump. Older rules and persisted databases upgrade without invented activation dates. Clients must implement the updated reducer and Mentions algorithm to conform to the revised behavior; older clients retain their old download/search behavior until upgraded.
