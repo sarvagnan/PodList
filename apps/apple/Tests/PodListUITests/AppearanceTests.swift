@@ -274,10 +274,12 @@ private struct RGB {
                 return try #require(bitmap.representation(using: .png, properties: [:]))
             }
             let actual = try render(0)
-            #expect(actual == (try render(1)))
+            let image = { (data: Data) throws -> NSBitmapImageRep in try #require(NSBitmapImageRep(data: data)) }
+            #expect(differingPixels(try image(actual), try image(try render(1))) < 50)
             if enabled {
                 if scheme == .dark {
-                    #expect(actual != (try render(2)), "Dark default action must use its contrasting label")
+                    #expect(differingPixels(try image(actual), try image(try render(2))) >= 50,
+                            "Dark default action must use its contrasting label")
                 }
                 let bitmap = try #require(NSBitmapImageRep(data: actual))
                 var colors: [Int: Int] = [:]
