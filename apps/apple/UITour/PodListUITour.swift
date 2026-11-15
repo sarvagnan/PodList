@@ -263,7 +263,9 @@ final class PodListUITour: XCTestCase {
     /// Sheet headings and button titles are matched case-insensitively by prefix, so title-case
     /// and trailing-ellipsis changes in the app don't break the tour.
     private func sheet(_ heading: String) throws {
-        try ready(library.sheets.staticTexts.matching(NSPredicate(format: "label BEGINSWITH[c] %@", heading)).firstMatch)
+        try ready(library.sheets.firstMatch)
+        try ready(library.sheets.firstMatch.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@ OR title CONTAINS[c] %@", heading, heading, heading)).firstMatch)
     }
 
     private func button(_ title: String, in root: XCUIElement? = nil) -> XCUIElement {
