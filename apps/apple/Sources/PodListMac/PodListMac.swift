@@ -68,8 +68,7 @@ struct PodListMac: App {
             .defaultSize(width: 650, height: 600)
             .windowResizability(.contentMinSize)
         Window("Now Playing", id: "now-playing") { NowPlayingWindow(app: model).macTextSize(textSize) }
-            .defaultSize(width: 560, height: 800)
-            .windowResizability(.contentMinSize)
+            .windowResizability(.contentSize)
         Settings { PodListSettings(app: model).macTextSize(textSize) }
         Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).macTextSize(textSize) }
         Window("Getting Started", id: "getting-started") { GettingStartedWindow(app: model).macTextSize(textSize) }

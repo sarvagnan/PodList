@@ -201,6 +201,7 @@ struct PodcastPageScreen: SwiftUI.View {
                             ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                         }
                         .tableStyle(.inset)
+                        .contentMargins(.horizontal, 0, for: .scrollContent)
                     }
                 }
                 .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },

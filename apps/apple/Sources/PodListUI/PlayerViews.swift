@@ -171,39 +171,36 @@ struct NowPlayingView: SwiftUI.View {
             }
     }
     private var panel: some SwiftUI.View {
-        VStack(spacing: 0) {
-            HStack { Text("Now Playing").macContentFont(.title2).bold(); Spacer() }
-                .padding(.horizontal, 28).padding(.top, 20)
-            if let detailID, let current = app.library {
-                ScrollView {
+        ContentSizedPanel(width: 560, settings: true) {
+            VStack(spacing: 0) {
+                if let detailID, let current = app.library {
                     VStack(spacing: 12) {
                         Button("Back to Now Playing", systemImage: "chevron.left") { self.detailID = nil }
                         EpisodeInspector(row: current.row(detailID), library: current, app: app, playlistPresentation: presentation,
                                          startedPlayback: { self.detailID = nil }, scrolls: false)
-                    }.frame(maxWidth: .infinity)
+                    }.padding(.top, 20).frame(maxWidth: .infinity)
+                } else if let value = controller.display {
+                    // Fit the ordinary player to content; enlarged text and long
+                    // Chapter lists share one screen-bounded reading surface.
+                    playbackControls(value)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !value.chapters.isEmpty {
+                        chapters(value).padding([.horizontal, .bottom], 28)
+                    }
+                } else {
+                    PodListEmptyState("No Current Entry", systemImage: "music.note").frame(height: 360)
                 }
-            } else if let value = controller.display {
-                // These controls determine the window's minimum content height.
-                // Only the optional chapter list and Episode details may scroll.
-                playbackControls(value)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !value.chapters.isEmpty {
-                    ScrollView { chapters(value).padding(.horizontal, 28) }
-                        .scrollBounceBehavior(.basedOnSize)
-                } else { Spacer(minLength: 0) }
-            } else {
-                PodListEmptyState("No Current Entry", systemImage: "music.note")
             }
         }
     }
-    private func playbackControls(_ value: PlaybackDisplay) -> some SwiftUI.View {
+    func playbackControls(_ value: PlaybackDisplay) -> some SwiftUI.View {
         VStack(spacing: 20) {
             ArtworkView(url: value.artwork, title: value.podcast, size: 160)
-            Text(value.title).macContentFont(.title).multilineTextAlignment(.center).textSelection(.enabled)
-            Text(value.podcast).macContentFont(.headline).foregroundStyle(.primary)
+            Text(value.title).macContentFont(.title).bold().multilineTextAlignment(.center).textSelection(.enabled)
+            Text(value.podcast).macContentFont(.body).foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
             if let chapter = value.chapter { Text(chapter.title).macContentFont(.headline) }
-            PlayerSeek(controller: controller)
+            PlayerSeek(controller: controller).tint(.primary)
             TransportControls(controller: controller).controlSize(.large)
                 .padding(12).macGlassSurface()
             HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }

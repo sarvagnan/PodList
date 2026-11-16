@@ -129,7 +129,8 @@ struct DownloadRuleFields: SwiftUI.View {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                     Text("As Episodes are published").tag(DownloadMode.allNew)
-                }.labelsHidden()
+                }.labelsHidden().accessibilityLabel("Download Rule on This Device")
+                    .accessibilityIdentifier("downloadRule.mode")
             }
             if mode == .allNew {
                 PodListSheetField("Keep") {

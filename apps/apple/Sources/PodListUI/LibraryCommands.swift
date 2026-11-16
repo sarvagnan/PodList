@@ -1,6 +1,25 @@
 #if os(macOS)
 import SwiftUI
 
+/// Navigation commands name their destination and never imply an object edit.
+enum LibraryNavigationCommand: CaseIterable {
+    case trash, subscriptions, views
+    var title: String {
+        switch self {
+        case .trash: "Show Trash"
+        case .subscriptions: "Show Subscriptions"
+        case .views: "Show All Views"
+        }
+    }
+    var destination: Destination {
+        switch self {
+        case .trash: .trash
+        case .subscriptions: .subscriptions
+        case .views: .views
+        }
+    }
+}
+
 private struct LibraryActionKey: FocusedValueKey { typealias Value = LibraryWindowActions }
 public struct LibraryWindowActions {
     public var add: () -> Void
@@ -64,7 +83,7 @@ public struct LibraryCommands: Commands {
             MenuActionItems(menu: .file, app: app)
         }
         CommandMenu("Podcast") {
-            Button("Subscriptions") { context?.window.navigate(to: .subscriptions) }.disabled(context == nil)
+            Button(LibraryNavigationCommand.subscriptions.title) { context?.window.navigate(to: LibraryNavigationCommand.subscriptions.destination) }.disabled(context == nil)
             MenuActionItems(menu: .podcast)
             Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()
@@ -85,7 +104,7 @@ public struct LibraryCommands: Commands {
                 }
             }.disabled(context?.library.state.views.isEmpty != false)
             MenuActionItems(menu: .views)
-            Button("All Views") { context?.window.navigate(to: .views) }.disabled(context == nil)
+            Button(LibraryNavigationCommand.views.title) { context?.window.navigate(to: LibraryNavigationCommand.views.destination) }.disabled(context == nil)
             Button("Edit View…") { actions?.editView() }.keyboardShortcut(PodListShortcut.editView.shortcut)
                 .disabled(selectedViewID == nil || app.libraryEditing?.busy != false || app.editing?.busy != false)
             Button("Rename View…") {

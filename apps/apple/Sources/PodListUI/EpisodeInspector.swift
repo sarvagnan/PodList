@@ -8,19 +8,25 @@ struct ArtworkView: SwiftUI.View {
     let url: URL?
     let title: String
     let size: CGFloat
+    var placeholderSize: CGFloat? = nil
     var body: some SwiftUI.View {
-        AsyncImage(url: url.flatMap { ["https", "http"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            ZStack {
-                // Keep initials readable even when the artwork sits on a
-                // selected row: the tint composites over a known opaque base.
-                Color(nsColor: .windowBackgroundColor)
-                Color.podListBrand.opacity(0.12)
-                Text(Presentation.initials(title)).font(.system(size: size * 0.34, weight: .medium)).foregroundStyle(Color.podListBrand)
+        AsyncImage(url: url.flatMap { ["https", "http"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: min(12, size / 8)))
+            } else {
+                let side = placeholderSize ?? size
+                ZStack {
+                    // Composite initials over an opaque base, including in selected rows.
+                    Color(nsColor: .windowBackgroundColor)
+                    Color.podListBrand.opacity(0.12)
+                    Text(Presentation.initials(title)).font(.system(size: side * 0.34, weight: .medium)).foregroundStyle(Color.podListBrand)
+                }
+                .frame(width: side, height: side)
+                .clipShape(RoundedRectangle(cornerRadius: min(12, side / 8)))
             }
         }
-        .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: min(12, size / 8)))
         .accessibilityLabel("Artwork for \(title)")
     }
 }
@@ -83,7 +89,7 @@ struct EpisodeInspector: SwiftUI.View {
     }
     private func details(_ row: EpisodeRow) -> some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
-            ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180)
+            ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180, placeholderSize: 88)
                 .frame(maxWidth: .infinity)
             Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
             Text(row.podcast).macContentFont(.headline).foregroundStyle(MacReadableSecondaryStyle())
@@ -172,8 +178,8 @@ struct InspectorActions: SwiftUI.View {
                     if playing { app.playback?.pause() }
                     else { Task { if await editing.add([row.id], placement: .now) != nil { startedPlayback() } } }
                 } label: {
-                    Image(systemName: playing ? "pause.fill" : "play.fill").macContentFont(.title3.weight(.semibold))
-                        .frame(minWidth: 44, minHeight: 44)
+                    Image(systemName: playing ? "pause.fill" : "play.fill").macContentFont(.body.weight(.semibold))
+                        .frame(minWidth: 32, minHeight: 32)
                 }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play now (not playing)")
                     .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
                 HStack(spacing: 8) {

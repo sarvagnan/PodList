@@ -93,11 +93,12 @@ public struct NowPlayingWindow: SwiftUI.View {
                     .environment(\.podListRecoveryIndexed, true)
             } else {
                 ScrollableEmptyState("No Current Entry", systemImage: "music.note", description: "Choose an Episode in Library to begin.")
+                    .frame(height: 360).closesOnEscape { dismissWindow(id: "now-playing") }
             }
         }
         .modifier(PlaybackSeekHost(app: app))
         .macContentFont(.body)
-        .frame(minWidth: 420, minHeight: 360)
+        .frame(width: 560)
         .focusedSceneValue(\.podListNowPlaying, { openWindow(id: "now-playing") })
         .focusedSceneValue(\.podListOpenPlaylist, {
             if let library = app.library { route(.playlist(library.state.activePlaylistId)) }

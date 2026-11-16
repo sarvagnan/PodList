@@ -8,7 +8,7 @@ struct OPMLImportContent: SwiftUI.View {
     var showsFileChooser = true
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Closing this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch unless you cancel.").macContentFont(.callout).fixedSize(horizontal: false, vertical: true)
+            Text("Closing this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch unless you cancel.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 480, alignment: .leading)
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
             if editor.importPaused && !editor.busy {
@@ -56,7 +56,7 @@ struct OPMLImportProgress: SwiftUI.View {
                 Text("Importing \(editor.importCompleted) of \(editor.importTotal)")
             }.progressViewStyle(.linear)
             Text("Cancel finishes the current podcast and keeps completed imports. Choose Import later to continue the remainder.")
-                .macContentFont(.caption).fixedSize(horizontal: false, vertical: true)
+                .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 480, alignment: .leading)
             Button(editor.importCancellationRequested ? "Cancelling after Current Podcast…" : "Cancel Import") { editor.cancelImport() }
                 .disabled(editor.importCancellationRequested)
