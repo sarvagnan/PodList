@@ -58,10 +58,8 @@ import Testing
                         ToolbarItem(placement: .principal) { PlaylistToolbar(selection: .constant(section)) }
                         ToolbarItemGroup(placement: .primaryAction) {
                             Button("Play This Playlist", systemImage: "play.fill") {}.help("Play This Playlist")
-                            Menu("Playlist Actions", systemImage: "slider.horizontal.3") {
-                                Button("New Playlist…") {}
-                                Button("Playlist Settings…") {}
-                            }
+                            Button("New Playlist…", systemImage: "plus") {}
+                            Button("Playlist Settings…", systemImage: "slider.horizontal.3") {}
                             Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
                         if selected {

@@ -165,10 +165,10 @@ public struct PodListWindow: SwiftUI.View {
                                 guard let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing else { return }
                                 Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
                             }.help("Play This Playlist").disabled(app.editing?.busy != false)
-                            Menu("Playlist Actions", systemImage: "slider.horizontal.3") {
-                                Button("New Playlist…") { playlistPresentation.sheet = .newPlaylist }
-                                Button("Playlist Settings…") { playlistPresentation.sheet = .settings(id) }
-                            }.help("Playlist Settings and New Playlist").accessibilityIdentifier("playlist.actions")
+                            Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }
+                                .help("New Playlist")
+                            Button("Playlist Settings…", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
+                                .help("Playlist Settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")
                         case .view, .views:
                             Button("New View…", systemImage: "plus") { newView() }
                             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
