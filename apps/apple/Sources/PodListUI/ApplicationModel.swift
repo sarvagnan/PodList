@@ -429,7 +429,7 @@ public final class ApplicationModel {
         let name: String = switch change {
         case .setPlaybackSettings: "Playback Settings"
         case .setTrashDays: "Trash Retention"
-        default: "Library edit"
+        default: "Library Change"
         }
         _ = await editing?.edit([change], name: name, reload: true)
     }

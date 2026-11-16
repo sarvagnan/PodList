@@ -178,10 +178,10 @@ struct RowAnchor: Codable, Equatable {
 
 struct PaneWidths: Codable, Equatable {
     var sidebar: Double = 225
-    var inspector: Double = 310
+    var inspector: Double = 340
     var reconciled: Self {
         Self(sidebar: sidebar.isFinite ? min(max(sidebar, 180), 320) : 225,
-             inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 310)
+             inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 340)
     }
 }
 

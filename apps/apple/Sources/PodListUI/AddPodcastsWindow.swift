@@ -64,6 +64,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                     if !state.searched, !state.loading {
                         PodListEmptyState("Find Your Next Podcast", systemImage: "magnifyingglass",
                                           description: "Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.")
+                            .frame(maxWidth: .infinity)
                     }
                     if state.loading { ProgressView("Finding Podcasts…") }
                     if let error = state.error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { search() } }

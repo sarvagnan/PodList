@@ -14,6 +14,20 @@ public struct NamedEdit: Sendable {
     public var message: String? = nil
 }
 
+/// Entries newly present after a successful Undo or Redo, in Playlist order.
+public struct RestoredEntries: Equatable, Sendable {
+    public let playlistID: String
+    public let episodeIDs: [String]
+
+    static func between(_ before: State, and after: State) -> [Self] {
+        after.playlists.compactMap { playlist in
+            let previous = Set(before.playlists.first { $0.id == playlist.id }?.entries.map(\.episodeId) ?? [])
+            let ids = playlist.entries.map(\.episodeId).filter { !previous.contains($0) }
+            return ids.isEmpty ? nil : Self(playlistID: playlist.id, episodeIDs: ids)
+        }
+    }
+}
+
 /// App-wide, session-scoped edit history. Playback reporting and sync are never undo steps.
 @MainActor @Observable
 public final class PlaylistEditingModel {
@@ -104,16 +118,20 @@ public final class PlaylistEditingModel {
             await changed(); return false
         }
     }
-    public func reverse(redo: Bool = false) async {
-        await beginReverse(redo: redo)?.value
+    public func reverse(redo: Bool = false, restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
+        await beginReverse(redo: redo, restored: restored)?.value
     }
-    private func beginReverse(redo: Bool, expectedID: UUID? = nil) -> Task<Void, Never>? {
+    private func beginReverse(redo: Bool, expectedID: UUID? = nil,
+                              restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) -> Task<Void, Never>? {
         guard !busy, !ended, let step = redo ? history.redo : history.undo,
               expectedID == nil || expectedID == step.id else { return nil }
         busy = true; error = nil; retryAction = nil; retryKind = nil
         return Task { @MainActor in
             defer { self.busy = false }
             do {
+                // Compare the committed states, including external Undo steps and
+                // Clear on Played side effects. Failed reversals never reveal content.
+                let before = restored == nil ? nil : try? await self.database.loadState()
                 let action: @MainActor () async throws -> Void = {
                     if let external = step.action, let inverse = step.inverseAction {
                         try await external()
@@ -135,11 +153,13 @@ public final class PlaylistEditingModel {
                 if step.action != nil { try await action(); player()?.refresh() }
                 else if let player = player() { try await player.performUserEdit(reload: step.reload, action: action) }
                 else { try await action() }
+                let after = before == nil ? nil : try? await self.database.loadState()
                 await changed()
+                if !self.ended, let before, let after { restored?(RestoredEntries.between(before, and: after)) }
             } catch {
                 self.error = LibraryMessages.failure(error, operation: redo ? .redo : .undo)
                 self.retryKind = redo ? .redo : .undo
-                self.retryAction = { [weak self] in await self?.reverse(redo: redo) }
+                self.retryAction = { [weak self] in await self?.reverse(redo: redo, restored: restored) }
                 await changed()
             }
         }

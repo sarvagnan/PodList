@@ -6,10 +6,11 @@ import PodListDomain
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     var reservesSpace = true
+    var restored: (@MainActor ([RestoredEntries]) -> Void)? = nil
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             EditingFeedback(editing: editor.edits, additionalError: editor.error, additionalStatus: dropStatus,
-                            undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } },
+                            undo: { Task { await editor.undo(restored: restored) } }, redo: { Task { await editor.redo(restored: restored) } },
                             reservesSpace: reservesSpace)
 
         }
@@ -92,12 +93,12 @@ struct PodcastPageScreen: SwiftUI.View {
                 MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
-                .help("Add \(episode.title) to a Playlist")
+                .help("Add to a Playlist")
             Button { bring(episode, play: true) } label: {
                 MacIconLabel(title: "Play", systemImage: "play.fill")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play \(episode.title) now")
-                .help("Play \(episode.title) now")
+                .help("Play Now")
         }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
     }
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
@@ -147,7 +148,7 @@ struct PodcastPageScreen: SwiftUI.View {
                                 ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
                                 Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
                             }
-                            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly) }
+                            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription Settings") }
                         }
                     }
                 }

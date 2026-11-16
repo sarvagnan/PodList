@@ -186,7 +186,7 @@ struct EditingFeedback: SwiftUI.View {
         HStack {
             if let text {
                 Text(text).foregroundStyle(error == nil ? Color.primary : Color.podListError)
-                    .fixedSize(horizontal: false, vertical: true).help(text).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true).help(Presentation.tooltip(text)).textSelection(.enabled)
             }
             Spacer(minLength: 8)
             if error == editing.error, editing.canRetry {

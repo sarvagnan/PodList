@@ -42,8 +42,13 @@ struct PlaylistContentView: SwiftUI.View {
             }
         }
         .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; window.timelineSelection = nil }
-        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; window.timelineSelection = nil; window.scrollAnchor = nil
-            if presentation.playlistTab == .entries { window.revealDrop(in: playlist.id) }
+        .onChange(of: presentation.playlistTab) { _, tab in
+            // Undo can switch from History to Entries with an explicit reveal.
+            if tab != .entries || window.historyRevealPlaylistID != playlist.id {
+                window.selection = []; window.scrollAnchor = nil
+            }
+            window.historyRevealPlaylistID = nil; window.timelineSelection = nil
+            if tab == .entries { window.revealDrop(in: playlist.id) }
         }
     }
     private var rows: [EpisodeRow] { window.rows(in: library) }
@@ -104,6 +109,9 @@ struct PlaylistContentView: SwiftUI.View {
                 }
             }
             .onAppear { window.revealDrop(in: playlist.id) }
+            .onChange(of: failedDropIDs) { previous, current in
+                window.selection.subtract(Set(previous).subtracting(current))
+            }
             .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, physicalIDs: displayedRows.map { $0.entry?.id }, selection: $window.selection, anchor: $window.scrollAnchor)
             .dragConfiguration(DragConfiguration(allowMove: true))
             .onDragSessionUpdated { session in
@@ -155,7 +163,7 @@ struct PlaylistContentView: SwiftUI.View {
         HStack(spacing: 8) {
             if slot.failure == nil { ProgressView().controlSize(.small).accessibilityHidden(true) }
             Text(slot.accessibleName).lineLimit(textScale > 1 ? nil : 2)
-                .help(slot.failure ?? slot.accessibleName)
+                .help(Presentation.tooltip(slot.failure ?? slot.accessibleName))
             Spacer(minLength: 4)
             if slot.failure != nil, let editor = app.libraryEditing {
                 Button("Retry") { Task { await EpisodeDrop.retry(slot.id, editor: editor) } }
@@ -183,7 +191,7 @@ struct PlaylistContentView: SwiftUI.View {
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from Here").accessibilityLabel("Play from here: \(row.title)")
         }.padding(.vertical, 5).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {

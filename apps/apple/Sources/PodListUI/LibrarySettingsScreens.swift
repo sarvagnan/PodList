@@ -297,6 +297,7 @@ public struct GettingStartedWindow: SwiftUI.View {
             if let editor = app.libraryEditing {
                 GettingStartedScreen(editor: editor, add: nil).padding(25)
                     .onAppear { editor.showGettingStarted = true }
+                    .onDisappear { editor.showGettingStarted = false }
                     .onChange(of: editor.showGettingStarted) { _, visible in if !visible { dismissWindow(id: "getting-started") } }
             }
         }.frame(width: 500).macContentFont(.body)
