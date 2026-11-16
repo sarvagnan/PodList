@@ -186,10 +186,48 @@ extension SwiftUI.View {
 private struct MacRowActions: ViewModifier {
     let isSelected: Bool
     @State private var hovered = false
+    @State private var nativeHovered = false
     func body(content: Content) -> some SwiftUI.View {
         content
-            .transformEnvironment(\.self) { $0[MacRowActionsActiveKey.self] = isSelected || hovered }
+            .transformEnvironment(\.self) { $0[MacRowActionsActiveKey.self] = isSelected || hovered || nativeHovered }
             .onHover { hovered = $0 }
+            .background(MacRowHover { nativeHovered = $0 })
+    }
+}
+
+/// The pointer can enter any table column, not just the title cell containing the
+/// actions. Observe the native row without intercepting selection or button hits.
+private struct MacRowHover: NSViewRepresentable {
+    let changed: (Bool) -> Void
+    func makeNSView(context: Context) -> Probe { Probe(changed: changed) }
+    func updateNSView(_ view: Probe, context: Context) { view.changed = changed; view.refresh() }
+
+    final class Probe: NSView {
+        var changed: (Bool) -> Void
+        private weak var row: NSTableRowView?
+        private var area: NSTrackingArea?
+        init(changed: @escaping (Bool) -> Void) { self.changed = changed; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); refresh() }
+        override func viewDidMoveToSuperview() { super.viewDidMoveToSuperview(); refresh() }
+        override func updateTrackingAreas() { super.updateTrackingAreas(); refresh() }
+        func refresh() {
+            var ancestor = superview
+            while ancestor != nil && !(ancestor is NSTableRowView) { ancestor = ancestor?.superview }
+            let next = window == nil ? nil : ancestor as? NSTableRowView
+            guard next !== row else { return }
+            if let row, let area { row.removeTrackingArea(area) }
+            row = next; area = nil
+            if let row {
+                let tracking = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+                row.addTrackingArea(tracking); area = tracking
+            }
+            let inside = row.flatMap { row in window.map { row.visibleRect.contains(row.convert($0.mouseLocationOutsideOfEventStream, from: nil)) } } ?? false
+            DispatchQueue.main.async { [weak self] in self?.changed(inside) }
+        }
+        override func mouseEntered(with event: NSEvent) { changed(true) }
+        override func mouseExited(with event: NSEvent) { changed(false) }
     }
 }
 
