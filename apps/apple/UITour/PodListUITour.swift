@@ -62,6 +62,7 @@ final class PodListUITour: XCTestCase {
         try capture("02-new-this-week")
         try selectFirstEpisode()
         try capture("03-episode-inspector")
+        try assertInspectorActionTargets()
         // After the baseline captures; the next navigation clears this selection.
         app.typeText("jo")
         let joinery = episodeRows.containing(.staticText, identifier: "Joinery without screws").firstMatch
@@ -89,6 +90,7 @@ final class PodListUITour: XCTestCase {
         assertInspectorPosition(unselectedInspector)
         assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
         try capture("07-entry-inspector")
+        try assertInspectorActionTargets()
         // The section switcher and Playlist action belong to the window toolbar.
         let defaultHeader = playlistPlayButton.frame
         let defaultSection = playlistSection("Entries").frame
@@ -624,6 +626,17 @@ final class PodListUITour: XCTestCase {
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
         XCTAssertFalse(library.buttons["Pause"].exists, "The tour must keep the Episode paused")
+    }
+
+    private func assertInspectorActionTargets(file: StaticString = #filePath, line: UInt = #line) throws {
+        let inspector = library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
+        try ready(inspector)
+        let buttons = inspector.buttons.allElementsBoundByIndex
+        XCTAssertFalse(buttons.isEmpty, "Inspector actions must be exposed", file: file, line: line)
+        for button in buttons {
+            XCTAssertGreaterThanOrEqual(button.frame.width, 20, "\(button.label) is too narrow", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(button.frame.height, 20, "\(button.label) is too short", file: file, line: line)
+        }
     }
 
     private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
