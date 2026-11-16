@@ -313,8 +313,8 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 let facts = library.state.episodeStates.values.filter { ids.contains($0.episodeId) }.compactMap(\.played)
                 let stats = ListeningStats(log: library.state.listeningLog ?? [:], played: facts)
                 if stats.isEmpty {
-                    PodListEmptyState("No Listening Stats Recorded", systemImage: "chart.bar",
-                                      description: "Stats count measured time in the permanent Listening log and Episodes finished through playback. Listening Timeline Positions alone do not measure time listened. Play an Episode to record listening time.")
+                    PodListEmptyState("No Listening Time Yet", systemImage: "chart.bar",
+                                      description: "Stats count the time you spend playing Episodes. Moving an Episode's Position without playing it doesn't count.")
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {

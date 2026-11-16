@@ -589,18 +589,19 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertTrue(checkbox.value(forKey: "hasKeyboardFocus") as? Bool == true,
                       "Keyboard navigation must reach the sheet checkbox")
-        let initial = try XCTUnwrap(checkbox.value as? String)
+        // macOS reports a checkbox value as a number (0 or 1), not a string.
+        let initial = String(describing: try XCTUnwrap(checkbox.value))
         XCTAssertFalse(library.buttons["Pause"].exists, "The current Episode must remain paused")
         app.typeKey(.space, modifierFlags: [])
         let toggled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            (checkbox.value as? String) != initial
+            checkbox.value.map { String(describing: $0) } != initial
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [toggled], timeout: 5), .completed,
                        "Space must toggle the focused checkbox")
         XCTAssertFalse(library.buttons["Pause"].exists, "Checkbox activation must not start playback")
         app.typeKey(.space, modifierFlags: [])
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            (checkbox.value as? String) == initial
+            checkbox.value.map { String(describing: $0) } == initial
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
         XCTAssertFalse(library.buttons["Pause"].exists, "The tour must keep the Episode paused")
