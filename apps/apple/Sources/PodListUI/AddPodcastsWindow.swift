@@ -85,6 +85,14 @@ struct AddPodcastsScreen: SwiftUI.View {
                                 }
                             }.padding(.vertical, 5).tag(result.feedUrl)
                         }
+                        .contextMenu(forSelectionType: String.self) { feeds in
+                            if let result = state.results.first(where: { feeds.contains($0.feedUrl) }) {
+                                Button("Open Podcast Page") { openResult(result) }
+                                if canSubscribe(result) {
+                                    Button("Subscribe") { subscribe(result) }
+                                }
+                            }
+                        }
                         .typeSelectingRows(state.results.map { TypeSelectionRow(id: $0.feedUrl, title: $0.title) },
                             selection: $state.selectedFeed, anchor: $resultsAnchor)
                         .frame(height: min(320, CGFloat(state.results.count) * 70))
@@ -115,7 +123,11 @@ struct AddPodcastsScreen: SwiftUI.View {
         guard let result = state.results.first(where: { $0.feedUrl == state.selectedFeed }) else { return PodcastCommandContext() }
         let subscribed = library.subscriptions.contains { $0.feedUrl == result.feedUrl }
         return PodcastCommandContext(open: { openResult(result) }, subscribed: subscribed,
-            subscriptionAction: !subscribed && !state.subscribing.contains(result.feedUrl) && !editor.busy && !editor.edits.busy ? { subscribe(result) } : nil)
+            subscriptionAction: canSubscribe(result) ? { subscribe(result) } : nil)
+    }
+    private func canSubscribe(_ result: DirectoryPodcast) -> Bool {
+        !library.subscriptions.contains { $0.feedUrl == result.feedUrl }
+            && !state.subscribing.contains(result.feedUrl) && !editor.busy && !editor.edits.busy
     }
     private func openResult(_ result: DirectoryPodcast) { open(result.feedUrl) }
     private func subscribe(_ result: DirectoryPodcast) {
