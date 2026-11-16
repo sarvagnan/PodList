@@ -97,7 +97,7 @@ struct DownloadIcon: SwiftUI.View {
                     ProgressView(value: app.downloadStatuses[id]?.progress.fraction).progressViewStyle(.circular).controlSize(.small)
                     Image(systemName: "xmark").font(.system(size: 8))
                 } else { Image(systemName: phase == .stored ? "arrow.down.circle.fill" : phase == .failed ? "arrow.clockwise.circle" : "arrow.down.circle") }
-            }.frame(width: 28, height: 28)
+            }.frame(width: 28, height: 28).contentShape(Rectangle())
         }.buttonStyle(.borderless).help(label).accessibilityLabel(label)
             .contextMenu {
                 EpisodeDownloadItems(ids: [id], app: app)

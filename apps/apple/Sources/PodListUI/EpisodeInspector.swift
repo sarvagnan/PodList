@@ -111,8 +111,8 @@ struct EpisodeInspector: SwiftUI.View {
                             Task {
                                 await EpisodePlaybackAction.resume(episodeID: row.id, playlistID: membership.id, app: app, started: startedPlayback)
                             }
-                        } label: { Image(systemName: "play.circle").frame(width: 28, height: 28) }
-                        .buttonStyle(.borderless).help("Resume in \(membership.name)")
+                        } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
+                        .buttonStyle(.borderless).help("Resume in this Playlist")
                         .accessibilityLabel("Resume in \(membership.name) at \(Presentation.time(membership.position))")
                     }
                 }
@@ -132,8 +132,8 @@ struct EpisodeInspector: SwiftUI.View {
                                 Task {
                                     await EpisodePlaybackAction.chapter(chapter.start, episodeID: row.id, app: app, started: startedPlayback)
                                 }
-                            } label: { Image(systemName: "play.circle").frame(width: 28, height: 28) }
-                            .buttonStyle(.borderless).help("Play \(chapter.title)").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")
+                            } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
+                            .buttonStyle(.borderless).help("Play Chapter").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")
                         }
                     }
                     Divider()
@@ -183,7 +183,7 @@ struct InspectorActions: SwiftUI.View {
                     DownloadIcon(id: row.id, app: app)
                     if let url = library.episodeShareURL(row.id) {
                         ShareLink(item: url) {
-                            Image(systemName: "square.and.arrow.up").frame(width: 28, height: 28)
+                            MacIconLabel(title: "Share Episode", systemImage: "square.and.arrow.up")
                         }.buttonStyle(.borderless)
                             .help("Share Episode").accessibilityLabel("Share Episode: \(row.title)")
                     }
@@ -192,7 +192,7 @@ struct InspectorActions: SwiftUI.View {
         }
     }
     private func icon(_ name: String, state: String? = nil, symbol: String, action: @escaping () -> Void) -> some SwiftUI.View {
-        Button(action: action) { Image(systemName: symbol).frame(width: 28, height: 28) }
+        Button(action: action) { MacIconLabel(title: name, systemImage: symbol) }
             .buttonStyle(.borderless).help(state.map { "\(name), \($0)" } ?? name).accessibilityLabel(state.map { "\(name), \($0)" } ?? name)
     }
 }

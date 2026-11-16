@@ -166,7 +166,7 @@ public final class LibraryEditingModel {
         switch change {
         case .setSubscriptionOverrides: name = "Subscription Settings"
         case .markSubscriptionPlayed: name = "Mark Subscription Played"
-        default: name = "Library edit"
+        default: name = "Library Change"
         }
         if case let .markSubscriptionPlayed(id) = change {
             let episodes = try await db.readLibrary().episodes.filter { $0.subscriptionId == id }.map(\.id)
@@ -181,7 +181,7 @@ public final class LibraryEditingModel {
             let previous = try await self.db.saveUniqueView(view, at: Self.now)
             let clean = PodListDomain.View(id: view.id, name: view.name.trimmingCharacters(in: .whitespacesAndNewlines), filter: view.filter, sort: view.sort, limit: view.limit)
             let db = self.db
-            return NamedEdit(name: "View edit", changes: [], reload: false, action: {
+            return NamedEdit(name: "Edit View", changes: [], reload: false, action: {
                 if let previous { _ = try await db.saveUniqueView(previous, at: Self.now) }
                 else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
             }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now) }, sessionID: sessionID)
@@ -194,7 +194,7 @@ public final class LibraryEditingModel {
         if !creating, edits.history.contains(where: { $0.sessionID == sessionID }) {
             try await edits.performExternal(recordHistory: false) {
                 _ = try await self.db.saveUniqueView(initial, at: Self.now)
-                return NamedEdit(name: "Cancel View edits", changes: [], reload: false)
+                return NamedEdit(name: "Cancel View Edits", changes: [], reload: false)
             }
             await changed()
         }
@@ -244,8 +244,12 @@ public final class LibraryEditingModel {
         let id = try await prepareEpisode(feed, guid: guid)
         _ = await edits.add([id], placement: play ? .now : .last)
     }
-    public func undo() async { await edits.reverse(); error = edits.error; await changed() }
-    public func redo() async { await edits.reverse(redo: true); error = edits.error; await changed() }
+    public func undo(restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
+        await edits.reverse(restored: restored); error = edits.error; await changed()
+    }
+    public func redo(restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
+        await edits.reverse(redo: true, restored: restored); error = edits.error; await changed()
+    }
     public func run(_ action: @escaping @MainActor () async throws -> Void) {
         Task { do { try await action(); error = nil } catch { self.error = LibraryMessages.failure(error) } }
     }

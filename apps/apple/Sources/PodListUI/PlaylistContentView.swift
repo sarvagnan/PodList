@@ -42,8 +42,13 @@ struct PlaylistContentView: SwiftUI.View {
             }
         }
         .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; window.timelineSelection = nil }
-        .onChange(of: presentation.playlistTab) { _, _ in window.selection = []; window.timelineSelection = nil; window.scrollAnchor = nil
-            if presentation.playlistTab == .entries { window.revealDrop(in: playlist.id) }
+        .onChange(of: presentation.playlistTab) { _, tab in
+            // Undo can switch from History to Entries with an explicit reveal.
+            if tab != .entries || window.historyRevealPlaylistID != playlist.id {
+                window.selection = []; window.scrollAnchor = nil
+            }
+            window.historyRevealPlaylistID = nil; window.timelineSelection = nil
+            if tab == .entries { window.revealDrop(in: playlist.id) }
         }
     }
     private var rows: [EpisodeRow] { window.rows(in: library) }
@@ -51,7 +56,7 @@ struct PlaylistContentView: SwiftUI.View {
         PlaylistDropRow.rows(rows, batches: app.libraryEditing?.pendingEpisodeDrops ?? [], playlistID: playlist.id)
     }
     private var entrySelection: Binding<Set<String>> {
-        Binding(get: { window.selection }, set: { window.selection = $0.intersection(Set(rows.map(\.id))) })
+        Binding(get: { window.selection }, set: { window.selection = $0.intersection(Set(rows.map(\.id) + failedDropIDs)) })
     }
     private var entries: some SwiftUI.View {
         VStack(spacing: 0) {
@@ -65,7 +70,7 @@ struct PlaylistContentView: SwiftUI.View {
                                 }
                                 .tag(item.id).draggable(dragPayload(row.id))
                             } else if let slot = item.placeholder {
-                                placeholder(slot).tag(item.id).selectionDisabled()
+                                placeholder(slot).tag(item.id).selectionDisabled(slot.failure == nil)
                             }
                         }
                         .dropDestination(for: EpisodeTransfer.self) { values, index in
@@ -104,6 +109,9 @@ struct PlaylistContentView: SwiftUI.View {
                 }
             }
             .onAppear { window.revealDrop(in: playlist.id) }
+            .onChange(of: failedDropIDs) { previous, current in
+                window.selection.subtract(Set(previous).subtracting(current))
+            }
             .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, physicalIDs: displayedRows.map { $0.entry?.id }, selection: $window.selection, anchor: $window.scrollAnchor)
             .dragConfiguration(DragConfiguration(allowMove: true))
             .onDragSessionUpdated { session in
@@ -129,24 +137,38 @@ struct PlaylistContentView: SwiftUI.View {
             .onCopyCommand(perform: window.selection.isEmpty ? nil : {
                 EpisodeCopyContent.providers(ids: ordered(window.selection), library: library)
             })
-            .onDeleteCommand(perform: window.selection.isEmpty || editing.busy ? nil : {
-                let ids = ordered(window.selection)
-                Task { await editing.remove(ids, playlistID: playlist.id) }
-            })
+            .onDeleteCommand(perform: removeSelection)
+            .focusedSceneValue(\.podListRemovePlaylistSelection, removeSelection)
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 
+        }
+    }
+    private var failedDropIDs: [String] {
+        app.libraryEditing.map { EpisodeDrop.failedIDs(editor: $0, playlistID: playlist.id) } ?? []
+    }
+    private var removeSelection: (() -> Void)? {
+        let entries = ordered(window.selection)
+        let failures = failedDropIDs.filter { window.selection.contains($0) }
+        guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil,
+              !entries.isEmpty || !failures.isEmpty else { return nil }
+        return {
+            if let editor = app.libraryEditing {
+                for id in failures { EpisodeDrop.remove(id, editor: editor) }
+            }
+            window.selection.subtract(failures)
+            if !entries.isEmpty { Task { await editing.remove(entries, playlistID: playlist.id) } }
         }
     }
     private func placeholder(_ slot: EpisodeDropSlot) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if slot.failure == nil { ProgressView().controlSize(.small).accessibilityHidden(true) }
             Text(slot.accessibleName).lineLimit(textScale > 1 ? nil : 2)
-                .help(slot.failure ?? slot.accessibleName)
+                .help(Presentation.tooltip(slot.failure ?? slot.accessibleName))
             Spacer(minLength: 4)
             if slot.failure != nil, let editor = app.libraryEditing {
                 Button("Retry") { Task { await EpisodeDrop.retry(slot.id, editor: editor) } }
                     .accessibilityLabel("Retry adding \(slot.title)")
-                    .help("Retry adding this Episode; use Episode › Retry Failed Episode Drop to retry all")
+                    .help("Retry adding this Episode")
                 Button("Remove") { EpisodeDrop.remove(slot.id, editor: editor) }
                     .accessibilityLabel("Remove failed drop for \(slot.title)")
                     .help("Remove this failed Episode drop")
@@ -169,7 +191,7 @@ struct PlaylistContentView: SwiftUI.View {
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from here: \(row.title)").accessibilityLabel("Play from here: \(row.title)")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from Here").accessibilityLabel("Play from here: \(row.title)")
         }.padding(.vertical, 5).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {

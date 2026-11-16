@@ -38,7 +38,7 @@ struct PlayerBar: SwiftUI.View {
     }
     private func middle(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {
         VStack(alignment: .center, spacing: 5) {
-            Text(value.title).macContentFont(.headline).lineLimit(textScale > 1 ? 2 : 1).help(value.title).frame(maxWidth: .infinity)
+            Text(value.title).macContentFont(.headline).lineLimit(textScale > 1 ? 2 : 1).help(Presentation.tooltip(value.title)).frame(maxWidth: .infinity)
             Text(value.podcast).macContentFont(.caption).foregroundStyle(.primary).lineLimit(textScale > 1 ? 2 : 1).frame(maxWidth: .infinity)
             PlayerSeek(controller: controller)
         }.multilineTextAlignment(.center)
@@ -90,7 +90,7 @@ struct PlayerSeek: SwiftUI.View {
                         ForEach(value.chapters, id: \.start) { chapter in
                             Rectangle().fill(.secondary).frame(width: 1, height: 4)
                                 .offset(x: min(geometry.size.width, max(0, geometry.size.width * chapter.start / duration)))
-                                .help(chapter.title)
+                                .help(Presentation.tooltip(chapter.title))
                         }
                     }.frame(height: value.chapters.isEmpty ? 0 : 4).accessibilityHidden(true)
                 }

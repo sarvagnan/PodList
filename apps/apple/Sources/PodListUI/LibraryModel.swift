@@ -96,6 +96,11 @@ public struct PlayerPresentation: Sendable {
 }
 
 public enum Presentation {
+    /// Keep tooltip copy brief; full publisher text remains in the visible/accessible content.
+    static func tooltip(_ text: String) -> String {
+        text.count <= 75 ? text : String(text.prefix(74)) + "…"
+    }
+
     public static func initials(_ title: String) -> String {
         title.split(whereSeparator: { $0.isWhitespace }).prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
     }
@@ -253,6 +258,7 @@ public final class WindowModel {
     /// into the columns' ideal width shrank the sidebar below its minimum.
     var initialPaneWidths = PaneWidths()
     var hasRestoredPaneWidths = false
+    var historyRevealPlaylistID: String?
     var pendingDropSelections: [String: [String]] = [:]
     var podcastOrigin: PodcastOrigin?
 
@@ -264,6 +270,17 @@ public final class WindowModel {
         guard let ids = pendingDropSelections.removeValue(forKey: playlistID), let first = ids.first else { return }
         search = ""; selection = Set(ids)
         if scroll { scrollAnchor = RowAnchor(id: first, index: 0) }
+    }
+
+    /// A window-local completion, never an app-wide selection notification.
+    @discardableResult
+    func revealRestoredEntries(_ restored: [RestoredEntries]) -> Bool {
+        let current = restored.first { destination == .playlist($0.playlistID) }
+        guard let target = current ?? restored.first, let first = target.episodeIDs.first else { return false }
+        navigate(to: .playlist(target.playlistID))
+        historyRevealPlaylistID = target.playlistID
+        selection = Set(target.episodeIDs); scrollAnchor = RowAnchor(id: first, index: 0)
+        return true
     }
 
     public init() {}
@@ -290,6 +307,7 @@ public final class WindowModel {
         timelineSelection = origin.timelineSelection; scrollAnchor = origin.scrollAnchor
     }
     public func navigate(to destination: Destination?) {
+        historyRevealPlaylistID = nil
         if case .subscription = destination {
             switch self.destination {
             case .subscription: break

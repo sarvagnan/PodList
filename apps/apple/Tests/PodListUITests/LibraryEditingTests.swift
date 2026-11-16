@@ -230,7 +230,7 @@ private actor SubscriptionTransport: SyncTransport {
     #expect(history.undoTitle == "Undo Subscription Settings")
     await history.reverse()
     #expect(try await db.readLibrary().subscriptions.first { $0.id == "s" }?.playbackSettings.speed == 1.5)
-    #expect(history.undoTitle == "Undo View edit")
+    #expect(history.undoTitle == "Undo Edit View")
     await history.reverse()
     #expect(try await db.loadState().views.contains { $0.id == view.id } == false)
     #expect(history.undoTitle == "Undo New Playlist")
@@ -253,7 +253,7 @@ private actor SubscriptionTransport: SyncTransport {
     let db = try LocalDatabase(path: ":memory:"); try await db.ensureState()
     let actions = editing(db)
     try await actions.saveView(.init(id: "old", name: "Old Library", filter: .init(), sort: .publishedDesc, limit: nil))
-    #expect(actions.undoName == "View edit")
+    #expect(actions.undoName == "Edit View")
     actions.endSession()
     #expect(actions.undoName == nil)
     try await actions.saveView(.init(id: "pending", name: "Late old edit", filter: .init(), sort: .publishedDesc, limit: nil))
@@ -271,7 +271,7 @@ private actor SubscriptionTransport: SyncTransport {
     #expect(history.undoTitle == "Undo Unsubscribe")
     await history.reverse()
     #expect(try await db.readLibrary().subscriptions.first?.unsubscribedAt == nil)
-    #expect(history.undoTitle == "Undo View edit")
+    #expect(history.undoTitle == "Undo Edit View")
     await history.reverse()
     #expect(history.undoTitle == "Undo Subscribe")
     await history.reverse()
@@ -300,7 +300,7 @@ private actor SubscriptionTransport: SyncTransport {
     #expect(!editor.hasDraft("view.session") && !editor.hasDraft("rename.session") && !editor.hasDraft("limit.session"))
     #expect(!editor.hasDraft("session.Minimum length (minutes)") && !editor.hasDraft("session.Maximum length (minutes)"))
     await editor.undo()
-    #expect(editor.undoName == "View edit") // The edit before this session remains available.
+    #expect(editor.undoName == "Edit View") // The edit before this session remains available.
     #expect(try await db.loadState().episodeStates["a"]?.starred != true)
 }
 
@@ -312,9 +312,9 @@ private actor SubscriptionTransport: SyncTransport {
     var changed = original; changed.filter.starred = true
     try await editor.saveView(changed, sessionID: session)
     await editor.undo()
-    #expect(editor.redoName == "View edit")
+    #expect(editor.redoName == "Edit View")
     try await editor.cancelViewEdits(initial: original, creating: false, sessionID: session)
-    #expect(editor.redoName == nil && editor.undoName == "View edit")
+    #expect(editor.redoName == nil && editor.undoName == "Edit View")
     #expect(try await editor.savedView(original.id) == original)
 }
 

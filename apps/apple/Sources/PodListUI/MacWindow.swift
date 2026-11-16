@@ -126,7 +126,10 @@ public struct PodListWindow: SwiftUI.View {
                 syncStatus
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
-                    LibraryFeedback(editor: editor, reservesSpace: isPlaylist)
+                    LibraryFeedback(editor: editor, reservesSpace: isPlaylist, restored: { entries in
+                        guard app.libraryEditing === editor, window.revealRestoredEntries(entries) else { return }
+                        podcastFeed = nil; playlistPresentation.playlistTab = .entries
+                    })
                         .id(window.destination).id(podcastFeed)
                     if editor.busy { VStack {
                         OPMLImportProgress(editor: editor)
@@ -356,8 +359,8 @@ public struct PodListWindow: SwiftUI.View {
         return Group {
             if groups.isEmpty {
                 PodListEmptyState(window.search.isEmpty ? "No Subscriptions" : "No Matching Subscriptions", systemImage: "rectangle.stack",
-                                  description: "Search by name or feed address, or clear Search.") {
-                    Button("Add Podcasts") { openWindow(id: "add-podcasts") }
+                                  description: window.search.isEmpty ? "Add podcasts to see them here." : "Search by name or feed address, or clear Search.") {
+                    Button("Add Podcasts…") { openWindow(id: "add-podcasts") }
                     if !window.search.isEmpty { Button("Clear Search") { window.search = "" } }
                 }
             } else {
@@ -380,7 +383,7 @@ public struct PodListWindow: SwiftUI.View {
                                             MacIconLabel(title: "Open", systemImage: "chevron.right")
                                         }
                                             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle())
-                                            .help("Open \(subscription.title)").accessibilityLabel("Open \(subscription.title), Subscription")
+                                            .help("Open Podcast Page").accessibilityLabel("Open \(subscription.title), Subscription")
                                     }.padding(.vertical, 5).contentShape(Rectangle()).tag(subscription.id)
                                 }
                             } header: { Text(group.name).foregroundStyle(MacReadableSecondaryStyle()) }
@@ -499,7 +502,7 @@ public struct PodListWindow: SwiftUI.View {
                 case .loading: ProgressView("Loading Episodes…").frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .noSubscriptions:
                     PodListEmptyState("No Subscriptions", systemImage: "rectangle.stack",
-                                      description: "Add podcasts to find Episodes.") { Button("Add Podcasts") { openWindow(id: "add-podcasts") } }
+                                      description: "Add podcasts to find Episodes.") { Button("Add Podcasts…") { openWindow(id: "add-podcasts") } }
                 case .noMatches:
                     PodListEmptyState("No Matching Episodes", systemImage: "magnifyingglass",
                                       description: "Change this View or Search to find Episodes.") {
@@ -580,12 +583,12 @@ public struct PodListWindow: SwiftUI.View {
                     MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
                 }
                     .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
-                    .help("Add \(row.title) to a Playlist")
+                    .help("Add to a Playlist")
                 Button { Task { await editing.add([row.id], placement: .now) } } label: {
                     MacIconLabel(title: "Play Now", systemImage: "play.fill")
                 }
                     .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play Now: \(row.title)")
-                    .help("Play Now: \(row.title)")
+                    .help("Play Now")
             }
         }
         .accessibilityElement(children: .contain)

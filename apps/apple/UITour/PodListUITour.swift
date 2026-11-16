@@ -62,6 +62,7 @@ final class PodListUITour: XCTestCase {
         try capture("02-new-this-week")
         try selectFirstEpisode()
         try capture("03-episode-inspector")
+        try assertInspectorActionTargets()
         // After the baseline captures; the next navigation clears this selection.
         app.typeText("jo")
         let joinery = episodeRows.containing(.staticText, identifier: "Joinery without screws").firstMatch
@@ -89,6 +90,7 @@ final class PodListUITour: XCTestCase {
         assertInspectorPosition(unselectedInspector)
         assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
         try capture("07-entry-inspector")
+        try assertInspectorActionTargets()
         // The section switcher and Playlist action belong to the window toolbar.
         let defaultHeader = playlistPlayButton.frame
         let defaultSection = playlistSection("Entries").frame
@@ -236,6 +238,16 @@ final class PodListUITour: XCTestCase {
         assertKeyboardFocus(podcastQuery)
         try capture("24-add-podcasts", in: addPodcasts)
         podcastQuery.typeText("PodList tour draft")
+        let minimize = addPodcasts.buttons["_XCUI:MinimizeWindow"]
+        let zoom = addPodcasts.buttons["_XCUI:ZoomWindow"]
+        XCTAssertFalse(minimize.exists && minimize.isEnabled, "Add Podcasts is a utility panel")
+        XCTAssertFalse(zoom.exists && zoom.isEnabled, "Add Podcasts must not offer a document window's zoom control")
+        // Utility panels hide with their application and retain discovery state.
+        XCUIApplication(bundleIdentifier: "com.apple.finder").activate()
+        XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
+        app.activate()
+        try ready(addPodcasts)
+        XCTAssertEqual(podcastQuery.value as? String, "PodList tour draft")
         // Discovery stays open while Library is used and reopening brings it forward.
         try navigate("Default")
         XCTAssertTrue(addPodcasts.exists)
@@ -626,6 +638,17 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.buttons["Pause"].exists, "The tour must keep the Episode paused")
     }
 
+    private func assertInspectorActionTargets(file: StaticString = #filePath, line: UInt = #line) throws {
+        let inspector = library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
+        try ready(inspector)
+        let buttons = inspector.buttons.allElementsBoundByIndex
+        XCTAssertFalse(buttons.isEmpty, "Inspector actions must be exposed", file: file, line: line)
+        for button in buttons {
+            XCTAssertGreaterThanOrEqual(button.frame.width, 20, "\(button.label) is too narrow", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(button.frame.height, 20, "\(button.label) is too short", file: file, line: line)
+        }
+    }
+
     private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             element.value(forKey: "hasKeyboardFocus") as? Bool == true
@@ -655,7 +678,7 @@ final class PodListUITour: XCTestCase {
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
-            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop"],
+            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
             "Playlist": ["Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],

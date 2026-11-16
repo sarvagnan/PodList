@@ -156,7 +156,9 @@ import PodListDomain
     #expect(await model.delete(playlist))
     var state = try await db.loadState(); state.trash = []
     try await db.saveState(state)
-    await model.reverse()
+    var revealed = false
+    await model.reverse { _ in revealed = true }
+    #expect(!revealed)
     #expect(model.error != nil && model.undoTitle == "Undo Move to Trash" && model.history.redo == nil)
     let count = try await db.outbox().count
     do {
@@ -208,4 +210,55 @@ import PodListDomain
     await model.reverse(redo: true)
     #expect(try await db.loadState().playlists.first { $0.id == id }?.name == "Commute 2")
     #expect(await model.restore("deleted") == false) // The fixture's old Trash entry has expired.
+}
+
+@MainActor @Test func undoAndRedoRevealRestoredEntriesOnlyInTheInitiatingWindow() async throws {
+    let (db, model) = try await editingFixture()
+    let window = WindowModel()
+    window.navigate(to: .playlist("default"))
+    window.search = "offscreen"
+    window.scrollAnchor = RowAnchor(id: "b", index: 0)
+    let other = WindowModel()
+    other.navigate(to: .playlist("default")); other.selection = ["b"]
+    other.scrollAnchor = RowAnchor(id: "b", index: 0)
+    let untouched = other.context(libraryID: "test", playlistTab: .entries, columns: .all, podcastFeed: nil, subscriptionSelection: [])
+    await model.remove(["a", "pending"], playlistID: "default")
+    var restored: [RestoredEntries] = []
+    await model.reverse { entries in
+        restored = entries
+        #expect(window.revealRestoredEntries(entries))
+    }
+    #expect(restored == [RestoredEntries(playlistID: "default", episodeIDs: ["a", "pending"])])
+    #expect(window.selection == ["a", "pending"])
+    #expect(window.search.isEmpty && window.scrollAnchor?.id == "a")
+    #expect(other.context(libraryID: "test", playlistTab: .entries, columns: .all, podcastFeed: nil, subscriptionSelection: []) == untouched)
+
+    #expect(await model.add(["t1"], to: "default", placement: .last) == "default")
+    await model.reverse()
+    window.navigate(to: .subscriptions)
+    await model.reverse(redo: true) { entries in
+        #expect(window.revealRestoredEntries(entries))
+    }
+    #expect(window.destination == .playlist("default"))
+    #expect(window.selection == ["t1"] && window.scrollAnchor?.id == "t1")
+    #expect(try await db.loadState().playlists[0].entries.last?.episodeId == "t1")
+    #expect(other.context(libraryID: "test", playlistTab: .entries, columns: .all, podcastFeed: nil, subscriptionSelection: []) == untouched)
+}
+
+@MainActor @Test func undoRevealsClearOnPlayedRestorationsAndLeavesSelectionForOtherEdits() async throws {
+    let (_, model) = try await editingFixture()
+    let window = WindowModel()
+    window.navigate(to: .playlist("default"))
+    #expect(await model.markPlayed(["a", "pending"], played: true))
+    await model.reverse { entries in
+        #expect(entries == [RestoredEntries(playlistID: "default", episodeIDs: ["a", "pending"])])
+        #expect(window.revealRestoredEntries(entries))
+    }
+    #expect(window.selection == ["a", "pending"])
+    #expect(await model.setStar(["a"], starred: true))
+    await model.reverse { entries in
+        #expect(entries.isEmpty)
+        #expect(!window.revealRestoredEntries(entries))
+    }
+    #expect(window.selection == ["a", "pending"] && window.scrollAnchor?.id == "a")
 }
