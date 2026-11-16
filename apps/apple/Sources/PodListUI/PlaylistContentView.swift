@@ -191,7 +191,7 @@ struct PlaylistContentView: SwiftUI.View {
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from Here").accessibilityLabel("Play from here: \(row.title)")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from here").accessibilityLabel("Play from here: \(row.title)")
         }.padding(.vertical, 5).macRowActions(isSelected: window.selection.contains(row.id)).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {

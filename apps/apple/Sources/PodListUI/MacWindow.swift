@@ -84,10 +84,10 @@ public struct PodListWindow: SwiftUI.View {
                                 Spacer(minLength: 4)
                                 if item.active {
                                     Image(systemName: "speaker.wave.2.fill")
-                                        .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist")
+                                        .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist").help("Active Playlist")
                                 }
                                 if item.clearOnPlayed == true {
-                                    Image(systemName: "checkmark.circle")
+                                    Image(systemName: "text.badge.checkmark")
                                         .foregroundStyle(.primary)
                                         .help("Clear on Played on")
                                         .accessibilityLabel("Clear on Played on")
@@ -164,33 +164,11 @@ public struct PodListWindow: SwiftUI.View {
                             .accessibilityLabel("Back to Library")
                     }
                 }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    if !isPodcastPage {
-                        switch window.destination {
-                        case let .playlist(id):
-                            Button("Play This Playlist", systemImage: "play.square.stack") {
-                                guard let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing else { return }
-                                Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
-                            }.help("Play This Playlist").disabled(app.editing?.busy != false)
-                            Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }
-                                .help("New Playlist")
-                            Button("Playlist Settings…", systemImage: "slider.horizontal.3") { playlistPresentation.sheet = .settings(id) }
-                                .help("Playlist Settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")
-                        case .view, .views:
-                            Button("New View…", systemImage: "plus") { newView() }
-                            if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
-                                Button("Edit View…", systemImage: "slider.horizontal.3") { editView(view) }
-                                    .help("Edit View (\(PodListShortcut.editView.notation))")
-                            }
-                        default: EmptyView()
-                        }
-                    }
-                }
-                ToolbarSpacer(.fixed, placement: .primaryAction)
                 if let editing = app.editing, showsEpisodeInspector {
                     // Retain disabled selection controls to keep the three groups,
                     // Inspector and Search in the same positions as selection changes.
-                    EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app)
+                    EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app,
+                        playlist: toolbarPlaylist(library), editView: toolbarView(library).map { view in { editView(view) } })
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
@@ -198,7 +176,7 @@ public struct PodListWindow: SwiftUI.View {
                         Button(inspectorVisible ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right") {
                             inspectorVisible.toggle()
                         }
-                        .help("Show or Hide Inspector (⌥⌘I)")
+                        .help("Show or hide Inspector (⌥⌘I)")
                         .accessibilityLabel(inspectorVisible ? "Hide Inspector" : "Show Inspector")
                         .accessibilityIdentifier("library.inspector")
                     }
@@ -387,7 +365,7 @@ public struct PodListWindow: SwiftUI.View {
                                             MacIconLabel(title: "Open", systemImage: "chevron.right")
                                         }
                                             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle())
-                                            .help("Open Podcast Page").accessibilityLabel("Open \(subscription.title), Subscription")
+                                            .help("Open podcast page").accessibilityLabel("Open \(subscription.title), Subscription")
                                     }.padding(.vertical, 5).contentShape(Rectangle()).tag(subscription.id)
                                 }
                             } header: { Text(group.name).foregroundStyle(MacReadableSecondaryStyle()) }
@@ -592,7 +570,7 @@ public struct PodListWindow: SwiftUI.View {
                     MacIconLabel(title: "Play Now", systemImage: "play.fill")
                 }
                     .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Play Now: \(row.title)")
-                    .help("Play Now")
+                    .help("Play now")
             }
         }
         .macRowActions(isSelected: window.selection.contains(row.id))
@@ -715,6 +693,14 @@ public struct PodListWindow: SwiftUI.View {
             return library.snapshot.episodes.first { window.selection.contains($0.id) }.map { library.row($0.id) }
         }
         return selectionRows(library).first { window.selection.contains($0.id) }
+    }
+    private func toolbarPlaylist(_ library: LibraryModel) -> Playlist? {
+        guard !isPodcastPage, case let .playlist(id) = window.destination else { return nil }
+        return library.state.playlists.first { $0.id == id }
+    }
+    private func toolbarView(_ library: LibraryModel) -> PodListDomain.View? {
+        guard !isPodcastPage, case let .view(id) = window.destination else { return nil }
+        return library.state.views.first { $0.id == id }
     }
     private var showsEpisodeInspector: Bool {
         if isPodcastPage { return true }

@@ -31,6 +31,27 @@ import Testing
     }
 }
 
+@MainActor @Test func podcastDescriptionMeasuresTruncationAndExpandsWithoutALineCap() async throws {
+    for scale: CGFloat in [1, 2] {
+        for text in ["A short description.", String(repeating: "A long description with more to read. ", count: 80)] {
+            var truncated = false
+            let host = NSHostingView(rootView: PodcastDescription(text: text, expanded: .constant(false),
+                truncated: Binding(get: { truncated }, set: { truncated = $0 }), toggle: {})
+                .macContentFont(.body).environment(\.macTextScale, scale))
+            host.frame = CGRect(x: 0, y: 0, width: 360, height: 500)
+            for _ in 0..<5 { host.layoutSubtreeIfNeeded(); await Task.yield() }
+            #expect(truncated == (text.count > 100))
+            if truncated {
+                let renderer = ImageRenderer(content: PodcastDescription(text: text, expanded: .constant(true),
+                    truncated: .constant(true), toggle: {})
+                    .macContentFont(.body).environment(\.macTextScale, scale).frame(width: 360))
+                let image = try #require(renderer.cgImage)
+                #expect(image.height > 8 * 30 * Int(scale), "Expanded descriptions must extend beyond eight lines")
+            }
+        }
+    }
+}
+
 @MainActor private func descendants(_ view: NSView) -> [NSView] {
     view.subviews.flatMap { [$0] + descendants($0) }
 }

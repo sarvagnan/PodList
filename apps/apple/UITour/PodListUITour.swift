@@ -59,6 +59,7 @@ final class PodListUITour: XCTestCase {
         try navigate("New this week")
         try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch)
         let leadingTitleX = library.staticTexts["New this week"].firstMatch.frame.minX
+        XCTAssertFalse(library.toolbars.buttons["New View…"].exists)
         try capture("02-new-this-week")
         try selectFirstEpisode()
         try capture("03-episode-inspector")
@@ -84,9 +85,12 @@ final class PodListUITour: XCTestCase {
         try capture("06-default-playlist")
         let unselectedSection = playlistSection("Entries").frame
         let unselectedPlay = playlistPlayButton.frame
+        XCTAssertEqual(playlistPlayButton.label, "Play This Playlist")
+        XCTAssertFalse(library.toolbars.buttons["New Playlist…"].exists)
         try ready(inspectorButton)
         let unselectedInspector = inspectorButton.frame
         try selectFirstEpisode()
+        XCTAssertNotEqual(playlistPlayButton.label, "Play This Playlist", "The same Play control now targets the selection")
         assertInspectorPosition(unselectedInspector)
         assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
         try capture("07-entry-inspector")
@@ -185,6 +189,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey(.delete, modifierFlags: [])
 
         try navigate("New this week")
+        let viewHeader = episodeList.buttons["Episode"].firstMatch.frame
         try click(button("Edit View"))
         try sheet("Edit View")
         try capture("16-edit-view", expectsSheet: true)
@@ -202,7 +207,8 @@ final class PodListUITour: XCTestCase {
                        "A name stays a draft until the sheet Save")
         try dismissSheet("Save")
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.New this week edited").firstMatch)
-        let viewHeader = episodeList.buttons["Episode"].firstMatch.frame
+        XCTAssertEqual(episodeList.buttons["Episode"].firstMatch.frame.minY, viewHeader.minY, accuracy: 1,
+                       "Save feedback must not move a View’s list")
         app.typeKey("z", modifierFlags: .command)
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.New this week").firstMatch)
         XCTAssertEqual(episodeList.buttons["Episode"].firstMatch.frame.minY, viewHeader.minY, accuracy: 1,
@@ -219,15 +225,30 @@ final class PodListUITour: XCTestCase {
         try dismissSheet("Cancel")
 
         try navigate("Subscriptions")
+        try click(library.buttons["Open Deep Field, Subscription"])
+        try ready(library.staticTexts["Deep Field by Ines Okafor."])
+        XCTAssertFalse(button("Show description").exists, "A short description must not offer an expansion that changes nothing")
+        try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(button("Show description"))
         try ready(text("Who sets the price of rice?", in: episodeList))
         try assertPodcastWindowBounds()
         try capture("18-podcast-market-hours")
+        let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
         try ready(button("Show less"))
+        let description = library.staticTexts.matching(identifier: "podcast.description").firstMatch
+        XCTAssertGreaterThan(description.frame.height, collapsedDescription.height)
+        XCTAssertTrue(((description.value as? String) ?? description.label).hasSuffix("Thanks for listening to Market Hours."), "Expansion must retain the complete description")
         try assertPodcastWindowBounds()
         try capture("19-description-expanded")
+        // The expanded header can scroll; collapse it before testing the fixed action frames.
+        let showLess = button("Show less")
+        if let header = library.scrollViews.allElementsBoundByIndex.first(where: { $0.frame.contains(showLess.frame) || $0.staticTexts.matching(identifier: "podcast.description").firstMatch.exists }) {
+            try reveal(showLess, in: header)
+        }
+        try click(showLess)
+        try ready(button("Show description"))
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
@@ -384,6 +405,7 @@ final class PodListUITour: XCTestCase {
         }
         try click(button("Getting started", in: settings))
         try ready(settings.sheets.firstMatch)
+        XCTAssertTrue(settings.sheets.buttons["Hide Getting Started"].exists)
         try capture("32-getting-started", in: settings, expectsSheet: true)
         settings.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(settings.sheets.firstMatch.waitForNonExistence(timeout: 10))
@@ -433,7 +455,7 @@ final class PodListUITour: XCTestCase {
         let toolbar = library.toolbars.firstMatch
         XCTAssertTrue(toolbar.frame.contains(actualSection), "The section switcher must be in the toolbar", file: file, line: line)
         XCTAssertTrue(toolbar.frame.contains(actualPlay), "The Playlist action must be in the toolbar", file: file, line: line)
-        XCTAssertGreaterThan(actualPlay.minX, actualSection.maxX, "Play This Playlist belongs in trailing actions, outside the switcher", file: file, line: line)
+        XCTAssertGreaterThan(actualPlay.minX, actualSection.maxX, "Play belongs in trailing actions, outside the switcher", file: file, line: line)
         // Principal placement must preserve X when sections or selection actions change.
         XCTAssertEqual(actualPlay.width, play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
         XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
@@ -485,7 +507,7 @@ final class PodListUITour: XCTestCase {
         }
     }
 
-    private var playlistPlayButton: XCUIElement { library.toolbars.buttons["Play This Playlist"].firstMatch }
+    private var playlistPlayButton: XCUIElement { library.toolbars.buttons.matching(identifier: "toolbar.play").firstMatch }
     private func playlistSection(_ name: String) -> XCUIElement {
         library.toolbars.descendants(matching: .any).matching(NSPredicate(
             format: "(elementType == %d OR elementType == %d) AND label == %@",

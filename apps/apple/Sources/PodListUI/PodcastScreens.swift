@@ -27,10 +27,17 @@ struct LibraryFeedback: SwiftUI.View {
 struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.View {
     @ViewBuilder let header: () -> Header
     @ViewBuilder let episodes: () -> Episodes
+    @State private var headerHeight: CGFloat = 0
     var body: some SwiftUI.View {
         GeometryReader { viewport in
             VStack(alignment: .leading, spacing: 12) {
-                header()
+                ScrollView {
+                    header().frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                }
+                .frame(height: min(headerHeight, max(1, (viewport.size.height - 36) * 0.6)))
+                .scrollBounceBehavior(.basedOnSize)
                 GeometryReader { table in
                     episodes().frame(width: table.size.width, height: table.size.height)
                 }
@@ -80,6 +87,7 @@ struct PodcastPageScreen: SwiftUI.View {
     @State private var control = UnsubscribeControl()
     @State private var subscriptionBusy = false
     @State private var descriptionExpanded = false
+    @State private var descriptionTruncated = false
     @State private var settings = false
     @State private var downloadRules = false
     @State private var subscribedBounds = CGRect.zero
@@ -98,7 +106,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 MacIconLabel(title: "Play", systemImage: "play.fill")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Play \(episode.title) now")
-                .help("Play Now")
+                .help("Play now")
         }.macRowActions(isSelected: selection.wrappedValue.contains(episode.id)).disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
     }
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
@@ -130,8 +138,8 @@ struct PodcastPageScreen: SwiftUI.View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title).macContentFont(.title2).bold().lineLimit(2)
                         Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
-                        Text(Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? "")).lineLimit(descriptionExpanded ? 8 : 3).textSelection(.enabled)
-                        Button(descriptionExpanded ? "Show Less" : "Show Description", action: toggleDescription).buttonStyle(MacReadableLinkStyle())
+                        PodcastDescription(text: Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? ""),
+                            expanded: $descriptionExpanded, truncated: $descriptionTruncated, toggle: toggleDescription)
                         HStack {
                             TimelineView(.periodic(from: .now, by: 0.25)) { context in
                                 Button {
@@ -148,7 +156,7 @@ struct PodcastPageScreen: SwiftUI.View {
                                 ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
                                 Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
                             }
-                            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription Settings") }
+                            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription settings") }
                         }
                     }
                 }
@@ -276,7 +284,7 @@ struct PodcastPageScreen: SwiftUI.View {
         commands.feedURL = ShareLinks.web(feedURL)
         commands.refresh = loading ? nil : { load() }
         commands.descriptionExpanded = descriptionExpanded
-        commands.toggleDescription = { toggleDescription() }
+        commands.toggleDescription = descriptionTruncated ? { toggleDescription() } : nil
         return commands
     }
     private func toggleDescription() { control.reset(); descriptionExpanded.toggle() }
@@ -324,6 +332,35 @@ struct PodcastPageScreen: SwiftUI.View {
             bringing.remove(episode.guid)
         }
     }
+}
+
+/// Measure both layouts at the actual reading width and font. Expanded prose has
+/// no line cap; the page header scrolls when it needs more than its share of space.
+struct PodcastDescription: SwiftUI.View {
+    let text: String
+    @Binding var expanded: Bool
+    @Binding var truncated: Bool
+    let toggle: () -> Void
+    @State private var fullHeight: CGFloat = 0
+    @State private var collapsedHeight: CGFloat = 0
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text).lineLimit(expanded ? nil : 3).textSelection(.enabled)
+                .accessibilityIdentifier("podcast.description")
+                .background(alignment: .topLeading) {
+                    Text(text).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                        .hidden().accessibilityHidden(true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0; updateTruncation() }
+                    Text(text).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                        .hidden().accessibilityHidden(true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { collapsedHeight = $0; updateTruncation() }
+                }
+            if truncated {
+                Button(expanded ? "Show Less" : "Show Description", action: toggle).buttonStyle(MacReadableLinkStyle())
+            }
+        }
+    }
+    private func updateTruncation() { truncated = fullHeight > collapsedHeight + 0.5 }
 }
 
 struct SubscriptionSettingsScreen: SwiftUI.View {

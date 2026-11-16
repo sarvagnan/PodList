@@ -46,9 +46,18 @@ import Testing
 #if os(macOS)
 /// Inspect the real unified toolbar without ordering a window onto the desktop.
 @MainActor @Test func playlistPrincipalAndSearchFitDefaultWindow() async throws {
+    let db = try await fixtureDatabase()
+    let library = try await fixtureModel()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "toolbar", defaults: UserDefaults(suiteName: UUID().uuidString)!))
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
+    let presentation = PlaylistPresentation()
     struct ToolbarFixture: SwiftUI.View {
         let section: PlaylistTab
         let selected: Bool
+        let library: LibraryModel
+        let editing: PlaylistEditingModel
+        let app: ApplicationModel
+        let presentation: PlaylistPresentation
         var body: some SwiftUI.View {
             NavigationSplitView {
                 Text("Sidebar").navigationSplitViewColumnWidth(225)
@@ -56,20 +65,8 @@ import Testing
                 Text("Episodes").navigationTitle("Default").navigationSubtitle("4 Entries")
                     .toolbar {
                         ToolbarItem(placement: .principal) { PlaylistToolbar(selection: .constant(section)) }
-                        ToolbarItemGroup(placement: .primaryAction) {
-                            Button("Play This Playlist", systemImage: "play.square.stack") {}.help("Play This Playlist")
-                            Button("New Playlist…", systemImage: "plus") {}
-                            Button("Playlist Settings…", systemImage: "slider.horizontal.3") {}
-                        }
-                        ToolbarSpacer(.fixed, placement: .primaryAction)
-                        ToolbarItem(placement: .primaryAction) {
-                            ControlGroup {
-                                Button("Play Now", systemImage: "play.fill") {}.disabled(!selected)
-                                Button("Add to a Playlist", systemImage: "text.badge.plus") {}.disabled(!selected)
-                                Menu("Episode Actions", systemImage: "ellipsis.circle") { Button("Action") {} }
-                                    .menuStyle(.borderlessButton).fixedSize().disabled(!selected)
-                            }.controlSize(.small)
-                        }
+                        EpisodeActionButtons(ids: selected ? [library.snapshot.episodes[0].id] : [], library: library,
+                            editing: editing, presentation: presentation, app: app, playlist: library.state.playlists[0])
                         ToolbarSpacer(.fixed, placement: .primaryAction)
                         ToolbarItem(placement: .primaryAction) {
                             Button("Hide Inspector", systemImage: "sidebar.right") {}
@@ -79,7 +76,7 @@ import Testing
             }
         }
     }
-    let controller = NSHostingController(rootView: ToolbarFixture(section: .entries, selected: false))
+    let controller = NSHostingController(rootView: ToolbarFixture(section: .entries, selected: false, library: library, editing: editing, app: app, presentation: presentation))
     let window = NSWindow(contentViewController: controller)
     window.isReleasedWhenClosed = false
     window.setContentSize(NSSize(width: 1180, height: 760))
@@ -90,17 +87,19 @@ import Testing
     func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
     for section in PlaylistTab.allCases {
         for selected in [false, true] {
-            controller.rootView = ToolbarFixture(section: section, selected: selected)
+            controller.rootView = ToolbarFixture(section: section, selected: selected, library: library, editing: editing, app: app, presentation: presentation)
             for _ in 0..<5 { await Task.yield(); window.contentView?.superview?.layoutSubtreeIfNeeded() }
             let toolbar = try #require(window.toolbar)
             #expect(!toolbar.items.isEmpty)
-            if let play = toolbar.items.first(where: { $0.label == "Play This Playlist" })?.view {
-                playFrames.append(play.convert(play.bounds, to: nil))
-            }
             let inspector = try #require(toolbar.items.first(where: { $0.label == "Hide Inspector" })?.view)
             inspectorFrames.append(inspector.convert(inspector.bounds, to: nil))
             let root = try #require(window.contentView?.superview)
             let views = descendants(root)
+            let group = try #require(toolbar.items.compactMap { $0 as? NSToolbarItemGroup }.first)
+            #expect(group.subitems.map(\.label) == ["Play Now", "Add to a Playlist…", "Episode Actions", "Playlist Settings…"])
+            let play = try #require(group.subitems.first?.view)
+            playFrames.append(play.convert(play.bounds, to: nil))
+            #expect(!toolbar.items.contains { $0.label == "New Playlist…" })
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
             let frame = picker.convert(picker.bounds, to: root)
             frames.append(frame)
