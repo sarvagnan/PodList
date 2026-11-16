@@ -241,6 +241,7 @@ final class PodListUITour: XCTestCase {
             XCTAssertTrue(library.sheets.staticTexts[label].exists)
         }
         try capture("17-new-view", expectsSheet: true)
+        try assertSheetAtBothTextSizes()
         try dismissSheet("Cancel")
 
         try navigate("Subscriptions")
@@ -252,6 +253,9 @@ final class PodListUITour: XCTestCase {
         try ready(button("Show description"))
         try ready(text("Who sets the price of rice?", in: episodeList))
         try assertPodcastWindowBounds()
+        let episodeHeading = episodeList.buttons["Episode"].firstMatch
+        let episodeCount = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
+        XCTAssertEqual(episodeHeading.frame.minX, episodeCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
@@ -260,12 +264,9 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThan(description.frame.height, collapsedDescription.height)
         XCTAssertTrue(((description.value as? String) ?? description.label).hasSuffix("Thanks for listening to Market Hours."), "Expansion must retain the complete description")
         try assertPodcastWindowBounds()
+        try assertExpandedPodcastControls()
         try capture("19-description-expanded")
-        // The expanded header can scroll; collapse it before testing the fixed action frames.
         let showLess = button("Show less")
-        if let header = library.scrollViews.allElementsBoundByIndex.first(where: { $0.frame.contains(showLess.frame) || $0.staticTexts.matching(identifier: "podcast.description").firstMatch.exists }) {
-            try reveal(showLess, in: header)
-        }
         try click(showLess)
         try ready(button("Show description"))
         let subscriptionFrame = library.buttons["Subscribed"].frame
@@ -289,6 +290,7 @@ final class PodListUITour: XCTestCase {
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         try capture("22-subscription-settings", expectsSheet: true)
+        try assertSheetAtBothTextSizes()
         library.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
         try click(button("Subscription Settings"))
@@ -300,6 +302,11 @@ final class PodListUITour: XCTestCase {
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
         try sheet("to a Playlist")
+        let addSheet = library.sheets.firstMatch
+        try ready(addSheet.buttons["Add"])
+        XCTAssertTrue(addSheet.buttons["Play Next"].exists)
+        XCTAssertTrue(addSheet.buttons["Play Now"].exists)
+        XCTAssertFalse(addSheet.buttons["Play Last"].exists, "The plain Add action appends without starting playback")
         try capture("23-add-to-playlist", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Subscriptions")
@@ -358,6 +365,11 @@ final class PodListUITour: XCTestCase {
             try ready(control)
             XCTAssertTrue(nowPlaying.frame.contains(control.frame), "Main playback controls must fit without scrolling")
             XCTAssertLessThanOrEqual(control.frame.maxY, nowPlaying.frame.maxY - 16)
+        }
+        XCTAssertFalse(nowPlaying.scrollViews.staticTexts["Now Playing"].exists, "The title bar already names the window")
+        let playlistLink = nowPlaying.buttons["Open Active Playlist"]
+        if !nowPlaying.buttons["Next Chapter"].exists {
+            XCTAssertLessThan(nowPlaying.frame.maxY - playlistLink.frame.maxY, 80, "Now Playing must fit its content without an empty bottom band")
         }
         try capture("26-now-playing", in: nowPlaying)
         // Playback stays open while the person browses Library.
@@ -433,6 +445,9 @@ final class PodListUITour: XCTestCase {
         try menuCommand("Window", "Listening Stats")
         let stats = app.windows.matching(NSPredicate(format: "title == %@", "Listening Stats")).firstMatch
         try ready(stats)
+        XCTAssertFalse(stats.scrollViews.staticTexts["Listening Stats"].exists, "The title bar already names the window")
+        XCTAssertFalse(stats.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "0:00 listened")).firstMatch.exists,
+                       "Sub-minute listening must use visible seconds rather than round to zero")
         try capture("31-listening-stats", in: stats)
         stats.typeKey("w", modifierFlags: .command)
         app.typeKey(",", modifierFlags: .command)
@@ -492,6 +507,23 @@ final class PodListUITour: XCTestCase {
             XCTAssertFalse(control.frame.isEmpty, "Control must have a visible frame", file: file, line: line)
             XCTAssertTrue(library.frame.contains(control.frame), "Podcast page pushed \(control) outside the window", file: file, line: line)
         }
+    }
+
+    private func assertExpandedPodcastControls(file: StaticString = #filePath, line: UInt = #line) throws {
+        let rule = library.popUpButtons.matching(identifier: "downloadRule.mode").firstMatch
+        let count = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
+        for control in [rule, count] {
+            try ready(control, file: file, line: line)
+            XCTAssertTrue(library.frame.contains(control.frame), "Expanded description hid a page control", file: file, line: line)
+            XCTAssertTrue(control.isHittable, "Page controls must be visible without scrolling", file: file, line: line)
+        }
+        for scroll in library.scrollViews.allElementsBoundByIndex {
+            XCTAssertFalse(scroll.popUpButtons.matching(identifier: "downloadRule.mode").firstMatch.exists,
+                           "Download Rule must be outside scrolling content", file: file, line: line)
+            XCTAssertFalse(scroll.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch.exists,
+                           "Episode count must be outside scrolling content", file: file, line: line)
+        }
+        XCTAssertLessThan(rule.frame.maxY, count.frame.minY, file: file, line: line)
     }
 
     private func assertPlaylistHeader(play: CGRect, section: CGRect,
@@ -716,6 +748,28 @@ final class PodListUITour: XCTestCase {
         attach(text, name: "menus.txt")
     }
 
+    private func assertSheetAtBothTextSizes(file: StaticString = #filePath, line: UInt = #line) throws {
+        let sheet = library.sheets.firstMatch
+        let width = sheet.frame.width
+        func assertHorizontalBounds() {
+            let fields = sheet.descendants(matching: .any).allElementsBoundByIndex.filter {
+                [.textField, .popUpButton, .checkBox, .staticText].contains($0.elementType) && !$0.frame.isEmpty
+            }
+            XCTAssertFalse(fields.isEmpty, file: file, line: line)
+            for field in fields {
+                XCTAssertGreaterThanOrEqual(field.frame.minX, sheet.frame.minX, "Clipped label or control: \(field.label)", file: file, line: line)
+                XCTAssertLessThanOrEqual(field.frame.maxX, sheet.frame.maxX, "Clipped label or control: \(field.label)", file: file, line: line)
+                if field.elementType != .staticText { XCTAssertFalse(field.label.isEmpty, "Every field needs an accessible name", file: file, line: line) }
+            }
+        }
+        assertHorizontalBounds()
+        for _ in 0..<10 { try menuCommand("View", "Bigger") }
+        XCTAssertEqual(sheet.frame.width, width, accuracy: 1, "Text Size must not widen the sheet", file: file, line: line)
+        assertHorizontalBounds()
+        try menuCommand("View", "Actual Size")
+        XCTAssertEqual(sheet.frame.width, width, accuracy: 1, file: file, line: line)
+    }
+
     private func assertSheetCheckboxSpace() throws {
         let checkbox = library.sheets.firstMatch.checkBoxes["Clear on Played"]
         try ready(checkbox)
@@ -784,10 +838,10 @@ final class PodListUITour: XCTestCase {
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
             "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
-            "Podcast": ["Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
-            "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
+            "Podcast": ["Show Subscriptions", "Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
+            "Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
             "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
-            "Playlist": ["Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
+            "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],
             "Help": ["PodList Help", "Getting Started"]
@@ -796,6 +850,9 @@ final class PodListUITour: XCTestCase {
         if name == "PodList" {
             let configurationItems = titles(menu).filter { ["Settings…", "Connection", "Automation"].contains($0) }
             XCTAssertEqual(configurationItems, ["Settings…", "Connection", "Automation"])
+        }
+        if ["Playlist", "Podcast", "Views"].contains(name) {
+            XCTAssertTrue(items.isDisjoint(with: ["Trash", "Subscriptions", "All Views"]), "Navigation commands need Show verbs")
         }
         if name == "Podcast" {
             XCTAssertTrue(!items.isDisjoint(with: ["Subscribe", "Unsubscribe"]))

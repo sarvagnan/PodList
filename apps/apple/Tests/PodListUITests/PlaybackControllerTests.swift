@@ -49,24 +49,28 @@ private final class FakePlayerClock: Sendable {
     return (db, player, audio, clock)
 }
 #if os(macOS)
-@MainActor @Test func nowPlayingMinimumFitsPlaybackControlsWithoutAScreen() async throws {
+@MainActor @Test func nowPlayingControlsFitTypicalWindowAndGrowWithTextSizeWithoutAScreen() async throws {
     let (db, player, _, _) = try await playbackFixture()
     let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
     let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
-    for width in [CGFloat(420), 560] {
-        for appearance in [ColorScheme.light, .dark] {
-            let host = NSHostingView(rootView: NowPlayingView(controller: player, library: library, app: app,
+    let display = try #require(player.display)
+    for appearance in [ColorScheme.light, .dark] {
+        var heights: [CGFloat] = []
+        for scale: CGFloat in [1, 2] {
+            let playerView = NowPlayingView(controller: player, library: library, app: app,
                 openPlaylist: {}, addToPlaylist: { _, _ in }, done: {})
-                .macContentFont(.body)
-                .environment(\.colorScheme, appearance)
-                .frame(width: width))
-            // The old ScrollView could shrink to almost zero, leaving the main
-            // controls behind its footer. Their natural height now sets the minimum.
-            let minimum = host.fittingSize
-            #expect(minimum.width == width)
-            #expect(minimum.height > 600)
-            #expect(minimum.height <= 800)
+            // Measure the content that determines the window height, independently
+            // of the screen-dependent scroll viewport supplied by ContentSizedPanel.
+            let host = NSHostingView(rootView: playerView.playbackControls(display)
+                .macContentFont(.body).environment(\.macTextScale, scale)
+                .environment(\.colorScheme, appearance).frame(width: 560))
+            let size = host.fittingSize
+            #expect(size.width == 560)
+            #expect(size.height > 400)
+            if scale == 1 { #expect(size.height < 760, "Ordinary playback controls must fit the typical screen") }
+            heights.append(size.height)
         }
+        #expect(heights[1] > heights[0], "Enlarged text must grow content for the bounded scrolling surface")
     }
 }
 

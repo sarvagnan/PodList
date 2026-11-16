@@ -7,6 +7,12 @@ import Testing
 import UniformTypeIdentifiers
 @testable import PodListUI
 
+@Test func navigationMenuCommandsShowDestinationsInsteadOfImplyingEdits() {
+    let destinations: [Destination] = [.trash, .subscriptions, .views]
+    #expect(LibraryNavigationCommand.allCases.map(\.destination) == destinations)
+    #expect(LibraryNavigationCommand.allCases.map(\.title) == ["Show Trash", "Show Subscriptions", "Show All Views"])
+}
+
 @Test func supplementalCommandsAreFiledByTaskAndObject() {
     #expect(Set(MenuActionMenu.file.items) == [.showImport, .cancelImport, .retryImport])
     #expect(MenuActionMenu.edit.items == [.clearSearch, .retry])

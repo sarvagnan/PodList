@@ -377,7 +377,7 @@ public struct PlaylistEditingCommands: Commands {
             Button("Delete Permanently…", role: .destructive) { deletePermanently?() }.disabled(deletePermanently == nil)
             Button("Rewind to Here…") { rewind?() }.disabled(rewind == nil)
             Divider()
-            Button("Trash") { context?.window.navigate(to: .trash) }.disabled(context == nil)
+            Button(LibraryNavigationCommand.trash.title) { context?.window.navigate(to: LibraryNavigationCommand.trash.destination) }.disabled(context == nil)
             Button("Play This Playlist") {
                 guard let playlist = playlistContext?.playlist else { return }
                 Task { await app.editing?.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }

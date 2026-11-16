@@ -27,19 +27,14 @@ struct LibraryFeedback: SwiftUI.View {
 /// The parent offers a detail viewport, never the table's AppKit ideal height.
 /// Keep metadata bounded and give only the Episode list the remaining space.
 struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.View {
-    @ViewBuilder let header: () -> Header
+    @ViewBuilder let header: (CGFloat) -> Header
     @ViewBuilder let episodes: () -> Episodes
-    @State private var headerHeight: CGFloat = 0
     var body: some SwiftUI.View {
         GeometryReader { viewport in
             VStack(alignment: .leading, spacing: 12) {
-                ScrollView {
-                    header().frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
-                }
-                .frame(height: min(headerHeight, max(1, (viewport.size.height - 36) * 0.6)))
-                .scrollBounceBehavior(.basedOnSize)
+                header(max(48, (viewport.size.height - 36) * 0.25))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 GeometryReader { table in
                     episodes().frame(width: table.size.width, height: table.size.height)
                 }
@@ -133,7 +128,7 @@ struct PodcastPageScreen: SwiftUI.View {
         }.sorted(using: sortOrder)
     }
     var body: some SwiftUI.View {
-        PodcastPageLayout {
+        PodcastPageLayout { descriptionHeight in
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 16) {
                     ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
@@ -141,7 +136,7 @@ struct PodcastPageScreen: SwiftUI.View {
                         Text(title).macContentFont(.title2).bold().lineLimit(2)
                         Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
                         PodcastDescription(text: Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? ""),
-                            expanded: $descriptionExpanded, truncated: $descriptionTruncated, toggle: toggleDescription)
+                            expanded: $descriptionExpanded, truncated: $descriptionTruncated, maximumHeight: descriptionHeight, toggle: toggleDescription)
                         HStack {
                             TimelineView(.periodic(from: .now, by: 0.25)) { context in
                                 Button {
@@ -168,6 +163,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 if loading { ProgressView("Reading Episodes…") }
                 if let error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { control.reset(); load() } }
                 Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
+                    .accessibilityIdentifier("podcast.episodeCount")
             }
         } episodes: {
             if episodes.isEmpty, !loading, error == nil {
@@ -205,6 +201,7 @@ struct PodcastPageScreen: SwiftUI.View {
                             ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                         }
                         .tableStyle(.inset)
+                        .contentMargins(.horizontal, 0, for: .scrollContent)
                     }
                 }
                 .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },
@@ -337,26 +334,34 @@ struct PodcastPageScreen: SwiftUI.View {
 }
 
 /// Measure both layouts at the actual reading width and font. Expanded prose has
-/// no line cap; the page header scrolls when it needs more than its share of space.
+/// no line cap; only the prose scrolls, leaving page actions and counts visible.
 struct PodcastDescription: SwiftUI.View {
     let text: String
     @Binding var expanded: Bool
     @Binding var truncated: Bool
+    var maximumHeight: CGFloat = 140
     let toggle: () -> Void
     @State private var fullHeight: CGFloat = 0
     @State private var collapsedHeight: CGFloat = 0
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(text).lineLimit(expanded ? nil : 3).textSelection(.enabled)
-                .accessibilityIdentifier("podcast.description")
-                .background(alignment: .topLeading) {
-                    Text(text).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
-                        .hidden().accessibilityHidden(true)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0; updateTruncation() }
-                    Text(text).lineLimit(3).fixedSize(horizontal: false, vertical: true)
-                        .hidden().accessibilityHidden(true)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { collapsedHeight = $0; updateTruncation() }
-                }
+            ScrollView {
+                Text(text).lineLimit(expanded ? nil : 3).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("podcast.description")
+                    .background(alignment: .topLeading) {
+                        Text(text).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                            .hidden().accessibilityHidden(true)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0; updateTruncation() }
+                        Text(text).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                            .hidden().accessibilityHidden(true)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { collapsedHeight = $0; updateTruncation() }
+                    }
+            }
+            .frame(height: min(expanded ? fullHeight : collapsedHeight, maximumHeight))
+            .scrollBounceBehavior(.basedOnSize)
+            .accessibilityLabel("Podcast Description")
             if truncated {
                 Button(expanded ? "Show Less" : "Show Description", action: toggle).buttonStyle(MacReadableAccentButtonStyle())
             }
@@ -396,9 +401,9 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     }
     private var settingsFields: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("On This Device").macContentFont(.headline)
+            PodListSheetSectionHeading("On This Device")
             DownloadRuleFields(mode: value(\.mode), cap: value(\.cap))
-            Text("Played").macContentFont(.headline)
+            PodListSheetSectionHeading("Played")
             VStack(alignment: .leading, spacing: 12) {
                 PodListSheetField("Played Threshold") {
                     Picker("Played Threshold", selection: value(\.threshold)) {
@@ -411,7 +416,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 Text("Mark All Played takes effect immediately and can be undone.")
                     .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
             }
-            Text("Playback Settings Overrides").macContentFont(.headline)
+            PodListSheetSectionHeading("Playback Settings Overrides")
             VStack(alignment: .leading, spacing: 12) {
                 Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])

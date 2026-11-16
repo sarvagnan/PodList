@@ -16,7 +16,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
                         // A grouped Form draws the title beside an unnamed switch for accessibility.
                         .accessibilityLabel("Enable MCP Server")
                     Text("Any app running as this user on this Mac can then read the Library and control playback.")
-                        .macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
+                        .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
                         .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                     if let error = settings.error {
@@ -73,7 +73,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                 }
                 if app.isStandalone {
                     Section("Publisher Feeds") {
-                        Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.").macContentFont(.callout)
+                        Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: 480, alignment: .leading)
                         Button("Refresh Now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
                         if let error = app.syncError { Text(error).foregroundStyle(Color.podListError) }
@@ -98,6 +98,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         Button("Disconnect") { app.disconnect() }
                     } else {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
+                            .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                         TextField("Server Address", text: $app.serverInput)
                         Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
                         if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
@@ -276,7 +277,7 @@ struct GettingStartedScreen: SwiftUI.View {
     }
     private var steps: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Add podcasts to your Library", systemImage: "1.circle")
+            Label("Add Podcasts to Your Library", systemImage: "1.circle")
             Text("Search by name or enter a feed address.").foregroundStyle(MacReadableSecondaryStyle())
             if let add { Button("Add Podcasts…", action: add) }
             else { Text("Use File › Add Podcasts… (⇧⌘A) in the Library window.").macContentFont(.caption) }
@@ -320,19 +321,21 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            Text("Listening Stats").macContentFont(.largeTitle).bold()
+                            Text("Time Listened").macContentFont(.headline)
                             ForEach(stats.totals, id: \.name) { total in
-                                LabeledContent(total.name) { Text("\(Presentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
+                                LabeledContent(total.name) { Text("\(ListeningStatsPresentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
                             }
                             Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                             Text("Listening Streak: \(CountText.format(stats.streak, .day))").macContentFont(.headline)
                             if stats.days.contains(where: { $0.seconds > 0 }) {
+                                Text("Daily Listening").macContentFont(.headline)
+                                let seconds = ListeningStatsPresentation.usesSeconds(stats.days.map(\.seconds))
                                 Toggle("Show Daily Table", isOn: $table)
                                 if table {
-                                    ForEach(stats.days.reversed()) { day in LabeledContent(day.date.formatted(date: .abbreviated, time: .omitted), value: Presentation.time(day.seconds)) }
+                                    ForEach(stats.days.reversed()) { day in LabeledContent(day.date.formatted(date: .abbreviated, time: .omitted), value: ListeningStatsPresentation.time(day.seconds)) }
                                 } else {
                                     Chart(stats.days) { day in
-                                        BarMark(x: .value("Day", day.date, unit: .day), y: .value("Minutes listened", day.seconds / 60))
+                                        BarMark(x: .value("Day", day.date, unit: .day), y: .value(seconds ? "Seconds listened" : "Minutes listened", day.seconds / (seconds ? 1 : 60)))
                                             .foregroundStyle(MacAccentForegroundStyle())
                                     }
                                         .chartXAxis { AxisMarks { _ in
@@ -345,14 +348,15 @@ public struct ListeningStatsScreen: SwiftUI.View {
                                             AxisTick()
                                             AxisValueLabel().foregroundStyle(MacReadableSecondaryStyle())
                                         } }
-                                        .chartYAxisLabel { Text("Minutes").foregroundStyle(MacReadableSecondaryStyle()) }
-                                        .frame(height: 200).accessibilityLabel("Daily listening in minutes for the last 30 days. Use Show Daily Table for exact values.")
+                                        .chartYScale(domain: 0...max(1, (stats.days.map(\.seconds).max() ?? 0) / (seconds ? 1 : 60)))
+                                        .chartYAxisLabel { Text(seconds ? "Seconds" : "Minutes").foregroundStyle(MacReadableSecondaryStyle()) }
+                                        .frame(height: 200).accessibilityLabel("Daily listening in \(seconds ? "seconds" : "minutes") for the last 30 days. Use Show Daily Table for exact values.")
                                 }
                             }
                             if !stats.podcasts.isEmpty {
-                                Text("Top Podcasts").macContentFont(.title2)
+                                Text("Top Podcasts").macContentFont(.headline)
                                 ForEach(stats.podcasts, id: \.id) { item in
-                                    LabeledContent(library.snapshot.subscriptions.first { $0.id == item.id }?.title ?? "Removed Subscription", value: Presentation.time(item.seconds))
+                                    LabeledContent(library.snapshot.subscriptions.first { $0.id == item.id }?.title ?? "Removed Subscription", value: ListeningStatsPresentation.time(item.seconds))
                                 }
                             }
                         }.padding(25)
