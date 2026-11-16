@@ -260,12 +260,9 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThan(description.frame.height, collapsedDescription.height)
         XCTAssertTrue(((description.value as? String) ?? description.label).hasSuffix("Thanks for listening to Market Hours."), "Expansion must retain the complete description")
         try assertPodcastWindowBounds()
+        try assertExpandedPodcastControls()
         try capture("19-description-expanded")
-        // The expanded header can scroll; collapse it before testing the fixed action frames.
         let showLess = button("Show less")
-        if let header = library.scrollViews.allElementsBoundByIndex.first(where: { $0.frame.contains(showLess.frame) || $0.staticTexts.matching(identifier: "podcast.description").firstMatch.exists }) {
-            try reveal(showLess, in: header)
-        }
         try click(showLess)
         try ready(button("Show description"))
         let subscriptionFrame = library.buttons["Subscribed"].frame
@@ -492,6 +489,23 @@ final class PodListUITour: XCTestCase {
             XCTAssertFalse(control.frame.isEmpty, "Control must have a visible frame", file: file, line: line)
             XCTAssertTrue(library.frame.contains(control.frame), "Podcast page pushed \(control) outside the window", file: file, line: line)
         }
+    }
+
+    private func assertExpandedPodcastControls(file: StaticString = #filePath, line: UInt = #line) throws {
+        let rule = library.popUpButtons.matching(NSPredicate(format: "label == %@", "Download Rule on This Device")).firstMatch
+        let count = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
+        for control in [rule, count] {
+            try ready(control, file: file, line: line)
+            XCTAssertTrue(library.frame.contains(control.frame), "Expanded description hid a page control", file: file, line: line)
+            XCTAssertTrue(control.isHittable, "Page controls must be visible without scrolling", file: file, line: line)
+        }
+        for scroll in library.scrollViews.allElementsBoundByIndex {
+            XCTAssertFalse(scroll.popUpButtons.matching(NSPredicate(format: "label == %@", "Download Rule on This Device")).firstMatch.exists,
+                           "Download Rule must be outside scrolling content", file: file, line: line)
+            XCTAssertFalse(scroll.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch.exists,
+                           "Episode count must be outside scrolling content", file: file, line: line)
+        }
+        XCTAssertLessThan(rule.frame.maxY, count.frame.minY, file: file, line: line)
     }
 
     private func assertPlaylistHeader(play: CGRect, section: CGRect,

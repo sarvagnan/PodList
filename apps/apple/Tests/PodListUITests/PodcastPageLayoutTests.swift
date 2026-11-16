@@ -8,7 +8,7 @@ import Testing
     struct Row: Identifiable { let id: Int }
     for height: CGFloat in [260, 420, 560] {
         for scale: CGFloat in [1, 2] {
-            let root = PodcastPageLayout {
+            let root = PodcastPageLayout { _ in
                 VStack(alignment: .leading) {
                     Text("A Podcast title").macContentFont(.title2).lineLimit(2)
                     Text(String(repeating: "A long description. ", count: 100)).lineLimit(3)
@@ -31,7 +31,7 @@ import Testing
     }
 }
 
-@MainActor @Test func podcastDescriptionMeasuresTruncationAndExpandsWithoutALineCap() async throws {
+@MainActor @Test func podcastDescriptionMeasuresTruncationAndBoundsExpandedProse() async throws {
     for scale: CGFloat in [1, 2] {
         for text in ["A short description.", String(repeating: "A long description with more to read. ", count: 80)] {
             var truncated = false
@@ -46,7 +46,7 @@ import Testing
                     truncated: .constant(true), toggle: {})
                     .macContentFont(.body).environment(\.macTextScale, scale).frame(width: 360))
                 let image = try #require(renderer.cgImage)
-                #expect(image.height > 8 * 30 * Int(scale), "Expanded descriptions must extend beyond eight lines")
+                #expect(image.height < 240, "Only the prose viewport grows to its cap; the toggle remains outside it")
             }
         }
     }
