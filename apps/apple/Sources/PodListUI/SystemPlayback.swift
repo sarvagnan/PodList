@@ -5,7 +5,10 @@ import AppKit
 #endif
 
 public enum NowPlayingMapping {
-    public static func info(_ value: PlaybackDisplay) -> [String: Any] {
+    public static func info(_ value: PlaybackDisplay,
+                            suggestionsEnabled: Bool = ActionDonations.isEnabled(
+                                bundleIdentifier: Bundle.main.bundleIdentifier,
+                                environment: ProcessInfo.processInfo.environment)) -> [String: Any] {
         var result: [String: Any] = [
             MPMediaItemPropertyTitle: value.title,
             MPMediaItemPropertyArtist: value.podcast,
@@ -14,7 +17,9 @@ public enum NowPlayingMapping {
             MPNowPlayingInfoPropertyPlaybackRate: value.playing && !value.buffering ? value.speed : 0.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: value.speed,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
-            MPNowPlayingInfoPropertyExternalContentIdentifier: value.episodeID
+            MPNowPlayingInfoPropertyExternalContentIdentifier: value.episodeID,
+            // Now Playing is also an input to Siri learning, independently of AppIntent.donate().
+            MPNowPlayingInfoPropertyExcludeFromSuggestions: !suggestionsEnabled
         ]
         if let duration = value.duration { result[MPMediaItemPropertyPlaybackDuration] = duration }
         if let index = value.chapterIndex {
