@@ -31,6 +31,21 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSAccentColorName</key><string>AccentColor</string>
+<key>CFBundleDocumentTypes</key><array><dict>
+<key>CFBundleTypeName</key><string>OPML Podcast Subscriptions</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>org.opml</string></array>
+</dict></array>
+<key>UTImportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>org.opml</string>
+<key>UTTypeDescription</key><string>OPML Podcast Subscriptions</string>
+<key>UTTypeConformsTo</key><array><string>public.xml</string></array>
+<key>UTTypeTagSpecification</key><dict>
+<key>public.filename-extension</key><array><string>opml</string></array>
+<key>public.mime-type</key><string>text/x-opml</string>
+</dict>
+</dict></array>
 <key>UTExportedTypeDeclarations</key><array><dict>
 <key>UTTypeIdentifier</key><string>app.podlist.episode</string>
 <key>UTTypeDescription</key><string>PodList Episode</string>

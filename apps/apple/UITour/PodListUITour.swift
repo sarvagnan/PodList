@@ -83,7 +83,10 @@ final class PodListUITour: XCTestCase {
         try capture("06-default-playlist")
         let unselectedSection = playlistSection("Entries").frame
         let unselectedPlay = playlistPlayButton.frame
+        try ready(inspectorButton)
+        let unselectedInspector = inspectorButton.frame
         try selectFirstEpisode()
+        assertInspectorPosition(unselectedInspector)
         assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
         try capture("07-entry-inspector")
         // The section switcher and Playlist action belong to the window toolbar.
@@ -92,6 +95,7 @@ final class PodListUITour: XCTestCase {
         try segment("History")
         try capture("08-history")
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
+        assertInspectorPosition(unselectedInspector)
         let historyDescription = text("Manual Played marks do not create History")
         try ready(historyDescription)
         XCTAssertLessThanOrEqual(historyDescription.frame.maxY, library.buttons["Open Now Playing"].frame.minY - 22,
@@ -100,6 +104,7 @@ final class PodListUITour: XCTestCase {
         try ready(library.descendants(matching: .any).matching(identifier: "Listening Timeline").firstMatch)
         try capture("09-listening-timeline")
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
+        assertInspectorPosition(unselectedInspector)
         let rewind = library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Rewind to ")).firstMatch
         try ready(rewind)
         // Standard XCUITest pointer input, even when the row already shows its action.
@@ -421,6 +426,20 @@ final class PodListUITour: XCTestCase {
         try click(playlistSection(name))
     }
 
+    private var inspectorButton: XCUIElement {
+        library.toolbars.buttons.matching(identifier: "library.inspector").firstMatch
+    }
+    private func assertInspectorPosition(_ original: CGRect, file: StaticString = #filePath, line: UInt = #line) {
+        let actual = inspectorButton.frame
+        XCTAssertEqual(actual.minX, original.minX, accuracy: 1, "Selection moved the Inspector toggle", file: file, line: line)
+        XCTAssertEqual(actual.minY, original.minY, accuracy: 1, file: file, line: line)
+        let selectionActions = library.toolbars.buttons["Add to a Playlist"].firstMatch
+        XCTAssertLessThan(selectionActions.frame.maxX, actual.minX, "Inspector must follow selection commands", file: file, line: line)
+        if let search = library.searchFields.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+            XCTAssertLessThan(actual.maxX, search.frame.minX, "Inspector must precede Search", file: file, line: line)
+        }
+    }
+
     private var playlistPlayButton: XCUIElement { library.toolbars.buttons["Play This Playlist"].firstMatch }
     private func playlistSection(_ name: String) -> XCUIElement {
         library.toolbars.descendants(matching: .any).matching(NSPredicate(
@@ -632,7 +651,7 @@ final class PodListUITour: XCTestCase {
         let required: [String: Set<String>] = [
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…", "Retry Bring Over", "Automation", "Copy Configuration", "Retry MCP Server"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
-            "Edit": ["Search Library", "Clear Search", "Retry"],
+            "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
@@ -655,7 +674,7 @@ final class PodListUITour: XCTestCase {
         }
         let owners = ["Connection": "PodList", "Refresh Library": "Podcast", "Add Podcasts…": "File",
                       "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
-                      "Cancel Import": "File", "Retry Failed Imports": "File", "Retry": "Edit", "Retry Failed Episode Drop": "Episode",
+                      "Cancel Import": "File", "Retry Failed Imports": "File", "Retry Failed Operation": "Edit", "Retry Failed Episode Drop": "Episode",
                       "Retry Bring Over": "PodList", "Copy Configuration": "PodList", "Retry MCP Server": "PodList", "Retry Playback": "Controls",
                       "Show Description": "View", "Hide Description": "View", "Show Daily Table": "View"]
         for (command, owner) in owners where name != owner {

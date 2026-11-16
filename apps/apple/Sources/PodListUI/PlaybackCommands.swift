@@ -35,7 +35,7 @@ public struct PlaybackCommands: Commands {
     public var body: some Commands {
         CommandMenu("Controls") {
             // Space is a contextual accelerator, not an app-wide menu equivalent.
-            Button("\(toggle.title) (Space in Library)", action: toggle.perform)
+            Button(toggle.title, action: toggle.perform)
                 .disabled(!toggle.isEnabled)
             Button("Resume Playback") { app.playback?.play() }.disabled(app.playback?.display == nil || app.playback?.wantsPlayback == true)
             Button("Pause Playback") { app.playback?.pause() }.disabled(app.playback?.wantsPlayback != true)

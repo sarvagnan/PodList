@@ -204,7 +204,7 @@ struct PodListShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: PlayIntent(), phrases: ["Play my \(.applicationName) Playlist"], shortTitle: "Play", systemImageName: "play.fill")
         AppShortcut(intent: PauseIntent(), phrases: ["Pause \(.applicationName)"], shortTitle: "Pause", systemImageName: "pause.fill")
-        AppShortcut(intent: NowPlayingIntent(), phrases: ["What's playing in \(.applicationName)"], shortTitle: "Now Playing", systemImageName: "waveform")
+        AppShortcut(intent: NowPlayingIntent(), phrases: ["What’s playing in \(.applicationName)"], shortTitle: "Now Playing", systemImageName: "waveform")
         AppShortcut(intent: AddCurrentIntent(), phrases: ["Add the current Episode in \(.applicationName) to a Playlist"], shortTitle: "Add Current Episode", systemImageName: "text.badge.plus")
     }
 }

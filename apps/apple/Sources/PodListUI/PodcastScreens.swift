@@ -8,20 +8,16 @@ struct LibraryFeedback: SwiftUI.View {
     var reservesSpace = true
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
-            EditingFeedback(editing: editor.edits, additionalError: editor.error,
+            EditingFeedback(editing: editor.edits, additionalError: editor.error, additionalStatus: dropStatus,
                             undo: { Task { await editor.undo() } }, redo: { Task { await editor.redo() } },
                             reservesSpace: reservesSpace)
-            if let drop = editor.episodeDrop {
-                ProgressView("Adding Episodes… \(drop.completed) of \(drop.total) prepared", value: Double(drop.completed), total: Double(drop.total))
-                    .padding(.horizontal, 14).padding(.bottom, 8)
-            }
-            if let failure = editor.failedEpisodeDrop {
-                FailureFeedback(message: failure.message, announcements: editor.edits.announcements, indexedElsewhere: true) {
-                    Task { await failure.retry() }
-                }.disabled(editor.episodeDrop != nil || editor.busy || editor.edits.busy)
-                    .padding(.horizontal, 14).padding(.bottom, 8)
-            }
+
         }
+    }
+    private var dropStatus: String? {
+        if let drop = editor.episodeDrop { return "Adding Episodes… \(drop.completed) of \(drop.total) prepared" }
+        if editor.failedEpisodeDrop != nil { return "Some Episodes could not be added. Use Episode › Retry Failed Episode Drop, or open the destination Playlist." }
+        return nil
     }
 }
 
@@ -254,7 +250,7 @@ struct PodcastPageScreen: SwiftUI.View {
     private func dragPayload(_ episode: PageEpisode) -> EpisodeTransfer {
         let chosen = selection.wrappedValue.contains(episode.id) ? episodes.filter { selection.wrappedValue.contains($0.id) } : [episode]
         let references = chosen.map { item in
-            item.localID.map { DraggedEpisode(episodeID: $0) } ?? DraggedEpisode(episodeID: nil, feedURL: feedURL, guid: item.guid)
+            item.localID.map { DraggedEpisode(episodeID: $0, title: item.title) } ?? DraggedEpisode(episodeID: nil, feedURL: feedURL, guid: item.guid, title: item.title)
         }
         let published = feed?.episodes.first { $0.guid == episode.guid }
         let url = episode.localID.flatMap { library.episodeShareURL($0) } ?? ShareLinks.episode(page: published?.link, enclosure: published?.audioUrl)

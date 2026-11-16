@@ -7,6 +7,7 @@ import AppIntents
 struct PodListMac: App {
     @NSApplicationDelegateAdaptor(MacApplicationDelegate.self) private var delegate
     @State private var model: ApplicationModel
+    @State private var pendingOPMLFiles: [URL] = []
     @State private var textSize = MacTextSizePreference()
 
     init() {
@@ -25,14 +26,30 @@ struct PodListMac: App {
     }
     @Environment(\.openWindow) private var openWindow
 
+    /// Retain cold-open files until the Library is ready. Opening a document only
+    /// stages the same preview used by File > Import OPML; it never subscribes.
+    private func stageOPMLFiles() {
+        guard let editor = model.libraryEditing, !editor.busy, !pendingOPMLFiles.isEmpty else { return }
+        let urls = pendingOPMLFiles
+        pendingOPMLFiles = []
+        Task { await editor.selectOPMLFiles(urls) }
+    }
+
     var body: some Scene {
         WindowGroup("PodList", id: "library", for: LibraryWindowTarget.self) { $target in
             PodListWindow(app: model, initialDestination: target?.destination).macTextSize(textSize)
                 .onAppear { delegate.model = model }
+                .onOpenURL { url in
+                    guard url.isFileURL, url.pathExtension.lowercased() == "opml" else { return }
+                    pendingOPMLFiles.append(url)
+                    stageOPMLFiles()
+                }
+                .onChange(of: model.libraryEditing?.scope) { _, _ in stageOPMLFiles() }
+                .onChange(of: model.libraryEditing?.busy) { _, _ in stageOPMLFiles() }
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
-            SidebarCommands()
+            LibrarySidebarCommands()
             MacTextSizeCommands(preference: textSize)
             TextEditingCommands()
             PodListCommands()

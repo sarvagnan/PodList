@@ -15,6 +15,14 @@ struct DraggedEpisode: Codable, Equatable, Hashable, Sendable {
     var episodeID: String?
     var feedURL: String? = nil
     var guid: String? = nil
+    var title: String? = nil
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.episodeID == rhs.episodeID && lhs.feedURL == rhs.feedURL && lhs.guid == rhs.guid
+    }
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(episodeID); hasher.combine(feedURL); hasher.combine(guid)
+    }
 
     var isValid: Bool {
         if let episodeID { return !episodeID.isEmpty }
@@ -50,7 +58,7 @@ struct EpisodeTransfer: Codable, Equatable, Sendable, Transferable {
     /// Include the ordered selection in the private representation, preserving
     /// multi-row moves even when the system asks only the dragged row for data.
     @MainActor static func local(_ id: String, selection: [String], sourcePlaylistID: String? = nil, library: LibraryModel) -> Self {
-        Self(episodes: (selection.contains(id) ? selection : [id]).map { DraggedEpisode(episodeID: $0) },
+        Self(episodes: (selection.contains(id) ? selection : [id]).map { DraggedEpisode(episodeID: $0, title: library.row($0).title) },
              sourcePlaylistID: sourcePlaylistID, title: library.row(id).title, shareURL: library.episodeShareURL(id))
     }
 }
@@ -77,45 +85,145 @@ enum EpisodeDrop {
         return Set(ids)
     }
 
-    @MainActor static func add(_ values: [EpisodeTransfer], to playlistID: String, editor: LibraryEditingModel,
+    @MainActor static func add(_ values: [EpisodeTransfer], to playlistID: String, before beforeID: String? = nil,
+                               editor: LibraryEditingModel,
                                selected: @escaping @MainActor ([String]) -> Void = { _ in }) async -> Bool {
-        guard !editor.busy, !editor.edits.busy, editor.episodeDrop == nil, let references = references(values) else { return false }
-        editor.episodeDrop = EpisodeDropProgress(playlistID: playlistID, total: references.count)
-        editor.failedEpisodeDrop = nil
-        defer { editor.episodeDrop = nil }
-        var ids: [String] = [], failed: [DraggedEpisode] = [], failures: [String] = []
-        for (index, reference) in references.enumerated() {
+        guard !editor.busy, !editor.edits.busy, editor.episodeDrop == nil,
+              let references = references(values) else { return false }
+        let slots = references.map { reference in
+            EpisodeDropSlot(reference: reference,
+                title: reference.title ?? values.first { $0.episodes.contains(reference) }?.title ?? "Episode")
+        }
+        let batch = PendingEpisodeDrop(playlistID: playlistID, beforeID: beforeID, slots: slots, selected: selected)
+        // Reserve destination rows synchronously, before the first publisher request.
+        editor.pendingEpisodeDrops.append(batch)
+        return await prepare(batch.id, editor: editor)
+    }
+
+    @MainActor private static func prepare(_ batchID: UUID, only slotID: String? = nil, editor: LibraryEditingModel) async -> Bool {
+        guard !editor.busy, !editor.edits.busy, editor.episodeDrop == nil,
+              let batchIndex = editor.pendingEpisodeDrops.firstIndex(where: { $0.id == batchID }) else { return false }
+        let batch = editor.pendingEpisodeDrops[batchIndex]
+        let indices = batch.slots.indices.filter { !batch.slots[$0].committed && (slotID == nil || batch.slots[$0].id == slotID) }
+        guard !indices.isEmpty else { return false }
+        editor.episodeDrop = EpisodeDropProgress(playlistID: batch.playlistID, total: indices.count)
+        defer { editor.episodeDrop = nil; refreshFailure(editor) }
+        for index in indices {
+            editor.pendingEpisodeDrops[batchIndex].slots[index].failure = nil
+        }
+        refreshFailure(editor)
+        var prepared: [Int] = []
+        for (completed, index) in indices.enumerated() {
+            let slot = editor.pendingEpisodeDrops[batchIndex].slots[index]
             do {
-                if let id = reference.episodeID { ids.append(id) }
-                else if let feed = reference.feedURL, let guid = reference.guid {
-                    ids.append(try await editor.prepareEpisode(feed, guid: guid))
-                }
+                let id: String
+                if let local = slot.resolvedID ?? slot.reference.episodeID { id = local }
+                else if let feed = slot.reference.feedURL, let guid = slot.reference.guid {
+                    id = try await editor.prepareEpisode(feed, guid: guid)
+                } else { throw SyncResponseFailure("Episode unavailable. Try again.") }
+                editor.pendingEpisodeDrops[batchIndex].slots[index].resolvedID = id
+                prepared.append(index)
             } catch {
-                failed.append(reference)
-                failures.append("Episode \(index + 1) (\(reference.feedURL ?? reference.episodeID ?? "unknown")): \(LibraryMessages.failure(error))")
+                editor.pendingEpisodeDrops[batchIndex].slots[index].failure = LibraryMessages.failure(error)
             }
-            editor.episodeDrop?.completed = index + 1
+            editor.episodeDrop?.completed = completed + 1
         }
-        var seen = Set<String>()
-        ids = ids.filter { seen.insert($0).inserted }
-        // All resolved Episodes form one named, reversible Play Last edit.
-        var added = false
-        if !ids.isEmpty { added = await editor.edits.add(ids, to: playlistID, placement: .last) != nil }
-        if added { selected(ids) }
-        else if !ids.isEmpty {
-            failed += ids.map { DraggedEpisode(episodeID: $0) }
-            failures.append(editor.edits.error ?? "Could not add Episodes to the Playlist. Try again.")
+        let current = editor.pendingEpisodeDrops[batchIndex]
+        let insertions = prepared.map { index in
+            DroppedEpisodeInsertion(episodeID: current.slots[index].resolvedID!,
+                beforeID: current.slots.dropFirst(index + 1).first { $0.resolvedID != nil }?.resolvedID ?? current.beforeID, fallbackBeforeID: current.beforeID)
         }
-        if !failed.isEmpty {
-            let retry = EpisodeTransfer(episodes: failed, sourcePlaylistID: nil, title: "Retry dropped Episodes", shareURL: nil)
-            editor.failedEpisodeDrop = FailedEpisodeDrop(
-                message: "Added \(added ? ids.count : 0) Episodes; \(failed.count) failed.\n" + failures.joined(separator: "\n"),
-                retry: { [weak editor] in
-                    guard let editor else { return }
-                    _ = await add([retry], to: playlistID, editor: editor, selected: selected)
-                })
+        // Preparation never writes Entries. The entire committed batch is one Undo step.
+        let added: Bool
+        if insertions.isEmpty { added = false }
+        else { added = await editor.edits.addDropped(insertions, to: batch.playlistID, name: batch.beforeID == nil ? "Play Last" : "Add Dropped Episodes") }
+        if added {
+            for index in prepared { editor.pendingEpisodeDrops[batchIndex].slots[index].committed = true }
+            var seen = Set<String>()
+            batch.selected(insertions.map(\.episodeID).filter { seen.insert($0).inserted })
+        } else {
+            for index in prepared {
+                editor.pendingEpisodeDrops[batchIndex].slots[index].failure = editor.edits.error ?? "Could not add to the Playlist. Try again."
+            }
+        }
+        if editor.pendingEpisodeDrops[batchIndex].slots.allSatisfy(\.committed) {
+            editor.pendingEpisodeDrops.remove(at: batchIndex)
         }
         return added
+    }
+
+    @MainActor static func retry(_ slotID: String, editor: LibraryEditingModel) async {
+        guard let batch = editor.pendingEpisodeDrops.first(where: { $0.slots.contains { $0.id == slotID && $0.failure != nil } }) else { return }
+        _ = await prepare(batch.id, only: slotID, editor: editor)
+    }
+
+    @MainActor static func remove(_ slotID: String, editor: LibraryEditingModel) {
+        guard editor.episodeDrop == nil else { return }
+        let failure = editor.pendingEpisodeDrops.flatMap(\.slots).first { $0.id == slotID }?.failure
+        editor.edits.dismissDropFailure(matching: failure)
+        for index in editor.pendingEpisodeDrops.indices {
+            editor.pendingEpisodeDrops[index].slots.removeAll { $0.id == slotID && $0.failure != nil }
+        }
+        editor.pendingEpisodeDrops.removeAll { $0.slots.allSatisfy(\.committed) }
+        refreshFailure(editor)
+    }
+
+    @MainActor private static func refreshFailure(_ editor: LibraryEditingModel) {
+        let slots = editor.pendingEpisodeDrops.flatMap(\.slots)
+        let failed = slots.filter { $0.failure != nil }
+        guard !failed.isEmpty else { editor.failedEpisodeDrop = nil; return }
+        editor.failedEpisodeDrop = FailedEpisodeDrop(
+            message: "Added \(slots.filter(\.committed).count) Episodes; \(failed.count) failed.\n" +
+                failed.map { "\($0.title): \($0.failure!)" }.joined(separator: "\n"),
+            retry: { [weak editor] in
+                guard let editor else { return }
+                let ids = editor.pendingEpisodeDrops.filter { $0.slots.contains { $0.failure != nil } }.map(\.id)
+                for id in ids { _ = await prepare(id, editor: editor) }
+            })
+    }
+
+}
+
+struct EpisodeDropSlot: Identifiable {
+    var id = "episode-drop/" + UUID().uuidString
+    let reference: DraggedEpisode
+    let title: String
+    var resolvedID: String?
+    var committed = false
+    var failure: String?
+    var accessibleName: String { failure == nil ? "Adding \(title)…" : "Could not add \(title)" }
+}
+
+struct PendingEpisodeDrop: Identifiable {
+    var id = UUID()
+    let playlistID: String
+    let beforeID: String?
+    var slots: [EpisodeDropSlot]
+    let selected: @MainActor ([String]) -> Void
+}
+
+/// One projection drives both the native table and the large-text list. A failed
+/// slot stays before its next successful sibling, even after partial completion.
+struct PlaylistDropRow: Identifiable {
+    let id: String
+    let entry: EpisodeRow?
+    let placeholder: EpisodeDropSlot?
+
+    static func rows(_ entries: [EpisodeRow], batches: [PendingEpisodeDrop], playlistID: String) -> [Self] {
+        var rows = entries.map { Self(id: $0.id, entry: $0, placeholder: nil) }
+        for batch in batches where batch.playlistID == playlistID {
+            for (index, slot) in batch.slots.enumerated().reversed() {
+                if let resolved = slot.resolvedID ?? slot.reference.episodeID, rows.contains(where: { $0.entry?.id == resolved }) { continue }
+                guard !slot.committed else { continue }
+                let next = batch.slots.dropFirst(index + 1).compactMap { sibling in
+                    rows.first { $0.id == sibling.id || (sibling.resolvedID != nil && $0.entry?.id == sibling.resolvedID) }?.id
+                }.first
+                let anchor = next ?? batch.beforeID
+                let boundary = rows.firstIndex { $0.id == anchor } ?? rows.count
+                rows.insert(Self(id: slot.id, entry: nil, placeholder: slot), at: boundary)
+            }
+        }
+        return rows
     }
 }
 

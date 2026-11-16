@@ -256,13 +256,14 @@ public final class WindowModel {
     var pendingDropSelections: [String: [String]] = [:]
     var podcastOrigin: PodcastOrigin?
 
-    func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true) {
+    func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true, scroll: Bool = true) {
         pendingDropSelections[playlistID] = ids
-        if reveal, destination == .playlist(playlistID) { revealDrop(in: playlistID) }
+        if reveal, destination == .playlist(playlistID) { revealDrop(in: playlistID, scroll: scroll) }
     }
-    func revealDrop(in playlistID: String) {
+    func revealDrop(in playlistID: String, scroll: Bool = true) {
         guard let ids = pendingDropSelections.removeValue(forKey: playlistID), let first = ids.first else { return }
-        search = ""; selection = Set(ids); scrollAnchor = RowAnchor(id: first, index: 0)
+        search = ""; selection = Set(ids)
+        if scroll { scrollAnchor = RowAnchor(id: first, index: 0) }
     }
 
     public init() {}

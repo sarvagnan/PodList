@@ -76,6 +76,7 @@ public final class LibraryEditingModel {
     public var busy = false
     var groupsDroppedImport = false
     #if os(macOS)
+    var pendingEpisodeDrops: [PendingEpisodeDrop] = []
     var episodeDrop: EpisodeDropProgress?
     var failedEpisodeDrop: FailedEpisodeDrop?
     let podcastDiscovery = PodcastDiscoveryModel()

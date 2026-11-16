@@ -71,7 +71,8 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                 }
                 if app.isStandalone {
                     Section("Publisher Feeds") {
-                        Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day; the wait survives restarting PodList.").macContentFont(.callout)
+                        Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.").macContentFont(.callout)
+                            .frame(maxWidth: 480, alignment: .leading)
                         Button("Refresh Now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
                         if let error = app.syncError { Text(error).foregroundStyle(Color.podListError) }
                     }
@@ -216,7 +217,7 @@ private struct SettingFailure: SwiftUI.View {
     let retry: () -> Void
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 4) {
-            FailureFeedback(message: message, retry: retry).macContentFont(.callout)
+            FailureFeedback(message: message, retryTitle: "Retry Saving Settings", retry: retry).macContentFont(.callout)
         }
     }
 }
@@ -314,7 +315,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 let stats = ListeningStats(log: library.state.listeningLog ?? [:], played: facts)
                 if stats.isEmpty {
                     PodListEmptyState("No Listening Time Yet", systemImage: "chart.bar",
-                                      description: "Stats count the time you spend playing Episodes. Moving an Episode's Position without playing it doesn't count.")
+                                      description: "Stats count the time you spend playing Episodes. Moving an Episode’s Position without playing it doesn’t count.")
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {

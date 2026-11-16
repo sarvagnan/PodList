@@ -310,6 +310,87 @@ private actor SlowDropPublisher: PublisherReader {
     #expect(try await db.loadState().playlists[0].entries.map(\.episodeId) == fixtureState().playlists[0].entries.map(\.episodeId))
     #expect(editor.edits.history.undo == nil)
 }
+
+@MainActor @Test func replacingVisibleDropSlotsSelectsResultsWithoutScrollingTheList() {
+    let window = WindowModel()
+    window.navigate(to: .playlist("default"))
+    let anchor = RowAnchor(id: "b", index: 0)
+    window.scrollAnchor = anchor
+    window.didDrop(["new"], into: "default", scroll: false)
+    #expect(window.selection == ["new"] && window.scrollAnchor == anchor)
+    #expect(window.pendingDropSelections.isEmpty)
+    // A drop completed while another destination is open is still revealed on return.
+    window.navigate(to: .search)
+    window.didDrop(["later"], into: "default", scroll: false)
+    #expect(window.pendingDropSelections["default"] == ["later"])
+    window.navigate(to: .playlist("default"))
+    window.revealDrop(in: "default")
+    #expect(window.selection == ["later"] && window.scrollAnchor?.id == "later")
+}
+
+@MainActor @Test func pendingDropReservesInsertionSlotsAndKeepsFailuresBetweenSuccessfulSiblings() async throws {
+    let db = try await fixtureDatabase()
+    let publisher = SlowDropPublisher()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: publisher),
+        scope: "drop-slots", defaults: UserDefaults(suiteName: UUID().uuidString)!)
+    let remote = EpisodeTransfer(episodes: ["one", "missing", "two"].map { (guid: String) in
+        DraggedEpisode(episodeID: nil, feedURL: "https://example.com/feed", guid: guid, title: "Title \(guid)")
+    }, sourcePlaylistID: nil, title: "Remote", shareURL: nil)
+    let task = Task { await EpisodeDrop.add([remote, transfer(["t1"])], to: "default", before: "a", editor: editor) }
+    await publisher.waitForRead()
+    let reserved = try #require(editor.pendingEpisodeDrops.first)
+    #expect(reserved.slots.count == 4)
+    #expect(reserved.slots[0].accessibleName == "Adding Title one…")
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this", now: 1_000)
+    func projected(_ ids: [String]) -> [PlaylistDropRow] {
+        PlaylistDropRow.rows(ids.map { library.row($0) }, batches: editor.pendingEpisodeDrops, playlistID: "default")
+    }
+    let originalIDs = fixtureState().playlists[0].entries.map(\.episodeId)
+    #expect(projected(originalIDs).map(\.id) == ["b"] + reserved.slots.map(\.id) + ["a", "pending"])
+    #expect(try await db.loadState().playlists[0].entries.map(\.episodeId) == originalIDs)
+    #expect(PlaylistDropRow.rows([], batches: editor.pendingEpisodeDrops, playlistID: "other").isEmpty)
+    try await publisher.finish()
+    #expect(await task.value)
+    let retained = try #require(editor.pendingEpisodeDrops.first)
+    let one = try #require(retained.slots[0].resolvedID), two = try #require(retained.slots[2].resolvedID)
+    let committedIDs = try await db.loadState().playlists[0].entries.map(\.episodeId)
+    #expect(committedIDs == ["b", one, two, "t1", "a", "pending"])
+    #expect(projected(committedIDs).map(\.id) == ["b", one, reserved.slots[1].id, two, "t1", "a", "pending"])
+    #expect(retained.slots[1].failure != nil && retained.slots[1].id == reserved.slots[1].id)
+    #expect(retained.slots[1].accessibleName == "Could not add Title missing")
+    #expect(editor.edits.undoTitle == "Undo Add Dropped Episodes")
+    EpisodeDrop.remove(retained.slots[1].id, editor: editor)
+    #expect(editor.pendingEpisodeDrops.isEmpty && editor.failedEpisodeDrop == nil)
+    #expect(projected(committedIDs).map(\.id) == committedIDs)
+    await editor.undo()
+    #expect(try await db.loadState().playlists[0].entries == fixtureState().playlists[0].entries)
+    #expect(editor.edits.history.undo == nil)
+}
+
+@MainActor @Test func failedCommitKeepsSlotsAndRetryCommandFinishesTheirLifecycle() async throws {
+    let db = try await fixtureDatabase()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db),
+        scope: "drop-commit", defaults: UserDefaults(suiteName: UUID().uuidString)!)
+    #expect(await EpisodeDrop.add([transfer(["t1"])], to: "new-target", editor: editor) == false)
+    let failed = try #require(editor.pendingEpisodeDrops.first?.slots.first)
+    #expect(failed.failure != nil && failed.resolvedID == "t1" && !failed.committed)
+    #expect(editor.edits.history.undo == nil && !editor.edits.canRetry)
+    try await db.record(.createPlaylist(playlistId: "new-target", name: "Target", clearOnPlayed: false), at: 1000)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] != nil)
+    let recovery = try #require(editor.failedEpisodeDrop)
+    await recovery.retry()
+    #expect(editor.pendingEpisodeDrops.isEmpty)
+    #expect(try await db.loadState().playlists.first { $0.id == "new-target" }?.entries.map(\.episodeId) == ["t1"])
+    await editor.undo()
+    #expect(try await db.loadState().playlists.first { $0.id == "new-target" }?.entries.isEmpty == true)
+    #expect(editor.edits.history.undo == nil)
+    #expect(await EpisodeDrop.add([transfer(["t1"])], to: "another-missing-target", editor: editor) == false)
+    #expect(editor.edits.error != nil)
+    let removable = try #require(editor.pendingEpisodeDrops.first?.slots.first)
+    EpisodeDrop.remove(removable.id, editor: editor)
+    #expect(editor.edits.error == nil && editor.failedEpisodeDrop == nil)
+    #expect(editor.pendingEpisodeDrops.isEmpty && editor.edits.history.undo == nil)
+}
 #endif
 
 #if os(macOS)
@@ -335,12 +416,41 @@ private actor RetryDropPublisher: PublisherReader {
     #expect(editor.failedEpisodeDrop == nil && selected.count == 1 && selected != ["t1"])
     let after = try await db.loadState()
     #expect(after.playlists[0].entries.filter { $0.episodeId == "t1" }.count == 1)
-    #expect(after.playlists[0].entries.last?.episodeId == selected.first)
+    #expect(after.playlists[0].entries.suffix(2).map(\.episodeId) == selected + ["t1"])
     await editor.undo()
     #expect(try await db.loadState().playlists[0].entries.last?.episodeId == "t1")
     await editor.undo()
     let restored = try await db.loadState().playlists[0], original = fixtureState().playlists[0]
     #expect(restored.entries == original.entries && restored.cursor == original.cursor && restored.history == original.history)
+}
+
+@MainActor @Test func destinationRowRetryReplacesOnlyItsOwnSlotAndRemoveDoesNotCreateAnEdit() async throws {
+    let db = try await fixtureDatabase()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: RetryDropPublisher()),
+        scope: "row-retry", defaults: UserDefaults(suiteName: UUID().uuidString)!)
+    let remote = EpisodeTransfer(episodes: ["one", "two"].map { (guid: String) in
+        DraggedEpisode(episodeID: nil, feedURL: "https://example.com/feed", guid: guid)
+    }, sourcePlaylistID: nil, title: "Remote", shareURL: nil)
+    #expect(await EpisodeDrop.add([remote], to: "default", before: "a", editor: editor))
+    let batch = try #require(editor.pendingEpisodeDrops.first)
+    let failed = batch.slots[0], succeeded = try #require(batch.slots[1].resolvedID)
+    #expect(failed.failure != nil && !failed.committed)
+    await EpisodeDrop.retry(failed.id, editor: editor)
+    #expect(editor.pendingEpisodeDrops.isEmpty && editor.failedEpisodeDrop == nil)
+    let snapshot = try await db.readLibrary()
+    let first = try #require(snapshot.episodes.first { $0.guid == "one" }?.id)
+    #expect(snapshot.state.playlists[0].entries.map(\.episodeId) == ["b", first, succeeded, "a", "pending"])
+    await editor.undo()
+    #expect(try await db.loadState().playlists[0].entries.map(\.episodeId) == ["b", succeeded, "a", "pending"])
+    await editor.undo()
+    #expect(try await db.loadState().playlists[0].entries == fixtureState().playlists[0].entries)
+    let missing = EpisodeTransfer(episodes: [.init(episodeID: nil, feedURL: "https://example.com/feed", guid: "missing")],
+        sourcePlaylistID: nil, title: "Missing", shareURL: nil)
+    #expect(await EpisodeDrop.add([missing], to: "default", editor: editor) == false)
+    let removable = try #require(editor.pendingEpisodeDrops.first?.slots.first)
+    EpisodeDrop.remove(removable.id, editor: editor)
+    #expect(editor.pendingEpisodeDrops.isEmpty && editor.failedEpisodeDrop == nil)
+    #expect(editor.edits.history.undo == nil)
 }
 
 @MainActor @Test func droppedImportWithOneUnreachableFeedKeepsOneUndoAndRetrySkipsSuccesses() async throws {

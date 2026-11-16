@@ -75,7 +75,7 @@ struct DownloadStatusText: SwiftUI.View {
         case nil: Text("Not downloaded on this Device").foregroundStyle(MacReadableSecondaryStyle())
         }
         if let error = app.downloadError {
-            FailureFeedback(message: error) { app.retryDownloadFailure() }
+            FailureFeedback(message: error, retryTitle: "Retry Download") { app.retryDownloadFailure() }
                 .environment(\.podListRecoveryIndexed, false)
         }
     }
@@ -171,7 +171,7 @@ private struct BulkDownloadRuleEditor: SwiftUI.View {
             DownloadRuleFields(mode: Binding(get: { draft.mode }, set: { draft.mode = $0; editing.drafts.stage(draft) }),
                                cap: Binding(get: { draft.cap }, set: { draft.cap = $0; editing.drafts.stage(draft) })).disabled(saving)
         } status: {
-            if let failure = draft.failure { FailureFeedback(message: failure, retry: apply).disabled(saving) }
+            if let failure = draft.failure { FailureFeedback(message: failure, retryTitle: "Retry Saving Download Rules", retry: apply).disabled(saving) }
         }
         .interactiveDismissDisabled(saving)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [

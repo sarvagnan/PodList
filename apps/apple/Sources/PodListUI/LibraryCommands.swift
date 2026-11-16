@@ -18,6 +18,30 @@ public extension FocusedValues {
         set { self[LibraryActionKey.self] = newValue }
     }
 }
+struct LibrarySidebarContext {
+    let visible: Bool
+    let toggle: () -> Void
+    var title: String { visible ? "Hide Sidebar" : "Show Sidebar" }
+}
+private struct LibrarySidebarKey: FocusedValueKey { typealias Value = LibrarySidebarContext }
+extension FocusedValues {
+    var podListSidebar: LibrarySidebarContext? {
+        get { self[LibrarySidebarKey.self] }
+        set { self[LibrarySidebarKey.self] = newValue }
+    }
+}
+public struct LibrarySidebarCommands: Commands {
+    @FocusedValue(\.podListSidebar) private var sidebar
+    public init() {}
+    public var body: some Commands {
+        CommandGroup(replacing: .sidebar) {
+            Button(sidebar?.title ?? "Show Sidebar") { sidebar?.toggle() }
+                .keyboardShortcut("s", modifiers: [.command, .control])
+                .disabled(sidebar == nil)
+        }
+    }
+}
+
 public struct LibraryCommands: Commands {
     @Bindable var app: ApplicationModel
     @FocusedValue(\.podListLibraryActions) private var actions

@@ -7,8 +7,8 @@ extension EnvironmentValues {
 }
 
 enum FocusedRecoveryActions {
-    static func context(enabled: Bool, retry: @escaping () -> Void) -> MenuActionContext {
-        MenuActionContext(actions: enabled ? [.retry: retry] : [:])
+    static func context(enabled: Bool, title: String = "Retry Failed Operation", retry: @escaping () -> Void) -> MenuActionContext {
+        MenuActionContext(actions: enabled ? [.retry: retry] : [:], retryTitle: title)
     }
 }
 
@@ -16,9 +16,10 @@ enum FocusedRecoveryActions {
 /// failure in the same window; focus on a failure takes precedence over the fallback.
 struct FocusedRetry: ViewModifier {
     var action: (() -> Void)?
+    var title = "Retry Last Edit"
     @ViewBuilder func body(content: Content) -> some SwiftUI.View {
         if let action {
-            let context = FocusedRecoveryActions.context(enabled: true, retry: action)
+            let context = FocusedRecoveryActions.context(enabled: true, title: title, retry: action)
             content.focusedValue(\.podListRecoveryActions, context)
                 .focusedSceneValue(\.podListRecoveryActions, context)
         } else { content }
@@ -31,6 +32,7 @@ struct FailureFeedback: SwiftUI.View {
     var onGlass = false
     var announcements: FeedbackAnnouncements? = nil
     var indexedElsewhere = false
+    var retryTitle = "Retry Failed Operation"
     let retry: () -> Void
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.podListRecoveryIndexed) private var recoveryIndexed
@@ -39,7 +41,7 @@ struct FailureFeedback: SwiftUI.View {
     var body: some SwiftUI.View {
         if indexedElsewhere || recoveryIndexed { feedback }
         else {
-            feedback.modifier(FocusedRetry(action: isEnabled ? { announcements?.error(nil); retry() } : nil))
+            feedback.modifier(FocusedRetry(action: isEnabled ? { announcements?.error(nil); retry() } : nil, title: retryTitle))
         }
     }
     private var feedback: some SwiftUI.View {
