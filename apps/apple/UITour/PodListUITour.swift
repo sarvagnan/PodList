@@ -384,6 +384,9 @@ final class PodListUITour: XCTestCase {
         let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
+        for control in settings.switches.allElementsBoundByIndex + settings.checkBoxes.allElementsBoundByIndex {
+            XCTAssertFalse(control.label.isEmpty && control.title.isEmpty, "Every Settings switch and checkbox needs an accessible name")
+        }
         try capture("30-settings-automation", in: settings)
         settings.typeKey("w", modifierFlags: .command)
         try ready(library)

@@ -14,6 +14,8 @@ struct AutomationSettingsScreen: SwiftUI.View {
             Form {
                 Section("MCP") {
                     Toggle("Enable MCP Server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
+                        // A grouped Form draws the title beside an unnamed switch for accessibility.
+                        .accessibilityLabel("Enable MCP Server")
                     Text("Any app running as this user on this Mac can then read the Library and control playback.")
                         .macContentFont(.callout).foregroundStyle(MacReadableSecondaryStyle())
                     Text("This setting applies only to this Mac. App Intents and Shortcuts are always available.")
