@@ -168,6 +168,8 @@ private struct KeyUtilityPanel: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard let panel = window as? NSPanel else { return }
             panel.becomesKeyOnlyIfNeeded = false
+            // Utility panels offer only Close, like the Fonts and Colors panels.
+            for button in [NSWindow.ButtonType.miniaturizeButton, .zoomButton] { panel.standardWindowButton(button)?.isHidden = true }
             DispatchQueue.main.async { panel.makeKey() }
         }
     }
