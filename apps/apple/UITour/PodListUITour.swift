@@ -41,6 +41,7 @@ final class PodListUITour: XCTestCase {
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
                                "-PodList.mcpEnabled", "NO", "-PodList.uiTestUnsubscribeArmSeconds", "15", "-PodList.inspectorVisible", "YES",
+                               "-AppleKeyboardUIMode", "3",
                                "-ApplePersistenceIgnoreState", "YES"]
         defer {
             app.terminate()
@@ -122,6 +123,7 @@ final class PodListUITour: XCTestCase {
         try click(library.descendants(matching: .any).matching(identifier: "playlist.settings").firstMatch)
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
+        try assertSheetCheckboxSpace()
         try click(button("Rename", in: library.sheets.firstMatch))
         let renameField = library.sheets.textFields["Playlist name"]
         try ready(renameField)
@@ -574,6 +576,34 @@ final class PodListUITour: XCTestCase {
         let expectedMenus: Set<String> = ["PodList", "File", "Edit", "View", "Podcast", "Views", "Episode", "Playlist", "Controls", "Window", "Help"]
         XCTAssertTrue(expectedMenus.isSubset(of: capturedMenus), "Missing menus: \(expectedMenus.subtracting(capturedMenus))")
         attach(text, name: "menus.txt")
+    }
+
+    private func assertSheetCheckboxSpace() throws {
+        let checkbox = library.sheets.firstMatch.checkBoxes["Clear on Played"]
+        try ready(checkbox)
+        // Tab through the native key-view loop, without activating the checkbox
+        // with a pointer. Keyboard navigation is enabled for this test app only.
+        for _ in 0..<30 {
+            if checkbox.value(forKey: "hasKeyboardFocus") as? Bool == true { break }
+            app.typeKey(.tab, modifierFlags: [])
+        }
+        XCTAssertTrue(checkbox.value(forKey: "hasKeyboardFocus") as? Bool == true,
+                      "Keyboard navigation must reach the sheet checkbox")
+        let initial = try XCTUnwrap(checkbox.value as? String)
+        XCTAssertFalse(library.buttons["Pause"].exists, "The current Episode must remain paused")
+        app.typeKey(.space, modifierFlags: [])
+        let toggled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (checkbox.value as? String) != initial
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [toggled], timeout: 5), .completed,
+                       "Space must toggle the focused checkbox")
+        XCTAssertFalse(library.buttons["Pause"].exists, "Checkbox activation must not start playback")
+        app.typeKey(.space, modifierFlags: [])
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (checkbox.value as? String) == initial
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+        XCTAssertFalse(library.buttons["Pause"].exists, "The tour must keep the Episode paused")
     }
 
     private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {

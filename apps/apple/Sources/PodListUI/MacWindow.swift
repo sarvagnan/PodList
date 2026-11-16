@@ -246,6 +246,7 @@ public struct PodListWindow: SwiftUI.View {
         }
         .focusedSceneValue(\.podListInspector, showsEpisodeInspector ? $inspectorVisible : nil)
         .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation, openPodcast: { window.beginPodcastPage(); podcastFeed = $0 }))
+        .background(LibraryPlaybackSpaceHost(toggle: .init(controller: app.playback, library: library)))
         .focusedSceneValue(\.podListOpenPlaylist, { window.navigate(to: .playlist(library.state.activePlaylistId)) })
         .focusedSceneValue(\.podListNowPlaying, { openWindow(id: "now-playing") })
         .onChange(of: app.library?.snapshot) { previous, _ in

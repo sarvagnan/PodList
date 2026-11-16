@@ -34,8 +34,8 @@ public struct PlaybackCommands: Commands {
     private var toggle: PlaybackToggleCommand { .init(controller: app.playback, library: app.library) }
     public var body: some Commands {
         CommandMenu("Controls") {
-            Button(toggle.title, action: toggle.perform)
-                .keyboardShortcut(.space, modifiers: [])
+            // Space is a contextual accelerator, not an app-wide menu equivalent.
+            Button("\(toggle.title) (Space in Library)", action: toggle.perform)
                 .disabled(!toggle.isEnabled)
             Button("Resume Playback") { app.playback?.play() }.disabled(app.playback?.display == nil || app.playback?.wantsPlayback == true)
             Button("Pause Playback") { app.playback?.pause() }.disabled(app.playback?.wantsPlayback != true)
@@ -61,6 +61,50 @@ public struct PlaybackCommands: Commands {
                 }
             }.disabled(app.playback?.display?.chapters.isEmpty != false)
         }
+    }
+}
+
+/// Only Library list/sidebar focus or the window background owns Space. Use an
+/// allowlist of responders so new controls automatically retain native activation.
+struct LibraryPlaybackSpaceHost: NSViewRepresentable {
+    let toggle: PlaybackToggleCommand
+
+    static func handlesSpace(characters: String?, modifiers: NSEvent.ModifierFlags,
+                             responder: NSResponder?, libraryWindow: NSWindow?, keyWindow: NSWindow?, sheet: Bool) -> Bool {
+        guard characters == " ", modifiers.intersection([.command, .control, .option, .shift]).isEmpty,
+              !sheet, let libraryWindow, keyWindow === libraryWindow else { return false }
+        // NSOutlineView (the sidebar) is an NSTableView subclass. Do not walk up
+        // from a cell's focused control to its containing table.
+        return responder === libraryWindow || responder is NSTableView
+    }
+
+    func makeNSView(context: Context) -> HostView { HostView(toggle: toggle) }
+    func updateNSView(_ view: HostView, context: Context) { view.toggle = toggle }
+    static func dismantleNSView(_ view: HostView, coordinator: ()) { view.stopMonitoring() }
+
+    final class HostView: NSView {
+        var toggle: PlaybackToggleCommand
+        private var monitor: Any?
+        init(toggle: PlaybackToggleCommand) {
+            self.toggle = toggle
+            super.init(frame: .zero)
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, Self.handles(event, in: self.window), self.toggle.isEnabled else { return event }
+                self.toggle.perform()
+                return nil
+            }
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+        private static func handles(_ event: NSEvent, in window: NSWindow?) -> Bool {
+            LibraryPlaybackSpaceHost.handlesSpace(characters: event.charactersIgnoringModifiers,
+                modifiers: event.modifierFlags, responder: window?.firstResponder,
+                libraryWindow: window, keyWindow: NSApp.keyWindow,
+                sheet: window?.sheetParent != nil || window?.attachedSheet != nil)
+        }
+        func stopMonitoring() {
+            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+        }
+        isolated deinit { stopMonitoring() }
     }
 }
 
