@@ -111,8 +111,7 @@ private struct PodListSheetLabelStyle: LabeledContentStyle {
         PodListSheetFieldLayout(labelWidth: 160 * textScale) {
             configuration.label.multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
-            configuration.content.frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+            configuration.content.fixedSize(horizontal: false, vertical: true)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }

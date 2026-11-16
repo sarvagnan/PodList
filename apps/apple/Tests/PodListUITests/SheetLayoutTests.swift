@@ -12,6 +12,16 @@ import Testing
                     title: "A Podcast with a Long Name Settings", width: width) {
                         Form {
                             LabeledContent("Name", value: "A long Playlist name that needs to wrap at enlarged text sizes")
+                            PodListSheetField("Playback Settings Overrides") {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Default (30 seconds)")
+                                    Text("Long explanatory text belongs under the control and wraps within its column at either Text Size.")
+                                        .macContentFont(.caption).fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            PodListSheetField("Wide Control") {
+                                Text("A control that needs a full row").frame(width: width - 48)
+                            }
                             Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.")
                                 .macContentFont(.caption).fixedSize(horizontal: false, vertical: true)
                             Text("Save applies these settings and any Mark All Played selection. Cancel discards changes.")
