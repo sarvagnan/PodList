@@ -58,7 +58,9 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThan(libraryStatus.frame.height, 0)
         XCTAssertLessThanOrEqual(libraryStatus.frame.height, 33, "Sync and edit feedback must share one compact row")
         XCTAssertFalse(sidebar.images["Clear on Played on"].exists, "Clear on Played must not repeat the Add to a Playlist glyph")
-        XCTAssertTrue(sidebar.descendants(matching: .any).matching(identifier: "sidebar.Default").firstMatch.label.contains("Clear on Played on"),
+        // A combined sidebar row exposes its description as a static text value.
+        let defaultRow = sidebar.descendants(matching: .any).matching(identifier: "sidebar.Default").firstMatch
+        XCTAssertTrue((defaultRow.label + " " + String(describing: defaultRow.value ?? "")).contains("Clear on Played on"),
                       "Removing the glyph must retain Clear on Played in the row's accessibility description")
         XCTAssertFalse(library.buttons["Pause"].exists, "The restored player must be paused")
         try capture("01-subscriptions")
