@@ -85,7 +85,7 @@ public struct PodListHelp: SwiftUI.View {
                 Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
                 Divider()
                 Text("Keyboard Shortcuts").macContentFont(.title2).bold()
-                Text("Choose a sidebar item with the arrow keys; in Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Double-click a row for details. Space always plays or pauses the current Episode, regardless of selection; if nothing is loaded, it starts the Active Playlist. Return plays selected Episodes using Episode › Play Now. While editing text, Space, Return and ⌘←/⌘→ keep their text meaning. In sheets, Return uses the default action.")
+                Text("Choose a sidebar item with the arrow keys; in Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Double-click a row for details. With focus in a Library list, table, sidebar or window background, Space plays or pauses the current Episode; if nothing is loaded, it starts the Active Playlist. Space keeps its normal meaning on focused controls, in sheets and in other windows, including Settings and Now Playing. Return plays selected Episodes using Episode › Play Now. While editing text, Space, Return and ⌘←/⌘→ keep their text meaning. In sheets, Return uses the default action.")
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                     shortcutRow("New View…", "⌘N")
                     shortcutRow("New Playlist…", "⇧⌘N")
