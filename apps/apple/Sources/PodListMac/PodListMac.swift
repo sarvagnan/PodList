@@ -63,7 +63,7 @@ struct PodListMac: App {
                 Button("Getting Started") { openWindow(id: "getting-started") }.disabled(model.libraryEditing == nil)
             }
         }
-        Window("Add Podcasts", id: "add-podcasts") { AddPodcastsWindow(app: model).macTextSize(textSize) }
+        UtilityWindow("Add Podcasts", id: "add-podcasts") { AddPodcastsWindow(app: model).macTextSize(textSize) }
             .defaultSize(width: 650, height: 600)
             .windowResizability(.contentMinSize)
         Window("Now Playing", id: "now-playing") { NowPlayingWindow(app: model).macTextSize(textSize) }

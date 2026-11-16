@@ -238,6 +238,16 @@ final class PodListUITour: XCTestCase {
         assertKeyboardFocus(podcastQuery)
         try capture("24-add-podcasts", in: addPodcasts)
         podcastQuery.typeText("PodList tour draft")
+        let minimize = addPodcasts.buttons["_XCUI:MinimizeWindow"]
+        let zoom = addPodcasts.buttons["_XCUI:ZoomWindow"]
+        XCTAssertFalse(minimize.exists && minimize.isEnabled, "Add Podcasts is a utility panel")
+        XCTAssertFalse(zoom.exists && zoom.isEnabled, "Add Podcasts must not offer a document window's zoom control")
+        // Utility panels hide with their application and retain discovery state.
+        XCUIApplication(bundleIdentifier: "com.apple.finder").activate()
+        XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
+        app.activate()
+        try ready(addPodcasts)
+        XCTAssertEqual(podcastQuery.value as? String, "PodList tour draft")
         // Discovery stays open while Library is used and reopening brings it forward.
         try navigate("Default")
         XCTAssertTrue(addPodcasts.exists)
