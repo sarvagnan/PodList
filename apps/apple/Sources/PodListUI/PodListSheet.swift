@@ -161,4 +161,15 @@ struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
         }
     }
 }
+extension SwiftUI.View {
+    /// Esc closes a window that has no footer button to carry the Cancel shortcut.
+    /// onExitCommand alone needs a focused control inside the window.
+    func closesOnEscape(_ close: @escaping () -> Void) -> some SwiftUI.View {
+        onExitCommand(perform: close)
+            .background {
+                Button("Close", action: close).keyboardShortcut(.cancelAction)
+                    .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true).focusable(false)
+            }
+    }
+}
 #endif

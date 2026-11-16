@@ -154,7 +154,7 @@ struct NowPlayingView: SwiftUI.View {
     @State private var presentation = PlaylistPresentation()
     var body: some SwiftUI.View {
         GlassEffectContainer(spacing: 12) { panel }
-            .onExitCommand(perform: done)
+            .closesOnEscape(done)
             .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: done]))
             .focusedSceneValue(\.podListNowPlayingEpisode, controller.display.map { NowPlayingEpisodeContext(id: detailID ?? $0.episodeID, library: app.library ?? library, presentation: presentation) })
             .focusedSceneValue(\.podListEpisodeDetails, controller.display.map { value in { detailID = value.episodeID } })

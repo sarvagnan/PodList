@@ -107,7 +107,7 @@ struct AddPodcastsScreen: SwiftUI.View {
         .macContentFont(.body)
         // Let the window's initial focus evaluation choose the input after it becomes key.
         .defaultFocus($focused, true, priority: .userInitiated)
-        .onExitCommand { close() }
+        .closesOnEscape(close)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { close() }]))
         .focusedSceneValue(\.podListDiscoveryActions, MenuActionContext(actions: [
             .searchPodcasts: !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil
