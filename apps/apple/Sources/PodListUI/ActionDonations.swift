@@ -14,18 +14,29 @@ public enum ActionDonation: Equatable, Sendable {
 @MainActor
 public final class ActionDonations {
     public var handler: (@MainActor (ActionDonation) -> Void)?
-    private let enabled: Bool
+    public let isEnabled: Bool
+
+    /// Development builds must not contribute to Spotlight or Siri suggestions.
+    nonisolated public static var isReleaseBuild: Bool {
+        #if DEBUG
+        false
+        #else
+        true
+        #endif
+    }
 
     public init(bundleIdentifier: String? = Bundle.main.bundleIdentifier,
-                environment: [String: String] = ProcessInfo.processInfo.environment) {
-        enabled = Self.isEnabled(bundleIdentifier: bundleIdentifier, environment: environment)
+                environment: [String: String] = ProcessInfo.processInfo.environment,
+                isReleaseBuild: Bool = ActionDonations.isReleaseBuild) {
+        isEnabled = Self.isEnabled(bundleIdentifier: bundleIdentifier, environment: environment, isReleaseBuild: isReleaseBuild)
     }
-    nonisolated public static func isEnabled(bundleIdentifier: String?, environment: [String: String]) -> Bool {
-        !(bundleIdentifier?.hasPrefix("app.podlist.uitour.") ?? false)
+    nonisolated public static func isEnabled(bundleIdentifier: String?, environment: [String: String],
+                                            isReleaseBuild: Bool = ActionDonations.isReleaseBuild) -> Bool {
+        isReleaseBuild && !(bundleIdentifier?.hasPrefix("app.podlist.uitour.") ?? false)
             && environment["PODLIST_UI_DATA_DIRECTORY"] == nil
     }
     public func record(_ action: ActionDonation) {
-        guard enabled else { return }
+        guard isEnabled else { return }
         handler?(action)
     }
 }

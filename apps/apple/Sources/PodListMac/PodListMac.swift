@@ -85,7 +85,11 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
         model = AutomationRuntime.app
         keyboard = PlaybackKeyboardGuard()
         model?.automation.start()
-        PodListShortcuts.updateAppShortcutParameters()
+        // Runtime registration can refresh system suggestions; keep metadata extraction
+        // unconditional, but only ask the system to refresh in eligible release builds.
+        if model?.donations.isEnabled == true {
+            PodListShortcuts.updateAppShortcutParameters()
+        }
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate()
     }

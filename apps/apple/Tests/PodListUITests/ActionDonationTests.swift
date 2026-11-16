@@ -4,26 +4,49 @@ import PodListDomain
 import PodListData
 @testable import PodListUI
 
-@Test func donationPolicyDisablesEitherTourSignalIncludingAnEmptyDirectoryVariable() {
-    #expect(ActionDonations.isEnabled(bundleIdentifier: "app.podlist.mac", environment: [:]))
-    #expect(ActionDonations.isEnabled(bundleIdentifier: nil, environment: [:]))
-    #expect(!ActionDonations.isEnabled(bundleIdentifier: "app.podlist.uitour.capture", environment: [:]))
-    #expect(!ActionDonations.isEnabled(bundleIdentifier: "app.podlist.mac", environment: ["PODLIST_UI_DATA_DIRECTORY": "/tmp/tour"]))
-    #expect(!ActionDonations.isEnabled(bundleIdentifier: nil, environment: ["PODLIST_UI_DATA_DIRECTORY": ""]))
+@Test func donationPolicyRequiresReleaseAndNeitherTourSignal() {
+    for release in [false, true] {
+        for bundle: String? in [nil, "app.podlist.mac", "app.podlist.uitour.capture"] {
+            for directory: String? in [nil, "", "/tmp/tour"] {
+                let environment = directory.map { ["PODLIST_UI_DATA_DIRECTORY": $0] } ?? [:]
+                let expected = release && bundle != "app.podlist.uitour.capture" && directory == nil
+                #expect(ActionDonations.isEnabled(bundleIdentifier: bundle, environment: environment,
+                                                  isReleaseBuild: release) == expected)
+            }
+        }
+    }
 }
 
-@MainActor @Test func tourDonationGateDoesNotCallItsHandler() {
-    for (bundle, env): (String?, [String: String]) in [
-        ("app.podlist.uitour.test", [:]),
-        ("app.podlist.mac", ["PODLIST_UI_DATA_DIRECTORY": ""]),
-        ("app.podlist.mac", [:])
-    ] {
-        let donations = ActionDonations(bundleIdentifier: bundle, environment: env)
-        var received: [ActionDonation] = []
-        donations.handler = { received.append($0) }
-        donations.record(.play)
-        #expect(received == (env.isEmpty && bundle == "app.podlist.mac" ? [.play] : []))
+@MainActor @Test func donationGateOnlyCallsItsHandlerForEligibleReleaseBuilds() {
+    for release in [false, true] {
+        for bundle: String? in [nil, "app.podlist.mac", "app.podlist.uitour.test"] {
+            for directory: String? in [nil, "", "/tmp/tour"] {
+                let environment = directory.map { ["PODLIST_UI_DATA_DIRECTORY": $0] } ?? [:]
+                let donations = ActionDonations(bundleIdentifier: bundle, environment: environment, isReleaseBuild: release)
+                var received: [ActionDonation] = []
+                donations.handler = { received.append($0) }
+                donations.record(.play)
+                let expected = release && bundle != "app.podlist.uitour.test" && directory == nil
+                #expect(donations.isEnabled == expected)
+                #expect(received == (expected ? [.play] : []))
+            }
+        }
     }
+}
+
+@MainActor @Test func donationPolicyDefaultsToTheCompiledBuildConfiguration() {
+    #if DEBUG
+    let expected = false
+    #else
+    let expected = true
+    #endif
+    #expect(ActionDonations.isReleaseBuild == expected)
+    #expect(ActionDonations.isEnabled(bundleIdentifier: "app.podlist.mac", environment: [:]) == expected)
+    let donations = ActionDonations(bundleIdentifier: "app.podlist.mac", environment: [:])
+    var received: [ActionDonation] = []
+    donations.handler = { received.append($0) }
+    donations.record(.play)
+    #expect(received == (expected ? [.play] : []))
 }
 
 @MainActor @Test func sharedEditingPathsDonateOnceAndUndoRedoDoNotDonate() async throws {
@@ -50,7 +73,8 @@ import PodListData
 
 @MainActor @Test func automationUsesSharedDonationPathWithoutDuplicatingActions() async throws {
     let db = try await fixtureDatabase()
-    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db },
+                               donations: ActionDonations(bundleIdentifier: "app.podlist.mac", environment: [:], isReleaseBuild: true))
     defer { app.disconnect() }
     var received: [ActionDonation] = []
     app.donations.handler = { received.append($0) }

@@ -275,6 +275,14 @@ private final class FakePlayerClock: Sendable {
     var value = PlaybackDisplay(episodeID: "e", playlistID: "p", title: "Episode", podcast: "Podcast", position: 65, duration: 100, speed: 1.5,
         playing: true, buffering: false, chapters: [.init(start: 0, title: "One", artwork: nil, url: nil), .init(start: 60, title: "Two", artwork: nil, url: nil)], artwork: nil, sleep: nil)
     let info = NowPlayingMapping.info(value)
+    #expect(info[MPNowPlayingInfoPropertyExcludeFromSuggestions] as? Bool == !ActionDonations.isEnabled(
+        bundleIdentifier: Bundle.main.bundleIdentifier, environment: ProcessInfo.processInfo.environment))
+    for enabled in [false, true] {
+        let mapped = NowPlayingMapping.info(value, suggestionsEnabled: enabled)
+        #expect(mapped[MPNowPlayingInfoPropertyExcludeFromSuggestions] as? Bool == !enabled)
+        #expect(mapped[MPMediaItemPropertyTitle] as? String == "Episode")
+        #expect(mapped[MPNowPlayingInfoPropertyPlaybackRate] as? Double == 1.5)
+    }
     #expect(info[MPMediaItemPropertyTitle] as? String == "Episode")
     #expect(info[MPMediaItemPropertyArtist] as? String == "Podcast")
     #expect(info[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double == 65)

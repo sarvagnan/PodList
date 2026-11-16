@@ -61,7 +61,7 @@ public final class ApplicationModel {
         guard let self else { throw AutomationFailure("PodList is not running.") }
         return try await self.actions.perform(name, arguments: arguments)
     }
-    @ObservationIgnored public let donations = ActionDonations()
+    @ObservationIgnored public let donations: ActionDonations
     public var serverInput = ""
     public private(set) var origin: String?
     public private(set) var connecting = false
@@ -116,9 +116,11 @@ public final class ApplicationModel {
     public init(store: any ConnectionStore = UserDefaultsConnectionStore(),
                 automaticSync: Bool = true,
                 databaseFactory: @escaping @Sendable (String) throws -> LocalDatabase = ApplicationModel.openDatabase,
-                transportFactory: @escaping @Sendable (ServerAddress) -> any SyncTransport = { HttpTransport(address: $0) }) {
+                transportFactory: @escaping @Sendable (ServerAddress) -> any SyncTransport = { HttpTransport(address: $0) },
+                donations: ActionDonations = ActionDonations()) {
         self.store = store; self.databaseFactory = databaseFactory; self.transportFactory = transportFactory
         self.automaticSync = automaticSync
+        self.donations = donations
     }
 
     nonisolated public static func openDatabase(_ id: String) throws -> LocalDatabase {
