@@ -641,7 +641,8 @@ final class PodListUITour: XCTestCase {
     private func assertInspectorActionTargets(file: StaticString = #filePath, line: UInt = #line) throws {
         let inspector = library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
         try ready(inspector)
-        let buttons = inspector.buttons.allElementsBoundByIndex
+        // Unlabelled, disabled buttons are the scroll view's own scroller parts.
+        let buttons = inspector.buttons.allElementsBoundByIndex.filter { !$0.label.isEmpty }
         XCTAssertFalse(buttons.isEmpty, "Inspector actions must be exposed", file: file, line: line)
         for button in buttons {
             XCTAssertGreaterThanOrEqual(button.frame.width, 20, "\(button.label) is too narrow", file: file, line: line)
