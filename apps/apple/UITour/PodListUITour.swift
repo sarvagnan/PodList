@@ -384,10 +384,28 @@ final class PodListUITour: XCTestCase {
         let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
+        let automationScope = text("This setting applies only to this Mac. App Intents and Shortcuts are always available.", in: settings)
+        try ready(automationScope)
+        let compactAutomation = NSPredicate { _, _ in
+            settings.frame.contains(automationScope.frame) && settings.frame.maxY - automationScope.frame.maxY < 100
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: compactAutomation, object: nil)], timeout: 10), .completed,
+                       "MCP-off Automation must size to its content without a large empty band below it")
         for control in settings.switches.allElementsBoundByIndex + settings.checkBoxes.allElementsBoundByIndex {
             XCTAssertFalse(control.label.isEmpty && control.title.isEmpty, "Every Settings switch and checkbox needs an accessible name")
         }
         try capture("30-settings-automation", in: settings)
+        let automationOffHeight = settings.frame.height
+        try click(mcp)
+        let copyConfiguration = settings.buttons["Copy Configuration"]
+        try ready(copyConfiguration)
+        XCTAssertGreaterThan(settings.frame.height, automationOffHeight + 80,
+                             "Automation must grow to show enabled MCP configuration")
+        let automationForm = settings.scrollViews.firstMatch
+        if automationForm.exists { automationForm.scroll(byDeltaX: 0, deltaY: 1800) }
+        try click(mcp)
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: compactAutomation, object: nil)], timeout: 10), .completed,
+                       "Automation must shrink again when MCP configuration disappears")
         settings.typeKey("w", modifierFlags: .command)
         try ready(library)
 

@@ -87,4 +87,31 @@ struct SettingsPaneHeights: PreferenceKey {
         value.merge(nextValue(), uniquingKeysWith: { _, height in height })
     }
 }
+
+/// A grouped Form owns a scroll view, so its ideal size is the viewport rather
+/// than the rows. Measure the scroll content before applying the screen cap.
+private struct ContentSizedSettingsForm: ViewModifier {
+    let pane: String
+    @State private var contentHeight: CGFloat = 440
+    @State private var availableHeight: CGFloat = 680
+    private var height: CGFloat { min(contentHeight, availableHeight) }
+
+    func body(content: Content) -> some SwiftUI.View {
+        content
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                ceil(geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom)
+            } action: { _, measured in
+                if measured > 0 { contentHeight = measured }
+            }
+            .frame(width: 640, height: height)
+            .preference(key: SettingsPaneHeights.self, value: [pane: height])
+            .background(PanelHeightReader(settings: true) { availableHeight = $0 })
+    }
+}
+
+extension SwiftUI.View {
+    func contentSizedSettingsForm(pane: String) -> some SwiftUI.View {
+        modifier(ContentSizedSettingsForm(pane: pane))
+    }
+}
 #endif

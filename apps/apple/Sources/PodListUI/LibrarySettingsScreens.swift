@@ -8,7 +8,6 @@ import PodListData
 
 struct AutomationSettingsScreen: SwiftUI.View {
     @Bindable var settings: AutomationSettings
-    @State private var availableHeight: CGFloat = 680
     var body: some SwiftUI.View {
         Group {
             Form {
@@ -33,10 +32,8 @@ struct AutomationSettingsScreen: SwiftUI.View {
                     }
                 }
             }.formStyle(.grouped)
+                .contentSizedSettingsForm(pane: "automation")
         }
-        .frame(width: 640, height: min(680, availableHeight))
-        .preference(key: SettingsPaneHeights.self, value: ["automation": min(680, availableHeight)])
-        .background(PanelHeightReader(settings: true) { availableHeight = $0 })
         .focusedSceneValue(\.podListSettingsActions, MenuActionContext(actions: [
             .copyConfiguration: settings.isEnabled ? { copyConfiguration() } : nil,
             .retryAutomation: settings.error != nil ? { if settings.isEnabled { settings.start() } else { settings.stop() } } : nil
@@ -54,7 +51,6 @@ public struct LibrarySettingsScreen: SwiftUI.View {
     @AppStorage("PodList.appearance") private var appearance = "System"
     @Environment(\.openWindow) private var openWindow
     @State private var gettingStarted = false
-    @State private var availableHeight: CGFloat = 680
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
         // A grouped Form owns its scrolling and keeps labels and prose inside
@@ -109,10 +105,8 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     }
                 }
             }.formStyle(.grouped)
+                .contentSizedSettingsForm(pane: "general")
         }
-        .frame(width: 640, height: min(680, availableHeight))
-        .preference(key: SettingsPaneHeights.self, value: ["general": min(680, availableHeight)])
-        .background(PanelHeightReader(settings: true) { availableHeight = $0 })
         .sheet(isPresented: Binding(get: { app.bringOverPreview != nil }, set: { if !$0 { app.declineBringOver() } })) {
             if let preview = app.bringOverPreview { BringOverPreviewScreen(app: app, preview: preview) }
         }
