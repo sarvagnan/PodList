@@ -174,7 +174,7 @@ struct InspectorActions: SwiftUI.View {
                 } label: {
                     Image(systemName: playing ? "pause.fill" : "play.fill").macContentFont(.title3.weight(.semibold))
                         .frame(minWidth: 44, minHeight: 44)
-                }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play Now (not playing)")
+                }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play now (not playing)")
                     .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
                 HStack(spacing: 8) {
                     icon("Add to a Playlist", symbol: "text.badge.plus") { presentation.sheet = .add([row.id], false) }

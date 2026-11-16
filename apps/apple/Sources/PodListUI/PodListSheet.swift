@@ -139,12 +139,12 @@ struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
     var body: some SwiftUI.View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                secondary().fixedSize()
+                secondary().buttonStyle(.bordered).tint(nil).fixedSize()
                 Spacer(minLength: 16)
                 primaryActions.fixedSize()
             }
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) { secondary() }
+                HStack(spacing: 12) { secondary().buttonStyle(.bordered).tint(nil) }
                 HStack { Spacer(minLength: 0); primaryActions }
             }
         }
@@ -153,7 +153,7 @@ struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
     private var primaryActions: some SwiftUI.View {
         HStack(spacing: 12) {
             if let cancelTitle {
-                Button(cancelTitle, action: cancel).keyboardShortcut(.cancelAction).disabled(!cancelEnabled)
+                Button(cancelTitle, action: cancel).buttonStyle(.bordered).tint(nil).keyboardShortcut(.cancelAction).disabled(!cancelEnabled)
             }
             Button(actionTitle, action: action)
                 .keyboardShortcut(defaultShortcut ? .defaultAction : (cancelTitle == nil ? .cancelAction : nil))

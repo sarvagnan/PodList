@@ -62,7 +62,7 @@ import PodListDomain
     #expect(subscriptionDraft.changes == [.setDownloadRule(rule: .init(subscriptionId: "s", deviceId: "this", mode: .onEntry, keepAtMost: nil))])
 }
 
-@MainActor @Test func playlistSettingsJournalSurvivesReopeningAndRelaunchWithBothRenameStages() async throws {
+@MainActor @Test func playlistSettingsJournalKeepsInlineNameUntilSheetSaveAcrossRelaunch() async throws {
     let suite = UUID().uuidString, scope = "library"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -73,16 +73,14 @@ import PodListDomain
     var draft = editing.drafts.playlistSettings(original)
     draft.clearOnPlayed.toggle()
     editing.drafts.stage(draft)
-    editing.drafts["rename/\(id)"] = "Unfinished name"
-    editing.drafts["rename-open/\(id)"] = "true"
+    draft.name = ""
+    editing.drafts.stage(draft)
     let reopened = PlaylistDrafts(scope: scope, defaults: try #require(UserDefaults(suiteName: suite)))
     #expect(reopened.playlistSettings(original).clearOnPlayed == draft.clearOnPlayed)
-    #expect(reopened["rename/\(id)"] == "Unfinished name")
-    #expect(reopened["rename-open/\(id)"] == "true")
-    // Save Name journals the complete stage before removing the inline input.
+    #expect(reopened.playlistSettings(original).name.isEmpty)
+    #expect(PlaylistNames.problem(reopened.playlistSettings(original).name, playlists: [original], excluding: id) != nil)
     draft.name = "Morning"
     reopened.stage(draft)
-    reopened.remove("rename/\(id)"); reopened.remove("rename-open/\(id)")
     let relaunched = PlaylistDrafts(scope: scope, defaults: try #require(UserDefaults(suiteName: suite)))
     #expect(relaunched.playlistSettings(original).changes == draft.changes)
     #expect(try await db.loadState().playlists.first { $0.id == id } == original)

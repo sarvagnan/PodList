@@ -37,7 +37,7 @@ enum PlaylistRenameAction {
     @MainActor @discardableResult static func prepare(_ playlist: Playlist, editing: PlaylistEditingModel) -> Bool {
         guard !playlist.isDefault, !editing.busy else { return false }
         if editing.drafts["rename-open/\(playlist.id)"] != "true" {
-            editing.drafts["rename/\(playlist.id)"] = playlist.name
+            editing.drafts["rename/\(playlist.id)"] = editing.drafts.playlistSettings(playlist).name
         }
         editing.drafts["rename-open/\(playlist.id)"] = "true"
         return true
@@ -46,7 +46,7 @@ enum PlaylistRenameAction {
 enum ViewRenameAction {
     @MainActor @discardableResult static func prepare(_ view: PodListDomain.View, editor: LibraryEditingModel) -> Bool {
         guard !editor.busy else { return false }
-        if editor.draft("rename.\(view.id)").isEmpty { editor.setDraft(view.name, field: "rename.\(view.id)") }
+        if !editor.hasDraft("rename.\(view.id)") { editor.setDraft(view.name, field: "rename.\(view.id)") }
         return true
     }
 }

@@ -191,8 +191,8 @@ struct PlaylistContentView: SwiftUI.View {
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).help("Play from Here").accessibilityLabel("Play from here: \(row.title)")
-        }.padding(.vertical, 5).accessibilityElement(children: .contain)
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from here").accessibilityLabel("Play from here: \(row.title)")
+        }.padding(.vertical, 5).macRowActions(isSelected: window.selection.contains(row.id)).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {
         if !ids.isEmpty {
@@ -308,7 +308,7 @@ struct PlaylistContentView: SwiftUI.View {
         default: return "Marked Played"
         }
     }
-    private func date(_ at: Int64) -> String { Date(timeIntervalSince1970: Double(at) / 1000).formatted(date: .abbreviated, time: .shortened) }
+    private func date(_ at: Int64) -> String { Presentation.timelineDate(at) }
 }
 
 /// A single, intrinsically sized centre item, independent of the current section.
@@ -358,7 +358,7 @@ struct RewindSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         PodListSheet(title: "Rewind Playlist", width: 520, actionTitle: "Rewind",
                      actionEnabled: !editing.busy && previewAvailable, cancel: { dismiss() }, action: rewind) {
-            Text(Date(timeIntervalSince1970: Double(target) / 1000), format: .dateTime.day().month().hour().minute())
+            Text(Presentation.timelineDate(target))
             if let preview = TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Goes back to").macContentFont(.headline)

@@ -300,6 +300,9 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     editor.setDraft("Unfinished View", field: "rename.\(view.id)")
     #expect(ViewRenameAction.prepare(view, editor: editor))
     #expect(editor.draft("rename.\(view.id)") == "Unfinished View")
+    editor.setDraft("", field: "rename.\(view.id)")
+    #expect(ViewRenameAction.prepare(view, editor: editor))
+    #expect(editor.hasDraft("rename.\(view.id)") && editor.draft("rename.\(view.id)").isEmpty)
     editor.busy = true
     let otherView = fixtureState().views[1]
     #expect(!ViewRenameAction.prepare(otherView, editor: editor))

@@ -43,6 +43,8 @@ const podcasts = [
     slug: "market-hours",
     title: "Market Hours",
     author: "Dev Raman",
+    // Exercise real truncation and an expansion beyond the former eight-line cap.
+    description: "Market Hours follows the everyday choices behind the economy. Dev Raman visits markets, workshops, ports and kitchens to ask how prices take shape and what they mean for the people paying them. Each conversation starts with something familiar: a sack of rice, a shipping container, a sandwich or a queue outside a shop. From there we follow the decisions, habits and trade routes that connect one neighbourhood to the wider world. We hear from growers, shopkeepers, researchers and customers, leaving room for questions that do not have a simple answer. New conversations arrive each week, with field recordings and practical examples that make the numbers easier to understand. You do not need a background in economics to join us. Bring your curiosity and a question about the things you buy, sell, share or repair. At the end of every visit, we return to the people who helped us understand the story and ask what has changed for them. There is always another connection to explore. Thanks for listening to Market Hours.",
     color: "#8a5a10",
     episodes: [
       ["Who sets the price of rice?", 1534],
@@ -104,7 +106,7 @@ const feed = (origin, podcast) => {
       return `<item><title>${title}</title><guid>${podcast.slug}-${i}</guid><pubDate>${published}</pubDate><description>${title}. An episode of ${podcast.title}.</description><enclosure url="${origin}/audio/${podcast.slug}/${i}.mp3" type="audio/mpeg" length="${audioFor(duration).length}"/><itunes:duration>${duration}</itunes:duration>${podcast.chapters ? `<podcast:chapters url="${origin}/chapters/${podcast.slug}/${i}.json" type="application/json+chapters"/>` : ""}</item>`
     })
     .join("")
-  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>${podcast.title}</title><itunes:author>${podcast.author}</itunes:author><description>${podcast.title} by ${podcast.author}.</description><itunes:image href="${origin}/art/${podcast.slug}.svg"/>${items}</channel></rss>`
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>${podcast.title}</title><itunes:author>${podcast.author}</itunes:author><description>${podcast.description ?? `${podcast.title} by ${podcast.author}.`}</description><itunes:image href="${origin}/art/${podcast.slug}.svg"/>${items}</channel></rss>`
 }
 
 const listen = (server) =>

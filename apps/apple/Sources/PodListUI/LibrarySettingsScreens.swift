@@ -8,8 +8,9 @@ import PodListData
 
 struct AutomationSettingsScreen: SwiftUI.View {
     @Bindable var settings: AutomationSettings
+    @State private var availableHeight: CGFloat = 680
     var body: some SwiftUI.View {
-        ContentSizedPanel(width: 600, settings: true, pane: "automation") {
+        Group {
             Form {
                 Section("MCP") {
                     Toggle("Enable MCP Server", isOn: Binding(get: { settings.isEnabled }, set: { settings.setEnabled($0) }))
@@ -29,8 +30,11 @@ struct AutomationSettingsScreen: SwiftUI.View {
                         Button("Copy Configuration", action: copyConfiguration)
                     }
                 }
-            }.formStyle(.columns).padding(24)
+            }.formStyle(.grouped)
         }
+        .frame(width: 640, height: min(680, availableHeight))
+        .preference(key: SettingsPaneHeights.self, value: ["automation": min(680, availableHeight)])
+        .background(PanelHeightReader(settings: true) { availableHeight = $0 })
         .focusedSceneValue(\.podListSettingsActions, MenuActionContext(actions: [
             .copyConfiguration: settings.isEnabled ? { copyConfiguration() } : nil,
             .retryAutomation: settings.error != nil ? { if settings.isEnabled { settings.start() } else { settings.stop() } } : nil
@@ -260,7 +264,7 @@ struct GettingStartedScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         Group {
             if inSheet {
-                PodListSheet(title: "Getting Started", width: 500, actionTitle: "Dismiss", cancelTitle: nil,
+                PodListSheet(title: "Getting Started", width: 500, actionTitle: "Hide Getting Started", cancelTitle: nil,
                              cancel: { editor.showGettingStarted = false }, action: { editor.showGettingStarted = false }) {
                     steps
                 }.onExitCommand { editor.showGettingStarted = false }
@@ -268,7 +272,7 @@ struct GettingStartedScreen: SwiftUI.View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Getting Started").macContentFont(.headline)
                     steps
-                    HStack { Spacer(); Button("Dismiss") { editor.showGettingStarted = false } }
+                    HStack { Spacer(); Button("Hide Getting Started") { editor.showGettingStarted = false } }
                 }.padding(12)
             }
         }
