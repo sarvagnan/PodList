@@ -4,6 +4,85 @@ import PodListDomain
 import PodListData
 @testable import PodListUI
 
+@MainActor @Test func failedGeneralSettingsRestoreAfterRelaunchAndRetry() async throws {
+    let suite = UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let db = try await fixtureDatabase()
+    let state = try await db.loadState()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "library", defaults: defaults))
+    var release: CheckedContinuation<Void, Never>?
+    let otherEdit = Task {
+        try await editing.performExternal {
+            await withCheckedContinuation { release = $0 }
+            return nil
+        }
+    }
+    while release == nil { await Task.yield() }
+    #expect(editing.busy)
+    let draft = GeneralSettingsEdits(playback: state.playbackSettings, trashDays: 30, drafts: editing.drafts)
+    draft.playback = .init(speed: 1.75, skipIntro: 30, skipOutro: 15, volumeBoost: true)
+    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Speed", using: editing)
+    draft.playback.skipIntro = 45
+    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Skip Intro", using: editing)
+    draft.trashDays = 7
+    draft.save(.setTrashDays(days: draft.trashDays), setting: "Keep Playlists in Trash", using: editing)
+    // The journal exists before either asynchronous save has even run.
+    let pending = GeneralSettingsEdits(playback: state.playbackSettings, trashDays: 30,
+                                     drafts: PlaylistDrafts(scope: "library", defaults: defaults))
+    #expect(pending.playback == draft.playback && pending.trashDays == 7)
+    #expect(pending.failures["Speed"]?.contains("Retry") == true)
+    #expect(PlaylistDrafts(scope: "other-library", defaults: defaults).generalSettings(GeneralSettingsDraft.playbackField) == nil)
+    await draft.waitForPendingEdits()
+    #expect(draft.failures["Speed"] != nil)
+    #expect(draft.failures["Keep Playlists in Trash"] != nil)
+    release?.resume()
+    _ = try await otherEdit.value
+    let saved = try await db.loadState()
+    let retryEditor = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "library", defaults: try #require(UserDefaults(suiteName: suite))))
+    let relaunched = GeneralSettingsEdits(playback: saved.playbackSettings, trashDays: 30, drafts: retryEditor.drafts)
+    #expect(relaunched.playback == draft.playback && relaunched.trashDays == 7)
+    #expect(relaunched.failures["Speed"]?.contains("Retry") == true)
+    #expect(relaunched.failures["Skip Intro"]?.contains("Could not save Skip Intro.") == true)
+    relaunched.reconcile(playback: saved.playbackSettings, trashDays: 30)
+    #expect(relaunched.playback.speed == 1.75)
+    relaunched.save(.setPlaybackSettings(settings: relaunched.playback), setting: "Speed", using: retryEditor)
+    relaunched.save(.setTrashDays(days: relaunched.trashDays), setting: "Keep Playlists in Trash", using: retryEditor)
+    await relaunched.waitForPendingEdits()
+    #expect(try await db.loadState().playbackSettings == draft.playback)
+    #expect(try await db.loadState().trashDays == 7)
+    #expect(relaunched.failures.isEmpty)
+    #expect(PlaylistDrafts(scope: "library", defaults: defaults)[GeneralSettingsDraft.playbackField].isEmpty)
+    #expect(PlaylistDrafts(scope: "library", defaults: defaults)[GeneralSettingsDraft.trashField].isEmpty)
+}
+
+@MainActor @Test func earlierSettingsSuccessCannotClearANewerPendingChoice() async throws {
+    let suite = UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let db = try await fixtureDatabase()
+    let state = try await db.loadState()
+    var releases: [CheckedContinuation<Void, Never>] = []
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "library", defaults: defaults), changed: {
+        await withCheckedContinuation { releases.append($0) }
+    })
+    let draft = GeneralSettingsEdits(playback: state.playbackSettings, trashDays: 30, drafts: editing.drafts)
+    draft.playback.speed = 1.5
+    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Speed", using: editing)
+    draft.playback.speed = 2
+    draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Speed", using: editing)
+    while releases.isEmpty { await Task.yield() }
+    releases[0].resume()
+    while releases.count < 2 { await Task.yield() }
+    let journal = PlaylistDrafts(scope: "library", defaults: defaults).generalSettings(GeneralSettingsDraft.playbackField)
+    #expect(journal?.change == .setPlaybackSettings(settings: draft.playback))
+    #expect(journal?.original == .setPlaybackSettings(settings: state.playbackSettings))
+    releases[1].resume()
+    await draft.waitForPendingEdits()
+    #expect(try await db.loadState().playbackSettings.speed == 2)
+    #expect(PlaylistDrafts(scope: "library", defaults: defaults)[GeneralSettingsDraft.playbackField].isEmpty)
+}
+
 @Test(arguments: ["en_US", "de_DE", "fr_FR", "hi_IN"])
 func numberDraftsFormatAndParseInTheirLocale(_ identifier: String) throws {
     let locale = Locale(identifier: identifier)
@@ -72,7 +151,7 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     let db = try LocalDatabase(path: ":memory:", standalone: true)
     try await db.ensureState()
     let edits = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
-    let draft = GeneralSettingsEdits(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30)
+    let draft = GeneralSettingsEdits(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30, drafts: edits.drafts)
     draft.playback.speed = -1
     draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Speed", using: edits)
     await draft.waitForPendingEdits()
@@ -109,7 +188,7 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     let db = try LocalDatabase(path: ":memory:", standalone: true)
     try await db.ensureState()
     let edits = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
-    let draft = GeneralSettingsEdits(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30)
+    let draft = GeneralSettingsEdits(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30, drafts: edits.drafts)
     draft.playback.skipIntro = 1.5
     draft.save(.setPlaybackSettings(settings: draft.playback), setting: "Skip Intro", using: edits)
     draft.playback.skipOutro = 2.5
@@ -117,10 +196,13 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     draft.save(.setTrashDays(days: 7), setting: "Keep Playlists in Trash", using: edits)
     draft.reconcile(playback: .init(speed: 1, skipIntro: 0, skipOutro: 0, volumeBoost: false), trashDays: 30)
     #expect(draft.playback.skipIntro == 1.5 && draft.playback.skipOutro == 2.5)
+    let pendingPlayback = try #require(edits.drafts.generalSettings(GeneralSettingsDraft.playbackField))
+    #expect(pendingPlayback.change == .setPlaybackSettings(settings: draft.playback))
     await draft.waitForPendingEdits()
     let saved = try await db.loadState()
     #expect(saved.playbackSettings.skipIntro == 1.5 && saved.playbackSettings.skipOutro == 2.5)
     #expect(saved.trashDays == 7 && draft.failures.isEmpty)
+    #expect(edits.drafts[GeneralSettingsDraft.playbackField].isEmpty && edits.drafts[GeneralSettingsDraft.trashField].isEmpty)
 }
 
 @Test func newNamesValidateOnlyAfterAnEditOrSubmitIncludingDeletingTheFirstInput() {

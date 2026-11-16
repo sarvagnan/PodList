@@ -150,3 +150,33 @@ import PodListDomain
     let restored = try JSONDecoder().decode(SubscriptionSettingsDraft.self, from: JSONSerialization.data(withJSONObject: object))
     #expect(restored.changes.isEmpty)
 }
+
+@MainActor @Test func bulkDownloadRulesJournalSurvivesFailureRelaunchRetryAndDiscard() async throws {
+    let suite = UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let db = try await fixtureDatabase()
+    let state = try await db.loadState()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "one", defaults: defaults))
+    var draft = editing.drafts.bulkDownloadRules(ids: ["s", "s"], deviceID: "this", rules: state.downloadRules)
+    draft.mode = .allNew; draft.cap = 5
+    editing.drafts.stage(draft)
+    let reopened = PlaylistDrafts(scope: "one", defaults: defaults).bulkDownloadRules(ids: ["s"], deviceID: "this", rules: [])
+    #expect(reopened.mode == .allNew && reopened.cap == 5 && reopened.failure == nil)
+    editing.endSession()
+    #expect(await draft.apply(using: editing) == false)
+    let retryEditor = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "one", defaults: try #require(UserDefaults(suiteName: suite))))
+    let restored = retryEditor.drafts.bulkDownloadRules(ids: ["s"], deviceID: "this", rules: [])
+    #expect(restored.mode == .allNew && restored.cap == 5)
+    #expect(restored.failure?.contains("Retry") == true)
+    #expect(PlaylistDrafts(scope: "two", defaults: defaults).bulkDownloadRules(ids: ["s"], deviceID: "this", rules: []).mode == .never)
+    #expect(retryEditor.drafts.bulkDownloadRules(ids: ["s"], deviceID: "other", rules: []).mode == .never)
+    #expect(retryEditor.drafts.bulkDownloadRules(ids: ["other", "s"], deviceID: "this", rules: []).mode == .never)
+    #expect(await restored.apply(using: retryEditor))
+    let saved = try await db.loadState()
+    #expect(saved.downloadRules.contains { $0.subscriptionId == "s" && $0.deviceId == "this" && $0.mode == .allNew && $0.keepAtMost == 5 })
+    #expect(PlaylistDrafts(scope: "one", defaults: defaults)[draft.field].isEmpty)
+    retryEditor.drafts.stage(draft)
+    retryEditor.drafts.remove(draft.field) // Explicit Cancel discards only this editor.
+    #expect(PlaylistDrafts(scope: "one", defaults: defaults)[draft.field].isEmpty)
+}

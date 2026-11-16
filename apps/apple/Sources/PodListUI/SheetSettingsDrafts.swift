@@ -1,6 +1,61 @@
 import Foundation
 import PodListDomain
 
+/// One write-through setting group, recorded before its asynchronous write starts.
+/// The identity prevents an older successful write from clearing a newer choice.
+struct GeneralSettingsDraft: Codable {
+    var id = UUID()
+    let original: Change
+    let change: Change
+    var settings: [String]
+    var failures: [String: String] = [:]
+    init(original: Change, change: Change, setting: String) {
+        self.original = original; self.change = change; settings = [setting]
+    }
+    static let playbackField = "settings/general/playback"
+    static let trashField = "settings/general/trash"
+    var field: String {
+        if case .setPlaybackSettings = change { return Self.playbackField }
+        return Self.trashField
+    }
+    func recoveryMessage(for setting: String) -> String {
+        failures[setting] ?? "Could not finish saving \(setting). Your draft is kept. Retry to save it."
+    }
+}
+
+struct BulkDownloadRulesDraft: Codable {
+    let subscriptionIDs: [String]
+    let deviceID: String
+    let originalRules: [DownloadRule]
+    var mode: DownloadMode = .never
+    var cap: Int64?
+    var failure: String?
+    var field: String { Self.field(ids: subscriptionIDs, deviceID: deviceID) }
+    static func field(ids: [String], deviceID: String) -> String {
+        let key = ([deviceID] + Array(Set(ids)).sorted()).map { "\($0.utf8.count):\($0)" }.joined()
+        return "settings/download-rules/" + key
+    }
+    init(ids: [String], deviceID: String, rules: [DownloadRule]) {
+        subscriptionIDs = Array(Set(ids)).sorted(); self.deviceID = deviceID
+        originalRules = rules.filter { $0.deviceId == deviceID && ids.contains($0.subscriptionId) }
+    }
+    @MainActor func apply(using editing: PlaylistEditingModel) async -> Bool {
+        var pending = self
+        pending.failure = "Download Rules were not saved. Your draft is kept. Retry to apply it."
+        editing.drafts.stage(pending)
+        let changes = subscriptionIDs.map {
+            Change.setDownloadRule(rule: .init(subscriptionId: $0, deviceId: deviceID, mode: mode, keepAtMost: cap))
+        }
+        if await editing.edit(changes, name: "Download Rules") {
+            editing.drafts.remove(field)
+            return true
+        }
+        pending.failure = "Could not apply Download Rules. \(editing.error ?? "Another Library edit is in progress.") Your draft is kept. Retry to apply it."
+        editing.drafts.stage(pending)
+        return false
+    }
+}
+
 /// Sheet-local values never write through their bindings. A single reversible
 /// edit applies only fields changed in this session, preserving unrelated sync.
 struct PlaylistSettingsDraft: Codable {
@@ -59,6 +114,13 @@ struct SubscriptionSettingsDraft: Codable {
 /// Journal the original settings too: after relaunch, apply only changed fields.
 /// Keep these snapshots small; Playlist Entries and recovery history stay in DB.
 @MainActor extension PlaylistDrafts {
+    func generalSettings(_ field: String) -> GeneralSettingsDraft? { restoredSettings(field) }
+    func bulkDownloadRules(ids: [String], deviceID: String, rules: [DownloadRule]) -> BulkDownloadRulesDraft {
+        restoredSettings(BulkDownloadRulesDraft.field(ids: ids, deviceID: deviceID))
+            ?? BulkDownloadRulesDraft(ids: ids, deviceID: deviceID, rules: rules)
+    }
+    func stage(_ draft: GeneralSettingsDraft) { storeSettings(draft, field: draft.field) }
+    func stage(_ draft: BulkDownloadRulesDraft) { storeSettings(draft, field: draft.field) }
     func playlistSettings(_ playlist: Playlist) -> PlaylistSettingsDraft {
         restoredSettings(PlaylistSettingsDraft(playlist).field) ?? PlaylistSettingsDraft(playlist)
     }

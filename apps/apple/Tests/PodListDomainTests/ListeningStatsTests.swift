@@ -2,6 +2,24 @@ import Foundation
 import Testing
 @testable import PodListDomain
 
+@Test func statsDistinguishTimelinePositionsFromMeasuredPartialListening() throws {
+    let now = ISO8601DateFormatter().date(from: "2026-11-11T12:00:00Z")!
+    let at = Int64(now.timeIntervalSince1970 * 1000)
+    var state = StateRules.apply(State.initial(), change: .addEntry(playlistId: defaultPlaylistId, episodeId: "episode", placement: .last), at: at)
+    // The UI-tour fixture reports 12:34 without measured Listening amounts.
+    state = StateRules.apply(state, change: .reportPosition(playlistId: defaultPlaylistId, episodeId: "episode", position: 754, listenedAt: at), at: at)
+    #expect(!state.playlists[0].timeline.isEmpty)
+    #expect(state.listeningLog == nil)
+    #expect(ListeningStats(log: state.listeningLog ?? [:], played: [], now: now).isEmpty)
+    // Even a fraction of a second of measured partial listening counts today.
+    state = StateRules.apply(state, change: .recordListening(amounts: [.init(day: "2026-11-11", subscriptionId: "s", seconds: 0.5)]), at: at)
+    let stats = ListeningStats(log: try #require(state.listeningLog), played: [], now: now, timeZone: TimeZone(secondsFromGMT: 0)!)
+    #expect(!stats.isEmpty)
+    #expect(stats.totals.map(\.seconds) == [0.5, 0.5, 0.5])
+    #expect(stats.totals.allSatisfy { $0.finished == 0 })
+    #expect(stats.days.last?.seconds == 0.5 && stats.streak == 1)
+}
+
 @Test func statsUsePermanentLogMondayWeeksAndOnlyPlaybackFinishedFacts() {
     let zone = TimeZone(secondsFromGMT: 0)!
     let now = ISO8601DateFormatter().date(from: "2026-11-11T12:00:00Z")!

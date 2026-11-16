@@ -146,28 +146,49 @@ struct DownloadRuleFields: SwiftUI.View {
 struct BulkDownloadRuleSheet: SwiftUI.View {
     let ids: [String]
     let app: ApplicationModel
-    @State private var mode: DownloadMode = .never
-    @State private var cap: Int64?
+    var body: some SwiftUI.View {
+        if let editing = app.editing, let library = app.library {
+            BulkDownloadRuleEditor(ids: ids, library: library, editing: editing)
+        }
+    }
+}
+
+private struct BulkDownloadRuleEditor: SwiftUI.View {
+    let editing: PlaylistEditingModel
+    @State private var draft: BulkDownloadRulesDraft
     @State private var saving = false
     @Environment(\.dismiss) private var dismiss
+    init(ids: [String], library: LibraryModel, editing: PlaylistEditingModel) {
+        self.editing = editing
+        _draft = State(initialValue: editing.drafts.bulkDownloadRules(ids: ids, deviceID: library.deviceID,
+                                                                    rules: library.state.downloadRules))
+    }
     var body: some SwiftUI.View {
-        PodListSheet(title: "Download Rules for \(CountText.format(ids.count, .subscription))", width: 520,
-                     actionTitle: "Apply", actionEnabled: !saving && !ids.isEmpty,
-                     cancelEnabled: !saving, cancel: { dismiss() }, action: apply) {
+        PodListSheet(title: "Download Rules for \(CountText.format(draft.subscriptionIDs.count, .subscription))", width: 520,
+                     actionTitle: "Apply", actionEnabled: !saving && !draft.subscriptionIDs.isEmpty,
+                     cancelEnabled: !saving, cancel: cancel, action: apply) {
             Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(MacReadableSecondaryStyle())
-            DownloadRuleFields(mode: $mode, cap: $cap).disabled(saving)
+            DownloadRuleFields(mode: Binding(get: { draft.mode }, set: { draft.mode = $0; editing.drafts.stage(draft) }),
+                               cap: Binding(get: { draft.cap }, set: { draft.cap = $0; editing.drafts.stage(draft) })).disabled(saving)
         } status: {
-            if let editing = app.editing { EditingFeedback(editing: editing, retry: apply) }
+            if let failure = draft.failure { FailureFeedback(message: failure, retry: apply).disabled(saving) }
         }
         .interactiveDismissDisabled(saving)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
-            .cancel: saving ? nil : { dismiss() }, .apply: saving ? nil : { apply() }
+            .cancel: saving ? nil : { cancel() }, .apply: saving ? nil : { apply() }
         ].compactMapValues { $0 }))
     }
+    private func cancel() { editing.drafts.remove(draft.field); dismiss() }
     private func apply() {
         guard !saving else { return }
         saving = true
-        Task { if await app.setDownloadRules(subscriptions: ids, mode: mode, cap: cap) { dismiss() }; saving = false }
+        Task {
+            if await draft.apply(using: editing) { dismiss() }
+            else {
+                draft = editing.drafts.bulkDownloadRules(ids: draft.subscriptionIDs, deviceID: draft.deviceID, rules: draft.originalRules)
+            }
+            saving = false
+        }
     }
 }
 #endif
