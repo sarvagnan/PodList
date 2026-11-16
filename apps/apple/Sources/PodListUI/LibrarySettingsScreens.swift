@@ -165,7 +165,7 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
     @State private var draft: GeneralSettingsEdits
     init(library: LibraryModel, editor: LibraryEditingModel, editing: PlaylistEditingModel) {
         self.library = library; self.editor = editor; self.editing = editing
-        _draft = State(initialValue: GeneralSettingsEdits(playback: library.state.playbackSettings, trashDays: library.state.trashDays ?? 30))
+        _draft = State(initialValue: GeneralSettingsEdits(playback: library.state.playbackSettings, trashDays: library.state.trashDays ?? 30, drafts: editing.drafts))
     }
     var body: some SwiftUI.View {
         Group {
@@ -312,9 +312,9 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 let ids = Set(library.snapshot.episodes.map(\.id))
                 let facts = library.state.episodeStates.values.filter { ids.contains($0.episodeId) }.compactMap(\.played)
                 let stats = ListeningStats(log: library.state.listeningLog ?? [:], played: facts)
-                if stats.totals.allSatisfy({ $0.seconds == 0 && $0.finished == 0 }) {
-                    PodListEmptyState("No Listening Yet", systemImage: "chart.bar",
-                                      description: "Play an Episode to start your Listening Log.")
+                if stats.isEmpty {
+                    PodListEmptyState("No Listening Stats Recorded", systemImage: "chart.bar",
+                                      description: "Stats count measured time in the permanent Listening log and Episodes finished through playback. Listening Timeline Positions alone do not measure time listened. Play an Episode to record listening time.")
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {

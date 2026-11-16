@@ -7,6 +7,7 @@ public struct ListeningStats: Sendable {
     public let days: [Day]
     public let streak: Int
     public let podcasts: [(id: String, seconds: Double)]
+    public var isEmpty: Bool { totals.allSatisfy { $0.seconds == 0 && $0.finished == 0 } }
     public init(log: ListeningLog, played: [Played], now: Date = Date(), timeZone: TimeZone = .current) {
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone; calendar.firstWeekday = 2
         let today = calendar.startOfDay(for: now)
