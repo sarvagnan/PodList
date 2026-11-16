@@ -122,7 +122,10 @@ struct SubscriptionSettingsDraft: Codable {
     func stage(_ draft: GeneralSettingsDraft) { storeSettings(draft, field: draft.field) }
     func stage(_ draft: BulkDownloadRulesDraft) { storeSettings(draft, field: draft.field) }
     func playlistSettings(_ playlist: Playlist) -> PlaylistSettingsDraft {
-        restoredSettings(PlaylistSettingsDraft(playlist).field) ?? PlaylistSettingsDraft(playlist)
+        var draft = restoredSettings(PlaylistSettingsDraft(playlist).field) ?? PlaylistSettingsDraft(playlist)
+        // Preserve unfinished names from the former nested rename controls.
+        if !playlist.isDefault, self["rename-open/\(playlist.id)"] == "true" { draft.name = self["rename/\(playlist.id)"] }
+        return draft
     }
     func subscriptionSettings(_ subscription: Subscription, rule: DownloadRule?, deviceID: String) -> SubscriptionSettingsDraft {
         restoredSettings(SubscriptionSettingsDraft.field(subscriptionID: subscription.id, deviceID: deviceID))
