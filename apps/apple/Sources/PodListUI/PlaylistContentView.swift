@@ -269,18 +269,22 @@ struct PlaylistContentView: SwiftUI.View {
                         }
                         Spacer()
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
-                            Button("Rewind to Here") { rewindTarget = event }.accessibilityLabel("Rewind to \(date(event.moment))")
+                            Button("Rewind to Here…") { rewindTarget = event }
+                                .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle())
+                                .accessibilityLabel("Rewind to \(date(event.moment))…")
+                                .help("Preview rewinding this Playlist to this moment")
                         }
                     }.padding(.vertical, 4)
+                    .macRowActions(isSelected: window.timelineSelection == event.id)
                     .accessibilityElement(children: .contain)
                     .accessibilityActions {
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
-                            Button("Rewind to Here") { rewindTarget = event }
+                            Button("Rewind to Here…") { rewindTarget = event }
                         }
                     }
                     .contextMenu {
                         if TimelineRules.pointAt(playlist, to: event.moment) != nil {
-                            Button("Rewind to Here") { rewindTarget = event }
+                            Button("Rewind to Here…") { rewindTarget = event }
                         }
                     }
                     .tag(event.id)

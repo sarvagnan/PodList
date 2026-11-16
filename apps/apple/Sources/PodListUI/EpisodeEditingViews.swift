@@ -166,20 +166,46 @@ struct EpisodeActionButtons: ToolbarContent {
     }
 }
 
+enum EditingFeedbackSurface {
+    case library, secondary
+}
+
+struct LibrarySyncStatus: SwiftUI.View {
+    let app: ApplicationModel
+    var body: some SwiftUI.View {
+        HStack(spacing: 8) {
+            if app.syncing {
+                ProgressView().controlSize(.mini).accessibilityLabel("Syncing")
+                Text("Syncing…")
+            } else if let error = app.syncError {
+                Image(systemName: "exclamationmark.icloud").accessibilityHidden(true)
+                FailureFeedback(message: error, indexedElsewhere: true) { Task { await app.sync(forceRefresh: true) } }
+                    .help(Presentation.tooltip(error))
+            } else {
+                Image(systemName: "checkmark.icloud").accessibilityHidden(true)
+                Text(app.lastSync == nil ? "Local Library" : "Up to date")
+            }
+        }.foregroundStyle(MacReadableSecondaryStyle())
+    }
+}
+
 struct EditingFeedback: SwiftUI.View {
     @Environment(\.macTextScale) private var textScale
     @State private var lifetime: EditingFeedbackLifetime
     let editing: PlaylistEditingModel
+    let surface: EditingFeedbackSurface
+    let sync: ApplicationModel?
     var additionalError: String? = nil
     var additionalStatus: String? = nil
     var undo: (() -> Void)? = nil
     var redo: (() -> Void)? = nil
     var retry: (() -> Void)? = nil
     var reservesSpace: Bool
-    init(editing: PlaylistEditingModel, additionalError: String? = nil, additionalStatus: String? = nil,
+    init(editing: PlaylistEditingModel, surface: EditingFeedbackSurface = .secondary, sync: ApplicationModel? = nil,
+         additionalError: String? = nil, additionalStatus: String? = nil,
          undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil,
          reservesSpace: Bool = true) {
-        self.editing = editing; self.additionalError = additionalError; self.additionalStatus = additionalStatus; self.undo = undo; self.redo = redo; self.retry = retry
+        self.editing = editing; self.surface = surface; self.sync = sync; self.additionalError = additionalError; self.additionalStatus = additionalStatus; self.undo = undo; self.redo = redo; self.retry = retry
         self.reservesSpace = reservesSpace
         _lifetime = State(initialValue: EditingFeedbackLifetime(currentNotice: editing.feedbackNotice))
     }
@@ -193,7 +219,7 @@ struct EditingFeedback: SwiftUI.View {
     private func feedback(at now: Date) -> some SwiftUI.View {
         let text = error ?? additionalStatus ?? lifetime.message(for: editing.feedbackNotice, at: now)
         return Group {
-            if reservesSpace || text != nil || retryCommand != nil || editing.history.undo != nil || editing.history.redo != nil {
+            if reservesSpace || text != nil || sync != nil || retryCommand != nil || (surface == .library && (editing.history.undo != nil || editing.history.redo != nil)) {
                 feedbackRow(text: text)
             }
         }
@@ -203,28 +229,33 @@ struct EditingFeedback: SwiftUI.View {
     }
     private func feedbackRow(text: String?) -> some SwiftUI.View {
         HStack {
-            if let text {
+            if let sync, sync.syncError != nil, error == nil {
+                LibrarySyncStatus(app: sync)
+            } else if let text {
                 Text(text).foregroundStyle(error == nil ? Color.primary : Color.podListError)
                     .fixedSize(horizontal: false, vertical: true).help(Presentation.tooltip(text)).textSelection(.enabled)
+            } else if let sync {
+                LibrarySyncStatus(app: sync)
             }
             Spacer(minLength: 8)
-            if error == editing.error, editing.canRetry {
+            if retryCommand != nil {
                 Button("Retry", action: retryFailure).disabled(editing.busy)
             }
-            if editing.history.undo != nil {
+            if surface == .library, editing.history.undo != nil {
                 Button(editing.undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
             }
-            if editing.history.redo != nil {
+            if surface == .library, editing.history.redo != nil {
                 Button(editing.redoTitle) { if let redo { redo() } else { Task { await editing.reverse(redo: true) } } }.disabled(editing.busy)
             }
-        }.macContentFont(.caption).lineLimit(textScale > 1 ? nil : 1).padding(.horizontal, 14)
+        }.macContentFont(.caption).lineLimit(reservesSpace || textScale <= 1 ? 1 : nil).padding(.horizontal, 14)
             .padding(.vertical, reservesSpace ? 0 : 3)
-            .frame(height: reservesSpace && textScale <= 1 ? 32 : nil)
-            .frame(minHeight: reservesSpace ? 32 : nil)
-            .accessibilityElement(children: .contain).accessibilityLabel("Edit status")
+            .frame(height: reservesSpace ? ceil(32 * textScale) : nil)
+            .accessibilityElement(children: .contain).accessibilityLabel(sync == nil ? "Edit status" : "Library status")
+            .accessibilityIdentifier(sync == nil ? "editing.status" : "library.status")
     }
     private var retryCommand: (() -> Void)? {
         guard error == editing.error, editing.canRetry else { return nil }
+        guard surface == .library || editing.retryKind == .edit else { return nil }
         return { retryFailure() }
     }
     private func retryFailure() {
