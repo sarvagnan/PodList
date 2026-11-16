@@ -195,6 +195,40 @@ public final class PlaylistEditingModel {
         }
         return result
     }
+    /// Resolve insertion anchors against the latest State and retain copy semantics:
+    /// an Episode already in the destination stays in place.
+    func addDropped(_ insertions: [DroppedEpisodeInsertion], to playlistID: String, name: String) async -> Bool {
+        let succeeded = await edit(name: name) { state in
+            guard var playlist = state.playlists.first(where: { $0.id == playlistID }) else {
+                throw DatabaseFailure(description: "Playlist unavailable.")
+            }
+            var changes: [Change] = []
+            // A not-yet-inserted sibling falls back to the original boundary.
+            // Forward order also preserves the first Entry as an empty Playlist’s cursor.
+            for insertion in insertions {
+                let id = insertion.episodeID
+                guard !playlist.entries.contains(where: { $0.episodeId == id }) else { continue }
+                changes.append(.addEntry(playlistId: playlistID, episodeId: id, placement: .last))
+                playlist = PlaylistRules.addEntry(playlist, episodeId: id, placement: .last, at: 0)
+                let boundary = [insertion.beforeID, insertion.fallbackBeforeID].compactMap { before in
+                    before.flatMap { before in playlist.entries.firstIndex { $0.episodeId == before } }
+                }.first
+                if let boundary {
+                    let after = boundary > 0 ? playlist.entries[boundary - 1].episodeId : nil
+                    changes.append(.moveEntry(playlistId: playlistID, episodeId: id, after: after))
+                    playlist = PlaylistRules.moveEntry(playlist, episodeId: id, after: after)
+                }
+            }
+            return changes
+        }
+        // Recovery must finish the placeholder lifecycle, through the Episode
+        // command or destination row, rather than replaying only the database edit.
+        if !succeeded { retryAction = nil; retryKind = nil }
+        return succeeded
+    }
+    func dismissDropFailure(matching message: String?) {
+        if error == message, retryKind == nil { error = nil }
+    }
     public func create(name: String) async -> String? {
         let id = UUID().uuidString
         return await edit([.createPlaylist(playlistId: id, name: name.trimmingCharacters(in: .whitespacesAndNewlines), clearOnPlayed: false)], name: "New Playlist") ? id : nil
@@ -298,4 +332,10 @@ public final class PlaylistDrafts {
         return active
     }
     public func remove(_ field: String) { values.removeValue(forKey: field); defaults.set(values, forKey: key) }
+}
+
+struct DroppedEpisodeInsertion: Sendable {
+    let episodeID: String
+    let beforeID: String?
+    let fallbackBeforeID: String?
 }

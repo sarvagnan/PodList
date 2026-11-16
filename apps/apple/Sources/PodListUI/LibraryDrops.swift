@@ -65,7 +65,11 @@ struct LibraryDropBatch: Sendable {
 extension LibraryEditingModel {
     /// Only stages the existing preview. Import still requires its Import button.
     public func selectOPMLFile(_ url: URL) async {
-        await selectLibraryDrops(LibraryDropBatch(items: [.opml(url)]))
+        await selectOPMLFiles([url])
+    }
+
+    public func selectOPMLFiles(_ urls: [URL]) async {
+        await selectLibraryDrops(LibraryDropBatch(items: urls.map(LibraryDrop.opml)))
     }
 
     func selectLibraryDrops(_ batch: LibraryDropBatch) async {

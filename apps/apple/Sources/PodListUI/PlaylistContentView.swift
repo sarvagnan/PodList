@@ -47,38 +47,47 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private var rows: [EpisodeRow] { window.rows(in: library) }
+    private var displayedRows: [PlaylistDropRow] {
+        PlaylistDropRow.rows(rows, batches: app.libraryEditing?.pendingEpisodeDrops ?? [], playlistID: playlist.id)
+    }
+    private var entrySelection: Binding<Set<String>> {
+        Binding(get: { window.selection }, set: { window.selection = $0.intersection(Set(rows.map(\.id))) })
+    }
     private var entries: some SwiftUI.View {
         VStack(spacing: 0) {
-            if PlaylistRules.hasNoCurrentEntry(playlist) {
-                HStack {
-                    Text(playlist.entries.isEmpty ? "This Playlist has no Entries." : "No current Entry. This Playlist is past its end.").foregroundStyle(MacReadableSecondaryStyle())
-                    if playlist.entries.isEmpty { Button("Find Episodes") { window.navigate(to: .search) } }
-                    Spacer()
-                }.padding(12)
-            }
             Group {
                 if textScale > 1 {
-                    List(selection: $window.selection) {
-                        ForEach(rows) { row in
-                            MacReadingRow(isSelected: window.selection.contains(row.id)) { entryTitle(row) } metadata: {
-                                "Position \(Presentation.time(row.position ?? 0)) · Length \(row.durationText) · \(row.stateText)"
+                    List(selection: entrySelection) {
+                        ForEach(displayedRows) { item in
+                            if let row = item.entry {
+                                MacReadingRow(isSelected: window.selection.contains(row.id)) { entryTitle(row) } metadata: {
+                                    "Position \(Presentation.time(row.position ?? 0)) · Length \(row.durationText) · \(row.stateText)"
+                                }
+                                .tag(item.id).draggable(dragPayload(row.id))
+                            } else if let slot = item.placeholder {
+                                placeholder(slot).tag(item.id).selectionDisabled()
                             }
-                            .tag(row.id).draggable(dragPayload(row.id))
                         }
                         .dropDestination(for: EpisodeTransfer.self) { values, index in
                             _ = drop(values, at: index)
                         }
                     }
                 } else {
-                    Table(of: EpisodeRow.self, selection: $window.selection) {
-                        TableColumn("Entry") { (row: EpisodeRow) in entryTitle(row) }
-                        TableColumn("Position") { row in Text(Presentation.time(row.position ?? 0)).monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
-                        TableColumn("Length") { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                        TableColumn("State") { row in
-                            Text(row.stateText).fixedSize(horizontal: false, vertical: true)
+                    Table(of: PlaylistDropRow.self, selection: entrySelection) {
+                        TableColumn("Entry") { (item: PlaylistDropRow) in
+                            if let row = item.entry { entryTitle(row) }
+                            else if let slot = item.placeholder { placeholder(slot) }
+                        }
+                        TableColumn("Position") { item in Text(item.entry.map { Presentation.time($0.position ?? 0) } ?? "—").monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
+                        TableColumn("Length") { item in Text(item.entry?.durationText ?? "—").monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                        TableColumn("State") { item in
+                            Text(item.entry?.stateText ?? "").fixedSize(horizontal: false, vertical: true)
                         }.width(min: 140, ideal: 150, max: 200)
                     } rows: {
-                        ForEach(rows) { row in TableRow(row).draggable(dragPayload(row.id)) }
+                        ForEach(displayedRows) { item in
+                            if let row = item.entry { TableRow(item).draggable(dragPayload(row.id)) }
+                            else { TableRow(item) }
+                        }
                             .dropDestination(for: EpisodeTransfer.self) { index, values in
                                 _ = drop(values, at: index)
                             }
@@ -86,8 +95,16 @@ struct PlaylistContentView: SwiftUI.View {
                     .tableStyle(.inset)
                 }
             }
+            .overlay {
+                if displayedRows.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("This Playlist has no Entries.").foregroundStyle(MacReadableSecondaryStyle())
+                        Button("Find Episodes") { window.navigate(to: .search) }
+                    }
+                }
+            }
             .onAppear { window.revealDrop(in: playlist.id) }
-            .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, selection: $window.selection, anchor: $window.scrollAnchor)
+            .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, physicalIDs: displayedRows.map { $0.entry?.id }, selection: $window.selection, anchor: $window.scrollAnchor)
             .dragConfiguration(DragConfiguration(allowMove: true))
             .onDragSessionUpdated { session in
                 switch session.phase {
@@ -120,6 +137,25 @@ struct PlaylistContentView: SwiftUI.View {
 
         }
     }
+    private func placeholder(_ slot: EpisodeDropSlot) -> some SwiftUI.View {
+        HStack(spacing: 8) {
+            if slot.failure == nil { ProgressView().controlSize(.small).accessibilityHidden(true) }
+            Text(slot.accessibleName).lineLimit(textScale > 1 ? nil : 2)
+                .help(slot.failure ?? slot.accessibleName)
+            Spacer(minLength: 4)
+            if slot.failure != nil, let editor = app.libraryEditing {
+                Button("Retry") { Task { await EpisodeDrop.retry(slot.id, editor: editor) } }
+                    .accessibilityLabel("Retry adding \(slot.title)")
+                    .help("Retry adding this Episode; use Episode › Retry Failed Episode Drop to retry all")
+                Button("Remove") { EpisodeDrop.remove(slot.id, editor: editor) }
+                    .accessibilityLabel("Remove failed drop for \(slot.title)")
+                    .help("Remove this failed Episode drop")
+            }
+        }
+        .buttonStyle(.borderless).padding(.vertical, 5)
+        .disabled(app.libraryEditing?.episodeDrop != nil && slot.failure != nil)
+        .accessibilityElement(children: .contain)
+    }
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))) }
@@ -151,13 +187,13 @@ struct PlaylistContentView: SwiftUI.View {
         EpisodeTransfer.local(id, selection: ordered(window.selection), sourcePlaylistID: playlist.id, library: library)
     }
     private func drop(_ values: [EpisodeTransfer], at index: Int) -> Bool {
-        drop(values, before: rows.indices.contains(index) ? rows[index].id : nil)
+        drop(values, before: displayedRows.dropFirst(min(max(0, index), displayedRows.count)).compactMap { $0.entry?.id }.first)
     }
     private func drop(_ values: [EpisodeTransfer], before id: String?) -> Bool {
         guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil else { return false }
         guard let ids = EpisodeDrop.reorderIDs(values, in: playlist) else {
             guard let editor = app.libraryEditing, EpisodeDrop.references(values) != nil else { return false }
-            Task { await EpisodeDrop.add(values, to: playlist.id, editor: editor) { window.didDrop($0, into: playlist.id) } }
+            Task { await EpisodeDrop.add(values, to: playlist.id, before: id, editor: editor) { window.didDrop($0, into: playlist.id, scroll: false) } }
             return true
         }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count

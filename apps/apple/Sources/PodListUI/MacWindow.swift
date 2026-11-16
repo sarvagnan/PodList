@@ -54,6 +54,10 @@ public struct PodListWindow: SwiftUI.View {
         }
     }
 
+    private var isPlaylist: Bool {
+        if case .playlist = window.destination { return !isPodcastPage }; return false
+    }
+
     private func connected(_ library: LibraryModel) -> some SwiftUI.View {
         NavigationSplitView(columnVisibility: $columns) {
             List(selection: Binding(get: { podcastFeed == nil ? window.sidebarSelection : .subscriptions }, set: {
@@ -122,7 +126,7 @@ public struct PodListWindow: SwiftUI.View {
                 syncStatus
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
-                    LibraryFeedback(editor: editor, reservesSpace: false)
+                    LibraryFeedback(editor: editor, reservesSpace: isPlaylist)
                         .id(window.destination).id(podcastFeed)
                     if editor.busy { VStack {
                         OPMLImportProgress(editor: editor)
@@ -720,7 +724,8 @@ public struct PodListWindow: SwiftUI.View {
         case .subscriptions: CountText.format(library.subscriptions.count, .subscription)
         case .trash: CountText.format(library.trash.count, .playlist)
         case let .playlist(id):
-            CountText.format(window.rows(in: library).count, .entry) + (id == library.state.activePlaylistId ? " · Active Playlist" : "")
+            CountText.format(window.rows(in: library).count, .entry) + (id == library.state.activePlaylistId ? " · Active Playlist" : "") +
+                (library.state.playlists.first { $0.id == id }.map { !$0.entries.isEmpty && PlaylistRules.hasNoCurrentEntry($0) } == true ? " · No current Entry; past end" : "")
         default: CountText.format(window.rows(in: library).count, .episode) + (window.selection.isEmpty ? "" : " · \(window.selection.count) selected")
         }
     }
