@@ -369,7 +369,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                     }.labelsHidden()
                 }
                 Button("Mark All Played") { markAllPlayed?() }.disabled(markAllPlayed == nil)
-                Text("Mark All Played takes effect immediately and can be undone. Save applies these settings. Cancel discards settings changes.")
+                Text("Mark All Played takes effect immediately and can be undone.")
                     .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
             }
             Text("Playback Settings Overrides").macContentFont(.headline)

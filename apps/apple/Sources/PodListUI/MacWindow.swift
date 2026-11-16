@@ -126,7 +126,7 @@ public struct PodListWindow: SwiftUI.View {
                 syncStatus
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
-                    LibraryFeedback(editor: editor, reservesSpace: isPlaylist, restored: { entries in
+                    LibraryFeedback(editor: editor, reservesSpace: true, restored: { entries in
                         guard app.libraryEditing === editor, window.revealRestoredEntries(entries) else { return }
                         podcastFeed = nil; playlistPresentation.playlistTab = .entries
                     })
@@ -141,7 +141,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
                 } else if let editing = app.editing {
-                    EditingFeedback(editing: editing, reservesSpace: false).id(window.destination).id(podcastFeed)
+                    EditingFeedback(editing: editing, reservesSpace: true).id(window.destination).id(podcastFeed)
                 }
                 // Lists and AppKit tables must fit the space left by window feedback.
                 GeometryReader { viewport in
@@ -312,7 +312,11 @@ public struct PodListWindow: SwiftUI.View {
                 List(library.state.views, id: \.id, selection: Binding<String?>(get: {
                     window.selection.count == 1 ? window.selection.first : nil
                 }, set: { window.selection = $0.map { [$0] } ?? [] })) { view in
-                    HStack { Text(view.name); Spacer(); Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle()) }
+                    HStack(spacing: 10) {
+                        Label(view.name, systemImage: "line.3.horizontal.decrease")
+                        Spacer()
+                        Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(view.id)))
+                    }.frame(minHeight: 44).padding(.vertical, 4)
                         .accessibilityElement(children: .combine)
                         .tag(view.id)
                 }

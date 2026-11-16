@@ -193,7 +193,7 @@ struct NowPlayingView: SwiftUI.View {
             } else {
                 PodListEmptyState("No Current Entry", systemImage: "music.note")
             }
-            PodListSheetFooter(actionTitle: "Done", defaultShortcut: false, cancelTitle: nil,
+            PodListSheetFooter(actionTitle: "Close", defaultShortcut: false, cancelTitle: nil,
                                cancel: done, action: done)
                 .onExitCommand(perform: done)
         }

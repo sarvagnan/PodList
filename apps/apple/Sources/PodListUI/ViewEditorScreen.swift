@@ -9,10 +9,9 @@ struct ViewEditorScreen: SwiftUI.View {
     let creating: Bool
     let finished: (String?) -> Void
     @State private var draft: PodListDomain.View
-    @State private var renaming = false
-    @State private var rename = ""
+    @FocusState private var nameFocused: Bool
+    @State private var name: String
     @State private var problem: String?
-    @State private var renameProblem: String?
     @State private var nameValidation = FormValidationVisibility()
     @Environment(\.locale) private var locale
     @State private var from = Date()
@@ -27,6 +26,7 @@ struct ViewEditorScreen: SwiftUI.View {
         let restored = editor.draft("view.\(view.id)").data(using: .utf8).flatMap { try? JSONDecoder().decode(PodListDomain.View.self, from: $0) }
         let initial = restored ?? view
         _draft = State(initialValue: initial)
+        _name = State(initialValue: editor.hasDraft("rename.\(view.id)") ? editor.draft("rename.\(view.id)") : initial.name)
         if case let .between(start, end) = initial.filter.published {
             if let start { _from = State(initialValue: Date(timeIntervalSince1970: Double(start) / 1000)) }
             if let end { _to = State(initialValue: Date(timeIntervalSince1970: Double(end) / 1000)) }
@@ -36,33 +36,18 @@ struct ViewEditorScreen: SwiftUI.View {
     var body: some SwiftUI.View {
         PodListSheet(title: creating ? "New View" : "Edit View", width: 600,
                      actionTitle: creating ? "Create View" : "Save", actionEnabled: canFinish,
-                     defaultShortcut: !renaming, cancelEnabled: !saving,
+                     cancelEnabled: !saving,
                      cancel: cancel, action: finish) {
             Text(CountText.format(count, .matchingEpisode)).monospacedDigit()
             Form {
                 Section {
-                    if creating {
-                        LabeledContent("Name") {
-                            TextField("View name", text: Binding(get: { draft.name }, set: { text in
-                                nameValidation.edited(from: draft.name, to: text)
-                                update { $0.name = text }
-                            })).labelsHidden().onSubmit { finish() }
-                        }
-                        validation(nameValidation.message(nameProblem))
+                    LabeledContent("Name") {
+                        TextField("View name", text: Binding(get: { name }, set: { text in
+                            nameValidation.edited(from: name, to: text)
+                            name = text; editor.setDraft(text, field: "rename.\(draft.id)")
+                        })).labelsHidden().focused($nameFocused).onSubmit { finish() }
                     }
-                    else if renaming {
-                        PodListSheetField("Name") {
-                            TextField("View name", text: $rename).labelsHidden().onChange(of: rename) { _, text in editor.setDraft(text, field: "rename.\(draft.id)"); renameProblem = ViewNames.problem(text, views: library.state.views, excluding: draft.id) }
-                        }
-                        validation(renameProblem)
-                        HStack {
-                            Button("Cancel", action: cancelRename)
-                            Button("Save") { saveRename() }.keyboardShortcut(.defaultAction).disabled(saving || !fieldProblems.isEmpty)
-                        }
-                    } else {
-                        LabeledContent("Name", value: draft.name)
-                        Button("Rename…") { if ViewRenameAction.prepare(draft, editor: editor) { rename = editor.draft("rename.\(draft.id)"); renaming = true } }
-                    }
+                    validation(creating ? nameValidation.message(nameProblem) : nameProblem)
                 }
                 Section("All Conditions Must Match") {
                     Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
@@ -154,26 +139,22 @@ struct ViewEditorScreen: SwiftUI.View {
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
             .createView: creating && canFinish ? { finish() } : nil,
             .cancel: saving ? nil : { cancel() },
-            .save: renaming ? (!saving && fieldProblems.isEmpty ? { saveRename() } : nil) : (!creating && canFinish ? { finish() } : nil),
-            .cancelRename: renaming && !saving ? { cancelRename() } : nil
+            .save: !creating && canFinish ? { finish() } : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListViewEditorActions, ViewEditorCommandContext(
-            rename: !creating && !saving && !renaming ? { if ViewRenameAction.prepare(draft, editor: editor) { rename = editor.draft("rename.\(draft.id)"); renaming = true } } : nil,
+            rename: !creating && !saving ? { nameFocused = true } : nil,
             delete: !creating && !saving ? { deleteView() } : nil))
-        .onChange(of: creating ? nameValidation.message(nameProblem) : (renaming ? renameProblem : nil)) { _, message in
+        .onChange(of: creating ? nameValidation.message(nameProblem) : nameProblem) { _, message in
             editor.edits.announcements.error(message)
         }
         .onChange(of: fieldProblems) { _, problems in
             editor.edits.announcements.error(problems.isEmpty ? nil : problems.values.sorted().joined(separator: " "))
         }
-        .onAppear {
-            rename = editor.draft("rename.\(draft.id)"); renaming = !rename.isEmpty
-        }
+        .onAppear { if editor.hasDraft("rename.\(draft.id)"), !creating { nameFocused = true } }
         .onChange(of: library.state.views) { _, views in
             if !creating, let current = views.first(where: { $0.id == draft.id }), applying == 0, !unappliedDraft, fieldProblems.isEmpty, current != draft { draft = current; reconcileDraft() }
         }
     }
-    private func cancelRename() { renaming = false; editor.setDraft("", field: "rename.\(draft.id)") }
     private func deleteView() { editor.run { try await editor.deleteView(draft); finished(nil) } }
     private var publishedMode: String {
         switch draft.filter.published { case .lastDays: "days"; case .between: "between"; case nil: "any" }
@@ -219,7 +200,7 @@ struct ViewEditorScreen: SwiftUI.View {
     @ViewBuilder private func validation(_ message: String?) -> some SwiftUI.View {
         if let message { Text(message).macContentFont(.caption).foregroundStyle(Color.podListError).fixedSize(horizontal: false, vertical: true) }
     }
-    private var nameProblem: String? { creating ? ViewNames.problem(draft.name, views: library.state.views, excluding: draft.id) : nil }
+    private var nameProblem: String? { ViewNames.problem(name, views: library.state.views, excluding: draft.id) }
     private var fieldProblems: [ViewEdits.Field: String] {
         var errors = ViewEdits.problems(draft)
         for (label, field, path) in [("Minimum length", ViewEdits.Field.minimumLength, \PodListDomain.View.filter.minDuration), ("Maximum length", .maximumLength, \PodListDomain.View.filter.maxDuration)] {
@@ -240,7 +221,7 @@ struct ViewEditorScreen: SwiftUI.View {
         unappliedDraft = true
         editor.setDraft(String(decoding: (try? JSONEncoder().encode(draft)) ?? Data(), as: UTF8.self), field: "view.\(draft.id)")
         problem = nil
-        guard fieldProblems.isEmpty, nameProblem == nil else { return }
+        guard fieldProblems.isEmpty else { return }
         if !creating { unappliedDraft = false; enqueue(draft) }
     }
     private func enqueue(_ view: PodListDomain.View) {
@@ -260,19 +241,7 @@ struct ViewEditorScreen: SwiftUI.View {
         problem = nil
         unappliedDraft = false
     }
-    private func saveRename() {
-        guard fieldProblems.isEmpty else { return }
-        if let error = ViewNames.problem(rename, views: library.state.views, excluding: draft.id) { renameProblem = error; return }
-        saving = true
-        Task {
-            await pending?.value
-            var next = draft; next.name = rename
-            do { try await editor.saveView(next, sessionID: sessionID); draft = next; renaming = false; editor.setDraft("", field: "rename.\(draft.id)"); problem = nil }
-            catch { problem = LibraryMessages.failure(error) }
-            saving = false
-        }
-    }
-    private var canFinish: Bool { !saving && !renaming && fieldProblems.isEmpty && nameProblem == nil }
+    private var canFinish: Bool { !saving && fieldProblems.isEmpty && nameProblem == nil }
     private func finish() {
         nameValidation.submitted()
         guard canFinish else { return }
@@ -282,7 +251,8 @@ struct ViewEditorScreen: SwiftUI.View {
             await pending?.value
             do {
                 let saved = try await editor.savedView(draft.id)
-                if creating || saved != draft { try await editor.saveView(draft, sessionID: sessionID) }
+                var final = draft; final.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if creating || saved != final { try await editor.saveView(final, sessionID: sessionID) }
                 editor.clearViewDrafts(draft.id, creating: creating)
                 finished(draft.id)
             } catch { problem = LibraryMessages.failure(error) }

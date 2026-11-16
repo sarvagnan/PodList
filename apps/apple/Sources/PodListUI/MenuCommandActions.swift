@@ -14,7 +14,7 @@ enum MenuAction: String, CaseIterable {
     case importSelection = "Import", chooseFile = "Choose a File…", cancelImport = "Cancel Import"
     case connect = "Check and Connect", standalone = "Start on This Mac", disconnect = "Disconnect"
     case offerBringOver = "Bring Library from This Mac…", retryBringOver = "Retry Bring Over"
-    case clearSearch = "Clear Search", backToLibrary = "Back to Library", dismissTutorial = "Dismiss Getting Started"
+    case clearSearch = "Clear Search", backToLibrary = "Back to Library", dismissTutorial = "Hide Getting Started"
     case createViewFromSearch = "Create View from Search…", searchPodcasts = "Search Podcasts"
     case retry = "Retry Failed Operation", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
     case backToNowPlaying = "Back to Now Playing", retryPlayback = "Retry Playback"

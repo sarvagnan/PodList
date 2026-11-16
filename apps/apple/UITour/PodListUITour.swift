@@ -131,20 +131,35 @@ final class PodListUITour: XCTestCase {
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
         try assertSheetCheckboxSpace()
-        try click(button("Rename", in: library.sheets.firstMatch))
         let renameField = library.sheets.textFields["Playlist name"]
-        try ready(renameField)
-        // Typing without clicking verifies Rename transferred keyboard focus.
-        app.typeText("Focus check")
-        XCTAssertTrue((renameField.value as? String)?.contains("Focus check") == true)
+        try click(renameField)
         app.typeKey("a", modifierFlags: .command)
-        app.typeText("Commute")
+        app.typeKey(.delete, modifierFlags: [])
+        XCTAssertFalse(library.sheets.buttons["Save"].isEnabled, "An empty Playlist name cannot be saved")
+        app.typeText("Default")
+        XCTAssertFalse(library.sheets.buttons["Save"].isEnabled, "Playlist names must be unique")
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("Commute edited")
+        XCTAssertTrue(library.sheets.buttons["Save"].isEnabled)
+        XCTAssertFalse(library.sheets.buttons["Save Name"].exists)
+        XCTAssertFalse(library.sheets.buttons["Cancel Rename"].exists)
         try capture("12-playlist-rename", expectsSheet: true)
-        try click(library.sheets.buttons["Cancel Rename"])
         try dismissSheet("Cancel")
+        try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute").firstMatch)
+        XCTAssertFalse(library.descendants(matching: .any).matching(identifier: "sidebar.Commute edited").firstMatch.exists)
+        try click(library.descendants(matching: .any).matching(identifier: "playlist.settings").firstMatch)
+        try sheet("Playlist Settings")
+        XCTAssertEqual(library.sheets.textFields["Playlist name"].value as? String, "Commute")
+        try click(library.sheets.textFields["Playlist name"])
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("Commute edited")
+        try dismissSheet("Save")
+        try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute edited").firstMatch)
+        app.typeKey("z", modifierFlags: .command)
+        try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute").firstMatch)
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
-        // Use the documented command so the duplicate sidebar/toolbar buttons are irrelevant.
+        // Use the documented File command to create a Playlist.
         app.typeKey("n", modifierFlags: [.command, .shift])
         try sheet("New Playlist")
         XCTAssertFalse(library.sheets.staticTexts["Enter a Playlist name."].exists)
@@ -173,7 +188,25 @@ final class PodListUITour: XCTestCase {
         try click(button("Edit View"))
         try sheet("Edit View")
         try capture("16-edit-view", expectsSheet: true)
-        try dismissSheet("Cancel")
+        let viewName = library.sheets.textFields["View name"]
+        try click(viewName)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeKey(.delete, modifierFlags: [])
+        XCTAssertFalse(library.sheets.buttons["Save"].isEnabled)
+        app.typeText("Starred")
+        XCTAssertFalse(library.sheets.buttons["Save"].isEnabled, "View names must be unique")
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("New this week edited")
+        XCTAssertFalse(library.sheets.buttons["Rename…"].exists)
+        XCTAssertFalse(library.descendants(matching: .any).matching(identifier: "sidebar.New this week edited").firstMatch.exists,
+                       "A name stays a draft until the sheet Save")
+        try dismissSheet("Save")
+        try ready(library.descendants(matching: .any).matching(identifier: "sidebar.New this week edited").firstMatch)
+        let viewHeader = episodeList.buttons["Episode"].firstMatch.frame
+        app.typeKey("z", modifierFlags: .command)
+        try ready(library.descendants(matching: .any).matching(identifier: "sidebar.New this week").firstMatch)
+        XCTAssertEqual(episodeList.buttons["Episode"].firstMatch.frame.minY, viewHeader.minY, accuracy: 1,
+                       "Undo feedback must not move a View’s list")
         app.typeKey("n", modifierFlags: .command)
         try sheet("New View")
         XCTAssertFalse(library.sheets.staticTexts["Enter a View name."].exists)
@@ -281,7 +314,7 @@ final class PodListUITour: XCTestCase {
             let control = nowPlaying.buttons[name]
             try ready(control)
             XCTAssertTrue(nowPlaying.frame.contains(control.frame), "Main playback controls must fit without scrolling")
-            XCTAssertLessThanOrEqual(control.frame.maxY, nowPlaying.buttons["Done"].frame.minY)
+            XCTAssertLessThanOrEqual(control.frame.maxY, nowPlaying.buttons["Close"].frame.minY)
         }
         try capture("26-now-playing", in: nowPlaying)
         // Playback stays open while the person browses Library.
@@ -294,7 +327,7 @@ final class PodListUITour: XCTestCase {
         let playerScroll = nowPlaying.scrollViews.firstMatch
         let details = nowPlaying.buttons["Episode Details"]
         try reveal(details, in: playerScroll)
-        XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.buttons["Done"].frame.minY)
+        XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.buttons["Close"].frame.minY)
         try click(details)
         let addFromDetails = button("Add to a Playlist", in: nowPlaying)
         try reveal(addFromDetails, in: playerScroll)
@@ -303,8 +336,8 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(nowPlaying.sheets.firstMatch.exists, "Playlist edits must present on Library")
         try dismissSheet("Cancel")
         try click(library.buttons["Open Now Playing"])
-        let done = nowPlaying.buttons["Done"]
-        // XCUITest can resolve Done to an off-screen frame (inf, inf) and then hang on the
+        let done = nowPlaying.buttons["Close"]
+        // XCUITest can resolve Close to an off-screen frame (inf, inf) and then hang on the
         // click; close the window with its standard command in that case.
         if done.waitForExistence(timeout: 5), done.frame.origin.x.isFinite, done.frame.width > 0 {
             done.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
@@ -669,7 +702,7 @@ final class PodListUITour: XCTestCase {
         let removed: Set<String> = [
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
-            "Import", "Choose a File…", "Dismiss Getting Started"
+            "Import", "Choose a File…", "Hide Getting Started"
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [

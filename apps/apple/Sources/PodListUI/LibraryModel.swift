@@ -96,6 +96,10 @@ public struct PlayerPresentation: Sendable {
 }
 
 public enum Presentation {
+    static func timelineDate(_ milliseconds: Int64) -> String {
+        Date(timeIntervalSince1970: Double(milliseconds) / 1000).formatted(date: .abbreviated, time: .shortened)
+    }
+
     /// Keep tooltip copy brief; full publisher text remains in the visible/accessible content.
     static func tooltip(_ text: String) -> String {
         text.count <= 75 ? text : String(text.prefix(74)) + "…"
