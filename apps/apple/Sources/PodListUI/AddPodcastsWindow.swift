@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import SwiftUI
 import Observation
 import PodListData
@@ -120,6 +121,7 @@ struct AddPodcastsScreen: SwiftUI.View {
             Task { @MainActor in focused = true }
         }
         .onDisappear { editor.endAddingPodcasts() }
+        .background(KeyUtilityPanel())
     }
     private var discoveryCommands: PodcastCommandContext {
         guard let result = state.results.first(where: { $0.feedUrl == state.selectedFeed }) else { return PodcastCommandContext() }
@@ -155,4 +157,19 @@ struct AddPodcastsScreen: SwiftUI.View {
     }
 }
 
+/// A utility panel becomes key only when a click needs it, so opening Add Podcasts
+/// would leave typing in the Library window. Make the panel key when it opens so the
+/// search field can take focus.
+private struct KeyUtilityPanel: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { KeyView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+    private final class KeyView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let panel = window as? NSPanel else { return }
+            panel.becomesKeyOnlyIfNeeded = false
+            DispatchQueue.main.async { panel.makeKey() }
+        }
+    }
+}
 #endif
