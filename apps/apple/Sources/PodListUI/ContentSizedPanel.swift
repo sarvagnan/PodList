@@ -99,7 +99,9 @@ private struct ContentSizedSettingsForm: ViewModifier {
     func body(content: Content) -> some SwiftUI.View {
         content
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                ceil(geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom)
+                // The top inset also reserves the toolbar, which the Settings window adds
+                // above the pane itself; the grouped form's own margins are symmetric.
+                ceil(geometry.contentSize.height + 2 * geometry.contentInsets.bottom)
             } action: { _, measured in
                 if measured > 0 { contentHeight = measured }
             }
