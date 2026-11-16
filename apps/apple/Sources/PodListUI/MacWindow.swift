@@ -582,15 +582,16 @@ public struct PodListWindow: SwiftUI.View {
                 Button { playlistPresentation.sheet = .add([row.id], false) } label: {
                     MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
                 }
-                    .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
+                    .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
                     .help("Add to a Playlist")
                 Button { Task { await editing.add([row.id], placement: .now) } } label: {
                     MacIconLabel(title: "Play Now", systemImage: "play.fill")
                 }
-                    .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play Now: \(row.title)")
+                    .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Play Now: \(row.title)")
                     .help("Play Now")
             }
         }
+        .macRowActions(isSelected: window.selection.contains(row.id))
         .accessibilityElement(children: .contain)
         .contextMenu {
             if let editing = app.editing {

@@ -164,6 +164,35 @@ struct MacRowAccentStyle: ShapeStyle {
     }
 }
 
+/// Repeated row actions stay quiet until the pointer or selection reaches the row.
+private struct MacRowActionsActiveKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+struct MacRowActionStyle: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
+        environment[MacRowActionsActiveKey.self]
+            ? AnyShapeStyle(MacRowAccentStyle())
+            : AnyShapeStyle(MacReadableSecondaryStyle())
+    }
+}
+
+extension SwiftUI.View {
+    func macRowActions(isSelected: Bool) -> some SwiftUI.View {
+        modifier(MacRowActions(isSelected: isSelected))
+    }
+}
+
+private struct MacRowActions: ViewModifier {
+    let isSelected: Bool
+    @State private var hovered = false
+    func body(content: Content) -> some SwiftUI.View {
+        content
+            .transformEnvironment(\.self) { $0[MacRowActionsActiveKey.self] = isSelected || hovered }
+            .onHover { hovered = $0 }
+    }
+}
+
 /// One app-scoped override, inherited by every window, sheet and Settings pane.
 /// A nil appearance leaves macOS in charge, including live System changes and
 /// the accessibility contrast variants of Aqua / Dark Aqua.

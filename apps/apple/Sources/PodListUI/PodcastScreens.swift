@@ -92,14 +92,14 @@ struct PodcastPageScreen: SwiftUI.View {
             Button { bring(episode, play: false) } label: {
                 MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
                 .help("Add to a Playlist")
             Button { bring(episode, play: true) } label: {
                 MacIconLabel(title: "Play", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Play \(episode.title) now")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Play \(episode.title) now")
                 .help("Play Now")
-        }.disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
+        }.macRowActions(isSelected: selection.wrappedValue.contains(episode.id)).disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
     }
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
     private var subscribed: Bool { subscription?.unsubscribedAt == nil && subscription != nil }
