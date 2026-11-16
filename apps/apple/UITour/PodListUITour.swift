@@ -241,6 +241,7 @@ final class PodListUITour: XCTestCase {
             XCTAssertTrue(library.sheets.staticTexts[label].exists)
         }
         try capture("17-new-view", expectsSheet: true)
+        try assertSheetAtBothTextSizes()
         try dismissSheet("Cancel")
 
         try navigate("Subscriptions")
@@ -286,6 +287,7 @@ final class PodListUITour: XCTestCase {
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         try capture("22-subscription-settings", expectsSheet: true)
+        try assertSheetAtBothTextSizes()
         library.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
         try click(button("Subscription Settings"))
@@ -297,6 +299,11 @@ final class PodListUITour: XCTestCase {
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
         try sheet("to a Playlist")
+        let addSheet = library.sheets.firstMatch
+        try ready(addSheet.buttons["Add"])
+        XCTAssertTrue(addSheet.buttons["Play Next"].exists)
+        XCTAssertTrue(addSheet.buttons["Play Now"].exists)
+        XCTAssertFalse(addSheet.buttons["Play Last"].exists, "The plain Add action appends without starting playback")
         try capture("23-add-to-playlist", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Subscriptions")
@@ -728,6 +735,28 @@ final class PodListUITour: XCTestCase {
         let expectedMenus: Set<String> = ["PodList", "File", "Edit", "View", "Podcast", "Views", "Episode", "Playlist", "Controls", "Window", "Help"]
         XCTAssertTrue(expectedMenus.isSubset(of: capturedMenus), "Missing menus: \(expectedMenus.subtracting(capturedMenus))")
         attach(text, name: "menus.txt")
+    }
+
+    private func assertSheetAtBothTextSizes(file: StaticString = #filePath, line: UInt = #line) throws {
+        let sheet = library.sheets.firstMatch
+        let width = sheet.frame.width
+        func assertHorizontalBounds() {
+            let fields = sheet.descendants(matching: .any).allElementsBoundByIndex.filter {
+                [.textField, .popUpButton, .checkBox, .staticText].contains($0.elementType) && !$0.frame.isEmpty
+            }
+            XCTAssertFalse(fields.isEmpty, file: file, line: line)
+            for field in fields {
+                XCTAssertGreaterThanOrEqual(field.frame.minX, sheet.frame.minX, "Clipped label or control: \(field.label)", file: file, line: line)
+                XCTAssertLessThanOrEqual(field.frame.maxX, sheet.frame.maxX, "Clipped label or control: \(field.label)", file: file, line: line)
+                if field.elementType != .staticText { XCTAssertFalse(field.label.isEmpty, "Every field needs an accessible name", file: file, line: line) }
+            }
+        }
+        assertHorizontalBounds()
+        for _ in 0..<10 { try menuCommand("View", "Bigger") }
+        XCTAssertEqual(sheet.frame.width, width, accuracy: 1, "Text Size must not widen the sheet", file: file, line: line)
+        assertHorizontalBounds()
+        try menuCommand("View", "Actual Size")
+        XCTAssertEqual(sheet.frame.width, width, accuracy: 1, file: file, line: line)
     }
 
     private func assertSheetCheckboxSpace() throws {

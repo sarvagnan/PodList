@@ -49,7 +49,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     }
                     validation(creating ? nameValidation.message(nameProblem) : nameProblem)
                 }
-                Section("All Conditions Must Match") {
+                Section {
                     Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
                         guard mode != publishedMode else { return }
                         editor.clearDraft(daysField)
@@ -103,6 +103,8 @@ struct ViewEditorScreen: SwiftUI.View {
                     }
                     optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
                     optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
+                } header: {
+                    PodListSheetSectionHeading("All Conditions Must Match")
                 }
                 Section {
                     Picker("Sort", selection: value(\.sort)) {

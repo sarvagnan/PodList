@@ -21,7 +21,7 @@ struct NewPlaylistSheet: SwiftUI.View {
                 if let problem = nameValidation.message(problem) { Text(problem).foregroundStyle(Color.podListError).macContentFont(.caption) }
             }
         } status: {
-            EditingFeedback(editing: editing, retry: submit)
+            EditingFeedback(editing: editing, retry: submit, reservesSpace: false)
         }.interactiveDismissDisabled(editing.busy).task { focused = true }
             .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
                 .cancel: editing.busy ? nil : { dismiss() },
@@ -45,7 +45,7 @@ struct AddPlaylistSheet: SwiftUI.View {
     var cancelled: (() -> Void)? = nil
     let done: () -> Void
     @State private var target = ""
-    @State private var attemptedPlacement: Placement = .next
+    @State private var attemptedPlacement: Placement = .last
     @State private var nameValidation = FormValidationVisibility()
     @Environment(\.dismiss) private var dismiss
     private var prefix: String { "add/" + ((try? JSONEncoder().encode(ids))?.base64EncodedString() ?? "") }
@@ -70,9 +70,9 @@ struct AddPlaylistSheet: SwiftUI.View {
     }
     private var fields: some SwiftUI.View {
         PodListSheet(title: "Add \(CountText.format(ids.count, .episode)) to a Playlist", width: 540,
-                     actionTitle: "Play Next", actionEnabled: problem == nil && !editing.busy,
+                     actionTitle: "Add", actionEnabled: problem == nil && !editing.busy,
                      cancelEnabled: !editing.busy, cancel: { if let cancelled { cancelled() } else { dismiss() } },
-                     action: { submit(.next) }) {
+                     action: { submit(.last) }) {
             VStack(alignment: .leading, spacing: 16) {
                 Picker("Playlist", selection: Binding(get: { target }, set: { target = $0; editing.drafts[prefix + "/target"] = $0; editing.drafts[prefix + "/open"] = "true" })) {
                     ForEach(playlists, id: \.id) { playlist in
@@ -81,18 +81,21 @@ struct AddPlaylistSheet: SwiftUI.View {
                     Divider()
                     Text("New Playlist…").tag("new")
                 }
+                Text("Add places the Episodes at the end of the Playlist.")
+                    .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                    .fixedSize(horizontal: false, vertical: true)
                 if target == "new" {
                     LabeledContent("Name") {
-                        TextField("Playlist name", text: name).labelsHidden().disabled(editing.busy).onSubmit { submit(.next) }
+                        TextField("Playlist name", text: name).labelsHidden().disabled(editing.busy).onSubmit { submit(.last) }
                     }
                     if let problem = nameValidation.message(problem) { Text(problem).macContentFont(.caption).foregroundStyle(Color.podListError) }
                 }
             }
         } status: {
-            EditingFeedback(editing: editing, retry: { submit(attemptedPlacement) })
+            EditingFeedback(editing: editing, retry: { submit(attemptedPlacement) }, reservesSpace: false)
         } secondary: {
             Button("Play Now") { submit(.now) }.disabled(problem != nil || editing.busy)
-            Button("Play Last") { submit(.last) }.disabled(problem != nil || editing.busy)
+            Button("Play Next") { submit(.next) }.disabled(problem != nil || editing.busy)
         }
     }
     private func submit(_ placement: Placement) {
@@ -130,7 +133,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                      cancel: cancel, action: apply) {
             settingsFields
         } status: {
-            EditingFeedback(editing: editing, retry: apply)
+            EditingFeedback(editing: editing, retry: apply, reservesSpace: false)
         } secondary: {
             if playlist?.isDefault == false {
                 Button("Delete Playlist", role: .destructive, action: deletePlaylist).disabled(editing.busy)

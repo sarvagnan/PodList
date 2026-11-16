@@ -63,8 +63,7 @@ struct PodListSheetReadingSurface<Content: SwiftUI.View>: SwiftUI.View {
     }
 }
 
-/// Stacked labels leave the entire proposed width for fields and long values,
-/// including at 200% text. Columns forms can exceed the sheet's proposal.
+/// Bound label and control columns to the proposed sheet width, including at 200% text.
 struct PodListSheetField<Content: SwiftUI.View>: SwiftUI.View {
     let title: String
     @ViewBuilder let content: () -> Content
@@ -87,8 +86,8 @@ struct PodListSheetFormStyle: FormStyle {
     }
 }
 
-/// The sheets' stacked label style also reaches toggles, which would put a
-/// checkbox's title above a detached box. Draw the native checkbox with its
+/// Keep checkbox titles trailing instead of putting them in the form label
+/// column. Draw the native checkbox with its
 /// title trailing, as AppKit does; the title stays the control's only name.
 struct PodListSheetCheckboxStyle: ToggleStyle {
     @Environment(\.isEnabled) private var isEnabled
@@ -107,11 +106,54 @@ struct PodListSheetCheckboxStyle: ToggleStyle {
 }
 
 private struct PodListSheetLabelStyle: LabeledContentStyle {
+    @Environment(\.macTextScale) private var textScale
     func makeBody(configuration: Configuration) -> some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 6) {
-            configuration.label.fixedSize(horizontal: false, vertical: true)
+        PodListSheetFieldLayout(labelWidth: 160 * textScale) {
+            configuration.label.multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
             configuration.content.frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Unlike Form's intrinsic column sizing, every row respects the sheet proposal.
+/// A control that cannot fit beside its label gets the full width below it.
+struct PodListSheetFieldLayout: Layout {
+    let labelWidth: CGFloat
+    private let spacing: CGFloat = 12
+    private func metrics(_ proposal: ProposedViewSize, _ subviews: Subviews) -> (width: CGFloat, label: CGFloat, stacked: Bool, height: CGFloat) {
+        let width = proposal.width ?? 504
+        let label = min(labelWidth, width * 0.4)
+        let control = max(1, width - label - spacing)
+        let measured = subviews[1].sizeThatFits(ProposedViewSize(width: control, height: nil))
+        let stacked = measured.width > control + 0.5
+        let labelSize = subviews[0].sizeThatFits(ProposedViewSize(width: stacked ? width : label, height: nil))
+        let controlSize = subviews[1].sizeThatFits(ProposedViewSize(width: stacked ? width : control, height: nil))
+        return (width, label, stacked, stacked ? labelSize.height + 6 + controlSize.height : max(labelSize.height, controlSize.height))
+    }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let row = metrics(proposal, subviews)
+        return CGSize(width: row.width, height: row.height)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let row = metrics(ProposedViewSize(width: bounds.width, height: nil), subviews)
+        let labelProposal = ProposedViewSize(width: row.stacked ? bounds.width : row.label, height: nil)
+        let labelHeight = subviews[0].sizeThatFits(labelProposal).height
+        subviews[0].place(at: CGPoint(x: row.stacked ? bounds.minX : bounds.minX + row.label,
+                                     y: bounds.minY), anchor: row.stacked ? .topLeading : .topTrailing, proposal: labelProposal)
+        subviews[1].place(at: CGPoint(x: row.stacked ? bounds.minX : bounds.minX + row.label + spacing,
+                                     y: bounds.minY + (row.stacked ? labelHeight + 6 : 0)), anchor: .topLeading,
+                          proposal: ProposedViewSize(width: row.stacked ? bounds.width : bounds.width - row.label - spacing, height: nil))
+    }
+}
+
+struct PodListSheetSectionHeading: SwiftUI.View {
+    let title: String
+    init(_ title: String) { self.title = title }
+    var body: some SwiftUI.View {
+        Text(title).macContentFont(.headline).accessibilityAddTraits(.isHeader)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

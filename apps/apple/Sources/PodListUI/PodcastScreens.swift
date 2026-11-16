@@ -400,9 +400,9 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     }
     private var settingsFields: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("On This Device").macContentFont(.headline)
+            PodListSheetSectionHeading("On This Device")
             DownloadRuleFields(mode: value(\.mode), cap: value(\.cap))
-            Text("Played").macContentFont(.headline)
+            PodListSheetSectionHeading("Played")
             VStack(alignment: .leading, spacing: 12) {
                 PodListSheetField("Played Threshold") {
                     Picker("Played Threshold", selection: value(\.threshold)) {
@@ -415,7 +415,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 Text("Mark All Played takes effect immediately and can be undone.")
                     .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
             }
-            Text("Playback Settings Overrides").macContentFont(.headline)
+            PodListSheetSectionHeading("Playback Settings Overrides")
             VStack(alignment: .leading, spacing: 12) {
                 Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
