@@ -126,7 +126,7 @@ public struct PodListWindow: SwiftUI.View {
                 syncStatus
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
-                    LibraryFeedback(editor: editor, reservesSpace: true, restored: { entries in
+                    LibraryFeedback(editor: editor, surface: .library, reservesSpace: true, restored: { entries in
                         guard app.libraryEditing === editor, window.revealRestoredEntries(entries) else { return }
                         podcastFeed = nil; playlistPresentation.playlistTab = .entries
                     })
@@ -141,7 +141,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
                 } else if let editing = app.editing {
-                    EditingFeedback(editing: editing, reservesSpace: true).id(window.destination).id(podcastFeed)
+                    EditingFeedback(editing: editing, surface: .library, reservesSpace: true).id(window.destination).id(podcastFeed)
                 }
                 // Lists and AppKit tables must fit the space left by window feedback.
                 GeometryReader { viewport in

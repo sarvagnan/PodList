@@ -5,11 +5,12 @@ import PodListDomain
 
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
+    var surface: EditingFeedbackSurface = .secondary
     var reservesSpace = true
     var restored: (@MainActor ([RestoredEntries]) -> Void)? = nil
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
-            EditingFeedback(editing: editor.edits, additionalError: editor.error, additionalStatus: dropStatus,
+            EditingFeedback(editing: editor.edits, surface: surface, additionalError: editor.error, additionalStatus: dropStatus,
                             undo: { Task { await editor.undo(restored: restored) } }, redo: { Task { await editor.redo(restored: restored) } },
                             reservesSpace: reservesSpace)
 

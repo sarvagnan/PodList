@@ -166,20 +166,26 @@ struct EpisodeActionButtons: ToolbarContent {
     }
 }
 
+enum EditingFeedbackSurface {
+    case library, secondary
+}
+
 struct EditingFeedback: SwiftUI.View {
     @Environment(\.macTextScale) private var textScale
     @State private var lifetime: EditingFeedbackLifetime
     let editing: PlaylistEditingModel
+    let surface: EditingFeedbackSurface
     var additionalError: String? = nil
     var additionalStatus: String? = nil
     var undo: (() -> Void)? = nil
     var redo: (() -> Void)? = nil
     var retry: (() -> Void)? = nil
     var reservesSpace: Bool
-    init(editing: PlaylistEditingModel, additionalError: String? = nil, additionalStatus: String? = nil,
+    init(editing: PlaylistEditingModel, surface: EditingFeedbackSurface = .secondary,
+         additionalError: String? = nil, additionalStatus: String? = nil,
          undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil,
          reservesSpace: Bool = true) {
-        self.editing = editing; self.additionalError = additionalError; self.additionalStatus = additionalStatus; self.undo = undo; self.redo = redo; self.retry = retry
+        self.editing = editing; self.surface = surface; self.additionalError = additionalError; self.additionalStatus = additionalStatus; self.undo = undo; self.redo = redo; self.retry = retry
         self.reservesSpace = reservesSpace
         _lifetime = State(initialValue: EditingFeedbackLifetime(currentNotice: editing.feedbackNotice))
     }
@@ -193,7 +199,7 @@ struct EditingFeedback: SwiftUI.View {
     private func feedback(at now: Date) -> some SwiftUI.View {
         let text = error ?? additionalStatus ?? lifetime.message(for: editing.feedbackNotice, at: now)
         return Group {
-            if reservesSpace || text != nil || retryCommand != nil || editing.history.undo != nil || editing.history.redo != nil {
+            if reservesSpace || text != nil || retryCommand != nil || (surface == .library && (editing.history.undo != nil || editing.history.redo != nil)) {
                 feedbackRow(text: text)
             }
         }
@@ -208,13 +214,13 @@ struct EditingFeedback: SwiftUI.View {
                     .fixedSize(horizontal: false, vertical: true).help(Presentation.tooltip(text)).textSelection(.enabled)
             }
             Spacer(minLength: 8)
-            if error == editing.error, editing.canRetry {
+            if retryCommand != nil {
                 Button("Retry", action: retryFailure).disabled(editing.busy)
             }
-            if editing.history.undo != nil {
+            if surface == .library, editing.history.undo != nil {
                 Button(editing.undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
             }
-            if editing.history.redo != nil {
+            if surface == .library, editing.history.redo != nil {
                 Button(editing.redoTitle) { if let redo { redo() } else { Task { await editing.reverse(redo: true) } } }.disabled(editing.busy)
             }
         }.macContentFont(.caption).lineLimit(textScale > 1 ? nil : 1).padding(.horizontal, 14)
@@ -225,6 +231,7 @@ struct EditingFeedback: SwiftUI.View {
     }
     private var retryCommand: (() -> Void)? {
         guard error == editing.error, editing.canRetry else { return nil }
+        guard surface == .library || editing.retryKind == .edit else { return nil }
         return { retryFailure() }
     }
     private func retryFailure() {

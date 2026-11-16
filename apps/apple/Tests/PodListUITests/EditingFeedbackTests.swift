@@ -10,7 +10,7 @@ import PodListData
                                      defaults: UserDefaults(suiteName: UUID().uuidString)!)
     func height() -> CGFloat {
         NSHostingView(rootView: VStack(spacing: 0) {
-            LibraryFeedback(editor: editor)
+            LibraryFeedback(editor: editor, surface: .library)
             Color.clear.frame(height: 100)
         }.frame(width: 600)).fittingSize.height
     }
@@ -44,9 +44,9 @@ import PodListData
     let db = try await fixtureDatabase()
     let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: UUID().uuidString,
                                      defaults: UserDefaults(suiteName: UUID().uuidString)!)
-    func height() -> CGFloat {
+    func height(surface: EditingFeedbackSurface = .library) -> CGFloat {
         NSHostingView(rootView: VStack(spacing: 0) {
-            LibraryFeedback(editor: editor, reservesSpace: false)
+            LibraryFeedback(editor: editor, surface: surface, reservesSpace: false)
             Color.clear.frame(height: 100)
         }.frame(width: 600)).fittingSize.height
     }
@@ -57,8 +57,10 @@ import PodListData
     #expect(height() == 100)
     _ = await editor.edits.edit([.setStar(episodeId: "a", starred: true)], name: "Star")
     #expect(height() > 100 && height() <= 132)
+    #expect(height(surface: .secondary) == 100)
     await editor.undo()
     #expect(height() > 100 && height() <= 132)
+    #expect(height(surface: .secondary) == 100)
 }
 
 @MainActor @Test func editFeedbackCancelNoticeExpiresAndDoesNotFollowNavigationOrNewSheets() async throws {

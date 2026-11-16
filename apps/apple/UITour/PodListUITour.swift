@@ -161,6 +161,7 @@ final class PodListUITour: XCTestCase {
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute edited").firstMatch)
         app.typeKey("z", modifierFlags: .command)
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute").firstMatch)
+        try ready(library.buttons["Redo Playlist Settings"])
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
         // Use the documented File command to create a Playlist.
@@ -168,6 +169,13 @@ final class PodListUITour: XCTestCase {
         try sheet("New Playlist")
         XCTAssertFalse(library.sheets.staticTexts["Enter a Playlist name."].exists)
         try capture("13-new-playlist", expectsSheet: true)
+        let newPlaylistName = library.sheets.textFields["Playlist name"]
+        try click(newPlaylistName)
+        app.typeText("Tour draft")
+        app.typeKey("z", modifierFlags: .command)
+        XCTAssertEqual(newPlaylistName.value as? String, "", "Command-Z in a sheet text field must undo typing")
+        app.typeKey("z", modifierFlags: [.command, .shift])
+        XCTAssertEqual(newPlaylistName.value as? String, "Tour draft", "Shift-Command-Z must redo the field edit")
         try dismissSheet("Cancel")
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
@@ -287,6 +295,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("a", modifierFlags: [.command, .shift])
         let addPodcasts = app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).firstMatch
         try ready(addPodcasts)
+        assertNoHistoryButtons(in: addPodcasts)
         XCTAssertFalse(library.sheets.firstMatch.exists)
         let podcastQuery = addPodcasts.textFields["addPodcasts.query"]
         assertKeyboardFocus(podcastQuery)
@@ -541,6 +550,12 @@ final class PodListUITour: XCTestCase {
         try ready(library.sheets.firstMatch)
         try ready(library.sheets.firstMatch.descendants(matching: .any).matching(NSPredicate(
             format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@ OR title CONTAINS[c] %@", heading, heading, heading)).firstMatch)
+        assertNoHistoryButtons(in: library.sheets.firstMatch)
+    }
+
+    private func assertNoHistoryButtons(in root: XCUIElement) {
+        XCTAssertEqual(root.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "Undo", "Redo")).count, 0,
+                       "Sheets and auxiliary windows must show status and errors without app-wide history buttons")
     }
 
     /// Any element showing the text, whether SwiftUI exposes it as label, value or title.
