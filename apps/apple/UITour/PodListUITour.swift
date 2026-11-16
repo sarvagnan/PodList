@@ -114,8 +114,12 @@ final class PodListUITour: XCTestCase {
         let commuteHeader = playlistPlayButton.frame
         let commuteSection = playlistSection("Entries").frame
         let entryColumn = episodeList.buttons["Entry"].firstMatch.frame
-        try click(library.descendants(matching: .any).matching(identifier: "playlist.actions").firstMatch)
-        try click(app.menuItems["Playlist Settings…"].firstMatch)
+        // Every toolbar control needs its own accessible name (round 9: a pull-down was announced
+        // by its symbol name).
+        for control in library.toolbars.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@", [XCUIElement.ElementType.button.rawValue, XCUIElement.ElementType.menuButton.rawValue, XCUIElement.ElementType.popUpButton.rawValue])).allElementsBoundByIndex {
+            XCTAssertFalse(control.label.isEmpty, "Toolbar control \(control.identifier) \(control.title) has no accessible name")
+        }
+        try click(library.descendants(matching: .any).matching(identifier: "playlist.settings").firstMatch)
         try sheet("Playlist Settings")
         try capture("11-playlist-settings", expectsSheet: true)
         try click(button("Rename", in: library.sheets.firstMatch))
