@@ -108,10 +108,13 @@ struct PodListSheetCheckboxStyle: ToggleStyle {
 private struct PodListSheetLabelStyle: LabeledContentStyle {
     @Environment(\.macTextScale) private var textScale
     func makeBody(configuration: Configuration) -> some SwiftUI.View {
+        // A custom layout breaks LabeledContent's automatic label-to-control link,
+        // so name the control from the row's label.
         PodListSheetFieldLayout(labelWidth: 160 * textScale) {
             configuration.label.multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
             configuration.content.fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel { _ in configuration.label }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
