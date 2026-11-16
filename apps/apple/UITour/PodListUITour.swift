@@ -393,6 +393,7 @@ final class PodListUITour: XCTestCase {
         try ready(text("Speed", in: settings))
         try capture("27-settings-general-top", in: settings)
         // Settings sizes to its content; scroll only if the pane still scrolls.
+        XCTAssertLessThanOrEqual(settings.frame.height, 680 + 120, "A long Settings pane must stop at a height that opens fully on screen, and scroll")
         let form = settings.scrollViews.firstMatch
         if form.exists { form.hover(); form.scroll(byDeltaX: 0, deltaY: -280) }
         try capture("28-settings-general-middle", in: settings)

@@ -94,7 +94,9 @@ private struct ContentSizedSettingsForm: ViewModifier {
     let pane: String
     @State private var contentHeight: CGFloat = 440
     @State private var availableHeight: CGFloat = 680
-    private var height: CGFloat { min(contentHeight, availableHeight) }
+    // Short panes fit their rows; long ones stop at a height that opens fully on
+    // screen wherever Settings is placed, and scroll.
+    private var height: CGFloat { min(contentHeight, availableHeight, 680) }
 
     func body(content: Content) -> some SwiftUI.View {
         content
