@@ -51,7 +51,7 @@ struct PlaylistContentView: SwiftUI.View {
         PlaylistDropRow.rows(rows, batches: app.libraryEditing?.pendingEpisodeDrops ?? [], playlistID: playlist.id)
     }
     private var entrySelection: Binding<Set<String>> {
-        Binding(get: { window.selection }, set: { window.selection = $0.intersection(Set(rows.map(\.id))) })
+        Binding(get: { window.selection }, set: { window.selection = $0.intersection(Set(rows.map(\.id) + failedDropIDs)) })
     }
     private var entries: some SwiftUI.View {
         VStack(spacing: 0) {
@@ -65,7 +65,7 @@ struct PlaylistContentView: SwiftUI.View {
                                 }
                                 .tag(item.id).draggable(dragPayload(row.id))
                             } else if let slot = item.placeholder {
-                                placeholder(slot).tag(item.id).selectionDisabled()
+                                placeholder(slot).tag(item.id).selectionDisabled(slot.failure == nil)
                             }
                         }
                         .dropDestination(for: EpisodeTransfer.self) { values, index in
@@ -129,12 +129,26 @@ struct PlaylistContentView: SwiftUI.View {
             .onCopyCommand(perform: window.selection.isEmpty ? nil : {
                 EpisodeCopyContent.providers(ids: ordered(window.selection), library: library)
             })
-            .onDeleteCommand(perform: window.selection.isEmpty || editing.busy ? nil : {
-                let ids = ordered(window.selection)
-                Task { await editing.remove(ids, playlistID: playlist.id) }
-            })
+            .onDeleteCommand(perform: removeSelection)
+            .focusedSceneValue(\.podListRemovePlaylistSelection, removeSelection)
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 
+        }
+    }
+    private var failedDropIDs: [String] {
+        app.libraryEditing.map { EpisodeDrop.failedIDs(editor: $0, playlistID: playlist.id) } ?? []
+    }
+    private var removeSelection: (() -> Void)? {
+        let entries = ordered(window.selection)
+        let failures = failedDropIDs.filter { window.selection.contains($0) }
+        guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil,
+              !entries.isEmpty || !failures.isEmpty else { return nil }
+        return {
+            if let editor = app.libraryEditing {
+                for id in failures { EpisodeDrop.remove(id, editor: editor) }
+            }
+            window.selection.subtract(failures)
+            if !entries.isEmpty { Task { await editing.remove(entries, playlistID: playlist.id) } }
         }
     }
     private func placeholder(_ slot: EpisodeDropSlot) -> some SwiftUI.View {
@@ -146,7 +160,7 @@ struct PlaylistContentView: SwiftUI.View {
             if slot.failure != nil, let editor = app.libraryEditing {
                 Button("Retry") { Task { await EpisodeDrop.retry(slot.id, editor: editor) } }
                     .accessibilityLabel("Retry adding \(slot.title)")
-                    .help("Retry adding this Episode; use Episode › Retry Failed Episode Drop to retry all")
+                    .help("Retry adding this Episode")
                 Button("Remove") { EpisodeDrop.remove(slot.id, editor: editor) }
                     .accessibilityLabel("Remove failed drop for \(slot.title)")
                     .help("Remove this failed Episode drop")

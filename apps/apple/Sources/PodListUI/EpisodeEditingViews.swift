@@ -247,8 +247,13 @@ struct EpisodeCommandContext {
     let presentation: PlaylistPresentation
     let showDetails: () -> Void
 }
+private struct RemovePlaylistSelectionKey: FocusedValueKey { typealias Value = () -> Void }
 private struct EpisodeContextKey: FocusedValueKey { typealias Value = EpisodeCommandContext }
 extension FocusedValues {
+    var podListRemovePlaylistSelection: (() -> Void)? {
+        get { self[RemovePlaylistSelectionKey.self] }
+        set { self[RemovePlaylistSelectionKey.self] = newValue }
+    }
     var podListEpisodes: EpisodeCommandContext? {
         get { self[EpisodeContextKey.self] }
         set { self[EpisodeContextKey.self] = newValue }
@@ -258,6 +263,7 @@ extension FocusedValues {
 public struct PlaylistEditingCommands: Commands {
     @Bindable private var app: ApplicationModel
     @FocusedValue(\.podListEpisodes) private var context
+    @FocusedValue(\.podListRemovePlaylistSelection) private var removePlaylistSelection
     @FocusedValue(\.podListEpisodeDetails) private var episodeDetails
     @FocusedValue(\.podListRemoteEpisode) private var remoteEpisode
     @FocusedValue(\.podListNowPlayingEpisode) private var nowPlayingEpisode
@@ -299,10 +305,9 @@ public struct PlaylistEditingCommands: Commands {
                 .keyboardShortcut(.upArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
             Button("Move Down") { move(down: true) }
                 .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
-            Button("Remove from Playlist") {
-                guard let id = entriesPlaylistID else { return }
-                Task { await app.editing?.remove(context?.ids ?? [], playlistID: id) }
-            }.keyboardShortcut(.delete, modifiers: .command).disabled(entriesPlaylistID == nil || selectionUnavailable || textEditor != nil)
+            Button(context?.ids.isEmpty == true && removePlaylistSelection != nil ? "Remove Selected Failed Episode Drops" : "Remove from Playlist") {
+                removePlaylistSelection?()
+            }.keyboardShortcut(.delete, modifiers: .command).disabled(removePlaylistSelection == nil || textEditor != nil)
         }
         CommandMenu("Playlist") {
             Menu("Open Playlist") {

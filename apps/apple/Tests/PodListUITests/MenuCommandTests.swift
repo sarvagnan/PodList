@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
     #expect(MenuActionMenu.edit.items == [.clearSearch, .retry])
     #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .backToLibrary, .searchPodcasts])
     #expect(MenuActionMenu.views.items == [.createViewFromSearch])
-    #expect(MenuActionMenu.episode.items == [.retryEpisodeDrop])
+    #expect(MenuActionMenu.episode.items == [.retryEpisodeDrop, .removeEpisodeDrop])
     #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver, .retryBringOver])
     #expect(MenuActionMenu.controls.items == [.backToNowPlaying, .retryPlayback])
     #expect(MenuActionMenu.automation.items == [.copyConfiguration, .retryAutomation])
@@ -69,6 +69,31 @@ import UniformTypeIdentifiers
     #expect(retried == 1)
     editor.failedEpisodeDrop = nil
     #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+}
+
+@MainActor @Test func failedDropRemovalMenuUsesRowOperationAndKeepsSuccessfulEntries() async throws {
+    let db = try await fixtureDatabase()
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "remove-menu")
+    #expect(PersistentMenuActions.owns(.removeEpisodeDrop))
+    #expect(PersistentMenuActions.episodeDrops(editor)[.removeEpisodeDrop] == nil)
+    let before = try await db.loadState()
+    let reference = DraggedEpisode(episodeID: "missing", feedURL: nil, guid: nil, title: "Missing")
+    let failed = EpisodeDropSlot(reference: reference, title: "Missing", failure: "Failed")
+    let committed = EpisodeDropSlot(reference: reference, title: "Added", committed: true)
+    editor.pendingEpisodeDrops = [PendingEpisodeDrop(playlistID: "default", beforeID: nil, slots: [failed, committed], selected: { _ in })]
+    #expect(EpisodeDrop.failedIDs(editor: editor, playlistID: "other").isEmpty)
+    editor.busy = true
+    #expect(PersistentMenuActions.episodeDrops(editor)[.removeEpisodeDrop] == nil)
+    editor.busy = false
+    editor.episodeDrop = EpisodeDropProgress(playlistID: "default", total: 1)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.removeEpisodeDrop] == nil)
+    editor.episodeDrop = nil
+    let remove = try #require(PersistentMenuActions.episodeDrops(editor)[.removeEpisodeDrop])
+    remove()
+    #expect(editor.pendingEpisodeDrops.isEmpty)
+    #expect(editor.failedEpisodeDrop == nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.removeEpisodeDrop] == nil)
+    #expect(try await db.loadState() == before)
 }
 
 @Test func focusedRetryCommandValidatesAndInvokesTheSurfaceHandler() throws {

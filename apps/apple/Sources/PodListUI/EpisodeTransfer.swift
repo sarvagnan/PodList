@@ -157,6 +157,11 @@ enum EpisodeDrop {
         _ = await prepare(batch.id, only: slotID, editor: editor)
     }
 
+    @MainActor static func failedIDs(editor: LibraryEditingModel, playlistID: String? = nil) -> [String] {
+        editor.pendingEpisodeDrops.filter { playlistID == nil || $0.playlistID == playlistID }
+            .flatMap(\.slots).filter { $0.failure != nil && !$0.committed }.map(\.id)
+    }
+
     @MainActor static func remove(_ slotID: String, editor: LibraryEditingModel) {
         guard editor.episodeDrop == nil else { return }
         let failure = editor.pendingEpisodeDrops.flatMap(\.slots).first { $0.id == slotID }?.failure

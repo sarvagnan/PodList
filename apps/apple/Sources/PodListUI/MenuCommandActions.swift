@@ -19,12 +19,13 @@ enum MenuAction: String, CaseIterable {
     case retry = "Retry Failed Operation", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
     case backToNowPlaying = "Back to Now Playing", retryPlayback = "Retry Playback"
     case retryEpisodeDrop = "Retry Failed Episode Drop"
+    case removeEpisodeDrop = "Remove Failed Episode Drops"
 
     var menu: MenuActionMenu? {
         switch self {
         case .showImport, .cancelImport, .retryImport: .file
         case .clearSearch, .retry: .edit
-        case .retryEpisodeDrop: .episode
+        case .retryEpisodeDrop, .removeEpisodeDrop: .episode
         case .refresh, .backToLibrary, .searchPodcasts: .podcast
         case .createViewFromSearch: .views
         case .connect, .standalone, .disconnect, .offerBringOver, .retryBringOver: .connection
@@ -106,16 +107,25 @@ struct MenuActionItems: SwiftUI.View {
 @MainActor enum PersistentMenuActions {
     static func owns(_ action: MenuAction) -> Bool {
         [.showImport, .cancelImport, .retryImport, .retryBringOver,
-         .retryPlayback, .retryEpisodeDrop, .copyConfiguration, .retryAutomation].contains(action)
+         .retryPlayback, .retryEpisodeDrop, .removeEpisodeDrop, .copyConfiguration, .retryAutomation].contains(action)
     }
     static func episodeDrops(_ editor: LibraryEditingModel) -> MenuActionContext {
-        guard let failure = editor.failedEpisodeDrop, editor.episodeDrop == nil,
-              !editor.busy, !editor.edits.busy else { return MenuActionContext() }
-        return MenuActionContext(actions: [.retryEpisodeDrop: {
-            editor.edits.announcements.error(nil)
-            Task { await failure.retry() }
-        }])
+        guard editor.episodeDrop == nil, !editor.busy, !editor.edits.busy else { return MenuActionContext() }
+        var actions: [MenuAction: () -> Void] = [:]
+        if let failure = editor.failedEpisodeDrop {
+            actions[.retryEpisodeDrop] = {
+                editor.edits.announcements.error(nil)
+                Task { await failure.retry() }
+            }
+        }
+        if !EpisodeDrop.failedIDs(editor: editor).isEmpty {
+            actions[.removeEpisodeDrop] = {
+                for id in EpisodeDrop.failedIDs(editor: editor) { EpisodeDrop.remove(id, editor: editor) }
+            }
+        }
+        return MenuActionContext(actions: actions)
     }
+
     static func imports(_ editor: LibraryEditingModel) -> MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
         if editor.busy || editor.importReady || !editor.importFeeds.isEmpty || !editor.importFailed.isEmpty {
