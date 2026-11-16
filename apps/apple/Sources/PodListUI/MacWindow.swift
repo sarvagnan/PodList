@@ -86,11 +86,11 @@ public struct PodListWindow: SwiftUI.View {
                                     Image(systemName: "speaker.wave.2.fill")
                                         .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist")
                                 }
-                                if let clear = item.clearOnPlayed {
-                                    Image(systemName: clear ? "eraser.fill" : "eraser")
+                                if item.clearOnPlayed == true {
+                                    Image(systemName: "checkmark.circle")
                                         .foregroundStyle(.primary)
-                                        .help(clear ? "Clear on Played on" : "Clear on Played off")
-                                        .accessibilityLabel(clear ? "Clear on Played on" : "Clear on Played off")
+                                        .help("Clear on Played on")
+                                        .accessibilityLabel("Clear on Played on")
                                 }
                                 Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
                             }
@@ -165,7 +165,7 @@ public struct PodListWindow: SwiftUI.View {
                     if !isPodcastPage {
                         switch window.destination {
                         case let .playlist(id):
-                            Button("Play This Playlist", systemImage: "play.fill") {
+                            Button("Play This Playlist", systemImage: "play.square.stack") {
                                 guard let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing else { return }
                                 Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
                             }.help("Play This Playlist").disabled(app.editing?.busy != false)
@@ -182,16 +182,23 @@ public struct PodListWindow: SwiftUI.View {
                         default: EmptyView()
                         }
                     }
+                }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                if let editing = app.editing, showsEpisodeInspector {
+                    // Retain disabled selection controls to keep the three groups,
+                    // Inspector and Search in the same positions as selection changes.
+                    EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app)
+                }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                ToolbarItem(placement: .primaryAction) {
                     if showsEpisodeInspector {
                         Button(inspectorVisible ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right") {
                             inspectorVisible.toggle()
                         }
                         .help("Show or Hide Inspector (⌥⌘I)")
                         .accessibilityLabel(inspectorVisible ? "Hide Inspector" : "Show Inspector")
+                        .accessibilityIdentifier("library.inspector")
                     }
-                }
-                if let editing = app.editing, !selectedIDs(library).isEmpty {
-                    EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app)
                 }
             }
             .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
@@ -204,6 +211,9 @@ public struct PodListWindow: SwiftUI.View {
                     }
             }
         }
+        .focusedSceneValue(\.podListSidebar, LibrarySidebarContext(visible: columns != .detailOnly) {
+            columns = columns == .detailOnly ? .all : .detailOnly
+        })
         .modifier(PlaybackSeekHost(app: app))
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let playback = app.playback, playback.hasDisplay {

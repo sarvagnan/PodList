@@ -49,7 +49,7 @@ struct PodListMac: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
-            SidebarCommands()
+            LibrarySidebarCommands()
             MacTextSizeCommands(preference: textSize)
             TextEditingCommands()
             PodListCommands()

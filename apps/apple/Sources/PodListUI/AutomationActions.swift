@@ -29,9 +29,9 @@ public final class AutomationActions {
             tool("add_current", "Add the current Episode to a Playlist, Active by default. Offers Undo.", ["playlist_id": text]),
             tool("list_views", "List Views with Episode counts.", page),
             tool("list_playlists", "List Playlists with Entry counts and Active status.", page),
-            tool("list_episodes", "List a View's Episodes or a Playlist's ordered Entries. Supply exactly one id.",
+            tool("list_episodes", "List a View’s Episodes or a Playlist’s ordered Entries. Supply exactly one id.",
                  page.merging(["view_id": text, "playlist_id": text]) { _, new in new }),
-            tool("search_episodes", "Search Library titles, podcasts and show notes using the app's text matching.",
+            tool("search_episodes", "Search Library titles, podcasts and show notes using the app’s text matching.",
                  page.merging(["text": text]) { _, new in new }, ["text"]),
             tool("set_starred", "Star or Unstar Episodes. Offers Undo.", ["episode_ids": ids, "starred": ["type": "boolean"]], ["episode_ids", "starred"]),
             tool("set_played", "Mark Episodes Played or Unplayed. Offers Undo.", ["episode_ids": ids, "played": ["type": "boolean"]], ["episode_ids", "played"])

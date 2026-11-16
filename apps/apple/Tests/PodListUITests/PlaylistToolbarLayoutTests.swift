@@ -57,18 +57,22 @@ import Testing
                     .toolbar {
                         ToolbarItem(placement: .principal) { PlaylistToolbar(selection: .constant(section)) }
                         ToolbarItemGroup(placement: .primaryAction) {
-                            Button("Play This Playlist", systemImage: "play.fill") {}.help("Play This Playlist")
+                            Button("Play This Playlist", systemImage: "play.square.stack") {}.help("Play This Playlist")
                             Button("New Playlist…", systemImage: "plus") {}
                             Button("Playlist Settings…", systemImage: "slider.horizontal.3") {}
-                            Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
-                        if selected {
-                            ToolbarItemGroup(placement: .primaryAction) {
-                                Button("Play Now", systemImage: "play.fill") {}
-                                Button("Add to a Playlist", systemImage: "text.badge.plus") {}
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
+                        ToolbarItem(placement: .primaryAction) {
+                            ControlGroup {
+                                Button("Play Now", systemImage: "play.fill") {}.disabled(!selected)
+                                Button("Add to a Playlist", systemImage: "text.badge.plus") {}.disabled(!selected)
                                 Menu("Episode Actions", systemImage: "ellipsis.circle") { Button("Action") {} }
-                                    .menuStyle(.borderlessButton).fixedSize()
-                            }
+                                    .menuStyle(.borderlessButton).fixedSize().disabled(!selected)
+                            }.controlSize(.small)
+                        }
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
+                        ToolbarItem(placement: .primaryAction) {
+                            Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
                     }
                     .searchable(text: .constant(""), placement: .toolbar, prompt: "Search this list")
@@ -82,6 +86,7 @@ import Testing
     defer { window.close() }
     var frames: [CGRect] = []
     var playFrames: [CGRect] = []
+    var inspectorFrames: [CGRect] = []
     func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
     for section in PlaylistTab.allCases {
         for selected in [false, true] {
@@ -92,17 +97,22 @@ import Testing
             if let play = toolbar.items.first(where: { $0.label == "Play This Playlist" })?.view {
                 playFrames.append(play.convert(play.bounds, to: nil))
             }
+            let inspector = try #require(toolbar.items.first(where: { $0.label == "Hide Inspector" })?.view)
+            inspectorFrames.append(inspector.convert(inspector.bounds, to: nil))
             let root = try #require(window.contentView?.superview)
             let views = descendants(root)
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
             let frame = picker.convert(picker.bounds, to: root)
             frames.append(frame)
             let search = try #require(views.first { String(describing: type(of: $0)) == "NSSearchToolbarItemView" })
+            #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
             #expect(search.frame.width > 100, "At 1180 pt, Search must remain a field even with selection actions")
             #expect(!window.isVisible)
         }
     }
     for frame in frames.dropFirst() { #expect(abs(frame.minX - frames[0].minX) < 1) }
+    #expect(inspectorFrames.count == frames.count)
+    for frame in inspectorFrames.dropFirst() { #expect(abs(frame.minX - inspectorFrames[0].minX) < 1) }
     #expect(playFrames.count == frames.count)
     for frame in playFrames.dropFirst() { #expect(abs(frame.minX - playFrames[0].minX) < 1) }
 }

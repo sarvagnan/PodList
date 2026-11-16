@@ -16,7 +16,7 @@ enum MenuAction: String, CaseIterable {
     case offerBringOver = "Bring Library from This Mac…", retryBringOver = "Retry Bring Over"
     case clearSearch = "Clear Search", backToLibrary = "Back to Library", dismissTutorial = "Dismiss Getting Started"
     case createViewFromSearch = "Create View from Search…", searchPodcasts = "Search Podcasts"
-    case retry = "Retry", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
+    case retry = "Retry Failed Operation", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
     case backToNowPlaying = "Back to Now Playing", retryPlayback = "Retry Playback"
     case retryEpisodeDrop = "Retry Failed Episode Drop"
 
@@ -45,6 +45,7 @@ enum MenuActionMenu: CaseIterable {
 }
 struct MenuActionContext {
     var actions: [MenuAction: () -> Void] = [:]
+    var retryTitle = "Retry Failed Operation"
     subscript(_ action: MenuAction) -> (() -> Void)? { actions[action] }
 }
 private struct PanelActionsKey: FocusedValueKey { typealias Value = MenuActionContext }
@@ -85,10 +86,14 @@ struct MenuActionItems: SwiftUI.View {
     @FocusedValue(\.podListRecoveryActions) private var recovery
     var body: some SwiftUI.View {
         ForEach(menu.items, id: \.self) { item in
-            Button(item.rawValue) { action(item)?() }
+            Button(item == .retry ? retryTitle : item.rawValue) { action(item)?() }
                 .keyboardShortcut(item == .backToLibrary ? KeyboardShortcut("[", modifiers: .command) : nil)
                 .disabled(action(item) == nil)
         }
+    }
+    private var retryTitle: String {
+        [recovery, discovery, searchView, imports, settings, player, window]
+            .compactMap { $0 }.first { $0[.retry] != nil }?.retryTitle ?? MenuAction.retry.rawValue
     }
     private func action(_ item: MenuAction) -> (() -> Void)? {
         if let app, PersistentMenuActions.owns(item) { return PersistentMenuActions.context(app)[item] }

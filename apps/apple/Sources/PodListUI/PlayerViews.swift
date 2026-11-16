@@ -20,7 +20,7 @@ struct PlayerBar: SwiftUI.View {
                     }
                 }.padding(.horizontal, 18).padding(.vertical, 14).frame(minHeight: 92)
                 if let error = controller.error {
-                    FailureFeedback(message: error, onGlass: true) { controller.play() }.macContentFont(.caption).padding(.bottom, 8)
+                    FailureFeedback(message: error, onGlass: true, retryTitle: "Retry Playback") { controller.play() }.macContentFont(.caption).padding(.bottom, 8)
                 }
             }
             .macContentFont(.body)
@@ -64,7 +64,7 @@ struct TransportControls: SwiftUI.View {
             }.help("Back 15 seconds")
             Button { controller.toggle() } label: {
                 MacIconLabel(title: controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill")
-            }.help(controller.wantsPlayback ? "Pause (Space)" : "Play (Space)")
+            }.help(controller.wantsPlayback ? "Pause (Space in Library)" : "Play (Space in Library)")
             Button { controller.skip(30) } label: {
                 MacIconLabel(title: "Forward 30 seconds", systemImage: "goforward.30")
             }.help("Forward 30 seconds")
@@ -209,7 +209,7 @@ struct NowPlayingView: SwiftUI.View {
             TransportControls(controller: controller).controlSize(.large)
                 .padding(12).macGlassSurface()
             HStack { SpeedMenu(controller: controller); SleepMenu(controller: controller) }
-            if let error = controller.error { FailureFeedback(message: error) { controller.play() } }
+            if let error = controller.error { FailureFeedback(message: error, retryTitle: "Retry Playback") { controller.play() } }
             Button("Episode Details", systemImage: "info.circle") { detailID = value.episodeID }
             Button("Open Active Playlist", systemImage: "music.note.list", action: openPlaylist)
             if !value.chapters.isEmpty {

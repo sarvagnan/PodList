@@ -59,7 +59,8 @@ struct AddPodcastsScreen: SwiftUI.View {
                             .onSubmit { search() }.onChange(of: state.query) { _, text in editor.setDraft(text, field: "addPodcasts"); state.searchTask?.cancel(); state.loading = false; state.searched = false; state.results = []; state.error = nil }
                         Button("Search") { search() }.keyboardShortcut(.defaultAction).disabled(state.loading || state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    Text("Choose File › Import OPML… in the Library window, or import in Settings › General › Library. Closing Add Podcasts does not stop an import; progress stays in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                    Text("Import with File › Import OPML… or Settings › General › Library. Closing Add Podcasts keeps the import running. Follow its progress in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                        .frame(maxWidth: 480, alignment: .leading)
                     if !state.searched, !state.loading {
                         PodListEmptyState("Find Your Next Podcast", systemImage: "magnifyingglass",
                                           description: "Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.")

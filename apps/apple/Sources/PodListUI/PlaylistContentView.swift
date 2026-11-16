@@ -350,7 +350,7 @@ struct RewindSheet: SwiftUI.View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             } else { Text("This moment is no longer available.") }
         } status: {
-            if let problem { FailureFeedback(message: problem, announcements: editing.announcements, retry: rewind) }
+            if let problem { FailureFeedback(message: problem, announcements: editing.announcements, retryTitle: "Retry Rewinding Playlist", retry: rewind) }
         }.interactiveDismissDisabled(editing.busy)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
             .cancel: { dismiss() },

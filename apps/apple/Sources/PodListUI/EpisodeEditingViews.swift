@@ -132,15 +132,17 @@ struct EpisodeActionButtons: ToolbarContent {
     }
     private var disabled: Bool { ids.isEmpty || editing.busy }
     var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }
-                .accessibilityLabel(labels.play).help("Play selected Episodes now (\(PodListShortcut.playNow.notation))").disabled(disabled)
-            Button("Add to a Playlist…", systemImage: "text.badge.plus") { presentation.sheet = .add(ids, false) }
-                .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
-            Menu("Episode Actions", systemImage: "ellipsis.circle") {
-                EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
-            }.menuStyle(.borderlessButton).fixedSize()
-                .accessibilityLabel(labels.more).help("More Episode Actions").disabled(disabled)
+        ToolbarItem(placement: .primaryAction) {
+            ControlGroup {
+                Button("Play Now", systemImage: "play.fill") { Task { await editing.add(ids, placement: .now) } }
+                    .accessibilityLabel(labels.play).help("Play selected Episodes now (\(PodListShortcut.playNow.notation))").disabled(disabled)
+                Button("Add to a Playlist…", systemImage: "text.badge.plus") { presentation.sheet = .add(ids, false) }
+                    .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
+                Menu("Episode Actions", systemImage: "ellipsis.circle") {
+                    EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
+                }.menuStyle(.borderlessButton).fixedSize()
+                    .accessibilityLabel(labels.more).help("More Episode Actions").disabled(disabled)
+            }.controlSize(.small)
         }
     }
 }
@@ -178,7 +180,7 @@ struct EditingFeedback: SwiftUI.View {
         }
         // Keep menu commands available even when there is no visible status row.
         .focusedSceneValue(\.podListEditHistory, undo != nil || redo != nil ? EditHistoryCommandContext(undo: undo, redo: redo) : nil)
-        .modifier(FocusedRetry(action: retryCommand))
+        .modifier(FocusedRetry(action: retryCommand, title: editing.retryKind == .undo ? "Retry Undo" : editing.retryKind == .redo ? "Retry Redo" : "Retry Last Edit"))
     }
     private func feedbackRow(text: String?) -> some SwiftUI.View {
         HStack {
