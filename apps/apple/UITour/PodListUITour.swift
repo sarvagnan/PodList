@@ -53,6 +53,13 @@ final class PodListUITour: XCTestCase {
         let sidebar = library.outlines["Sidebar"]
         try ready(sidebar)
         XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
+        let libraryStatus = library.descendants(matching: .any).matching(identifier: "library.status").firstMatch
+        try ready(libraryStatus)
+        XCTAssertGreaterThan(libraryStatus.frame.height, 0)
+        XCTAssertLessThanOrEqual(libraryStatus.frame.height, 33, "Sync and edit feedback must share one compact row")
+        XCTAssertFalse(sidebar.images["Clear on Played on"].exists, "Clear on Played must not repeat the Add to a Playlist glyph")
+        XCTAssertTrue(sidebar.descendants(matching: .any).matching(identifier: "sidebar.Default").firstMatch.label.contains("Clear on Played on"),
+                      "Removing the glyph must retain Clear on Played in the row's accessibility description")
         XCTAssertFalse(library.buttons["Pause"].exists, "The restored player must be paused")
         try capture("01-subscriptions")
 
@@ -113,6 +120,7 @@ final class PodListUITour: XCTestCase {
         assertInspectorPosition(unselectedInspector)
         let rewind = library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Rewind to ")).firstMatch
         try ready(rewind)
+        XCTAssertTrue(rewind.label.hasSuffix("…"), "Rewind opens a preview and needs an ellipsis")
         // Standard XCUITest pointer input, even when the row already shows its action.
         rewind.hover()
         try capture("34a-timeline-rewind-button")
@@ -171,9 +179,10 @@ final class PodListUITour: XCTestCase {
         try capture("13-new-playlist", expectsSheet: true)
         let newPlaylistName = library.sheets.textFields["Playlist name"]
         try click(newPlaylistName)
+        let originalPlaylistName = newPlaylistName.value as? String
         app.typeText("Tour draft")
         app.typeKey("z", modifierFlags: .command)
-        XCTAssertEqual(newPlaylistName.value as? String, "", "Command-Z in a sheet text field must undo typing")
+        XCTAssertEqual(newPlaylistName.value as? String, originalPlaylistName, "Command-Z in a sheet text field must undo typing")
         app.typeKey("z", modifierFlags: [.command, .shift])
         XCTAssertEqual(newPlaylistName.value as? String, "Tour draft", "Shift-Command-Z must redo the field edit")
         try dismissSheet("Cancel")
@@ -296,6 +305,7 @@ final class PodListUITour: XCTestCase {
         let addPodcasts = app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).firstMatch
         try ready(addPodcasts)
         assertNoHistoryButtons(in: addPodcasts)
+        XCTAssertFalse(addPodcasts.buttons["Close"].exists, "Utility panels close with standard window commands")
         XCTAssertFalse(library.sheets.firstMatch.exists)
         let podcastQuery = addPodcasts.textFields["addPodcasts.query"]
         assertKeyboardFocus(podcastQuery)
@@ -325,7 +335,7 @@ final class PodListUITour: XCTestCase {
         assertKeyboardFocus(podcastQuery)
         podcastQuery.typeKey("a", modifierFlags: .command)
         podcastQuery.typeKey(.delete, modifierFlags: [])
-        try click(addPodcasts.buttons["Close"])
+        addPodcasts.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
         try navigate("Subscriptions")
         // The bulk editor needs a selection: select every Subscription first.
@@ -340,11 +350,12 @@ final class PodListUITour: XCTestCase {
         let nowPlaying = app.windows.matching(NSPredicate(format: "title == %@", "Now Playing")).firstMatch
         try ready(nowPlaying)
         XCTAssertFalse(library.sheets.firstMatch.exists)
+        XCTAssertFalse(nowPlaying.buttons["Close"].exists, "Now Playing uses standard window closing")
         for name in ["Play", "Episode Details", "Open Active Playlist"] {
             let control = nowPlaying.buttons[name]
             try ready(control)
             XCTAssertTrue(nowPlaying.frame.contains(control.frame), "Main playback controls must fit without scrolling")
-            XCTAssertLessThanOrEqual(control.frame.maxY, nowPlaying.buttons["Close"].frame.minY)
+            XCTAssertLessThanOrEqual(control.frame.maxY, nowPlaying.frame.maxY - 16)
         }
         try capture("26-now-playing", in: nowPlaying)
         // Playback stays open while the person browses Library.
@@ -357,7 +368,7 @@ final class PodListUITour: XCTestCase {
         let playerScroll = nowPlaying.scrollViews.firstMatch
         let details = nowPlaying.buttons["Episode Details"]
         try reveal(details, in: playerScroll)
-        XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.buttons["Close"].frame.minY)
+        XCTAssertLessThanOrEqual(details.frame.maxY, nowPlaying.frame.maxY - 16)
         try click(details)
         let addFromDetails = button("Add to a Playlist", in: nowPlaying)
         try reveal(addFromDetails, in: playerScroll)
@@ -366,14 +377,11 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(nowPlaying.sheets.firstMatch.exists, "Playlist edits must present on Library")
         try dismissSheet("Cancel")
         try click(library.buttons["Open Now Playing"])
-        let done = nowPlaying.buttons["Close"]
-        // XCUITest can resolve Close to an off-screen frame (inf, inf) and then hang on the
-        // click; close the window with its standard command in that case.
-        if done.waitForExistence(timeout: 5), done.frame.origin.x.isFinite, done.frame.width > 0 {
-            done.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
-        } else {
-            nowPlaying.typeKey("w", modifierFlags: .command)
-        }
+        nowPlaying.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(nowPlaying.waitForNonExistence(timeout: 10))
+        try click(library.buttons["Open Now Playing"])
+        try ready(nowPlaying)
+        nowPlaying.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(nowPlaying.waitForNonExistence(timeout: 10))
 
         app.typeKey(",", modifierFlags: .command)
@@ -393,7 +401,7 @@ final class PodListUITour: XCTestCase {
         let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
-        let automationScope = text("This setting applies only to this Mac. App Intents and Shortcuts are always available.", in: settings)
+        let automationScope = settings.staticTexts["This setting applies only to this Mac. App Intents and Shortcuts are always available."].firstMatch
         try ready(automationScope)
         let compactAutomation = NSPredicate { _, _ in
             settings.frame.contains(automationScope.frame) && settings.frame.maxY - automationScope.frame.maxY < 100
@@ -408,8 +416,9 @@ final class PodListUITour: XCTestCase {
         try click(mcp)
         let copyConfiguration = settings.buttons["Copy Configuration"]
         try ready(copyConfiguration)
-        XCTAssertGreaterThan(settings.frame.height, automationOffHeight + 80,
-                             "Automation must grow to show enabled MCP configuration")
+        let expandedAutomation = NSPredicate { _, _ in settings.frame.height > automationOffHeight + 80 }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: expandedAutomation, object: nil)], timeout: 10), .completed,
+                       "Automation must grow to show enabled MCP configuration")
         let automationForm = settings.scrollViews.firstMatch
         if automationForm.exists { automationForm.scroll(byDeltaX: 0, deltaY: 1800) }
         try click(mcp)
@@ -452,6 +461,10 @@ final class PodListUITour: XCTestCase {
         try ready(button("Add to a Playlist"))
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
+        try menuCommand("Controls", "Play")
+        try ready(library.buttons["Pause"])
+        try menuCommand("Controls", "Pause")
+        try ready(library.buttons["Play"])
         XCTAssertTrue(library.buttons["Open Now Playing"].exists)
         XCTAssertTrue(library.buttons["Play"].exists)
         XCTAssertFalse(library.buttons["Pause"].exists, "Leave an Episode paused as after relaunch")
@@ -760,7 +773,7 @@ final class PodListUITour: XCTestCase {
         let removed: Set<String> = [
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
-            "Import", "Choose a File…", "Hide Getting Started"
+            "Import", "Choose a File…", "Hide Getting Started", "Resume Playback", "Pause Playback"
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [
@@ -783,6 +796,10 @@ final class PodListUITour: XCTestCase {
         }
         if name == "Podcast" {
             XCTAssertTrue(!items.isDisjoint(with: ["Subscribe", "Unsubscribe"]))
+        }
+        if name == "Controls" {
+            XCTAssertEqual(titles(menu).filter { ["Play", "Pause"].contains($0) }.count, 1,
+                           "Controls must offer one state-dependent Play/Pause command")
         }
         if name == "View" {
             XCTAssertTrue(!items.isDisjoint(with: ["Show Description", "Hide Description"]))

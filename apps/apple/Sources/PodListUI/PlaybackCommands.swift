@@ -37,8 +37,6 @@ public struct PlaybackCommands: Commands {
             // Space is a contextual accelerator, not an app-wide menu equivalent.
             Button(toggle.title, action: toggle.perform)
                 .disabled(!toggle.isEnabled)
-            Button("Resume Playback") { app.playback?.play() }.disabled(app.playback?.display == nil || app.playback?.wantsPlayback == true)
-            Button("Pause Playback") { app.playback?.pause() }.disabled(app.playback?.wantsPlayback != true)
             Button("Go to Time…") { seek?() }.disabled(seek == nil)
             Button("Back 15 Seconds") { app.playback?.skip(-15) }.keyboardShortcut(.leftArrow, modifiers: .command).disabled(app.playback?.display == nil)
             Button("Forward 30 Seconds") { app.playback?.skip(30) }.keyboardShortcut(.rightArrow, modifiers: .command).disabled(app.playback?.display == nil)
@@ -110,7 +108,7 @@ struct LibraryPlaybackSpaceHost: NSViewRepresentable {
 
 /// Intercept text navigation before menu equivalents and let AppKit interpret it,
 /// including the user's key bindings. Return stays with text editing and sheet
-/// default actions instead of reaching Episode > Play Now. Command-period in a
+/// default actions instead of reaching Episode › Play Now. Command-period in a
 /// sheet follows Escape's cancel action, including its disabled state during a save.
 @MainActor public final class PlaybackKeyboardGuard {
     private var monitor: Any?

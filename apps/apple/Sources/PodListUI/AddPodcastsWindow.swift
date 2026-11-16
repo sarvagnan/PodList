@@ -102,8 +102,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                     }
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
             }
-            LibraryFeedback(editor: editor)
-            PodListSheetFooter(actionTitle: "Close", defaultShortcut: false, cancelTitle: nil, cancel: close, action: close)
+            LibraryFeedback(editor: editor, reservesSpace: false)
         }
         .macContentFont(.body)
         // Let the window's initial focus evaluation choose the input after it becomes key.

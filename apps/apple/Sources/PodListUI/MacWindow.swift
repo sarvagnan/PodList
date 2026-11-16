@@ -86,12 +86,6 @@ public struct PodListWindow: SwiftUI.View {
                                     Image(systemName: "speaker.wave.2.fill")
                                         .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist").help("Active Playlist")
                                 }
-                                if item.clearOnPlayed == true {
-                                    Image(systemName: "text.badge.checkmark")
-                                        .foregroundStyle(.primary)
-                                        .help("Clear on Played on")
-                                        .accessibilityLabel("Clear on Played on")
-                                }
                                 Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
                             }
                             .contentShape(Rectangle())
@@ -123,10 +117,9 @@ public struct PodListWindow: SwiftUI.View {
             .navigationTitle("PodList")
         } detail: {
             VStack(spacing: 0) {
-                syncStatus
                 if let editor = app.libraryEditing {
                     if !isPodcastPage, editor.showsGettingStarted(on: window.destination, in: library) { GettingStartedScreen(editor: editor, add: { openWindow(id: "add-podcasts") }) }
-                    LibraryFeedback(editor: editor, surface: .library, reservesSpace: true, restored: { entries in
+                    LibraryFeedback(editor: editor, surface: .library, sync: app, reservesSpace: true, restored: { entries in
                         guard app.libraryEditing === editor, window.revealRestoredEntries(entries) else { return }
                         podcastFeed = nil; playlistPresentation.playlistTab = .entries
                     })
@@ -141,7 +134,9 @@ public struct PodListWindow: SwiftUI.View {
                     }
                     if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } } }
                 } else if let editing = app.editing {
-                    EditingFeedback(editing: editing, surface: .library, reservesSpace: true).id(window.destination).id(podcastFeed)
+                    EditingFeedback(editing: editing, surface: .library, sync: app, reservesSpace: true).id(window.destination).id(podcastFeed)
+                } else {
+                    LibrarySyncStatus(app: app).macContentFont(.caption).padding(.horizontal, 14).frame(height: 32)
                 }
                 // Lists and AppKit tables must fit the space left by window feedback.
                 GeometryReader { viewport in
@@ -583,23 +578,6 @@ public struct PodListWindow: SwiftUI.View {
             }
 
         }
-    }
-
-    private var syncStatus: some SwiftUI.View {
-        HStack(spacing: 8) {
-            if app.syncing {
-                ProgressView().controlSize(.mini).accessibilityLabel("Syncing")
-                Text("Syncing…")
-            } else if let error = app.syncError {
-                Image(systemName: "exclamationmark.icloud").accessibilityHidden(true)
-                FailureFeedback(message: error, indexedElsewhere: true) { Task { await app.sync(forceRefresh: true) } }
-            } else {
-                Image(systemName: "checkmark.icloud").accessibilityHidden(true)
-                Text(app.lastSync == nil ? "Local Library" : "Up to date")
-            }
-            Spacer(minLength: 0)
-        }
-        .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).padding(.horizontal, 14).padding(.vertical, 7)
     }
 
     private func selectionRows(_ library: LibraryModel) -> [EpisodeRow] {

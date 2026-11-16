@@ -8,22 +8,27 @@ import PodListData
     let db = try await fixtureDatabase()
     let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: UUID().uuidString,
                                      defaults: UserDefaults(suiteName: UUID().uuidString)!)
-    func height() -> CGFloat {
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
+    func height(scale: CGFloat = 1) -> CGFloat {
         NSHostingView(rootView: VStack(spacing: 0) {
-            LibraryFeedback(editor: editor, surface: .library)
+            LibraryFeedback(editor: editor, surface: .library, sync: app)
             Color.clear.frame(height: 100)
-        }.frame(width: 600)).fittingSize.height
+        }.environment(\.macTextScale, scale).frame(width: 600)).fittingSize.height
     }
-    #expect(height() == 132)
+    func expectStableHeight() {
+        #expect(height() == 132)
+        #expect(height(scale: 2) == 164)
+    }
+    expectStableHeight()
     _ = await editor.edits.edit([.setStar(episodeId: "a", starred: true)], name: "Star",
                                message: String(repeating: "Long feedback ", count: 50))
-    #expect(height() == 132)
+    expectStableHeight()
     await editor.undo()
-    #expect(height() == 132)
+    expectStableHeight()
     await editor.redo()
-    #expect(height() == 132)
+    expectStableHeight()
     editor.error = String(repeating: "An error ", count: 50)
-    #expect(height() == 132)
+    expectStableHeight()
 }
 
 @MainActor @Test func editFeedbackUsesTheLatestNoticeOrEditInOneStatusSlot() async throws {

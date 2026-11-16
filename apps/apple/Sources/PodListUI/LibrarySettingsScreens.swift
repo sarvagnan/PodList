@@ -279,7 +279,7 @@ struct GettingStartedScreen: SwiftUI.View {
             Label("Add podcasts to your Library", systemImage: "1.circle")
             Text("Search by name or enter a feed address.").foregroundStyle(MacReadableSecondaryStyle())
             if let add { Button("Add Podcasts…", action: add) }
-            else { Text("Use File ▸ Add Podcasts… (⇧⌘A) in the Library window.").macContentFont(.caption) }
+            else { Text("Use File › Add Podcasts… (⇧⌘A) in the Library window.").macContentFont(.caption) }
             Label("Understand Views", systemImage: "2.circle")
             Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(MacReadableSecondaryStyle())
             Label("Add Episodes to Playlists", systemImage: "3.circle")

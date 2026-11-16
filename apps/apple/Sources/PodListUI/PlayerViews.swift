@@ -154,6 +154,7 @@ struct NowPlayingView: SwiftUI.View {
     @State private var presentation = PlaylistPresentation()
     var body: some SwiftUI.View {
         GlassEffectContainer(spacing: 12) { panel }
+            .onExitCommand(perform: done)
             .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: done]))
             .focusedSceneValue(\.podListNowPlayingEpisode, controller.display.map { NowPlayingEpisodeContext(id: detailID ?? $0.episodeID, library: app.library ?? library, presentation: presentation) })
             .focusedSceneValue(\.podListEpisodeDetails, controller.display.map { value in { detailID = value.episodeID } })
@@ -193,9 +194,6 @@ struct NowPlayingView: SwiftUI.View {
             } else {
                 PodListEmptyState("No Current Entry", systemImage: "music.note")
             }
-            PodListSheetFooter(actionTitle: "Close", defaultShortcut: false, cancelTitle: nil,
-                               cancel: done, action: done)
-                .onExitCommand(perform: done)
         }
     }
     private func playbackControls(_ value: PlaybackDisplay) -> some SwiftUI.View {

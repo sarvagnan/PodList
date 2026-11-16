@@ -312,7 +312,7 @@ private var multicolorSelectionColors: [NSColor] {
     }
 }
 
-@Test @MainActor func readableLinksRenderAccentOrPrimaryInsteadOfSystemLinkInk() throws {
+@Test @MainActor func readableAccentButtonsRenderContrastSafeForegrounds() throws {
     for (name, scheme, surface) in [(NSAppearance.Name.aqua, ColorScheme.light, 0xFFFFFF),
                                     (.darkAqua, .dark, 0x222222)] {
         try withDrawingAppearance(name) {
@@ -325,9 +325,9 @@ private var multicolorSelectionColors: [NSColor] {
                 let expectedBitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: swatch).cgImage))
                 let expected = RGB(try #require(expectedBitmap.colorAt(x: 4, y: 4)), over: background)
                 #expect(expected.contrast(background) >= 4.5)
-                let link = Button("Show Description") {}.buttonStyle(MacReadableLinkStyle())
+                let button = Button("Show Description") {}.buttonStyle(MacReadableAccentButtonStyle())
                     .padding(12).background(backdrop).accentColor(color).environment(\.colorScheme, scheme)
-                let bitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: link).cgImage))
+                let bitmap = NSBitmapImageRep(cgImage: try #require(ImageRenderer(content: button).cgImage))
                 var glyphPixels = 0
                 for y in 0..<bitmap.pixelsHigh { for x in 0..<bitmap.pixelsWide {
                     let actual = RGB(try #require(bitmap.colorAt(x: x, y: y)), over: background)
@@ -335,7 +335,7 @@ private var multicolorSelectionColors: [NSColor] {
                        abs(actual.g - expected.g) < 0.005,
                        abs(actual.b - expected.b) < 0.005 { glyphPixels += 1 }
                 } }
-                #expect(glyphPixels >= 20, "The link's rendered glyphs must use its contrast-safe foreground")
+                #expect(glyphPixels >= 20, "The button's rendered glyphs must use its contrast-safe foreground")
             }
         }
     }
