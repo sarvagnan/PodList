@@ -207,7 +207,7 @@ import json, re, shutil, sys
 from pathlib import Path
 out, source = map(Path, sys.argv[1:3])
 screens = re.findall(r'try capture\("([^"\n]+)"', source.read_text())
-assert len(screens) == 35 and len(set(screens)) == 35, 'Tour screen catalog must be unique'
+assert len(screens) == 37 and len(set(screens)) == 37, 'Tour screen catalog must be unique'
 expected = {f'{style}/{screen}.{ext}' for style in ('light', 'dark') for screen in screens for ext in ('png', 'txt')}
 expected.add('menus.txt')
 manifest = out / 'attachments/manifest.json'

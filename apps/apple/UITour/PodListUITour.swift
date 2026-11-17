@@ -492,6 +492,60 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.buttons["Open Now Playing"].exists)
         XCTAssertTrue(library.buttons["Play"].exists)
         XCTAssertFalse(library.buttons["Pause"].exists, "Leave an Episode paused as after relaunch")
+
+        // Last, so every earlier capture keeps the default window size.
+        // CRITIQUE step 1: the narrowest supported size, and content scrolled beneath the bars.
+        try navigate("Starred")
+        try navigate("New this week")
+        try ready(episodeRows.firstMatch)
+        try shrinkToMinimumSize(library)
+        try capture("35-minimum-window")
+        // The list's vertical scroller reports 0 at the top; a row query would just return the next visible row.
+        let list = episodeList.frame
+        let scroller = library.scrollBars.matching(NSPredicate { candidate, _ in
+            guard let bar = candidate as? XCUIElementAttributes else { return false }
+            return bar.frame.height > bar.frame.width && bar.frame.midX > list.minX && bar.frame.midX <= list.maxX + 2
+        }).firstMatch
+        try ready(scroller)
+        func position() -> Double { Double(String(describing: scroller.value ?? "0")) ?? 0 }
+        XCTAssertEqual(position(), 0, accuracy: 0.01, "The Episode list starts at the top")
+        // Hover a point in the list, not a row: a row squeezed at this width can report itself unhittable.
+        let listPoint = episodeList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        let scrolled = NSPredicate { _, _ in position() > 0.05 }
+        var didScroll = false
+        for delta in [-160.0, -400.0] where !didScroll {
+            listPoint.hover()
+            episodeList.scroll(byDeltaX: 0, deltaY: delta)
+            didScroll = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolled, object: nil)], timeout: 5) == .completed
+        }
+        XCTAssertTrue(didScroll, "At the minimum window size the Episode list must overflow and scroll, so rows pass beneath the bars")
+        try capture("36-scrolled-under-bars")
+    }
+
+    /// Standard pointer input: drag the window's bottom-right corner past its minimum size,
+    /// so AppKit clamps it to the minimum. Edges are tried if the corner misses the resize area.
+    private func shrinkToMinimumSize(_ window: XCUIElement, file: StaticString = #filePath, line: UInt = #line) throws {
+        let start = window.frame
+        let origin = window.coordinate(withNormalizedOffset: .zero)
+        let attempts: [(CGVector, CGVector)] = [
+            (CGVector(dx: 1, dy: 1), CGVector(dx: -1, dy: -1)),
+            (CGVector(dx: 1, dy: 1), CGVector(dx: 2, dy: 2)),
+        ]
+        for (anchor, offset) in attempts where window.frame.width > start.width - 100 {
+            let corner = window.coordinate(withNormalizedOffset: anchor).withOffset(offset)
+            corner.click(forDuration: 0.3, thenDragTo: origin.withOffset(CGVector(dx: 200, dy: 150)))
+        }
+        if window.frame.width > start.width - 100 {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(CGVector(dx: 2, dy: 0))
+                .click(forDuration: 0.3, thenDragTo: origin.withOffset(CGVector(dx: 200, dy: start.height / 2)))
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1)).withOffset(CGVector(dx: 0, dy: 2))
+                .click(forDuration: 0.3, thenDragTo: origin.withOffset(CGVector(dx: window.frame.width / 2, dy: 150)))
+        }
+        let shrunk = window.frame
+        XCTAssertLessThan(shrunk.width, start.width - 100, "The window must resize to its minimum width", file: file, line: line)
+        XCTAssertLessThan(shrunk.height, start.height - 100, "The window must resize to its minimum height", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(shrunk.width, 760, "The window must not shrink below its minimum width", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(shrunk.height, 500, "The window must not shrink below its minimum height", file: file, line: line)
     }
 
     private func ready(_ element: XCUIElement, timeout: TimeInterval = 15,
