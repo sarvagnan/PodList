@@ -757,22 +757,33 @@ final class PodListUITour: XCTestCase {
     private func assertSheetAtBothTextSizes(file: StaticString = #filePath, line: UInt = #line) throws {
         let sheet = library.sheets.firstMatch
         let width = sheet.frame.width
-        func assertHorizontalBounds() {
-            let fields = sheet.descendants(matching: .any).allElementsBoundByIndex.filter {
-                [.textField, .popUpButton, .checkBox, .staticText].contains($0.elementType) && !$0.frame.isEmpty
+        // One accessibility snapshot per check; querying each field's frame separately
+        // took most of the tour's time.
+        func fields() throws -> [XCUIElementSnapshot] {
+            var found: [XCUIElementSnapshot] = []
+            func walk(_ node: XCUIElementSnapshot) {
+                if [.textField, .popUpButton, .checkBox, .staticText].contains(node.elementType), !node.frame.isEmpty { found.append(node) }
+                node.children.forEach(walk)
             }
-            XCTAssertFalse(fields.isEmpty, file: file, line: line)
-            for field in fields {
+            walk(try sheet.snapshot())
+            return found
+        }
+        func assertHorizontalBounds() throws -> CGFloat {
+            let snapshot = try fields()
+            XCTAssertFalse(snapshot.isEmpty, file: file, line: line)
+            for field in snapshot {
                 XCTAssertGreaterThanOrEqual(field.frame.minX, sheet.frame.minX, "Clipped label or control: \(field.label)", file: file, line: line)
                 XCTAssertLessThanOrEqual(field.frame.maxX, sheet.frame.maxX, "Clipped label or control: \(field.label)", file: file, line: line)
                 if field.elementType != .staticText { XCTAssertFalse(field.label.isEmpty, "Every field needs an accessible name", file: file, line: line) }
             }
+            return snapshot.filter { $0.elementType == .staticText }.map(\.frame.height).max() ?? 0
         }
-        assertHorizontalBounds()
-        for _ in 0..<10 { try menuCommand("View", "Bigger") }
+        let textHeight = try assertHorizontalBounds()
+        // View › Bigger is ⌘+ (menu path checked once in captureMenus); ten steps reach 200%.
+        for _ in 0..<10 { app.typeKey("+", modifierFlags: .command) }
         XCTAssertEqual(sheet.frame.width, width, accuracy: 1, "Text Size must not widen the sheet", file: file, line: line)
-        assertHorizontalBounds()
-        try menuCommand("View", "Actual Size")
+        XCTAssertGreaterThan(try assertHorizontalBounds(), textHeight * 1.4, "⌘+ must enlarge sheet text", file: file, line: line)
+        app.typeKey("0", modifierFlags: .command)
         XCTAssertEqual(sheet.frame.width, width, accuracy: 1, file: file, line: line)
     }
 
