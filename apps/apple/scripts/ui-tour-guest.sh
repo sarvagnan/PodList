@@ -11,6 +11,7 @@ shared='/Volumes/My Shared Files'
 case "$mode" in tour|system) ;; *) exit 2;; esac
 rm -rf "$run"
 mkdir -p "$run"
+touch "$run/uitour-vm"
 for item in light dark system products checks; do
     if [ -d "$shared/run/$item" ]; then ditto "$shared/run/$item" "$run/$item"; fi
 done
@@ -26,7 +27,7 @@ finish() {
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$shared/run/guest-diagnostics/" 2>/dev/null || true
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$shared/run/guest-diagnostics/log.txt" 2>&1 || true
-    for bundle in Tour Shortcuts MCP; do
+    for bundle in Tour Shortcuts MCP Integration; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$shared/run/$bundle.xcresult"; fi
     done
     if [ "$mode" = system ]; then
@@ -85,7 +86,12 @@ else
         -only-testing:PodListUITour/PodListSystemChecks/testShortcutsDiscovery \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 600 \
         -maximum-test-execution-time-allowance 900 -resultBundlePath "$run/Shortcuts.xcresult" || result=$?
-    # Run the independent MCP/window test even if discovery failed, retaining both results.
+    xcodebuild test-without-building -xctestrun "$xctestrun" \
+        -destination 'platform=macOS' -parallel-testing-enabled NO \
+        -only-testing:PodListUITour/PodListSystemChecks/testLibraryLinksAndSpotlight \
+        -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+        -maximum-test-execution-time-allowance 420 -resultBundlePath "$run/Integration.xcresult" || result=$?
+    # Run the independent MCP/window test even if another system check failed.
     /bin/bash "$run/checks/mcp-live-check.sh" "$run" || result=$?
 fi
 exit "$result"

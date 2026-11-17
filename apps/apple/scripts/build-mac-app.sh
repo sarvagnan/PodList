@@ -32,6 +32,18 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSAccentColorName</key><string>AccentColor</string>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>PodList Library Link</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>CFBundleURLSchemes</key><array><string>podlist</string></array>
+</dict></array>
+<key>NSServices</key><array><dict>
+<key>NSMenuItem</key><dict><key>default</key><string>Add to PodList</string></dict>
+<key>NSMessage</key><string>addToPodList</string>
+<key>NSPortName</key><string>PodList</string>
+<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.url</string></array>
+<key>NSRequiredContext</key><dict/>
+</dict></array>
 <key>CFBundleDocumentTypes</key><array><dict>
 <key>CFBundleTypeName</key><string>OPML Podcast Subscriptions</string>
 <key>CFBundleTypeRole</key><string>Viewer</string>

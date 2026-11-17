@@ -205,6 +205,52 @@ struct PodListShortcuts: AppShortcutsProvider {
         AppShortcut(intent: PlayIntent(), phrases: ["Play my \(.applicationName) Playlist"], shortTitle: "Play", systemImageName: "play.fill")
         AppShortcut(intent: PauseIntent(), phrases: ["Pause \(.applicationName)"], shortTitle: "Pause", systemImageName: "pause.fill")
         AppShortcut(intent: NowPlayingIntent(), phrases: ["What’s playing in \(.applicationName)"], shortTitle: "Now Playing", systemImageName: "waveform")
-        AppShortcut(intent: AddCurrentIntent(), phrases: ["Add the current Episode in \(.applicationName) to a Playlist"], shortTitle: "Add Current Episode", systemImageName: "text.badge.plus")
+        AppShortcut(intent: AddCurrentIntent(), phrases: ["Add the current Episode in \(.applicationName) to a Playlist"], shortTitle: "Add Current Episode", systemImageName: "text.line.last.and.arrowtriangle.forward")
+    }
+}
+
+/// Spotlight's entity actions use the same browsing-only route as copied app links.
+struct OpenEpisodeIntent: OpenIntent {
+    static let title: LocalizedStringResource = "Open Episode in Library"
+    static let isDiscoverable = false
+    static let supportedModes: IntentModes = .foreground
+    @Parameter(title: "Episode") var target: EpisodeEntity
+    @MainActor func perform() async throws -> some IntentResult & OpensIntent {
+        .result(opensIntent: OpenURLIntent(PodListLink.episode(target.id).url))
+    }
+}
+struct OpenPlaylistIntent: OpenIntent {
+    static let title: LocalizedStringResource = "Open Playlist in Library"
+    static let isDiscoverable = false
+    static let supportedModes: IntentModes = .foreground
+    @Parameter(title: "Playlist") var target: PlaylistEntity
+    @MainActor func perform() async throws -> some IntentResult & OpensIntent {
+        .result(opensIntent: OpenURLIntent(PodListLink.playlist(target.id).url))
+    }
+}
+struct SubscriptionEntity: IndexedEntity {
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Subscription"
+    static let defaultQuery = SubscriptionQuery()
+    let id: String
+    @Property(title: "Podcast") var title: String
+    @Property(title: "Feed Address") var feed: String
+    init(id: String, title: String, feed: String) { self.id = id; self.title = title; self.feed = feed }
+    var displayRepresentation: DisplayRepresentation { .init(title: "\(title)") }
+}
+struct SubscriptionQuery: EntityStringQuery {
+    @MainActor private func all() -> [SubscriptionEntity] {
+        (AutomationRuntime.app?.library?.subscriptions ?? []).map { SubscriptionEntity(id: $0.id, title: $0.title, feed: $0.feedUrl) }
+    }
+    func entities(for identifiers: [String]) async throws -> [SubscriptionEntity] { await all().filter { identifiers.contains($0.id) } }
+    func entities(matching string: String) async throws -> [SubscriptionEntity] { await all().filter { $0.title.localizedStandardContains(string) } }
+    func suggestedEntities() async throws -> [SubscriptionEntity] { await all() }
+}
+struct OpenSubscriptionIntent: OpenIntent {
+    static let title: LocalizedStringResource = "Open Subscription in Library"
+    static let isDiscoverable = false
+    static let supportedModes: IntentModes = .foreground
+    @Parameter(title: "Subscription") var target: SubscriptionEntity
+    @MainActor func perform() async throws -> some IntentResult & OpensIntent {
+        .result(opensIntent: OpenURLIntent(PodListLink.podcast(target.feed).url))
     }
 }

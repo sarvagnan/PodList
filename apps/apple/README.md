@@ -303,7 +303,7 @@ Successful user actions donate matching App Intents from the shared editing and
 transport paths, including menus, toolbar, context menus, drag/drop and automation.
 Playback started internally by a Play Now edit does not donate a second Play action;
 Undo/Redo, refreshes and automatic playback do not donate. Donations are best effort
-and disabled when the bundle id starts with `app.podlist.uitour.` **or** the environment
+and enabled only in release builds. They are also disabled when the bundle id starts with `app.podlist.uitour.` **or** the environment
 contains `PODLIST_UI_DATA_DIRECTORY` (including an empty value).
 
 **Show Now Playing** returns an interactive Siri/Shortcuts snippet with the current
@@ -421,23 +421,13 @@ Shortcuts discovery and an MCP client session, is pending the owner's Mac run.
 
 ## Mac grading with XCUITest
 
-From the repository root, on a logged-in macOS 26+ desktop with Xcode 27.2:
+The host builds the SwiftPM app and XCUITest bundle with Xcode 27.2. Every UI test
+runs inside a fresh throwaway Tart clone. Both script modes require `PODLIST_UI_VM`;
+the visual test also checks a guest-only marker before launching. There is no host
+execution path. The project contains a macOS UI Testing Bundle using
+`XCUIApplication(url:)`, ordinary clicks, keyboard commands, scrolling and `hover()`.
 
-```sh
-apps/apple/scripts/ui-tour.sh /private/tmp/podlist-mac-tour
-```
-
-Choose an empty output directory. The script builds the SwiftPM app, starts the
-existing local fixture/demo server with the current date, and runs the shared
-`PodListUITour` scheme in `PodListUITour.xcodeproj`. The project contains only a
-macOS UI Testing Bundle; the app continues to build through SwiftPM. It uses
-`XCUIApplication(url:)`, ordinary clicks, keyboard commands, scrolling and
-`hover()`. **A run brings PodList to the front and drives input.** Leave the Mac
-alone until it finishes. The first run needs Accessibility permission for the
-`PodListUITour-Runner` test runner; grant the permission and rerun if macOS blocks
-that first run. Nothing is installed into `/Applications`.
-
-### In a macOS VM (recommended)
+### In a macOS VM (required)
 
 To keep this Mac free while the tour runs, run it in a throwaway macOS VM with
 [Tart](https://tart.run) (`brew install openai/tools/tart`). Once:
@@ -459,7 +449,7 @@ This Mac builds the app and the test bundle. The tour runs in a fresh clone of `
 with no window; the clone also runs the demo server from the repository, shared read-only,
 with the image's Node. Nothing connects from this Mac into the VM's network. The clone is deleted afterwards.
 
-### App Intents, live MCP and native window checks (VM only)
+### App Intents, app links, Spotlight, live MCP and window checks (VM only)
 
 Use the same prepared VM to validate platform integration without touching this Mac's
 screen or registering the throwaway app with this Mac's LaunchServices:
@@ -469,7 +459,7 @@ PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --system-checks /private/
 ```
 
 Choose a fresh, empty output directory. The host builds; a new headless Tart clone runs
-both checks, copies back partial or complete results, and is deleted on exit. This mode
+all system checks, copies back partial or complete results, and is deleted on exit. This mode
 refuses to run unless `PODLIST_UI_VM` is set. Inside the guest only, it installs
 `/Applications/PodList UI Check.app` with the fixed identity `app.podlist.uitour.system`,
 registers it with `lsregister -f`, and launches it for a 30-second indexing warmup.
@@ -490,6 +480,12 @@ No sign-in, Shortcuts action execution, or owner Library is involved.
   It records the four App Shortcuts' short titles when shown; if this search exposes any,
   it requires all four. No action is added or run. It closes the blank editor, chooses
   Discard/Don't Save if prompted, and quits Shortcuts without issuing Save.
+- `testLibraryLinksAndSpotlight` queries Core Spotlight for the known fixture Episode
+  “Who sets the price of rice?”, retaining its indexed identifier and title. It closes
+  Library, opens the resulting `podlist://episode/<id>` using `NSWorkspace`, asserts
+  a reopened Library selects that Episode in the Inspector without starting playback,
+  and checks a removed Episode link presents a clear message. Indexing gets its own
+  bounded three-minute wait, outside `testLight`/`testDark`.
 - `testMCPWindowLifecycle` launches PodList with `-PodList.mcpEnabled YES` and publishes
   a fresh exchange directory in the runner's own temporary directory through flushed
   stdout (also retained as an attachment). The guest script launches
@@ -512,14 +508,14 @@ No sign-in, Shortcuts action execution, or owner Library is involved.
   remove its socket and close the original bridge connection. Socket ownership and
   0600/0700 permissions are checked too.
 
-`Shortcuts.xcresult` and `MCP.xcresult` retain `.keepAlways` screenshots, UI trees,
+`Shortcuts.xcresult`, `Integration.xcresult` and `MCP.xcresult` retain `.keepAlways` screenshots, UI trees,
 found action names, and the runner exchange path. Exported attachments are in
-`Shortcuts-attachments/` and `MCP-attachments/`. `system-results/` contains the
+`Shortcuts-attachments/`, `Integration-attachments/` and `MCP-attachments/`. `system-results/` contains the
 source-derived catalog, `mcp-transcript.jsonl`, `mcp-summary.json`, client log, bridge
 stderr, MCP test log and app registration/warmup logs. Guest diagnostics include
 `appintentsd` and LaunchServices (`lsd`). `README.md` reports passed/incomplete;
-build, demo, test and guest logs survive failures. Both independent tests run even if
-the first fails. The ordinary tour selects
+build, demo, test and guest logs survive failures. All independent system tests run even if
+an earlier test fails. The ordinary tour selects
 only `PodListUITour`, so it never opens Shortcuts or enables MCP.
 
 For a focused run **inside an already staged disposable guest**, while its demo server
@@ -609,3 +605,30 @@ swift test --scratch-path .build --disable-sandbox
 The main-session foreground run is still needed to validate the UI locators,
 menu hierarchy, window/sheet screenshots, export manifest and short armed-state
 timing. Do not run the UI tests in a screenless agent sandbox.
+
+### Library app links, Spotlight and Services
+
+Copy PodList Link is available in Episode, Playlist and Views menus and item context
+menus. Publisher Share/Copy Link commands keep their public web URLs. App routes are
+`podlist://episode/<id>`, `podlist://playlist/<id>`, `podlist://view/<id>` and
+`podlist://podcast/<feed-url-encoded>` (encode the entire feed URL as one path component).
+Opening one navigates the most recently used Library window, reopening Library if needed,
+without starting playback. Removed items and links for another Library show a message.
+Finder `.opml` documents still stage the existing import preview.
+
+The Add to PodList Service accepts one selected HTTP(S) feed address without credentials,
+opens Add Podcasts and stages its input. It never subscribes automatically. Invalid
+selections return a Service error. The same validation is used for staged feed addresses.
+
+Core Spotlight indexes Library Episodes (including retained Orphaned Episodes), active
+Subscriptions and Playlists, with stable app links, titles, podcast names, Published dates
+where applicable and keywords. Snapshot updates replace changed metadata and remove stale
+items; disconnect and Library replacement clear the app’s Library index. Episode and
+Playlist entries associate the existing App Intents entities; Subscriptions have a matching
+entity and all three have browsing-only Open intents.
+
+`ActionDonations.spotlightIsEnabled` allows writes in release builds and identities under
+`app.podlist.uitour.`. Ordinary DEBUG `app.podlist.mac` builds never obtain a writable index.
+Intent donations remain release-only and disabled for tour identities/data-directory signals.
+Run runtime checks only with `PODLIST_UI_VM=podlist-ui scripts/ui-tour.sh --system-checks <empty-outdir>`
+from `apps/apple`; the VM clone is discarded. Building does not launch or register the host app.

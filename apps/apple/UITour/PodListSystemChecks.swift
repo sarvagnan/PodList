@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CoreSpotlight
 import XCTest
 import XCUIAutomation
 
@@ -11,6 +12,7 @@ final class PodListSystemChecks: XCTestCase {
     private let bundle = URL(fileURLWithPath: "/Applications/PodList UI Check.app")
     private var identity = ""
     private var exchange: URL!
+    private var spotlightQuery: CSSearchQuery?
     private var library: XCUIElement {
         app.windows.containing(.any, identifier: "sidebar.Subscriptions").firstMatch
     }
@@ -124,6 +126,65 @@ final class PodListSystemChecks: XCTestCase {
         if !foundShortcuts.isEmpty {
             XCTAssertEqual(foundShortcuts, Set(catalog.shortcuts), "Partial App Shortcuts catalog")
         }
+    }
+
+    /// Independent from the visual tour: indexing can take longer than a visual step.
+    func testLibraryLinksAndSpotlight() async throws {
+        try launch(mcp: false)
+        defer { spotlightQuery?.cancel(); app.terminate() }
+        let deadline = Date().addingTimeInterval(180)
+        var matches: [SpotlightMatch] = []
+        while Date() < deadline {
+            matches = try await findFixtureEpisode()
+            if matches.contains(where: { $0.id.hasPrefix("podlist://episode/") }) { break }
+            try await Task.sleep(for: .seconds(2))
+        }
+        attach(matches.map { "\($0.id) · \($0.title)" }.joined(separator: "\n"), name: "spotlight-query-results.txt")
+        let match = try XCTUnwrap(matches.first { $0.id.hasPrefix("podlist://episode/") }, "Spotlight must find the indexed fixture Episode")
+        XCTAssertEqual(match.title, "Who sets the price of rice?")
+        let url = try XCTUnwrap(URL(string: match.id))
+        // Close every Library first so the URL must open a new Library window.
+        library.buttons[XCUIIdentifierCloseWindow].click()
+        XCTAssertTrue(library.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(NSWorkspace.shared.open(url))
+        XCTAssertTrue(library.waitForExistence(timeout: 30))
+        let inspector = library.descendants(matching: .any).matching(NSPredicate(format: "label == 'Episode Inspector'")).firstMatch
+        XCTAssertTrue(inspector.waitForExistence(timeout: 20))
+        XCTAssertTrue(inspector.staticTexts["Who sets the price of rice?"].waitForExistence(timeout: 20), "App link must select the fixture Episode")
+        XCTAssertFalse(library.buttons["Pause"].exists, "Opening a link must not start playback")
+        capture(library, name: "app-link-episode")
+        XCTAssertTrue(NSWorkspace.shared.open(try XCTUnwrap(URL(string: "podlist://episode/removed-system-check"))))
+        XCTAssertTrue(app.staticTexts["Cannot Open PodList Link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["This Episode is no longer in this Library. It may have been removed or belong to another Library."].exists)
+        capture(app, name: "app-link-unavailable")
+    }
+
+    private struct SpotlightMatch: Sendable { let id: String; let title: String }
+    private final class SpotlightMatches: @unchecked Sendable {
+        private let lock = NSLock()
+        private var items: [SpotlightMatch] = []
+        func append(_ batch: [CSSearchableItem]) {
+            lock.lock(); defer { lock.unlock() }
+            items += batch.map { SpotlightMatch(id: $0.uniqueIdentifier, title: $0.attributeSet.title ?? "") }
+        }
+        func read() -> [SpotlightMatch] { lock.lock(); defer { lock.unlock() }; return items }
+    }
+    private func findFixtureEpisode() async throws -> [SpotlightMatch] {
+        let context = CSSearchQueryContext()
+        context.fetchAttributes = ["title", "contentURL"]
+        let query = CSSearchQuery(queryString: "title == \"Who sets the price of rice?\"", queryContext: context)
+        spotlightQuery = query
+        let matches = SpotlightMatches()
+        query.foundItemsHandler = { matches.append($0) }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            query.completionHandler = { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            }
+            query.start()
+        }
+        spotlightQuery = nil
+        return matches.read()
     }
 
     func testMCPWindowLifecycle() throws {

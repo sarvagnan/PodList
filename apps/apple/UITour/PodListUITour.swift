@@ -19,6 +19,9 @@ final class PodListUITour: XCTestCase {
         appearance = style.lowercased()
         let env = ProcessInfo.processInfo.environment
         let runDirectory = try XCTUnwrap(env["PODLIST_UI_RUN_DIRECTORY"])
+        guard FileManager.default.fileExists(atPath: URL(fileURLWithPath: runDirectory).appendingPathComponent("uitour-vm").path) else {
+            throw NSError(domain: "PodListUITour", code: 3, userInfo: [NSLocalizedDescriptionKey: "UI tours require a throwaway VM; use PODLIST_UI_VM with ui-tour.sh"])
+        }
         let origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
         let bundleURL = URL(fileURLWithPath: runDirectory).appendingPathComponent(appearance + "/PodList.app")
         let info = try NSDictionary(contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist"), error: ())
