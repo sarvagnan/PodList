@@ -35,7 +35,7 @@ struct ViewEditorScreen: SwiftUI.View {
     private var count: Int { library.viewEpisodes(draft).count }
     var body: some SwiftUI.View {
         PodListSheet(title: creating ? "New View" : "Edit View", width: 600,
-                     actionTitle: creating ? "Create View" : "Save", actionEnabled: canFinish,
+                     actionTitle: creating ? "Create View" : "Save", actionEnabled: canFinish, floating: true,
                      cancelEnabled: !saving,
                      cancel: cancel, action: finish) {
             Text(CountText.format(count, .matchingEpisode)).monospacedDigit()
@@ -50,12 +50,14 @@ struct ViewEditorScreen: SwiftUI.View {
                     validation(creating ? nameValidation.message(nameProblem) : nameProblem)
                 }
                 Section {
-                    Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
-                        guard mode != publishedMode else { return }
-                        editor.clearDraft(daysField)
-                        update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
-                    })) {
-                        Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
+                    PodListSheetField("Published") {
+                        Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
+                            guard mode != publishedMode else { return }
+                            editor.clearDraft(daysField)
+                            update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
+                        })) {
+                            Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
+                        }.labelsHidden().frame(maxWidth: .infinity)
                     }
                     if publishedMode == "days" {
                         PodListSheetField("Last Days") {
@@ -77,8 +79,10 @@ struct ViewEditorScreen: SwiftUI.View {
                         DatePicker("Through", selection: $to, displayedComponents: .date).onChange(of: to) { _, _ in updateDates() }
                     }
                     if publishedMode != "days" { validation(fieldProblems[.published]) }
-                    Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
-                        Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
+                    PodListSheetField("Podcasts") {
+                        Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
+                            Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
+                        }.labelsHidden().frame(maxWidth: .infinity)
                     }
                     if draft.filter.podcasts != nil {
                         ForEach(library.snapshot.subscriptions, id: \.id) { sub in
@@ -92,14 +96,20 @@ struct ViewEditorScreen: SwiftUI.View {
                         TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
                             .labelsHidden().textFieldStyle(.roundedBorder)
                     }
-                    Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
-                        Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
+                    PodListSheetField("Played") {
+                        Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
+                            Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
+                        }.labelsHidden().frame(maxWidth: .infinity)
                     }
-                    Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
-                        Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
+                    PodListSheetField("Starred") {
+                        Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
+                            Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
+                        }.labelsHidden().frame(maxWidth: .infinity)
                     }
-                    Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
-                        Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
+                    PodListSheetField("In a Playlist") {
+                        Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
+                            Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
+                        }.labelsHidden().frame(maxWidth: .infinity)
                     }
                     optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
                     optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
@@ -107,9 +117,11 @@ struct ViewEditorScreen: SwiftUI.View {
                     PodListSheetSectionHeading("All Conditions Must Match")
                 }
                 Section {
-                    Picker("Sort", selection: value(\.sort)) {
-                        Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
-                        Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
+                    PodListSheetField("Sort") {
+                        Picker("Sort", selection: value(\.sort)) {
+                            Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
+                            Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
+                        }.labelsHidden().frame(maxWidth: .infinity)
                     }
                     LabeledContent("Episodes to Show (Optional)") {
                         VStack(alignment: .leading, spacing: 4) {
@@ -184,7 +196,7 @@ struct ViewEditorScreen: SwiftUI.View {
         return editor.hasDraft(key) ? editor.draft(key) : draft[keyPath: path].map { FormNumbers.string($0 / 60, locale: locale) } ?? ""
     }
     private func optionalNumber(_ label: String, field: ViewEdits.Field, path: WritableKeyPath<PodListDomain.View, Double?>) -> some SwiftUI.View {
-        LabeledContent("\(label) (Optional)") {
+        LabeledContent("\(label.replacingOccurrences(of: "length", with: "Length")) (Optional)") {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     TextField(label, text: Binding(get: { numberDraft(label, path: path) }, set: { text in

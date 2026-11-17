@@ -35,14 +35,12 @@ struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.
                 header(max(48, (viewport.size.height - 36) * 0.25))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 18)
                 GeometryReader { table in
                     episodes().frame(width: table.size.width, height: table.size.height)
                 }
-                // The inset table draws its columns about 10 pt inside its frame;
-                // extend it so column titles share the header's leading edge.
-                .padding(.horizontal, -10)
             }
-            .padding(18)
+            .padding(.vertical, 18)
             .frame(width: viewport.size.width, height: viewport.size.height, alignment: .topLeading)
         }
     }
@@ -90,7 +88,7 @@ struct PodcastPageScreen: SwiftUI.View {
     @State private var descriptionTruncated = false
     @State private var settings = false
     @State private var downloadRules = false
-    @State private var subscribedBounds = CGRect.zero
+    @FocusState private var unsubscribeFocused: Bool
     @State private var bringing = Set<String>()
     @State private var addPresentation = PlaylistPresentation()
     private func podcastEpisodeTitle(_ episode: PageEpisode) -> some SwiftUI.View {
@@ -98,7 +96,7 @@ struct PodcastPageScreen: SwiftUI.View {
             Text(episode.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
             Spacer()
             Button { bring(episode, play: false) } label: {
-                MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
+                MacIconLabel(title: "Add to a Playlist", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
                 .help("Add to a Playlist")
@@ -141,17 +139,18 @@ struct PodcastPageScreen: SwiftUI.View {
                         PodcastDescription(text: Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? ""),
                             expanded: $descriptionExpanded, truncated: $descriptionTruncated, maximumHeight: descriptionHeight, toggle: toggleDescription)
                         HStack {
-                            TimelineView(.periodic(from: .now, by: 0.25)) { context in
-                                Button {
-                                    if subscribed, !control.click(at: Date()) { return }
-                                    changeSubscription()
-                                } label: {
-                                    SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed(at: context.date))
-                                        .foregroundStyle(control.isArmed(at: context.date) ? Color.podListError : Color.primary)
-                                }.disabled(subscriptionBusy)
-                                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcastPage")) } action: { subscribedBounds = $0 }
-                                    .accessibilityHint(subscribed ? "Click twice within four seconds to Unsubscribe" : "Add this podcast to your Library")
-                            }
+                            Button {
+                                if subscribed, !control.click() { return }
+                                changeSubscription()
+                            } label: {
+                                SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed)
+                                    .foregroundStyle(control.isArmed ? Color.podListError : Color.primary)
+                            }.disabled(subscriptionBusy)
+                                .focused($unsubscribeFocused)
+                                .onHover { if !$0 { control.reset() } }
+                                .onChange(of: unsubscribeFocused) { _, focused in if !focused { control.reset() } }
+                                .background(UnsubscribeInteractionGuard(armed: control.isArmed, focused: unsubscribeFocused) { control.reset() })
+                                .accessibilityHint(subscribed ? "Click twice to Unsubscribe. Moving away cancels." : "Add this podcast to your Library")
                             if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
                                 ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
                                 Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
@@ -191,7 +190,7 @@ struct PodcastPageScreen: SwiftUI.View {
                         Table(of: PageEpisode.self, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                             TableColumn("Episode", value: \.title) { episode in
                                 podcastEpisodeTitle(episode)
-                            }.width(min: 240, ideal: 420)
+                            }
                             TableColumn("Published", value: \.published) { episode in
                                 Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
                             }.width(min: 95, ideal: 110, max: 150)
@@ -204,7 +203,9 @@ struct PodcastPageScreen: SwiftUI.View {
                             ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                         }
                         .tableStyle(.inset)
-                        .contentMargins(.horizontal, 0, for: .scrollContent)
+                        // Recreate native auto-sized columns after the description changes
+                        // the viewport; AppKit otherwise retains scrollbar-compressed widths.
+                        .id(descriptionExpanded)
                     }
                 }
                 .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },
@@ -234,7 +235,6 @@ struct PodcastPageScreen: SwiftUI.View {
         .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { episode in { inspect(episode) } })
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
-        .simultaneousGesture(SpatialTapGesture().onEnded { if !subscribedBounds.contains($0.location) { control.reset() } })
         .task(id: feedURL) { control.reset(); await read() }
         .onChange(of: search) { _, text in control.reset(); editor.setDraft(text, field: "podcast.\(feedURL).search") }
         .onChange(of: episodes.map(\.id), initial: true) { _, ids in
@@ -413,7 +413,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                         Text("Default (30 seconds)").tag(nil as Double?)
                         ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
                         if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
-                    }.labelsHidden()
+                    }.labelsHidden().frame(maxWidth: .infinity)
                 }
                 Button("Mark All Played") { markAllPlayed?() }.disabled(markAllPlayed == nil)
                 Text("Mark All Played takes effect immediately and can be undone.")
@@ -428,7 +428,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 PodListSheetField("Volume Boost") {
                     Picker("Volume Boost", selection: value(\.overrides.volumeBoost)) {
                         Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
-                    }.labelsHidden()
+                    }.labelsHidden().frame(maxWidth: .infinity)
                 }
             }
         }.disabled(saving)
@@ -440,7 +440,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 Text("Default").tag(nil as Double?)
                 ForEach(choices, id: \.self) { Text(seconds ? CountText.seconds($0) : $0.formatted()).tag(Optional($0)) }
                 if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(seconds ? CountText.seconds(current) : current.formatted()).tag(Optional(current)) }
-            }.labelsHidden()
+            }.labelsHidden().frame(maxWidth: .infinity)
         }
     }
     private func value<T>(_ path: WritableKeyPath<SubscriptionSettingsDraft, T>) -> Binding<T> {
@@ -466,7 +466,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
 }
 
 /// Reserve the widest native label at the current font size, including its icon.
-/// Arming and automatic disarming must not move the neighbouring actions.
+/// Arming and disarming must not move the neighbouring actions.
 struct SubscriptionButtonLabel: SwiftUI.View {
     let subscribed: Bool
     let armed: Bool

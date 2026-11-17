@@ -128,6 +128,21 @@ enum MacAccentContrast {
         return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
 
+    static func isBrandSelection(_ accent: Color.Resolved) -> Bool {
+        let variants: [(Float, Float, Float)] = [(43, 80, 200), (54, 82, 208), (25, 58, 155), (43, 67, 186)]
+        return accent.opacity == 1 && variants.contains { red, green, blue in
+            abs(accent.red - red / 255) < 0.002 && abs(accent.green - green / 255) < 0.002 && abs(accent.blue - blue / 255) < 0.002
+        }
+    }
+
+    static func readableAccent(isMulticolor: Bool, scheme: ColorScheme, contrast: ColorSchemeContrast) -> Color {
+        guard isMulticolor else { return .accentColor }
+        let appearance: NSAppearance.Name = scheme == .dark
+            ? (contrast == .increased ? .accessibilityHighContrastDarkAqua : .darkAqua)
+            : (contrast == .increased ? .accessibilityHighContrastAqua : .aqua)
+        return Color(nsColor: MacBrandPalette.color(for: appearance))
+    }
+
     static func needsPrimary(_ accent: Color.Resolved, on surfaces: [Color.Resolved]) -> Bool {
         accent.opacity < 1 || surfaces.contains { ratio(accent, $0) < 4.5 }
     }
@@ -136,9 +151,13 @@ enum MacAccentContrast {
 struct MacAccentForegroundStyle: ShapeStyle {
     func resolve(in environment: EnvironmentValues) -> AnyShapeStyle {
         let surfaces: [NSColor] = [.windowBackgroundColor, .underPageBackgroundColor, .unemphasizedSelectedContentBackgroundColor]
-        let needsPrimary = MacAccentContrast.needsPrimary(Color.accentColor.resolve(in: environment),
+        let usesBrand = UserDefaults.standard.object(forKey: "AppleAccentColor") == nil
+            && MacAccentContrast.isBrandSelection(Color.accentColor.resolve(in: environment))
+        let accent = MacAccentContrast.readableAccent(isMulticolor: usesBrand,
+                                                      scheme: environment.colorScheme, contrast: environment.colorSchemeContrast)
+        let needsPrimary = MacAccentContrast.needsPrimary(accent.resolve(in: environment),
             on: surfaces.map { Color(nsColor: $0).resolve(in: environment) })
-        return needsPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.accentColor)
+        return needsPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(accent)
     }
 }
 

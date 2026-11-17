@@ -409,7 +409,10 @@ private var multicolorSelectionColors: [NSColor] {
             var minimum = Double.infinity
             var fallbackCount = 0
             for accent in accents {
-                let resolved = RGB(accent, over: RGB(0))
+                let color = Color(nsColor: accent).resolve(in: EnvironmentValues())
+                let usesBrand = UserDefaults.standard.object(forKey: "AppleAccentColor") == nil && MacAccentContrast.isBrandSelection(color)
+                let foreground = usesBrand ? Color(nsColor: MacBrandPalette.color(for: name)) : Color(nsColor: accent)
+                let resolved = usesBrand ? RGB(MacBrandPalette.color(for: name), over: RGB(0)) : RGB(accent, over: RGB(0))
                 let fallback = surfaces.contains { resolved.contrast(RGB($0, over: RGB(0))) < 4.5 }
                 if fallback { fallbackCount += 1 }
                 for prominence in [BackgroundProminence.standard, .increased] {
@@ -425,7 +428,7 @@ private var multicolorSelectionColors: [NSColor] {
                     let actual = render(AnyShapeStyle(MacRowAccentStyle()))
                     #expect(actual != nil)
                     #expect(actual == render(primary
-                        ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.accentColor)))
+                        ? AnyShapeStyle(.primary) : AnyShapeStyle(foreground)))
                 }
                 for surface in surfaces {
                     let background = RGB(surface, over: RGB(0))
@@ -543,5 +546,31 @@ private var multicolorSelectionColors: [NSColor] {
                              (.accessibilityHighContrastDarkAqua, [0x222B38, 0x282828])] {
         for surface in surfaces { #expect(RGB(MacSecondaryPalette.color(for: name), over: RGB(surface)).contrast(RGB(surface)) >= 4.5) }
     }
+}
+#endif
+
+#if os(macOS)
+@MainActor @Test func multicolorForegroundUsesReadingPaletteAndLeavesSelectionPaletteDeep() throws {
+    for (scheme, contrast, appearance, expected) in [
+        (ColorScheme.light, ColorSchemeContrast.standard, NSAppearance.Name.aqua, 0x2B50C8),
+        (.dark, .standard, .darkAqua, 0x9DB1FF),
+        (.light, .increased, .accessibilityHighContrastAqua, 0x193A9B),
+        (.dark, .increased, .accessibilityHighContrastDarkAqua, 0xB2C1FF)
+    ] {
+        try withDrawingAppearance(appearance) {
+            var environment = EnvironmentValues()
+            environment.colorScheme = scheme
+            let resolved = MacAccentContrast.readableAccent(isMulticolor: true, scheme: scheme, contrast: contrast).resolve(in: environment)
+            let actual = RGB(NSColor(srgbRed: CGFloat(resolved.red), green: CGFloat(resolved.green), blue: CGFloat(resolved.blue), alpha: 1), over: RGB(0))
+            #expect(actual.isClose(to: RGB(expected)))
+            for surface: NSColor in [.windowBackgroundColor, .underPageBackgroundColor, .unemphasizedSelectedContentBackgroundColor] {
+                #expect(MacAccentContrast.ratio(resolved, Color(nsColor: surface).resolve(in: environment)) >= 4.5)
+            }
+            let system = MacAccentContrast.readableAccent(isMulticolor: false, scheme: scheme, contrast: contrast).resolve(in: environment)
+            #expect(system == Color.accentColor.resolve(in: environment))
+        }
+    }
+    #expect(RGB(0x3652D0).contrast(RGB(0xFFFFFF)) >= 4.5)
+    #expect(multicolorSelectionVariants["true-false"] == 0x3652D0)
 }
 #endif

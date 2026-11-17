@@ -43,7 +43,7 @@ final class PodListUITour: XCTestCase {
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
-                               "-PodList.mcpEnabled", "NO", "-PodList.uiTestUnsubscribeArmSeconds", "15", "-PodList.inspectorVisible", "YES",
+                               "-PodList.mcpEnabled", "NO", "-PodList.inspectorVisible", "YES",
                                "-AppleKeyboardUIMode", "3",
                                "-ApplePersistenceIgnoreState", "YES"]
         defer {
@@ -174,7 +174,7 @@ final class PodListUITour: XCTestCase {
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute edited").firstMatch)
         app.typeKey("z", modifierFlags: .command)
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute").firstMatch)
-        try ready(library.buttons["Redo Playlist Settings"])
+        try ready(library.buttons["Redo Settings for Commute"])
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
         // Use the documented File command to create a Playlist.
@@ -240,7 +240,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.sheets.staticTexts["Enter a View name."].exists)
         XCTAssertFalse(library.sheets.buttons["Create View"].isEnabled)
         XCTAssertFalse(library.sheets.buttons["Done"].exists)
-        for label in ["Mentions (Optional)", "Minimum length (Optional)", "Maximum length (Optional)", "Episodes to Show (Optional)"] {
+        for label in ["Mentions (Optional)", "Minimum Length (Optional)", "Maximum Length (Optional)", "Episodes to Show (Optional)"] {
             XCTAssertTrue(library.sheets.staticTexts[label].exists)
         }
         try capture("17-new-view", expectsSheet: true)
@@ -259,6 +259,7 @@ final class PodListUITour: XCTestCase {
         let episodeHeading = episodeList.buttons["Episode"].firstMatch
         let episodeCount = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
         XCTAssertEqual(episodeHeading.frame.minX, episodeCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
+        let collapsedPublished = episodeList.buttons["Published"].firstMatch.frame
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
@@ -272,18 +273,19 @@ final class PodListUITour: XCTestCase {
         let showLess = button("Show less")
         try click(showLess)
         try ready(button("Show description"))
+        let restoredColumns = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            abs(episodeList.buttons["Published"].firstMatch.frame.minX - collapsedPublished.minX) <= 1
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [restoredColumns], timeout: 3), .completed, "Show Less must restore the Podcast table columns")
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
-        let armedAt = Date()
-        // Never click Unsubscribe. The arm (held for 15 s in tour builds, 4 s otherwise)
-        // expires naturally.
+        // Keep the pointer on the control while capturing, then disarm by moving away.
         try ready(library.buttons["Unsubscribe"], timeout: 3)
         XCTAssertEqual(library.buttons["Unsubscribe"].frame, subscriptionFrame)
         XCTAssertEqual(library.buttons["Share Podcast"].frame, shareFrame)
         try capture("20-unsubscribe-armed")
-        let remaining = 17 - Date().timeIntervalSince(armedAt)
-        if remaining > 0 { Thread.sleep(forTimeInterval: remaining) }
+        library.buttons["Share Podcast"].hover()
         try ready(library.buttons["Subscribed"])
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
         XCTAssertEqual(library.buttons["Subscribed"].frame, subscriptionFrame)
@@ -654,7 +656,7 @@ final class PodListUITour: XCTestCase {
         // Capturing the armed state must not silently turn into a disarmed-state image.
         if name == "20-unsubscribe-armed" {
             XCTAssertTrue(target.buttons["Unsubscribe"].exists,
-                          "Capture outlasted the armed state; raise -PodList.uiTestUnsubscribeArmSeconds")
+                          "Pointer or focus left the armed Unsubscribe control")
         }
     }
 

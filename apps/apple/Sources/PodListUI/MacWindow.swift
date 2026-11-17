@@ -101,7 +101,9 @@ public struct PodListWindow: SwiftUI.View {
                                     Image(systemName: "speaker.wave.2.fill")
                                         .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist").help("Active Playlist")
                                 }
-                                Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
+                                if item.destination != .search {
+                                    Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
+                                }
                             }
                             .contentShape(Rectangle())
                             .tag(item.destination)
@@ -117,7 +119,7 @@ public struct PodListWindow: SwiftUI.View {
                             .modifier(PlaylistEpisodeDropTarget(destination: item.destination, editor: app.libraryEditing, window: window, showingEntries: playlistPresentation.playlistTab == .entries))
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("sidebar.\(item.name)")
-                            .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
+                            .accessibilityLabel("\(item.name)\(item.destination == .search ? "" : ", \(item.count)")\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
                     } header: { MacSidebarSectionHeader(section.name) }
                 }
@@ -165,7 +167,7 @@ public struct PodListWindow: SwiftUI.View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .macContentFont(.body)
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
-            .navigationSubtitle(isPodcastPage ? "Podcast page" : summary(library))
+            .navigationSubtitle(isPodcastPage ? "" : summary(library))
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     if isPodcastPage {
@@ -577,7 +579,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             if let editing = app.editing {
                 Button { playlistPresentation.sheet = .add([row.id], false) } label: {
-                    MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
+                    MacIconLabel(title: "Add to a Playlist", systemImage: "text.line.last.and.arrowtriangle.forward")
                 }
                     .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
                     .help("Add to a Playlist")

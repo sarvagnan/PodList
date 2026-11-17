@@ -196,8 +196,9 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         guard canSave, var draft else { return }
         draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let changes = draft.changes
+        let objectName = playlist?.name ?? draft.name
         Task {
-            let saved = changes.isEmpty ? true : await editing.edit(changes, name: "Playlist Settings")
+            let saved = changes.isEmpty ? true : await editing.edit(changes, name: "Settings for \(objectName)")
             if saved { editing.drafts.discardPlaylistSettings(id); done() }
         }
     }

@@ -151,7 +151,7 @@ struct EpisodeActionButtons: ToolbarContent {
                     .accessibilityLabel(playsPlaylist ? "Play This Playlist" : labels.play)
                     .help(playsPlaylist ? "Play this Playlist" : "Play selected Episodes now (\(PodListShortcut.playNow.notation))")
                     .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
-                Button("Add to a Playlist…", systemImage: "text.badge.plus") { presentation.sheet = .add(ids, false) }
+                Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") { presentation.sheet = .add(ids, false) }
                     .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
                 Menu("Episode Actions", systemImage: "ellipsis.circle") {
                     EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)

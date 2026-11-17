@@ -40,28 +40,15 @@ public enum ViewEdits {
     }
 }
 
-/// A clock-driven two-click control: other interactions explicitly reset it.
+/// Two activations of the same control; another interaction explicitly disarms it.
 public struct UnsubscribeControl: Sendable {
-    public private(set) var armedUntil: Date?
+    public private(set) var isArmed = false
     public init() {}
-    public func isArmed(at now: Date) -> Bool { armedUntil.map { now < $0 } ?? false }
-    public mutating func click(at now: Date) -> Bool {
-        if isArmed(at: now) { reset(); return true }
-        armedUntil = now.addingTimeInterval(Self.armDuration); return false
+    public mutating func click() -> Bool {
+        if isArmed { reset(); return true }
+        isArmed = true; return false
     }
-    public mutating func reset() { armedUntil = nil }
-
-    /// Four seconds. UI-test tours (disposable app.podlist.uitour.* builds only) can hold the
-    /// armed state longer, because a slow VM can take that long just to screenshot it.
-    static let armDuration: TimeInterval = {
-        #if DEBUG
-        if Bundle.main.bundleIdentifier?.hasPrefix("app.podlist.uitour.") == true {
-            let seconds = UserDefaults.standard.double(forKey: "PodList.uiTestUnsubscribeArmSeconds")
-            if seconds > 0 { return seconds }
-        }
-        #endif
-        return 4
-    }()
+    public mutating func reset() { isArmed = false }
 }
 
 @MainActor @Observable

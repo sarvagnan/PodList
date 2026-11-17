@@ -13,6 +13,7 @@ struct PlaylistContentView: SwiftUI.View {
     let openEpisode: () -> Void
     @Environment(\.macTextScale) private var textScale
     @State private var optionCopy = false
+    @State private var hoveredTimelineID: String?
     @State private var rewindTarget: TimelineEvent?
 
     var body: some SwiftUI.View {
@@ -181,11 +182,12 @@ struct PlaylistContentView: SwiftUI.View {
     private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))) }
-            if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
             VStack(alignment: .leading, spacing: 3) {
-                if row.isCursor { Text("Current Entry").macContentFont(.caption).foregroundStyle(MacRowAccentStyle()) }
                 Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-                Text(row.podcast).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id)))
+                HStack(spacing: 6) {
+                    Text(row.podcast).lineLimit(textScale > 1 ? nil : 1).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id)))
+                    if row.isCursor { Label("Current Entry", systemImage: "play.circle.fill").fixedSize().foregroundStyle(MacRowAccentStyle()) }
+                }.macContentFont(.caption)
             }
             Spacer(minLength: 4)
             Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
@@ -273,8 +275,16 @@ struct PlaylistContentView: SwiftUI.View {
                                 .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle())
                                 .accessibilityLabel("Rewind to \(date(event.moment))…")
                                 .help("Preview rewinding this Playlist to this moment")
+                                .opacity(hoveredTimelineID == event.id || window.timelineSelection == event.id ? 1 : 0)
+                                .allowsHitTesting(hoveredTimelineID == event.id || window.timelineSelection == event.id)
+                                .disabled(hoveredTimelineID != event.id && window.timelineSelection != event.id)
+                                .accessibilityHidden(hoveredTimelineID != event.id && window.timelineSelection != event.id)
                         }
                     }.padding(.vertical, 4)
+                    .onHover { hovering in
+                        if hovering { hoveredTimelineID = event.id }
+                        else if hoveredTimelineID == event.id { hoveredTimelineID = nil }
+                    }
                     .macRowActions(isSelected: window.timelineSelection == event.id)
                     .accessibilityElement(children: .contain)
                     .accessibilityActions {
