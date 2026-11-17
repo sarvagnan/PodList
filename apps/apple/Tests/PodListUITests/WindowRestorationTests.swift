@@ -249,7 +249,8 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(recorded.isEmpty)
     // Offscreen AppKit layout tests share the main actor. Wait for delivery rather
     // than assuming the recorder's task started before a fixed wall-clock sleep.
-    let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+    // The full suite can keep the main actor busy for well over 10 s.
+    let deadline = ContinuousClock.now.advanced(by: .seconds(60))
     while recorded.isEmpty && ContinuousClock.now < deadline {
         try await Task.sleep(for: .milliseconds(10))
     }
