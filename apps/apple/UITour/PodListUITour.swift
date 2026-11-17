@@ -537,7 +537,12 @@ final class PodListUITour: XCTestCase {
         let buttons = descendants(titleCell).filter { $0.elementType == .button }
         XCTAssertEqual(buttons.count, 2, "Check both Add and Play row controls", file: file, line: line)
         let title = try XCTUnwrap(descendants(titleCell).first { $0.elementType == .staticText }, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(title.frame.width, 120, "Episode title text must remain readable", file: file, line: line)
+        // Titles wrap, so the text frame is only as wide as its longest line; measure the cell.
+        XCTAssertGreaterThanOrEqual(titleCell.frame.width, 180, "The Episode column must keep room for titles", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(title.frame.width, 80, "Episode title text must remain readable", file: file, line: line)
+        for button in buttons {
+            XCTAssertFalse(button.frame.intersects(title.frame), "Row control overlaps the Episode title", file: file, line: line)
+        }
         // Published can give way at narrow widths. If shown, test its actual text
         // frames; also reject overlaps with any other metadata that remains visible.
         let metadata = cells.dropFirst().flatMap { descendants($0) }.filter { $0.elementType == .staticText }
