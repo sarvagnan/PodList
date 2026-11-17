@@ -30,8 +30,28 @@ reset_show_borders=false
 set_show_borders() {
     /usr/bin/defaults write com.apple.Accessibility ButtonShapesEnabled -bool "$1"
 }
+# pod-apx.5.89: a rare hang leaves XCUITest retrying a UI query for about a minute.
+# Sample PodList while it retries so the next occurrence leaves a main-thread stack.
+watcher=""
+test_output="$run/xcodebuild-guest.log"
+: > "$test_output"
+watch_for_hangs() {
+    local seen=0 count
+    while sleep 5; do
+        count="$(grep -c -E '\(retry 1\)|Timed out while evaluating|did not respond' "$test_output" 2>/dev/null || true)"
+        [ "${count:-0}" -gt "$seen" ] || continue
+        seen="$count"
+        mkdir -p "$shared/run/guest-diagnostics"
+        /usr/bin/sample PodListMac 10 -file "$shared/run/guest-diagnostics/hang-sample-$(date +%H%M%S).txt" > /dev/null 2>&1 || true
+    done
+}
+run_tests() {
+    # pipefail makes a failed xcodebuild the pipeline's status; record it and go on.
+    xcodebuild test-without-building "$@" 2>&1 | tee -a "$test_output" || result=$?
+}
 finish() {
     local status=$?
+    if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
     if [ "$reset_show_borders" = true ]; then set_show_borders false || status=$?; fi
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
@@ -72,22 +92,24 @@ xctestruns=(*.xctestrun)
 xctestrun="${xctestruns[0]}"
 /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
 if [ "$mode" = tour ]; then
+    watch_for_hangs &
+    watcher=$!
     set_show_borders false
-    xcodebuild test-without-building -xctestrun "$xctestrun" \
+    run_tests -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListUITour/testLight \
         -only-testing:PodListUITour/PodListUITour/testDark \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 1100 \
-        -maximum-test-execution-time-allowance 1400 -resultBundlePath "$run/Tour.xcresult" || result=$?
+        -maximum-test-execution-time-allowance 1400 -resultBundlePath "$run/Tour.xcresult"
     # Launch a fresh test runner after changing the display preference.
     reset_show_borders=true
     set_show_borders true
-    xcodebuild test-without-building -xctestrun "$xctestrun" \
+    run_tests -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListUITour/testBordersLight \
         -only-testing:PodListUITour/PodListUITour/testBordersDark \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
-        -maximum-test-execution-time-allowance 420 -resultBundlePath "$run/ShowBorders.xcresult" || result=$?
+        -maximum-test-execution-time-allowance 420 -resultBundlePath "$run/ShowBorders.xcresult"
 else
     touch "$run/system-vm"
     # This script is invoked only by tart exec in a throwaway clone. Installation,
