@@ -221,6 +221,9 @@ public struct PodListWindow: SwiftUI.View {
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions)
+        .focusedSceneValue(\.podListEpisodeNotes, EpisodeNotesAction.action(ids: window.selection.count == 1 ? selectedIDs(library) : []) {
+            openWindow(id: "episode-notes", value: $0)
+        })
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library), selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
@@ -522,22 +525,31 @@ public struct PodListWindow: SwiftUI.View {
                             } header: { MacReadingSortControl(sort: Binding(get: { window.sortOrder.compactMap(WindowSort.init) }, set: { window.sortOrder = $0.map(\.comparator) })) }
                         }
                     } else {
-                        Table(of: EpisodeRow.self, selection: $window.selection, sortOrder: $window.sortOrder) {
-                            TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }
-                            TableColumn("Published", value: \.published) { row in
-                                if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
-                                else { Text("—") }
-                            }.width(min: 95, ideal: 110, max: 150)
-                            TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                            TableColumn("State", value: \.stateText) { row in
-                                Text(row.stateText).fixedSize(horizontal: false, vertical: true)
-                            }.width(min: 140, ideal: 150, max: 200)
-                        } rows: {
-                            ForEach(rows) { row in
-                                TableRow(row).draggable(episodeDragPayload(row.id, rows: rows, library: library))
+                        GeometryReader { geometry in
+                            let layout = EpisodeTableLayout(width: geometry.size.width)
+                            Table(of: EpisodeRow.self, selection: $window.selection, sortOrder: $window.sortOrder) {
+                                TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                                if layout.showsDateOrPosition {
+                                    TableColumn("Published", value: \.published) { row in
+                                        if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
+                                        else { Text("—") }
+                                    }.width(min: 95, ideal: 110, max: 150)
+                                }
+                                if layout.showsLength {
+                                    TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                                }
+                                if layout.showsState {
+                                    TableColumn("State", value: \.stateText) { row in
+                                        Text(row.stateText).fixedSize(horizontal: false, vertical: true)
+                                    }.width(min: 140, ideal: 150, max: 200)
+                                }
+                            } rows: {
+                                ForEach(rows) { row in
+                                    TableRow(row).draggable(episodeDragPayload(row.id, rows: rows, library: library))
+                                }
                             }
+                            .tableStyle(.inset)
                         }
-                        .tableStyle(.inset)
                     }
                 }
                 .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) },

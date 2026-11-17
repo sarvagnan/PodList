@@ -187,25 +187,34 @@ struct PodcastPageScreen: SwiftUI.View {
                             } header: { MacReadingSortControl(sort: $savedSort) }
                         }
                     } else {
-                        Table(of: PageEpisode.self, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
-                            TableColumn("Episode", value: \.title) { episode in
-                                podcastEpisodeTitle(episode)
+                        GeometryReader { geometry in
+                            let layout = EpisodeTableLayout(width: geometry.size.width)
+                            Table(of: PageEpisode.self, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
+                                TableColumn("Episode", value: \.title) { episode in
+                                    podcastEpisodeTitle(episode)
+                                }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                                if layout.showsDateOrPosition {
+                                    TableColumn("Published", value: \.published) { episode in
+                                        Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
+                                    }.width(min: 95, ideal: 110, max: 150)
+                                }
+                                if layout.showsLength {
+                                    TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
+                                        .width(min: 60, ideal: 70, max: 100)
+                                }
+                                if layout.showsState {
+                                    TableColumn("State", value: \.stateText) { episode in
+                                        Text(episode.stateText).fixedSize(horizontal: false, vertical: true)
+                                    }.width(min: 140, ideal: 150, max: 200)
+                                }
+                            } rows: {
+                                ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                             }
-                            TableColumn("Published", value: \.published) { episode in
-                                Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
-                            }.width(min: 95, ideal: 110, max: 150)
-                            TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
-                                .width(min: 60, ideal: 70, max: 100)
-                            TableColumn("State", value: \.stateText) { episode in
-                                Text(episode.stateText).fixedSize(horizontal: false, vertical: true)
-                            }.width(min: 140, ideal: 150, max: 200)
-                        } rows: {
-                            ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
+                            .tableStyle(.inset)
+                            // Recreate native auto-sized columns after the description changes
+                            // the viewport; AppKit otherwise retains scrollbar-compressed widths.
+                            .id(descriptionExpanded)
                         }
-                        .tableStyle(.inset)
-                        // Recreate native auto-sized columns after the description changes
-                        // the viewport; AppKit otherwise retains scrollbar-compressed widths.
-                        .id(descriptionExpanded)
                     }
                 }
                 .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },

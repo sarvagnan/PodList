@@ -12,4 +12,16 @@ func selectionToolbarNamesAreDistinctAndMatchMenuState(allStarred: Bool) {
         #expect(Set(labels.names).count == 6)
     }
 }
+@Test
+func showNotesCommandRequiresExactlyOneSelectedEpisodeAndOpensThatEpisode() {
+    var opened: [String] = []
+    let open: (String) -> Void = { opened.append($0) }
+    #expect(EpisodeNotesAction.action(ids: [], open: open) == nil)
+    #expect(EpisodeNotesAction.action(ids: ["one", "two"], open: open) == nil)
+    let action = EpisodeNotesAction.action(ids: ["selected"], open: open)
+    #expect(action != nil)
+    #expect(opened.isEmpty)
+    action?()
+    #expect(opened == ["selected"])
+}
 #endif

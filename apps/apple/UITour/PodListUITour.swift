@@ -498,8 +498,10 @@ final class PodListUITour: XCTestCase {
         try navigate("Starred")
         try navigate("New this week")
         try ready(episodeRows.firstMatch)
+        try assertEpisodeTableLayout() // Exercise the Published-text overlap check before metadata gives way.
         try shrinkToMinimumSize(library)
         try capture("35-minimum-window")
+        try assertEpisodeTableLayout()
         // The list's vertical scroller reports 0 at the top; a row query would just return the next visible row.
         let list = episodeList.frame
         let scroller = library.scrollBars.matching(NSPredicate { candidate, _ in
@@ -520,6 +522,37 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertTrue(didScroll, "At the minimum window size the Episode list must overflow and scroll, so rows pass beneath the bars")
         try capture("36-scrolled-under-bars")
+    }
+
+    private func assertEpisodeTableLayout(file: StaticString = #filePath, line: UInt = #line) throws {
+        let heading = episodeList.buttons["Episode"].firstMatch
+        try ready(heading, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(heading.frame.width, 120, "Episode header must remain readable", file: file, line: line)
+        let row = try episodeRows.firstMatch.snapshot()
+        let cells = row.children.filter { $0.elementType == .cell }
+        let titleCell = try XCTUnwrap(cells.first, file: file, line: line)
+        func descendants(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+            [node] + node.children.flatMap { descendants($0) }
+        }
+        let buttons = descendants(titleCell).filter { $0.elementType == .button }
+        XCTAssertEqual(buttons.count, 2, "Check both Add and Play row controls", file: file, line: line)
+        let title = try XCTUnwrap(descendants(titleCell).first { $0.elementType == .staticText }, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(title.frame.width, 120, "Episode title text must remain readable", file: file, line: line)
+        // Published can give way at narrow widths. If shown, test its actual text
+        // frames; also reject overlaps with any other metadata that remains visible.
+        let metadata = cells.dropFirst().flatMap { descendants($0) }.filter { $0.elementType == .staticText }
+        if episodeList.buttons["Published"].firstMatch.exists {
+            XCTAssertFalse(metadata.isEmpty, "A shown Published column must expose its text", file: file, line: line)
+        } else {
+            XCTAssertEqual(cells.count, 1, "At the narrowest size metadata gives way to the Episode", file: file, line: line)
+        }
+        for button in buttons {
+            XCTAssertGreaterThanOrEqual(button.frame.minX, titleCell.frame.minX, file: file, line: line)
+            XCTAssertLessThanOrEqual(button.frame.maxX, titleCell.frame.maxX, "Row control must fit inside Episode", file: file, line: line)
+            for text in metadata {
+                XCTAssertFalse(button.frame.intersects(text.frame), "Row control overlaps Published or other metadata", file: file, line: line)
+            }
+        }
     }
 
     /// Standard pointer input: drag the window's bottom-right corner past its minimum size,
@@ -911,7 +944,7 @@ final class PodListUITour: XCTestCase {
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Show Subscriptions", "Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
-            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
+            "Episode": ["Show Episode Details", "Show Notes in Window", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
             "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],
