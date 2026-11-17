@@ -167,7 +167,7 @@ public struct PodListWindow: SwiftUI.View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .macContentFont(.body)
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
-            .navigationSubtitle(isPodcastPage ? "" : summary(library))
+            .navigationSubtitle(Self.subtitle(summary: isPodcastPage ? "" : summary(library), playbackError: app.playback?.error))
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     if isPodcastPage {
@@ -734,6 +734,11 @@ public struct PodListWindow: SwiftUI.View {
     private func openDestinationInNewWindow(_ destination: Destination) {
         openWindow(id: "library", value: LibraryWindowTarget(destination: destination))
     }
+    // Keep failures visible near the title even when the bottom player is off-screen.
+    static func subtitle(summary: String, playbackError: String?) -> String {
+        playbackError == nil ? summary : "Playback stopped"
+    }
+
     private func summary(_ library: LibraryModel) -> String {
         switch window.destination {
         case .views: CountText.format(library.state.views.count, .view)
