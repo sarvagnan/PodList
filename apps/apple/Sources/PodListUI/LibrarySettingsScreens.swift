@@ -246,7 +246,6 @@ private struct PersistentNumberField: SwiftUI.View {
                         if let number = FormNumbers.nonnegative(raw, locale: locale), number != value { changed(number) }
                     }))
                     .labelsHidden()
-                    .accessibilityLabel(label)
                     .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
                     Text("seconds").foregroundStyle(MacReadableSecondaryStyle())
                 }
