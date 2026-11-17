@@ -409,14 +409,17 @@ final class PodListUITour: XCTestCase {
         try ready(settings)
         try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
         try ready(text("Speed", in: settings))
+        assertSettingsControlsNamed(in: settings)
         try capture("27-settings-general-top", in: settings)
         // Settings sizes to its content; scroll only if the pane still scrolls.
         XCTAssertLessThanOrEqual(settings.frame.height, 680 + 120, "A long Settings pane must stop at a height that opens fully on screen, and scroll")
         let form = settings.scrollViews.firstMatch
         if form.exists { form.hover(); form.scroll(byDeltaX: 0, deltaY: -280) }
+        assertSettingsControlsNamed(in: settings)
         try capture("28-settings-general-middle", in: settings)
         if form.exists { form.scroll(byDeltaX: 0, deltaY: -1800) }
         try ready(button("Disconnect", in: settings))
+        assertSettingsControlsNamed(in: settings)
         try capture("29-settings-general-bottom", in: settings)
         try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
         let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
@@ -429,14 +432,13 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: compactAutomation, object: nil)], timeout: 10), .completed,
                        "MCP-off Automation must size to its content without a large empty band below it")
-        for control in settings.switches.allElementsBoundByIndex + settings.checkBoxes.allElementsBoundByIndex {
-            XCTAssertFalse(control.label.isEmpty && control.title.isEmpty, "Every Settings switch and checkbox needs an accessible name")
-        }
+        assertSettingsControlsNamed(in: settings)
         try capture("30-settings-automation", in: settings)
         let automationOffHeight = settings.frame.height
         try click(mcp)
         let copyConfiguration = settings.buttons["Copy Configuration"]
         try ready(copyConfiguration)
+        assertSettingsControlsNamed(in: settings)
         let expandedAutomation = NSPredicate { _, _ in settings.frame.height > automationOffHeight + 80 }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: expandedAutomation, object: nil)], timeout: 10), .completed,
                        "Automation must grow to show enabled MCP configuration")
@@ -844,6 +846,17 @@ final class PodListUITour: XCTestCase {
         let expectedMenus: Set<String> = ["PodList", "File", "Edit", "View", "Podcast", "Views", "Episode", "Playlist", "Controls", "Window", "Help"]
         XCTAssertTrue(expectedMenus.isSubset(of: capturedMenus), "Missing menus: \(expectedMenus.subtracting(capturedMenus))")
         attach(text, name: "menus.txt")
+    }
+
+    private func assertSettingsControlsNamed(in settings: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        let controls = settings.popUpButtons.allElementsBoundByIndex + settings.switches.allElementsBoundByIndex
+            + settings.checkBoxes.allElementsBoundByIndex + settings.textFields.allElementsBoundByIndex
+            + settings.sliders.allElementsBoundByIndex
+        for control in controls {
+            XCTAssertFalse(control.label.isEmpty && control.title.isEmpty,
+                           "Every Settings pop-up, switch, checkbox, text field and slider needs an accessible name: \(control.elementType) \(control.identifier)",
+                           file: file, line: line)
+        }
     }
 
     private func assertSheetAtBothTextSizes(file: StaticString = #filePath, line: UInt = #line) throws {

@@ -58,7 +58,7 @@ struct MacTextSizeControl: SwiftUI.View {
             ForEach(Array(stride(from: 100, through: 200, by: 10)), id: \.self) { percent in
                 Text("\(percent)%").tag(percent)
             }
-        }
+        }.accessibilityLabel("Text Size")
         Text("Enlarges content text in all windows. The sidebar follows macOS Sidebar icon size. You can also use View › Bigger or Smaller.")
             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
             .fixedSize(horizontal: false, vertical: true)
