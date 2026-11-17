@@ -12,13 +12,13 @@ case "$mode" in tour|system) ;; *) exit 2;; esac
 rm -rf "$run"
 mkdir -p "$run"
 touch "$run/uitour-vm"
-for item in light dark system products checks; do
+for item in light dark borders-light borders-dark system products checks; do
     if [ -d "$shared/run/$item" ]; then ditto "$shared/run/$item" "$run/$item"; fi
 done
 # Only these disposable VM copies advertise the podlist:// scheme and the Service.
 # PlistBuddy splits its command on spaces, and the share path has them.
 cp -f "$shared/repo/apps/apple/scripts/system-integration-keys.plist" "$run/system-integration-keys.plist"
-for app in "$run"/light/PodList.app "$run"/dark/PodList.app "$run"/system/PodList.app; do
+for app in "$run"/*/PodList.app; do
     [ -d "$app" ] || continue
     /usr/libexec/PlistBuddy -c "Merge $run/system-integration-keys.plist" "$app/Contents/Info.plist"
     codesign --force --sign - "$app"
@@ -26,7 +26,13 @@ done
 demo=""
 warmup=""
 result=0
+reset_show_borders=false
+set_show_borders() {
+    /usr/bin/defaults write com.apple.Accessibility ButtonShapesEnabled -bool "$1"
+}
 finish() {
+    local status=$?
+    if [ "$reset_show_borders" = true ]; then set_show_borders false || status=$?; fi
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
     if [ -n "$demo" ]; then kill "$demo" 2>/dev/null || true; wait "$demo" 2>/dev/null || true; fi
@@ -35,7 +41,7 @@ finish() {
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$shared/run/guest-diagnostics/" 2>/dev/null || true
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$shared/run/guest-diagnostics/log.txt" 2>&1 || true
-    for bundle in Tour Shortcuts MCP Integration; do
+    for bundle in Tour ShowBorders Shortcuts MCP Integration; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$shared/run/$bundle.xcresult"; fi
     done
     if [ "$mode" = system ]; then
@@ -44,8 +50,11 @@ finish() {
             [ ! -f "$file" ] || cp -f "$file" "$shared/run/system-results/"
         done
     fi
+    exit "$status"
 }
 trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 PODLIST_TEST_DEMO_NOW="$(node -e 'console.log(Date.now())')" node "$shared/run/demo.mjs" \
     "$shared/repo/packages/web/ui-flows/demo.mjs" "$run/origin" > "$run/demo.log" 2>&1 &
 demo=$!
@@ -63,11 +72,22 @@ xctestruns=(*.xctestrun)
 xctestrun="${xctestruns[0]}"
 /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
 if [ "$mode" = tour ]; then
+    set_show_borders false
     xcodebuild test-without-building -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
-        -only-testing:PodListUITour/PodListUITour \
+        -only-testing:PodListUITour/PodListUITour/testLight \
+        -only-testing:PodListUITour/PodListUITour/testDark \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 1100 \
         -maximum-test-execution-time-allowance 1400 -resultBundlePath "$run/Tour.xcresult" || result=$?
+    # Launch a fresh test runner after changing the display preference.
+    reset_show_borders=true
+    set_show_borders true
+    xcodebuild test-without-building -xctestrun "$xctestrun" \
+        -destination 'platform=macOS' -parallel-testing-enabled NO \
+        -only-testing:PodListUITour/PodListUITour/testBordersLight \
+        -only-testing:PodListUITour/PodListUITour/testBordersDark \
+        -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+        -maximum-test-execution-time-allowance 420 -resultBundlePath "$run/ShowBorders.xcresult" || result=$?
 else
     touch "$run/system-vm"
     # This script is invoked only by tart exec in a throwaway clone. Installation,

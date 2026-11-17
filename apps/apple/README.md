@@ -540,7 +540,7 @@ signing/notarization are outside this check; no account credentials are requeste
 
 ### Tour coverage and isolation
 
-The 35 states (01–33, 34a and 34) cover Subscriptions grouped by Download Rule,
+The 37 baseline states (01–36 and 34a) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
 Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours
 and its subscription controls, Add to a Playlist, Add podcasts, Download Rules,
@@ -548,13 +548,15 @@ Now Playing, General/Automation Settings, Listening stats, Getting started and
 View multi-selection. Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
-`.txt`, `menus.txt`, and a README listing every screen. The full `Tour.xcresult`,
-raw attachment exports and build/demo/test logs are retained too. A failed run
-exports its partial results and reports missing attachments rather than claiming
-success. It never opens Apple, Services, Import/Export OPML, Open or Save panels.
+`.txt`, and `menus.txt`. After the baseline, a macOS 27 Show Borders pass captures
+New this week with the player bar, the Episode Inspector, the New Playlist sheet,
+and General and Automation Settings in `borders-light/` and `borders-dark/`.
+The README lists every screen and reports missing attachments on failure.
+`Tour.xcresult`, `ShowBorders.xcresult`, raw attachments and build/demo/test logs
+are retained. The tour never opens Apple, Services, Import/Export OPML, Open or Save panels.
 
 Isolation uses a **temporary copy of the bundle with a fresh bundle ID for each
-appearance**, `app.podlist.uitour.<UUID>.light` / `.dark`. This gives AppKit,
+appearance**, `app.podlist.uitour.<UUID>.<appearance>`. This gives AppKit,
 SwiftUI, drafts and `UserDefaults.standard` separate preference domains, including
 window state. `-PodList.serverOrigin`, `-PodList.appearance`,
 `-PodList.inspectorVisible` and `-PodList.mcpEnabled` are passed through the
