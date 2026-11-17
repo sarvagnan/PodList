@@ -82,6 +82,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                 Section("Appearance") {
                     MacTextSizeControl()
                     Picker("Appearance", selection: $appearance) { ForEach(["System", "Light", "Dark"], id: \.self) { Text($0).tag($0) } }
+                        .accessibilityLabel("Appearance")
                 }
                 Section("Server Connection") {
                     if let origin = app.origin {
@@ -100,6 +101,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
                             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                         TextField("Server Address", text: $app.serverInput)
+                            .accessibilityLabel("Server Address")
                         Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
                         if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
                         if let error = app.connectionError { Text(error).foregroundStyle(Color.podListError) }
@@ -175,7 +177,7 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
                 Picker("Speed", selection: field(\.speed, setting: "Speed")) {
                     ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3], id: \.self) { Text("\($0.formatted())×").tag($0) }
                     if ![0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].contains(draft.playback.speed) { Text("\(draft.playback.speed.formatted())×").tag(draft.playback.speed) }
-                }
+                }.accessibilityLabel("Speed")
                 playbackFailure("Speed")
                 PersistentNumberField(label: "Skip Intro", field: "settings.skipIntro", value: draft.playback.skipIntro, editor: editor) {
                     draft.playback.skipIntro = $0; savePlayback("Skip Intro")
@@ -186,6 +188,7 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
                 }
                 playbackFailure("Skip Outro")
                 Toggle("Volume Boost", isOn: field(\.volumeBoost, setting: "Volume Boost"))
+                    .accessibilityLabel("Volume Boost")
                 playbackFailure("Volume Boost")
             }
             Section("Trash") {
@@ -194,7 +197,7 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
                 })) {
                     ForEach([1, 7, 14, 30, 60, 90, 365] as [Int64], id: \.self) { Text(CountText.format($0, .day)).tag($0) }
                     if ![1, 7, 14, 30, 60, 90, 365].contains(draft.trashDays) { Text(CountText.format(draft.trashDays, .day)).tag(draft.trashDays) }
-                }
+                }.accessibilityLabel("Keep in Trash")
                 if let error = draft.failures["Keep Playlists in Trash"] {
                     SettingFailure(message: error) { draft.save(.setTrashDays(days: draft.trashDays), setting: "Keep Playlists in Trash", using: editing) }
                 }
@@ -243,6 +246,7 @@ private struct PersistentNumberField: SwiftUI.View {
                         if let number = FormNumbers.nonnegative(raw, locale: locale), number != value { changed(number) }
                     }))
                     .labelsHidden()
+                    .accessibilityLabel(label)
                     .frame(width: 88).textFieldStyle(.roundedBorder).focused($focused)
                     Text("seconds").foregroundStyle(MacReadableSecondaryStyle())
                 }
