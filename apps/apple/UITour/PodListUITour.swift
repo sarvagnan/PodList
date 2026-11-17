@@ -97,8 +97,7 @@ final class PodListUITour: XCTestCase {
         try ready(joinery)
         XCTAssertTrue(joinery.isSelected, "Type-select must select the Episode by title")
         XCTAssertTrue(library.frame.contains(joinery.frame), "Type-select must reveal the match")
-        let inspector = library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
-        try ready(text("Joinery without screws", in: inspector))
+        try ready(text("Joinery without screws", in: episodeInspector))
         try navigate("Starred")
         try capture("04-starred")
         try navigate("All Views")
@@ -211,12 +210,7 @@ final class PodListUITour: XCTestCase {
         try ready(text("Trash is empty"))
         try capture("14-trash")
         try navigate("Search")
-        // Only an on-screen field: a toolbar can also hold an off-screen overflow copy.
-        try ready(library.searchFields.firstMatch)
-        let search = try XCTUnwrap(library.searchFields.allElementsBoundByIndex.first {
-            $0.frame.origin.x.isFinite && $0.frame.width > 0 && $0.isHittable
-        }, "No on-screen search field")
-        search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        try focusListSearch()
         app.typeText("rice")
         try ready(text("Who sets the price of rice?", in: episodeList))
         try capture("15-search-rice")
@@ -501,7 +495,9 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.buttons["Play"].exists)
         XCTAssertFalse(library.buttons["Pause"].exists, "Leave an Episode paused as after relaunch")
 
-        // Last, so every earlier capture keeps the default window size.
+        try recordResponseTimings()
+
+        // Resize only after the default-size captures and timings.
         // CRITIQUE step 1: the narrowest supported size, and content scrolled beneath the bars.
         try navigate("Starred")
         try navigate("New this week")
@@ -530,6 +526,127 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertTrue(didScroll, "At the minimum window size the Episode list must overflow and scroll, so rows pass beneath the bars")
         try capture("36-scrolled-under-bars")
+        try captureHalfDisplay()
+    }
+
+    private func captureHalfDisplay() throws {
+        let screenWidth = try XCTUnwrap(NSScreen.main, "The VM tour requires a display").frame.width
+        let windowMenu = app.menuBars.menuBarItems["Window"]
+        try click(windowMenu)
+        let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
+        try ready(moveAndResize)
+        moveAndResize.hover()
+        let left = moveAndResize.menuItems["Left"].firstMatch
+        try click(left)
+
+        let tiledLeft = NSPredicate { _, _ in
+            let frame = self.library.frame
+            // macOS can inset a tile from the display edge and the centre divider.
+            return abs(frame.minX) <= 32 && abs(frame.width - screenWidth / 2) <= 32
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tiledLeft, object: nil)], timeout: 10),
+                       .completed, "Window > Move & Resize > Left must tile the Library to half the display")
+
+        try navigate("Subscriptions")
+        try openNewThisWeek()
+        try firstEpisodePoint().click()
+        try ready(episodeInspector)
+        try capture("37-half-display-episode-inspector")
+        try assertEpisodeTableLayout()
+
+        try navigate("Subscriptions")
+        try click(library.buttons["Open Market Hours, Subscription"])
+        try ready(text("Who sets the price of rice?", in: episodeList))
+        try capture("38-half-display-podcast-market-hours")
+        try assertEpisodeTableLayout()
+
+        try navigate("Commute")
+        try ready(episodeRows.firstMatch)
+        try capture("39-half-display-commute")
+        try assertEpisodeTableLayout(inPlaylist: true)
+    }
+
+    private func recordResponseTimings() throws {
+        let newThisWeek = sidebarItem("New this week")
+        let episodeTitle = "Who sets the price of rice?"
+        let listedEpisode = text(episodeTitle, in: episodeTable(in: library))
+        let settings = settingsWindow
+        let newPlaylist = library.sheets.firstMatch
+        // The fixture has one match for "rice". Require the filtered count and the matching row.
+        let filteredWindow = app.windows.matching(NSPredicate(format: "title BEGINSWITH %@", "New this week – 1 Episode")).firstMatch
+        let filteredEpisode = text(episodeTitle, in: episodeTable(in: filteredWindow))
+        var navigation: [Double?] = []
+        var selection: [Double?] = []
+        var playlist: [Double?] = []
+        var settingsRuns: [Double?] = []
+        var filter: [Double?] = []
+        for _ in 0..<5 {
+            try navigate("Subscriptions")
+            try ready(library.buttons["Open Market Hours, Subscription"])
+
+            playlist.append(responseTime(until: newPlaylist) { app.typeKey("n", modifierFlags: [.command, .shift]) })
+            if newPlaylist.exists { try dismissSheet("Cancel") }
+
+            settingsRuns.append(responseTime(until: settings) { app.typeKey(",", modifierFlags: .command) })
+            if settings.exists {
+                settings.typeKey("w", modifierFlags: .command)
+                XCTAssertTrue(settings.waitForNonExistence(timeout: 15), "Close Settings before the next task")
+            }
+
+            try ready(newThisWeek)
+            let navigationTime = responseTime(until: listedEpisode) { newThisWeek.click() }
+            navigation.append(navigationTime)
+            // If the list never appeared, neither of its inputs can be timed in this run.
+            guard navigationTime != nil || listedEpisode.exists else { continue }
+            let episode = try firstEpisodePoint()
+            selection.append(responseTime(until: episodeInspector) { episode.click() })
+
+            try focusListSearch()
+            filter.append(responseTime(until: filteredEpisode) { app.typeText("rice") })
+        }
+
+        let process = ProcessInfo.processInfo
+        let report = [
+            "Appearance: \(appearance)",
+            "VM hardware model: \(hardwareModel()) (\(process.processorCount) CPUs, \(process.physicalMemory / (1 << 30)) GiB RAM)",
+            "macOS: \(process.operatingSystemVersionString)",
+            "Default window size, local demo Library, p75 by nearest rank. Results unobserved after a 30 s wait are marked.",
+            "If sidebar navigation does not reach the Episode list, the selection and filter runs for that iteration are skipped.",
+            "",
+            timingSummary("Sidebar → New this week Episode list", navigation),
+            timingSummary("Select Episode → Episode Inspector", selection),
+            timingSummary("Shift-Cmd-N → New Playlist sheet", playlist),
+            timingSummary("Cmd-, → Settings window", settingsRuns),
+            timingSummary("Type rice → filtered Episode list", filter),
+        ].joined(separator: "\n")
+        attach(report + "\n", name: appearance + "--timings.txt")
+    }
+
+    private func responseTime(until result: XCUIElement, input: () -> Void) -> Double? {
+        // Use monotonic uptime so setup/reset stays outside the interval and exact samples
+        // are available for p75 and max. The first AX observation includes XCTest's input
+        // synthesis, idle wait and query latency, so this is an upper-bound estimate.
+        let start = ProcessInfo.processInfo.systemUptime
+        input()
+        // Check immediately before falling back to XCTest's polling wait.
+        guard result.exists || result.waitForExistence(timeout: 30) else { return nil }
+        return (ProcessInfo.processInfo.systemUptime - start) * 1000
+    }
+
+    private func timingSummary(_ name: String, _ samples: [Double?]) -> String {
+        let observed = samples.compactMap { $0 }.sorted()
+        let rank = Int(ceil(Double(samples.count) * 0.75))
+        let p75 = rank > 0 && rank <= observed.count ? String(format: "%.1f ms", observed[rank - 1]) : "unobserved"
+        let max = observed.count == samples.count ? observed.last.map { String(format: "%.1f ms", $0) } : nil
+        return "\(name): runs=\(samples.count), unobserved=\(samples.count - observed.count), p75=\(p75), max=\(max ?? "unobserved")"
+    }
+
+    private func hardwareModel() -> String {
+        var size = 0
+        guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 1 else { return "unavailable" }
+        var bytes = [UInt8](repeating: 0, count: size)
+        guard sysctlbyname("hw.model", &bytes, &size, nil, 0) == 0 else { return "unavailable" }
+        return String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
     }
 
     private func captureShowBorders() throws {
@@ -549,7 +666,20 @@ final class PodListUITour: XCTestCase {
 
     private func openNewThisWeek() throws {
         try navigate("New this week")
-        try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch)
+        try ready(episodeTable(in: library))
+    }
+
+    private func episodeTable(in window: XCUIElement) -> XCUIElement {
+        window.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch
+    }
+
+    private func focusListSearch() throws {
+        // A toolbar can also hold an off-screen overflow copy of the search field.
+        try ready(library.searchFields.firstMatch)
+        let search = try XCTUnwrap(library.searchFields.allElementsBoundByIndex.first {
+            $0.frame.origin.x.isFinite && $0.frame.width > 0 && $0.isHittable
+        }, "No on-screen search field")
+        search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
     }
 
     private func openNewPlaylist() throws {
@@ -558,9 +688,11 @@ final class PodListUITour: XCTestCase {
         try sheet("New Playlist")
     }
 
+    private var settingsWindow: XCUIElement { app.windows.containing(.any, identifier: "General").firstMatch }
+
     private func openGeneralSettings() throws -> XCUIElement {
         app.typeKey(",", modifierFlags: .command)
-        let settings = app.windows.containing(.any, identifier: "General").firstMatch
+        let settings = settingsWindow
         try ready(settings)
         try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
         try ready(text("Speed", in: settings))
@@ -575,38 +707,43 @@ final class PodListUITour: XCTestCase {
         return mcp
     }
 
-    private func assertEpisodeTableLayout(file: StaticString = #filePath, line: UInt = #line) throws {
-        let heading = episodeList.buttons["Episode"].firstMatch
+    private func assertEpisodeTableLayout(inPlaylist: Bool = false, file: StaticString = #filePath, line: UInt = #line) throws {
+        let titleColumn = inPlaylist ? "Entry" : "Episode"
+        let metadataColumn = inPlaylist ? "Position" : "Published"
+        let heading = episodeList.buttons[titleColumn].firstMatch
         try ready(heading, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(heading.frame.width, 120, "Episode header must remain readable", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(heading.frame.width, 120, "\(titleColumn) header must remain readable", file: file, line: line)
         let row = try episodeRows.firstMatch.snapshot()
         let cells = row.children.filter { $0.elementType == .cell }
         let titleCell = try XCTUnwrap(cells.first, file: file, line: line)
         func descendants(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
             [node] + node.children.flatMap { descendants($0) }
         }
-        let buttons = descendants(titleCell).filter { $0.elementType == .button }
-        XCTAssertEqual(buttons.count, 2, "Check both Add and Play row controls", file: file, line: line)
-        let title = try XCTUnwrap(descendants(titleCell).first { $0.elementType == .staticText }, file: file, line: line)
+        let content = descendants(titleCell)
+        let buttons = content.filter { $0.elementType == .button }
+        XCTAssertEqual(buttons.count, inPlaylist ? 1 : 2, "Check all \(titleColumn) row controls", file: file, line: line)
+        // Playlist rows put their ordinal before the title.
+        let title = try XCTUnwrap(content.filter { $0.elementType == .staticText }.dropFirst(inPlaylist ? 1 : 0).first,
+                                  file: file, line: line)
         // Titles wrap, so the text frame is only as wide as its longest line; measure the cell.
-        XCTAssertGreaterThanOrEqual(titleCell.frame.width, 180, "The Episode column must keep room for titles", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(titleCell.frame.width, 180, "The \(titleColumn) column must keep room for titles", file: file, line: line)
         XCTAssertGreaterThanOrEqual(title.frame.width, 80, "Episode title text must remain readable", file: file, line: line)
         for button in buttons {
             XCTAssertFalse(button.frame.intersects(title.frame), "Row control overlaps the Episode title", file: file, line: line)
         }
-        // Published can give way at narrow widths. If shown, test its actual text
+        // Published or Position can give way at narrow widths. If shown, test its actual text
         // frames; also reject overlaps with any other metadata that remains visible.
         let metadata = cells.dropFirst().flatMap { descendants($0) }.filter { $0.elementType == .staticText }
-        if episodeList.buttons["Published"].firstMatch.exists {
-            XCTAssertFalse(metadata.isEmpty, "A shown Published column must expose its text", file: file, line: line)
+        if episodeList.buttons[metadataColumn].firstMatch.exists {
+            XCTAssertFalse(metadata.isEmpty, "A shown \(metadataColumn) column must expose its text", file: file, line: line)
         } else {
-            XCTAssertEqual(cells.count, 1, "At the narrowest size metadata gives way to the Episode", file: file, line: line)
+            XCTAssertEqual(cells.count, 1, "At the narrowest size metadata gives way to \(titleColumn)", file: file, line: line)
         }
         for button in buttons {
             XCTAssertGreaterThanOrEqual(button.frame.minX, titleCell.frame.minX, file: file, line: line)
-            XCTAssertLessThanOrEqual(button.frame.maxX, titleCell.frame.maxX, "Row control must fit inside Episode", file: file, line: line)
+            XCTAssertLessThanOrEqual(button.frame.maxX, titleCell.frame.maxX, "Row control must fit inside \(titleColumn)", file: file, line: line)
             for text in metadata {
-                XCTAssertFalse(button.frame.intersects(text.frame), "Row control overlaps Published or other metadata", file: file, line: line)
+                XCTAssertFalse(button.frame.intersects(text.frame), "Row control overlaps \(metadataColumn) or other metadata", file: file, line: line)
             }
         }
     }
@@ -692,8 +829,12 @@ final class PodListUITour: XCTestCase {
         XCTAssertLessThan(abs(actualPlay.midY - actualSection.midY), 8, "Controls must share a row", file: file, line: line)
     }
 
+    private func sidebarItem(_ name: String) -> XCUIElement {
+        library.descendants(matching: .any).matching(identifier: "sidebar." + name).firstMatch
+    }
+
     private func navigate(_ name: String) throws {
-        try click(library.descendants(matching: .any).matching(identifier: "sidebar." + name).firstMatch)
+        try click(sidebarItem(name))
     }
 
     /// The content list: a Table, or an Outline when its rows can be dragged; never the sidebar.
@@ -706,12 +847,20 @@ final class PodListUITour: XCTestCase {
             XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue))
     }
 
-    private func selectFirstEpisode() throws {
+    private var episodeInspector: XCUIElement {
+        library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
+    }
+
+    private func firstEpisodePoint() throws -> XCUICoordinate {
         let row = episodeRows.firstMatch
         // SwiftUI outline rows report isEnabled == false to accessibility; they still select on click.
         try ready(row)
         // The row's centre can fall on its Play Now button; click the title area instead.
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).click()
+        return row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+    }
+
+    private func selectFirstEpisode() throws {
+        try firstEpisodePoint().click()
         try ready(button("Add to a Playlist"))
     }
 
@@ -971,7 +1120,7 @@ final class PodListUITour: XCTestCase {
     }
 
     private func assertInspectorActionTargets(file: StaticString = #filePath, line: UInt = #line) throws {
-        let inspector = library.descendants(matching: .any).matching(identifier: "Episode Inspector").firstMatch
+        let inspector = episodeInspector
         try ready(inspector)
         // Unlabelled, disabled buttons are the scroll view's own scroller parts.
         let buttons = inspector.buttons.allElementsBoundByIndex.filter { !$0.label.isEmpty }

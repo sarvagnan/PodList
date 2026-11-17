@@ -540,18 +540,30 @@ signing/notarization are outside this check; no account credentials are requeste
 
 ### Tour coverage and isolation
 
-The 37 baseline states (01–36 and 34a) cover Subscriptions grouped by Download Rule,
+The 40 main-tour states (01–39 and 34a) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
 Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours
 and its subscription controls, Add to a Playlist, Add podcasts, Download Rules,
 Now Playing, General/Automation Settings, Listening stats, Getting started and
-View multi-selection. Every state has a window screenshot (including native
+View multi-selection. Screens 35–36 cover the minimum window size and scrolling
+under the bars. Screens 37–39 use Window → Move & Resize → Left to capture New
+this week with a selected Episode and its Inspector open, the Market Hours Podcast
+page, and the Commute playlist at half-display width. The tour checks table layout
+at that width. Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
-`.txt`, and `menus.txt`. After the baseline, a macOS 27 Show Borders pass captures
+`.txt`, and `menus.txt`. After the main tours, a macOS 27 Show Borders pass captures
 New this week with the player bar, the Episode Inspector, the New Playlist sheet,
 and General and Automation Settings in `borders-light/` and `borders-dark/`.
-The README lists every screen and reports missing attachments on failure.
+Each main pass records five runs per task in `light/timings.txt` or `dark/timings.txt`,
+with p75 and max in milliseconds and the guest hardware model and macOS version.
+These VM figures include XCUITest event synthesis and idle waits, so they are
+upper-bound estimates. RESP-01 sets a 200 ms limit at the 75th percentile.
+The tour records timings without enforcing the limit. The tour does not measure
+RESP-02 keystroke and drag frame timing.
+
+The generated README lists every screen and reports any missing required
+attachments out of 183.
 `Tour.xcresult`, `ShowBorders.xcresult`, raw attachments and build/demo/test logs
 are retained. The tour never opens Apple, Services, Import/Export OPML, Open or Save panels.
 
