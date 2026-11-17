@@ -78,26 +78,35 @@ struct PlaylistContentView: SwiftUI.View {
                         }
                     }
                 } else {
-                    Table(of: PlaylistDropRow.self, selection: entrySelection) {
-                        TableColumn("Entry") { (item: PlaylistDropRow) in
-                            if let row = item.entry { entryTitle(row) }
-                            else if let slot = item.placeholder { placeholder(slot) }
-                        }
-                        TableColumn("Position") { item in Text(item.entry.map { Presentation.time($0.position ?? 0) } ?? "—").monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
-                        TableColumn("Length") { item in Text(item.entry?.durationText ?? "—").monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
-                        TableColumn("State") { item in
-                            Text(item.entry?.stateText ?? "").fixedSize(horizontal: false, vertical: true)
-                        }.width(min: 140, ideal: 150, max: 200)
-                    } rows: {
-                        ForEach(displayedRows) { item in
-                            if let row = item.entry { TableRow(item).draggable(dragPayload(row.id)) }
-                            else { TableRow(item) }
-                        }
-                            .dropDestination(for: EpisodeTransfer.self) { index, values in
-                                _ = drop(values, at: index)
+                    GeometryReader { geometry in
+                        let layout = EpisodeTableLayout(width: geometry.size.width)
+                        Table(of: PlaylistDropRow.self, selection: entrySelection) {
+                            TableColumn("Entry") { (item: PlaylistDropRow) in
+                                if let row = item.entry { entryTitle(row) }
+                                else if let slot = item.placeholder { placeholder(slot) }
+                            }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                            if layout.showsDateOrPosition {
+                                TableColumn("Position") { item in Text(item.entry.map { Presentation.time($0.position ?? 0) } ?? "—").monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
                             }
+                            if layout.showsLength {
+                                TableColumn("Length") { item in Text(item.entry?.durationText ?? "—").monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                            }
+                            if layout.showsState {
+                                TableColumn("State") { item in
+                                    Text(item.entry?.stateText ?? "").fixedSize(horizontal: false, vertical: true)
+                                }.width(min: 140, ideal: 150, max: 200)
+                            }
+                        } rows: {
+                            ForEach(displayedRows) { item in
+                                if let row = item.entry { TableRow(item).draggable(dragPayload(row.id)) }
+                                else { TableRow(item) }
+                            }
+                                .dropDestination(for: EpisodeTransfer.self) { index, values in
+                                    _ = drop(values, at: index)
+                                }
+                        }
+                        .tableStyle(.inset)
                     }
-                    .tableStyle(.inset)
                 }
             }
             .overlay {

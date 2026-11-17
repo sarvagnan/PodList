@@ -94,6 +94,15 @@ struct ViewEditorCommandContext {
     var delete: (() -> Void)?
 }
 private struct ViewEditorCommandKey: FocusedValueKey { typealias Value = ViewEditorCommandContext }
+/// A nil action disables the command for empty or multiple selections.
+enum EpisodeNotesAction {
+    static let title = "Show Notes in Window"
+    static func action(ids: [String], open: @escaping (String) -> Void) -> (() -> Void)? {
+        guard ids.count == 1, let id = ids.first else { return nil }
+        return { open(id) }
+    }
+}
+private struct EpisodeNotesKey: FocusedValueKey { typealias Value = () -> Void }
 private struct EpisodeDetailsKey: FocusedValueKey { typealias Value = () -> Void }
 private struct PodcastCommandKey: FocusedValueKey { typealias Value = PodcastCommandContext }
 private struct PlaylistCommandKey: FocusedValueKey { typealias Value = PlaylistCommandContext }
@@ -120,6 +129,10 @@ extension FocusedValues {
     var podListNowPlayingEpisode: NowPlayingEpisodeContext? {
         get { self[NowPlayingEpisodeKey.self] }
         set { self[NowPlayingEpisodeKey.self] = newValue }
+    }
+    var podListEpisodeNotes: (() -> Void)? {
+        get { self[EpisodeNotesKey.self] }
+        set { self[EpisodeNotesKey.self] = newValue }
     }
     var podListEpisodeDetails: (() -> Void)? {
         get { self[EpisodeDetailsKey.self] }
