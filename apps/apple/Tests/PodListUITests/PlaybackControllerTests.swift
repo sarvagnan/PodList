@@ -49,6 +49,41 @@ private final class FakePlayerClock: Sendable {
     return (db, player, audio, clock)
 }
 #if os(macOS)
+@MainActor @Test func windowSubtitlesShowPlaybackFailureUntilRetryResumes() async throws {
+    let (_, player, audio, _) = try await playbackFixture()
+    // Separate windows retain their own list summary; Podcast pages have none.
+    let summaries = ["2 Entries · Active Playlist", "3 Subscriptions", ""]
+    func subtitles() -> [String] {
+        summaries.map { PodListWindow.subtitle(summary: $0, playbackError: player.error) }
+    }
+    #expect(subtitles() == summaries)
+    let changed = Mutex(false)
+    withObservationTracking {
+        _ = subtitles()
+    } onChange: {
+        changed.withLock { $0 = true }
+    }
+    player.play(); await player.settle()
+    audio.event?(.failure); await player.settle()
+    #expect(player.error == nil && subtitles() == summaries, "Source fallback is still trying playback")
+    audio.event?(.failure); await player.settle()
+    #expect(player.error != nil && !player.wantsPlayback)
+    #expect(changed.withLock { $0 }, "Each window must observe the shared playback error")
+    #expect(subtitles() == Array(repeating: "Playback stopped", count: summaries.count))
+
+    changed.withLock { $0 = false }
+    withObservationTracking {
+        _ = subtitles()
+    } onChange: {
+        changed.withLock { $0 = true }
+    }
+    player.play(); await player.settle()
+    #expect(player.error == nil && player.display?.playing == true)
+    #expect(changed.withLock { $0 })
+    #expect(subtitles() == summaries)
+    await player.shutdown()
+}
+
 @MainActor @Test func nowPlayingControlsFitTypicalWindowAndGrowWithTextSizeWithoutAScreen() async throws {
     let (db, player, _, _) = try await playbackFixture()
     let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this")
