@@ -38,6 +38,9 @@ struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.
                 GeometryReader { table in
                     episodes().frame(width: table.size.width, height: table.size.height)
                 }
+                // The inset table draws its columns about 10 pt inside its frame;
+                // extend it so column titles share the header's leading edge.
+                .padding(.horizontal, -10)
             }
             .padding(18)
             .frame(width: viewport.size.width, height: viewport.size.height, alignment: .topLeading)
