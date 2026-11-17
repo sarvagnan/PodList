@@ -125,10 +125,11 @@ final class PodListUITour: XCTestCase {
         assertInspectorPosition(unselectedInspector)
         let rewind = library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Rewind to ")).firstMatch
         XCTAssertFalse(rewind.exists, "Rewind to Here… appears only on row hover or selection")
-        // Hover rows until one offers Rewind; not every moment can be rewound to.
+        // Selecting a row shows its Rewind (hover does too, but XCUITest's synthesized
+        // hover does not reach List row tracking). Not every moment can be rewound to.
         let timelineRows = library.outlines.matching(NSPredicate(format: "label == %@", "Listening Timeline")).firstMatch.outlineRows
         for row in timelineRows.allElementsBoundByIndex where !rewind.exists {
-            row.hover()
+            row.click()
             _ = rewind.waitForExistence(timeout: 2)
         }
         try ready(rewind)

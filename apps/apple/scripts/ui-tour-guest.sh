@@ -33,7 +33,7 @@ finish() {
     cp -f "$run/demo.log" "$shared/run/guest-demo.log" 2>/dev/null || true
     mkdir -p "$shared/run/guest-diagnostics"
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$shared/run/guest-diagnostics/" 2>/dev/null || true
-    log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
+    log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$shared/run/guest-diagnostics/log.txt" 2>&1 || true
     for bundle in Tour Shortcuts MCP Integration; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$shared/run/$bundle.xcresult"; fi
