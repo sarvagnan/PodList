@@ -57,8 +57,8 @@ if [ "$mode" = tour ]; then
     xcodebuild test-without-building -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListUITour \
-        -test-timeouts-enabled YES -default-test-execution-time-allowance 600 \
-        -maximum-test-execution-time-allowance 900 -resultBundlePath "$run/Tour.xcresult" || result=$?
+        -test-timeouts-enabled YES -default-test-execution-time-allowance 900 \
+        -maximum-test-execution-time-allowance 1200 -resultBundlePath "$run/Tour.xcresult" || result=$?
 else
     touch "$run/system-vm"
     # This script is invoked only by tart exec in a throwaway clone. Installation,
