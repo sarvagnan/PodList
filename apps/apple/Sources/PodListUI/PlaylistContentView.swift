@@ -13,7 +13,6 @@ struct PlaylistContentView: SwiftUI.View {
     let openEpisode: () -> Void
     @Environment(\.macTextScale) private var textScale
     @State private var optionCopy = false
-    @State private var hoveredTimelineID: String?
     @State private var rewindTarget: TimelineEvent?
 
     var body: some SwiftUI.View {
@@ -275,16 +274,8 @@ struct PlaylistContentView: SwiftUI.View {
                                 .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle())
                                 .accessibilityLabel("Rewind to \(date(event.moment))…")
                                 .help("Preview rewinding this Playlist to this moment")
-                                .opacity(hoveredTimelineID == event.id || window.timelineSelection == event.id ? 1 : 0)
-                                .allowsHitTesting(hoveredTimelineID == event.id || window.timelineSelection == event.id)
-                                .disabled(hoveredTimelineID != event.id && window.timelineSelection != event.id)
-                                .accessibilityHidden(hoveredTimelineID != event.id && window.timelineSelection != event.id)
                         }
                     }.padding(.vertical, 4)
-                    .onHover { hovering in
-                        if hovering { hoveredTimelineID = event.id }
-                        else if hoveredTimelineID == event.id { hoveredTimelineID = nil }
-                    }
                     .macRowActions(isSelected: window.timelineSelection == event.id)
                     .accessibilityElement(children: .contain)
                     .accessibilityActions {
