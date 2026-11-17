@@ -55,6 +55,8 @@ public struct LibrarySidebarCommands: Commands {
     public var body: some Commands {
         CommandGroup(replacing: .sidebar) {
             Button(sidebar?.title ?? "Show Sidebar") { sidebar?.toggle() }
+                // ⌃⌘S is the system Show/Hide Sidebar binding (SwiftUI SidebarCommands,
+                // NSSplitViewController.toggleSidebar); only the state-specific title is ours.
                 .keyboardShortcut("s", modifiers: [.command, .control])
                 .disabled(sidebar == nil)
         }
