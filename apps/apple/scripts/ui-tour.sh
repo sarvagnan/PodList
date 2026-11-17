@@ -211,12 +211,12 @@ import json, re, shutil, sys
 from pathlib import Path
 out, source = map(Path, sys.argv[1:3])
 screens = list(dict.fromkeys(re.findall(r'try capture\("([^"\n]+)"', source.read_text())))
-assert len(screens) == 37, 'Tour screen catalog must have 37 distinct screens'
+assert len(screens) == 40, 'Tour screen catalog must have 40 distinct screens'
 borders_screens = {'02-new-this-week', '03-episode-inspector', '13-new-playlist', '27-settings-general-top', '30-settings-automation'}
 assert borders_screens <= set(screens), 'Show Borders screens must match baseline screen names'
 expected = {f'{style}/{screen}.{ext}' for style in ('light', 'dark') for screen in screens for ext in ('png', 'txt')}
 expected.update(f'{style}/{screen}.{ext}' for style in ('borders-light', 'borders-dark') for screen in borders_screens for ext in ('png', 'txt'))
-expected.add('menus.txt')
+expected.update({'menus.txt', 'light/timings.txt', 'dark/timings.txt'})
 written = set()
 for attachments in (out / 'attachments', out / 'borders-attachments'):
     manifest = attachments / 'manifest.json'
@@ -225,7 +225,7 @@ for attachments in (out / 'attachments', out / 'borders-attachments'):
     for test in json.loads(manifest.read_text()):
         for item in test['attachments']:
             name = item['suggestedHumanReadableName']
-            match = re.search(r'((?:borders-)?(?:light|dark))--([0-9]{2}a?-[a-z0-9-]+?)(?:_[0-9]+_[0-9A-F-]+)?\.(png|txt)$', name)
+            match = re.search(r'((?:borders-)?(?:light|dark))--([0-9]{2}a?-[a-z0-9-]+?|timings)(?:_[0-9]+_[0-9A-F-]+)?\.(png|txt)$', name)
             destination = f'{match[1]}/{match[2]}.{match[3]}' if match else 'menus.txt' if name.startswith('menus') else None
             if destination not in expected:
                 continue
@@ -245,6 +245,8 @@ readme += f'Status: {"complete" if complete else "incomplete"}. {len(written)}/{
 readme += 'Window screenshots include attached sheets. Text trees use public XCUI snapshots; role is XCUIElementType, and AX subrole and keyboard shortcuts are unavailable. Inspect NSMenuItem.keyEquivalent/keyEquivalentModifierMask in Xcode/LLDB for shortcuts. Apple and Services are excluded.\n\n'
 readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
 readme += 'The focused APPEAR-03 pass runs with macOS Show Borders on. Test results: Tour.xcresult and ShowBorders.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/ and borders-attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
+readme += 'Screens 37–39 use Window → Move & Resize → Left to tile the Library to half the display.\n\n'
+readme += 'Response timings are in light/timings.txt and dark/timings.txt. These are VM figures, and XCUITest event synthesis and idle waits make them upper-bound estimates. RESP-01 sets a 200 ms limit at the 75th percentile. The tour records timings without enforcing the limit. The tour does not measure RESP-02 keystroke and drag frame timing.\n\n'
 readme += '| Screen | Light / Dark files | Show Borders Light / Dark files |\n|---|---|---|\n'
 for screen in screens:
     borders = f'borders-light/{screen}.png + .txt; borders-dark/{screen}.png + .txt' if screen in borders_screens else ''
