@@ -124,9 +124,15 @@ final class PodListUITour: XCTestCase {
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
         assertInspectorPosition(unselectedInspector)
         let rewind = library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Rewind to ")).firstMatch
+        XCTAssertFalse(rewind.exists, "Rewind to Here… appears only on row hover or selection")
+        // Hover rows until one offers Rewind; not every moment can be rewound to.
+        let timelineRows = library.outlines.matching(NSPredicate(format: "label == %@", "Listening Timeline")).firstMatch.outlineRows
+        for row in timelineRows.allElementsBoundByIndex where !rewind.exists {
+            row.hover()
+            _ = rewind.waitForExistence(timeout: 2)
+        }
         try ready(rewind)
         XCTAssertTrue(rewind.label.hasSuffix("…"), "Rewind opens a preview and needs an ellipsis")
-        // Standard XCUITest pointer input, even when the row already shows its action.
         rewind.hover()
         try capture("34a-timeline-rewind-button")
         try click(rewind)

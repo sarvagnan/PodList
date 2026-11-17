@@ -38,6 +38,9 @@ s xcode-select -s /Applications/Xcode.app
 s xcodebuild -license accept
 s xcodebuild -runFirstLaunch
 s DevToolsSecurity -enable
+# Cirrus images ship with Spotlight off; the PodList Core Spotlight check needs it on.
+# Index once here so each throwaway clone starts with a settled index.
+s mdutil -a -i on
 s automationmodetool enable-automationmode-without-authentication
 xcodebuild -version
 automationmodetool
