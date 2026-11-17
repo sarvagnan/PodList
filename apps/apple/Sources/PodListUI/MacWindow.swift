@@ -5,6 +5,7 @@ import PodListDomain
 public struct PodListWindow: SwiftUI.View {
     @Bindable private var app: ApplicationModel
     @State private var window = WindowModel()
+    @State private var linkError: String?
     @State private var playlistPresentation = PlaylistPresentation()
     @FocusState private var searchFocused: Bool
     @FocusState private var viewsFocused: Bool
@@ -41,6 +42,9 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .frame(minWidth: 760, minHeight: 500)
+        .alert("Cannot Open PodList Link", isPresented: Binding(get: { linkError != nil }, set: { if !$0 { linkError = nil } })) {
+            Button("OK", role: .cancel) { linkError = nil }
+        } message: { Text(linkError ?? "") }
         .task { await app.start() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.requestSync() } else { app.playback?.flush() } }
         .onChange(of: app.library?.snapshot, initial: true) { _, _ in
@@ -52,6 +56,17 @@ public struct PodListWindow: SwiftUI.View {
             window.navigate(to: .subscriptions); playlistPresentation.sheet = nil; subscriptionSelection = []
             if let library = app.library { restoreContext(in: library) }
         }
+    }
+
+    private func openLink(_ link: PodListLink) {
+        guard let library = app.library else { return }
+        guard window.open(link, in: library) else {
+            linkError = "This \(link.kindName) is no longer in this Library. It may have been removed or belong to another Library."
+            return
+        }
+        podcastFeed = nil
+        if case .episode = link { inspectorVisible = true }
+        if case .playlist = link { playlistPresentation.playlistTab = .entries }
     }
 
     private var isPlaylist: Bool {
@@ -86,7 +101,9 @@ public struct PodListWindow: SwiftUI.View {
                                     Image(systemName: "speaker.wave.2.fill")
                                         .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist").help("Active Playlist")
                                 }
-                                Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
+                                if item.destination != .search {
+                                    Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
+                                }
                             }
                             .contentShape(Rectangle())
                             .tag(item.destination)
@@ -102,7 +119,7 @@ public struct PodListWindow: SwiftUI.View {
                             .modifier(PlaylistEpisodeDropTarget(destination: item.destination, editor: app.libraryEditing, window: window, showingEntries: playlistPresentation.playlistTab == .entries))
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("sidebar.\(item.name)")
-                            .accessibilityLabel("\(item.name), \(item.count)\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
+                            .accessibilityLabel("\(item.name)\(item.destination == .search ? "" : ", \(item.count)")\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
                         }
                     } header: { MacSidebarSectionHeader(section.name) }
                 }
@@ -150,7 +167,7 @@ public struct PodListWindow: SwiftUI.View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .macContentFont(.body)
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
-            .navigationSubtitle(isPodcastPage ? "Podcast page" : summary(library))
+            .navigationSubtitle(isPodcastPage ? "" : summary(library))
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     if isPodcastPage {
@@ -235,7 +252,7 @@ public struct PodListWindow: SwiftUI.View {
             podcastFeed = nil
         }
         .focusedSceneValue(\.podListInspector, showsEpisodeInspector ? $inspectorVisible : nil)
-        .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation, openPodcast: { window.beginPodcastPage(); podcastFeed = $0 }))
+        .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation, openPodcast: { window.beginPodcastPage(); podcastFeed = $0 }, openLink: openLink))
         .background(LibraryPlaybackSpaceHost(toggle: .init(controller: app.playback, library: library)))
         .focusedSceneValue(\.podListOpenPlaylist, { window.navigate(to: .playlist(library.state.activePlaylistId)) })
         .focusedSceneValue(\.podListNowPlaying, { openWindow(id: "now-playing") })
@@ -392,6 +409,7 @@ public struct PodListWindow: SwiftUI.View {
     @ViewBuilder private func sidebarActions(_ destination: Destination, library: LibraryModel) -> some SwiftUI.View {
         switch destination {
         case let .playlist(id):
+            Button("Copy PodList Link") { ShareLinks.copy(PodListLink.playlist(id).url) }
             Button("Open in New Window") { openDestinationInNewWindow(destination) }
             if let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing {
                 Button("Play") { Task { await editing.playFromHere(playlistID: id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) } }
@@ -414,6 +432,7 @@ public struct PodListWindow: SwiftUI.View {
                 }
             }
         case let .view(id):
+            Button("Copy PodList Link") { ShareLinks.copy(PodListLink.view(id).url) }
             Button("Open in New Window") { openDestinationInNewWindow(destination) }
             if let view = library.state.views.first(where: { $0.id == id }), let editor = app.libraryEditing {
                 Button("Edit View…") { editView(view) }.disabled(editor.busy || app.editing?.busy == true)
@@ -436,6 +455,9 @@ public struct PodListWindow: SwiftUI.View {
         if let settings = commands.settings { Button("Subscription Settings…", action: settings) }
         if let downloadRules = commands.downloadRules { Button("Edit Download Rules…", action: downloadRules) }
         if commands.feedURL != nil || commands.shareURL != nil { Divider() }
+        if let url = commands.feedURL {
+            Button("Copy PodList Link") { ShareLinks.copy(PodListLink.podcast(url.absoluteString).url) }
+        }
         if let url = commands.feedURL { Button("Copy Feed Address") { ShareLinks.copy(url) } }
         if let url = commands.shareURL { ShareLink(item: url) { Text("Share Podcast…") } }
     }
@@ -557,7 +579,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             if let editing = app.editing {
                 Button { playlistPresentation.sheet = .add([row.id], false) } label: {
-                    MacIconLabel(title: "Add to a Playlist", systemImage: "text.badge.plus")
+                    MacIconLabel(title: "Add to a Playlist", systemImage: "text.line.last.and.arrowtriangle.forward")
                 }
                     .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
                     .help("Add to a Playlist")

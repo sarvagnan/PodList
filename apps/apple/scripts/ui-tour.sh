@@ -1,11 +1,11 @@
 #!/bin/bash
-# Run from a logged-in Mac desktop. XCUITest brings PodList forward and drives input.
+# Build on this Mac; run XCUITest only inside a fresh throwaway Tart clone.
 set -euo pipefail
 mode=tour
 if [ "${1:-}" = --system-checks ]; then mode=system; shift; fi
 if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks] <outdir>" >&2; exit 2; fi
-if [ "$mode" = system ] && [ -z "${PODLIST_UI_VM:-}" ]; then
-    echo "System checks require PODLIST_UI_VM (never run on the owner's desktop)" >&2
+if [ -z "${PODLIST_UI_VM:-}" ]; then
+    echo "All UI tours require PODLIST_UI_VM (never run on the owner's desktop)" >&2
     exit 2
 fi
 styles="light dark"
@@ -115,18 +115,6 @@ demo = await startDemo()
 if (requestedStop) await stop()
 else writeFileSync(process.argv[3], demo.base)
 JS
-if [ -z "$vm" ]; then
-PODLIST_TEST_DEMO_NOW="$(node -e 'console.log(Date.now())')" \
-    node "$run/demo.mjs" "$repo/packages/web/ui-flows/demo.mjs" "$run/origin" > "$out/demo.log" 2>&1 &
-demo_pid=$!
-for ((attempt = 0; attempt < 300; attempt++)); do
-    if [ -s "$run/origin" ]; then break; fi
-    if ! kill -0 "$demo_pid" 2>/dev/null; then cat "$out/demo.log" >&2; exit 1; fi
-    sleep 0.1
-done
-if [ ! -s "$run/origin" ]; then echo "Demo startup timed out; see demo.log" >&2; exit 1; fi
-origin="$(cat "$run/origin")"
-fi
 
 if [ -n "$vm" ]; then
     # Run inside a throwaway clone of a prepared macOS VM (ui-tour-vm-prepare.sh), so the
@@ -159,28 +147,15 @@ if [ -n "$vm" ]; then
         "$guest_run" "$mode" >> "$out/xcodebuild.log" 2>&1 || status=$?
     if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
     if [ -d "$run/guest-diagnostics" ]; then cp -R "$run/guest-diagnostics" "$out/"; fi
-    for bundle in Tour Shortcuts MCP; do
+    for bundle in Tour Shortcuts MCP Integration; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$out/$bundle.xcresult"; fi
     done
     if [ -d "$run/system-results" ]; then cp -R "$run/system-results" "$out/"; fi
-else
-# Serial tests share the foreground desktop. Build settings expand in the shared scheme.
-xcodebuild test -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
-    -destination "platform=macOS,arch=$(uname -m)" -parallel-testing-enabled NO \
-    -only-testing:PodListUITour/PodListUITour \
-    -derivedDataPath "$apple/.build/ui-tour-derived" \
-    -resultBundlePath "$out/Tour.xcresult" \
-    "PODLIST_UI_RUN_DIRECTORY=$run" "PODLIST_UI_SERVER_ORIGIN=$origin" \
-    > "$out/xcodebuild.log" 2>&1 &
-test_pid=$!
-status=0
-wait "$test_pid" || status=$?
-test_pid=""
 fi
 
 if [ "$mode" = system ]; then
     export_status=0
-    for bundle in Shortcuts MCP; do
+    for bundle in Shortcuts MCP Integration; do
         if [ -d "$out/$bundle.xcresult" ]; then
             xcrun xcresulttool export attachments --path "$out/$bundle.xcresult" \
                 --output-path "$out/$bundle-attachments" || export_status=$?
@@ -200,13 +175,16 @@ def attachment_names(bundle):
     return [item['suggestedHumanReadableName'] for test in json.loads(manifest.read_text()) for item in test['attachments']]
 shortcuts_names = attachment_names('Shortcuts')
 mcp_names = attachment_names('MCP')
+integration_names = attachment_names('Integration')
 evidence = any(name.startswith('shortcuts-actions') for name in shortcuts_names) and any(name.startswith('shortcuts-final') and name.endswith('.png') for name in shortcuts_names)
 evidence = evidence and any(name.startswith('mcp-reopened') and name.endswith('.png') for name in mcp_names)
+evidence = evidence and any(name.startswith('spotlight-query-results') for name in integration_names) and any(name.startswith('app-link-episode') and name.endswith('.png') for name in integration_names)
 passed = sys.argv[2:] == ['0', '0'] and evidence and summary.exists() and json.loads(summary.read_text()).get('status') == 'passed'
 (out / 'README.md').write_text('# PodList VM system checks\n\nStatus: ' + ('passed' if passed else 'incomplete') +
     '.\n\nShortcuts.xcresult: source-derived action discovery and optional App Shortcuts.\n'
+    'Integration.xcresult: Spotlight fixture query, Episode app link, reopen and unavailable item.\n'
     'MCP.xcresult: bundled stdio client, native Undo, last-window close, same-process reopen and Quit.\n'
-    'Kept screenshots, trees and action names: Shortcuts-attachments/ and MCP-attachments/.\n'
+    'Kept screenshots, trees and action names: Shortcuts-attachments/, Integration-attachments/ and MCP-attachments/.\n'
     'MCP transcript, summary and stderr: system-results/. Build/demo/test logs are retained.\n'
     'A fresh throwaway Tart clone ran all UI; no host app was launched.\n')
 if not passed:
@@ -257,7 +235,7 @@ readme = '# PodList Mac XCUITest tour\n\n'
 readme += f'Status: {"complete" if complete else "incomplete"}. {len(written)}/{len(expected)} required attachments exported.\n\n'
 readme += 'Window screenshots include attached sheets. Text trees use public XCUI snapshots; role is XCUIElementType, and AX subrole and keyboard shortcuts are unavailable. Inspect NSMenuItem.keyEquivalent/keyEquivalentModifierMask in Xcode/LLDB for shortcuts. Apple and Services are excluded.\n\n'
 readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
-readme += 'Full test results: Tour.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/. UI execution requires the logged-in foreground desktop.\n\n'
+readme += 'Full test results: Tour.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
 readme += '| Screen | Light / Dark files |\n|---|---|\n'
 for screen in screens:
     readme += f'| {screen} | light/{screen}.png + .txt; dark/{screen}.png + .txt |\n'

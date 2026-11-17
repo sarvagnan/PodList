@@ -16,7 +16,7 @@ public final class ActionDonations {
     public var handler: (@MainActor (ActionDonation) -> Void)?
     public let isEnabled: Bool
 
-    /// Development builds must not contribute to Spotlight or Siri suggestions.
+    /// Build policy shared by donations and Spotlight. Ordinary DEBUG builds never write.
     nonisolated public static var isReleaseBuild: Bool {
         #if DEBUG
         false
@@ -34,6 +34,10 @@ public final class ActionDonations {
                                             isReleaseBuild: Bool = ActionDonations.isReleaseBuild) -> Bool {
         isReleaseBuild && !(bundleIdentifier?.hasPrefix("app.podlist.uitour.") ?? false)
             && environment["PODLIST_UI_DATA_DIRECTORY"] == nil
+    }
+    nonisolated public static func spotlightIsEnabled(bundleIdentifier: String?,
+                                                     isReleaseBuild: Bool = ActionDonations.isReleaseBuild) -> Bool {
+        isReleaseBuild || (bundleIdentifier?.hasPrefix("app.podlist.uitour.") ?? false)
     }
     public func record(_ action: ActionDonation) {
         guard isEnabled else { return }

@@ -7,6 +7,7 @@ import SwiftUI
 final class NowPlayingLibraryNavigation {
     enum Request {
         case playlist(String)
+        case link(PodListLink)
         case podcast(String)
         case add([String], preferNew: Bool)
     }
@@ -14,10 +15,11 @@ final class NowPlayingLibraryNavigation {
     private weak var presentation: PlaylistPresentation?
     private var activate: (() -> Bool)?
     private var pending: Request?
+    private var openLink: ((PodListLink) -> Void)?
     private var openPodcast: ((String) -> Void)?
 
-    func attach(window: WindowModel, presentation: PlaylistPresentation, activate: @escaping () -> Bool, openPodcast: ((String) -> Void)? = nil) {
-        self.window = window; self.presentation = presentation; self.activate = activate; self.openPodcast = openPodcast
+    func attach(window: WindowModel, presentation: PlaylistPresentation, activate: @escaping () -> Bool, openPodcast: ((String) -> Void)? = nil, openLink: ((PodListLink) -> Void)? = nil) {
+        self.window = window; self.presentation = presentation; self.activate = activate; self.openPodcast = openPodcast; self.openLink = openLink
         if let pending {
             self.pending = nil
             _ = perform(pending)
@@ -31,6 +33,7 @@ final class NowPlayingLibraryNavigation {
             return false
         }
         switch request {
+        case let .link(link): openLink?(link)
         case let .playlist(id): window.navigate(to: .playlist(id))
         case let .podcast(feed): openPodcast?(feed)
         case let .add(ids, preferNew): presentation.sheet = .add(ids, preferNew)
@@ -45,6 +48,7 @@ struct NowPlayingLibraryHost: NSViewRepresentable {
     let model: WindowModel
     let presentation: PlaylistPresentation
     var openPodcast: ((String) -> Void)? = nil
+    var openLink: ((PodListLink) -> Void)? = nil
 
     func makeNSView(context: Context) -> HostView { HostView(host: self) }
     func updateNSView(_ view: HostView, context: Context) { view.host = self }
@@ -70,9 +74,15 @@ struct NowPlayingLibraryHost: NSViewRepresentable {
                 guard let window, window.isVisible else { return false }
                 window.makeKeyAndOrderFront(nil)
                 return true
-            }, openPodcast: host.openPodcast)
+            }, openPodcast: host.openPodcast, openLink: host.openLink)
         }
         isolated deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    }
+}
+
+extension ApplicationModel {
+    public func openLibraryLink(_ link: PodListLink, reopen: () -> Void) {
+        if !nowPlayingNavigation.perform(.link(link)) { reopen() }
     }
 }
 

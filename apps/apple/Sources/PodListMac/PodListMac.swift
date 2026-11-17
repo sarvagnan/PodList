@@ -2,11 +2,15 @@ import SwiftUI
 import PodListUI
 import PodListAutomation
 import AppIntents
+import CoreSpotlight
 
 @main
 struct PodListMac: App {
     @NSApplicationDelegateAdaptor(MacApplicationDelegate.self) private var delegate
     @State private var model: ApplicationModel
+    @State private var spotlight = SpotlightIndex()
+    @State private var pendingLinks: [PodListLink] = []
+    @State private var linkError = false
     @State private var pendingOPMLFiles: [URL] = []
     @State private var textSize = MacTextSizePreference()
 
@@ -19,6 +23,9 @@ struct PodListMac: App {
         let model = ApplicationModel()
         _model = State(initialValue: model)
         AutomationRuntime.app = model
+        let spotlight = SpotlightIndex()
+        _spotlight = State(initialValue: spotlight)
+        model.libraryChanged = { library, origin in spotlight.update(library, origin: origin) }
         model.donations.handler = { [weak model] action in
             guard let model else { return }
             IntentDonations.donate(action, app: model)
@@ -35,11 +42,35 @@ struct PodListMac: App {
         Task { await editor.selectOPMLFiles(urls) }
     }
 
+    private func routeLinks() {
+        guard model.library?.snapshot.isReady == true else { return }
+        let links = pendingLinks; pendingLinks = []
+        for link in links { model.openLibraryLink(link, reopen: { openWindow(id: "library") }) }
+    }
+
     var body: some Scene {
         WindowGroup("PodList", id: "library", for: LibraryWindowTarget.self) { $target in
             PodListWindow(app: model, initialDestination: target?.destination).macTextSize(textSize)
-                .onAppear { delegate.model = model }
+                .onAppear {
+                    delegate.model = model
+                    delegate.showAddPodcasts = { openWindow(id: "add-podcasts") }
+                }
+                .alert("Cannot Open PodList Link", isPresented: $linkError) {
+                    Button("OK", role: .cancel) {}
+                } message: { Text("This PodList link is not valid. Use a link copied from an Episode, Playlist, View or Subscription.") }
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    if let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                       let url = URL(string: id), let link = PodListLink(url: url) {
+                        pendingLinks.append(link); routeLinks()
+                    }
+                }
+                .onChange(of: model.library?.snapshot.isReady) { _, _ in routeLinks() }
                 .onOpenURL { url in
+                    if url.scheme?.lowercased() == "podlist" {
+                        if let link = PodListLink(url: url) { pendingLinks.append(link); routeLinks() }
+                        else { linkError = true }
+                        return
+                    }
                     guard url.isFileURL, url.pathExtension.lowercased() == "opml" else { return }
                     pendingOPMLFiles.append(url)
                     stageOPMLFiles()
@@ -69,6 +100,9 @@ struct PodListMac: App {
             .windowResizability(.contentMinSize)
         Window("Now Playing", id: "now-playing") { NowPlayingWindow(app: model).macTextSize(textSize) }
             .windowResizability(.contentSize)
+        WindowGroup("Show Notes", id: "episode-notes", for: String.self) { $id in
+            EpisodeNotesWindow(app: model, episodeID: id).macTextSize(textSize)
+        }.defaultSize(width: 640, height: 700)
         Settings { PodListSettings(app: model).macTextSize(textSize) }
         Window("Listening Stats", id: "listening-stats") { ListeningStatsScreen(app: model).macTextSize(textSize) }
         Window("Getting Started", id: "getting-started") { GettingStartedWindow(app: model).macTextSize(textSize) }
@@ -82,6 +116,7 @@ struct PodListMac: App {
 @MainActor
 final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
     weak var model: ApplicationModel?
+    var showAddPodcasts: (() -> Void)?
     private var keyboard: PlaybackKeyboardGuard?
     private var appearance: MacAppearanceController?
     private var terminating = false
@@ -94,12 +129,24 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) { (model ?? AutomationRuntime.app)?.automation.stop() }
+    @objc func addToPodList(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        let selection = pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string) ?? ""
+        guard let editor = model?.libraryEditing else {
+            error.pointee = "Open a Library in PodList, then try Add to PodList again."; return
+        }
+        guard editor.stagePodcastAddress(selection) else {
+            error.pointee = "Select a single HTTP or HTTPS podcast feed address without sign-in details."; return
+        }
+        showAddPodcasts?()
+        NSApplication.shared.activate()
+    }
     func applicationDidResignActive(_ notification: Notification) { model?.playback?.flush() }
     func applicationWillFinishLaunching(_ notification: Notification) {
         appearance = MacAppearanceController()
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = AutomationRuntime.app
+        NSApplication.shared.servicesProvider = self
         keyboard = PlaybackKeyboardGuard()
         model?.automation.start()
         // Runtime registration can refresh system suggestions; keep metadata extraction

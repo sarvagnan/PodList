@@ -91,10 +91,10 @@ The usual shortcuts are shown in the menus: ⌘N New View, ⇧⌘N New Playlist,
 | File | New Window, New View…, New Playlist…, Open in New Window; Import OPML…, Export OPML…, Cancel Import, Retry Failed Imports, Show Import Results; standard Close / Close All. Open in New Window opens the current destination. |
 | Edit | Standard text editing, named Undo/Redo, Cut/Copy/Paste and Select All; Search Library and Clear Search. Text editing keeps native Undo and keyboard behavior. |
 | View | Presentation only: sidebar, Inspector, Text Size, Sort by (Default order, Title, Published, Length, State), Descending, Show/Hide Description, **Listening Stats › Show Daily Table**, and standard full-screen controls. |
-| Podcast | Subscriptions, Add Podcasts…, Search Podcasts, Open Subscription, Back to Library, Refresh Library; Subscribe/Unsubscribe, Mark All Played, Refresh Episodes, Subscription Settings…, Edit Download Rules…; Share Podcast…, Copy Feed Address. |
-| Views | Open View, All Views, Create View from Search…, Edit View…, Rename View…, Delete View. New View… remains in File. |
-| Episode | Show Episode Details; Play Now, Play Next/Last in the Active Playlist, Play Now/Next/Last in a chosen Playlist (including New Playlist…), Add to a Playlist…, Resume in Playlist, Play Chapter; Download, Cancel Download, Retry Download, Remove Download; Share Episode…, Copy Link, Star/Unstar, Mark Played/Unplayed; Play from Here, Move Up/Down, Remove from Playlist. |
-| Playlist | Open Playlist; Entries, History, Listening Timeline; Clear on Played, Restore, Delete Permanently…, Rewind to Here…; Trash, Play This Playlist, Playlist Settings…, Rename Playlist…, Delete Playlist. New Playlist… remains in File. |
+| Podcast | Subscriptions, Add Podcasts…, Search Podcasts, Open Subscription, Back to Library, Refresh Library; Subscribe/Unsubscribe, Mark All Played, Refresh Episodes, Subscription Settings…, Edit Download Rules…; Share Podcast…, Copy Feed Address, Copy PodList Link. |
+| Views | Open View, All Views, Create View from Search…, Edit View…, Rename View…, Copy PodList Link, Delete View. New View… remains in File. |
+| Episode | Show Episode Details; Play Now, Play Next/Last in the Active Playlist, Play Now/Next/Last in a chosen Playlist (including New Playlist…), Add to a Playlist…, Resume in Playlist, Play Chapter; Download, Cancel Download, Retry Download, Remove Download; Share Episode…, Copy Link, Copy PodList Link, Star/Unstar, Mark Played/Unplayed; Play from Here, Move Up/Down, Remove from Playlist. |
+| Playlist | Open Playlist; Entries, History, Listening Timeline; Clear on Played, Restore, Delete Permanently…, Rewind to Here…; Trash, Play This Playlist, Copy PodList Link, Playlist Settings…, Rename Playlist…, Delete Playlist. New Playlist… remains in File. |
 | Controls | Play/Pause, Resume Playback, Pause Playback, Go to Time…, Back 15 Seconds, Forward 30 Seconds, Stop; speed, sleep, Previous/Next Chapter, Go to Chapter; Now Playing, Open Active Playlist, Back to Now Playing, Retry Playback. |
 | Window | Standard window management and window list, including Now Playing and **Listening Stats**. `Window › Listening Stats` remains the UI tour’s route; it comes from its Window scene, without a duplicate custom command. Getting Started and PodList Help windows also retain their standard scene entries. |
 | Help | Standard Help search, PodList Help, Getting Started. |
@@ -121,7 +121,7 @@ All task sheets share a reading surface constrained to the sheet width minus 48 
 
 ## Carried over from the other clients
 
-Delete Playlist asks nothing and offers Undo; Unsubscribe takes two clicks on the subscribed control; renaming is an explicit Rename with Cancel and Save; Playlist and View names are unique; drafts survive quitting. Exact Mac presentation of each is settled while building milestone 2 and recorded here.
+Delete Playlist asks nothing and offers Undo; Unsubscribe takes two clicks on the same subscribed control, with no timer; pointer or focus leaving, a click elsewhere, navigation or window deactivation disarms it; renaming is an explicit Rename with Cancel and Save; Playlist and View names are unique; drafts survive quitting. Exact Mac presentation of each is settled while building milestone 2 and recorded here.
 
 ## Milestone 4a editing presentation
 
@@ -302,3 +302,28 @@ Choose or drop a file to select it. Show its name, podcast count and how many ar
 Show “Importing 12 of 40” and each podcast’s result: Added, Already in the Library, or Failed with a reason. Retry failed podcasts. Skip duplicates. Import and export live in Settings.
 
 Closing Add podcasts or leaving Settings does not stop importing. Keep progress visible in Library, with access to results and retry. Say to keep the app running. Save confirmed work locally. Resume unfinished imports on next launch, skipping podcasts already in the Library.
+
+## Library integration and round 16 polish (17 Nov 2026)
+
+Copy PodList Link in Episode, Playlist, Views and Podcast commands uses the stable
+`podlist://episode/<id>`, `podlist://playlist/<id>`, `podlist://view/<id>` and
+`podlist://podcast/<encoded-feed-url>` routes. They use the most recent Library window,
+open one when needed, and only navigate. Unknown/removed items explain that they may
+belong to another Library. OPML document opening keeps its import preview.
+
+The Add to PodList Service validates one selected HTTP(S) feed address and stages Add
+Podcasts. It does not Subscribe. Spotlight indexes Library Episodes, Subscriptions and
+Playlists on snapshot changes, removing stale items and clearing on disconnect or
+Library replacement. Writes are allowed only in release or `app.podlist.uitour.*` builds;
+intent donations remain release-only. App links, indexing and registration are checked
+in the disposable VM system mode, independently of the visual tour.
+
+Custom accent text uses the brand reading palette under Multicolor (#9DB1FF in Dark);
+selection keeps the deep #3652D0 Dark fill. Other system accents retain the contrast
+fallback. Current Entry shares its title edge and row height with other Entries; its
+marker sits beside the podcast caption. Timeline Rewind appears on hover/selection,
+with a persistent row accessibility action and context/menu commands. Glass sheet
+footers are limited to New View/Edit View. Form labels use first baselines and popups
+fill their common control column. Show Notes › Show in Window opens a bounded reading
+window; Esc closes it. The sidebar Search count and redundant Podcast page subtitle
+are omitted. Add to a Playlist consistently uses `text.line.last.and.arrowtriangle.forward`.

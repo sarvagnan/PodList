@@ -70,7 +70,10 @@ public final class ApplicationModel {
     private var compatibilityFailure: SyncCompatibilityFailure?
     public private(set) var syncError: String? { didSet { announcements.error(syncError) } }
     public private(set) var syncing = false
-    public private(set) var library: LibraryModel?
+    @ObservationIgnored public var libraryChanged: (@MainActor (LibraryModel?, String?) -> Void)?
+    public private(set) var library: LibraryModel? {
+        didSet { libraryChanged?(library, origin) }
+    }
     public private(set) var libraryEditing: LibraryEditingModel?
     public var isStandalone: Bool { library != nil && origin == nil }
     public private(set) var bringOverPreview: BringOverPreview?

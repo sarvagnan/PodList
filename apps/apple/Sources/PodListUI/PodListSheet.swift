@@ -8,6 +8,7 @@ struct PodListSheet<Content: SwiftUI.View, Status: SwiftUI.View, Secondary: Swif
     let width: CGFloat
     let actionTitle: String
     var actionEnabled = true
+    var floating = false
     var defaultShortcut = true
     var cancelTitle: String? = "Cancel"
     var cancelEnabled = true
@@ -18,12 +19,13 @@ struct PodListSheet<Content: SwiftUI.View, Status: SwiftUI.View, Secondary: Swif
     let secondary: () -> Secondary
 
     init(title: String, width: CGFloat, actionTitle: String, actionEnabled: Bool = true,
-         defaultShortcut: Bool = true, cancelTitle: String? = "Cancel", cancelEnabled: Bool = true,
+         floating: Bool = false, defaultShortcut: Bool = true, cancelTitle: String? = "Cancel", cancelEnabled: Bool = true,
          cancel: @escaping () -> Void, action: @escaping () -> Void,
          @ViewBuilder content: @escaping () -> Content,
          @ViewBuilder status: @escaping () -> Status = { EmptyView() },
          @ViewBuilder secondary: @escaping () -> Secondary = { EmptyView() }) {
         self.title = title; self.width = width; self.actionTitle = actionTitle
+        self.floating = floating
         self.actionEnabled = actionEnabled; self.defaultShortcut = defaultShortcut
         self.cancelTitle = cancelTitle; self.cancelEnabled = cancelEnabled
         self.cancel = cancel; self.action = action; self.content = content
@@ -36,7 +38,7 @@ struct PodListSheet<Content: SwiftUI.View, Status: SwiftUI.View, Secondary: Swif
         } footer: {
             VStack(spacing: 0) {
                 status().padding(.horizontal, 24)
-                PodListSheetFooter(actionTitle: actionTitle, actionEnabled: actionEnabled,
+                PodListSheetFooter(actionTitle: actionTitle, actionEnabled: actionEnabled, floating: floating,
                                    defaultShortcut: defaultShortcut, cancelTitle: cancelTitle,
                                    cancelEnabled: cancelEnabled, cancel: cancel, action: action,
                                    secondary: secondary)
@@ -124,7 +126,7 @@ private struct PodListSheetLabelStyle: LabeledContentStyle {
 struct PodListSheetFieldLayout: Layout {
     let labelWidth: CGFloat
     private let spacing: CGFloat = 12
-    private func metrics(_ proposal: ProposedViewSize, _ subviews: Subviews) -> (width: CGFloat, label: CGFloat, stacked: Bool, height: CGFloat) {
+    private func metrics(_ proposal: ProposedViewSize, _ subviews: Subviews) -> (width: CGFloat, label: CGFloat, stacked: Bool, height: CGFloat, labelY: CGFloat, controlY: CGFloat) {
         let width = proposal.width ?? 504
         let label = min(labelWidth, width * 0.4)
         let control = max(1, width - label - spacing)
@@ -132,7 +134,12 @@ struct PodListSheetFieldLayout: Layout {
         let stacked = measured.width > control + 0.5
         let labelSize = subviews[0].sizeThatFits(ProposedViewSize(width: stacked ? width : label, height: nil))
         let controlSize = subviews[1].sizeThatFits(ProposedViewSize(width: stacked ? width : control, height: nil))
-        return (width, label, stacked, stacked ? labelSize.height + 6 + controlSize.height : max(labelSize.height, controlSize.height))
+        if stacked { return (width, label, true, labelSize.height + 6 + controlSize.height, 0, labelSize.height + 6) }
+        let labelBaseline = subviews[0].dimensions(in: ProposedViewSize(width: label, height: nil))[.firstTextBaseline]
+        let controlBaseline = subviews[1].dimensions(in: ProposedViewSize(width: control, height: nil))[.firstTextBaseline]
+        let baseline = max(labelBaseline, controlBaseline)
+        let labelY = baseline - labelBaseline, controlY = baseline - controlBaseline
+        return (width, label, false, max(labelY + labelSize.height, controlY + controlSize.height), labelY, controlY)
     }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let row = metrics(proposal, subviews)
@@ -141,11 +148,10 @@ struct PodListSheetFieldLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let row = metrics(ProposedViewSize(width: bounds.width, height: nil), subviews)
         let labelProposal = ProposedViewSize(width: row.stacked ? bounds.width : row.label, height: nil)
-        let labelHeight = subviews[0].sizeThatFits(labelProposal).height
         subviews[0].place(at: CGPoint(x: row.stacked ? bounds.minX : bounds.minX + row.label,
-                                     y: bounds.minY), anchor: row.stacked ? .topLeading : .topTrailing, proposal: labelProposal)
+                                     y: bounds.minY + row.labelY), anchor: row.stacked ? .topLeading : .topTrailing, proposal: labelProposal)
         subviews[1].place(at: CGPoint(x: row.stacked ? bounds.minX : bounds.minX + row.label + spacing,
-                                     y: bounds.minY + (row.stacked ? labelHeight + 6 : 0)), anchor: .topLeading,
+                                     y: bounds.minY + row.controlY), anchor: .topLeading,
                           proposal: ProposedViewSize(width: row.stacked ? bounds.width : bounds.width - row.label - spacing, height: nil))
     }
 }
@@ -163,6 +169,7 @@ struct PodListSheetSectionHeading: SwiftUI.View {
 struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
     let actionTitle: String
     var actionEnabled = true
+    var floating = false
     var defaultShortcut = true
     var cancelTitle: String? = "Cancel"
     var cancelEnabled = true
@@ -170,10 +177,11 @@ struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
     let action: () -> Void
     let secondary: () -> Secondary
 
-    init(actionTitle: String, actionEnabled: Bool = true, defaultShortcut: Bool = true,
+    init(actionTitle: String, actionEnabled: Bool = true, floating: Bool = false, defaultShortcut: Bool = true,
          cancelTitle: String? = "Cancel", cancelEnabled: Bool = true,
          cancel: @escaping () -> Void, action: @escaping () -> Void,
          @ViewBuilder secondary: @escaping () -> Secondary = { EmptyView() }) {
+        self.floating = floating
         self.actionTitle = actionTitle; self.actionEnabled = actionEnabled
         self.defaultShortcut = defaultShortcut; self.cancelTitle = cancelTitle
         self.cancelEnabled = cancelEnabled; self.cancel = cancel; self.action = action
@@ -181,6 +189,12 @@ struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
     }
 
     var body: some SwiftUI.View {
+        Group {
+            if floating { buttons.padding(20).macGlassSurface().padding([.horizontal, .bottom], 12) }
+            else { buttons.padding(24) }
+        }
+    }
+    private var buttons: some SwiftUI.View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
                 secondary().buttonStyle(.bordered).tint(nil).fixedSize()
@@ -192,7 +206,6 @@ struct PodListSheetFooter<Secondary: SwiftUI.View>: SwiftUI.View {
                 HStack { Spacer(minLength: 0); primaryActions }
             }
         }
-        .padding(20).macGlassSurface().padding([.horizontal, .bottom], 12)
     }
     private var primaryActions: some SwiftUI.View {
         HStack(spacing: 12) {

@@ -97,6 +97,9 @@ public struct LibraryCommands: Commands {
             Button("Edit Download Rules…") { podcast?.downloadRules?() }.disabled(podcast?.downloadRules == nil)
             Divider()
             ShareLink(items: podcast?.shareURL.map { [$0] } ?? []) { Text("Share Podcast…") }.disabled(podcast?.shareURL == nil)
+            Button("Copy PodList Link") {
+                if let url = podcast?.feedURL { ShareLinks.copy(PodListLink.podcast(url.absoluteString).url) }
+            }.disabled(podcast?.feedURL == nil)
             Button("Copy Feed Address") { if let url = podcast?.feedURL { ShareLinks.copy(url) } }.disabled(podcast?.feedURL == nil)
         }
         CommandMenu("Views") {
@@ -112,6 +115,9 @@ public struct LibraryCommands: Commands {
             Button("Rename View…") {
                 if let viewEditor { viewEditor.rename?() } else { actions?.renameView?() }
             }.disabled(viewEditor != nil ? viewEditor?.rename == nil : actions?.renameView == nil)
+            Button("Copy PodList Link") {
+                if let id = selectedViewID { ShareLinks.copy(PodListLink.view(id).url) }
+            }.disabled(selectedViewID == nil)
             Button("Delete View", role: .destructive) {
                 if let viewEditor { viewEditor.delete?(); return }
                 actions?.deleteView?()

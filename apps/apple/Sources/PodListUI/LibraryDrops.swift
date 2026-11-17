@@ -9,7 +9,7 @@ enum LibraryDrop: Hashable, Sendable {
 
     static func classify(_ url: URL) -> Self? {
         if url.isFileURL { return url.pathExtension.lowercased() == "opml" ? .opml(url) : nil }
-        guard let web = ShareLinks.web(url.absoluteString), web.user == nil, web.password == nil else { return nil }
+        guard let web = PodListLink.feedSelection(url.absoluteString) else { return nil }
         return .feed(web)
     }
     static func decode(_ data: Data, type: UTType) -> Self? {
@@ -63,6 +63,17 @@ struct LibraryDropBatch: Sendable {
 }
 
 extension LibraryEditingModel {
+    /// A Service stages exactly the same feed input used by Add Podcasts. No subscription is made.
+    public func stagePodcastAddress(_ selection: String) -> Bool {
+        guard let url = PodListLink.feedSelection(selection) else { return false }
+        let state = podcastDiscovery
+        state.searchTask?.cancel(); state.query = url.absoluteString
+        state.results = []; state.selectedFeed = nil; state.loading = false; state.searched = false; state.error = nil
+        state.initialized = true
+        setDraft(url.absoluteString, field: "addPodcasts")
+        return true
+    }
+
     /// Only stages the existing preview. Import still requires its Import button.
     public func selectOPMLFile(_ url: URL) async {
         await selectOPMLFiles([url])

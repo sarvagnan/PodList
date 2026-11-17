@@ -83,6 +83,9 @@ struct EpisodeActionItems: SwiftUI.View {
                         ShareLink(items: shareURL.map { [$0] } ?? []) { Text("Share Episode…") }.disabled(shareURL == nil)
                         Button("Copy Link") { if let shareURL { ShareLinks.copy(shareURL) } }.disabled(shareURL == nil)
                     }
+                    Button("Copy PodList Link") {
+                        if let id = ids.first { ShareLinks.copy(PodListLink.episode(id).url) }
+                    }.disabled(ids.count != 1)
                     Button(actionLabels.star) { Task { await editing?.setStar(ids, starred: !allStarred) } }
                         .keyboardShortcut(shortcut(.star))
                     Button(actionLabels.played) { Task { await editing?.markPlayed(ids, played: !allPlayed) } }
@@ -148,7 +151,7 @@ struct EpisodeActionButtons: ToolbarContent {
                     .accessibilityLabel(playsPlaylist ? "Play This Playlist" : labels.play)
                     .help(playsPlaylist ? "Play this Playlist" : "Play selected Episodes now (\(PodListShortcut.playNow.notation))")
                     .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
-                Button("Add to a Playlist…", systemImage: "text.badge.plus") { presentation.sheet = .add(ids, false) }
+                Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") { presentation.sheet = .add(ids, false) }
                     .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
                 Menu("Episode Actions", systemImage: "ellipsis.circle") {
                     EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
@@ -382,6 +385,9 @@ public struct PlaylistEditingCommands: Commands {
                 guard let playlist = playlistContext?.playlist else { return }
                 Task { await app.editing?.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId) }
             }.disabled(playlistUnavailable || playlistContext?.playlist.entries.isEmpty != false)
+            Button("Copy PodList Link") {
+                if let id = playlistContext?.playlist.id { ShareLinks.copy(PodListLink.playlist(id).url) }
+            }.disabled(playlistContext == nil)
             Button("Playlist Settings…") {
                 guard let playlistContext else { return }
                 playlistContext.presentation.sheet = .settings(playlistContext.playlist.id)

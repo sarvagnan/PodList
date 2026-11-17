@@ -37,6 +37,7 @@ struct EpisodeInspector: SwiftUI.View {
     @Bindable var app: ApplicationModel
     let playlistPresentation: PlaylistPresentation
     var startedPlayback: () -> Void = {}
+    @Environment(\.openWindow) private var openWindow
     var scrolls = true
     var selectedIDs: [String] = []
     var body: some SwiftUI.View {
@@ -67,7 +68,7 @@ struct EpisodeInspector: SwiftUI.View {
                 LabeledContent("Total Length", value: summary.lengthText)
                     .labeledContentStyle(InspectorLabeledContentStyle())
                 if let editing = app.editing, summary.allAvailable {
-                    Button("Add to a Playlist…", systemImage: "text.badge.plus") {
+                    Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") {
                         playlistPresentation.sheet = .add(summary.ids, false)
                     }
                     let allStarred = summary.ids.allSatisfy { library.state.episodeStates[$0]?.starred == true }
@@ -144,7 +145,12 @@ struct EpisodeInspector: SwiftUI.View {
                     }
                     Divider()
                 }
-                Text("Show notes").macContentFont(.headline)
+                HStack {
+                    Text("Show Notes").macContentFont(.headline)
+                    Spacer()
+                    Button("Show in Window") { openWindow(id: "episode-notes", value: row.id) }
+                        .accessibilityLabel("Show Notes in Window for \(row.title)")
+                }
                 let notes = Presentation.plainShowNotes(episode.description)
                 Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
             } else {
@@ -183,7 +189,7 @@ struct InspectorActions: SwiftUI.View {
                 }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play now (not playing)")
                     .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
                 HStack(spacing: 8) {
-                    icon("Add to a Playlist", symbol: "text.badge.plus") { presentation.sheet = .add([row.id], false) }
+                    icon("Add to a Playlist", symbol: "text.line.last.and.arrowtriangle.forward") { presentation.sheet = .add([row.id], false) }
                     icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { Task { await editing.setStar([row.id], starred: !starred) } }
                     icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { Task { await editing.markPlayed([row.id], played: !played) } }
                     DownloadIcon(id: row.id, app: app)

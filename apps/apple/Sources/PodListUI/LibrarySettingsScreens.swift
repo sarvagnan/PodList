@@ -325,7 +325,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                             ForEach(stats.totals, id: \.name) { total in
                                 LabeledContent(total.name) { Text("\(ListeningStatsPresentation.time(total.seconds)) listened · \(CountText.format(total.finished, .episode)) finished") }
                             }
-                            Text("Time includes partial listening. Episodes finished counts playback, and changes after Rewind or marking Unplayed.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                            Text("Listening time includes Episodes you have not finished. The finished count includes only Episodes finished by listening; Rewind or Mark Unplayed can reduce it.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                             Text("Listening Streak: \(CountText.format(stats.streak, .day))").macContentFont(.headline)
                             if stats.days.contains(where: { $0.seconds > 0 }) {
                                 Text("Daily Listening").macContentFont(.headline)

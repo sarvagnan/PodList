@@ -20,22 +20,20 @@ private actor PublisherFixture: PublisherReader {
     LibraryEditingModel(database: db, source: PodcastLibrary(database: db, publisher: publisher), scope: UUID().uuidString, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!)
 }
 
-@Test func unsubscribeRequiresTwoClicksBeforeExpiryAndResetsOnOtherInteraction() {
+@Test func unsubscribeRequiresTwoClicksAndResetsOnOtherInteraction() {
     var control = UnsubscribeControl()
-    let start = Date(timeIntervalSince1970: 100)
-    let firstClick = control.click(at: start)
-    #expect(!firstClick)
-    #expect(control.isArmed(at: start.addingTimeInterval(3.99)))
-    let secondClick = control.click(at: start.addingTimeInterval(3.99))
-    #expect(secondClick)
-    #expect(!control.isArmed(at: start.addingTimeInterval(4)))
-    let rearm = control.click(at: start)
+    let first = control.click()
+    #expect(!first && control.isArmed)
+    let second = control.click()
+    #expect(second && !control.isArmed)
+    let rearm = control.click()
     #expect(!rearm)
-    let expired = control.click(at: start.addingTimeInterval(4))
-    #expect(!expired)
     control.reset()
-    let afterReset = control.click(at: start.addingTimeInterval(4.01))
+    #expect(!control.isArmed)
+    let afterReset = control.click()
     #expect(!afterReset)
+    let confirm = control.click()
+    #expect(confirm)
 }
 
 @MainActor @Test func viewNamesAreUniqueAtomicallyAndTrimmedAcrossWindows() async throws {
