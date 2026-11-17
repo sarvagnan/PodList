@@ -32,18 +32,6 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSAccentColorName</key><string>AccentColor</string>
-<key>CFBundleURLTypes</key><array><dict>
-<key>CFBundleURLName</key><string>PodList Library Link</string>
-<key>CFBundleTypeRole</key><string>Viewer</string>
-<key>CFBundleURLSchemes</key><array><string>podlist</string></array>
-</dict></array>
-<key>NSServices</key><array><dict>
-<key>NSMenuItem</key><dict><key>default</key><string>Add to PodList</string></dict>
-<key>NSMessage</key><string>addToPodList</string>
-<key>NSPortName</key><string>PodList</string>
-<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.url</string></array>
-<key>NSRequiredContext</key><dict/>
-</dict></array>
 <key>CFBundleDocumentTypes</key><array><dict>
 <key>CFBundleTypeName</key><string>OPML Podcast Subscriptions</string>
 <key>CFBundleTypeRole</key><string>Viewer</string>
@@ -66,6 +54,11 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 </dict></array>
 </dict></plist>
 PLIST
+# The URL scheme and Service register with LaunchServices wherever macOS sees the
+# bundle, so the host development build leaves them out (system-integration-keys.plist).
+if [ "${PODLIST_SYSTEM_INTEGRATION:-0}" = 1 ]; then
+    /usr/libexec/PlistBuddy -c "Merge $(dirname "$0")/system-integration-keys.plist" "$app/Contents/Info.plist"
+fi
 # SwiftPM builds executables and module resources, not the main app's asset
 # catalogue. Compile the global accent into the main bundle before signing.
 # NSAccentColorName lets macOS use it for Multicolor and honor other system accents.

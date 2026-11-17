@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged only into builds that may register with the system: the throwaway VM
+     tour copies (ui-tour-guest.sh) and release builds (PODLIST_SYSTEM_INTEGRATION=1).
+     The host development bundle never advertises a URL scheme or a Service. -->
+<plist version="1.0"><dict>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>PodList Library Link</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>CFBundleURLSchemes</key><array><string>podlist</string></array>
+</dict></array>
+<key>NSServices</key><array><dict>
+<key>NSMenuItem</key><dict><key>default</key><string>Add to PodList</string></dict>
+<key>NSMessage</key><string>addToPodList</string>
+<key>NSPortName</key><string>PodList</string>
+<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.url</string></array>
+<key>NSRequiredContext</key><dict/>
+</dict></array>
+</dict></plist>
