@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import XCTest
 import XCUIAutomation
@@ -13,14 +14,25 @@ final class PodListUITour: XCTestCase {
 
     func testLight() throws { try tour("Light") }
     func testDark() throws { try tour("Dark") }
+    func testBordersLight() throws { try tour("Light", showBorders: true) }
+    func testBordersDark() throws { try tour("Dark", showBorders: true) }
 
-    private func tour(_ style: String) throws {
+    private func tour(_ style: String, showBorders: Bool = false) throws {
         continueAfterFailure = false
-        appearance = style.lowercased()
+        appearance = (showBorders ? "borders-" : "") + style.lowercased()
         let env = ProcessInfo.processInfo.environment
         let runDirectory = try XCTUnwrap(env["PODLIST_UI_RUN_DIRECTORY"])
         guard FileManager.default.fileExists(atPath: URL(fileURLWithPath: runDirectory).appendingPathComponent("uitour-vm").path) else {
             throw NSError(domain: "PodListUITour", code: 3, userInfo: [NSLocalizedDescriptionKey: "UI tours require a throwaway VM; use PODLIST_UI_VM with ui-tour.sh"])
+        }
+        // AppKit implements this getter on macOS 27, but the SDK does not declare it.
+        let workspace = NSWorkspace.shared
+        let key = "accessibilityDisplayShouldShowBorders"
+        if workspace.responds(to: NSSelectorFromString(key)) {
+            let actual = try XCTUnwrap(workspace.value(forKey: key) as? Bool, "Could not read Show Borders in the guest")
+            XCTAssertEqual(actual, showBorders, "Guest Show Borders must be \(showBorders ? "on" : "off") before \(appearance) captures")
+        } else {
+            XCTAssertFalse(showBorders, "Show Borders verification requires NSWorkspace.\(key) in the guest")
         }
         let origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
         let bundleURL = URL(fileURLWithPath: runDirectory).appendingPathComponent(appearance + "/PodList.app")
@@ -53,6 +65,10 @@ final class PodListUITour: XCTestCase {
         try ready(library)
         try ready(library.buttons["Open Market Hours, Subscription"])
         try ready(library.buttons["Open Now Playing"])
+        if showBorders {
+            try captureShowBorders()
+            return
+        }
         let sidebar = library.outlines["Sidebar"]
         try ready(sidebar)
         XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
@@ -68,8 +84,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.buttons["Pause"].exists, "The restored player must be paused")
         try capture("01-subscriptions")
 
-        try navigate("New this week")
-        try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch)
+        try openNewThisWeek()
         let leadingTitleX = library.staticTexts["New this week"].firstMatch.frame.minX
         XCTAssertFalse(library.toolbars.buttons["New View…"].exists)
         try capture("02-new-this-week")
@@ -177,9 +192,7 @@ final class PodListUITour: XCTestCase {
         try ready(library.buttons["Redo Settings for Commute"])
         assertPlaylistHeader(play: commuteHeader, section: commuteSection)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
-        // Use the documented File command to create a Playlist.
-        app.typeKey("n", modifierFlags: [.command, .shift])
-        try sheet("New Playlist")
+        try openNewPlaylist()
         XCTAssertFalse(library.sheets.staticTexts["Enter a Playlist name."].exists)
         try capture("13-new-playlist", expectsSheet: true)
         let newPlaylistName = library.sheets.textFields["Playlist name"]
@@ -404,11 +417,7 @@ final class PodListUITour: XCTestCase {
         nowPlaying.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(nowPlaying.waitForNonExistence(timeout: 10))
 
-        app.typeKey(",", modifierFlags: .command)
-        let settings = app.windows.containing(.any, identifier: "General").firstMatch
-        try ready(settings)
-        try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
-        try ready(text("Speed", in: settings))
+        let settings = try openGeneralSettings()
         assertSettingsControlsNamed(in: settings)
         try capture("27-settings-general-top", in: settings)
         // Settings sizes to its content; scroll only if the pane still scrolls.
@@ -421,10 +430,7 @@ final class PodListUITour: XCTestCase {
         try ready(button("Disconnect", in: settings))
         assertSettingsControlsNamed(in: settings)
         try capture("29-settings-general-bottom", in: settings)
-        try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
-        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
-        try ready(mcp)
-        XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
+        let mcp = try openAutomationSettings(in: settings)
         let automationScope = settings.staticTexts["This setting applies only to this Mac. App Intents and Shortcuts are always available."].firstMatch
         try ready(automationScope)
         let compactAutomation = NSPredicate { _, _ in
@@ -524,6 +530,49 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertTrue(didScroll, "At the minimum window size the Episode list must overflow and scroll, so rows pass beneath the bars")
         try capture("36-scrolled-under-bars")
+    }
+
+    private func captureShowBorders() throws {
+        try openNewThisWeek()
+        try ready(episodeRows.firstMatch)
+        try capture("02-new-this-week")
+        try selectFirstEpisode()
+        try capture("03-episode-inspector")
+        try openNewPlaylist()
+        try capture("13-new-playlist", expectsSheet: true)
+        try dismissSheet("Cancel")
+        let settings = try openGeneralSettings()
+        try capture("27-settings-general-top", in: settings)
+        _ = try openAutomationSettings(in: settings)
+        try capture("30-settings-automation", in: settings)
+    }
+
+    private func openNewThisWeek() throws {
+        try navigate("New this week")
+        try ready(library.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Episodes, sortable columns")).firstMatch)
+    }
+
+    private func openNewPlaylist() throws {
+        // Use the documented File command to create a Playlist.
+        app.typeKey("n", modifierFlags: [.command, .shift])
+        try sheet("New Playlist")
+    }
+
+    private func openGeneralSettings() throws -> XCUIElement {
+        app.typeKey(",", modifierFlags: .command)
+        let settings = app.windows.containing(.any, identifier: "General").firstMatch
+        try ready(settings)
+        try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
+        try ready(text("Speed", in: settings))
+        return settings
+    }
+
+    private func openAutomationSettings(in settings: XCUIElement) throws -> XCUIElement {
+        try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
+        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
+        try ready(mcp)
+        XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
+        return mcp
     }
 
     private func assertEpisodeTableLayout(file: StaticString = #filePath, line: UInt = #line) throws {

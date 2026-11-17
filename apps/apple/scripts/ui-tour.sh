@@ -8,7 +8,7 @@ if [ -z "${PODLIST_UI_VM:-}" ]; then
     echo "All UI tours require PODLIST_UI_VM (never run on the owner's desktop)" >&2
     exit 2
 fi
-styles="light dark"
+styles="light dark borders-light borders-dark"
 if [ "$mode" = system ]; then styles=system; fi
 mkdir -p "$1"
 out="$(cd "$1" && pwd)"
@@ -34,11 +34,11 @@ cleanup() {
     if [ -n "$demo_pid" ]; then kill -TERM "$demo_pid" 2>/dev/null || true; wait "$demo_pid" 2>/dev/null || true; fi
     # XCTest normally terminates its app. If the runner was interrupted, identify
     # only our disposable executables by their full unique paths, then signal PIDs.
-    python3 - "$run" <<'PY'
+    python3 - "$run" $styles <<'PY'
 import os, signal, subprocess, sys, time
 from pathlib import Path
 root = Path(sys.argv[1]).resolve()
-owned = {str(root / style / 'PodList.app/Contents/MacOS/PodListMac') for style in ('light', 'dark', 'system')}
+owned = {str(root / style / 'PodList.app/Contents/MacOS/PodListMac') for style in sys.argv[2:]}
 for line in subprocess.check_output(['ps', '-axo', 'pid=,comm='], text=True).splitlines():
     fields = line.strip().split(None, 1)
     if len(fields) != 2 or fields[1] not in owned:
@@ -147,7 +147,7 @@ if [ -n "$vm" ]; then
         "$guest_run" "$mode" >> "$out/xcodebuild.log" 2>&1 || status=$?
     if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
     if [ -d "$run/guest-diagnostics" ]; then cp -R "$run/guest-diagnostics" "$out/"; fi
-    for bundle in Tour Shortcuts MCP Integration; do
+    for bundle in Tour ShowBorders Shortcuts MCP Integration; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$out/$bundle.xcresult"; fi
     done
     if [ -d "$run/system-results" ]; then cp -R "$run/system-results" "$out/"; fi
@@ -196,34 +196,43 @@ fi
 
 # Export kept attachments even after a failed tour, for diagnosis in the main session.
 export_status=0
-if [ -d "$out/Tour.xcresult" ]; then
-    xcrun xcresulttool export attachments --path "$out/Tour.xcresult" \
-        --output-path "$out/attachments" || export_status=$?
-else
-    export_status=1
-fi
+for bundle in Tour ShowBorders; do
+    attachments=attachments
+    if [ "$bundle" = ShowBorders ]; then attachments=borders-attachments; fi
+    if [ -d "$out/$bundle.xcresult" ]; then
+        xcrun xcresulttool export attachments --path "$out/$bundle.xcresult" \
+            --output-path "$out/$attachments" || export_status=$?
+    else
+        export_status=1
+    fi
+done
 python3 - "$out" "$apple/UITour/PodListUITour.swift" "$status" "$export_status" <<'PY'
 import json, re, shutil, sys
 from pathlib import Path
 out, source = map(Path, sys.argv[1:3])
-screens = re.findall(r'try capture\("([^"\n]+)"', source.read_text())
-assert len(screens) == 37 and len(set(screens)) == 37, 'Tour screen catalog must be unique'
+screens = list(dict.fromkeys(re.findall(r'try capture\("([^"\n]+)"', source.read_text())))
+assert len(screens) == 37, 'Tour screen catalog must have 37 distinct screens'
+borders_screens = {'02-new-this-week', '03-episode-inspector', '13-new-playlist', '27-settings-general-top', '30-settings-automation'}
+assert borders_screens <= set(screens), 'Show Borders screens must match baseline screen names'
 expected = {f'{style}/{screen}.{ext}' for style in ('light', 'dark') for screen in screens for ext in ('png', 'txt')}
+expected.update(f'{style}/{screen}.{ext}' for style in ('borders-light', 'borders-dark') for screen in borders_screens for ext in ('png', 'txt'))
 expected.add('menus.txt')
-manifest = out / 'attachments/manifest.json'
 written = set()
-if manifest.exists():
+for attachments in (out / 'attachments', out / 'borders-attachments'):
+    manifest = attachments / 'manifest.json'
+    if not manifest.exists():
+        continue
     for test in json.loads(manifest.read_text()):
         for item in test['attachments']:
             name = item['suggestedHumanReadableName']
-            match = re.search(r'(light|dark)--([0-9]{2}a?-[a-z0-9-]+?)(?:_[0-9]+_[0-9A-F-]+)?\.(png|txt)$', name)
+            match = re.search(r'((?:borders-)?(?:light|dark))--([0-9]{2}a?-[a-z0-9-]+?)(?:_[0-9]+_[0-9A-F-]+)?\.(png|txt)$', name)
             destination = f'{match[1]}/{match[2]}.{match[3]}' if match else 'menus.txt' if name.startswith('menus') else None
             if destination not in expected:
                 continue
             if destination in written:
                 raise SystemExit(f'Duplicate tour attachment: {destination}')
-            exported = out / 'attachments' / item['exportedFileName']
-            if exported.parent.resolve() != (out / 'attachments').resolve():
+            exported = attachments / item['exportedFileName']
+            if exported.parent.resolve() != attachments.resolve():
                 raise SystemExit('Unexpected exported attachment path')
             target = out / destination
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -235,10 +244,11 @@ readme = '# PodList Mac XCUITest tour\n\n'
 readme += f'Status: {"complete" if complete else "incomplete"}. {len(written)}/{len(expected)} required attachments exported.\n\n'
 readme += 'Window screenshots include attached sheets. Text trees use public XCUI snapshots; role is XCUIElementType, and AX subrole and keyboard shortcuts are unavailable. Inspect NSMenuItem.keyEquivalent/keyEquivalentModifierMask in Xcode/LLDB for shortcuts. Apple and Services are excluded.\n\n'
 readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
-readme += 'Full test results: Tour.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
-readme += '| Screen | Light / Dark files |\n|---|---|\n'
+readme += 'The focused APPEAR-03 pass runs with macOS Show Borders on. Test results: Tour.xcresult and ShowBorders.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/ and borders-attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
+readme += '| Screen | Light / Dark files | Show Borders Light / Dark files |\n|---|---|---|\n'
 for screen in screens:
-    readme += f'| {screen} | light/{screen}.png + .txt; dark/{screen}.png + .txt |\n'
+    borders = f'borders-light/{screen}.png + .txt; borders-dark/{screen}.png + .txt' if screen in borders_screens else ''
+    readme += f'| {screen} | light/{screen}.png + .txt; dark/{screen}.png + .txt | {borders} |\n'
 if missing:
     readme += '\nMissing attachments:\n\n' + '\n'.join(f'- {name}' for name in missing) + '\n'
 (out / 'README.md').write_text(readme)
