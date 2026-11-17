@@ -16,9 +16,11 @@ for item in light dark system products checks; do
     if [ -d "$shared/run/$item" ]; then ditto "$shared/run/$item" "$run/$item"; fi
 done
 # Only these disposable VM copies advertise the podlist:// scheme and the Service.
+# PlistBuddy splits its command on spaces, and the share path has them.
+cp -f "$shared/repo/apps/apple/scripts/system-integration-keys.plist" "$run/system-integration-keys.plist"
 for app in "$run"/light/PodList.app "$run"/dark/PodList.app "$run"/system/PodList.app; do
     [ -d "$app" ] || continue
-    /usr/libexec/PlistBuddy -c "Merge $shared/repo/apps/apple/scripts/system-integration-keys.plist" "$app/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Merge $run/system-integration-keys.plist" "$app/Contents/Info.plist"
     codesign --force --sign - "$app"
 done
 demo=""
