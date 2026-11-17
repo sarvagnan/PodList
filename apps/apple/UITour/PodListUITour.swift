@@ -280,12 +280,13 @@ final class PodListUITour: XCTestCase {
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
-        // Keep the pointer on the control while capturing, then disarm by moving away.
+        // Keep the pointer on the control while capturing, then disarm with a click elsewhere
+        // (pointer-exit disarming uses onHover, which XCUITest's synthesized hover doesn't reach).
         try ready(library.buttons["Unsubscribe"], timeout: 3)
         XCTAssertEqual(library.buttons["Unsubscribe"].frame, subscriptionFrame)
         XCTAssertEqual(library.buttons["Share Podcast"].frame, shareFrame)
         try capture("20-unsubscribe-armed")
-        library.buttons["Share Podcast"].hover()
+        library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch.click()
         try ready(library.buttons["Subscribed"])
         XCTAssertFalse(library.buttons["Unsubscribe"].exists)
         XCTAssertEqual(library.buttons["Subscribed"].frame, subscriptionFrame)
