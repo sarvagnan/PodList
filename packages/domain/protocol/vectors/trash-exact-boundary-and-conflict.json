@@ -1,7 +1,7 @@
 {
   "name": "trash-exact-boundary-and-conflict",
   "description": "Trash expires strictly after the retention boundary. An active Playlist with the same id blocks restore; missing restore does nothing.",
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "initial": {
     "playlists": [
       {

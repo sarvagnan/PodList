@@ -1,7 +1,7 @@
 import { Library as Domain } from "@podlist/domain"
 import { Context, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql"
-import { toSubscription } from "./Subscriptions.ts"
+import { type SubscriptionRow, toSubscription } from "./Subscriptions.ts"
 
 // Clients mirror the Library catalogue (subscription and episode tables) so Views run
 // offline. Triggers stamp every inserted, updated or deleted row with a rising change number;
@@ -48,6 +48,7 @@ export interface CatalogueChanges {
   readonly cursor: number
   readonly subscriptions: ReadonlyArray<Domain.Subscription>
   readonly episodes: ReadonlyArray<Domain.Episode>
+  readonly referencedSubscriptions?: ReadonlyArray<Domain.Subscription>
   /** True when more changes remain after `cursor`; ask again from there. */
   readonly more: boolean
 }
@@ -88,36 +89,59 @@ export const defaultPageSize = 500
 
 export class Catalogue extends Context.Service<
   Catalogue,
-  { readonly changes: (since: number, limit?: number) => Effect.Effect<CatalogueChanges> }
+  {
+    readonly changes: (
+      since: number,
+      limit?: number,
+      includeReferencedSubscriptions?: boolean
+    ) => Effect.Effect<CatalogueChanges>
+  }
 >()("@podlist/server/Catalogue") {
   static readonly layer = Layer.effect(
     Catalogue,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const changes = (since: number, limit = defaultPageSize) =>
+      const changes = (
+        since: number,
+        limit = defaultPageSize,
+        includeReferencedSubscriptions = false
+      ) =>
         Effect.gen(function* () {
           const page = yield* sql<{ seq: number; kind: string; row_id: string }>`
             SELECT seq, kind, row_id FROM catalogue_change WHERE seq > ${since}
             ORDER BY seq LIMIT ${limit + 1}`
           const rows = page.slice(0, limit)
           const ids = (kind: string) => rows.filter((r) => r.kind === kind).map((r) => r.row_id)
-          const subscriptionIds = ids("subscription")
+          const changedSubscriptionIds = new Set(ids("subscription"))
           const episodeIds = ids("episode")
-          const subscriptions =
-            subscriptionIds.length === 0
-              ? []
-              : yield* sql`SELECT * FROM subscription WHERE ${sql.in("id", subscriptionIds)}`
           const episodes =
             episodeIds.length === 0
               ? []
               : yield* sql<EpisodeRow>`SELECT * FROM episode WHERE ${sql.in("id", episodeIds)}`
+          const subscriptionIds = new Set(changedSubscriptionIds)
+          if (includeReferencedSubscriptions) {
+            for (const episode of episodes) subscriptionIds.add(episode.subscription_id)
+          }
+          const subscriptionRows =
+            subscriptionIds.size === 0
+              ? []
+              : yield* sql<SubscriptionRow>`SELECT * FROM subscription WHERE ${sql.in("id", [...subscriptionIds])}`
+          const subscriptions: Domain.Subscription[] = []
+          const referencedSubscriptions: Domain.Subscription[] = []
+          for (const row of subscriptionRows) {
+            const destination = changedSubscriptionIds.has(row.id)
+              ? subscriptions
+              : referencedSubscriptions
+            destination.push(toSubscription(row))
+          }
           return {
             cursor: rows.at(-1)?.seq ?? since,
-            subscriptions: subscriptions.map((r) => toSubscription(r as never)),
+            subscriptions,
             episodes: episodes.map(toEpisode),
+            ...(includeReferencedSubscriptions ? { referencedSubscriptions } : {}),
             more: page.length > limit
           }
-        }).pipe(Effect.orDie)
+        }).pipe(sql.withTransaction, Effect.orDie)
       return Catalogue.of({ changes })
     })
   )

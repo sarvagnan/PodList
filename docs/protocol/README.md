@@ -1,4 +1,4 @@
-# PodList sync protocol (version 6)
+# PodList sync protocol (version 7)
 
 Implementations in every language must pass these JSON vectors. No TypeScript execution or SQL parsing is needed to consume them. Use the language in [CONTEXT.md](../../CONTEXT.md). The online-only web client uses server reads and tab-memory pending edits; Android, Mac and Electron keep local databases (ADR 0011).
 
@@ -14,14 +14,14 @@ semantics, increments the protocol version. A bug fix that restores already
 specified behavior is not a wire change. Versions are cumulative and frozen;
 never infer compatibility from a new discriminator or skip an unknown operation.
 
-Clients send `x-podlist-protocol-version: 6` on sync, Library catalogue,
+Clients send `x-podlist-protocol-version: 7` on sync, Library catalogue,
 Subscription and podcast preview requests. The declaration identifies the version
 they can read. Missing means **4**, the deployed baseline before PurgePlaylist.
 Invalid or pre-v4 declarations receive the structured pull refusal below; v1–v3
 are archival inventories, not supported negotiation targets. A future client can
 read the current log. The declaration does not grant authorization (ADR 0004).
 
-`GET /api/health` returns `{ "status": "ok", "protocolVersion": 6 }`, with an
+`GET /api/health` returns `{ "status": "ok", "protocolVersion": 7 }`, with an
 optional `release`. `supportedOperations` is removed: it duplicates the frozen
 version registry and previously let PurgePlaylist ship under version 4. Clients
 ignore that old extension list and require server version 5 or later for PurgePlaylist.
@@ -41,7 +41,7 @@ Before decoding the closed union or changing State, the server inspects every
 Change discriminator. Any unknown type rejects the **whole batch** with HTTP 422:
 
 ```json
-{ "_tag": "UnsupportedOperation", "serverProtocolVersion": 6,
+{ "_tag": "UnsupportedOperation", "serverProtocolVersion": 7,
   "unsupportedOperations": ["FutureOperation"] }
 ```
 
@@ -99,6 +99,23 @@ feed validators. The next ordinary refresh reads the complete feed and adds
 links through the normal catalogue change triggers. An Episode that has already
 left the feed cannot gain a link from that refresh.
 
+### Subscription references in Library change pages
+
+For readers declaring v7 or later, `GET /api/library/changes` always includes a
+`referencedSubscriptions` array. It holds the current Subscription row for each
+distinct Subscription referenced by the page's Episodes that is absent from
+`subscriptions`. It is empty when the page needs no extra rows. A referenced
+row can already be behind the requested cursor or appear as a change on a later
+page. For example, an Unsubscribe can move the Subscription's change after 500
+older Episode changes.
+
+Apply both Subscription arrays before the Episodes and save the returned
+`cursor` in the same transaction. Only change records determine the page limit,
+`cursor`, and `more`. An extra Subscription row can reappear on a later page and
+can be upserted again. Older servers and readers declaring v6 or earlier omit
+the array. Native clients retain the fallback that waits for a missing
+Subscription and keeps the saved cursor before any waiting Episodes.
+
 ### Paused client state
 
 HTTP 426 `UpdateRequired`, HTTP 422 `UnsupportedOperation`, and an unknown Change
@@ -149,6 +166,8 @@ The unversioned PurgePlaylist release reporting v4 is an acknowledged historical
 violation, not an alternative v4 definition.
 Version 6 adds the publisher links described above. Its operation registry
 matches version 5.
+Version 7 adds Subscription references to Library change pages. Its operation
+registry matches version 6.
 
 <!-- BEGIN GENERATED SYNC VERSIONS -->
 | Version | Change | Readable operation types |
@@ -159,6 +178,7 @@ matches version 5.
 | 4 | Permanent listening log and RecordListening; frozen deployed v4 baseline | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
 | 5 | PurgePlaylist; version negotiation and typed sync refusals | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `PurgePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
 | 6 | Podcast and Episode website links in Library and feed preview responses | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `PurgePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+| 7 | Library change pages include the Subscriptions their Episodes reference | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `PurgePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
 <!-- END GENERATED SYNC VERSIONS -->
 
 ## Adding an operation or changing the wire
@@ -186,6 +206,7 @@ matches version 5.
 - For [View vectors](../../packages/domain/protocol/views.json), load the full `subscriptions`, `episodes` and `state` fixture, and evaluate every `cases[].view` at the supplied `now`. `expected` is the exact array of matching Episode ids in exact order. Reset to the fixture between cases; when a case supplies `episodes`, use that array instead of the shared Episodes (the binary-order cases); a case-level `now` overrides the shared clock for rolling-date boundaries. The TypeScript suite executes the real View compiler against real SQLite with the shared migrations and indexes. [client-contract.test.ts](../../packages/domain/test/client-contract.test.ts).
 - For [Listening measurement vectors](../../packages/domain/protocol/listening.json), evaluate each `samples[]` independently. A null `before` means the boundary was reset (first sample, pause, seek, discontinuity, or speed change). `offsetMinutes` has the sign of UTC minus local, e.g. India is -330. Attach `subscriptionId` to each measured amount and compare the exact array. Separately run every `thresholds[]` Position/duration/Subscription-threshold triple and compare its boolean `expected`. `sessions[]` additionally specifies player lifecycle actions at milliseconds relative to a local-noon start (the calendar date is arbitrary for lifecycle cases), with a report interval of zero for deterministic assertions. Load the given initial Episode as the Default Playlist Cursor, unplayed, with the supplied settings and Entry Position. Compare cumulative seconds after each step and final Played/Entry Position; the real browser Playback service runs these cases. End-of-audio always finishes, even when duration is unknown; the boolean tests cover Position-based finishing only. [Listening.ts](../../packages/domain/src/Listening.ts), [PlayedRules.ts](../../packages/domain/src/PlayedRules.ts), [Playback.ts](../../packages/web/src/playback/Playback.ts).
 - For [server vectors](../../packages/domain/protocol/server.json), start each vector with its Library and `initial` State. Push each `batches[].operations` array in turn. Compare accepted count, server cursor, the entire logged concrete operations array, State and Subscriptions after each batch. `expectedOperations` includes the original intention followed by its server-generated operations. Retried batches reuse ids. These exercise Library-dependent intentions which intentionally do nothing in the shared State reducer. A native client replays the returned concrete operations; it must not expand the intention a second time. [SyncStore.ts](../../packages/server/src/SyncStore.ts), [server conformance runner](../../packages/server/test/protocol.test.ts).
+- For the [Library page fixture](../../packages/domain/protocol/catalogue-pages.json), apply the first page to an empty Library and confirm that the Episode, its referenced Subscription and the page cursor commit together. Resume from that cursor to apply the later Subscription change.
 
 Regenerate with `pnpm --filter @podlist/domain protocol`, then `pnpm exec biome check --write packages/domain/protocol packages/domain/scripts packages/api/src`. The suite compares committed documents with generation output, checks every Operation.Change member has a replay vector, and checks the coverage table is current. Expected View and measurement outcomes are authored as data, independently of the compiler and sampler. Sync State outcomes and checkpoints are exported from the reference reducer and committed for independent implementations; review changes to those expected States as changes to the contract. Server expansion lists are authored independently of the server. [exporter](../../packages/domain/scripts/export-protocol.ts), [protocol tests](../../packages/domain/test/protocol.test.ts).
 

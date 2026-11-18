@@ -1,0 +1,62 @@
+{
+  "protocolVersion": 7,
+  "pages": [
+    {
+      "cursor": 17,
+      "subscriptions": [],
+      "episodes": [
+        {
+          "id": "e",
+          "subscriptionId": "s",
+          "guid": "guid",
+          "title": "Episode",
+          "description": "",
+          "published": 1,
+          "duration": 60,
+          "audioUrl": "https://example.test/audio",
+          "websiteUrl": null,
+          "artwork": null,
+          "chapters": [],
+          "audioUpdatedAt": null
+        }
+      ],
+      "referencedSubscriptions": [
+        {
+          "id": "s",
+          "feedUrl": "https://example.test/feed",
+          "title": "Podcast",
+          "author": null,
+          "description": null,
+          "artwork": null,
+          "websiteUrl": "https://example.test/podcast",
+          "subscribedAt": 0,
+          "unsubscribedAt": 5,
+          "playedThreshold": null,
+          "playbackSettings": {}
+        }
+      ],
+      "more": true
+    },
+    {
+      "cursor": 18,
+      "subscriptions": [
+        {
+          "id": "s",
+          "feedUrl": "https://example.test/feed",
+          "title": "Podcast",
+          "author": null,
+          "description": null,
+          "artwork": null,
+          "websiteUrl": "https://example.test/podcast",
+          "subscribedAt": 0,
+          "unsubscribedAt": 5,
+          "playedThreshold": null,
+          "playbackSettings": {}
+        }
+      ],
+      "episodes": [],
+      "referencedSubscriptions": [],
+      "more": false
+    }
+  ]
+}

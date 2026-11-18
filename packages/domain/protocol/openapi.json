@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "PodList HTTP API",
-    "version": "6",
+    "version": "7",
     "description": "Single-user API. Authentication and authorization are provided by reachability over the user's Tailscale tailnet (ADR 0004). There is no application login, bearer token, API key or cookie requirement. Keep the server private to the tailnet. Protocol version is also returned by GET /api/health. Paths include /api; use the server origin as the base URL. JSON endpoints return an empty 400 response for malformed input (HttpApiSchemaError); infrastructure failures may return 5xx. The media streams and WebSocket endpoint use raw HttpRouter handlers. Online read pages default to 100 rows, maximum 200. Continuations are opaque, bound to query, page size and State/Library cursors, and freeze relative dates. A 409 ReadChanged requires restarting from the first page; malformed or expired tokens return 400 InvalidContinuation. Server restart invalidates tokens. View limits apply across the entire result, including counts. Search q and filter.text are limited to 1024 characters and 32 whitespace-separated words (400 for excess input). Podcast filters allow 200 ids of up to 256 characters. Read POST JSON bodies are limited to 65536 bytes before parsing (413). Saved Views and direct query compilation enforce the same limits and fail with 400 InvalidReadQuery, including counts. Library deletions, including failed Subscribe cleanup, advance the Library cursor and invalidate pages and live reads. Listening metadata includes removed Subscriptions and stored Episodes; combine it with State using Listening.stats on the viewing Device."
   },
   "paths": {
@@ -3161,6 +3161,13 @@
             "items": {
               "$ref": "#/components/schemas/_podlist_domain_EpisodeEncoded"
             }
+          },
+          "referencedSubscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/_podlist_domain_SubscriptionEncoded"
+            },
+            "description": "Present for protocol v7 or later. Contains the Subscriptions referenced by Episodes on this page that are absent from subscriptions. These rows do not count toward the page limit or cursor."
           },
           "more": {
             "type": "boolean"

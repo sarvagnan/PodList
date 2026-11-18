@@ -1,10 +1,11 @@
 import * as Operation from "./Operation.ts"
 
 /** Every wire or reducer change increments this version (ADR 0014). */
-export const version = 6
+export const version = 7
 export const legacyVersion = 4
 export const versionHeader = "x-podlist-protocol-version"
 export const websiteUrlsVersion = 6
+export const referencedSubscriptionsVersion = 7
 
 export const readerVersion = (declared: string | undefined): number => {
   if (declared === undefined) return legacyVersion
@@ -184,6 +185,36 @@ export const versions = [
       "SetSubscriptionOverrides"
     ],
     added: "Podcast and Episode website links in Library and feed preview responses"
+  },
+  {
+    version: 7,
+    operations: [
+      "AddEntry",
+      "MoveEntry",
+      "RemoveEntry",
+      "SetCursor",
+      "ReportPosition",
+      "RecordListening",
+      "MarkPlayed",
+      "MarkUnplayed",
+      "MarkSubscriptionPlayed",
+      "SetStar",
+      "CreatePlaylist",
+      "RenamePlaylist",
+      "SetClearOnPlayed",
+      "DeletePlaylist",
+      "RestorePlaylist",
+      "PurgePlaylist",
+      "SetTrashDays",
+      "SetActivePlaylist",
+      "Rewind",
+      "SaveView",
+      "DeleteView",
+      "SetDownloadRule",
+      "SetPlaybackSettings",
+      "SetSubscriptionOverrides"
+    ],
+    added: "Library change pages include the Subscriptions their Episodes reference"
   }
 ] as const
 

@@ -12,7 +12,13 @@ fun interface SyncTransport {
 
 @Serializable data class Health(val status: String, val protocolVersion: Int, val release: String? = null)
 @Serializable data class PullPage(val cursor: Long, val snapshot: State?, val operations: List<Operation>)
-@Serializable data class LibraryPage(val cursor: Long, val subscriptions: List<Subscription>, val episodes: List<Episode>, val more: Boolean)
+@Serializable data class LibraryPage(
+    val cursor: Long,
+    val subscriptions: List<Subscription>,
+    val episodes: List<Episode>,
+    val more: Boolean,
+    val referencedSubscriptions: List<Subscription>? = null,
+)
 @Serializable private data class PushBody(val operations: List<Operation>)
 @Serializable private data class PushResult(val cursor: Long, val accepted: Long)
 
@@ -78,16 +84,22 @@ class SyncClient(private val db: LocalDatabase, private val transport: SyncTrans
         var cursor = if (db.getMeta("catalogueReaderV6") == "true") {
             db.getMeta("catalogueCursor")?.toLong() ?: 0
         } else 0
-        // A Subscription changed after its Episodes, by Unsubscribe for one, arrives on a later page.
-        // Those Episodes wait for it, and the saved cursor stays put so a restart fetches them again.
+        // Pre-v7 servers can send Episodes before their Subscription. Keep the saved
+        // cursor before any waiting Episodes so a restart fetches them again.
         var waiting = emptyList<Episode>()
         while (true) {
             val page = ProtocolJson.decodeFromString<LibraryPage>(transport.request("GET", "/api/library/changes?since=$cursor", null))
             require(page.cursor >= cursor && (!page.more || page.cursor > cursor)) { "Library cursor did not advance" }
-            val known = db.query("SELECT id FROM subscription").map { it["id"] as String }.toSet() + page.subscriptions.map { it.id }
-            val (ready, unknown) = (waiting + page.episodes).partition { it.subscriptionId in known }
-            waiting = unknown
-            db.upsertLibrary(page.subscriptions, ready, page.cursor.takeIf { waiting.isEmpty() })
+            val subscriptions = page.subscriptions + page.referencedSubscriptions.orEmpty()
+            val ready = if (page.referencedSubscriptions != null && waiting.isEmpty()) {
+                page.episodes
+            } else {
+                val known = db.query("SELECT id FROM subscription").map { it["id"] as String }.toSet() + subscriptions.map { it.id }
+                val (resolved, unknown) = (waiting + page.episodes).partition { it.subscriptionId in known }
+                waiting = unknown
+                resolved
+            }
+            db.upsertLibrary(subscriptions, ready, page.cursor.takeIf { waiting.isEmpty() })
             db.notifyChanged()
             cursor = page.cursor
             if (!page.more) break

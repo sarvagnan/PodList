@@ -32,7 +32,7 @@ class ProtocolTest {
     @Test
     fun `every contract document has a runner`() {
         val rootFiles = Files.list(protocol).use { paths -> paths.filter { Files.isRegularFile(it) }.map { it.fileName.toString() }.toList().toSet() }
-        assertEquals(setOf("operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "sync-compatibility.json"), rootFiles)
+        assertEquals(setOf("operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "sync-compatibility.json", "catalogue-pages.json"), rootFiles)
         val directories = Files.list(protocol).use { paths -> paths.filter { Files.isDirectory(it) }.map { it.fileName.toString() }.toList().toSet() }
         assertEquals(setOf("vectors"), directories)
         Files.walk(protocol.resolve("vectors")).use { paths ->

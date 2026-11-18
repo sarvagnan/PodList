@@ -17,7 +17,7 @@ export interface ImportSummary {
   readonly failed: ReadonlyArray<{ readonly feedUrl: string; readonly message: string }>
 }
 
-interface SubscriptionRow {
+export interface SubscriptionRow {
   readonly id: string
   readonly feed_url: string
   readonly title: string

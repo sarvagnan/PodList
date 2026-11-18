@@ -34,6 +34,12 @@ export class CatalogueChanges extends Schema.Class<CatalogueChanges>(
   cursor: Schema.Int,
   subscriptions: Schema.Array(Domain.Subscription),
   episodes: Schema.Array(Domain.Episode),
+  referencedSubscriptions: Schema.optionalKey(
+    Schema.Array(Domain.Subscription).annotate({
+      description:
+        "Present for protocol v7 or later. Contains the Subscriptions referenced by Episodes on this page that are absent from subscriptions. These rows do not count toward the page limit or cursor."
+    })
+  ),
   more: Schema.Boolean
 }) {}
 

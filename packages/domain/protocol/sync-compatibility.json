@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "versions": [
     {
       "version": 1,
@@ -171,6 +171,36 @@
         "SetSubscriptionOverrides"
       ],
       "added": "Podcast and Episode website links in Library and feed preview responses"
+    },
+    {
+      "version": 7,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "RecordListening",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "RestorePlaylist",
+        "PurgePlaylist",
+        "SetTrashDays",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "Library change pages include the Subscriptions their Episodes reference"
     }
   ],
   "cases": [
@@ -204,7 +234,7 @@
     },
     {
       "name": "future reader accepts current log",
-      "clientVersion": 6,
+      "clientVersion": 8,
       "operations": ["PurgePlaylist"],
       "minimumProtocolVersion": 5,
       "allowed": true

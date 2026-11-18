@@ -43,7 +43,7 @@ func serverLog(_ vector: JSON) throws {
 
 @Test func contractCoverage() throws {
     let names = Set(try FileManager.default.contentsOfDirectory(atPath: Fixtures.protocolURL.path))
-    #expect(names == ["operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "sync-compatibility.json", "vectors"])
+    #expect(names == ["operation.schema.json", "openapi.json", "devices.json", "views.json", "listening.json", "server.json", "feeds.json", "sync-compatibility.json", "catalogue-pages.json", "vectors"])
     let vectors = try FileManager.default.contentsOfDirectory(atPath: Fixtures.protocolURL.appendingPathComponent("vectors").path)
     #expect(!vectors.isEmpty)
     #expect(vectors.allSatisfy { $0.hasSuffix(".json") })

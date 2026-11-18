@@ -3,6 +3,7 @@ import Testing
 import PodListDomain
 import struct PodListDomain.Operation
 import PodListData
+import ProtocolTestSupport
 
 private struct Offline: Error {}
 private struct Request: Equatable, Sendable { let method: String; let path: String; let body: String? }
@@ -199,6 +200,31 @@ private func episode() -> Episode {
     #expect(try await db.getMeta("catalogueCursor") == "18")
     #expect(try await db.query("SELECT id FROM episode").count == 1)
     #expect(await transport.requests.filter { $0.path == "/api/library/changes?since=0" }.count == 2)
+    await transport.assertFinished()
+}
+
+@Test func libraryPageWithReferencedSubscriptionCommitsBeforeLaterUnsubscribePage() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    try await db.ensureState()
+    let fixture = try Fixtures.document("catalogue-pages.json")
+    #expect(fixture["protocolVersion"].int == SyncProtocol.version)
+    let pages = try fixture["pages"].array.map { try ProtocolJSON.encode($0) }
+    let transport = try ScriptedTransport([
+        Step("/api/devices", .echo), Step("/api/sync/pull?since=0", pull(5, snapshot: .initial())),
+        Step("/api/library/changes?since=0", .text(pages[0])), Step("/api/library/changes?since=17", .offline),
+        Step("/api/sync/pull?since=5", pull(5)), Step("/api/library/changes?since=17", .text(pages[1]))
+    ])
+
+    await #expect(throws: Offline.self) { try await SyncClient(db: db, transport: transport).sync() }
+    #expect(try await db.getMeta("catalogueCursor") == "17")
+    let rows = try await db.query("SELECT e.id, s.unsubscribed_at, s.website_url FROM episode e JOIN subscription s ON s.id = e.subscription_id")
+    #expect(rows.first?["id"]?.string == "e")
+    #expect(rows.first?["unsubscribed_at"]?.int == 5)
+    #expect(rows.first?["website_url"]?.string == "https://example.test/podcast")
+
+    try await SyncClient(db: db, transport: transport).sync()
+    #expect(try await db.getMeta("catalogueCursor") == "18")
+    #expect(try await db.query("SELECT id FROM episode").map { $0["id"]?.string } == ["e"])
     await transport.assertFinished()
 }
 
