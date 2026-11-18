@@ -10,10 +10,11 @@ private fun xml(guid: String = "g1", duration: String = "100", audio: String = "
 private class FeedNetwork : PublisherTransport {
     var body = xml()
     var status = 200
+    val statusByUrl = mutableMapOf<String, Int>()
     val requests = mutableListOf<Pair<String, Map<String, String>>>()
     override fun get(url: String, headers: Map<String, String>): PublisherResponse {
         requests += url to headers
-        return PublisherResponse(status, body, "etag-v1", "yesterday")
+        return PublisherResponse(statusByUrl[url] ?: status, body, "etag-v1", "yesterday")
     }
 }
 class DeviceLibraryTest {
@@ -46,7 +47,7 @@ class DeviceLibraryTest {
         val sub = library.subscribe(feedUrl)
         val first = db.query("SELECT id FROM episode").single()["id"] as String
         network.body = xml(extra = "<item><guid>g2</guid><enclosure url='https://podcast.test/b'/></item><item><guid>g3</guid><enclosure url='https://podcast.test/c'/></item>")
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         val starred = db.query("SELECT id FROM episode WHERE guid = 'g2'").single()["id"] as String
         db.recordAll(listOf(Change.AddEntry("default", first, Placement.Last), Change.ReportPosition("default", first, 12.0, 100),
             Change.SetStar(starred, true), Change.SetSubscriptionOverrides(sub.id, PlaybackSettingsOverride(speed = 1.5), 0.0),
@@ -72,19 +73,19 @@ class DeviceLibraryTest {
         val sub = library.subscribe(feedUrl)
         val id = db.query("SELECT id FROM episode").single()["id"]
         network.body = xml(guid = "renamed", duration = "120", audio = "https://podcast.test/redirected")
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         assertEquals(id, db.query("SELECT * FROM episode").single()["id"])
         assertEquals("renamed", db.query("SELECT * FROM episode").single()["guid"])
         assertNull(db.query("SELECT * FROM episode").single()["audio_updated_at"])
         network.body = "<rss><channel><title>Empty today</title></channel></rss>"
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         assertEquals(1, db.query("SELECT * FROM episode").size)
     }
     @Test fun `ambiguous guid changes remain separate`() = device { db, library, network ->
         network.body = xml(extra = "<item><guid>g2</guid><title>Episode</title><pubDate>2026-11-09T00:00:00Z</pubDate><enclosure url='https://podcast.test/a'/></item>")
         val sub = library.subscribe(feedUrl)
         network.body = xml(guid = "new")
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         assertEquals(3, db.query("SELECT * FROM episode").size)
     }
     @Test fun `audio replacement resets Chapter cache without losing identity`() = device { db, library, network ->
@@ -92,7 +93,7 @@ class DeviceLibraryTest {
         val id = db.query("SELECT id FROM episode").single()["id"]
         db.execute("UPDATE episode SET chapters_fetched_at = 50")
         network.body = xml(duration = "131")
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         val row = db.query("SELECT * FROM episode").single()
         assertEquals(id, row["id"])
         assertNotNull(row["audio_updated_at"])
@@ -102,7 +103,7 @@ class DeviceLibraryTest {
         val sub = library.subscribe(feedUrl)
         val before = db.query("SELECT * FROM episode")
         network.status = 304
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         assertEquals("etag-v1", network.requests.last().second["If-None-Match"])
         assertEquals("yesterday", network.requests.last().second["If-Modified-Since"])
         assertEquals(before, db.query("SELECT * FROM episode"))
@@ -111,7 +112,7 @@ class DeviceLibraryTest {
     @Test fun `failed feeds back off while other Subscriptions refresh`() = device { db, library, network ->
         val sub = library.subscribe(feedUrl)
         network.status = 503
-        assertFails { library.refreshOne(sub.id) }
+        assertFails { library.refreshSubscription(sub.id) }
         val requests = network.requests.size
         library.refresh()
         assertEquals(requests, network.requests.size)
@@ -120,6 +121,37 @@ class DeviceLibraryTest {
         assertEquals(2 * DeviceLibrary.PollMillis, DeviceLibrary.backoffMillis(2))
         assertEquals(86_400_000L, DeviceLibrary.backoffMillis(50))
     }
+    @Test fun `manual refresh checks all active feeds during backoff and reports partial results`() = device { db, library, network ->
+        val backedOff = library.subscribe(feedUrl)
+        val updated = library.subscribe("https://podcast.test/updated")
+        val unchanged = library.subscribe("https://podcast.test/unchanged")
+        val archived = library.subscribe("https://podcast.test/archived")
+        library.unsubscribe(archived.id)
+        network.statusByUrl[backedOff.feedUrl] = 503
+        assertFailsWith<PublisherRefreshFailed> { library.refreshSubscription(backedOff.id) }
+        network.requests.clear()
+        network.statusByUrl[unchanged.feedUrl] = 304
+        library.refresh()
+        assertEquals(setOf(updated.feedUrl, unchanged.feedUrl), network.requests.map { it.first }.toSet())
+
+        network.requests.clear()
+        network.body = xml(extra = "<item><guid>new</guid><pubDate>2026-11-10T00:00:00Z</pubDate><enclosure url='https://podcast.test/new'/></item>")
+        assertEquals(RefreshSummary(3, 1, 1, 1), library.refreshAllFeeds())
+        assertEquals(3, network.requests.size)
+        assertEquals(setOf(backedOff.feedUrl, updated.feedUrl, unchanged.feedUrl), network.requests.map { it.first }.toSet())
+        assertTrue(network.requests.all { it.second["If-None-Match"] == "etag-v1" })
+        assertEquals(2, db.podcastEpisodes(updated.id).size)
+        assertEquals(1, db.podcastEpisodes(unchanged.id).size)
+        assertEquals(2L, db.query("SELECT failures FROM feed_state WHERE subscription_id = ?", listOf(backedOff.id)).single()["failures"])
+    }
+    @Test fun `manual refresh skips an empty library and refuses an unsubscribed podcast`() = device { _, library, network ->
+        val archived = library.subscribe(feedUrl)
+        library.unsubscribe(archived.id)
+        network.requests.clear()
+        assertEquals(RefreshSummary(0, 0, 0, 0), library.refreshAllFeeds())
+        assertFailsWith<SubscriptionNotFound> { library.refreshSubscription(archived.id) }
+        assertTrue(network.requests.isEmpty())
+    }
     @Test fun `new Episodes trigger readers and existing All New planning`() = device { db, library, network ->
         val sub = library.subscribe(feedUrl)
         val device = db.installation().id
@@ -127,7 +159,7 @@ class DeviceLibraryTest {
         var invalidations = 0
         db.onChanged = { invalidations++ }
         network.body = xml(extra = "<item><guid>new</guid><pubDate>2026-11-10T00:00:00Z</pubDate><enclosure url='https://podcast.test/new'/></item>")
-        library.refreshOne(sub.id)
+        library.refreshSubscription(sub.id)
         assertEquals(1, invalidations)
         assertEquals(2, db.downloadPlan(device, 1_800_000_000_000).fetch.size)
     }

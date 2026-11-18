@@ -36,7 +36,9 @@ data class AppMessage(
 
 enum class ConnectionError { Address, Offline, Tls, Server, Response }
 enum class SyncStatus { Loading, Ready, Offline, Error, UpdateRequired }
-data class Session(val source: LibrarySource, val db: LocalDatabase, val deviceId: String)
+data class Session(val source: LibrarySource, val db: LocalDatabase, val deviceId: String) {
+    internal val feedRefresh = FeedRefresh()
+}
 data class BringOverUi(val origin: String, val counts: BringOverCounts, val job: BringOverJob? = null, val running: Boolean = false, val error: Boolean = false)
 
 /** Process-local lifecycle adapter; all protocol decisions and durable data live in :data. */
@@ -283,17 +285,33 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    val refreshing = MutableStateFlow<Set<String>>(emptySet())
-    fun refreshSubscription(id: String) {
-        val current = session.value ?: return
-        val source = current.source as? DeviceLibrary ?: return requestSync()
-        if (id in refreshing.value) return
-        refreshing.update { it + id }
+    internal fun refreshFeeds(current: Session, target: FeedRefreshTarget) {
+        if (_session.value !== current) return
         viewModelScope.launch {
-            try { withContext(Dispatchers.IO) { source.refreshOne(id) } }
-            catch (error: CancellationException) { throw error }
-            catch (_: Exception) { /* The feed’s recorded failure remains beside its Retry action. */ }
-            finally { refreshing.update { it - id }; revision.update { it + 1 } }
+            val result = current.feedRefresh.run(target, refresh = {
+                withContext(Dispatchers.IO) {
+                    when (target) {
+                        FeedRefreshTarget.All -> current.source.refreshAllFeeds()
+                        is FeedRefreshTarget.Podcast -> {
+                            current.source.refreshSubscription(target.id)
+                            null
+                        }
+                    }
+                }
+            }, sync = {
+                if (current.source.server != null && _session.value === current) {
+                    withContext(Dispatchers.IO) { current.source.refresh() }
+                }
+            }) ?: return@launch
+            if (_session.value !== current) return@launch
+            revision.update { it + 1 }
+            if (current.source.server != null && result.refreshError == null) {
+                if (result.syncError == null) status.value = SyncStatus.Ready
+                else if (result.syncError is SyncCompatibilityFailure) syncFailed(result.syncError)
+            }
+            if (result.succeeded) {
+                messages.trySend(AppMessage(if (target == FeedRefreshTarget.All) R.string.feeds_refreshed else R.string.podcast_refreshed))
+            }
         }
     }
     fun requestSync() { triggers.trySend(Unit) }
@@ -346,7 +364,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             }
         }
         val source = if (address == null) DeviceLibrary(db) else ServerLibrary(db, address, http = flowRunTransport(address)) { error ->
-            syncFailed(error)
+            if (_session.value?.db === db) syncFailed(error)
         }
         Session(source, db, withContext(Dispatchers.IO) { db.installation().id }).also { sessions[key] = it }
     }

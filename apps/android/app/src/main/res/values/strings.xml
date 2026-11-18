@@ -388,6 +388,18 @@
     <string name="refresh_podcast">Refresh podcast</string>
     <string name="retry_refresh">Try again</string>
     <string name="refreshing_podcast">Refreshing…</string>
+    <string name="refresh_all_feeds">Refresh all feeds</string>
+    <string name="refreshing_feeds">Refreshing feeds…</string>
+    <string name="feeds_refreshed">Feeds refreshed.</string>
+    <string name="podcast_refreshed">Podcast refreshed.</string>
+    <string name="refresh_feeds_failed">Couldn’t refresh feeds. Try again.</string>
+    <plurals name="refresh_feeds_partial">
+        <item quantity="one">Couldn’t refresh %1$d of %2$d feed. Try again.</item>
+        <item quantity="other">Couldn’t refresh %1$d of %2$d feeds. Try again.</item>
+    </plurals>
+    <string name="refresh_publisher_failed">Couldn’t refresh this podcast’s feed. Try again.</string>
+    <string name="refresh_subscription_missing">This podcast is no longer in Subscriptions.</string>
+    <string name="refresh_feeds_sync_failed">Couldn’t sync the refreshed feeds. Try again.</string>
     <string name="speed_accessibility">Speed %1$s</string>
     <string name="playback_position">Playback Position</string>
     <string name="seek_time">%1$s of %2$s</string>

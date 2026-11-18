@@ -43,6 +43,7 @@ dependencies {
     implementation("androidx.compose.material3.adaptive:adaptive-navigation")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    testImplementation("junit:junit:4.13.2")
     // The UI flow run (CRITIQUE.md § Flow run) is an instrumented test against the demo server.
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
