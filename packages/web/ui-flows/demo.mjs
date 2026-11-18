@@ -44,7 +44,8 @@ const podcasts = [
     title: "Market Hours",
     author: "Dev Raman",
     // Exercise real truncation and an expansion beyond the former eight-line cap.
-    description: "Market Hours follows the everyday choices behind the economy. Dev Raman visits markets, workshops, ports and kitchens to ask how prices take shape and what they mean for the people paying them. Each conversation starts with something familiar: a sack of rice, a shipping container, a sandwich or a queue outside a shop. From there we follow the decisions, habits and trade routes that connect one neighbourhood to the wider world. We hear from growers, shopkeepers, researchers and customers, leaving room for questions that do not have a simple answer. New conversations arrive each week, with field recordings and practical examples that make the numbers easier to understand. You do not need a background in economics to join us. Bring your curiosity and a question about the things you buy, sell, share or repair. At the end of every visit, we return to the people who helped us understand the story and ask what has changed for them. There is always another connection to explore. Thanks for listening to Market Hours.",
+    description:
+      "Market Hours follows the everyday choices behind the economy. Dev Raman visits markets, workshops, ports and kitchens to ask how prices take shape and what they mean for the people paying them. Each conversation starts with something familiar: a sack of rice, a shipping container, a sandwich or a queue outside a shop. From there we follow the decisions, habits and trade routes that connect one neighbourhood to the wider world. We hear from growers, shopkeepers, researchers and customers, leaving room for questions that do not have a simple answer. New conversations arrive each week, with field recordings and practical examples that make the numbers easier to understand. You do not need a background in economics to join us. Bring your curiosity and a question about the things you buy, sell, share or repair. At the end of every visit, we return to the people who helped us understand the story and ask what has changed for them. There is always another connection to explore. Thanks for listening to Market Hours.",
     color: "#8a5a10",
     episodes: [
       ["Who sets the price of rice?", 1534],
@@ -207,7 +208,12 @@ const waitFor = async (url) => {
 
 /** Starts the fixture host and a seeded PodList server; returns its URL and a stop function. */
 /** A demo server; `{ empty: true }` skips the seed, for first-run tests. */
-export const startDemo = async ({ empty = false, large = false, largeSidebar = false, port: requestedPort } = {}) => {
+export const startDemo = async ({
+  empty = false,
+  large = false,
+  largeSidebar = false,
+  port: requestedPort
+} = {}) => {
   const fixtures = await startFixtures()
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = requestedPort ?? (await freePort())
