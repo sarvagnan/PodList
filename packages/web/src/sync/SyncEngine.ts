@@ -140,12 +140,13 @@ export class SyncEngine extends Context.Service<
           let since = Number((yield* getMeta("catalogueCursor").pipe(Effect.orDie)) ?? "0")
           for (;;) {
             const page = yield* transport.catalogue(since)
+            const subscriptions = [...page.subscriptions, ...(page.referencedSubscriptions ?? [])]
             yield* Effect.gen(function* () {
-              yield* withSql(upsertSubscriptions(page.subscriptions))
+              yield* withSql(upsertSubscriptions(subscriptions))
               yield* withSql(upsertEpisodes(page.episodes))
               yield* setMeta("catalogueCursor", String(page.cursor))
             }).pipe(sql.withTransaction, Effect.orDie)
-            if (page.subscriptions.length > 0 || page.episodes.length > 0) {
+            if (subscriptions.length > 0 || page.episodes.length > 0) {
               yield* reactivity.invalidate([catalogueKey])
             }
             since = page.cursor

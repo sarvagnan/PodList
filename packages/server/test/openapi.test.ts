@@ -103,12 +103,109 @@ it("serves Library and preview links only to readers declaring protocol v6 or la
   }
 })
 
+it("gives v7 Library pages the Subscriptions needed to apply 500 Episodes before their Unsubscribe", async () => {
+  const items = Array.from(
+    { length: 500 },
+    (_, i) => `<item><title>Episode ${i}</title><guid>${i}</guid>
+      <enclosure url="https://example.test/audio/${i}.mp3" type="audio/mpeg"/></item>`
+  ).join("")
+  const websiteUrl = "https://example.test/podcast"
+  const xml = `<rss version="2.0"><channel><title>Podcast</title><link>${websiteUrl}</link>${items}</channel></rss>`
+  const network = Layer.succeed(
+    HttpClient.HttpClient,
+    HttpClient.make((request) =>
+      Effect.succeed(HttpClientResponse.fromWeb(request, new Response(xml)))
+    )
+  )
+  const { handler, dispose } = createAPI(network)
+  const request = async (path: string, version: string, init?: RequestInit) => {
+    const response = await handler(
+      new Request(`http://podlist.test/api/${path}`, {
+        ...init,
+        headers: { "content-type": "application/json", [Protocol.versionHeader]: version }
+      })
+    )
+    expect(response.status).toBe(200)
+    return response.json()
+  }
+  const changes = (since: number, version = "7") =>
+    request(`library/changes?since=${since}`, version) as Promise<{
+      cursor: number
+      subscriptions: Array<{ id: string }>
+      episodes: Array<{ subscriptionId: string }>
+      referencedSubscriptions?: Array<{ id: string }>
+      more: boolean
+    }>
+  try {
+    const followed = (await request("subscriptions", "7", {
+      method: "POST",
+      body: JSON.stringify({ feedUrl: "https://example.test/feed" })
+    })) as { id: string }
+    const firstWhileFollowed = await changes(0)
+    expect(firstWhileFollowed).toMatchObject({
+      subscriptions: [followed],
+      referencedSubscriptions: [],
+      more: true
+    })
+    expect(firstWhileFollowed.episodes).toHaveLength(499)
+    const lastWhileFollowed = await changes(firstWhileFollowed.cursor)
+    expect(lastWhileFollowed).toMatchObject({
+      subscriptions: [],
+      referencedSubscriptions: [followed],
+      more: false
+    })
+    expect(lastWhileFollowed.episodes).toHaveLength(1)
+
+    const removed = await request(`subscriptions/${followed.id}`, "7", { method: "DELETE" })
+    expect(removed).toMatchObject({
+      id: followed.id,
+      websiteUrl,
+      unsubscribedAt: expect.any(Number)
+    })
+    const first = await changes(0)
+    expect(first).toMatchObject({
+      subscriptions: [],
+      referencedSubscriptions: [removed],
+      more: true
+    })
+    expect(first.cursor).toBe(lastWhileFollowed.cursor)
+    expect(first.episodes).toHaveLength(500)
+    expect(new Set(first.episodes.map((episode) => episode.subscriptionId))).toEqual(
+      new Set([followed.id])
+    )
+
+    const second = await changes(first.cursor)
+    expect(second.cursor).toBeGreaterThan(first.cursor)
+    expect(second).toMatchObject({
+      subscriptions: [removed],
+      referencedSubscriptions: [],
+      episodes: [],
+      more: false
+    })
+    const empty = await changes(second.cursor)
+    expect(empty).toEqual({
+      cursor: second.cursor,
+      subscriptions: [],
+      referencedSubscriptions: [],
+      episodes: [],
+      more: false
+    })
+    const { referencedSubscriptions: _, ...v6First } = first
+    const { referencedSubscriptions: __, ...v6Second } = second
+    expect(await changes(0, "6")).toEqual(v6First)
+    expect(await changes(first.cursor, "6")).toEqual(v6Second)
+    expect(await changes(0, "8")).toEqual(first)
+  } finally {
+    await dispose()
+  }
+})
+
 it("serves the complete committed OpenAPI including raw streams and auth", async () => {
   const { handler, dispose } = createAPI()
   try {
     const health = await handler(new Request("http://podlist.test/api/health"))
     expect(health.status).toBe(200)
-    expect(await health.json()).toMatchObject({ protocolVersion: 6 })
+    expect(await health.json()).toMatchObject({ protocolVersion: 7 })
     const response = await handler(new Request("http://podlist.test/api/openapi.json"))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(
@@ -260,7 +357,7 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     expect(invalid.status).toBe(422)
     expect(await invalid.json()).toEqual({
       _tag: "UnsupportedOperation",
-      serverProtocolVersion: 6,
+      serverProtocolVersion: 7,
       unsupportedOperations: ["UnknownChange"]
     })
     const unchanged = await handler(new Request("http://podlist.test/api/sync/pull?since=3"))
@@ -299,7 +396,7 @@ it("refuses unreadable pulls and unknown pushes without partial progress", async
     expect(refusedPush.status).toBe(422)
     expect(await refusedPush.json()).toEqual({
       _tag: "UnsupportedOperation",
-      serverProtocolVersion: 6,
+      serverProtocolVersion: 7,
       unsupportedOperations: ["FutureOperation"]
     })
     const empty = await handler(new Request("http://podlist.test/api/sync/pull?since=0"))

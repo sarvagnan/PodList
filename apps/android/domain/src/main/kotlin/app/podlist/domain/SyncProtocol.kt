@@ -5,7 +5,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 object SyncProtocol {
-    const val Version = 6
+    const val Version = 7
     const val LegacyVersion = 4
     const val Header = "x-podlist-protocol-version"
     val minimumVersions = mapOf(

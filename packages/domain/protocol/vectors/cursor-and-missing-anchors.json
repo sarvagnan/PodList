@@ -1,7 +1,7 @@
 {
   "name": "cursor-and-missing-anchors",
   "description": "Moving the Cursor Entry with Play Next advances to its former successor; moving a last Cursor with Play Last selects it again. Missing/self reorder anchors do nothing; removing the last Cursor sets null; next add selects itself.",
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "initial": {
     "playlists": [
       {

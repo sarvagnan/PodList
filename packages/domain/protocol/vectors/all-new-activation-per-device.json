@@ -1,7 +1,7 @@
 {
   "name": "all-new-activation-per-device",
   "description": "All New keeps its activation time for cap edits, clears it on Stream or Entries, and starts again on re-entry. Arrival order wins over recording time, Devices are independent and duplicate delivery does nothing.",
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "initial": {
     "playlists": [
       {

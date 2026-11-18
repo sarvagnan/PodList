@@ -1,7 +1,11 @@
 package app.podlist.data
 
 import app.podlist.domain.*
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -202,6 +206,47 @@ class SyncTest {
             assertEquals("18", db.getMeta("catalogueCursor"))
             assertEquals(1, db.query("SELECT id FROM episode").size)
             assertEquals(2, requests.count { it == "/api/library/changes?since=0" })
+        }
+    }
+
+    @Test
+    fun `Library page with a referenced Subscription commits before the later Unsubscribe page`() {
+        val fixture = Path.of(System.getProperty("podlist.protocol"), "catalogue-pages.json")
+        val document = ProtocolJson.parseToJsonElement(Files.readString(fixture)).jsonObject
+        assertEquals(SyncProtocol.Version, document.getValue("protocolVersion").jsonPrimitive.int)
+        val pages = document.getValue("pages").jsonArray
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            var failLastPage = true
+            val requests = mutableListOf<String>()
+            val transport = SyncTransport { _, route, body ->
+                requests += route
+                when (route) {
+                    "/api/devices" -> body!!
+                    "/api/sync/pull?since=0" -> ProtocolJson.encodeToString(PullPage(5, State.initial(), emptyList()))
+                    "/api/sync/pull?since=5" -> ProtocolJson.encodeToString(PullPage(5, null, emptyList()))
+                    "/api/library/changes?since=0" -> pages[0].toString()
+                    "/api/library/changes?since=17" -> {
+                        if (failLastPage) throw IOException("offline")
+                        pages[1].toString()
+                    }
+                    else -> error(route)
+                }
+            }
+
+            assertFailsWith<IOException> { SyncClient(db, transport).sync() }
+            assertEquals("17", db.getMeta("catalogueCursor"))
+            val row = db.query("SELECT e.id, s.unsubscribed_at, s.website_url FROM episode e JOIN subscription s ON s.id = e.subscription_id").single()
+            assertEquals("e", row["id"])
+            assertEquals(5L, row["unsubscribed_at"])
+            assertEquals("https://example.test/podcast", row["website_url"])
+
+            failLastPage = false
+            requests.clear()
+            SyncClient(db, transport).sync()
+            assertEquals(listOf("/api/sync/pull?since=5", "/api/library/changes?since=17"), requests)
+            assertEquals("18", db.getMeta("catalogueCursor"))
+            assertEquals(listOf("e"), db.query("SELECT id FROM episode").map { it["id"] })
         }
     }
 

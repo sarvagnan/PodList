@@ -34,7 +34,7 @@ export const compatibilityVectors = () => ({
     },
     {
       name: "future reader accepts current log",
-      clientVersion: 6,
+      clientVersion: Protocol.version + 1,
       operations: ["PurgePlaylist"],
       minimumProtocolVersion: 5,
       allowed: true

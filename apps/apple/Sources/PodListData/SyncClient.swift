@@ -36,8 +36,10 @@ public struct LibraryPage: Codable, Equatable, Sendable {
     public let subscriptions: [Subscription]
     public let episodes: [Episode]
     public let more: Bool
-    public init(cursor: Int64, subscriptions: [Subscription], episodes: [Episode], more: Bool) {
+    public let referencedSubscriptions: [Subscription]?
+    public init(cursor: Int64, subscriptions: [Subscription], episodes: [Episode], more: Bool, referencedSubscriptions: [Subscription]? = nil) {
         self.cursor = cursor; self.subscriptions = subscriptions; self.episodes = episodes; self.more = more
+        self.referencedSubscriptions = referencedSubscriptions
     }
 }
 private struct PushBody: Encodable { let operations: [Operation] }
@@ -138,16 +140,24 @@ public actor SyncClient {
         // Rows already mirrored as an older reader may now carry publisher links.
         let mirroredAsV6 = try await db.getMeta("catalogueReaderV6") == "true"
         var cursor = mirroredAsV6 ? try await db.getMeta("catalogueCursor").flatMap(Int64.init) ?? 0 : 0
+        // Pre-v7 servers can send Episodes before their Subscription. Keep the saved
+        // cursor before any waiting Episodes so a restart fetches them again.
         var waiting: [Episode] = []
         while true {
             try Task.checkCancellation()
             let page: LibraryPage = try ProtocolJSON.decode(from: await transport.request(method: "GET", path: "/api/library/changes?since=\(cursor)", body: nil))
             guard page.cursor >= cursor && (!page.more || page.cursor > cursor) else { throw SyncResponseFailure("Library cursor did not advance") }
-            let known = Set(try await db.query("SELECT id FROM subscription").compactMap { $0["id"]?.string } + page.subscriptions.map(\.id))
-            let all = waiting + page.episodes
-            let ready = all.filter { known.contains($0.subscriptionId) }
-            waiting = all.filter { !known.contains($0.subscriptionId) }
-            try await db.upsertLibrary(subscriptions: page.subscriptions, episodes: ready, cursor: waiting.isEmpty ? page.cursor : nil)
+            let subscriptions = page.subscriptions + (page.referencedSubscriptions ?? [])
+            let ready: [Episode]
+            if page.referencedSubscriptions != nil && waiting.isEmpty {
+                ready = page.episodes
+            } else {
+                let known = Set(try await db.query("SELECT id FROM subscription").compactMap { $0["id"]?.string } + subscriptions.map(\.id))
+                let all = waiting + page.episodes
+                ready = all.filter { known.contains($0.subscriptionId) }
+                waiting = all.filter { !known.contains($0.subscriptionId) }
+            }
+            try await db.upsertLibrary(subscriptions: subscriptions, episodes: ready, cursor: waiting.isEmpty ? page.cursor : nil)
             await onLibraryPage()
             cursor = page.cursor
             if !page.more { break }

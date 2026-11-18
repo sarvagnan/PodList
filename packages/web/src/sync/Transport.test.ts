@@ -15,9 +15,9 @@ const operation = Schema.decodeUnknownSync(Operation.Operation)({
 for (const scenario of [
   {
     status: 426,
-    body: { _tag: "UpdateRequired", minimumProtocolVersion: 7, unsupportedOperations: ["Future"] },
+    body: { _tag: "UpdateRequired", minimumProtocolVersion: 8, unsupportedOperations: ["Future"] },
     reason: "UpdateRequired",
-    version: 7
+    version: 8
   },
   {
     status: 422,
@@ -33,14 +33,14 @@ for (const scenario of [
     status: 200,
     body: { cursor: 9, snapshot: null, operations: [{ ...operation, change: { _tag: "Future" } }] },
     reason: "UpdateRequired",
-    version: 7
+    version: 8
   }
 ] as const) {
   it.effect(
-    `declares v6 and preserves ${scenario.status} ${scenario.reason} at the HTTP boundary`,
+    `declares v7 and preserves ${scenario.status} ${scenario.reason} at the HTTP boundary`,
     () => {
       const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
-        expect(new Headers(init?.headers).get(Protocol.versionHeader)).toBe("6")
+        expect(new Headers(init?.headers).get(Protocol.versionHeader)).toBe("7")
         return Response.json(scenario.body, { status: scenario.status })
       })
       return Effect.gen(function* () {

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "@effect/vitest"
 import { Schema } from "effect"
+import { CatalogueChanges } from "../../api/src/Library.ts"
 import { openApiDocument } from "../../api/src/OpenApi.ts"
 import { buildListeningVectors } from "../scripts/listening-vectors.ts"
 import { buildViewVectors } from "../scripts/view-vectors.ts"
@@ -8,6 +9,7 @@ import {
   Library,
   Listening,
   PlayedRules,
+  Protocol,
   Sql,
   State,
   Units,
@@ -26,6 +28,20 @@ describe("Language-neutral client contract", () => {
     expect(read("openapi.json")).toEqual(openApiDocument())
     expect(views).toEqual(JSON.parse(JSON.stringify(buildViewVectors())))
     expect(listening).toEqual(buildListeningVectors())
+  })
+
+  it("round-trips the v7 Library pages and their Subscription references", () => {
+    const decode = Schema.decodeUnknownSync(Schema.Array(CatalogueChanges))
+    const encode = Schema.encodeSync(Schema.Array(CatalogueChanges))
+    const { protocolVersion, pages } = read("catalogue-pages.json")
+    const decoded = decode(pages)
+    const [first, second] = decoded
+    expect(protocolVersion).toBe(Protocol.version)
+    expect(encode(decoded)).toEqual(pages)
+    expect(first?.referencedSubscriptions?.map(({ id }) => id)).toEqual(
+      first?.episodes.map(({ subscriptionId }) => subscriptionId)
+    )
+    expect(first?.referencedSubscriptions).toEqual(second?.subscriptions)
   })
 
   it.each(views.cases)(

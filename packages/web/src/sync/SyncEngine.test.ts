@@ -73,15 +73,17 @@ const makeServer = () => {
             })
       ),
     chapters: () => Effect.succeed([]),
-    // Catalogue in pages of two rows: the Subscription first, then Episodes.
+    // The Subscription's change comes after the Episodes in the first page.
     catalogue: (since) =>
       guard(() => {
-        const rows = [subscription, ...episodes]
+        const rows = [...episodes, subscription]
         const page = rows.slice(since, since + 2)
         return new LibraryApi.CatalogueChanges({
           cursor: since + page.length,
           subscriptions: page.filter((r): r is Library.Subscription => "feedUrl" in r),
           episodes: page.filter((r): r is Library.Episode => "audioUrl" in r),
+          referencedSubscriptions:
+            page.includes(subscription) || page.length === 0 ? [] : [subscription],
           more: since + page.length < rows.length
         })
       })

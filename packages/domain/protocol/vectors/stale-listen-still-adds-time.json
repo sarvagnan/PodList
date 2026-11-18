@@ -1,7 +1,7 @@
 {
   "name": "stale-listen-still-adds-time",
   "description": "A stale Position can add Listening log amounts, and an older Timeline point; a retry of that operation adds nothing.",
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "initial": {
     "playlists": [
       {

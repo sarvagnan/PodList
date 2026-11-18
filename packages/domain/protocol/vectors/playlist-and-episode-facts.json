@@ -1,7 +1,7 @@
 {
   "name": "playlist-and-episode-facts",
   "description": "Duplicate creation does not replace a Playlist; normal rename succeeds; enabling Clear on Played is not retroactive. Unplayed preserves a Star; removing the last fact removes its record. Missing targets and invalid Cursors do nothing.",
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "initial": {
     "playlists": [
       {

@@ -96,14 +96,19 @@ export const LibraryHandlers = HttpApiBuilder.group(
         chapters
           .forEpisode(params.id)
           .pipe(Effect.mapError(() => new LibraryApi.EpisodeNotFound())),
-      changes: ({ query, headers }) =>
-        catalogue
-          .changes(query.since, query.limit === undefined ? undefined : Math.min(query.limit, 2000))
+      changes: ({ query, headers }) => {
+        const reader = Protocol.readerVersion(headers[Protocol.versionHeader])
+        return catalogue
+          .changes(
+            query.since,
+            query.limit === undefined ? undefined : Math.min(query.limit, 2000),
+            reader >= Protocol.referencedSubscriptionsVersion
+          )
           .pipe(
             Effect.map(
               (page) =>
                 new LibraryApi.CatalogueChanges(
-                  readsWebsiteUrls(headers[Protocol.versionHeader])
+                  reader >= Protocol.websiteUrlsVersion
                     ? page
                     : {
                         ...page,
@@ -114,7 +119,8 @@ export const LibraryHandlers = HttpApiBuilder.group(
                       }
                 )
             )
-          ),
+          )
+      },
       refreshAll: () =>
         poller
           .refreshAll({ respectBackoff: false })
