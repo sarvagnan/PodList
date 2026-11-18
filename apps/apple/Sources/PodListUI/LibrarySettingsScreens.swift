@@ -71,11 +71,17 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         Button("Getting Started") { app.libraryEditing?.showGettingStarted = true; gettingStarted = true }
                     }
                 }
-                if app.isStandalone {
+                if app.library != nil {
                     Section("Publisher Feeds") {
-                        Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: 480, alignment: .leading)
-                        Button("Refresh Now") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing)
+                        if app.isStandalone {
+                            Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: 480, alignment: .leading)
+                        }
+                        let refresh = app.feedRefreshAction(.all)
+                        Button("Refresh Now") { refresh?() }.disabled(refresh == nil)
+                        if app.feedRefreshProgress != nil || app.feedRefreshIssue != nil {
+                            FeedRefreshFeedback(app: app)
+                        }
                         if let error = app.syncError { Text(error).foregroundStyle(Color.podListError) }
                     }
                 }
@@ -93,7 +99,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         if let job = app.bringOverJob {
                             Text(job.complete ? "Library brought over. The original Library on this Mac is retained." : "Bringing over: \(CountText.format(job.imported.count, .podcast)) transferred, \(CountText.format(job.copied.count, .download)) copied. Progress is saved.")
                                 .macContentFont(.callout)
-                            if !job.complete { Button("Retry") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing) }
+                            if !job.complete { Button("Retry") { Task { await app.sync(forceRefresh: true) } }.disabled(app.syncing || app.refreshingFeeds != nil) }
                         }
                         if let error = app.bringOverError { Text(error).foregroundStyle(Color.podListError).textSelection(.enabled) }
                         Button("Disconnect") { app.disconnect() }
@@ -126,11 +132,9 @@ public struct LibrarySettingsScreen: SwiftUI.View {
     }
     private var settingsMenuActions: MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
-        if app.isStandalone && !app.syncing { actions[.refresh] = { Task { await app.sync(forceRefresh: true) } } }
         if app.origin != nil {
             actions[.disconnect] = { app.disconnect() }
             if app.bringOverAvailable && !app.syncing { actions[.offerBringOver] = { Task { await app.offerBringOver() } } }
-            if app.bringOverJob?.complete == false && !app.syncing { actions[.retryBringOver] = { Task { await app.sync(forceRefresh: true) } } }
         } else if !app.connecting && !app.serverInput.isEmpty { actions[.connect] = { Task { await app.connect() } } }
         return MenuActionContext(actions: actions)
     }

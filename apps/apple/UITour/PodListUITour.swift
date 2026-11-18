@@ -1196,7 +1196,7 @@ final class PodListUITour: XCTestCase {
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
             "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
-            "Podcast": ["Show Subscriptions", "Refresh Library", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
+            "Podcast": ["Show Subscriptions", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
             "Episode": ["Show Episode Details", "Show Notes in Window", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
             "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
@@ -1222,7 +1222,7 @@ final class PodListUITour: XCTestCase {
         if name == "View" {
             XCTAssertTrue(!items.isDisjoint(with: ["Show Description", "Hide Description"]))
         }
-        let owners = ["Connection": "PodList", "Refresh Library": "Podcast", "Add Podcasts…": "File",
+        let owners = ["Connection": "PodList", "Refresh All Feeds": "Podcast", "Refresh Podcast": "Podcast", "Retry Feed Refresh": "Podcast", "Add Podcasts…": "File",
                       "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
                       "Cancel Import": "File", "Retry Failed Imports": "File", "Retry Failed Operation": "Edit", "Retry Failed Episode Drop": "Episode",
                       "Retry Bring Over": "PodList", "Copy Configuration": "PodList", "Retry MCP Server": "PodList", "Retry Playback": "Controls",

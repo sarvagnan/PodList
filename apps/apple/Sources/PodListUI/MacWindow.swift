@@ -299,7 +299,6 @@ public struct PodListWindow: SwiftUI.View {
         var actions: [MenuAction: () -> Void] = [:]
         if !window.search.isEmpty { actions[.clearSearch] = { window.search = "" } }
         if isPodcastPage { actions[.backToLibrary] = { backToLibrary() } }
-        if !app.syncing { actions[.refresh] = { Task { await app.sync(forceRefresh: true) } } }
         if let editor = app.libraryEditing {
             if editor.busy || !editor.importFeeds.isEmpty || editor.importReady { actions[.showImport] = { editor.importPresented = true } }
             if !editor.busy && !editor.importFailed.isEmpty { actions[.retryImport] = { Task { await editor.retryImport() } } }
@@ -466,6 +465,9 @@ public struct PodListWindow: SwiftUI.View {
     @ViewBuilder private func subscriptionActions(_ library: LibraryModel, ids: Set<String>) -> some SwiftUI.View {
         let commands = subscriptionCommands(library, selection: ids)
         if let open = commands.open { Button("Open", action: open) }
+        if commands.subscribed {
+            Button(PodcastCommandContext.refreshTitle) { commands.refresh?() }.disabled(commands.refresh == nil)
+        }
         if let unsubscribe = commands.subscriptionAction { Button("Unsubscribe", action: unsubscribe) }
         if let settings = commands.settings { Button("Subscription Settings…", action: settings) }
         if let downloadRules = commands.downloadRules { Button("Edit Download Rules…", action: downloadRules) }
@@ -499,6 +501,7 @@ public struct PodListWindow: SwiftUI.View {
             settings: subscription != nil && available ? { subscriptionSelection = ids; showSubscriptionSettings = true } : nil,
             downloadRules: hasSelection && available ? { subscriptionSelection = ids; showBulkRules = true } : nil,
             markAllPlayed: app.libraryEditing.flatMap { SubscriptionPlayedAction.action(subscription, editor: $0) },
+            refresh: subscription.flatMap { app.feedRefreshAction(.subscription($0.id)) },
             shareURL: subscription.flatMap { ShareLinks.podcast(page: library.snapshot.podcastLinks[$0.id], feed: $0.feedUrl) },
             feedURL: subscription.flatMap { ShareLinks.web($0.feedUrl) })
     }

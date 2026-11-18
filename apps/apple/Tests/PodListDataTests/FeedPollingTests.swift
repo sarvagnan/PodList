@@ -108,3 +108,31 @@ private actor ConditionalPublisher: PublisherReader {
     #expect(try await db.feedPollState(good.id).checkedAt == clock.now())
     #expect(await http.requests.count == 4)
 }
+
+@Test func standaloneSingleFeedRefreshBypassesBackoffAndLeavesOtherFeedsAlone() async throws {
+    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
+    let http = ConditionalPublisher(), clock = PollClock()
+    let library = PodcastLibrary(database: db, publisher: http, now: { clock.now() })
+    await http.configure([PublisherResponse(data: Data(pollXML.utf8), etag: "v1")])
+    let target = try await library.subscribe("https://target.example/rss")
+    let other = try await library.subscribe("https://other.example/rss")
+    let otherState = try await db.feedPollState(other.id)
+    clock.advance(1)
+    await http.configure(failHosts: ["target.example"])
+    await #expect(throws: FeedRefreshFailure.publisherFailed) { try await library.refreshSubscription(target.id) }
+    #expect(try await db.feedPollState(target.id).failures == 1)
+    let updated = pollXML.replacingOccurrences(of: "<guid>one</guid>", with: "<guid>two</guid>")
+    await http.configure([PublisherResponse(data: Data(updated.utf8), etag: "v2")])
+    try await library.refreshSubscription(target.id)
+    #expect(await http.requests.suffix(2).allSatisfy { $0.feed == target.feedUrl && $0.etag == "v1" })
+    #expect(await http.requests.count == 4)
+    #expect(try await db.feedPollState(target.id).failures == 0)
+    #expect(try await db.feedPollState(target.id).etag == "v2")
+    #expect(try await db.feedPollState(other.id) == otherState)
+    let snapshot = try await db.readLibrary()
+    #expect(snapshot.episodes.contains { $0.subscriptionId == target.id && $0.guid == "two" })
+    #expect(snapshot.episodes.filter { $0.subscriptionId == other.id }.map(\.guid) == ["one"])
+    try await library.unsubscribe(target.id)
+    await #expect(throws: FeedRefreshFailure.subscriptionNotFound) { try await library.refreshSubscription(target.id) }
+    #expect(await http.requests.count == 4)
+}

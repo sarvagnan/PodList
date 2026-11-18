@@ -34,6 +34,17 @@ extension LibraryMessages {
     static func logDetails(_ details: String, operation: String) {
         logger.error("\(operation, privacy: .public): \(details, privacy: .private)")
     }
+    static func feedRefreshFailure(_ error: any Error, podcastTitle: String?) -> String {
+        log(error, operation: "Refresh Feeds")
+        if let compatibility = error as? SyncCompatibilityFailure { return compatibility.message }
+        if let podcastTitle {
+            if error as? FeedRefreshFailure == .subscriptionNotFound {
+                return "Could not find the subscription for “\(podcastTitle)”. Try again after PodList syncs."
+            }
+            return "Could not refresh “\(podcastTitle)”. Check your connection and try again."
+        }
+        return "Could not refresh the feeds. Check your connection and try again."
+    }
     static func failure(_ error: any Error, operation: FailureOperation) -> String {
         log(error, operation: String(describing: operation))
         if let compatibility = error as? SyncCompatibilityFailure { return compatibility.message }
@@ -62,6 +73,9 @@ extension LibraryMessages {
         log(error, operation: "Library action")
         if let compatibility = error as? SyncCompatibilityFailure { return compatibility.message }
         if let message = validation(error) { return message }
+        if case let .feedsFailed(count)? = error as? FeedRefreshFailure {
+            return count == 1 ? "Could not refresh one feed. Try again." : "Could not refresh \(count) feeds. Try again."
+        }
         if error is FeedFailure { return "Could not read the podcast feed. Try again later, or check the feed address with the publisher." }
         if let failure = error as? HttpFailure {
             return failure.status == 404 ? "The podcast or server could not be found. Check the address and try again." : "The podcast or server could not complete the request. Try again later."

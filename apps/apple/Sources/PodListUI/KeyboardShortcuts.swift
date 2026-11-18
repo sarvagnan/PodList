@@ -7,6 +7,7 @@ import SwiftUI
 enum PodListShortcut: CaseIterable {
     case playNow, star, played, download, playNext, playLast, addToPlaylist
     case nowPlaying, playlistSettings, editView, previousChapter, nextChapter
+    case refreshAllFeeds
 
     var title: String {
         switch self {
@@ -22,6 +23,7 @@ enum PodListShortcut: CaseIterable {
         case .editView: "Edit View…"
         case .previousChapter: "Previous Chapter"
         case .nextChapter: "Next Chapter"
+        case .refreshAllFeeds: "Refresh All Feeds"
         }
     }
     var key: KeyEquivalent? {
@@ -38,12 +40,13 @@ enum PodListShortcut: CaseIterable {
         case .editView: "e"
         case .previousChapter: .leftArrow
         case .nextChapter: .rightArrow
+        case .refreshAllFeeds: "r"
         }
     }
     var modifiers: EventModifiers {
         switch self {
         case .playNow: []
-        case .nowPlaying, .download: .command
+        case .nowPlaying, .download, .refreshAllFeeds: .command
         case .star, .played, .playNext: [.shift, .command]
         case .playLast, .addToPlaylist, .playlistSettings, .editView, .previousChapter, .nextChapter: [.option, .command]
         }

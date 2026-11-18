@@ -86,13 +86,13 @@ public struct LibraryCommands: Commands {
         }
         CommandMenu("Podcast") {
             Button(LibraryNavigationCommand.subscriptions.title) { context?.window.navigate(to: LibraryNavigationCommand.subscriptions.destination) }.disabled(context == nil)
-            MenuActionItems(menu: .podcast)
+            MenuActionItems(menu: .podcast, app: app)
             Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()
             Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }
                 .disabled(podcast?.subscriptionAction == nil)
             Button("Mark All Played") { podcast?.markAllPlayed?() }.disabled(podcast?.markAllPlayed == nil)
-            Button("Refresh Episodes") { podcast?.refresh?() }.disabled(podcast?.refresh == nil)
+            Button(PodcastCommandContext.refreshTitle) { podcast?.refresh?() }.disabled(podcast?.refresh == nil || !app.canRefreshFeeds)
             Button("Subscription Settings…") { podcast?.settings?() }.disabled(podcast?.settings == nil)
             Button("Edit Download Rules…") { podcast?.downloadRules?() }.disabled(podcast?.downloadRules == nil)
             Divider()

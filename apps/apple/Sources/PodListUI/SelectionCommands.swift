@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 /// Published by the visible content, so commands follow the focused window and its selection.
 struct PodcastCommandContext {
+    static let refreshTitle = "Refresh Podcast"
     var open: (() -> Void)?
     var subscribed = false
     var subscriptionAction: (() -> Void)?

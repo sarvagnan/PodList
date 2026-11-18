@@ -50,6 +50,15 @@ public enum ConnectionValidation {
     }
 }
 
+enum FeedRefreshTarget: Equatable {
+    case all, subscription(String)
+}
+
+struct FeedRefreshIssue {
+    let target: FeedRefreshTarget
+    let message: String
+}
+
 /// One app-wide session, with independent per-server databases and stable Device identities.
 @MainActor @Observable
 public final class ApplicationModel {
@@ -70,6 +79,8 @@ public final class ApplicationModel {
     private var compatibilityFailure: SyncCompatibilityFailure?
     public private(set) var syncError: String? { didSet { announcements.error(syncError) } }
     public private(set) var syncing = false
+    private(set) var refreshingFeeds: FeedRefreshTarget?
+    private(set) var feedRefreshIssue: FeedRefreshIssue? { didSet { announcements.error(feedRefreshIssue?.message) } }
     @ObservationIgnored public var libraryChanged: (@MainActor (LibraryModel?, String?) -> Void)?
     public private(set) var library: LibraryModel? {
         didSet { libraryChanged?(library, origin) }
@@ -189,6 +200,7 @@ public final class ApplicationModel {
             if library != nil {
                 generation = UUID(); token = generation
                 libraryEditing?.endSession(); syncing = false; syncError = nil; lastSync = nil
+                refreshingFeeds = nil; feedRefreshIssue = nil
                 await playback?.shutdown(); await downloads?.suspend()
                 if let database {
                     bringOverSnapshot = try await database.bringOverSnapshot(downloads: downloads?.bringOverDownloads() ?? [])
@@ -271,7 +283,91 @@ public final class ApplicationModel {
     }
 
     public func sync(forceRefresh: Bool = false) async {
-        guard !syncing, library != nil else { return }
+        guard !syncing, refreshingFeeds == nil, library != nil else { return }
+        await runSyncPass { await syncLibrary(forceRefresh: forceRefresh) }
+    }
+
+    var canRefreshFeeds: Bool { libraryEditing != nil && !connecting && !syncing && refreshingFeeds == nil }
+
+    var feedRefreshProgress: String? {
+        switch refreshingFeeds {
+        case .all: "Refreshing All Feeds…"
+        case let .subscription(id): "Refreshing \(refreshPodcastTitle(id) ?? "Podcast")…"
+        case nil: nil
+        }
+    }
+
+    private func refreshPodcastTitle(_ id: String) -> String? {
+        library?.snapshot.subscriptions.first { $0.id == id }?.title
+    }
+
+    func feedRefreshAction(_ target: FeedRefreshTarget) -> (() -> Void)? {
+        guard canRefresh(target) else { return nil }
+        let token = generation
+        return { [weak self] in
+            Task {
+                guard let self, self.generation == token else { return }
+                await self.refreshFeeds(target)
+            }
+        }
+    }
+
+    private func canRefresh(_ target: FeedRefreshTarget) -> Bool {
+        guard canRefreshFeeds else { return false }
+        if case let .subscription(id) = target {
+            return library?.subscriptions.contains { $0.id == id } == true
+        }
+        return true
+    }
+
+    func refreshFeeds(_ target: FeedRefreshTarget) async {
+        guard canRefresh(target), let source = libraryEditing?.source else { return }
+        let token = generation
+        let standalone = isStandalone
+        let podcastTitle = if case let .subscription(id) = target { refreshPodcastTitle(id) } else { nil as String? }
+        refreshingFeeds = target
+        feedRefreshIssue = nil
+        announcements.status(feedRefreshProgress)
+        await runSyncPass {
+            var message: String?
+            var requestCompleted = false
+            do {
+                switch target {
+                case .all:
+                    let summary = try await source.refreshAllFeeds()
+                    if summary.failed > 0 {
+                        let feeds = summary.checked == 1 ? "feed" : "feeds"
+                        message = "Could not refresh \(summary.failed) of \(summary.checked) \(feeds). Try again."
+                    }
+                case let .subscription(id):
+                    try await source.refreshSubscription(id)
+                }
+                requestCompleted = true
+            } catch is CancellationError {
+                // A cancelled pass has no refresh result to report.
+            } catch {
+                message = LibraryMessages.feedRefreshFailure(error, podcastTitle: podcastTitle)
+            }
+            guard generation == token else { return }
+            if standalone {
+                if target == .all { syncError = nil }
+                await reloadLocal()
+                guard generation == token else { return }
+                playback?.refresh()
+                if target == .all && requestCompleted && message == nil && syncError == nil { lastSync = Date() }
+            } else if requestCompleted {
+                await syncLibrary(forceRefresh: true)
+                guard generation == token else { return }
+            }
+            refreshingFeeds = nil
+            if let message { feedRefreshIssue = FeedRefreshIssue(target: target, message: message) }
+            else if requestCompleted && syncError == nil {
+                announcements.status(target == .all ? "Feeds refreshed." : "Podcast refreshed.")
+            }
+        }
+    }
+
+    private func runSyncPass(_ operation: () async -> Void) async {
         let scheduleToken = generation
         syncTask?.cancel(); syncSchedule.begin()
         defer {
@@ -279,6 +375,10 @@ public final class ApplicationModel {
                 scheduleSync(after: syncSchedule.finish(), token: scheduleToken)
             }
         }
+        await operation()
+    }
+
+    private func syncLibrary(forceRefresh: Bool) async {
         if isStandalone, let libraryEditing {
             let token = generation
             syncing = true
@@ -293,9 +393,13 @@ public final class ApplicationModel {
             return
         }
         guard let client, let database else { return }
-        if forceRefresh { compatibilityFailure = nil; await client.retry() }
         let token = generation
         syncing = true
+        if forceRefresh {
+            compatibilityFailure = nil
+            await client.retry()
+            guard generation == token else { return }
+        }
         var failure: String?
         do {
             if let compatibilityFailure { throw compatibilityFailure }
@@ -540,5 +644,6 @@ public final class ApplicationModel {
         database = nil; client = nil; library = nil; libraryEditing = nil; origin = nil
         bringOver = nil; bringOverSnapshot = nil; bringOverPreview = nil; bringOverJob = nil; bringOverError = nil; bringOverAvailable = false
         connecting = false; syncing = false; connectionError = nil; syncError = nil; compatibilityFailure = nil; lastSync = nil
+        refreshingFeeds = nil; feedRefreshIssue = nil
     }
 }
