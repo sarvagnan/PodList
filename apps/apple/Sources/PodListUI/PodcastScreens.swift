@@ -28,25 +28,26 @@ struct LibraryFeedback: SwiftUI.View {
 /// Keep metadata bounded and give only the Episode list the remaining space.
 struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.View {
     @Environment(\.libraryPlaybackBarInset) private var playbackInset
-    @ViewBuilder let header: (CGFloat) -> Header
+    @ViewBuilder let header: (CGFloat, Bool) -> Header
     @ViewBuilder let episodes: () -> Episodes
     var body: some SwiftUI.View {
         GeometryReader { viewport in
-            let visibleHeight = max(0, viewport.size.height - (playbackInset ?? 0) - 36)
-            let descriptionHeight = max(48, visibleHeight * 0.25)
-            VStack(alignment: .leading, spacing: 12) {
-                ViewThatFits(in: .vertical) {
-                    header(descriptionHeight).fixedSize(horizontal: false, vertical: true)
-                    ScrollView { header(descriptionHeight) }.scrollBounceBehavior(.basedOnSize)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(maxHeight: max(48, visibleHeight - 112))
-                .padding(.horizontal, 18)
+            let unobstructedHeight = max(0, viewport.size.height - (playbackInset ?? 0))
+            let compact = unobstructedHeight < 356
+            let padding: CGFloat = compact ? 6 : 18
+            let visibleHeight = max(0, unobstructedHeight - 2 * padding)
+            let descriptionHeight = compact ? min(24, visibleHeight * 0.25) : visibleHeight * 0.25
+            VStack(alignment: .leading, spacing: compact ? 6 : 12) {
+                header(descriptionHeight, compact)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .controlSize(compact ? .small : .regular)
+                    .padding(.horizontal, 18)
                 GeometryReader { table in
                     episodes().frame(width: table.size.width, height: table.size.height)
                 }
             }
-            .padding(.vertical, 18)
+            .padding(.vertical, padding)
             .frame(width: viewport.size.width, height: viewport.size.height, alignment: .topLeading)
         }
     }
@@ -169,43 +170,31 @@ struct PodcastPageScreen: SwiftUI.View {
                 bring(first, play: true)
             }
         }
-        return PodcastPageLayout { descriptionHeight in
-            VStack(alignment: .leading, spacing: 12) {
+        return PodcastPageLayout { descriptionHeight, compact in
+            VStack(alignment: .leading, spacing: compact ? 6 : 12) {
                 HStack(alignment: .top, spacing: 16) {
-                    ArtworkView(url: artworkURL, title: title, size: 96)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(title).macContentFont(.title2).bold().lineLimit(2)
-                        Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
-                        PodcastDescription(text: Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? ""),
-                            expanded: $descriptionExpanded, truncated: $descriptionTruncated, maximumHeight: descriptionHeight, toggle: toggleDescription)
-                        HStack {
-                            Button {
-                                if subscribed, !control.click() { return }
-                                changeSubscription()
-                            } label: {
-                                SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed)
-                                    .foregroundStyle(control.isArmed ? Color.podListError : Color.primary)
-                            }.disabled(subscriptionBusy)
-                                .focused($unsubscribeFocused)
-                                .onHover { if !$0 { control.reset() } }
-                                .onChange(of: unsubscribeFocused) { _, focused in if !focused { control.reset() } }
-                                .background(UnsubscribeInteractionGuard(armed: control.isArmed, focused: unsubscribeFocused) { control.reset() })
-                                .accessibilityHint(subscribed ? "Click twice to Unsubscribe. Moving away cancels." : "Add this podcast to your Library")
-                            if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
-                                ShareLink(item: url) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
-                                Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
-                            }
-                            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription settings") }
+                    ArtworkView(url: artworkURL, title: title, size: compact ? 48 : 96)
+                    VStack(alignment: .leading, spacing: compact ? 2 : 6) {
+                        Text(title).macContentFont(compact ? .headline : .title2).bold().lineLimit(compact ? 1 : 2)
+                        let author = feed?.author ?? subscription?.author ?? ""
+                        if !compact {
+                            Text(author).foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
                         }
+                        PodcastDescription(text: Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? ""),
+                            expanded: $descriptionExpanded, truncated: $descriptionTruncated, maximumHeight: descriptionHeight,
+                            showsToggle: !compact, toggle: toggleDescription)
+                        if !compact { headerActions(compact: false) }
                     }
                 }
+                if compact { headerActions(compact: true) }
                 if subscribed, let subscription {
-                    DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
+                    DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app, compact: compact)
                 }
                 if loading { ProgressView("Reading Episodes…") }
                 if let error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { control.reset(); load() } }
                 Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
                     .accessibilityIdentifier("podcast.episodeCount")
+                    .macContentFont(compact ? .caption : .body)
             }
         } episodes: {
             if episodes.isEmpty, !loading, error == nil {
@@ -311,6 +300,40 @@ struct PodcastPageScreen: SwiftUI.View {
             if let subscription { SubscriptionSettingsScreen(subscription: subscription, library: library, app: app, editor: editor) }
         }
     }
+    private func headerActions(compact: Bool) -> some SwiftUI.View {
+        HStack(spacing: compact ? 4 : nil) {
+            Button {
+                if subscribed, !control.click() { return }
+                changeSubscription()
+            } label: {
+                SubscriptionButtonLabel(subscribed: subscribed, armed: control.isArmed)
+                    .foregroundStyle(control.isArmed ? Color.podListError : Color.primary)
+            }.disabled(subscriptionBusy)
+                .focused($unsubscribeFocused)
+                .onHover { if !$0 { control.reset() } }
+                .onChange(of: unsubscribeFocused) { _, focused in if !focused { control.reset() } }
+                .background(UnsubscribeInteractionGuard(armed: control.isArmed, focused: unsubscribeFocused) { control.reset() })
+                .accessibilityHint(subscribed ? "Click twice to Unsubscribe. Moving away cancels." : "Add this podcast to your Library")
+            if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
+                ShareLink(item: url) {
+                    if compact { Label("Share Podcast", systemImage: "square.and.arrow.up").labelStyle(.iconOnly) }
+                    else { Label("Share Podcast", systemImage: "square.and.arrow.up") }
+                }.help("Share Podcast")
+                Button {
+                    if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) }
+                } label: {
+                    if compact { Label("Copy Feed Address", systemImage: "doc.on.doc").labelStyle(.iconOnly) }
+                    else { Text("Copy Feed Address") }
+                }.help("Copy Feed Address")
+            }
+            if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription settings") }
+            if compact, descriptionTruncated {
+                let title = descriptionExpanded ? "Show Less" : "Show Description"
+                Button(title, systemImage: descriptionExpanded ? "chevron.up" : "chevron.down", action: toggleDescription)
+                    .labelStyle(.iconOnly).help(title)
+            }
+        }
+    }
     private func dragPayload(_ episode: PageEpisode) -> EpisodeTransfer {
         let chosen = selection.wrappedValue.contains(episode.id) ? episodes.filter { selection.wrappedValue.contains($0.id) } : [episode]
         let references = chosen.map { item in
@@ -385,6 +408,7 @@ struct PodcastDescription: SwiftUI.View {
     @Binding var expanded: Bool
     @Binding var truncated: Bool
     var maximumHeight: CGFloat = 140
+    var showsToggle = true
     let toggle: () -> Void
     @State private var fullHeight: CGFloat = 0
     @State private var collapsedHeight: CGFloat = 0
@@ -407,7 +431,7 @@ struct PodcastDescription: SwiftUI.View {
             .frame(height: min(expanded ? fullHeight : collapsedHeight, maximumHeight))
             .scrollBounceBehavior(.basedOnSize)
             .accessibilityLabel("Podcast Description")
-            if truncated {
+            if truncated, showsToggle {
                 Button(expanded ? "Show Less" : "Show Description", action: toggle).buttonStyle(MacReadableAccentButtonStyle())
             }
         }
