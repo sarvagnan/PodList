@@ -142,12 +142,17 @@ final class PodListUITour: XCTestCase {
         try ready(episodeList)
         XCTAssertEqual(library.staticTexts["Default"].firstMatch.frame.minX, leadingTitleX, accuracy: 1,
                        "The Playlist title must retain the library's leading title position")
+        try ready(text("Select an Episode"))
+        try ready(inspectorButton)
+        XCTAssertEqual(inspectorButton.label, "Hide Inspector", "The Inspector choice must survive Show All Views")
+        let searchField = library.toolbars.searchFields.firstMatch
+        try ready(searchField)
+        XCTAssertGreaterThan(searchField.frame.width, 100, "Search must remain a full field at the default window width")
         try capture("06-default-playlist")
         let unselectedSection = playlistSection("Entries").frame
         let unselectedPlay = playlistPlayButton.frame
         XCTAssertEqual(playlistPlayButton.label, "Play This Playlist")
         XCTAssertFalse(library.toolbars.buttons["New Playlist…"].exists)
-        try ready(inspectorButton)
         let unselectedInspector = inspectorButton.frame
         try selectFirstEpisode()
         XCTAssertNotEqual(playlistPlayButton.label, "Play This Playlist", "The same Play control now targets the selection")

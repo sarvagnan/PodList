@@ -1,4 +1,5 @@
 #if os(macOS)
+import SwiftUI
 import Testing
 @testable import PodListUI
 
@@ -38,5 +39,32 @@ func userEpisodeSelectionOpensInspectorButRestorationLeavesItHidden() {
     inspectorVisible = false
     window.restore(WindowContext(destination: .search, selection: ["two"]))
     #expect(!inspectorVisible && window.selection == ["two"])
+}
+
+@Test(arguments: [true, false])
+@MainActor
+func inspectorChoiceSurvivesNavigationThroughAllViews(initiallyVisible: Bool) {
+    let window = WindowModel()
+    var visible = initiallyVisible
+    let preference = Binding(get: { visible }, set: { visible = $0 })
+    window.navigate(to: .view("starred"))
+    let starred = window.inspectorPresentation(preference)
+    #expect(starred.wrappedValue == initiallyVisible)
+
+    window.navigate(to: .views)
+    let allViews = window.inspectorPresentation(preference)
+    #expect(!allViews.wrappedValue)
+    // SwiftUI can write back the dismissal while removing the pane from All Views.
+    starred.wrappedValue = false
+    allViews.wrappedValue = false
+    #expect(visible == initiallyVisible)
+
+    window.navigate(to: .playlist("default"))
+    let playlist = window.inspectorPresentation(preference)
+    allViews.wrappedValue = false // A delayed dismissal can arrive after navigation.
+    starred.wrappedValue = false
+    #expect(playlist.wrappedValue == initiallyVisible)
+    playlist.wrappedValue = !initiallyVisible
+    #expect(visible != initiallyVisible)
 }
 #endif
