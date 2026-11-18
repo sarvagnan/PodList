@@ -39,7 +39,7 @@ public struct HttpTransport: SyncTransport {
         else { throw SyncResponseFailure("Invalid API path") }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = ["/api/subscriptions/import", "/api/subscriptions/bring-over"].contains(path) ? 120 : (["/api/subscriptions", "/api/podcasts/read", "/api/podcasts/episodes"].contains(path) ? 30 : 2)
+        request.timeoutInterval = Self.timeout(method: method, path: path)
         request.setValue("PodList Apple", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(String(SyncProtocol.version), forHTTPHeaderField: SyncProtocol.header)
@@ -53,5 +53,15 @@ public struct HttpTransport: SyncTransport {
         guard (200...299).contains(http.statusCode) else { throw HttpFailure(status: http.statusCode) }
         guard let text = String(data: data, encoding: .utf8) else { throw SyncResponseFailure("Response is not UTF-8") }
         return text
+    }
+
+    static func timeout(method: String, path: String) -> TimeInterval {
+        // The refresh response arrives only after publisher requests finish.
+        // An all-feed pass can run several batches of slow publishers.
+        if method == "POST" && path == "/api/library/refresh" { return 600 }
+        if method == "POST" && path.hasPrefix("/api/subscriptions/") && path.hasSuffix("/refresh") { return 30 }
+        if ["/api/subscriptions/import", "/api/subscriptions/bring-over"].contains(path) { return 120 }
+        if ["/api/subscriptions", "/api/podcasts/read", "/api/podcasts/episodes"].contains(path) { return 30 }
+        return 2
     }
 }

@@ -9,6 +9,22 @@ public struct DirectoryPodcast: Codable, Equatable, Identifiable, Sendable {
     public var id: String { feedUrl }
 }
 
+public struct RefreshSummary: Decodable, Equatable, Sendable {
+    public let checked: Int
+    public let updated: Int
+    public let notModified: Int
+    public let failed: Int
+}
+
+public enum FeedRefreshFailure: Error, Equatable, Sendable {
+    case subscriptionNotFound, publisherFailed, inProgress, feedsFailed(Int)
+}
+
+private enum RefreshResult: String, Decodable {
+    case updated = "Updated"
+    case notModified = "NotModified"
+}
+
 public struct PublisherResponse: Sendable {
     public let data: Data
     public let status: Int
@@ -153,37 +169,96 @@ public actor PodcastLibrary {
         let sub = try await db.storePodcast(feed, parsed: parsed, subscribe: false, guid: guid)
         return try await db.readLibrary().episodes.first { $0.subscriptionId == sub.id && $0.guid == guid }!.id
     }
-    /// Automatic passes respect persisted deadlines; Refresh now deliberately bypasses them.
+    /// Standalone polling reports failures after checking all eligible feeds.
     public func refresh(respectBackoff: Bool = false) async throws {
-        guard !refreshing else { return }
-        refreshing = true; defer { refreshing = false }
-        var failures: [String] = []
+        let summary = try await pollFeeds(respectBackoff: respectBackoff)
+        if summary.failed > 0 { throw FeedRefreshFailure.feedsFailed(summary.failed) }
+    }
+
+    public func refreshAllFeeds() async throws -> RefreshSummary {
+        if let transport {
+            return try ProtocolJSON.decode(from: await transport.request(method: "POST", path: "/api/library/refresh", body: nil))
+        }
+        return try await pollFeeds(respectBackoff: false)
+    }
+
+    public func refreshSubscription(_ id: String) async throws {
+        if let transport {
+            struct Response: Decodable {
+                let _tag: RefreshResult
+                let added: Int?
+                let changed: Int?
+            }
+            do {
+                let result: Response = try ProtocolJSON.decode(from: await transport.request(
+                    method: "POST", path: "/api/subscriptions/" + escaped(id) + "/refresh", body: nil))
+                if result._tag == .updated, result.added == nil || result.changed == nil { throw SyncResponseFailure() }
+            } catch let error as HttpFailure {
+                switch error.status {
+                case 404: throw FeedRefreshFailure.subscriptionNotFound
+                case 502: throw FeedRefreshFailure.publisherFailed
+                default: throw error
+                }
+            }
+            return
+        }
+        guard !refreshing else { throw FeedRefreshFailure.inProgress }
+        refreshing = true
+        defer { refreshing = false }
+        guard let sub = try await db.readLibrary().subscriptions.first(where: { $0.id == id && $0.unsubscribedAt == nil }) else {
+            throw FeedRefreshFailure.subscriptionNotFound
+        }
+        let state = try await db.feedPollState(id)
+        _ = try await poll(sub, state: state)
+    }
+
+    private func pollFeeds(respectBackoff: Bool) async throws -> RefreshSummary {
+        guard !refreshing else { throw FeedRefreshFailure.inProgress }
+        refreshing = true
+        defer { refreshing = false }
+        var updated = 0, notModified = 0, failed = 0
         for sub in try await db.readLibrary().subscriptions where sub.unsubscribedAt == nil {
             try Task.checkCancellation()
             let state = try await db.feedPollState(sub.id)
             if respectBackoff, let checked = state.checkedAt,
                now() < checked + max(FeedPollState.interval, state.backoff) { continue }
             do {
-                guard let url = URL(string: sub.feedUrl) else { throw SyncResponseFailure("Invalid feed address") }
-                let result = try await publisher.readFeed(url, etag: state.etag, lastModified: state.lastModified)
-                guard result.status == 304 || (200...299).contains(result.status) else { throw SyncResponseFailure("Feed answered HTTP \(result.status)") }
-                let parsed: ParsedFeed?
-                if result.status == 304 { parsed = nil }
-                else {
-                    guard let xml = String(data: result.data, encoding: .utf8) else { throw SyncResponseFailure("Feed is not UTF-8") }
-                    parsed = try FeedParser.parse(xml)
+                switch try await poll(sub, state: state) {
+                case .updated: updated += 1
+                case .notModified: notModified += 1
                 }
-                try await db.commitFeedPoll(sub, parsed: parsed, etag: result.status == 304 ? state.etag : result.etag,
-                                            lastModified: result.status == 304 ? state.lastModified : result.lastModified, at: now())
-            } catch is CancellationError { throw CancellationError() }
-            catch {
-                try await db.failFeedPoll(sub.id, at: now(), error: String(describing: error))
-                failures.append(sub.title)
+            } catch FeedRefreshFailure.publisherFailed {
+                failed += 1
             }
         }
-        if !failures.isEmpty { throw SyncResponseFailure("Could not refresh: " + failures.joined(separator: ", ") + ". Try again") }
+        return RefreshSummary(checked: updated + notModified + failed, updated: updated, notModified: notModified, failed: failed)
     }
 
+    private func poll(_ sub: Subscription, state: FeedPollState) async throws -> RefreshResult {
+        try Task.checkCancellation()
+        do {
+            guard let url = URL(string: sub.feedUrl) else { throw SyncResponseFailure("Invalid feed address") }
+            let result = try await publisher.readFeed(url, etag: state.etag, lastModified: state.lastModified)
+            let unchanged = result.status == 304
+            let parsed: ParsedFeed?
+            if unchanged {
+                parsed = nil
+            } else {
+                guard (200...299).contains(result.status) else { throw SyncResponseFailure("Feed answered HTTP \(result.status)") }
+                guard let xml = String(data: result.data, encoding: .utf8) else { throw SyncResponseFailure("Feed is not UTF-8") }
+                parsed = try FeedParser.parse(xml)
+            }
+            try Task.checkCancellation()
+            try await db.commitFeedPoll(sub, parsed: parsed, etag: unchanged ? state.etag : result.etag,
+                                        lastModified: unchanged ? state.lastModified : result.lastModified, at: now())
+            return unchanged ? .notModified : .updated
+        } catch {
+            try Task.checkCancellation()
+            if error is CancellationError { throw error }
+            try await db.failFeedPoll(sub.id, at: now(), error: String(describing: error))
+            throw FeedRefreshFailure.publisherFailed
+        }
+    }
 }
 
 extension LocalDatabase {

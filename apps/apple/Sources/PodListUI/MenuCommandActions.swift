@@ -10,7 +10,8 @@ enum MenuAction: String, CaseIterable {
     case playNow = "Play Now", playNext = "Play Next", playLast = "Play Last"
     case go = "Go", deletePermanently = "Delete Permanently"
     case apply = "Apply", rewind = "Rewind", bringOver = "Bring Over", notNow = "Not Now"
-    case refresh = "Refresh Library", showImport = "Show Import Results", retryImport = "Retry Failed Imports"
+    case refresh = "Refresh All Feeds", retryFeedRefresh = "Retry Feed Refresh"
+    case showImport = "Show Import Results", retryImport = "Retry Failed Imports"
     case importSelection = "Import", chooseFile = "Choose a File…", cancelImport = "Cancel Import"
     case connect = "Check and Connect", standalone = "Start on This Mac", disconnect = "Disconnect"
     case offerBringOver = "Bring Library from This Mac…", retryBringOver = "Retry Bring Over"
@@ -26,7 +27,7 @@ enum MenuAction: String, CaseIterable {
         case .showImport, .cancelImport, .retryImport: .file
         case .clearSearch, .retry: .edit
         case .retryEpisodeDrop, .removeEpisodeDrop: .episode
-        case .refresh, .backToLibrary, .searchPodcasts: .podcast
+        case .refresh, .retryFeedRefresh, .backToLibrary, .searchPodcasts: .podcast
         case .createViewFromSearch: .views
         case .connect, .standalone, .disconnect, .offerBringOver, .retryBringOver: .connection
         case .backToNowPlaying, .retryPlayback: .controls
@@ -36,6 +37,14 @@ enum MenuAction: String, CaseIterable {
              .playNow, .playNext, .playLast, .go, .deletePermanently, .apply,
              .rewind, .bringOver, .notNow, .importSelection, .chooseFile,
              .dismissTutorial: nil
+        }
+    }
+
+    var shortcut: KeyboardShortcut? {
+        switch self {
+        case .refresh: PodListShortcut.refreshAllFeeds.shortcut
+        case .backToLibrary: KeyboardShortcut("[", modifiers: .command)
+        default: nil
         }
     }
 }
@@ -88,7 +97,7 @@ struct MenuActionItems: SwiftUI.View {
     var body: some SwiftUI.View {
         ForEach(menu.items, id: \.self) { item in
             Button(item == .retry ? retryTitle : item.rawValue) { action(item)?() }
-                .keyboardShortcut(item == .backToLibrary ? KeyboardShortcut("[", modifiers: .command) : nil)
+                .keyboardShortcut(item.shortcut)
                 .disabled(action(item) == nil)
         }
     }
@@ -106,7 +115,7 @@ struct MenuActionItems: SwiftUI.View {
 /// so moving focus to Settings or closing the progress sheet does not hide them.
 @MainActor enum PersistentMenuActions {
     static func owns(_ action: MenuAction) -> Bool {
-        [.showImport, .cancelImport, .retryImport, .retryBringOver,
+        [.refresh, .retryFeedRefresh, .showImport, .cancelImport, .retryImport, .retryBringOver,
          .retryPlayback, .retryEpisodeDrop, .removeEpisodeDrop, .copyConfiguration, .retryAutomation].contains(action)
     }
     static func episodeDrops(_ editor: LibraryEditingModel) -> MenuActionContext {
@@ -138,7 +147,9 @@ struct MenuActionItems: SwiftUI.View {
     static func context(_ app: ApplicationModel) -> MenuActionContext {
         var result = app.libraryEditing.map(imports) ?? MenuActionContext()
         if let editor = app.libraryEditing { result.actions.merge(episodeDrops(editor).actions) { _, new in new } }
-        if app.origin != nil && app.bringOverJob?.complete == false && !app.syncing {
+        result.actions[.refresh] = app.feedRefreshAction(.all)
+        result.actions[.retryFeedRefresh] = app.feedRefreshIssue.flatMap { app.feedRefreshAction($0.target) }
+        if app.origin != nil && app.bringOverJob?.complete == false && !app.syncing && app.refreshingFeeds == nil {
             result.actions[.retryBringOver] = { Task { await app.sync(forceRefresh: true) } }
         }
         if let player = app.playback, player.error != nil { result.actions[.retryPlayback] = { player.play() } }

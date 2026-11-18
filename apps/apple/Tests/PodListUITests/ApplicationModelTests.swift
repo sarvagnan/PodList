@@ -21,6 +21,11 @@ private actor FakeTransport: SyncTransport {
     var healthResponse = #"{"status":"ok","protocolVersion":4}"#
     var snapshot = fixtureState()
     var paths: [String] = []
+    private var failedFeedCount = 0
+    private var podcastRefreshFails = false
+    func setRefreshFailures(all count: Int = 0, podcast: Bool = false) {
+        failedFeedCount = count; podcastRefreshFails = podcast
+    }
     var seen = Set<String>()
     private var pauseNextPull = false
     private var pausedPull: CheckedContinuation<Void, Never>?
@@ -39,6 +44,11 @@ private actor FakeTransport: SyncTransport {
         switch path {
         case "/api/health": return healthResponse
         case "/api/devices": return body!
+        case "/api/library/refresh":
+            return #"{"checked":2,"updated":\#(2 - failedFeedCount),"notModified":0,"failed":\#(failedFeedCount)}"#
+        case "/api/subscriptions/s/refresh":
+            if podcastRefreshFails { throw FeedRefreshFailure.publisherFailed }
+            return #"{"_tag":"Updated","added":1,"changed":0}"#
         case "/api/subscriptions/bring-over": return ""
         case "/api/sync/push":
             struct Push: Decodable { let operations: [PodListDomain.Operation] }
@@ -61,6 +71,55 @@ private actor FakeTransport: SyncTransport {
         default: throw SyncResponseFailure("Unexpected request \(method) \(path)")
         }
     }
+}
+
+@MainActor @Test func manualFeedRefreshPostsThenSyncsAndDisablesBothCommandsUntilDone() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let transport = FakeTransport()
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db }, transportFactory: { _ in transport })
+    #expect(app.feedRefreshAction(.all) == nil)
+    app.serverInput = "https://example.com"
+    await app.connect()
+    var announcements: [String] = []
+    app.announcements.post = { text, _ in announcements.append(text) }
+    #expect(PersistentMenuActions.context(app)[.refresh] != nil)
+    #expect(PersistentMenuActions.context(app)[.retryFeedRefresh] == nil)
+    #expect(app.feedRefreshAction(.subscription("s")) != nil)
+    #expect(app.feedRefreshAction(.subscription("missing")) == nil)
+    let initialRequestCount = await transport.paths.count
+    await transport.setRefreshFailures(all: 1)
+    await transport.holdNextPull()
+    let refresh = Task { await app.refreshFeeds(.all) }
+    await transport.waitForPausedPull()
+    #expect(app.feedRefreshProgress == "Refreshing All Feeds…")
+    #expect(PersistentMenuActions.context(app)[.refresh] == nil)
+    #expect(app.feedRefreshAction(.subscription("s")) == nil)
+    await app.refreshFeeds(.subscription("s"))
+    await transport.releasePull()
+    await refresh.value
+    let allPaths = await transport.paths.dropFirst(initialRequestCount)
+    #expect(allPaths.first == "/api/library/refresh")
+    #expect(allPaths.contains { $0.hasPrefix("/api/library/changes?") })
+    #expect(!allPaths.contains("/api/subscriptions/s/refresh"))
+    #expect(app.feedRefreshProgress == nil && app.syncError == nil)
+    #expect(app.feedRefreshIssue?.target == .all)
+    #expect(announcements == ["Refreshing All Feeds…", "Could not refresh 1 of 2 feeds. Try again."])
+    #expect(PersistentMenuActions.context(app)[.retryFeedRefresh] != nil)
+
+    await app.refreshFeeds(.subscription("s"))
+    let podcastPaths = await transport.paths.dropFirst(initialRequestCount + allPaths.count)
+    #expect(podcastPaths.first == "/api/subscriptions/s/refresh")
+    #expect(podcastPaths.contains { $0.hasPrefix("/api/library/changes?") })
+    #expect(app.feedRefreshIssue == nil)
+    #expect(announcements.suffix(2) == ["Refreshing Science…", "Podcast refreshed."])
+
+    await transport.setRefreshFailures(podcast: true)
+    await app.refreshFeeds(.subscription("s"))
+    #expect(app.feedRefreshIssue?.target == .subscription("s"))
+    #expect(app.feedRefreshIssue?.message == "Could not refresh “Science”. Check your connection and try again.")
+    #expect(app.syncError == nil)
+    app.disconnect()
+    #expect(app.feedRefreshIssue == nil)
 }
 
 @MainActor @Test func disconnectIgnoresAnEarlierSessionsDelayedSync() async throws {

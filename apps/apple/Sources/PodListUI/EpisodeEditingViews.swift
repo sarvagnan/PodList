@@ -182,12 +182,14 @@ struct LibrarySyncStatus: SwiftUI.View {
     let app: ApplicationModel
     var body: some SwiftUI.View {
         HStack(spacing: 8) {
-            if app.syncing {
+            if app.feedRefreshProgress != nil {
+                FeedRefreshFeedback(app: app)
+            } else if app.syncing {
                 ProgressView().controlSize(.mini).accessibilityLabel("Syncing")
                 Text("Syncing…")
             } else if let error = app.syncError {
                 Image(systemName: "exclamationmark.icloud").accessibilityHidden(true)
-                FailureFeedback(message: error, indexedElsewhere: true) { Task { await app.sync(forceRefresh: true) } }
+                FailureFeedback(message: error, retryTitle: "Retry Sync") { Task { await app.sync(forceRefresh: true) } }
                     .help(Presentation.tooltip(error))
             } else {
                 Image(systemName: "checkmark.icloud").accessibilityHidden(true)
@@ -237,7 +239,7 @@ struct EditingFeedback: SwiftUI.View {
     }
     private func feedbackRow(text: String?) -> some SwiftUI.View {
         HStack {
-            if let sync, sync.syncError != nil, error == nil {
+            if let sync, sync.feedRefreshProgress != nil || (sync.syncError != nil && error == nil) {
                 LibrarySyncStatus(app: sync)
             } else if let text {
                 Text(text).foregroundStyle(error == nil ? Color.primary : Color.podListError)

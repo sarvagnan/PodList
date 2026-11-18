@@ -40,12 +40,23 @@ private struct FeedHTTP: PublisherReader {
 
 private actor LibraryHTTPFixture: SyncTransport {
     var paths: [String] = []
+    var refreshFailureStatus: Int?
+    var notModified = false
+    func failRefresh(with status: Int?) { refreshFailureStatus = status }
+    func useNotModified() { notModified = true }
     let sub = Subscription(id: "server-s", feedUrl: "https://example.com/rss", title: "Podcast", author: nil, description: nil, artwork: nil, subscribedAt: 1, unsubscribedAt: nil, playedThreshold: nil, playbackSettings: .init())
     var episode: Episode { Episode(id: "server-e", subscriptionId: sub.id, guid: "one", title: "Episode", description: "", published: 0, duration: nil, audioUrl: "https://example.com/audio.mp3", artwork: nil, chapters: [], audioUpdatedAt: nil) }
     func request(method: String, path: String, body: String?) async throws -> String {
         paths.append(method + " " + path)
         if path.hasPrefix("/api/directory/search") { return #"[{"title":"Podcast","author":null,"feedUrl":"https://example.com/rss","artworkUrl":null,"source":"feed"}]"# }
         switch path {
+        case "/api/library/refresh":
+            #expect(body == nil)
+            return #"{"checked":4,"updated":2,"notModified":1,"failed":1}"#
+        case "/api/subscriptions/server%2Fs%3F/refresh":
+            #expect(body == nil)
+            if let refreshFailureStatus { throw HttpFailure(status: refreshFailureStatus) }
+            return notModified ? #"{"_tag":"NotModified"}"# : #"{"_tag":"Updated","added":2,"changed":3}"#
         case "/api/podcasts/read":
             return try ProtocolJSON.encode(FeedParser.parse("<rss><channel><title>Podcast</title><item><guid>one</guid><title>Episode</title><enclosure url='https://example.com/audio.mp3'/></item></channel></rss>"))
         case "/api/subscriptions": return try ProtocolJSON.encode(sub)
@@ -60,6 +71,37 @@ private actor LibraryHTTPFixture: SyncTransport {
         default: throw SyncResponseFailure("Unexpected request: " + path)
         }
     }
+}
+
+@Test func serverFeedRefreshPostsWithoutPayloadAndDecodesResults() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let http = LibraryHTTPFixture()
+    let source = PodcastLibrary(database: db, transport: http)
+    let summary = try await source.refreshAllFeeds()
+    #expect(summary == RefreshSummary(checked: 4, updated: 2, notModified: 1, failed: 1))
+    try await source.refreshSubscription("server/s?")
+    await http.useNotModified()
+    try await source.refreshSubscription("server/s?")
+    #expect(await http.paths == [
+        "POST /api/library/refresh",
+        "POST /api/subscriptions/server%2Fs%3F/refresh",
+        "POST /api/subscriptions/server%2Fs%3F/refresh"
+    ])
+}
+
+@Test func serverFeedRefreshMapsSubscriptionAndPublisherErrors() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let http = LibraryHTTPFixture()
+    let source = PodcastLibrary(database: db, transport: http)
+    await http.failRefresh(with: 404)
+    await #expect(throws: FeedRefreshFailure.subscriptionNotFound) { try await source.refreshSubscription("server/s?") }
+    await http.failRefresh(with: 502)
+    await #expect(throws: FeedRefreshFailure.publisherFailed) { try await source.refreshSubscription("server/s?") }
+    await http.failRefresh(with: 503)
+    await #expect(throws: HttpFailure.self) { try await source.refreshSubscription("server/s?") }
+    #expect(HttpTransport.timeout(method: "POST", path: "/api/library/refresh") == 600)
+    #expect(HttpTransport.timeout(method: "POST", path: "/api/subscriptions/server%2Fs%3F/refresh") == 30)
+    #expect(HttpTransport.timeout(method: "GET", path: "/api/library/changes?since=0") == 2)
 }
 @Test func serverLibraryUsesExistingEndpointsAndBringsMetadataBeforeStateEdits() async throws {
     let db = try LocalDatabase(path: ":memory:"); try await db.ensureState()

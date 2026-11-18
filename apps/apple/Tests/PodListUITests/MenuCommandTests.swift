@@ -16,7 +16,7 @@ import UniformTypeIdentifiers
 @Test func supplementalCommandsAreFiledByTaskAndObject() {
     #expect(Set(MenuActionMenu.file.items) == [.showImport, .cancelImport, .retryImport])
     #expect(MenuActionMenu.edit.items == [.clearSearch, .retry])
-    #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .backToLibrary, .searchPodcasts])
+    #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .retryFeedRefresh, .backToLibrary, .searchPodcasts])
     #expect(MenuActionMenu.views.items == [.createViewFromSearch])
     #expect(MenuActionMenu.episode.items == [.retryEpisodeDrop, .removeEpisodeDrop])
     #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver, .retryBringOver])
@@ -208,12 +208,14 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     #expect(String(data: pendingText, encoding: .utf8) == "Details pending")
 }
 
-@Test func episodeShortcutsLeaveStandardAndExistingEquivalentsAvailable() {
+@Test func customShortcutsLeaveStandardAndExistingEquivalentsAvailable() {
     let shortcuts = PodListShortcut.allCases.compactMap(\.shortcut)
     #expect(Set(shortcuts.map { "\($0.modifiers.rawValue)/\($0.key.character)" }).count == shortcuts.count)
     // Apple's support.apple.com/en-us/102650 table, including Finder and text
     // editing; plus PodList's existing app, playback, list and text-size bindings.
-    let command = Array("abcdefghijkmnopqrstuvwxyz,.;/`1234[]{}+-=0")
+    // Command–R refreshes the Library in PodList; the Finder's alias command
+    // uses it in its own app.
+    let command = Array("abcdefghijkmnopqstuvwxyz,.;/`1234[]{}+-=0")
         + [Character(" "), KeyEquivalent.leftArrow.character, KeyEquivalent.rightArrow.character,
            KeyEquivalent.upArrow.character, KeyEquivalent.downArrow.character, KeyEquivalent.delete.character,
            KeyEquivalent.tab.character]
@@ -239,8 +241,11 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     }
     #expect(PodListShortcut.download.shortcut == nil)
     #expect(PodListShortcut.playNow.shortcut == KeyboardShortcut(.return, modifiers: []))
+    #expect(MenuAction.refresh.shortcut == KeyboardShortcut("r", modifiers: .command))
+    #expect(MenuAction.refresh.rawValue == PodListShortcut.refreshAllFeeds.title)
+    #expect(PodcastCommandContext.refreshTitle == "Refresh Podcast")
     #expect(PodListShortcut.allCases.map(\.notation) == [
-        "↩", "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→"
+        "↩", "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→", "⌘R"
     ])
 }
 

@@ -14,13 +14,31 @@ struct LibraryFeedback: SwiftUI.View {
             EditingFeedback(editing: editor.edits, surface: surface, sync: sync, additionalError: editor.error, additionalStatus: dropStatus,
                             undo: { Task { await editor.undo(restored: restored) } }, redo: { Task { await editor.redo(restored: restored) } },
                             reservesSpace: reservesSpace)
-
+            if let sync, sync.feedRefreshIssue != nil {
+                FeedRefreshFeedback(app: sync).macContentFont(.caption).padding(.horizontal, 14).padding(.bottom, 6)
+            }
         }
     }
     private var dropStatus: String? {
         if let drop = editor.episodeDrop { return "Adding Episodes… \(drop.completed) of \(drop.total) prepared" }
         if editor.failedEpisodeDrop != nil { return "Some Episodes could not be added. Use Episode › Retry Failed Episode Drop, or open the destination Playlist." }
         return nil
+    }
+}
+
+struct FeedRefreshFeedback: SwiftUI.View {
+    let app: ApplicationModel
+    var body: some SwiftUI.View {
+        if let progress = app.feedRefreshProgress {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.mini).accessibilityHidden(true)
+                Text(progress)
+            }.help(Presentation.tooltip(progress)).foregroundStyle(MacReadableSecondaryStyle())
+        } else if let issue = app.feedRefreshIssue {
+            let retry = app.feedRefreshAction(issue.target)
+            FailureFeedback(message: issue.message, indexedElsewhere: true) { retry?() }
+                .disabled(retry == nil)
+        }
     }
 }
 
@@ -109,7 +127,8 @@ struct PodcastPageScreen: SwiftUI.View {
     }
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
     private var subscribed: Bool { subscription?.unsubscribedAt == nil && subscription != nil }
-    private var title: String { feed?.title ?? subscription?.title ?? "Podcast" }
+    private var catalogueSubscription: Subscription? { subscribed ? subscription : nil }
+    private var title: String { catalogueSubscription?.title ?? feed?.title ?? subscription?.title ?? "Podcast" }
     private struct PageEpisode: Identifiable {
         let guid: String; let title: String; let description: String; let published: Int64; let duration: Double?; let localID: String?
         let stateText: String
@@ -123,8 +142,12 @@ struct PodcastPageScreen: SwiftUI.View {
         let remote = (feed?.episodes ?? []).map { episode in
             PageEpisode(guid: episode.guid, title: episode.title, description: episode.description, published: episode.published, duration: episode.duration, localID: local.first { $0.guid == episode.guid }?.localID, stateText: local.first { $0.guid == episode.guid }?.stateText ?? "Unplayed")
         }
-        let guids = Set(remote.map(\.guid))
-        return (remote + local.filter { !guids.contains($0.guid) }).filter { e in
+        // A subscribed page may still have its earlier publisher preview open
+        // when a refresh commits newer Episode metadata to the catalogue.
+        let preferred = subscribed ? local : remote
+        let fallback = subscribed ? remote : local
+        let guids = Set(preferred.map(\.guid))
+        return (preferred + fallback.filter { !guids.contains($0.guid) }).filter { e in
             Mentions.words(search).allSatisfy { word in [e.title, e.description].contains { Mentions.fold($0).contains(word) } }
         }.sorted(using: sortOrder)
     }
@@ -132,11 +155,11 @@ struct PodcastPageScreen: SwiftUI.View {
         PodcastPageLayout { descriptionHeight in
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 16) {
-                    ArtworkView(url: (feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
+                    ArtworkView(url: (catalogueSubscription?.artwork?.url ?? feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title).macContentFont(.title2).bold().lineLimit(2)
-                        Text(feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
-                        PodcastDescription(text: Presentation.plainShowNotes(feed?.description ?? subscription?.description ?? ""),
+                        Text(catalogueSubscription?.author ?? feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
+                        PodcastDescription(text: Presentation.plainShowNotes(catalogueSubscription?.description ?? feed?.description ?? subscription?.description ?? ""),
                             expanded: $descriptionExpanded, truncated: $descriptionTruncated, maximumHeight: descriptionHeight, toggle: toggleDescription)
                         HStack {
                             Button {
@@ -156,6 +179,9 @@ struct PodcastPageScreen: SwiftUI.View {
                                 Button("Copy Feed Address") { if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) } }
                             }
                             if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription settings") }
+                            let refresh = refreshPodcast
+                            Button(PodcastCommandContext.refreshTitle, systemImage: "arrow.clockwise") { refresh?() }
+                                .labelStyle(.iconOnly).help(PodcastCommandContext.refreshTitle).disabled(refresh == nil)
                         }
                     }
                 }
@@ -163,7 +189,10 @@ struct PodcastPageScreen: SwiftUI.View {
                     DownloadRuleEditor(subscriptionID: subscription.id, library: library, app: app)
                 }
                 if loading { ProgressView("Reading Episodes…") }
-                if let error { FailureFeedback(message: error, announcements: editor.edits.announcements, indexedElsewhere: true) { control.reset(); load() } }
+                if let error {
+                    FailureFeedback(message: error, announcements: editor.edits.announcements, retryTitle: "Retry Reading Episodes") { load() }
+                        .disabled(loading || !app.canRefreshFeeds)
+                }
                 Text(CountText.format(episodes.count, .episode)).foregroundStyle(MacReadableSecondaryStyle())
                     .accessibilityIdentifier("podcast.episodeCount")
             }
@@ -171,8 +200,7 @@ struct PodcastPageScreen: SwiftUI.View {
             if episodes.isEmpty, !loading, error == nil {
                 PodListEmptyState(search.isEmpty ? "No Episodes Yet" : "No Matching Episodes", systemImage: "list.bullet",
                                   description: search.isEmpty ? "The publisher has no Episodes available yet. Try again later." : "Try another Search.") {
-                    if search.isEmpty { Button("Refresh Episodes") { load() } }
-                    else { Button("Clear Search") { search = "" } }
+                    if !search.isEmpty { Button("Clear Search") { search = "" } }
                 }
             } else {
                 Group {
@@ -293,10 +321,18 @@ struct PodcastPageScreen: SwiftUI.View {
         }
         commands.shareURL = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL)
         commands.feedURL = ShareLinks.web(feedURL)
-        commands.refresh = loading ? nil : { load() }
+        commands.refresh = refreshPodcast
         commands.descriptionExpanded = descriptionExpanded
         commands.toggleDescription = descriptionTruncated ? { toggleDescription() } : nil
         return commands
+    }
+    private var refreshPodcast: (() -> Void)? {
+        guard !loading, !subscriptionBusy, app.canRefreshFeeds else { return nil }
+        if subscribed, let subscription {
+            guard let refresh = app.feedRefreshAction(.subscription(subscription.id)) else { return nil }
+            return { control.reset(); refresh() }
+        }
+        return { load() }
     }
     private func toggleDescription() { control.reset(); descriptionExpanded.toggle() }
     private func openSettings() { control.reset(); settings = true }
@@ -312,7 +348,11 @@ struct PodcastPageScreen: SwiftUI.View {
         }
     }
     private var selectedEpisode: PageEpisode? { episodes.first { selection.wrappedValue.contains($0.id) } }
-    private func load() { Task { await read() } }
+    private func load() {
+        guard !loading, app.canRefreshFeeds else { return }
+        control.reset(); loading = true
+        Task { await read() }
+    }
     private func read() async {
         loading = true; error = nil
         do { feed = try await editor.source.readPodcast(feedURL); await app.reloadLocal() }
