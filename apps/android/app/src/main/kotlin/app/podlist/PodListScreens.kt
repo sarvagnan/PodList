@@ -10,6 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.adaptive.layout.AnimatedPane
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.navigation.BackNavigationBehavior
@@ -227,7 +230,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                             Destination.Library -> open("add-podcasts")
                             Destination.Playlists -> open("new-playlist")
                             Destination.Views -> open("new-view")
-                        } })) {
+                        } }), feedRefreshSession = session.takeIf { destination == Destination.Library }) {
                             val loaded = data
                             if (loaded == null || (destination == Destination.Views && !loaded.hasLibrary) || (status == SyncStatus.Loading && if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState)) Loading()
                             else if (if (destination == Destination.Library) !loaded.hasLibrary else !loaded.hasState) EmptyState(R.string.no_synced_data)
@@ -266,7 +269,8 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                             if (result == null || loaded == null) Loading() else pages.SaveableStateProvider(route) {
                                 PodcastPageScreen(result, loaded, session, fromSearch = route.startsWith("podcast:"), open = open, back = back)
                             }
-                        } else ScreenFrame(title, status, model::retrySync, back = back, selectionData = loaded, selectionSession = session, route = route, edit = when {
+                        } else ScreenFrame(title, status, model::retrySync, back = back, selectionData = loaded, selectionSession = session, route = route,
+                            feedRefreshSession = session.takeIf { route == "select-subscriptions" }, edit = when {
                             route?.startsWith("view:") == true -> ({ open("view-edit:${route.substringAfter(':')}") })
                             route?.startsWith("playlist:") == true -> ({ open("playlist-settings:${route.substringAfter(':')}") })
                             else -> null
@@ -289,12 +293,17 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
 }
 
 @Composable
-private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.create_view, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, search: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, content: @Composable () -> Unit) {
+private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, addLabel: Int = R.string.create_view, back: (() -> Unit)? = null, settings: (() -> Unit)? = null, add: (() -> Unit)? = null, edit: (() -> Unit)? = null, search: (() -> Unit)? = null, selectionData: ScreenData? = null, selectionSession: Session? = null, route: String? = null, feedRefreshSession: Session? = null, content: @Composable () -> Unit) {
     val selection = LocalEpisodeSelection.current
-    val syncFailure by LocalAppModel.current.syncFailureResource.collectAsState()
+    val selecting = selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null
+    val model = LocalAppModel.current
+    val syncFailure by model.syncFailureResource.collectAsState()
+    val refreshState = feedRefreshSession?.feedRefresh?.state?.collectAsState()?.value
+    val refreshing = (refreshState as? FeedRefreshState.Refreshing)?.target
+    val refreshAll = feedRefreshSession?.let { session -> { model.refreshFeeds(session, FeedRefreshTarget.All) } }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val collapsingTitle = remember(route) { CollapsingTitle() }
-    val hasPageActions = edit != null || search != null || add != null || settings != null || route == "select-subscriptions" || route?.startsWith("episode:") == true
+    val hasPageActions = edit != null || search != null || add != null || settings != null || refreshAll != null || route == "select-subscriptions" || route?.startsWith("episode:") == true
     val barTitle = if (route?.startsWith("episode:") == true && collapsingTitle.headlineVisible) "" else title
     Scaffold(modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), topBar = {
         if (selection != null && selection.ids.isNotEmpty() && selectionData != null && selectionSession != null) {
@@ -311,6 +320,7 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
                 if (search != null) ActionIcon(R.drawable.ic_search, stringResource(R.string.m4_search_library), action = search)
                 if (add != null) ActionIcon(R.drawable.ic_add, stringResource(addLabel), action = add)
                 if (settings != null) ActionIcon(R.drawable.ic_settings, stringResource(R.string.settings), action = settings)
+                if (refreshAll != null) RefreshFeedsOverflow(enabled = refreshing == null, onRefresh = refreshAll)
                 if (route?.startsWith("episode:") == true && selectionData != null && selectionSession != null) EpisodeOverflow(selectionData, selectionSession)
 
             })
@@ -326,10 +336,57 @@ private fun ScreenFrame(title: String, status: SyncStatus, retry: () -> Unit, ad
         }
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
         CompositionLocalProvider(LocalCollapsingTitle provides collapsingTitle) {
-            Box(Modifier.fillMaxSize().padding(padding)) { content() }
+            if (refreshAll == null) Box(Modifier.fillMaxSize().padding(padding)) { content() }
+            else {
+                val result = (refreshState as? FeedRefreshState.Finished)?.takeIf { it.target == FeedRefreshTarget.All && !it.succeeded }
+                Column(Modifier.fillMaxSize().padding(padding)) {
+                    if (result != null && !selecting) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                            FeedRefreshErrors(result)
+                            ContentTextButton(onClick = refreshAll) { Text(stringResource(R.string.retry_refresh)) }
+                        }
+                    }
+                    RefreshableFeedList(
+                        isRefreshing = refreshing == FeedRefreshTarget.All,
+                        enabled = !selecting && refreshing !is FeedRefreshTarget.Podcast,
+                        onRefresh = refreshAll,
+                        content = content
+                    )
+                }
+            }
         }
     }
 
+}
+
+@Composable
+private fun RefreshFeedsOverflow(enabled: Boolean, onRefresh: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions)) { expanded = true }
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.refresh_all_feeds)) }, enabled = enabled, onClick = {
+                expanded = false
+                onRefresh()
+            })
+        }
+    }
+}
+
+@Composable
+private fun RefreshableFeedList(isRefreshing: Boolean, enabled: Boolean, onRefresh: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberPullToRefreshState()
+    val label = stringResource(R.string.refreshing_feeds)
+    Box(Modifier.fillMaxSize().pullToRefresh(isRefreshing = isRefreshing, state = state, enabled = enabled, onRefresh = onRefresh)) {
+        content()
+        PullToRefreshDefaults.Indicator(state = state, isRefreshing = isRefreshing,
+            modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter).semantics {
+                if (isRefreshing) {
+                    contentDescription = label
+                    liveRegion = LiveRegionMode.Polite
+                }
+            })
+    }
 }
 
 @Composable

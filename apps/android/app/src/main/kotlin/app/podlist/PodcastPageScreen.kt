@@ -55,7 +55,7 @@ internal fun podcastFromRoute(route: String): DirectoryResult = ProtocolJson.dec
 internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, session: Session, fromSearch: Boolean, open: (String) -> Unit, back: () -> Unit) {
     val model = LocalAppModel.current
     val context = LocalContext.current
-    var shareMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scope = rememberCoroutineScope()
     val add = LocalAddEpisode.current
@@ -63,6 +63,10 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     val subscription = data.subscriptions.find { it["feed_url"] == result.feedUrl }
     val subscribed = podcastIsSubscribed(subscription)
     val id = subscription?.get("id") as? String
+    val refreshTarget = id?.let { FeedRefreshTarget.Podcast(it) }
+    val feedRefresh by session.feedRefresh.state.collectAsState()
+    val refreshing = (feedRefresh as? FeedRefreshState.Refreshing)?.target
+    val refreshingPodcast = refreshing != null && refreshing == refreshTarget
     val revision by model.revision.collectAsState()
     var localRows by remember { mutableStateOf<List<Row>>(emptyList()) }
     var localLoaded by remember { mutableStateOf(false) }
@@ -119,6 +123,10 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         }
     fun pageBack() { if (confirmation.isArmed) confirmation = confirmation.disarm() else back() }
     fun openPage(route: String) { confirmation = confirmation.disarm(); open(route) }
+    fun refreshPodcast() {
+        confirmation = confirmation.disarm()
+        if (refreshTarget != null) model.refreshFeeds(session, refreshTarget)
+    }
     val browsing = LocalBrowsingState.current
     val initialBrowsing = remember(result.feedUrl) { browsing?.context?.podcasts?.get(result.feedUrl) ?: PodcastBrowsing() }
     var query by rememberSaveable(result.feedUrl) { mutableStateOf(initialBrowsing.query) }
@@ -334,14 +342,19 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     }
                 }
                 Box {
-                    ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions), enabled = !armed) { confirmation = confirmation.disarm(); shareMenu = true }
-                    DropdownMenu(shareMenu, onDismissRequest = { shareMenu = false }) {
+                    ActionIcon(R.drawable.ic_entry_actions, stringResource(R.string.more_actions), enabled = !armed) { confirmation = confirmation.disarm(); moreMenu = true }
+                    DropdownMenu(moreMenu, onDismissRequest = { moreMenu = false }) {
+                        if (subscribed) DropdownMenuItem(text = { Text(stringResource(R.string.refresh_podcast)) },
+                            enabled = refreshing == null && !busy && !changingSubscription, onClick = {
+                                moreMenu = false
+                                refreshPodcast()
+                            })
                         DropdownMenuItem(text = { Text(stringResource(R.string.share_podcast)) }, onClick = {
-                            shareMenu = false
+                            moreMenu = false
                             shareText(context, title, app.podlist.domain.ShareLinks.podcast(feed?.link ?: subscription?.get("website_url") as? String, result.feedUrl))
                         })
                         DropdownMenuItem(text = { Text(stringResource(R.string.copy_feed_address)) }, onClick = {
-                            shareMenu = false
+                            moreMenu = false
                             (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
                                 .setPrimaryClip(android.content.ClipData.newPlainText(title, result.feedUrl))
                             model.messages.trySend(AppMessage(R.string.feed_address_copied, formatArgs = listOf(title)))
@@ -351,9 +364,15 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             })
             // A fixed 4 dp slot: the bar appears and goes without moving the page under the person's typing
             // (FLOW-01). The status is announced from the same slot instead of a line of text that comes and goes.
-            val status = if (!busy && !changingSubscription) null else stringResource(if (changingSubscription) { if (shownSubscribed) R.string.subscribing else R.string.unsubscribing } else R.string.podcast_bringing_episode)
+            val progressLabel = when {
+                changingSubscription -> if (shownSubscribed) R.string.subscribing else R.string.unsubscribing
+                refreshingPodcast -> R.string.refreshing_podcast
+                busy -> R.string.podcast_bringing_episode
+                else -> null
+            }
+            val status = progressLabel?.let { stringResource(it) }
             Box(Modifier.fillMaxWidth().height(4.dp).semantics { if (status != null) { liveRegion = LiveRegionMode.Polite; contentDescription = status } }) {
-                if (busy || changingSubscription) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(if (changingSubscription) { if (shownSubscribed) R.string.subscribing else R.string.unsubscribing } else R.string.podcast_bringing_episode)))
+                if (progressLabel != null) LinearProgressIndicator(Modifier.fillMaxWidth().then(ProgressModifier(progressLabel)))
             }
             subscriptionFailure?.let { error ->
                 Column(Modifier.padding(horizontal = 16.dp)) {
@@ -404,7 +423,12 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             if (filtered.isEmpty() && !loading && localLoaded && failure == null) item {
                 EmptyState(if (query.isBlank()) R.string.no_episodes else R.string.no_search_matches,
                     if (query.isBlank()) R.string.refresh_podcast else R.string.clear_search,
-                    onAction = if (query.isBlank()) ::load else ({ query = "" }))
+                    actionEnabled = query.isNotBlank() || !subscribed || (refreshing == null && !busy && !changingSubscription),
+                    onAction = when {
+                        query.isNotBlank() -> ({ query = "" })
+                        subscribed -> ::refreshPodcast
+                        else -> ::load
+                    })
             }
             items(filtered, key = { it["guid"] as String }) { row ->
                 CompositionLocalProvider(LocalEpisodeSelection provides selection) {

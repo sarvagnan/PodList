@@ -5,12 +5,15 @@ import kotlinx.serialization.encodeToString
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.CancellationException
 
 /** One boundary for everything a server ordinarily supplies. State edits always use the local DB. */
 interface LibrarySource {
     val key: String
     val server: ServerAddress?
     fun refresh()
+    fun refreshAllFeeds(): RefreshSummary
+    fun refreshSubscription(id: String)
     fun search(query: String): List<DirectoryResult>
     fun readPodcast(feedUrl: String): ParsedFeed
     fun bringEpisode(feedUrl: String, guid: String): String
@@ -26,6 +29,24 @@ class ServerLibrary(private val db: LocalDatabase, override val server: ServerAd
     private val sync = SyncClient(db, http, onFailure)
     override val key = server.origin
     override fun refresh() = sync.sync(refreshHealth = true)
+    override fun refreshAllFeeds(): RefreshSummary =
+        ProtocolJson.decodeFromString(http.request("POST", "/api/library/refresh", null))
+
+    override fun refreshSubscription(id: String) {
+        val encoded = URLEncoder.encode(id, "UTF-8").replace("+", "%20")
+        try {
+            ProtocolJson.decodeFromString<SubscriptionRefreshResult>(
+                http.request("POST", "/api/subscriptions/$encoded/refresh", null)
+            )
+        } catch (error: HttpFailure) {
+            throw when (error.status) {
+                404 -> SubscriptionNotFound(error)
+                502 -> PublisherRefreshFailed(error)
+                else -> error
+            }
+        }
+    }
+
     fun retrySync() = sync.retry()
     override fun search(query: String): List<DirectoryResult> = ProtocolJson.decodeFromString(http.request("GET", "/api/directory/search?q=${URLEncoder.encode(query, "UTF-8")}", null))
     override fun readPodcast(feedUrl: String): ParsedFeed = ProtocolJson.decodeFromString(http.request("POST", "/api/podcasts/read", ProtocolJson.encodeToString(mapOf("feedUrl" to feedUrl))))
@@ -131,34 +152,75 @@ class DeviceLibrary(private val db: LocalDatabase, private val http: PublisherTr
     }
     override fun exportOpml() = Opml.generate(subscriptions())
     override fun refresh() {
-        val rows = db.query("SELECT s.id, f.checked_at, f.failures FROM subscription s LEFT JOIN feed_state f ON f.subscription_id = s.id WHERE s.unsubscribed_at IS NULL")
-        for (row in rows) {
-            val failures = (row["failures"] as? Number)?.toInt() ?: 0
-            val checked = (row["checked_at"] as? Number)?.toLong()
-            if (checked != null && now() < checked + backoffMillis(failures)) continue
-            runCatching { refreshOne(row["id"] as String) }
-        }
+        pollFeeds(respectBackoff = true)
     }
-    fun refreshOne(id: String) = synchronized(lock) {
-        val sub = subscription(id)
-        try {
-            val state = db.query("SELECT * FROM feed_state WHERE subscription_id = ?", listOf(id)).firstOrNull()
-            val headers = mutableMapOf("Accept" to "application/rss+xml, application/xml, text/xml")
-            (state?.get("etag") as? String)?.let { headers["If-None-Match"] = it }
-            (state?.get("last_modified") as? String)?.let { headers["If-Modified-Since"] = it }
-            val response = http.get(sub.feedUrl, headers)
-            if (response.status == 304) remember(id, PublisherResponse(304, "", state?.get("etag") as? String, state?.get("last_modified") as? String))
-            else {
-                if (response.status !in 200..299) throw HttpFailure(response.status)
-                val feed = readPodcastFeed(response.body)
-                db.transaction { store(id, feed); remember(id, response) }
-                db.notifyChanged()
+
+    override fun refreshAllFeeds() = pollFeeds(respectBackoff = false)
+
+    override fun refreshSubscription(id: String) {
+        pollFeed(id, respectBackoff = false)
+    }
+
+    private fun pollFeeds(respectBackoff: Boolean): RefreshSummary {
+        val rows = db.query("SELECT id FROM subscription WHERE unsubscribed_at IS NULL")
+        var updated = 0
+        var notModified = 0
+        var failed = 0
+        for (row in rows) {
+            try {
+                when (pollFeed(row["id"] as String, respectBackoff)) {
+                    true -> updated++
+                    false -> notModified++
+                    null -> Unit // Skipped during a background pass.
+                }
+            } catch (_: SubscriptionNotFound) {
+                // The person unsubscribed after this pass had selected its feeds.
+            } catch (_: PublisherRefreshFailed) {
+                failed++
             }
+        }
+        return RefreshSummary(updated + notModified + failed, updated, notModified, failed)
+    }
+
+    private fun pollFeed(id: String, respectBackoff: Boolean): Boolean? = synchronized(lock) {
+        val url = db.query("SELECT feed_url FROM subscription WHERE id = ? AND unsubscribed_at IS NULL", listOf(id))
+            .firstOrNull()?.get("feed_url") as? String ?: throw SubscriptionNotFound()
+        val state = db.query("SELECT * FROM feed_state WHERE subscription_id = ?", listOf(id)).firstOrNull()
+        val checked = (state?.get("checked_at") as? Number)?.toLong()
+        val failures = (state?.get("failures") as? Number)?.toInt() ?: 0
+        if (respectBackoff && checked != null && now() < checked + backoffMillis(failures)) return@synchronized null
+
+        val etag = state?.get("etag") as? String
+        val lastModified = state?.get("last_modified") as? String
+        val headers = mutableMapOf("Accept" to "application/rss+xml, application/xml, text/xml")
+        etag?.let { headers["If-None-Match"] = it }
+        lastModified?.let { headers["If-Modified-Since"] = it }
+        val response: PublisherResponse
+        val feed: ParsedFeed?
+        try {
+            response = http.get(url, headers)
+            feed = when (response.status) {
+                304 -> null
+                in 200..299 -> readPodcastFeed(response.body)
+                else -> throw HttpFailure(response.status)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             db.execute("""INSERT INTO feed_state (subscription_id, checked_at, failures, last_error) VALUES (?, ?, 1, ?)
                 ON CONFLICT(subscription_id) DO UPDATE SET checked_at = excluded.checked_at, failures = feed_state.failures + 1, last_error = excluded.last_error""", listOf(id, now(), e.message))
-            throw e
+            db.notifyChanged()
+            throw PublisherRefreshFailed(e)
         }
+        db.transaction {
+            if (feed == null) remember(id, PublisherResponse(304, "", etag, lastModified))
+            else {
+                store(id, feed)
+                remember(id, response)
+            }
+        }
+        db.notifyChanged()
+        feed != null
     }
     private fun remember(id: String, response: PublisherResponse) {
         db.setMeta("feedRefreshed:$id", now().toString())

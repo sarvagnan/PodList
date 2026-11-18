@@ -33,13 +33,7 @@ class HttpTransport(private val address: ServerAddress, private val subscription
         try {
             connection.requestMethod = method
             connection.connectTimeout = 2_000
-            // An OPML import may fetch many publisher feeds before returning its partial summary.
-            connection.readTimeout = when {
-                path == "/api/subscriptions/import" -> 120_000
-                path == "/api/podcasts/read" || path == "/api/podcasts/episodes" -> 30_000
-                path == "/api/subscriptions" || (path.startsWith("/api/subscriptions/") && path.endsWith("/refresh")) -> subscriptionReadTimeoutMillis
-                else -> 2_000
-            }
+            connection.readTimeout = serverReadTimeoutMillis(method, path, subscriptionReadTimeoutMillis)
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("User-Agent", "PodList Android")
             connection.setRequestProperty("Accept", "application/json")
@@ -60,4 +54,14 @@ class HttpTransport(private val address: ServerAddress, private val subscription
             return connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally { connection.disconnect() }
     }
+}
+
+internal fun serverReadTimeoutMillis(method: String, path: String, subscriptionReadTimeoutMillis: Int): Int = when {
+    // Refresh replies arrive after publishers respond, potentially in several batches.
+    method == "POST" && path == "/api/library/refresh" -> 600_000
+    method == "POST" && path.startsWith("/api/subscriptions/") && path.endsWith("/refresh") -> 30_000
+    path == "/api/subscriptions/import" -> 120_000
+    path == "/api/podcasts/read" || path == "/api/podcasts/episodes" -> 30_000
+    path == "/api/subscriptions" -> subscriptionReadTimeoutMillis
+    else -> 2_000
 }
