@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import PodListData
 import PodListDomain
+import Synchronization
 
 public enum Destination: Hashable, Sendable, Codable {
     case view(String), playlist(String), views, subscriptions, subscription(String), search, trash
@@ -141,32 +142,49 @@ public enum Presentation {
 
 /// Immutable projections can be shared between windows; browsing state stays in each window.
 public struct LibraryModel: Sendable {
+    private final class SnapshotCache: Sendable {
+        let sidebar = Mutex<[SidebarSection]?>(nil)
+        let views = Mutex<[String: [Episode]]>([:])
+        let libraryEpisodes = Mutex<[Episode]?>(nil)
+        let positions = Mutex<[String: Double]?>(nil)
+        let unfilteredRows = Mutex<[Destination: [EpisodeRow]]>([:])
+        let searchFields = Mutex<[String: [String]]>([:])
+    }
+
     public let snapshot: LibrarySnapshot
     public let deviceID: String
     public let now: Int64
     private let episodesByID: [String: Episode]
     private let subscriptionsByID: [String: Subscription]
+    private let viewsByID: [String: PodListDomain.View]
+    private let cache = SnapshotCache()
 
     public init(snapshot: LibrarySnapshot, deviceID: String, now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) {
         self.snapshot = snapshot; self.deviceID = deviceID; self.now = now
         episodesByID = Dictionary(uniqueKeysWithValues: snapshot.episodes.map { ($0.id, $0) })
         subscriptionsByID = Dictionary(uniqueKeysWithValues: snapshot.subscriptions.map { ($0.id, $0) })
+        viewsByID = Dictionary(snapshot.state.views.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
     public var state: State { snapshot.state }
     public var subscriptions: [Subscription] { snapshot.subscriptions.filter { $0.unsubscribedAt == nil } }
     public var trash: [TrashedPlaylist] { PlaylistRules.availableTrash(state, at: now) }
     public var sidebar: [SidebarSection] {
-        [SidebarSection(name: "Views", items: state.views.map {
-            SidebarItem(destination: .view($0.id), name: $0.name, count: viewEpisodes($0).count)
-        }), SidebarSection(name: "Playlists", items: state.playlists.map {
-            SidebarItem(destination: .playlist($0.id), name: $0.name, count: $0.entries.count, active: $0.id == state.activePlaylistId, clearOnPlayed: $0.clearOnPlayed)
-        } + [SidebarItem(destination: .trash, name: "Trash", count: trash.count)]),
-        SidebarSection(name: "Library", items: [SidebarItem(destination: .subscriptions, name: "Subscriptions", count: subscriptions.count),
-                                               SidebarItem(destination: .search, name: "Search", count: libraryEpisodes.count)])]
+        cache.sidebar.withLock { cached in
+            if let cached { return cached }
+            let sections = [SidebarSection(name: "Views", items: state.views.map {
+                SidebarItem(destination: .view($0.id), name: $0.name, count: viewEpisodes($0).count)
+            }), SidebarSection(name: "Playlists", items: state.playlists.map {
+                SidebarItem(destination: .playlist($0.id), name: $0.name, count: $0.entries.count, active: $0.id == state.activePlaylistId, clearOnPlayed: $0.clearOnPlayed)
+            } + [SidebarItem(destination: .trash, name: "Trash", count: trash.count)]),
+            SidebarSection(name: "Library", items: [SidebarItem(destination: .subscriptions, name: "Subscriptions", count: subscriptions.count),
+                                                   SidebarItem(destination: .search, name: "Search", count: libraryEpisodes.count)])]
+            cached = sections
+            return sections
+        }
     }
     public func title(_ destination: Destination?) -> String {
         switch destination {
-        case let .view(id): state.views.first { $0.id == id }?.name ?? "View unavailable"
+        case let .view(id): viewsByID[id]?.name ?? "View unavailable"
         case let .playlist(id): state.playlists.first { $0.id == id }?.name ?? "Playlist unavailable"
         case let .subscription(id): subscriptionsByID[id]?.title ?? "Subscription unavailable"
         case .views: "Views"
@@ -177,28 +195,63 @@ public struct LibraryModel: Sendable {
         }
     }
     public func viewEpisodes(_ view: PodListDomain.View) -> [Episode] {
+        // An editor draft can share the saved View's ID while its rules change.
+        guard viewsByID[view.id] == view else { return evaluate(view) }
+        return cache.views.withLock { cached in
+            if let episodes = cached[view.id] { return episodes }
+            let episodes = evaluate(view)
+            cached[view.id] = episodes
+            return episodes
+        }
+    }
+    private func evaluate(_ view: PodListDomain.View) -> [Episode] {
         ViewRules.evaluate(view, subscriptions: snapshot.subscriptions, episodes: snapshot.episodes, state: state, now: now)
     }
     public var libraryEpisodes: [Episode] {
-        viewEpisodes(.init(id: "library", name: "Library", filter: .init(), sort: .publishedDesc, limit: nil))
+        cache.libraryEpisodes.withLock { cached in
+            if let cached { return cached }
+            let episodes = evaluate(.init(id: "library", name: "Library", filter: .init(), sort: .publishedDesc, limit: nil))
+            cached = episodes
+            return episodes
+        }
     }
     public func rows(for destination: Destination?, search: String = "") -> [EpisodeRow] {
-        let rows: [EpisodeRow]
+        guard let destination else { return [] }
+        let rows = cache.unfilteredRows.withLock { cached in
+            if let rows = cached[destination] { return rows }
+            guard let rows = makeRows(for: destination) else { return [] }
+            cached[destination] = rows
+            return rows
+        }
+        guard !search.isEmpty, !rows.isEmpty else { return rows }
+        let words = Mentions.words(search)
+        guard !words.isEmpty else { return rows }
+        return cache.searchFields.withLock { cached in
+            rows.filter { row in
+                let fields: [String]
+                if let folded = cached[row.id] {
+                    fields = folded
+                } else {
+                    fields = [row.title, row.podcast, row.episode?.description ?? ""].map(Mentions.fold)
+                    cached[row.id] = fields
+                }
+                return words.allSatisfy { word in fields.contains { $0.contains(word) } }
+            }
+        }
+    }
+    private func makeRows(for destination: Destination) -> [EpisodeRow]? {
         switch destination {
         case let .view(id):
-            rows = state.views.first { $0.id == id }.map { viewEpisodes($0).map { row($0.id) } } ?? []
+            return viewsByID[id].map { viewEpisodes($0).map { row($0.id) } }
         case let .playlist(id):
-            rows = state.playlists.first { $0.id == id }.map { playlist in
+            return state.playlists.first { $0.id == id }.map { playlist in
                 playlist.entries.enumerated().map { row($0.element.episodeId, entry: $0.element, cursor: playlist.cursor, ordinal: $0.offset + 1) }
-            } ?? []
-        case let .subscription(id): rows = libraryEpisodes.filter { $0.subscriptionId == id }.map { row($0.id) }
-        case .search: rows = libraryEpisodes.map { row($0.id) }
-        default: rows = []
-        }
-        let words = Mentions.words(search)
-        return rows.filter { row in
-            let fields = [row.title, row.podcast, row.episode?.description ?? ""].map(Mentions.fold)
-            return words.allSatisfy { word in fields.contains { $0.contains(word) } }
+            }
+        case let .subscription(id):
+            guard subscriptionsByID[id] != nil else { return nil }
+            return libraryEpisodes.filter { $0.subscriptionId == id }.map { row($0.id) }
+        case .search: return libraryEpisodes.map { row($0.id) }
+        default: return nil
         }
     }
     public enum EmptyEpisodes: Equatable, Sendable { case loading, noSubscriptions, noMatches }
@@ -219,13 +272,27 @@ public struct LibraryModel: Sendable {
         let episode = episodesByID[id]
         let subscription = episode.flatMap { subscriptionsByID[$0.subscriptionId] }
         let fact = state.episodeStates[id]
-        let position = entry?.position ?? state.playlists.flatMap(\.entries).filter { $0.episodeId == id }.map(\.position).max()
+        let position = entry?.position ?? positionsByEpisodeID[id]
         var labels = [fact?.played != nil ? "Played" : (position ?? 0) > 0 ? "In progress" : "Unplayed"]
         if fact?.starred == true { labels.append("Starred") }
         return EpisodeRow(id: id, episode: episode, title: episode?.title ?? "Episode details pending sync", podcast: subscription?.title ?? "Podcast details pending sync",
             artworkURL: (episode?.artwork ?? subscription?.artwork).flatMap { URL(string: $0.url) },
             published: episode?.published ?? 0, length: episode?.duration ?? .infinity,
             stateText: labels.joined(separator: " · "), position: position, isCursor: cursor == id, ordinal: ordinal)
+    }
+    private var positionsByEpisodeID: [String: Double] {
+        cache.positions.withLock { cached in
+            if let cached { return cached }
+            var positions: [String: Double] = [:]
+            for playlist in state.playlists {
+                for entry in playlist.entries {
+                    if let previous = positions[entry.episodeId], !(previous < entry.position) { continue }
+                    positions[entry.episodeId] = entry.position
+                }
+            }
+            cached = positions
+            return positions
+        }
     }
     public func episodeShareURL(_ id: String) -> URL? {
         ShareLinks.episode(page: snapshot.episodeLinks[id], enclosure: episodesByID[id]?.audioUrl)
