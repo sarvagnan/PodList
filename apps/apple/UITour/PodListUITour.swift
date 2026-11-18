@@ -632,7 +632,7 @@ final class PodListUITour: XCTestCase {
             "Appearance: \(appearance)",
             "VM hardware model: \(hardwareModel()) (\(process.processorCount) CPUs, \(process.physicalMemory / (1 << 30)) GiB RAM)",
             "macOS: \(process.operatingSystemVersionString)",
-            "Method: input event to first presented frame, measured in-app in the VM. Uses the first display-link timestamp after the result appears.",
+            "Method: input event to first presented frame, measured in-app in the VM. Ends at the target time of the first display-link frame after the result appears.",
             "Default window size, local demo Library, p75 by nearest rank. RESP-01 target: p75 ≤ 200 ms over at least five samples.",
             "If sidebar navigation does not reach the Episode list, the selection and filter runs for that iteration are skipped.",
             "",

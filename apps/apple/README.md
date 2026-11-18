@@ -560,7 +560,7 @@ Each main pass attempts five runs per task and attaches `light--timings.txt` or
 app measures from the mouse-down or key-down event timestamp to the first display
 refresh after the Episode list, Inspector details, New Playlist sheet, Settings
 window or one-row filter result appears. The filter sample starts on the final
-`e` in `rice`. A display link on the result window supplies the refresh timestamp.
+`e` in `rice`. A display link on the result window supplies the target time of that refresh.
 This measures input to first presented frame at the VM display cadence, with
 SwiftUI appearance and AppKit visibility as the result markers.
 

@@ -81,9 +81,10 @@ public final class TourResponseTiming {
     }
 
     @objc private func frameDisplayed(_ link: CADisplayLink) {
-        // timestamp describes the last displayed frame. Skip any tick from before
-        // the result appeared and use the first subsequent tick on its display.
-        let frame = link.timestamp
+        // timestamp is the frame already on screen when this tick fires, which can
+        // predate the result's commit. targetTimestamp is the frame this tick prepares,
+        // the first that can contain the result, so the figure errs late by up to a frame.
+        let frame = link.targetTimestamp
         guard let pending, frame > pending.appeared else { return }
         link.invalidate()
         displayLink = nil
