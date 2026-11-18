@@ -42,7 +42,7 @@ export class InvalidOperation extends Schema.TaggedError<InvalidOperation>()(
   {},
   { httpApiStatus: 400 }
 ) {}
-const versionHeaders = { [Protocol.versionHeader]: Schema.optionalKey(Schema.String) }
+export const versionHeaders = { [Protocol.versionHeader]: Schema.optionalKey(Schema.String) }
 
 export class SyncApi extends HttpApiGroup.make("sync")
   .add(

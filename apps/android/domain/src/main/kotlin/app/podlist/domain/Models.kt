@@ -44,12 +44,14 @@ typealias ListeningLog = Map<String, Map<String, Double>>
 @Serializable data class Subscription(
     val id: String, val feedUrl: String, val title: String, val author: String?, val description: String?,
     val artwork: Artwork?, val subscribedAt: Long, val unsubscribedAt: Long?,
-    val playedThreshold: Double?, val playbackSettings: PlaybackSettingsOverride
+    val playedThreshold: Double?, val playbackSettings: PlaybackSettingsOverride,
+    val websiteUrl: WebsiteUrl = WebsiteUrl.Omitted
 )
 @Serializable data class Episode(
     val id: String, val subscriptionId: String, val guid: String, val title: String, val description: String,
     val published: Long, val duration: Double?, val audioUrl: String, val artwork: Artwork?,
-    val chapters: List<Chapter>, val audioUpdatedAt: Long?
+    val chapters: List<Chapter>, val audioUpdatedAt: Long?,
+    val websiteUrl: WebsiteUrl = WebsiteUrl.Omitted
 )
 @Serializable sealed interface PublishedFilter {
     @Serializable @SerialName("LastDays") data class LastDays(val days: Long) : PublishedFilter

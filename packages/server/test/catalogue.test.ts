@@ -4,6 +4,7 @@ import { Effect, Layer } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/http"
 import { Catalogue } from "../src/Catalogue.ts"
 import * as Database from "../src/Database.ts"
+import { parseFeed } from "../src/FeedParser.ts"
 import { Library } from "../src/Library.ts"
 import { Subscriptions } from "../src/Subscriptions.ts"
 
@@ -66,5 +67,45 @@ describe("catalogue changes", () => {
         3
       )
     }).pipe(Effect.provide(services))
+  )
+
+  it.effect(
+    "publishes link-only changes and clears removed links without changing Episode identity",
+    () =>
+      Effect.gen(function* () {
+        const subs = yield* Subscriptions
+        const catalogue = yield* Catalogue
+        const library = yield* Library
+        const sub = yield* subs.subscribe("https://example.test/night.xml")
+        const first = yield* catalogue.changes(0)
+        const feed = parseFeed(xml)
+        const [episode] = feed.episodes
+        assert.isDefined(episode)
+        assert.strictEqual(first.subscriptions[0]?.websiteUrl, feed.link)
+        assert.strictEqual(
+          first.episodes.find((e) => e.guid === episode.guid)?.websiteUrl,
+          episode.link
+        )
+
+        const revised = {
+          ...feed,
+          link: "https://example.test/new-site",
+          episodes: [{ ...episode, link: null }]
+        }
+        assert.deepStrictEqual(yield* library.store(sub.id, revised), { added: 0, changed: 1 })
+        const next = yield* catalogue.changes(first.cursor)
+        assert.deepStrictEqual(
+          next.subscriptions.map((row) => row.websiteUrl),
+          [revised.link]
+        )
+        assert.deepStrictEqual(
+          next.episodes.map((row) => [row.guid, row.websiteUrl, row.audioUpdatedAt]),
+          [[episode.guid, null, null]]
+        )
+        assert.strictEqual(
+          next.episodes[0]?.id,
+          first.episodes.find((e) => e.guid === episode.guid)?.id
+        )
+      }).pipe(Effect.provide(services))
   )
 })

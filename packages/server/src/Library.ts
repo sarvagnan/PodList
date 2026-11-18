@@ -9,7 +9,7 @@ import { type ParsedFeed, parseFeed } from "./FeedParser.ts"
 // subscription and episode tables). Episodes are never deleted because a feed stopped
 // listing them (Q31).
 
-/** Server-only feed bookkeeping, tracked with the other server migrations. */
+/** Server-side feed storage and refresh bookkeeping. */
 export const migrations = {
   "0002_feed_state": Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
@@ -21,6 +21,13 @@ export const migrations = {
       failures INTEGER NOT NULL DEFAULT 0,
       last_error TEXT
     )`
+  }),
+  "0005_website_urls": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE subscription ADD COLUMN website_url TEXT`
+    yield* sql`ALTER TABLE episode ADD COLUMN website_url TEXT`
+    // Re-read unchanged feeds once to fill in metadata the previous parser ignored.
+    yield* sql`UPDATE feed_state SET etag = NULL, last_modified = NULL`
   })
 } satisfies Record<string, Effect.Effect<void, unknown, SqlClient.SqlClient>>
 
@@ -70,6 +77,7 @@ interface StoredEpisode {
   readonly duration: number | null
   readonly audio_url: string
   readonly artwork_url: string | null
+  readonly website_url: string | null
   readonly audio_updated_at: number | null
   readonly chapters_url: string | null
   readonly chapters_fetched_at: number | null
@@ -103,10 +111,12 @@ export class Library extends Context.Service<
               title_folded = ${Mentions.fold(feed.title)},
               author = ${feed.author},
               description = ${feed.description},
-              artwork_url = ${feed.artworkUrl}
+              artwork_url = ${feed.artworkUrl},
+              website_url = ${feed.link}
             WHERE id = ${subscriptionId} AND (
               title IS NOT ${feed.title} OR author IS NOT ${feed.author} OR
-              description IS NOT ${feed.description} OR artwork_url IS NOT ${feed.artworkUrl})`
+              description IS NOT ${feed.description} OR artwork_url IS NOT ${feed.artworkUrl} OR
+              website_url IS NOT ${feed.link})`
           let added = 0
           let changed = 0
           const guidsInFeed = new Set(feed.episodes.map((e) => e.guid))
@@ -140,6 +150,7 @@ export class Library extends Context.Service<
                 duration: e.duration,
                 audio_url: e.audioUrl,
                 artwork_url: e.artworkUrl,
+                website_url: e.link,
                 chapters_url: e.chaptersUrl
               })}`
               continue
@@ -152,6 +163,7 @@ export class Library extends Context.Service<
               existing.duration === e.duration &&
               existing.audio_url === e.audioUrl &&
               existing.artwork_url === e.artworkUrl &&
+              existing.website_url === e.link &&
               existing.chapters_url === e.chaptersUrl
             if (same) continue
             changed++
@@ -170,6 +182,7 @@ export class Library extends Context.Service<
                 duration = ${e.duration},
                 audio_url = ${e.audioUrl},
                 artwork_url = ${e.artworkUrl},
+                website_url = ${e.link},
                 audio_updated_at = ${audioReplaced ? Date.now() : existing.audio_updated_at},
                 chapters_url = ${e.chaptersUrl},
                 chapters_fetched_at = ${

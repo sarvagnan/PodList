@@ -1,7 +1,7 @@
 {
   "name": "timeline-spacing-and-retention",
   "description": "Timeline spacing is per Episode and excludes differences below one minute. The 30-day boundary is inclusive; reports older than it must not reintroduce expired points.",
-  "protocolVersion": 5,
+  "protocolVersion": 6,
   "initial": {
     "playlists": [
       {

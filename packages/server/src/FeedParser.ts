@@ -12,6 +12,7 @@ export interface ParsedEpisode {
   readonly published: number
   readonly duration: number | null
   readonly audioUrl: string
+  readonly link: string | null
   readonly artworkUrl: string | null
   /** A Podcasting 2.0 JSON chapters file, fetched separately (pod-rxi.4). */
   readonly chaptersUrl: string | null
@@ -23,6 +24,7 @@ export interface ParsedFeed {
   readonly description: string | null
   readonly artworkUrl: string | null
   readonly episodes: ReadonlyArray<ParsedEpisode>
+  readonly link: string | null
 }
 
 export class FeedParseError extends Error {
@@ -56,6 +58,8 @@ const attribute = (value: unknown, name: string): string | null => {
   const node = asNode(Array.isArray(value) ? value[0] : value)
   return node === undefined ? null : text(node[`@_${name}`])
 }
+
+const linkText = (value: unknown): string | null => text(value)?.trim() || null
 
 /** itunes:duration as seconds: "3600", "60:00", "1:00:00" or "1:00:00.5". */
 export const parseDuration = (raw: string | null): number | null => {
@@ -151,6 +155,7 @@ export const parseFeed = (xml: string): ParsedFeed => {
         published: parseDate(text(item.pubDate)),
         duration: parseDuration(text(item["itunes:duration"])),
         audioUrl,
+        link: linkText(item.link),
         artworkUrl: attribute(item["itunes:image"], "href"),
         chaptersUrl: attribute(item["podcast:chapters"], "url")
       }
@@ -162,6 +167,7 @@ export const parseFeed = (xml: string): ParsedFeed => {
     author: text(channel["itunes:author"]) ?? text(channel["itunes:owner"]),
     description: text(channel.description) ?? text(channel["itunes:summary"]),
     artworkUrl: attribute(channel["itunes:image"], "href") ?? text(asNode(channel.image)?.url),
-    episodes
+    episodes,
+    link: linkText(channel.link)
   }
 }

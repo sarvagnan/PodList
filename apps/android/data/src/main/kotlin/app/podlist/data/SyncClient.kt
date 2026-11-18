@@ -74,7 +74,10 @@ class SyncClient(private val db: LocalDatabase, private val transport: SyncTrans
     }
 
     private fun syncLibrary() {
-        var cursor = db.getMeta("catalogueCursor")?.toLong() ?: 0
+        // Rows already mirrored as an older reader may now carry publisher links.
+        var cursor = if (db.getMeta("catalogueReaderV6") == "true") {
+            db.getMeta("catalogueCursor")?.toLong() ?: 0
+        } else 0
         // A Subscription changed after its Episodes, by Unsubscribe for one, arrives on a later page.
         // Those Episodes wait for it, and the saved cursor stays put so a restart fetches them again.
         var waiting = emptyList<Episode>()

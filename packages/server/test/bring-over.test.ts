@@ -72,7 +72,7 @@ describe("bring-over metadata", () => {
         assert.isDefined(e)
         assert.deepStrictEqual(
           { ...Schema.encodeSync(Domain.Subscription)(s), id: undefined },
-          { ...subscription, id: undefined }
+          { ...subscription, id: undefined, websiteUrl: null }
         )
         const { feedUrl: _feed, ...metadata } = episode
         assert.deepStrictEqual(
@@ -80,7 +80,8 @@ describe("bring-over metadata", () => {
           {
             ...metadata,
             id: undefined,
-            subscriptionId: undefined
+            subscriptionId: undefined,
+            websiteUrl: null
           }
         )
         assert.strictEqual(e.subscriptionId, s.id)
@@ -269,7 +270,7 @@ describe("bring-over metadata", () => {
         })
         .pipe(Effect.flip)
       assert.strictEqual(missing._tag, "MissingSubscription")
-      assert.strictEqual((yield* client.subscriptions.list()).length, 1)
+      assert.strictEqual((yield* client.subscriptions.list({ headers: {} })).length, 1)
     }).pipe(
       Effect.provide(
         Layer.mergeAll(SubscriptionsHandlers, HttpServer.layerServices).pipe(

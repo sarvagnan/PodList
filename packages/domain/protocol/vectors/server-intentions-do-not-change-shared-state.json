@@ -1,7 +1,7 @@
 {
   "name": "server-intentions-do-not-change-shared-state",
   "description": "Library-dependent intentions leave shared State unchanged; see server.json for their authoritative expansion and Library effects.",
-  "protocolVersion": 5,
+  "protocolVersion": 6,
   "initial": {
     "playlists": [
       {

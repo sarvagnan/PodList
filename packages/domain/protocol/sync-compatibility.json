@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 5,
+  "protocolVersion": 6,
   "versions": [
     {
       "version": 1,
@@ -141,6 +141,36 @@
         "SetSubscriptionOverrides"
       ],
       "added": "PurgePlaylist; version negotiation and typed sync refusals"
+    },
+    {
+      "version": 6,
+      "operations": [
+        "AddEntry",
+        "MoveEntry",
+        "RemoveEntry",
+        "SetCursor",
+        "ReportPosition",
+        "RecordListening",
+        "MarkPlayed",
+        "MarkUnplayed",
+        "MarkSubscriptionPlayed",
+        "SetStar",
+        "CreatePlaylist",
+        "RenamePlaylist",
+        "SetClearOnPlayed",
+        "DeletePlaylist",
+        "RestorePlaylist",
+        "PurgePlaylist",
+        "SetTrashDays",
+        "SetActivePlaylist",
+        "Rewind",
+        "SaveView",
+        "DeleteView",
+        "SetDownloadRule",
+        "SetPlaybackSettings",
+        "SetSubscriptionOverrides"
+      ],
+      "added": "Podcast and Episode website links in Library and feed preview responses"
     }
   ],
   "cases": [

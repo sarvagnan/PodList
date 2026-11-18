@@ -106,28 +106,35 @@ public actor LocalDatabase {
     public func upsertLibrary(subscriptions: [Subscription], episodes: [Episode], cursor: Int64? = nil) throws {
         try storage.transaction {
             for s in subscriptions {
-                try storage.insert("subscription", [
+                var row: Row = [
                     "id": .text(s.id), "feed_url": .text(s.feedUrl), "title": .text(s.title), "title_folded": .text(Mentions.fold(s.title)),
                     "author": .optional(s.author), "description": .optional(s.description), "artwork_url": .optional(s.artwork?.url),
                     "subscribed_at": .integer(s.subscribedAt), "unsubscribed_at": .optional(s.unsubscribedAt),
                     "played_threshold": .optional(s.playedThreshold), "playback_settings": .text(try ProtocolJSON.encode(s.playbackSettings))
-                ], upsert: true)
+                ]
+                if let websiteUrl = s.websiteUrl { row["website_url"] = .optional(websiteUrl) }
+                try storage.insert("subscription", row, upsert: true)
             }
             for e in episodes {
                 let previous = try storage.query("SELECT chapters, chapters_fetched_at, audio_url, audio_updated_at FROM episode WHERE id = ?", [.text(e.id)]).first
                 let sameAudio = previous?["audio_url"]?.string == e.audioUrl && previous?["audio_updated_at"]?.int == e.audioUpdatedAt
                 let chapters = !standalone && sameAudio && e.chapters.isEmpty && previous?["chapters_fetched_at"]?.int != nil
                     ? previous!["chapters"]!.string! : try ProtocolJSON.encode(e.chapters)
-                try storage.insert("episode", [
+                var row: Row = [
                     "id": .text(e.id), "subscription_id": .text(e.subscriptionId), "guid": .text(e.guid), "title": .text(e.title),
                     "title_folded": .text(Mentions.fold(e.title)), "description_folded": .text(Mentions.fold(e.description)),
                     "description": .text(e.description), "published": .integer(e.published), "duration": .optional(e.duration),
                     "audio_url": .text(e.audioUrl), "artwork_url": .optional(e.artwork?.url),
                     "chapters": .text(chapters), "audio_updated_at": .optional(e.audioUpdatedAt)
-                ], upsert: true)
+                ]
+                if let websiteUrl = e.websiteUrl { row["website_url"] = .optional(websiteUrl) }
+                try storage.insert("episode", row, upsert: true)
                 if !sameAudio { try storage.execute("UPDATE episode SET chapters_fetched_at = NULL WHERE id = ?", [.text(e.id)]) }
             }
-            if let cursor { try setMeta("catalogueCursor", String(cursor)) }
+            if let cursor {
+                try setMeta("catalogueCursor", String(cursor))
+                try setMeta("catalogueReaderV6", "true")
+            }
         }
     }
     public func getMeta(_ key: String) throws -> String? {

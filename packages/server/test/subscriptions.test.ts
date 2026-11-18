@@ -82,7 +82,12 @@ describe("Subscriptions", () => {
         assert.isNotNull((yield* subs.list)[0]?.unsubscribedAt)
         const page = yield* catalogue.changes(0)
         assert.strictEqual(page.episodes[0]?.id, first.episodeId)
+        assert.strictEqual(
+          page.episodes[0]?.websiteUrl,
+          "https://example.test/episodes/0212?from=rss&lang=en"
+        )
         assert.strictEqual(page.subscriptions[0]?.id, first.subscriptionId)
+        assert.strictEqual(page.subscriptions[0]?.websiteUrl, "https://example.test/night-shift")
         assert.strictEqual((yield* poller.refreshAll({ respectBackoff: false })).checked, 0)
         const subscribed = yield* subs.subscribe(feedUrl)
         assert.strictEqual(subscribed.id, first.subscriptionId)
@@ -115,12 +120,13 @@ describe("Subscriptions", () => {
         const client = yield* HttpApiTest.groups(PodListApi, ["subscriptions"])
         const feedUrl = "https://example.test/night.xml"
         const feed = yield* client.subscriptions.readPodcast({
-          payload: new Api.SubscribeRequest({ feedUrl })
+          payload: new Api.SubscribeRequest({ feedUrl }),
+          headers: {}
         })
         assert.strictEqual(feed.author, "Night Shift Media")
         assert.strictEqual(feed.artworkUrl, "https://example.test/podcast.jpg")
         assert.include(feed.episodes[0]?.description ?? "", "1977")
-        assert.strictEqual((yield* client.subscriptions.list()).length, 0)
+        assert.strictEqual((yield* client.subscriptions.list({ headers: {} })).length, 0)
         const first = yield* client.subscriptions.bringEpisode({
           payload: new Api.BringEpisodeRequest({ feedUrl, guid: "ns-0212" })
         })
@@ -134,7 +140,7 @@ describe("Subscriptions", () => {
           .bringEpisode({ payload: new Api.BringEpisodeRequest({ feedUrl, guid: "missing" }) })
           .pipe(Effect.flip)
         assert.strictEqual(error._tag, "FeedFailed")
-        assert.isNotNull((yield* client.subscriptions.list())[0]?.unsubscribedAt)
+        assert.isNotNull((yield* client.subscriptions.list({ headers: {} }))[0]?.unsubscribedAt)
       }).pipe(
         Effect.provide(
           Layer.mergeAll(SubscriptionsHandlers, HttpServer.layerServices).pipe(

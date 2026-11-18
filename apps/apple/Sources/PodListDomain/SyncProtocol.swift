@@ -2,7 +2,7 @@
 import Foundation
 
 public enum SyncProtocol {
-    public static let version = 5
+    public static let version = 6
     public static let legacyVersion = 4
     public static let header = "x-podlist-protocol-version"
     public static let minimumVersions: [String: Int] = [

@@ -1,7 +1,7 @@
 {
   "name": "permanent-listening-log",
   "description": "Daily listening from offline Devices adds once, survives Entry removal, and keeps each Device’s local calendar day.",
-  "protocolVersion": 5,
+  "protocolVersion": 6,
   "initial": {
     "playlists": [
       {

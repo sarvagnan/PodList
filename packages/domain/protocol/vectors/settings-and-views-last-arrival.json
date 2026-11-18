@@ -1,7 +1,7 @@
 {
   "name": "settings-and-views-last-arrival",
   "description": "View updates replace in place; deletion is idempotent; Download Rules replace only the same Subscription/Device pair; Playback Settings replace wholesale. Arrival order wins, even for older recording times.",
-  "protocolVersion": 5,
+  "protocolVersion": 6,
   "initial": {
     "playlists": [
       {

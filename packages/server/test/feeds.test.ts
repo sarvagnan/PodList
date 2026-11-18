@@ -15,6 +15,7 @@ describe("feed parser", () => {
     expect(feed).toMatchObject({
       title: "Night Shift Histories",
       author: "Night Shift Media",
+      link: "https://example.test/night-shift",
       artworkUrl: "https://example.test/podcast.jpg"
     })
     expect(feed.episodes).toHaveLength(2)
@@ -25,10 +26,12 @@ describe("feed parser", () => {
       published: Date.UTC(2026, 10, 4, 6),
       duration: 4324,
       audioUrl: "https://example.test/0212.mp3",
+      link: "https://example.test/episodes/0212?from=rss&lang=en",
       artworkUrl: "https://example.test/0212.jpg",
       chaptersUrl: "https://example.test/0212.chapters.json"
     })
     expect(feed.episodes[1]?.guid).toBe("https://example.test/0180.mp3")
+    expect(feed.episodes[1]?.link).toBeNull()
   })
 
   it("parses iTunes durations", () => {

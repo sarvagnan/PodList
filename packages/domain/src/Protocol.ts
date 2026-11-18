@@ -1,9 +1,16 @@
 import * as Operation from "./Operation.ts"
 
 /** Every wire or reducer change increments this version (ADR 0014). */
-export const version = 5
+export const version = 6
 export const legacyVersion = 4
 export const versionHeader = "x-podlist-protocol-version"
+export const websiteUrlsVersion = 6
+
+export const readerVersion = (declared: string | undefined): number => {
+  if (declared === undefined) return legacyVersion
+  const value = Number(declared)
+  return Number.isSafeInteger(value) && value >= 1 ? value : 0
+}
 
 /** Frozen version boundaries, reconstructed from the version-bump commits. */
 export const versions = [
@@ -147,6 +154,36 @@ export const versions = [
       "SetSubscriptionOverrides"
     ],
     added: "PurgePlaylist; version negotiation and typed sync refusals"
+  },
+  {
+    version: 6,
+    operations: [
+      "AddEntry",
+      "MoveEntry",
+      "RemoveEntry",
+      "SetCursor",
+      "ReportPosition",
+      "RecordListening",
+      "MarkPlayed",
+      "MarkUnplayed",
+      "MarkSubscriptionPlayed",
+      "SetStar",
+      "CreatePlaylist",
+      "RenamePlaylist",
+      "SetClearOnPlayed",
+      "DeletePlaylist",
+      "RestorePlaylist",
+      "PurgePlaylist",
+      "SetTrashDays",
+      "SetActivePlaylist",
+      "Rewind",
+      "SaveView",
+      "DeleteView",
+      "SetDownloadRule",
+      "SetPlaybackSettings",
+      "SetSubscriptionOverrides"
+    ],
+    added: "Podcast and Episode website links in Library and feed preview responses"
   }
 ] as const
 

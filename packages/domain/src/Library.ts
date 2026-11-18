@@ -23,6 +23,8 @@ export class Chapter extends Schema.Class<Chapter>("@podlist/domain/Chapter")({
 export class Subscription extends Schema.Class<Subscription>("@podlist/domain/Subscription")({
   id: SubscriptionId,
   feedUrl: Schema.String,
+  /** Publisher website from the channel's RSS link. */
+  websiteUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
   title: Schema.String,
   author: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),
@@ -47,6 +49,8 @@ export class Episode extends Schema.Class<Episode>("@podlist/domain/Episode")({
   published: EpochMillis,
   duration: Schema.NullOr(Seconds),
   audioUrl: Schema.String,
+  /** Publisher page from the item's RSS link. */
+  websiteUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
   artwork: Schema.NullOr(Artwork),
   chapters: Schema.Array(Chapter),
   /** Set when the feed replaced the audio with a different-length file (Q34). */
