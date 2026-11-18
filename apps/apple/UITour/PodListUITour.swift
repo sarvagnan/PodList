@@ -535,12 +535,26 @@ final class PodListUITour: XCTestCase {
     private func captureHalfDisplay() throws {
         let screenWidth = try XCTUnwrap(NSScreen.main, "The VM tour requires a display").frame.width
         let windowMenu = app.menuBars.menuBarItems["Window"]
-        try click(windowMenu)
         let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
-        try ready(moveAndResize)
-        moveAndResize.hover()
         let left = moveAndResize.menuItems["Left"].firstMatch
-        try click(left)
+        // In the VM the Window menu sometimes opens without the tiling items, or the
+        // submenu doesn't open on hover. Close the menu, re-focus the window and retry.
+        var chose = false
+        for _ in 0..<3 where !chose {
+            try click(windowMenu)
+            if moveAndResize.waitForExistence(timeout: 5) {
+                moveAndResize.hover()
+                if left.waitForExistence(timeout: 5), left.isEnabled {
+                    left.click()
+                    chose = true
+                    continue
+                }
+            }
+            app.typeKey(.escape, modifierFlags: [])
+            app.typeKey(.escape, modifierFlags: [])
+            library.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 8)).click()
+        }
+        XCTAssertTrue(chose, "Window > Move & Resize > Left was unavailable after three attempts")
 
         let tiledLeft = NSPredicate { _, _ in
             let frame = self.library.frame
