@@ -12,7 +12,7 @@ case "$mode" in tour|system|timings) ;; *) exit 2;; esac
 rm -rf "$run"
 mkdir -p "$run"
 touch "$run/uitour-vm"
-for item in light dark borders-light borders-dark system products checks; do
+for item in light dark borders-light borders-dark sidebar-light sidebar-dark system products checks; do
     if [ -d "$shared/run/$item" ]; then ditto "$shared/run/$item" "$run/$item"; fi
 done
 # Only these disposable VM copies advertise the podlist:// scheme and the Service.
@@ -24,6 +24,7 @@ for app in "$run"/*/PodList.app; do
     codesign --force --sign - "$app"
 done
 demo=""
+sidebar_demo=""
 warmup=""
 result=0
 reset_show_borders=false
@@ -76,6 +77,7 @@ finish() {
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
     if [ -n "$demo" ]; then kill "$demo" 2>/dev/null || true; wait "$demo" 2>/dev/null || true; fi
+    if [ -n "$sidebar_demo" ]; then kill "$sidebar_demo" 2>/dev/null || true; wait "$sidebar_demo" 2>/dev/null || true; fi
     cp -f "$run/demo.log" "$shared/run/guest-demo.log" 2>/dev/null || true
     mkdir -p "$shared/run/guest-diagnostics"
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$shared/run/guest-diagnostics/" 2>/dev/null || true
@@ -95,15 +97,28 @@ finish() {
 trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-PODLIST_TEST_DEMO_NOW="$(node -e 'console.log(Date.now())')" node "$shared/run/demo.mjs" \
-    "$shared/repo/packages/web/ui-flows/demo.mjs" "$run/origin" > "$run/demo.log" 2>&1 &
+demo_now="$(node -e 'console.log(Date.now())')"
+: > "$run/demo.log"
+PODLIST_TEST_DEMO_NOW="$demo_now" node "$shared/run/demo.mjs" \
+    "$shared/repo/packages/web/ui-flows/demo.mjs" "$run/origin" >> "$run/demo.log" 2>&1 &
 demo=$!
-for ((i = 0; i < 600; i++)); do
-    [ ! -s "$run/origin" ] || break
-    if ! kill -0 "$demo" 2>/dev/null; then cat "$run/demo.log"; exit 1; fi
-    sleep 0.1
-done
-[ -s "$run/origin" ] || { cat "$run/demo.log"; exit 1; }
+if [ "$mode" = tour ]; then
+    PODLIST_TEST_DEMO_NOW="$demo_now" node "$shared/run/demo.mjs" \
+        "$shared/repo/packages/web/ui-flows/demo.mjs" "$run/sidebar-origin" large-sidebar >> "$run/demo.log" 2>&1 &
+    sidebar_demo=$!
+fi
+wait_for_demo() {
+    local origin="$1" pid="$2" i
+    for ((i = 0; i < 600; i++)); do
+        [ ! -s "$origin" ] || return 0
+        if ! kill -0 "$pid" 2>/dev/null; then break; fi
+        sleep 0.1
+    done
+    cat "$run/demo.log"
+    return 1
+}
+wait_for_demo "$run/origin" "$demo"
+if [ -n "$sidebar_demo" ]; then wait_for_demo "$run/sidebar-origin" "$sidebar_demo"; fi
 # Login banners can obscure screenshots.
 sleep 30
 cd "$run/products"

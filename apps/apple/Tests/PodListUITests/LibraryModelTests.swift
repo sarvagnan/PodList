@@ -104,6 +104,60 @@ func fixtureModel() async throws -> LibraryModel {
     #expect(model.memberships("a").first?.position == 65)
 }
 
+@MainActor @Test func listPositionsRememberSelectionSortAndAnchorWithoutKeepingSearch() {
+    let window = WindowModel()
+    let view = Destination.view("all")
+    let playlist = Destination.playlist("default")
+    let viewAnchor = RowAnchor(id: "b", index: 8)
+    let entryAnchor = RowAnchor(id: "a", index: 3)
+    let historyAnchor = RowAnchor(id: "old", index: 10)
+    let sort = [WindowSort(column: .title, reversed: true).comparator]
+
+    window.navigate(to: view)
+    window.selection = ["b"]; window.scrollAnchor = viewAnchor; window.sortOrder = sort
+    window.search = "view filter"
+    window.navigate(to: playlist)
+    #expect(window.selection.isEmpty && window.scrollAnchor == nil && window.sortOrder.isEmpty && window.search.isEmpty)
+
+    window.selection = ["a"]; window.scrollAnchor = entryAnchor
+    window.showPlaylistTab(.history)
+    #expect(window.selection.isEmpty && window.scrollAnchor == nil)
+    window.selection = ["old"]; window.scrollAnchor = historyAnchor
+    window.navigate(to: .search)
+    window.search = "library filter"
+    window.navigate(to: view)
+    #expect(window.selection == ["b"] && window.scrollAnchor == viewAnchor && window.sortOrder == sort && window.search.isEmpty)
+    window.navigate(to: playlist)
+    #expect(window.playlistTab == .history && window.selection == ["old"] && window.scrollAnchor == historyAnchor)
+    window.showPlaylistTab(.entries)
+    #expect(window.selection == ["a"] && window.scrollAnchor == entryAnchor)
+    window.navigate(to: .search)
+    #expect(window.search.isEmpty)
+
+    window.clearListMemory()
+    window.navigate(to: view)
+    #expect(window.selection.isEmpty && window.scrollAnchor == nil && window.sortOrder.isEmpty)
+}
+
+@MainActor @Test func podcastPagesRememberTheirSortAndPositionAcrossNavigation() {
+    let window = WindowModel()
+    let sort = [WindowSort(column: .length)]
+    let anchor = RowAnchor(id: "episode", index: 5)
+    window.navigate(to: .subscription("s"))
+    window.podcastSort = sort; window.scrollAnchor = anchor; window.selection = ["episode"]
+    window.search = "podcast filter"
+    window.navigate(to: .view("all"))
+    window.navigate(to: .subscription("s"))
+    #expect(window.podcastSort == sort && window.scrollAnchor == anchor && window.selection == ["episode"] && window.search.isEmpty)
+
+    let feed = "https://example.com/discovery"
+    window.beginPodcastPage(feed)
+    window.podcastSort = sort; window.scrollAnchor = anchor; window.selection = ["episode"]
+    window.navigate(to: .subscriptions)
+    window.beginPodcastPage(feed)
+    #expect(window.podcastSort == sort && window.scrollAnchor == anchor && window.selection == ["episode"] && window.search.isEmpty)
+}
+
 @Test func cachedEpisodeListsMatchUncachedListsAndSearch() async throws {
     let library = try await fixtureModel()
     let copy = library
@@ -278,11 +332,10 @@ func fixtureModel() async throws -> LibraryModel {
     window.search = "Alpha"
     window.selection = ["a"]
     // Discovery overlays Search without changing its sidebar destination.
-    window.beginPodcastPage()
+    window.beginPodcastPage("https://example.com/new-feed")
     #expect(window.search.isEmpty && window.selection.isEmpty)
     window.search = "Podcast filter"
-    let saved = window.context(libraryID: "standalone", playlistTab: .entries, columns: .all,
-        podcastFeed: "https://example.com/new-feed", subscriptionSelection: [])
+    let saved = window.context(libraryID: "standalone", columns: .all)
     let reopened = WindowModel()
     reopened.restore(try #require(WindowContext.decode(saved.encoded)))
     reopened.backFromPodcast()

@@ -20,7 +20,7 @@ struct PlaylistContentView: SwiftUI.View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
                 Group {
-                    switch presentation.playlistTab {
+                    switch window.playlistTab {
                     case .entries: entries
                     case .history: history
                     case .timeline: timeline
@@ -32,37 +32,32 @@ struct PlaylistContentView: SwiftUI.View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                PlaylistToolbar(selection: $presentation.playlistTab)
+                PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
             }
         }
-        .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation))
+        .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
         .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
             RewindSheet(playlistID: playlist.id, target: event.moment, library: library, editing: editing) {
-                rewindTarget = nil; presentation.playlistTab = .entries
+                rewindTarget = nil; window.showPlaylistTab(.entries)
             }
-        }
-        .onChange(of: playlist.id) { _, _ in presentation.playlistTab = .entries; rewindTarget = nil; window.timelineSelection = nil }
-        .onChange(of: presentation.playlistTab) { _, tab in
-            // Undo can switch from History to Entries with an explicit reveal.
-            if tab != .entries || window.historyRevealPlaylistID != playlist.id {
-                window.selection = []; window.scrollAnchor = nil
-            }
-            window.historyRevealPlaylistID = nil; window.timelineSelection = nil
-            if tab == .entries { window.revealDrop(in: playlist.id) }
         }
     }
     private var displayedRows: [PlaylistDropRow] {
         PlaylistDropRow.rows(rows, batches: app.libraryEditing?.pendingEpisodeDrops ?? [], playlistID: playlist.id)
     }
     private var entrySelection: Binding<Set<String>> {
-        Binding(get: { window.selection }, set: { window.selection = $0.intersection(Set(rows.map(\.id) + failedDropIDs)) })
+        window.episodeSelection(episodeIDs: rows.map(\.id), otherIDs: failedDropIDs, openInspector: openEpisode)
     }
     private var entries: some SwiftUI.View {
-        VStack(spacing: 0) {
+        let selection = entrySelection
+        let activate: (Set<String>) -> Void = { selected in
+            EpisodeRowActivation(orderedIDs: rows.map(\.id), selection: selected, entriesPlaylistID: playlist.id)?.start(using: editing)
+        }
+        return VStack(spacing: 0) {
             Group {
                 if textScale > 1 {
-                    List(selection: entrySelection) {
+                    List(selection: selection) {
                         ForEach(displayedRows) { item in
                             if let row = item.entry {
                                 MacReadingRow(isSelected: window.selection.contains(row.id)) { entryTitle(row) } metadata: {
@@ -77,10 +72,11 @@ struct PlaylistContentView: SwiftUI.View {
                             _ = drop(values, at: index)
                         }
                     }
+                    .playbackBarScrollClearance()
                 } else {
                     GeometryReader { geometry in
                         let layout = EpisodeTableLayout(width: geometry.size.width)
-                        Table(of: PlaylistDropRow.self, selection: entrySelection) {
+                        Table(of: PlaylistDropRow.self, selection: selection) {
                             TableColumn("Entry") { (item: PlaylistDropRow) in
                                 if let row = item.entry { entryTitle(row) }
                                 else if let slot = item.placeholder { placeholder(slot) }
@@ -106,14 +102,17 @@ struct PlaylistContentView: SwiftUI.View {
                                 }
                         }
                         .tableStyle(.inset)
+                        .playbackBarScrollClearance()
                     }
                 }
             }
             .overlay {
                 if displayedRows.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("This Playlist has no Entries.").foregroundStyle(MacReadableSecondaryStyle())
-                        Button("Find Episodes") { window.navigate(to: .search) }
+                    LibraryEmptyStateScroll {
+                        VStack(spacing: 8) {
+                            Text("This Playlist has no Entries.").foregroundStyle(MacReadableSecondaryStyle())
+                            Button("Find Episodes") { window.navigate(to: .search) }
+                        }
                     }
                 }
             }
@@ -121,7 +120,9 @@ struct PlaylistContentView: SwiftUI.View {
             .onChange(of: failedDropIDs) { previous, current in
                 window.selection.subtract(Set(previous).subtracting(current))
             }
-            .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, physicalIDs: displayedRows.map { $0.entry?.id }, selection: $window.selection, anchor: $window.scrollAnchor)
+            .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, physicalIDs: displayedRows.map { $0.entry?.id },
+                selection: selection, anchor: window.listBinding(\.scrollAnchor),
+                reselect: { selection.wrappedValue = [$0] }, activate: activate)
             .dragConfiguration(DragConfiguration(allowMove: true))
             .onDragSessionUpdated { session in
                 switch session.phase {
@@ -140,9 +141,7 @@ struct PlaylistContentView: SwiftUI.View {
             .alternatingRowBackgrounds(.disabled)
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
-            } primaryAction: { selection in
-                window.selection = selection; openEpisode()
-            }
+            } primaryAction: { activate($0) }
             .onCopyCommand(perform: window.selection.isEmpty ? nil : {
                 EpisodeCopyContent.providers(ids: ordered(window.selection), library: library)
             })
@@ -244,23 +243,31 @@ struct PlaylistContentView: SwiftUI.View {
         return playlist.history.reversed().map(\.episodeId).filter { seen.insert($0).inserted }
     }
     private var history: some SwiftUI.View {
-        Group {
+        let ids = historyIDs
+        let selection = window.episodeSelection(episodeIDs: ids, openInspector: openEpisode)
+        let activate: (Set<String>) -> Void = { selected in
+            EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: editing)
+        }
+        return Group {
             if playlist.history.isEmpty {
-                ScrollableEmptyState("No History", systemImage: "clock", description: "Entries finished through this Playlist’s playback appear here. Manual Played marks do not create History.")
+                PodListEmptyState("No History", systemImage: "clock", description: "Entries finished through this Playlist’s playback appear here. Manual Played marks do not create History.")
             } else {
-                List(Array(playlist.history.enumerated().reversed()), id: \.offset, selection: $window.selection) { _, item in
+                List(Array(playlist.history.enumerated().reversed()), id: \.offset, selection: selection) { _, item in
                     let row = library.row(item.episodeId)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(row.title).macContentFont(.headline)
                         Text("\(row.podcast) · Finished \(date(item.finishedAt))").foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(item.episodeId)))
                     }.tag(item.episodeId)
-                        .contextMenu {
-                            EpisodeActionItems(ids: window.selection.contains(item.episodeId) ? historyIDs.filter { window.selection.contains($0) } : [item.episodeId], library: library, editing: editing, presentation: presentation, app: app)
-                                .disabled(editing.busy)
-                        }
-                }.typeSelectingRows(playlist.history.reversed().map { TypeSelectionRow(id: $0.episodeId, title: library.row($0.episodeId).title) },
-                    selection: $window.selection, anchor: $window.scrollAnchor)
-                    .accessibilityLabel("Playlist History")
+                }
+                .playbackBarScrollClearance()
+                .typeSelectingRows(playlist.history.reversed().map { TypeSelectionRow(id: $0.episodeId, title: library.row($0.episodeId).title) },
+                    selection: selection, anchor: window.listBinding(\.scrollAnchor),
+                    reselect: { selection.wrappedValue = [$0] }, activate: activate)
+                .contextMenu(forSelectionType: String.self) { selected in
+                    EpisodeActionItems(ids: ids.filter { selected.contains($0) }, library: library, editing: editing, presentation: presentation, app: app)
+                        .disabled(editing.busy)
+                } primaryAction: { activate($0) }
+                .accessibilityLabel("Playlist History")
             }
         }
     }
@@ -268,9 +275,10 @@ struct PlaylistContentView: SwiftUI.View {
         let events = TimelinePresentation.events(playlist)
         return Group {
             if events.isEmpty {
-                ScrollableEmptyState("No Listening Timeline", systemImage: "clock.arrow.circlepath", description: "Listening and deliberate edits are kept here for 30 days. Play an Entry to begin.")
+                PodListEmptyState("No Listening Timeline", systemImage: "clock.arrow.circlepath", description: "Listening and deliberate edits are kept here for 30 days. Play an Entry to begin.")
             } else {
-                List(events, selection: $window.timelineSelection) { event in
+                let selection = window.listBinding(\.timelineSelection)
+                List(events, selection: selection) { event in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(library.row(event.episodeID).title).macContentFont(.headline)
@@ -298,14 +306,16 @@ struct PlaylistContentView: SwiftUI.View {
                         }
                     }
                     .tag(event.id)
-                }.typeSelectingRows(events.map { TypeSelectionRow(id: $0.id, title: library.row($0.episodeID).title) },
-                    selection: $window.timelineSelection, anchor: $window.scrollAnchor)
+                }
+                .playbackBarScrollClearance()
+                .typeSelectingRows(events.map { TypeSelectionRow(id: $0.id, title: library.row($0.episodeID).title) },
+                    selection: selection, anchor: window.listBinding(\.scrollAnchor))
                     .accessibilityLabel("Listening Timeline")
             }
         }
     }
     private var rewindAction: (() -> Void)? {
-        guard presentation.playlistTab == .timeline, !editing.busy,
+        guard window.playlistTab == .timeline, !editing.busy,
               let event = TimelinePresentation.events(playlist).first(where: { $0.id == window.timelineSelection }),
               TimelineRules.pointAt(playlist, to: event.moment) != nil else { return nil }
         return { rewindTarget = event }

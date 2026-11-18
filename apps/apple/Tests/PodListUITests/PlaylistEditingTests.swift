@@ -94,6 +94,38 @@ import PodListDomain
     #expect(state.playlists.first { $0.id == id }?.entries.map(\.episodeId) == ["b", "a"])
 }
 
+#if os(macOS)
+@MainActor @Test func doubleClickFromEpisodeListsUsesPlayNowInTheActivePlaylist() async throws {
+    let (db, model) = try await editingFixture()
+    let activation = try #require(EpisodeRowActivation(orderedIDs: ["a", "t1"], selection: ["t1"]))
+    await activation.play(using: model)
+    let state = try await db.loadState()
+    #expect(state.activePlaylistId == "default")
+    #expect(state.playlists[0].cursor == "t1")
+    #expect(state.playlists[0].entries.map(\.episodeId) == ["b", "t1", "a", "pending"])
+    #expect(model.undoTitle == "Undo Play Now")
+    #expect(EpisodeRowActivation(orderedIDs: ["a"], selection: ["failed-slot"]) == nil)
+}
+
+@MainActor @Test func doubleClickFromPlaylistEntriesMovesTheExistingEntryBeforeItsCursor() async throws {
+    let (db, model) = try await editingFixture()
+    let playlistID = try #require(await model.create(name: "Commute"))
+    _ = await model.add(["b", "a", "t1"], to: playlistID, placement: .last)
+    _ = await model.edit([.reportPosition(playlistId: playlistID, episodeId: "t1", position: 43, listenedAt: 20)], name: "Set Position")
+    let before = try await db.loadState()
+    #expect(before.activePlaylistId == "default")
+    let activation = try #require(EpisodeRowActivation(orderedIDs: ["b", "a", "t1"], selection: ["t1"], entriesPlaylistID: playlistID))
+    await activation.play(using: model)
+    let after = try await db.loadState()
+    let playlist = try #require(after.playlists.first { $0.id == playlistID })
+    #expect(after.activePlaylistId == playlistID)
+    #expect(after.playlists[0] == before.playlists[0])
+    #expect(playlist.cursor == "t1")
+    #expect(playlist.entries.map(\.episodeId) == ["t1", "b", "a"])
+    #expect(playlist.entries.first?.position == 43)
+}
+#endif
+
 @MainActor @Test func moveRemovePlayFromHereAndTheirReversals() async throws {
     let (db, model) = try await editingFixture()
     let before = try await db.loadState()
@@ -221,7 +253,7 @@ import PodListDomain
     let other = WindowModel()
     other.navigate(to: .playlist("default")); other.selection = ["b"]
     other.scrollAnchor = RowAnchor(id: "b", index: 0)
-    let untouched = other.context(libraryID: "test", playlistTab: .entries, columns: .all, podcastFeed: nil, subscriptionSelection: [])
+    let untouched = other.context(libraryID: "test", columns: .all)
     await model.remove(["a", "pending"], playlistID: "default")
     var restored: [RestoredEntries] = []
     await model.reverse { entries in
@@ -231,7 +263,7 @@ import PodListDomain
     #expect(restored == [RestoredEntries(playlistID: "default", episodeIDs: ["a", "pending"])])
     #expect(window.selection == ["a", "pending"])
     #expect(window.search.isEmpty && window.scrollAnchor?.id == "a")
-    #expect(other.context(libraryID: "test", playlistTab: .entries, columns: .all, podcastFeed: nil, subscriptionSelection: []) == untouched)
+    #expect(other.context(libraryID: "test", columns: .all) == untouched)
 
     #expect(await model.add(["t1"], to: "default", placement: .last) == "default")
     await model.reverse()
@@ -242,7 +274,7 @@ import PodListDomain
     #expect(window.destination == .playlist("default"))
     #expect(window.selection == ["t1"] && window.scrollAnchor?.id == "t1")
     #expect(try await db.loadState().playlists[0].entries.last?.episodeId == "t1")
-    #expect(other.context(libraryID: "test", playlistTab: .entries, columns: .all, podcastFeed: nil, subscriptionSelection: []) == untouched)
+    #expect(other.context(libraryID: "test", columns: .all) == untouched)
 }
 
 @MainActor @Test func undoRevealsClearOnPlayedRestorationsAndLeavesSelectionForOtherEdits() async throws {

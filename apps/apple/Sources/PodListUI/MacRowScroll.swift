@@ -10,12 +10,15 @@ struct MacRowScroll: NSViewRepresentable {
     var titles: [TypeSelectionRow] = []
     var selection: Set<String> = []
     var select: ((String) -> Void)?
+    var reselect: ((String) -> Void)?
+    var activate: ((Set<String>) -> Void)?
 
     func makeNSView(context: Context) -> Probe { Probe() }
     func updateNSView(_ view: Probe, context: Context) {
         if view.titles != titles { view.typing = RowTypeSelection() }
         view.ids = ids; view.anchor = anchor
         view.titles = titles; view.selection = selection; view.select = select
+        view.reselect = reselect; view.activate = activate
         view.changed = { anchor = $0 }
         view.scheduleUpdate()
     }
@@ -28,8 +31,10 @@ struct MacRowScroll: NSViewRepresentable {
         var titles: [TypeSelectionRow] = []
         var selection: Set<String> = []
         var select: ((String) -> Void)?
+        var reselect: ((String) -> Void)?
+        var activate: ((Set<String>) -> Void)?
         var typing = RowTypeSelection()
-        private var keyMonitor: Any?
+        private var inputMonitor: Any?
         private weak var table: NSTableView?
         private var observation: NSObjectProtocol?
         private var applied: RowAnchor?
@@ -50,12 +55,12 @@ struct MacRowScroll: NSViewRepresentable {
         func stopObserving() {
             if let observation { NotificationCenter.default.removeObserver(observation) }
             observation = nil; table = nil
-            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-            keyMonitor = nil
+            if let inputMonitor { NSEvent.removeMonitor(inputMonitor) }
+            inputMonitor = nil
         }
         isolated deinit {
             if let observation { NotificationCenter.default.removeObserver(observation) }
-            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            if let inputMonitor { NSEvent.removeMonitor(inputMonitor) }
         }
         private func findTable(_ view: NSView) -> NSTableView? {
             if let table = view as? NSTableView { return table }
@@ -74,9 +79,11 @@ struct MacRowScroll: NSViewRepresentable {
             guard let found, let clip = found.enclosingScrollView?.contentView else { return }
             if table !== found {
                 stopObserving(); table = found; applied = nil
-                keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                inputMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
                     guard let self else { return event }
-                    return self.typeSelect(event)
+                    if event.type == .keyDown { return self.handleKey(event) }
+                    self.handleReselection(event)
+                    return event
                 }
                 clip.postsBoundsChangedNotifications = true
                 observation = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { [weak self] _ in
@@ -93,14 +100,40 @@ struct MacRowScroll: NSViewRepresentable {
                 applied = anchor; restoring = false
             }
         }
-        func typeSelect(_ event: NSEvent) -> NSEvent? {
+        private func handleReselection(_ event: NSEvent) {
+            guard let reselect, let table, let window, event.window === window, event.clickCount == 1 else { return }
+            let point = table.convert(event.locationInWindow, from: nil)
+            guard event.modifierFlags.intersection([.command, .shift, .control]).isEmpty,
+                  table.visibleRect.contains(point), table.numberOfRows == ids.count,
+                  let content = window.contentView,
+                  let hit = content.hitTest(content.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow),
+                  hit === table || hit.isDescendant(of: table) else { return }
+            var hitView: NSView? = hit
+            while let view = hitView, view !== table {
+                if view is NSControl { return }
+                hitView = view.superview
+            }
+            let index = table.row(at: point)
+            // AppKit leaves the selection binding untouched when clicking the selected row.
+            guard ids.indices.contains(index), let id = ids[index], selection == [id] else { return }
+            DispatchQueue.main.async { [weak self] in
+                if self?.selection == [id] { reselect(id) }
+            }
+        }
+        func handleKey(_ event: NSEvent) -> NSEvent? {
             // Only the list's native responder can type-select. Field editors,
             // search, sheets and other windows retain all of their typing.
             guard let table, let window, event.windowNumber == window.windowNumber,
                   let responder = window.firstResponder as? NSView,
                   !(responder is NSTextView), !(responder is NSTextField),
-                  responder === table || responder.isDescendant(of: table),
-                  event.modifierFlags.intersection([.command, .control]).isEmpty,
+                  responder === table || responder.isDescendant(of: table) else { return event }
+            if let activate, !selection.isEmpty, (!(responder is NSControl) || responder === table),
+               event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+               ["\r", "\u{3}"].contains(event.charactersIgnoringModifiers) {
+                if !event.isARepeat { activate(selection) }
+                return nil
+            }
+            guard event.modifierFlags.intersection([.command, .control]).isEmpty,
                   let text = event.characters, !text.isEmpty,
                   text.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.union(.punctuationCharacters).contains($0) }),
                   let select else { return event }
@@ -131,13 +164,35 @@ struct MacRowScroll: NSViewRepresentable {
     }
 }
 
+extension WindowModel {
+    /// An outgoing AppKit view can still emit selection and bounds changes during teardown.
+    func listBinding<Value>(_ path: ReferenceWritableKeyPath<WindowModel, Value>) -> Binding<Value> {
+        let list = listID
+        return Binding(get: { self[keyPath: path] }, set: {
+            if self.listID == list { self[keyPath: path] = $0 }
+        })
+    }
+
+    func episodeSelection(episodeIDs: [String], otherIDs: [String] = [], openInspector: @escaping () -> Void) -> Binding<Set<String>> {
+        let list = listID
+        let episodes = Set(episodeIDs)
+        let allowed = episodes.union(otherIDs)
+        return Binding(get: { self.selection }, set: {
+            self.selectEpisodes($0.intersection(allowed), in: list, episodeIDs: episodes, openInspector: openInspector)
+        })
+    }
+}
+
 extension SwiftUI.View {
     /// One native responder handler for every selectable custom List and Table.
     /// Passing physical rows separately preserves Section-header scroll offsets.
     func typeSelectingRows(_ rows: [TypeSelectionRow], physicalIDs: [String?]? = nil,
-                           selection: Binding<Set<String>>, anchor: Binding<RowAnchor?>) -> some SwiftUI.View {
+                           selection: Binding<Set<String>>, anchor: Binding<RowAnchor?>,
+                           reselect: ((String) -> Void)? = nil,
+                           activate: ((Set<String>) -> Void)? = nil) -> some SwiftUI.View {
         background(MacRowScroll(ids: physicalIDs ?? rows.map { Optional($0.id) }, anchor: anchor,
-            titles: rows, selection: selection.wrappedValue, select: { selection.wrappedValue = [$0] }))
+            titles: rows, selection: selection.wrappedValue, select: { selection.wrappedValue = [$0] },
+            reselect: reselect, activate: activate))
     }
 
     func typeSelectingRows(_ rows: [TypeSelectionRow], physicalIDs: [String?]? = nil,

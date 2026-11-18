@@ -189,8 +189,7 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     recorder.record(305)
     #expect(window.paneWidths.sidebar == 270)
     recorder.flush()
-    let context = window.context(libraryID: "standalone", playlistTab: .history, columns: .all,
-                                 podcastFeed: nil, subscriptionSelection: [])
+    let context = window.context(libraryID: "standalone", columns: .all)
     let stored = try #require(WindowContext.decode(context.encoded))
     #expect(stored.paneWidths?.sidebar == 305)
 
@@ -203,6 +202,18 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(relaunched.initialPaneWidths.sidebar == 305)
     #expect(relaunched.paneWidths.sidebar == 305)
     #expect(WindowModel().initialPaneWidths.sidebar == 225)
+}
+
+@MainActor @Test func relaunchedHistoryKeepsItsPositionWhenLeavingAndReturning() throws {
+    let saved = WindowContext(destination: .playlist("default"), selection: ["past"], playlistTab: .history,
+                              scrollAnchor: RowAnchor(id: "past", index: 0))
+    let window = WindowModel()
+    window.restore(try #require(WindowContext.decode(saved.encoded)))
+    window.navigate(to: .view("all"))
+    window.navigate(to: .playlist("default"))
+    #expect(window.playlistTab == .history)
+    #expect(window.selection == saved.selection)
+    #expect(window.scrollAnchor == saved.scrollAnchor)
 }
 
 @MainActor @Test func sidebarRestorationBoundsApplyEvenBeforeLibraryReadiness() throws {

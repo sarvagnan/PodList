@@ -261,6 +261,7 @@ struct GettingStartedScreen: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     let add: (() -> Void)?
     var inSheet = false
+    var maxInlineHeight: CGFloat? = nil
     var body: some SwiftUI.View {
         Group {
             if inSheet {
@@ -268,15 +269,23 @@ struct GettingStartedScreen: SwiftUI.View {
                              cancel: { editor.showGettingStarted = false }, action: { editor.showGettingStarted = false }) {
                     steps
                 }.onExitCommand { editor.showGettingStarted = false }
+            } else if let maxInlineHeight {
+                ViewThatFits(in: .vertical) {
+                    inline.fixedSize(horizontal: false, vertical: true)
+                    ScrollView { inline }.scrollBounceBehavior(.basedOnSize)
+                }.frame(maxHeight: maxInlineHeight)
             } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Getting Started").macContentFont(.headline)
-                    steps
-                    HStack { Spacer(); Button("Hide Getting Started") { editor.showGettingStarted = false } }
-                }.padding(12)
+                inline
             }
         }
         .focusedSceneValue(\.podListTutorialActions, MenuActionContext(actions: [.dismissTutorial: { editor.showGettingStarted = false }]))
+    }
+    private var inline: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Getting Started").macContentFont(.headline)
+            steps
+            HStack { Spacer(); Button("Hide Getting Started") { editor.showGettingStarted = false } }
+        }.padding(12)
     }
     private var steps: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {

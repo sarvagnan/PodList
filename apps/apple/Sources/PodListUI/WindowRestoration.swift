@@ -44,6 +44,7 @@ struct PodcastOrigin: Codable, Equatable {
     var podcastSort: [WindowSort]
     var timelineSelection: String?
     var scrollAnchor: RowAnchor?
+    var playlistTab: PlaylistTab?
 }
 
 /// Only browsing state: applying this value cannot edit the Library or start playback.
@@ -120,6 +121,11 @@ struct WindowContext: Codable, Equatable {
         } else if result.destination == .views {
             ids = Set(library.state.views.map(\.id))
             result.timelineSelection = nil
+        } else if result.destination == .trash {
+            ids = Set(library.trash.filter {
+                result.search.isEmpty || $0.playlist.name.localizedStandardContains(result.search)
+            }.map(\.playlist.id))
+            result.timelineSelection = nil
         } else {
             episodeRows = library.rows(for: result.destination, search: result.search)
             ids = Set(episodeRows.map(\.id))
@@ -145,8 +151,7 @@ struct WindowContext: Codable, Equatable {
 }
 
 extension WindowModel {
-    func context(libraryID: String, playlistTab: PlaylistTab, columns: WindowContext.Columns,
-                 podcastFeed: String?, subscriptionSelection: Set<String>) -> WindowContext {
+    func context(libraryID: String, columns: WindowContext.Columns) -> WindowContext {
         WindowContext(libraryID: libraryID, destination: destination, search: search, selection: selection,
                       sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
                       playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns,
@@ -157,6 +162,8 @@ extension WindowModel {
     func restore(_ context: WindowContext) {
         podcastOrigin = context.podcastOrigin
         destination = context.destination; search = context.search; selection = context.selection
+        podcastFeed = context.podcastFeed; playlistTab = context.playlistTab
+        subscriptionSelection = context.subscriptionSelection
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection
         scrollAnchor = context.scrollAnchor; paneWidths = (context.paneWidths ?? PaneWidths()).reconciled
@@ -181,10 +188,10 @@ struct RowAnchor: Codable, Equatable {
 
 struct PaneWidths: Codable, Equatable {
     var sidebar: Double = 225
-    var inspector: Double = 340
+    var inspector: Double = 370
     var reconciled: Self {
         Self(sidebar: sidebar.isFinite ? min(max(sidebar, 180), 320) : 225,
-             inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 340)
+             inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 370)
     }
 }
 

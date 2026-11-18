@@ -13,15 +13,30 @@ func selectionToolbarNamesAreDistinctAndMatchMenuState(allStarred: Bool) {
     }
 }
 @Test
-func showNotesCommandRequiresExactlyOneSelectedEpisodeAndOpensThatEpisode() {
-    var opened: [String] = []
-    let open: (String) -> Void = { opened.append($0) }
-    #expect(EpisodeNotesAction.action(ids: [], open: open) == nil)
-    #expect(EpisodeNotesAction.action(ids: ["one", "two"], open: open) == nil)
-    let action = EpisodeNotesAction.action(ids: ["selected"], open: open)
-    #expect(action != nil)
-    #expect(opened.isEmpty)
-    action?()
-    #expect(opened == ["selected"])
+@MainActor
+func userEpisodeSelectionOpensInspectorButRestorationLeavesItHidden() {
+    let window = WindowModel()
+    window.navigate(to: .view("all"))
+    var inspectorVisible = false
+    let selection = window.episodeSelection(episodeIDs: ["one", "two"], otherIDs: ["failed"]) { inspectorVisible = true }
+    selection.wrappedValue = ["failed"]
+    #expect(!inspectorVisible)
+    selection.wrappedValue = []
+    #expect(!inspectorVisible)
+    selection.wrappedValue = ["one"]
+    #expect(inspectorVisible && window.selection == ["one"])
+
+    inspectorVisible = false
+    window.navigate(to: .playlist("default"))
+    selection.wrappedValue = ["two"] // An outgoing native list can still send events.
+    #expect(!inspectorVisible && window.selection.isEmpty)
+    window.navigate(to: .view("all"))
+    #expect(!inspectorVisible && window.selection == ["one"])
+    selection.wrappedValue = ["one"] // Clicking the already selected Episode reopens it.
+    #expect(inspectorVisible)
+
+    inspectorVisible = false
+    window.restore(WindowContext(destination: .search, selection: ["two"]))
+    #expect(!inspectorVisible && window.selection == ["two"])
 }
 #endif

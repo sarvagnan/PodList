@@ -52,6 +52,28 @@ import Testing
     }
 }
 
+@MainActor @Test func nativeEpisodeTableCanScrollItsLastRowAboveThePlayer() throws {
+    struct Row: Identifiable { let id: Int }
+    let inset: CGFloat = 108
+    let root = Table((0..<30).map { Row(id: $0) }) {
+        TableColumn("Episode") { row in Text("Episode \(row.id)") }
+    }
+    .tableStyle(.inset)
+    .playbackBarScrollClearance()
+    .environment(\.libraryPlaybackBarInset, inset)
+    let host = NSHostingView(rootView: root)
+    host.frame = CGRect(x: 0, y: 0, width: 600, height: 350)
+    host.layoutSubtreeIfNeeded()
+    let table = try #require(descendants(host).compactMap { $0 as? NSTableView }.first)
+    #expect(table.numberOfRows == 30)
+    let clip = try #require(table.enclosingScrollView?.contentView)
+    clip.scroll(to: CGPoint(x: 0, y: table.bounds.maxY))
+    host.layoutSubtreeIfNeeded()
+    let row = table.convert(table.rect(ofRow: table.numberOfRows - 1), to: host)
+    let clearance = host.isFlipped ? host.bounds.maxY - row.maxY : row.minY - host.bounds.minY
+    #expect(clearance >= inset - 1)
+}
+
 @MainActor private func descendants(_ view: NSView) -> [NSView] {
     view.subviews.flatMap { [$0] + descendants($0) }
 }
