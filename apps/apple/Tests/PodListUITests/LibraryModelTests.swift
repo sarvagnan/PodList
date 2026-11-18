@@ -104,6 +104,86 @@ func fixtureModel() async throws -> LibraryModel {
     #expect(model.memberships("a").first?.position == 65)
 }
 
+@Test func cachedEpisodeListsMatchUncachedListsAndSearch() async throws {
+    let library = try await fixtureModel()
+    let copy = library
+    let snapshot = library.snapshot
+    func evaluate(_ view: PodListDomain.View) -> [Episode] {
+        ViewRules.evaluate(view, subscriptions: snapshot.subscriptions, episodes: snapshot.episodes, state: snapshot.state, now: library.now)
+    }
+    let all = evaluate(.init(id: "library", name: "Library", filter: .init(), sort: .publishedDesc, limit: nil))
+    var destinations: [(Destination, [String])] = [
+        (.search, all.map(\.id)),
+        (.subscription("s"), all.filter { $0.subscriptionId == "s" }.map(\.id)),
+        (.playlist("default"), snapshot.state.playlists[0].entries.map(\.episodeId)),
+    ]
+    for (index, view) in snapshot.state.views.enumerated() {
+        let expected = evaluate(view)
+        #expect(library.sidebar[0].items[index].count == expected.count)
+        #expect(copy.viewEpisodes(view) == expected)
+        destinations.append((.view(view.id), expected.map(\.id)))
+    }
+    #expect(copy.libraryEpisodes == all)
+    #expect(library.sidebar[2].items.first { $0.destination == .search }?.count == all.count)
+
+    for (destination, ids) in destinations {
+        for search in ["", " \t\u{feff}", "béTA SCIENCE", "notes alpha", "pending sync", "no matches"] {
+            let words = Mentions.words(search)
+            let expected = ids.filter { id in
+                let episode = snapshot.episodes.first { $0.id == id }
+                let podcast = snapshot.subscriptions.first { $0.id == episode?.subscriptionId }
+                let fields = [episode?.title ?? "Episode details pending sync", podcast?.title ?? "Podcast details pending sync", episode?.description ?? ""].map(Mentions.fold)
+                return words.allSatisfy { word in fields.contains { $0.contains(word) } }
+            }
+            #expect(library.rows(for: destination, search: search).map(\.id) == expected)
+            #expect(copy.rows(for: destination, search: search).map(\.id) == expected)
+        }
+    }
+}
+
+@Test func positionCacheMatchesThePlaylistEntryScan() {
+    var state = fixtureState()
+    state.playlists.append(.init(id: "other", name: "Other", isDefault: false, clearOnPlayed: false, entries: [
+        Entry(episodeId: "a", position: 90, positionAt: 0),
+        Entry(episodeId: "pending", position: 7, positionAt: 8),
+        Entry(episodeId: "negative", position: -1, positionAt: 0),
+    ], cursor: nil, history: [], timeline: []))
+    let library = LibraryModel(snapshot: .init(state: state, subscriptions: [subscription()], episodes: [episode()]), deviceID: "this")
+    for id in ["a", "b", "pending", "negative", "missing"] {
+        let expected = state.playlists.flatMap(\.entries).filter { $0.episodeId == id }.map(\.position).max()
+        #expect(library.row(id).position == expected)
+    }
+    #expect(library.rows(for: .playlist("default")).map(\.position) == [0, 65, 8])
+    #expect(library.rows(for: .playlist("other")).map(\.position) == [90, 7, -1])
+}
+
+@Test func aFreshSnapshotRebuildsCachesAndDraftsUseTheirOwnRules() {
+    let recent = PodListDomain.View(id: "library", name: "Recent", filter: .init(published: .lastDays(days: 1)), sort: .publishedDesc, limit: 1)
+    var state = fixtureState()
+    state.views = [recent]
+    let old = LibraryModel(snapshot: .init(state: state, subscriptions: [subscription()], episodes: [episode()]), deviceID: "this", now: 1_000)
+    #expect(old.sidebar[0].items.map(\.count) == [1])
+    #expect(old.rows(for: .view(recent.id), search: "alpha").map(\.id) == ["a"])
+    #expect(old.libraryEpisodes.map(\.id) == ["a"])
+    #expect(old.row("a").position == 65)
+
+    var draft = recent
+    draft.filter.starred = true
+    #expect(old.viewEpisodes(draft).isEmpty)
+    #expect(old.viewEpisodes(recent).map(\.id) == ["a"])
+
+    state.playlists[0].entries.removeAll { $0.episodeId == "a" }
+    let fresh = LibraryModel(snapshot: .init(state: state, subscriptions: [subscription()], episodes: [episode(title: "Gamma"), episode("new", title: "Delta", published: 200)]),
+                             deviceID: "this", now: 86_401_000)
+    #expect(fresh.sidebar[0].items.map(\.count) == [0])
+    #expect(fresh.rows(for: .view(recent.id)).isEmpty)
+    #expect(fresh.libraryEpisodes.map(\.id) == ["new", "a"])
+    #expect(fresh.rows(for: .search, search: "alpha").isEmpty)
+    #expect(fresh.rows(for: .search, search: "gamma").map(\.id) == ["a"])
+    #expect(fresh.row("a").position == nil)
+    #expect(old.rows(for: .view(recent.id), search: "alpha").map(\.id) == ["a"])
+}
+
 @Test func playerUsesActivePlaylistCurrentEntryWithoutStartingPlayback() async throws {
     let model = try await fixtureModel()
     let player = try #require(model.player)

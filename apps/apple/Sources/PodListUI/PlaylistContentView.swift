@@ -6,6 +6,7 @@ import PodListDomain
 struct PlaylistContentView: SwiftUI.View {
     let playlist: Playlist
     let library: LibraryModel
+    let rows: [EpisodeRow]
     @Bindable var window: WindowModel
     let app: ApplicationModel
     let editing: PlaylistEditingModel
@@ -51,7 +52,6 @@ struct PlaylistContentView: SwiftUI.View {
             if tab == .entries { window.revealDrop(in: playlist.id) }
         }
     }
-    private var rows: [EpisodeRow] { window.rows(in: library) }
     private var displayedRows: [PlaylistDropRow] {
         PlaylistDropRow.rows(rows, batches: app.libraryEditing?.pendingEpisodeDrops ?? [], playlistID: playlist.id)
     }

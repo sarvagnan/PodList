@@ -104,11 +104,14 @@ struct WindowContext: Codable, Equatable {
             // The publisher page reconciles local IDs and publisher GUIDs after its feed read.
             return result
         }
+        var episodeRows: [EpisodeRow] = []
         let ids: Set<String>
         if case let .playlist(id) = result.destination,
            let playlist = library.state.playlists.first(where: { $0.id == id }) {
             switch result.playlistTab {
-            case .entries: ids = Set(library.rows(for: result.destination, search: result.search).map(\.id))
+            case .entries:
+                episodeRows = library.rows(for: result.destination, search: result.search)
+                ids = Set(episodeRows.map(\.id))
             case .history: ids = Set(playlist.history.map(\.episodeId))
             case .timeline: ids = []
             }
@@ -118,7 +121,8 @@ struct WindowContext: Codable, Equatable {
             ids = Set(library.state.views.map(\.id))
             result.timelineSelection = nil
         } else {
-            ids = Set(library.rows(for: result.destination, search: result.search).map(\.id))
+            episodeRows = library.rows(for: result.destination, search: result.search)
+            ids = Set(episodeRows.map(\.id))
             result.timelineSelection = nil
         }
         let scrollIDs: [String]
@@ -131,9 +135,8 @@ struct WindowContext: Codable, Equatable {
         case let .playlist(id) where result.playlistTab == .history:
             scrollIDs = library.state.playlists.first { $0.id == id }?.history.reversed().map(\.episodeId) ?? []
         default:
-            let rows = library.rows(for: result.destination, search: result.search)
-            if case .playlist = result.destination { scrollIDs = rows.map(\.id) }
-            else { scrollIDs = result.sort.isEmpty ? rows.map(\.id) : rows.sorted(using: result.sort.map(\.comparator)).map(\.id) }
+            if case .playlist = result.destination { scrollIDs = episodeRows.map(\.id) }
+            else { scrollIDs = result.sort.isEmpty ? episodeRows.map(\.id) : episodeRows.sorted(using: result.sort.map(\.comparator)).map(\.id) }
         }
         result.scrollAnchor = result.scrollAnchor?.reconciled(with: scrollIDs)
         result.selection.formIntersection(ids)

@@ -74,7 +74,11 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     private func connected(_ library: LibraryModel) -> some SwiftUI.View {
-        NavigationSplitView(columnVisibility: $columns) {
+        let rows = window.rows(in: library)
+        let selection = window.selection
+        let selectedRows = selection.isEmpty ? [] : selectionRows(library, rows: rows).filter { selection.contains($0.id) }
+        let selectedIDs = selectedRows.map(\.id)
+        return NavigationSplitView(columnVisibility: $columns) {
             List(selection: Binding(get: { podcastFeed == nil ? window.sidebarSelection : .subscriptions }, set: {
                 podcastFeed = nil
                 window.navigate(to: $0)
@@ -160,14 +164,14 @@ public struct PodListWindow: SwiftUI.View {
                     Group {
                         if let podcastFeed, let editor = app.libraryEditing {
                             PodcastPageScreen(feedURL: podcastFeed, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, scrollAnchor: $window.scrollAnchor, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(podcastFeed)
-                        } else { content(library) }
+                        } else { content(library, rows: rows) }
                     }.frame(width: viewport.size.width, height: viewport.size.height)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .macContentFont(.body)
             .navigationTitle(podcastFeed == nil ? library.title(window.destination) : "Podcast")
-            .navigationSubtitle(Self.subtitle(summary: isPodcastPage ? "" : summary(library), playbackError: app.playback?.error))
+            .navigationSubtitle(Self.subtitle(summary: isPodcastPage ? "" : summary(library, rowCount: rows.count), playbackError: app.playback?.error))
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     if isPodcastPage {
@@ -179,7 +183,7 @@ public struct PodListWindow: SwiftUI.View {
                 if let editing = app.editing, showsEpisodeInspector {
                     // Retain disabled selection controls to keep the three groups,
                     // Inspector and Search in the same positions as selection changes.
-                    EpisodeActionButtons(ids: selectedIDs(library), library: library, editing: editing, presentation: playlistPresentation, app: app,
+                    EpisodeActionButtons(ids: selectedIDs, library: library, editing: editing, presentation: playlistPresentation, app: app,
                         playlist: toolbarPlaylist(library), editView: toolbarView(library).map { view in { editView(view) } })
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -197,11 +201,14 @@ public struct PodListWindow: SwiftUI.View {
             .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
             .searchFocused($searchFocused)
             .inspector(isPresented: Binding(get: { showsEpisodeInspector && inspectorVisible }, set: { inspectorVisible = $0 })) {
-                let row = selectedRow(library)
-                let selection = inspectorSelection(library)
-                EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation, selectedIDs: selection)
+                let row = isPodcastPage
+                    ? library.snapshot.episodes.first { selection.contains($0.id) }.map { library.row($0.id) }
+                    : selectedRows.first
+                // Publisher rows not yet imported still count toward the selection summary.
+                let inspectorIDs = selectedIDs + selection.subtracting(Set(selectedIDs)).sorted()
+                EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation, selectedIDs: inspectorIDs)
                     #if DEBUG
-                    .tourResponse(row != nil && selection.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil)
+                    .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil)
                     #endif
                     .inspectorColumnWidth(min: 260, ideal: window.initialPaneWidths.inspector, max: 440)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
@@ -226,10 +233,10 @@ public struct PodListWindow: SwiftUI.View {
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions)
-        .focusedSceneValue(\.podListEpisodeNotes, EpisodeNotesAction.action(ids: window.selection.count == 1 ? selectedIDs(library) : []) {
+        .focusedSceneValue(\.podListEpisodeNotes, EpisodeNotesAction.action(ids: selection.count == 1 ? selectedIDs : []) {
             openWindow(id: "episode-notes", value: $0)
         })
-        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs(library), library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
+        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs, library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { podcastFeed = nil; window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library), selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing {
@@ -300,7 +307,7 @@ public struct PodListWindow: SwiftUI.View {
         return MenuActionContext(actions: actions)
     }
 
-    @ViewBuilder private func content(_ library: LibraryModel) -> some SwiftUI.View {
+    @ViewBuilder private func content(_ library: LibraryModel, rows: [EpisodeRow]) -> some SwiftUI.View {
         switch window.destination {
         case .views:
             if library.state.views.isEmpty {
@@ -337,18 +344,18 @@ public struct PodListWindow: SwiftUI.View {
             if let editing = app.editing { PlaylistTrashView(library: library, editing: editing, search: window.search, scrollAnchor: $window.scrollAnchor) }
         case let .playlist(id):
             if let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing {
-                PlaylistContentView(playlist: playlist, library: library, window: window, app: app, editing: editing, presentation: playlistPresentation, openEpisode: { inspectorVisible = true })
+                PlaylistContentView(playlist: playlist, library: library, rows: rows, window: window, app: app, editing: editing, presentation: playlistPresentation, openEpisode: { inspectorVisible = true })
             }
         case let .subscription(id):
             if let sub = library.snapshot.subscriptions.first(where: { $0.id == id }), let editor = app.libraryEditing {
                 PodcastPageScreen(feedURL: sub.feedUrl, app: app, editor: editor, library: library, selection: $window.selection, search: $window.search, savedSort: $window.podcastSort, scrollAnchor: $window.scrollAnchor, openEpisode: { inspectorVisible = true }, displayed: { podcastEpisodeIDs = $0 }).id(sub.feedUrl)
             }
         case .view:
-            episodeTable(library)
+            episodeTable(library, rows: rows)
         case .search:
             VStack(alignment: .leading) {
-                if let editor = app.libraryEditing { SearchViewCreation(editor: editor, library: library, query: window.search, count: window.rows(in: library).count) { id in window.navigate(to: .view(id)) } }
-                episodeTable(library)
+                if let editor = app.libraryEditing { SearchViewCreation(editor: editor, library: library, query: window.search, count: rows.count) { id in window.navigate(to: .view(id)) } }
+                episodeTable(library, rows: rows)
             }
         case nil:
             PodListEmptyState("Choose a View, Playlist or Library", systemImage: "sidebar.left")
@@ -496,9 +503,8 @@ public struct PodListWindow: SwiftUI.View {
             feedURL: subscription.flatMap { ShareLinks.web($0.feedUrl) })
     }
 
-    private func episodeTable(_ library: LibraryModel) -> some SwiftUI.View {
-        let rows = window.rows(in: library)
-        return VStack(alignment: .leading, spacing: 0) {
+    private func episodeTable(_ library: LibraryModel, rows: [EpisodeRow]) -> some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 0) {
             if case let .view(id) = window.destination, let view = library.state.views.first(where: { $0.id == id }) {
                 Text(ViewDescription.text(view, library: library)).macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle())
                     .padding(.horizontal, 16).padding(.vertical, 10)
@@ -523,7 +529,7 @@ public struct PodListWindow: SwiftUI.View {
                         List(selection: $window.selection) {
                             Section {
                                 ForEach(rows) { row in
-                                    MacReadingRow(isSelected: window.selection.contains(row.id)) { episodeTitle(row, library: library) } metadata: {
+                                    MacReadingRow(isSelected: window.selection.contains(row.id)) { episodeTitle(row, rows: rows, library: library) } metadata: {
                                         "Published \(row.episode == nil ? "—" : row.publishedDate.formatted(date: .abbreviated, time: .omitted)) · Length \(row.durationText) · \(row.stateText)"
                                     }.tag(row.id).draggable(episodeDragPayload(row.id, rows: rows, library: library))
                                 }
@@ -533,7 +539,7 @@ public struct PodListWindow: SwiftUI.View {
                         GeometryReader { geometry in
                             let layout = EpisodeTableLayout(width: geometry.size.width)
                             Table(of: EpisodeRow.self, selection: $window.selection, sortOrder: $window.sortOrder) {
-                                TableColumn("Episode", value: \.title) { row in episodeTitle(row, library: library) }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                                TableColumn("Episode", value: \.title) { row in episodeTitle(row, rows: rows, library: library) }.width(min: EpisodeTableLayout.minimumTitleWidth)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { row in
                                         if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
@@ -596,7 +602,7 @@ public struct PodListWindow: SwiftUI.View {
         EpisodeTransfer.local(id, selection: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
     }
 
-    private func episodeTitle(_ row: EpisodeRow, library: LibraryModel) -> some SwiftUI.View {
+    private func episodeTitle(_ row: EpisodeRow, rows: [EpisodeRow], library: LibraryModel) -> some SwiftUI.View {
         HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))).monospacedDigit() }
             if row.isCursor { Image(systemName: "play.circle.fill").foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Current Entry") }
@@ -627,7 +633,9 @@ public struct PodListWindow: SwiftUI.View {
         .accessibilityElement(children: .contain)
         .contextMenu {
             if let editing = app.editing {
-                EpisodeActionItems(ids: window.selection.contains(row.id) ? selectedIDs(library) : [row.id],
+                let selection = window.selection
+                let ids = selection.contains(row.id) ? selectionRows(library, rows: rows).filter { selection.contains($0.id) }.map(\.id) : [row.id]
+                EpisodeActionItems(ids: ids,
                     library: library, editing: editing, presentation: playlistPresentation, app: app)
                     .disabled(editing.busy)
             }
@@ -635,7 +643,7 @@ public struct PodListWindow: SwiftUI.View {
         }
     }
 
-    private func selectionRows(_ library: LibraryModel) -> [EpisodeRow] {
+    private func selectionRows(_ library: LibraryModel, rows: [EpisodeRow]) -> [EpisodeRow] {
         if isPodcastPage {
             return podcastEpisodeIDs.filter { id in library.snapshot.episodes.contains { $0.id == id } }.map { library.row($0) }
         }
@@ -644,7 +652,7 @@ public struct PodListWindow: SwiftUI.View {
             return (library.state.playlists.first { $0.id == id }?.history.reversed().map(\.episodeId) ?? [])
                 .filter { seen.insert($0).inserted }.map { library.row($0) }
         }
-        return window.rows(in: library)
+        return rows
     }
     private func reconcileSelection(_ library: LibraryModel) {
         let context = currentContext.reconciled(in: library)
@@ -676,9 +684,6 @@ public struct PodListWindow: SwiftUI.View {
         savedContext = context.encoded
     }
 
-    private func selectedIDs(_ library: LibraryModel) -> [String] {
-        selectionRows(library).map(\.id).filter { window.selection.contains($0) }
-    }
     private var isPodcastPage: Bool {
         if case .subscription = window.destination { return true }
         return podcastFeed != nil
@@ -716,17 +721,6 @@ public struct PodListWindow: SwiftUI.View {
         creatingView = true
         editingView = PodListDomain.View(id: id, name: "", filter: .init(text: text), sort: .publishedDesc, limit: nil)
     }
-    private func inspectorSelection(_ library: LibraryModel) -> [String] {
-        let ordered = selectedIDs(library)
-        // Publisher rows not yet imported still count toward the selection summary.
-        return ordered + window.selection.subtracting(Set(ordered)).sorted()
-    }
-    private func selectedRow(_ library: LibraryModel) -> EpisodeRow? {
-        if isPodcastPage {
-            return library.snapshot.episodes.first { window.selection.contains($0.id) }.map { library.row($0.id) }
-        }
-        return selectionRows(library).first { window.selection.contains($0.id) }
-    }
     private func toolbarPlaylist(_ library: LibraryModel) -> Playlist? {
         guard !isPodcastPage, case let .playlist(id) = window.destination else { return nil }
         return library.state.playlists.first { $0.id == id }
@@ -760,15 +754,15 @@ public struct PodListWindow: SwiftUI.View {
         playbackError == nil ? summary : "Playback stopped"
     }
 
-    private func summary(_ library: LibraryModel) -> String {
+    private func summary(_ library: LibraryModel, rowCount: Int) -> String {
         switch window.destination {
         case .views: CountText.format(library.state.views.count, .view)
         case .subscriptions: CountText.format(library.subscriptions.count, .subscription)
         case .trash: CountText.format(library.trash.count, .playlist)
         case let .playlist(id):
-            CountText.format(window.rows(in: library).count, .entry) + (id == library.state.activePlaylistId ? " · Active Playlist" : "") +
+            CountText.format(rowCount, .entry) + (id == library.state.activePlaylistId ? " · Active Playlist" : "") +
                 (library.state.playlists.first { $0.id == id }.map { !$0.entries.isEmpty && PlaylistRules.hasNoCurrentEntry($0) } == true ? " · No current Entry; past end" : "")
-        default: CountText.format(window.rows(in: library).count, .episode) + (window.selection.isEmpty ? "" : " · \(window.selection.count) selected")
+        default: CountText.format(rowCount, .episode) + (window.selection.isEmpty ? "" : " · \(window.selection.count) selected")
         }
     }
     private func symbol(_ destination: Destination) -> String {
