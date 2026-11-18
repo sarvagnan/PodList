@@ -64,11 +64,15 @@ public struct PodListWindow: SwiftUI.View {
             linkError = "This \(link.kindName) is no longer in this Library. It may have been removed or belong to another Library."
             return
         }
-        if case .episode = link { inspectorVisible = true }
+        if case .episode = link { showEpisodeInspector() }
         if case .playlist = link { window.showPlaylistTab(.entries) }
     }
 
     private var podcastFeed: String? { window.podcastFeed }
+
+    private func showEpisodeInspector() {
+        if !inspectorVisible { inspectorVisible = true }
+    }
 
     private var isPlaylist: Bool {
         if case .playlist = window.destination { return !isPodcastPage }; return false
@@ -248,7 +252,7 @@ public struct PodListWindow: SwiftUI.View {
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions)
-        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs, library: library, window: window, presentation: playlistPresentation, showDetails: { inspectorVisible = true }))
+        .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs, library: library, window: window, presentation: playlistPresentation, showDetails: showEpisodeInspector))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library), selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing {
@@ -359,7 +363,7 @@ public struct PodListWindow: SwiftUI.View {
             }
         case let .playlist(id):
             if let playlist = library.state.playlists.first(where: { $0.id == id }), let editing = app.editing {
-                PlaylistContentView(playlist: playlist, library: library, rows: rows, window: window, app: app, editing: editing, presentation: playlistPresentation, openEpisode: { inspectorVisible = true })
+                PlaylistContentView(playlist: playlist, library: library, rows: rows, window: window, app: app, editing: editing, presentation: playlistPresentation, openEpisode: showEpisodeInspector)
             }
         case let .subscription(id):
             if let sub = library.snapshot.subscriptions.first(where: { $0.id == id }), let editor = app.libraryEditing {
@@ -383,7 +387,7 @@ public struct PodListWindow: SwiftUI.View {
             selection: window.listBinding(\.selection), search: window.listBinding(\.search),
             savedSort: window.listBinding(\.podcastSort), scrollAnchor: window.listBinding(\.scrollAnchor),
             selectEpisodes: { ids, visibleIDs in
-                window.selectEpisodes(ids, in: list, episodeIDs: visibleIDs) { inspectorVisible = true }
+                window.selectEpisodes(ids, in: list, episodeIDs: visibleIDs, openInspector: showEpisodeInspector)
             }, displayed: { ids, previews in
                 guard window.listID == list else { return }
                 podcastEpisodeIDs = ids
@@ -536,7 +540,7 @@ public struct PodListWindow: SwiftUI.View {
 
     private func episodeTable(_ library: LibraryModel, rows: [EpisodeRow]) -> some SwiftUI.View {
         let ids = rows.map(\.id)
-        let selection = window.episodeSelection(episodeIDs: ids) { inspectorVisible = true }
+        let selection = window.episodeSelection(episodeIDs: ids, openInspector: showEpisodeInspector)
         let activate: (Set<String>) -> Void = { selected in
             EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: app.editing)
         }

@@ -8,7 +8,7 @@ struct MacRowScroll: NSViewRepresentable {
     var ids: [String?]
     @Binding var anchor: RowAnchor?
     var titles: [TypeSelectionRow] = []
-    var selection: Set<String> = []
+    var selection: Binding<Set<String>> = .constant([])
     var select: ((String) -> Void)?
     var reselect: ((String) -> Void)?
     var activate: ((Set<String>) -> Void)?
@@ -29,7 +29,7 @@ struct MacRowScroll: NSViewRepresentable {
         var anchor: RowAnchor?
         var changed: ((RowAnchor) -> Void)?
         var titles: [TypeSelectionRow] = []
-        var selection: Set<String> = []
+        var selection: Binding<Set<String>> = .constant([])
         var select: ((String) -> Void)?
         var reselect: ((String) -> Void)?
         var activate: ((Set<String>) -> Void)?
@@ -82,7 +82,7 @@ struct MacRowScroll: NSViewRepresentable {
                 inputMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
                     guard let self else { return event }
                     if event.type == .keyDown { return self.handleKey(event) }
-                    self.handleReselection(event)
+                    self.handleMouseDown(event)
                     return event
                 }
                 clip.postsBoundsChangedNotifications = true
@@ -100,8 +100,9 @@ struct MacRowScroll: NSViewRepresentable {
                 applied = anchor; restoring = false
             }
         }
-        private func handleReselection(_ event: NSEvent) {
-            guard let reselect, let table, let window, event.window === window, event.clickCount == 1 else { return }
+        func handleMouseDown(_ event: NSEvent) {
+            guard let reselect, let table, let window,
+                  event.windowNumber == window.windowNumber, event.clickCount == 1 else { return }
             let point = table.convert(event.locationInWindow, from: nil)
             guard event.modifierFlags.intersection([.command, .shift, .control]).isEmpty,
                   table.visibleRect.contains(point), table.numberOfRows == ids.count,
@@ -114,10 +115,14 @@ struct MacRowScroll: NSViewRepresentable {
                 hitView = view.superview
             }
             let index = table.row(at: point)
+            guard ids.indices.contains(index), let id = ids[index] else { return }
+            // A click on a row gives that list its keyboard commands, even if
+            // the row was restored as selected before the list received focus.
+            if window.firstResponder !== table { window.makeFirstResponder(table) }
             // AppKit leaves the selection binding untouched when clicking the selected row.
-            guard ids.indices.contains(index), let id = ids[index], selection == [id] else { return }
+            guard selection.wrappedValue == [id] else { return }
             DispatchQueue.main.async { [weak self] in
-                if self?.selection == [id] { reselect(id) }
+                if self?.selection.wrappedValue == [id] { reselect(id) }
             }
         }
         func handleKey(_ event: NSEvent) -> NSEvent? {
@@ -127,8 +132,14 @@ struct MacRowScroll: NSViewRepresentable {
                   let responder = window.firstResponder as? NSView,
                   !(responder is NSTextView), !(responder is NSTextField),
                   responder === table || responder.isDescendant(of: table) else { return event }
-            if let activate, !selection.isEmpty, (!(responder is NSControl) || responder === table),
-               event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+            let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            let listHasFocus = responder === table || !(responder is NSControl)
+            if reselect != nil, listHasFocus, modifiers == .command, event.charactersIgnoringModifiers == "a" {
+                table.selectAll(nil)
+                return nil
+            }
+            let selection = selection.wrappedValue
+            if let activate, !selection.isEmpty, listHasFocus, modifiers.isEmpty,
                ["\r", "\u{3}"].contains(event.charactersIgnoringModifiers) {
                 if !event.isARepeat { activate(selection) }
                 return nil
@@ -191,7 +202,7 @@ extension SwiftUI.View {
                            reselect: ((String) -> Void)? = nil,
                            activate: ((Set<String>) -> Void)? = nil) -> some SwiftUI.View {
         background(MacRowScroll(ids: physicalIDs ?? rows.map { Optional($0.id) }, anchor: anchor,
-            titles: rows, selection: selection.wrappedValue, select: { selection.wrappedValue = [$0] },
+            titles: rows, selection: selection, select: { selection.wrappedValue = [$0] },
             reselect: reselect, activate: activate))
     }
 

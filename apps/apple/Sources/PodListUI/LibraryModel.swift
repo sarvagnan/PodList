@@ -402,7 +402,7 @@ public final class WindowModel {
     /// assigns its selection directly.
     func selectEpisodes(_ ids: Set<String>, in list: ListID, episodeIDs: Set<String>, openInspector: () -> Void) {
         guard listID == list else { return }
-        selection = ids
+        if selection != ids { selection = ids }
         if !ids.isDisjoint(with: episodeIDs) { openInspector() }
     }
     func showPlaylistTab(_ tab: PlaylistTab) {

@@ -521,8 +521,13 @@ final class PodListUITour: XCTestCase {
 
         try navigate("New this week")
         try selectFirstEpisode()
+        let rowCount = episodeRows.count
+        XCTAssertGreaterThan(rowCount, 1)
         episodeList.typeKey("a", modifierFlags: .command)
-        XCTAssertGreaterThan(episodeRows.matching(NSPredicate(format: "selected == true")).count, 1)
+        let summary = library.descendants(matching: .any).matching(identifier: "Episode selection Inspector").firstMatch
+        try ready(summary)
+        XCTAssertEqual(episodeRows.matching(NSPredicate(format: "selected == true")).count, rowCount,
+                       "Command-A must select all Episodes in the list")
         try ready(button("Add to a Playlist"))
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
