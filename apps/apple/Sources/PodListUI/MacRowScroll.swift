@@ -116,13 +116,18 @@ struct MacRowScroll: NSViewRepresentable {
             }
             let index = table.row(at: point)
             guard ids.indices.contains(index), let id = ids[index] else { return }
+            let previousSelection = selection.wrappedValue
+            let wasSelected = previousSelection.contains(id) || table.selectedRowIndexes.contains(index)
             // A click on a row gives that list its keyboard commands, even if
             // the row was restored as selected before the list received focus.
             if window.firstResponder !== table { window.makeFirstResponder(table) }
-            // AppKit leaves the selection binding untouched when clicking the selected row.
-            guard selection.wrappedValue == [id] else { return }
+            guard wasSelected else { return }
             DispatchQueue.main.async { [weak self] in
-                if self?.selection.wrappedValue == [id] { reselect(id) }
+                guard let self else { return }
+                // The native click may clear the selection or leave it intact.
+                // A new selection (for example from Command-A) takes precedence.
+                let current = self.selection.wrappedValue
+                if current.isEmpty || current == previousSelection || current == [id] { reselect(id) }
             }
         }
         func handleKey(_ event: NSEvent) -> NSEvent? {

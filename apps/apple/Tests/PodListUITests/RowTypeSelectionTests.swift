@@ -65,7 +65,7 @@ import Testing
     #expect(!window.isVisible)
 }
 
-@MainActor @Test func nativeEpisodeSelectAllSurvivesOpeningTheInspectorFromTheSelectedRow() async throws {
+@MainActor @Test func nativeClickReopensInspectorForRememberedEpisodeAndPreservesSelectAll() async throws {
     struct Row: Identifiable { let id: String }
     struct Fixture: SwiftUI.View {
         let ids: [String]
@@ -101,10 +101,12 @@ import Testing
     table.selectRowIndexes([0], byExtendingSelection: false)
     #expect(model.selection == ["one"] && inspectorVisible)
 
-    // Click a remembered selection from outside the table, then immediately press ⌘A.
+    // Hide the Inspector and return to the remembered selection.
     inspectorVisible = false
+    model.navigate(to: .playlist("default"))
+    model.navigate(to: .view("all"))
     for _ in 0..<3 { await Task.yield(); root.layoutSubtreeIfNeeded() }
-    #expect(probe.selection.wrappedValue == ["one"])
+    #expect(probe.selection.wrappedValue == ["one"] && !inspectorVisible)
     #expect(window.makeFirstResponder(window))
     let row = table.rect(ofRow: 0)
     let point = table.convert(NSPoint(x: row.midX, y: row.midY), to: nil)
@@ -112,11 +114,41 @@ import Testing
         windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
     let selectAll = try #require(NSEvent.keyEvent(with: .keyDown, location: point, modifierFlags: .command, timestamp: 2,
         windowNumber: window.windowNumber, context: nil, characters: "a", charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0))
+    func finishClick() async {
+        await withCheckedContinuation { done in DispatchQueue.main.async { done.resume() } }
+    }
+
+    probe.handleMouseDown(click)
+    await finishClick()
+    #expect(model.selection == ["one"] && inspectorVisible)
+
+    // An ordinary click on a selected row can clear the native selection.
+    // The Inspector must reopen for that Episode, even when the binding saw an empty set.
+    inspectorVisible = false
+    probe.handleMouseDown(click)
+    table.deselectAll(nil)
+    #expect(model.selection.isEmpty && !inspectorVisible)
+    await finishClick()
+    #expect(model.selection == ["one"] && inspectorVisible)
+
+    // The timing tour starts after capturing a multi-selection. Exercise that
+    // remembered selection too, through the same mouse-down path.
+    table.selectAll(nil)
+    #expect(model.selection == Set(ids))
+    inspectorVisible = false
+    probe.handleMouseDown(click)
+    table.deselectAll(nil)
+    await finishClick()
+    #expect(model.selection == ["one"] && inspectorVisible)
+
+    // Select All after the click must still win over the deferred reselection.
+    table.selectRowIndexes([0], byExtendingSelection: false)
+    inspectorVisible = false
     probe.handleMouseDown(click)
     #expect(window.firstResponder === table)
     #expect(probe.handleKey(selectAll) == nil)
     #expect(model.selection == Set(ids))
-    await withCheckedContinuation { done in DispatchQueue.main.async { done.resume() } }
+    await finishClick()
     #expect(model.selection == Set(ids))
     #expect(table.selectedRowIndexes.count == ids.count)
     #expect(inspectorVisible)
