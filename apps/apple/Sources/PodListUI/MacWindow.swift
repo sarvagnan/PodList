@@ -136,7 +136,8 @@ public struct PodListWindow: SwiftUI.View {
             // Sidebar metrics belong to macOS; app Text Size scales content only.
             .environment(\.macTextScale, 1)
             .listStyle(.sidebar)
-            .playbackBarScrollClearance()
+            // The native sidebar outline takes its scroll content inset from the safe area.
+            .safeAreaPadding(.bottom, playbackInset)
             // Observe AppKit's divider from the background, without wrapping the column
             // root or feeding live measurements into its ideal width.
             .background(MacSidebarWidth { window.paneWidths.sidebar = $0 })
