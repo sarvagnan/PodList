@@ -108,6 +108,7 @@ struct DownloadRuleEditor: SwiftUI.View {
     let subscriptionID: String
     let library: LibraryModel
     @Bindable var app: ApplicationModel
+    var compact = false
     private var rule: DownloadRule? {
         library.state.downloadRules.first { $0.subscriptionId == subscriptionID && $0.deviceId == library.deviceID }
     }
@@ -116,15 +117,16 @@ struct DownloadRuleEditor: SwiftUI.View {
             app.setDownloadRule(subscription: subscriptionID, mode: $0, cap: rule?.keepAtMost)
         }), cap: Binding(get: { rule?.keepAtMost }, set: {
             app.setDownloadRule(subscription: subscriptionID, mode: rule?.mode ?? .allNew, cap: $0)
-        }))
+        }), compact: compact)
     }
 }
 struct DownloadRuleFields: SwiftUI.View {
     @Binding var mode: DownloadMode
     @Binding var cap: Int64?
+    var compact = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            PodListSheetField("Download Rule on This Device") {
+            field(compact ? "Download Rule" : "Download Rule on This Device") {
                 Picker("Download Rule on This Device", selection: $mode) {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
@@ -133,7 +135,7 @@ struct DownloadRuleFields: SwiftUI.View {
                     .accessibilityIdentifier("downloadRule.mode")
             }
             if mode == .allNew {
-                PodListSheetField("Keep") {
+                field("Keep") {
                     Picker("Keep", selection: $cap) {
                         Text("All").tag(nil as Int64?)
                         ForEach([1, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag(Optional($0)) }
@@ -142,6 +144,18 @@ struct DownloadRuleFields: SwiftUI.View {
                 }
             }
         }.macContentFont(.body)
+    }
+
+    @ViewBuilder private func field<Content: SwiftUI.View>(_ label: String,
+                                                          @ViewBuilder content: @escaping () -> Content) -> some SwiftUI.View {
+        if compact {
+            HStack(spacing: 8) {
+                Text(label).lineLimit(1)
+                content()
+            }
+        } else {
+            PodListSheetField(label, content: content)
+        }
     }
 }
 struct BulkDownloadRuleSheet: SwiftUI.View {

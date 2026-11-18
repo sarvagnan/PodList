@@ -8,7 +8,7 @@ import Testing
     struct Row: Identifiable { let id: Int }
     for height: CGFloat in [260, 420, 560] {
         for scale: CGFloat in [1, 2] {
-            let root = PodcastPageLayout { _ in
+            let root = PodcastPageLayout { _, _ in
                 VStack(alignment: .leading) {
                     Text("A Podcast title").macContentFont(.title2).lineLimit(2)
                     Text(String(repeating: "A long description. ", count: 100)).lineLimit(3)
@@ -50,6 +50,55 @@ import Testing
             }
         }
     }
+}
+
+@MainActor @Test(arguments: [1.0, 2.0])
+func expandedPodcastHeaderLeavesControlsAndEpisodeSpaceAbovePlayer(scale: CGFloat) async throws {
+    let viewport: CGFloat = 400
+    let player: CGFloat = 132
+    var subscribeFrame = CGRect.zero
+    var ruleFrame = CGRect.zero
+    var episodesFrame = CGRect.zero
+    let root = PodcastPageLayout { descriptionHeight, compact in
+        VStack(alignment: .leading, spacing: compact ? 6 : 12) {
+            HStack(alignment: .top, spacing: 16) {
+                ArtworkView(url: nil, title: "A podcast", size: compact ? 48 : 96)
+                VStack(alignment: .leading, spacing: compact ? 2 : 6) {
+                    Text("A Podcast with a Longer Title").macContentFont(compact ? .headline : .title2).lineLimit(compact ? 1 : 2)
+                    if !compact { Text("The author").lineLimit(1) }
+                    PodcastDescription(text: String(repeating: "A description with more to read. ", count: 80),
+                        expanded: .constant(true), truncated: .constant(true), maximumHeight: descriptionHeight,
+                        showsToggle: !compact, toggle: {})
+                }
+            }
+            HStack(spacing: 4) {
+                Button("Subscribed") {}
+                Button("Share Podcast", systemImage: "square.and.arrow.up") {}.labelStyle(.iconOnly)
+                Button("Copy Feed Address", systemImage: "doc.on.doc") {}.labelStyle(.iconOnly)
+                Button("Subscription Settings", systemImage: "gearshape") {}.labelStyle(.iconOnly)
+                Button("Show Less", systemImage: "chevron.up") {}.labelStyle(.iconOnly)
+            }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcast")) } action: { subscribeFrame = $0 }
+            DownloadRuleFields(mode: .constant(.allNew), cap: .constant(nil), compact: compact)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcast")) } action: { ruleFrame = $0 }
+            Text("30 Episodes").macContentFont(compact ? .caption : .body)
+        }
+    } episodes: {
+        Color.clear
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("podcast")) } action: { episodesFrame = $0 }
+    }
+    .coordinateSpace(name: "podcast")
+    .macContentFont(.body)
+    .environment(\.macTextScale, scale)
+    .environment(\.libraryPlaybackBarInset, player)
+    let host = NSHostingView(rootView: root)
+    host.frame = CGRect(x: 0, y: 0, width: 320, height: viewport)
+    for _ in 0..<5 { host.layoutSubtreeIfNeeded(); await Task.yield() }
+    #expect(!subscribeFrame.isEmpty)
+    #expect(subscribeFrame.maxY <= ruleFrame.minY)
+    #expect(!ruleFrame.isEmpty)
+    #expect(ruleFrame.maxY < episodesFrame.minY)
+    #expect(episodesFrame.minY <= viewport - player - 44, "There must be space to read an Episode above the player.")
 }
 
 @MainActor @Test func nativeEpisodeTableCanScrollItsLastRowAboveThePlayer() throws {
