@@ -10,6 +10,7 @@ let package = Package(
         .library(name: "PodListData", targets: ["PodListData"]),
         .library(name: "PodListUI", targets: ["PodListUI"]),
         .executable(name: "PodListMac", targets: ["PodListMac"]),
+        .executable(name: "PodListShare", targets: ["PodListShare"]),
         .executable(name: "podlist-mcp", targets: ["PodListMCPBridge"])
     ],
     targets: [
@@ -19,6 +20,11 @@ let package = Package(
         .target(name: "PodListUI", dependencies: ["PodListDomain", "PodListData", "PodListAutomation"], resources: [.process("Resources")]),
         .executableTarget(name: "PodListMCPBridge", dependencies: ["PodListAutomation"]),
         .executableTarget(name: "PodListMac", dependencies: ["PodListUI"]),
+        // A Mac appex starts at the system extension entry point.
+        .executableTarget(name: "PodListShare",
+                          swiftSettings: [.unsafeFlags(["-application-extension"], .when(platforms: [.macOS]))],
+                          linkerSettings: [.unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain",
+                                                        "-Xlinker", "-application_extension"], .when(platforms: [.macOS]))]),
         .target(name: "ProtocolTestSupport", path: "Tests/ProtocolTestSupport"),
         .testTarget(name: "PodListDomainTests", dependencies: ["PodListDomain", "ProtocolTestSupport"]),
         .testTarget(name: "PodListDataTests", dependencies: ["PodListData", "ProtocolTestSupport"]),

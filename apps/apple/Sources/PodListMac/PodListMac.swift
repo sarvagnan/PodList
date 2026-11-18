@@ -11,6 +11,7 @@ struct PodListMac: App {
     @State private var spotlight = SpotlightIndex()
     @State private var pendingLinks: [PodListLink] = []
     @State private var linkError = false
+    @State private var pendingPodcastAddress: String?
     @State private var pendingOPMLFiles: [URL] = []
     @State private var textSize = MacTextSizePreference()
 
@@ -48,6 +49,26 @@ struct PodListMac: App {
         for link in links { model.openLibraryLink(link, reopen: { openWindow(id: "library") }) }
     }
 
+    private func stageSharedPodcast() {
+        guard let address = pendingPodcastAddress, let editor = model.libraryEditing else { return }
+        pendingPodcastAddress = nil
+        _ = editor.stagePodcastAddress(address)
+    }
+
+    private func routeSharedPodcast(_ url: URL) {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              parts.path.isEmpty, parts.user == nil, parts.password == nil, parts.port == nil,
+              parts.fragment == nil, let items = parts.queryItems, items.count == 1,
+              let item = items.first, item.name == "url",
+              let address = item.value, PodListLink.feedSelection(address) != nil else {
+            linkError = true
+            return
+        }
+        pendingPodcastAddress = address
+        stageSharedPodcast()
+        openWindow(id: "add-podcasts")
+    }
+
     var body: some Scene {
         WindowGroup("PodList", id: "library", for: LibraryWindowTarget.self) { $target in
             PodListWindow(app: model, initialDestination: target?.destination).macTextSize(textSize)
@@ -67,7 +88,8 @@ struct PodListMac: App {
                 .onChange(of: model.library?.snapshot.isReady) { _, _ in routeLinks() }
                 .onOpenURL { url in
                     if url.scheme?.lowercased() == "podlist" {
-                        if let link = PodListLink(url: url) { pendingLinks.append(link); routeLinks() }
+                        if url.host?.lowercased() == "add-podcast" { routeSharedPodcast(url) }
+                        else if let link = PodListLink(url: url) { pendingLinks.append(link); routeLinks() }
                         else { linkError = true }
                         return
                     }
@@ -75,7 +97,10 @@ struct PodListMac: App {
                     pendingOPMLFiles.append(url)
                     stageOPMLFiles()
                 }
-                .onChange(of: model.libraryEditing?.scope) { _, _ in stageOPMLFiles() }
+                .onChange(of: model.libraryEditing?.scope) { _, _ in
+                    stageOPMLFiles()
+                    stageSharedPodcast()
+                }
                 .onChange(of: model.libraryEditing?.busy) { _, _ in stageOPMLFiles() }
         }
         .defaultSize(width: 1180, height: 760)

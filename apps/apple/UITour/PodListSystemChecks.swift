@@ -169,6 +169,49 @@ final class PodListSystemChecks: XCTestCase {
         let error: String?
     }
 
+    func testShareFromSafari() throws {
+        try launch(mcp: false)
+        defer { app.terminate() }
+        let addPodcasts = app.windows["Add Podcasts"]
+        XCTAssertFalse(addPodcasts.exists)
+
+        let origin = try XCTUnwrap(ProcessInfo.processInfo.environment["PODLIST_UI_SERVER_ORIGIN"])
+        let address = try XCTUnwrap(URL(string: origin + "/api/health?share=podcast&from=system-check"))
+        let safariID = "com.apple.Safari"
+        let safari = XCUIApplication(bundleIdentifier: safariID)
+        let safariURL = try XCTUnwrap(NSWorkspace.shared.urlForApplication(withBundleIdentifier: safariID))
+        let opened = expectation(description: "Open the guest fixture URL in Safari")
+        NSWorkspace.shared.open([address], withApplicationAt: safariURL, configuration: .init()) { _, error in
+            XCTAssertNil(error)
+            opened.fulfill()
+        }
+        wait(for: [opened], timeout: 30)
+        defer {
+            if safari.state != .notRunning { safari.terminate() }
+        }
+        XCTAssertTrue(safari.windows.firstMatch.waitForExistence(timeout: 30))
+        let shareButton = safari.toolbars.buttons["Share"].firstMatch
+        if shareButton.waitForExistence(timeout: 5) {
+            shareButton.click()
+        } else {
+            safari.menuBars.menuBarItems["File"].click()
+            safari.menuItems.matching(NSPredicate(format: "label BEGINSWITH %@", "Share")).firstMatch.click()
+        }
+        let destination = safari.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@ OR title == %@", "PodList", "PodList")).firstMatch
+        let listed = destination.waitForExistence(timeout: 20)
+        if !listed { capture(safari, name: "safari-share-picker") }
+        XCTAssertTrue(listed, "Safari's Share picker must offer PodList for the fixture URL")
+        destination.click()
+
+        XCTAssertTrue(addPodcasts.waitForExistence(timeout: 30))
+        let query = addPodcasts.textFields["addPodcasts.query"]
+        XCTAssertTrue(query.waitForExistence(timeout: 10))
+        XCTAssertEqual(query.value as? String, address.absoluteString)
+        XCTAssertTrue(addPodcasts.buttons["Search"].isEnabled, "The shared address must be staged for Search")
+        capture(addPodcasts, name: "share-staged-address")
+    }
+
     func testMCPWindowLifecycle() throws {
         try launch(mcp: true)
         defer { app.terminate() }

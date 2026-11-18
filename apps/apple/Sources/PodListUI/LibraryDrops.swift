@@ -63,7 +63,7 @@ struct LibraryDropBatch: Sendable {
 }
 
 extension LibraryEditingModel {
-    /// A Service stages exactly the same feed input used by Add Podcasts. No subscription is made.
+    /// Services and the Share extension fill the Add Podcasts field for review.
     public func stagePodcastAddress(_ selection: String) -> Bool {
         guard let url = PodListLink.feedSelection(selection) else { return false }
         let state = podcastDiscovery

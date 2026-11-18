@@ -6,6 +6,7 @@ export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
 swift build --scratch-path .build --disable-sandbox --product PodListMac
 swift build --scratch-path .build --disable-sandbox --product podlist-mcp
+swift build --scratch-path .build --disable-sandbox --product PodListShare
 bin_dir="$(swift build --scratch-path .build --disable-sandbox --show-bin-path)"
 app="$PWD/.build/PodList.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" .build/app-intents
@@ -54,10 +55,12 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 </dict></array>
 </dict></plist>
 PLIST
-# The URL scheme and Service register with LaunchServices wherever macOS sees the
-# bundle, so the host development build leaves them out (system-integration-keys.plist).
+# The default host bundle leaves out discoverable integrations. Remove the plugin
+# too when rebuilding a previously opted-in bundle.
+rm -rf "$app/Contents/PlugIns/PodListShare.appex"
 if [ "${PODLIST_SYSTEM_INTEGRATION:-0}" = 1 ]; then
     /usr/libexec/PlistBuddy -c "Merge $(dirname "$0")/system-integration-keys.plist" "$app/Contents/Info.plist"
+    /bin/bash "$(dirname "$0")/embed-mac-share-extension.sh" "$app" "$bin_dir/PodListShare"
 fi
 # SwiftPM builds executables and module resources, not the main app's asset
 # catalogue. Compile the global accent into the main bundle before signing.
