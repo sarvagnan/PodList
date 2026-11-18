@@ -17,8 +17,10 @@ final class PodListUITour: XCTestCase {
     func testDark() throws { try tour("Dark") }
     func testBordersLight() throws { try tour("Light", showBorders: true) }
     func testBordersDark() throws { try tour("Dark", showBorders: true) }
+    /// ui-tour.sh --timings: only the response-timing runs, for quick performance checks.
+    func testTimingsLight() throws { try tour("Light", timingsOnly: true) }
 
-    private func tour(_ style: String, showBorders: Bool = false) throws {
+    private func tour(_ style: String, showBorders: Bool = false, timingsOnly: Bool = false) throws {
         continueAfterFailure = false
         appearance = (showBorders ? "borders-" : "") + style.lowercased()
         let env = ProcessInfo.processInfo.environment
@@ -68,6 +70,11 @@ final class PodListUITour: XCTestCase {
         try ready(library)
         try ready(library.buttons["Open Market Hours, Subscription"])
         try ready(library.buttons["Open Now Playing"])
+        if timingsOnly {
+            // A fresh VM and app are cold; the full tour times them about ten minutes in.
+            try recordResponseTimings(from: timings, warmUpRuns: 3)
+            return
+        }
         if showBorders {
             try captureShowBorders()
             return
@@ -583,7 +590,7 @@ final class PodListUITour: XCTestCase {
         try assertEpisodeTableLayout(inPlaylist: true)
     }
 
-    private func recordResponseTimings(from output: URL) throws {
+    private func recordResponseTimings(from output: URL, warmUpRuns: Int = 0) throws {
         let newThisWeek = sidebarItem("New this week")
         let episodeTitle = "Who sets the price of rice?"
         let listedEpisode = text(episodeTitle, in: episodeTable(in: library))
@@ -593,6 +600,7 @@ final class PodListUITour: XCTestCase {
         let filteredWindow = app.windows.matching(NSPredicate(format: "title BEGINSWITH %@", "New this week – 1 Episode")).firstMatch
         let filteredEpisode = text(episodeTitle, in: episodeTable(in: filteredWindow))
         let runCount = 5
+        var recording = false
         var inputs: [String: [Range<TimeInterval>]] = [:]
         @discardableResult
         func perform(_ step: String, until result: XCUIElement, input: () -> Void) -> Bool {
@@ -600,11 +608,14 @@ final class PodListUITour: XCTestCase {
             // setup and screenshot captures. Both times in each delta come from the app.
             let start = CACurrentMediaTime()
             input()
-            inputs[step, default: []].append(start..<CACurrentMediaTime())
+            if recording { inputs[step, default: []].append(start..<CACurrentMediaTime()) }
             return result.exists || result.waitForExistence(timeout: 30)
         }
 
-        for _ in 0..<runCount {
+        // ui-tour-guest.sh starts an opt-in profiler when this step appears in the log.
+        XCTContext.runActivity(named: "Begin response timing runs") { _ in }
+        for run in 0..<(warmUpRuns + runCount) {
+            recording = run >= warmUpRuns
             try navigate("Subscriptions")
             try ready(library.buttons["Open Market Hours, Subscription"])
 

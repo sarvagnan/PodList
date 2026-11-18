@@ -3,13 +3,15 @@
 set -euo pipefail
 mode=tour
 if [ "${1:-}" = --system-checks ]; then mode=system; shift; fi
-if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks] <outdir>" >&2; exit 2; fi
+if [ "${1:-}" = --timings ]; then mode=timings; shift; fi
+if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks | --timings] <outdir>" >&2; exit 2; fi
 if [ -z "${PODLIST_UI_VM:-}" ]; then
     echo "All UI tours require PODLIST_UI_VM (never run on the owner's desktop)" >&2
     exit 2
 fi
 styles="light dark borders-light borders-dark"
 if [ "$mode" = system ]; then styles=system; fi
+if [ "$mode" = timings ]; then styles=light; fi
 mkdir -p "$1"
 out="$(cd "$1" && pwd)"
 if [ -n "$(ls -A "$out")" ]; then echo "Output directory must be empty: $out" >&2; exit 2; fi
@@ -142,6 +144,8 @@ if [ -n "$vm" ]; then
         sleep 1
     done
     tart exec "$vm_clone" true
+    # Opt-in: profile PodList during the response-timing runs (timings are then perturbed).
+    if [ "${PODLIST_UI_PROFILE:-}" = 1 ]; then touch "$run/profile"; fi
     status=0
     tart exec "$vm_clone" /bin/bash "/Volumes/My Shared Files/repo/apps/apple/scripts/ui-tour-guest.sh" \
         "$guest_run" "$mode" >> "$out/xcodebuild.log" 2>&1 || status=$?
@@ -191,6 +195,23 @@ if not passed:
     raise SystemExit('VM system checks incomplete; inspect xcresults, attachments and logs')
 PYSUMMARY
     printf 'System checks exported to %s\n' "$out"
+    exit 0
+fi
+
+if [ "$mode" = timings ]; then
+    # Response timings only (Light). PODLIST_UI_PROFILE=1 adds a Time Profiler trace.
+    xcrun xcresulttool export attachments --path "$out/Tour.xcresult" --output-path "$out/attachments"
+    python3 - "$out" <<'PYTIMINGS'
+import json, shutil, sys
+from pathlib import Path
+out = Path(sys.argv[1])
+for test in json.loads((out / 'attachments/manifest.json').read_text()):
+    for item in test['attachments']:
+        if item['suggestedHumanReadableName'].startswith('light--timings'):
+            shutil.copyfile(out / 'attachments' / item['exportedFileName'], out / 'timings.txt')
+PYTIMINGS
+    [ "$status" = 0 ] && [ -f "$out/timings.txt" ] || { echo "Timing run incomplete; see xcodebuild.log" >&2; exit 1; }
+    cat "$out/timings.txt"
     exit 0
 fi
 

@@ -8,7 +8,7 @@ shared='/Volumes/My Shared Files'
 [ "$run" = /private/tmp/podlist-uitour-run ] && [ -d "$shared/run" ] || {
     echo 'Guest runner requires the disposable Tart staging directory and share' >&2; exit 2;
 }
-case "$mode" in tour|system) ;; *) exit 2;; esac
+case "$mode" in tour|system|timings) ;; *) exit 2;; esac
 rm -rf "$run"
 mkdir -p "$run"
 touch "$run/uitour-vm"
@@ -45,6 +45,25 @@ watch_for_hangs() {
         /usr/bin/sample PodListMac 10 -file "$shared/run/guest-diagnostics/hang-sample-$(date +%H%M%S).txt" > /dev/null 2>&1 || true
     done
 }
+profiler=""
+# PODLIST_UI_PROFILE=1 on the host: record a Time Profiler trace of PodList for each
+# main pass's response-timing runs, falling back to sample(1) if xctrace can't attach.
+profile_timings() {
+    local seen=0 count pid out
+    while sleep 1; do
+        count="$(grep -c 'Begin response timing runs' "$test_output" 2>/dev/null || true)"
+        [ "${count:-0}" -gt "$seen" ] || continue
+        seen="$count"
+        pid="$(pgrep -nx PodListMac || true)"
+        [ -n "$pid" ] || continue
+        out="$shared/run/guest-diagnostics/timings-profile-$seen"
+        mkdir -p "$shared/run/guest-diagnostics"
+        xcrun xctrace record --template 'Time Profiler' --attach "$pid" --time-limit 150s \
+            --output "$run/timings-profile-$seen.trace" > "$out-xctrace.log" 2>&1 \
+            && ditto "$run/timings-profile-$seen.trace" "$out.trace" \
+            || /usr/bin/sample "$pid" 150 1 -mayDie -file "$out-sample.txt" > /dev/null 2>&1 || true
+    done
+}
 run_tests() {
     # pipefail makes a failed xcodebuild the pipeline's status; record it and go on.
     xcodebuild test-without-building "$@" 2>&1 | tee -a "$test_output" || result=$?
@@ -52,6 +71,7 @@ run_tests() {
 finish() {
     local status=$?
     if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
+    if [ -n "$profiler" ]; then kill "$profiler" 2>/dev/null || true; wait "$profiler" 2>/dev/null || true; fi
     if [ "$reset_show_borders" = true ]; then set_show_borders false || status=$?; fi
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
@@ -91,9 +111,26 @@ xctestruns=(*.xctestrun)
 [ "${#xctestruns[@]}" -eq 1 ] || { echo 'Expected one xctestrun' >&2; exit 1; }
 xctestrun="${xctestruns[0]}"
 /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
-if [ "$mode" = tour ]; then
+if [ "$mode" = timings ]; then
+    # A freshly booted clone indexes and launches services for several minutes, which
+    # roughly triples these figures. Wait (up to 12 min) for the 1-minute load to settle.
+    for ((i = 0; i < 72; i++)); do
+        load="$(sysctl -n vm.loadavg | awk '{print $2}')"
+        echo "Guest load average before timings: $load"
+        awk -v l="$load" 'BEGIN { exit !(l < 0.8) }' && break
+        sleep 10
+    done
+    if [ -f "$shared/run/profile" ]; then profile_timings & profiler=$!; fi
+    set_show_borders false
+    run_tests -xctestrun "$xctestrun" \
+        -destination 'platform=macOS' -parallel-testing-enabled NO \
+        -only-testing:PodListUITour/PodListUITour/testTimingsLight \
+        -test-timeouts-enabled YES -default-test-execution-time-allowance 600 \
+        -maximum-test-execution-time-allowance 900 -resultBundlePath "$run/Tour.xcresult"
+elif [ "$mode" = tour ]; then
     watch_for_hangs &
     watcher=$!
+    if [ -f "$shared/run/profile" ]; then profile_timings & profiler=$!; fi
     set_show_borders false
     run_tests -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \

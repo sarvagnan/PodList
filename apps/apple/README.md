@@ -574,6 +574,13 @@ Timing is compiled only in DEBUG and requires both a disposable
 `app.podlist.uitour.*` bundle ID and the tour's `PODLIST_UI_TIMINGS_FILE` launch
 environment value, an absolute file path inside temporary storage.
 
+For quick performance checks, `PODLIST_UI_VM=podlist-ui scripts/ui-tour.sh --timings <empty-outdir>`
+runs only the Light timing runs and prints `timings.txt` (about 15–20 minutes). The guest first
+waits for its load average to settle, because a freshly booted clone roughly triples these
+figures, and then does three unrecorded warm-up rounds. Add `PODLIST_UI_PROFILE=1` to either
+mode to record a Time Profiler trace of PodList during the timing runs in
+`guest-diagnostics/timings-profile-N.trace`; the profiler perturbs that run's timings.
+
 The generated README lists every screen and reports any missing required
 attachments out of 183.
 `Tour.xcresult`, `ShowBorders.xcresult`, raw attachments and build/demo/test logs
