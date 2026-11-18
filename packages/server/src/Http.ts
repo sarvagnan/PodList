@@ -8,8 +8,8 @@ import {
   System
 } from "@podlist/api"
 import { openApiDocument } from "@podlist/api/openapi"
-import { Operation, Protocol } from "@podlist/domain"
-import { ByteSize, Config, Effect, Layer, Option, Schema } from "effect"
+import { Library as Domain, Operation, Protocol } from "@podlist/domain"
+import { ByteSize, Config, Effect, Layer, Option, Schema, Struct } from "effect"
 import { HttpIncomingMessage, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, OpenApi } from "effect/http-api"
 import { Catalogue } from "./Catalogue.ts"
@@ -19,6 +19,12 @@ import { Poller } from "./Poller.ts"
 import * as Reads from "./Reads.ts"
 import { Subscriptions } from "./Subscriptions.ts"
 import { SyncStore } from "./SyncStore.ts"
+
+const readsWebsiteUrls = (declared: string | undefined) =>
+  Protocol.readerVersion(declared) >= Protocol.websiteUrlsVersion
+
+const legacySubscription = (subscription: Domain.Subscription) =>
+  new Domain.Subscription(Struct.omit(subscription, ["websiteUrl"]))
 
 export const SystemHandlers = HttpApiBuilder.group(
   PodListApi,
@@ -70,13 +76,8 @@ export const SyncHandlers = HttpApiBuilder.group(
           })
         }),
       pull: ({ query, headers }) => {
-        const declared = headers[Protocol.versionHeader]
-        const clientVersion = declared === undefined ? Protocol.legacyVersion : Number(declared)
         return store
-          .pull(
-            query.since,
-            Number.isSafeInteger(clientVersion) && clientVersion >= 1 ? clientVersion : 0
-          )
+          .pull(query.since, Protocol.readerVersion(headers[Protocol.versionHeader]))
           .pipe(Effect.map((r) => new Sync.PullResponse(r)))
       }
     })
@@ -95,10 +96,25 @@ export const LibraryHandlers = HttpApiBuilder.group(
         chapters
           .forEpisode(params.id)
           .pipe(Effect.mapError(() => new LibraryApi.EpisodeNotFound())),
-      changes: ({ query }) =>
+      changes: ({ query, headers }) =>
         catalogue
           .changes(query.since, query.limit === undefined ? undefined : Math.min(query.limit, 2000))
-          .pipe(Effect.map((c) => new LibraryApi.CatalogueChanges(c))),
+          .pipe(
+            Effect.map(
+              (page) =>
+                new LibraryApi.CatalogueChanges(
+                  readsWebsiteUrls(headers[Protocol.versionHeader])
+                    ? page
+                    : {
+                        ...page,
+                        subscriptions: page.subscriptions.map(legacySubscription),
+                        episodes: page.episodes.map(
+                          (episode) => new Domain.Episode(Struct.omit(episode, ["websiteUrl"]))
+                        )
+                      }
+                )
+            )
+          ),
       refreshAll: () =>
         poller
           .refreshAll({ respectBackoff: false })
@@ -123,24 +139,41 @@ export const SubscriptionsHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const subscriptions = yield* Subscriptions
     return handlers.handleAll({
-      list: () => subscriptions.list,
-      readPodcast: ({ payload }) =>
-        subscriptions
-          .readPodcast(payload.feedUrl)
-          .pipe(Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))),
+      list: ({ headers }) =>
+        readsWebsiteUrls(headers[Protocol.versionHeader])
+          ? subscriptions.list
+          : subscriptions.list.pipe(Effect.map((rows) => rows.map(legacySubscription))),
+      readPodcast: ({ payload, headers }) =>
+        subscriptions.readPodcast(payload.feedUrl).pipe(
+          Effect.map((feed) =>
+            readsWebsiteUrls(headers[Protocol.versionHeader])
+              ? feed
+              : new SubscriptionsApi.PodcastFeed({
+                  ...Struct.omit(feed, ["link"]),
+                  episodes: feed.episodes.map((episode) => Struct.omit(episode, ["link"]))
+                })
+          ),
+          Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))
+        ),
       bringEpisode: ({ payload }) =>
         subscriptions
           .bringEpisode(payload.feedUrl, payload.guid)
           .pipe(Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))),
       bringOver: ({ payload }) => subscriptions.bringOver(payload),
-      subscribe: ({ payload }) =>
-        subscriptions
-          .subscribe(payload.feedUrl)
-          .pipe(Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))),
-      unsubscribe: ({ params }) =>
-        subscriptions
-          .unsubscribe(params.id)
-          .pipe(Effect.mapError(() => new LibraryApi.SubscriptionNotFound())),
+      subscribe: ({ payload, headers }) =>
+        subscriptions.subscribe(payload.feedUrl).pipe(
+          Effect.map(
+            readsWebsiteUrls(headers[Protocol.versionHeader]) ? (row) => row : legacySubscription
+          ),
+          Effect.mapError((e) => new LibraryApi.FeedFailed({ message: e.message }))
+        ),
+      unsubscribe: ({ params, headers }) =>
+        subscriptions.unsubscribe(params.id).pipe(
+          Effect.map(
+            readsWebsiteUrls(headers[Protocol.versionHeader]) ? (row) => row : legacySubscription
+          ),
+          Effect.mapError(() => new LibraryApi.SubscriptionNotFound())
+        ),
       importOpml: ({ payload }) =>
         subscriptions
           .importOpml(payload.opml)

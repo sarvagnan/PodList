@@ -156,15 +156,18 @@ class LocalDatabase(path: String, private val standalone: Boolean = false) : Aut
             "description" to s.description, "artwork_url" to s.artwork?.url, "subscribed_at" to s.subscribedAt,
             "unsubscribed_at" to s.unsubscribedAt, "played_threshold" to s.playedThreshold,
             "playback_settings" to ProtocolJson.encodeToString(s.playbackSettings)
-        ))
+        ).apply { (s.websiteUrl as? WebsiteUrl.Published)?.let { put("website_url", it.value) } })
         for (e in episodes) upsert("episode", linkedMapOf(
             "id" to e.id, "subscription_id" to e.subscriptionId, "guid" to e.guid, "title" to e.title,
             "title_folded" to Mentions.fold(e.title), "description_folded" to Mentions.fold(e.description),
             "description" to e.description, "published" to e.published, "duration" to e.duration,
             "audio_url" to e.audioUrl, "artwork_url" to e.artwork?.url,
             "chapters" to ProtocolJson.encodeToString(e.chapters), "audio_updated_at" to e.audioUpdatedAt
-        ))
-        cursor?.let { setMeta("catalogueCursor", it.toString()) }
+        ).apply { (e.websiteUrl as? WebsiteUrl.Published)?.let { put("website_url", it.value) } })
+        cursor?.let {
+            setMeta("catalogueCursor", it.toString())
+            setMeta("catalogueReaderV6", "true")
+        }
     }
 
     private fun upsert(table: String, row: Row) {

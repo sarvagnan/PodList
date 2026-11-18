@@ -1,4 +1,4 @@
-# PodList sync protocol (version 5)
+# PodList sync protocol (version 6)
 
 Implementations in every language must pass these JSON vectors. No TypeScript execution or SQL parsing is needed to consume them. Use the language in [CONTEXT.md](../../CONTEXT.md). The online-only web client uses server reads and tab-memory pending edits; Android, Mac and Electron keep local databases (ADR 0011).
 
@@ -14,17 +14,17 @@ semantics, increments the protocol version. A bug fix that restores already
 specified behavior is not a wire change. Versions are cumulative and frozen;
 never infer compatibility from a new discriminator or skip an unknown operation.
 
-Clients send `x-podlist-protocol-version: 5` on every `/api/sync/push` and
-`/api/sync/pull` request. This is the version they can read, not an operation
-allowlist. Missing means **4**, the deployed baseline before PurgePlaylist.
+Clients send `x-podlist-protocol-version: 6` on sync, Library catalogue,
+Subscription and podcast preview requests. The declaration identifies the version
+they can read. Missing means **4**, the deployed baseline before PurgePlaylist.
 Invalid or pre-v4 declarations receive the structured pull refusal below; v1–v3
 are archival inventories, not supported negotiation targets. A future client can
 read the current log. The declaration does not grant authorization (ADR 0004).
 
-`GET /api/health` returns `{ "status": "ok", "protocolVersion": 5 }`, with an
+`GET /api/health` returns `{ "status": "ok", "protocolVersion": 6 }`, with an
 optional `release`. `supportedOperations` is removed: it duplicates the frozen
 version registry and previously let PurgePlaylist ship under version 4. Clients
-ignore that old extension list and require server version 5 for PurgePlaylist.
+ignore that old extension list and require server version 5 or later for PurgePlaylist.
 A server temporarily deployed with PurgePlaylist while reporting 4 must update
 before new clients will offer permanent deletion.
 
@@ -41,7 +41,7 @@ Before decoding the closed union or changing State, the server inspects every
 Change discriminator. Any unknown type rejects the **whole batch** with HTTP 422:
 
 ```json
-{ "_tag": "UnsupportedOperation", "serverProtocolVersion": 5,
+{ "_tag": "UnsupportedOperation", "serverProtocolVersion": 6,
   "unsupportedOperations": ["FutureOperation"] }
 ```
 
@@ -78,6 +78,27 @@ wire change must additionally gate that response by its introducing version;
 operation gating alone does not authorize a new snapshot shape. A v4 client with
 no pending v5 operations can continue syncing. Nothing is translated or dropped.
 
+### Publisher links in the Library
+
+Version 6 adds optional `websiteUrl` fields to Subscription and Episode rows in
+`GET /api/library/changes` and to Subscription responses from list, subscribe and
+unsubscribe. The Subscription value comes from the channel's RSS `<link>`. The
+Episode value comes from the item's RSS `<link>`. Feed previews from
+`POST /api/podcasts/read` expose the same values as `link` on the feed and on
+each item.
+
+Servers omit those keys for readers declaring versions below 6, including
+requests without a version header. Older servers also omit them. With a
+version 6 or later reader, a string supplies the publisher link and an explicit
+null indicates no link. A missing key leaves a client's cached value alone.
+The native clients replay the catalogue once on upgrade to recover links for
+rows they previously synced. The State cursor and pending edits remain intact.
+
+Server migration `0005_website_urls` adds nullable columns and clears the saved
+feed validators. The next ordinary refresh reads the complete feed and adds
+links through the normal catalogue change triggers. An Episode that has already
+left the feed cannot gain a link from that refresh.
+
 ### Paused client state
 
 HTTP 426 `UpdateRequired`, HTTP 422 `UnsupportedOperation`, and an unknown Change
@@ -107,7 +128,7 @@ The same limitation applies to already-open old web bundles. Install the updated
 client to get the paused state and actionable message. Future rollouts need no
 reader-first ordering because clients implementing this rule stop safely.
 
-Update the server and clients; only a server reporting v5 enables new purge edits.
+Update the server and clients. New purge edits require a server reporting v5 or later.
 Do not roll a server binary back past operation types already in its durable log:
 an old server cannot decode that log. This mechanism protects peers and queued
 work; it does not migrate a newer database/log back to an older implementation.
@@ -126,6 +147,8 @@ under v4 without individual bumps; their exact historical release boundaries are
 Version 5 adds PurgePlaylist and the negotiation/error behavior specified above.
 The unversioned PurgePlaylist release reporting v4 is an acknowledged historical
 violation, not an alternative v4 definition.
+Version 6 adds the publisher links described above. Its operation registry
+matches version 5.
 
 <!-- BEGIN GENERATED SYNC VERSIONS -->
 | Version | Change | Readable operation types |
@@ -135,6 +158,7 @@ violation, not an alternative v4 definition.
 | 3 | Deliberate Timeline edits in State | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
 | 4 | Permanent listening log and RecordListening; frozen deployed v4 baseline | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
 | 5 | PurgePlaylist; version negotiation and typed sync refusals | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `PurgePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
+| 6 | Podcast and Episode website links in Library and feed preview responses | `AddEntry`, `MoveEntry`, `RemoveEntry`, `SetCursor`, `ReportPosition`, `RecordListening`, `MarkPlayed`, `MarkUnplayed`, `MarkSubscriptionPlayed`, `SetStar`, `CreatePlaylist`, `RenamePlaylist`, `SetClearOnPlayed`, `DeletePlaylist`, `RestorePlaylist`, `PurgePlaylist`, `SetTrashDays`, `SetActivePlaylist`, `Rewind`, `SaveView`, `DeleteView`, `SetDownloadRule`, `SetPlaybackSettings`, `SetSubscriptionOverrides` |
 <!-- END GENERATED SYNC VERSIONS -->
 
 ## Adding an operation or changing the wire

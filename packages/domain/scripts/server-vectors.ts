@@ -73,7 +73,9 @@ export const buildServerVectors = () =>
     const episodes = library.episodes.filter((e) => ["a", "b", "c"].includes(e.id))
     let state = initialState()
     // JSON round-trip removes Schema class prototypes for portable fixture documents.
-    let expectedSubscriptions = JSON.parse(JSON.stringify(subscriptions)) as Array<{
+    let expectedSubscriptions = JSON.parse(
+      JSON.stringify(subscriptions.map((s) => ({ ...s, websiteUrl: null })))
+    ) as Array<{
       id: string
       playbackSettings: object
       playedThreshold: number | null

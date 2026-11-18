@@ -124,7 +124,12 @@ export class Transport extends Context.Service<
               )
             }),
           catalogue: (since) =>
-            client.library.changes({ query: { since } }).pipe(Effect.mapError(offline)),
+            client.library
+              .changes({
+                query: { since },
+                headers: { [Protocol.versionHeader]: String(Protocol.version) }
+              })
+              .pipe(Effect.mapError(offline)),
           chapters: (id) =>
             client.library.chapters({ params: { id } }).pipe(Effect.mapError(offline))
         })

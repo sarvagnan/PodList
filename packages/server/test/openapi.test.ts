@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs"
 import { expect, it } from "@effect/vitest"
-import { Layer } from "effect"
-import { FetchHttpClient, HttpRouter, HttpServer } from "effect/http"
+import { Protocol } from "@podlist/domain"
+import { Effect, Layer } from "effect"
+import {
+  FetchHttpClient,
+  HttpClient,
+  HttpClientResponse,
+  HttpRouter,
+  HttpServer
+} from "effect/http"
 import { Catalogue } from "../src/Catalogue.ts"
 import { Chapters } from "../src/Chapters.ts"
 import * as Database from "../src/Database.ts"
@@ -12,7 +19,7 @@ import { Poller } from "../src/Poller.ts"
 import { Subscriptions } from "../src/Subscriptions.ts"
 import { SyncStore } from "../src/SyncStore.ts"
 
-const createAPI = () => {
+const createAPI = (network: Layer.Layer<HttpClient.HttpClient> = FetchHttpClient.layer) => {
   const services = Layer.mergeAll(
     SyncStore.layer,
     Poller.layer,
@@ -22,7 +29,7 @@ const createAPI = () => {
     Chapters.layer
   ).pipe(
     Layer.provideMerge(Library.layer),
-    Layer.provide(FetchHttpClient.layer),
+    Layer.provide(network),
     Layer.provideMerge(Database.layer(":memory:"))
   )
   return HttpRouter.toWebHandler(
@@ -31,12 +38,77 @@ const createAPI = () => {
   )
 }
 
+it("serves Library and preview links only to readers declaring protocol v6 or later", async () => {
+  const xml = readFileSync(new URL("fixtures/night-shift.xml", import.meta.url), "utf8")
+  const network = Layer.succeed(
+    HttpClient.HttpClient,
+    HttpClient.make((request) =>
+      Effect.succeed(HttpClientResponse.fromWeb(request, new Response(xml)))
+    )
+  )
+  const { handler, dispose } = createAPI(network)
+  const feed = { feedUrl: "https://example.test/night.xml" }
+  const request = (path: string, version?: string, payload?: unknown) =>
+    handler(
+      new Request(`http://podlist.test/api/${path}`, {
+        method: payload === undefined ? "GET" : "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(version === undefined ? {} : { [Protocol.versionHeader]: version })
+        },
+        ...(payload === undefined ? {} : { body: JSON.stringify(payload) })
+      })
+    )
+  try {
+    const podcast = "https://example.test/night-shift"
+    const episode = "https://example.test/episodes/0212?from=rss&lang=en"
+    const followed = await request("subscriptions", "6", feed)
+    expect(followed.status).toBe(200)
+    expect(await followed.json()).toMatchObject({ websiteUrl: podcast })
+    type WireRow = Record<string, unknown>
+    const linked = (await request("library/changes?since=0", "6").then((r) => r.json())) as {
+      subscriptions: WireRow[]
+      episodes: WireRow[]
+    }
+    expect(linked).toMatchObject({
+      subscriptions: [{ websiteUrl: podcast }]
+    })
+    expect(linked.episodes).toHaveLength(2)
+    expect(linked.episodes.map((row) => row.websiteUrl)).toEqual(
+      expect.arrayContaining([episode, null])
+    )
+    expect(await request("podcasts/read", "7", feed).then((r) => r.json())).toMatchObject({
+      link: podcast,
+      episodes: [{ link: episode }, { link: null }]
+    })
+    for (const version of [undefined, "4", "5", "invalid"]) {
+      const page = await request("library/changes?since=0", version).then((r) => r.json())
+      expect(page).toEqual({
+        ...linked,
+        subscriptions: linked.subscriptions.map(({ websiteUrl: _, ...row }) => row),
+        episodes: linked.episodes.map(({ websiteUrl: _, ...row }) => row)
+      })
+      const [subscription] = (await request("subscriptions", version).then((r) =>
+        r.json()
+      )) as WireRow[]
+      expect(subscription).not.toHaveProperty("websiteUrl")
+      const preview = (await request("podcasts/read", version, feed).then((r) => r.json())) as {
+        episodes: WireRow[]
+      }
+      expect(preview).not.toHaveProperty("link")
+      for (const item of preview.episodes) expect(item).not.toHaveProperty("link")
+    }
+  } finally {
+    await dispose()
+  }
+})
+
 it("serves the complete committed OpenAPI including raw streams and auth", async () => {
   const { handler, dispose } = createAPI()
   try {
     const health = await handler(new Request("http://podlist.test/api/health"))
     expect(health.status).toBe(200)
-    expect(await health.json()).toMatchObject({ protocolVersion: 5 })
+    expect(await health.json()).toMatchObject({ protocolVersion: 6 })
     const response = await handler(new Request("http://podlist.test/api/openapi.json"))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(
@@ -188,7 +260,7 @@ it("serves the complete committed OpenAPI including raw streams and auth", async
     expect(invalid.status).toBe(422)
     expect(await invalid.json()).toEqual({
       _tag: "UnsupportedOperation",
-      serverProtocolVersion: 5,
+      serverProtocolVersion: 6,
       unsupportedOperations: ["UnknownChange"]
     })
     const unchanged = await handler(new Request("http://podlist.test/api/sync/pull?since=3"))
@@ -227,7 +299,7 @@ it("refuses unreadable pulls and unknown pushes without partial progress", async
     expect(refusedPush.status).toBe(422)
     expect(await refusedPush.json()).toEqual({
       _tag: "UnsupportedOperation",
-      serverProtocolVersion: 5,
+      serverProtocolVersion: 6,
       unsupportedOperations: ["FutureOperation"]
     })
     const empty = await handler(new Request("http://podlist.test/api/sync/pull?since=0"))

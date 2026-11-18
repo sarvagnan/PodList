@@ -40,4 +40,42 @@ class PublisherLinksTest {
         val old = """{"title":"Old feed","author":null,"description":null,"artworkUrl":null,"episodes":[]}"""
         assertNull(ProtocolJson.decodeFromString<ParsedFeed>(old).link)
     }
+
+    @Test fun `server catalogue replay fills share links and distinguishes omission from removal`() {
+        LocalDatabase(":memory:").use { db ->
+            db.ensureState()
+            db.setMeta("catalogueCursor", "8")
+            val sub = Subscription("s", "https://podcast.test/rss", "Deep Field", null, null, null, 0, null, null, PlaybackSettingsOverride())
+            val ep = Episode("e", sub.id, "opaque-id", "Galaxies", "", 0, null, "https://cdn.test/galaxies.mp3", null, emptyList(), null)
+            db.upsertLibrary(listOf(sub), listOf(ep))
+            val podcast = "https://podcast.test"
+            val page = "https://podcast.test/galaxies"
+            val known = LibraryPage(8, listOf(sub.copy(websiteUrl = WebsiteUrl.Published(podcast))), listOf(ep.copy(websiteUrl = WebsiteUrl.Published(page))), false)
+            val omitted = LibraryPage(9, listOf(sub), listOf(ep), false)
+            val cleared = LibraryPage(10, listOf(sub.copy(websiteUrl = WebsiteUrl.Published(null))), listOf(ep.copy(websiteUrl = WebsiteUrl.Published(null))), false)
+            val sync = SyncClient(db, SyncTransport { _, path, body -> when (path) {
+                "/api/devices" -> body!!
+                "/api/sync/pull?since=0" -> ProtocolJson.encodeToString(PullPage(1, State.initial(), emptyList()))
+                "/api/sync/pull?since=1" -> ProtocolJson.encodeToString(PullPage(1, null, emptyList()))
+                "/api/library/changes?since=0" -> ProtocolJson.encodeToString(known)
+                "/api/library/changes?since=8" -> ProtocolJson.encodeToString(omitted)
+                "/api/library/changes?since=9" -> ProtocolJson.encodeToString(cleared)
+                else -> error("Unexpected request $path")
+            } })
+            fun shareLinks(): Pair<String?, String?> {
+                val row = db.podcastEpisodes(sub.id).single()
+                val website = row["podcast_website_url"] as? String
+                return ShareLinks.podcast(website, sub.feedUrl) to ShareLinks.episode(
+                    row["website_url"] as? String, website, sub.feedUrl, ep.audioUrl
+                )
+            }
+            sync.sync()
+            assertEquals(podcast to page, shareLinks())
+            sync.sync()
+            assertEquals(podcast to page, shareLinks())
+            sync.sync()
+            assertEquals(sub.feedUrl to sub.feedUrl, shareLinks())
+            assertEquals("10", db.getMeta("catalogueCursor"))
+        }
+    }
 }

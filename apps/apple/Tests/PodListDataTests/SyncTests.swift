@@ -229,6 +229,41 @@ private func episode() -> Episode {
     await transport.assertFinished()
 }
 
+@Test func catalogueReplayRestoresPublisherLinksAndDistinguishesOmissionFromRemoval() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    try await db.ensureState()
+    try await db.setMeta("catalogueCursor", "8")
+    let sub = subscription(), ep = episode()
+    try await db.upsertLibrary(subscriptions: [sub], episodes: [ep])
+    var linkedSub = sub, linkedEpisode = ep
+    linkedSub.websiteUrl = "https://publisher.test/podcast"
+    linkedEpisode.websiteUrl = "https://publisher.test/episode"
+    var clearedSub = sub, clearedEpisode = ep
+    clearedSub.websiteUrl = .some(nil)
+    clearedEpisode.websiteUrl = .some(nil)
+    let transport = try ScriptedTransport([
+        Step("/api/devices", .echo), Step("/api/sync/pull?since=0", pull(1, snapshot: .initial())),
+        Step("/api/library/changes?since=0", library(8, subscriptions: [linkedSub], episodes: [linkedEpisode])),
+        Step("/api/sync/pull?since=1", pull(1)),
+        Step("/api/library/changes?since=8", library(9, subscriptions: [sub], episodes: [ep])),
+        Step("/api/sync/pull?since=1", pull(1)),
+        Step("/api/library/changes?since=9", library(10, subscriptions: [clearedSub], episodes: [clearedEpisode]))
+    ])
+    let client = SyncClient(db: db, transport: transport)
+    for _ in 0..<2 {
+        try await client.sync()
+        let snapshot = try await db.readLibrary()
+        #expect(snapshot.podcastLinks == [sub.id: "https://publisher.test/podcast"])
+        #expect(snapshot.episodeLinks == [ep.id: "https://publisher.test/episode"])
+    }
+    try await client.sync()
+    let snapshot = try await db.readLibrary()
+    #expect(snapshot.podcastLinks.isEmpty)
+    #expect(snapshot.episodeLinks.isEmpty)
+    #expect(try await db.getMeta("catalogueCursor") == "10")
+    await transport.assertFinished()
+}
+
 @Test func duplicateListeningDeliveryDeduplicatesAcrossRestarts() async throws {
     let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
     defer { try? FileManager.default.removeItem(at: path) }

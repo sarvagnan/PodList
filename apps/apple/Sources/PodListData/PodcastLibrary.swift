@@ -119,7 +119,7 @@ public actor PodcastLibrary {
     public func readPodcast(_ feed: String) async throws -> ParsedFeed {
         if let transport {
             let parsed = try ProtocolJSON.decode(ParsedFeed.self, from: await transport.request(method: "POST", path: "/api/podcasts/read", body: json(["feedUrl": feed])))
-            try await db.cachePublisherLinks(feed, parsed: parsed)
+            try await db.cachePublisherLinks(feed, parsed: parsed, preserveMissing: true)
             return parsed
         }
         guard let url = URL(string: feed) else { throw SyncResponseFailure("Invalid feed address") }
@@ -262,9 +262,11 @@ public actor PodcastLibrary {
 }
 
 extension LocalDatabase {
-    func cachePublisherLinks(_ feed: String, parsed: ParsedFeed) throws {
-        try execute("UPDATE subscription SET website_url = ? WHERE feed_url = ?", [.optional(parsed.link), .text(feed)])
-        for episode in parsed.episodes {
+    func cachePublisherLinks(_ feed: String, parsed: ParsedFeed, preserveMissing: Bool = false) throws {
+        if !preserveMissing || parsed.link != nil {
+            try execute("UPDATE subscription SET website_url = ? WHERE feed_url = ?", [.optional(parsed.link), .text(feed)])
+        }
+        for episode in parsed.episodes where !preserveMissing || episode.link != nil {
             try execute("UPDATE episode SET website_url = ? WHERE subscription_id IN (SELECT id FROM subscription WHERE feed_url = ?) AND guid = ?", [.optional(episode.link), .text(feed), .text(episode.guid)])
         }
     }

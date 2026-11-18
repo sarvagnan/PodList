@@ -1,6 +1,7 @@
 import { Library as Domain } from "@podlist/domain"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api"
+import { versionHeaders } from "./Sync.ts"
 
 export class RefreshSummary extends Schema.Class<RefreshSummary>("@podlist/api/RefreshSummary")({
   checked: Schema.Int,
@@ -55,6 +56,7 @@ export class LibraryApi extends HttpApiGroup.make("library")
   .add(
     HttpApiEndpoint.get("changes", "/library/changes", {
       query: { since: IntFromString, limit: Schema.optionalKey(IntFromString) },
+      headers: versionHeaders,
       success: CatalogueChanges
     })
   )

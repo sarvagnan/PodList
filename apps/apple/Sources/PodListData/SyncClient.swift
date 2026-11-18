@@ -135,7 +135,9 @@ public actor SyncClient {
         try await db.commitPull(page, sent: sent)
     }
     private func syncLibrary() async throws {
-        var cursor = try await db.getMeta("catalogueCursor").flatMap(Int64.init) ?? 0
+        // Rows already mirrored as an older reader may now carry publisher links.
+        let mirroredAsV6 = try await db.getMeta("catalogueReaderV6") == "true"
+        var cursor = mirroredAsV6 ? try await db.getMeta("catalogueCursor").flatMap(Int64.init) ?? 0 : 0
         var waiting: [Episode] = []
         while true {
             try Task.checkCancellation()

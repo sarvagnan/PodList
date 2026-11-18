@@ -13,6 +13,7 @@ const episode = (overrides: Partial<ParsedEpisode>): ParsedEpisode => ({
   published: 1000,
   duration: 2460,
   audioUrl: "https://cdn.test/a.mp3",
+  link: null,
   artworkUrl: null,
   chaptersUrl: null,
   ...overrides
@@ -22,6 +23,7 @@ const feed = (...episodes: Array<ParsedEpisode>): ParsedFeed => ({
   author: null,
   description: null,
   artworkUrl: null,
+  link: null,
   episodes
 })
 

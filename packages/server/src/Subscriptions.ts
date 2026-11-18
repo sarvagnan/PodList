@@ -24,6 +24,7 @@ interface SubscriptionRow {
   readonly author: string | null
   readonly description: string | null
   readonly artwork_url: string | null
+  readonly website_url: string | null
   readonly subscribed_at: number
   readonly unsubscribed_at: number | null
   readonly played_threshold: number | null
@@ -35,6 +36,7 @@ export const toSubscription = (row: SubscriptionRow) =>
   decodeSubscription({
     id: row.id,
     feedUrl: row.feed_url,
+    websiteUrl: row.website_url,
     title: row.title,
     author: row.author,
     description: row.description,
@@ -191,6 +193,7 @@ export class Subscriptions extends Context.Service<
               author: feed.author,
               description: feed.description,
               artwork_url: feed.artworkUrl,
+              website_url: feed.link,
               subscribed_at: Date.now(),
               unsubscribed_at: Date.now()
             })} ON CONFLICT (feed_url) DO NOTHING`
@@ -212,6 +215,7 @@ export class Subscriptions extends Context.Service<
               duration: episode.duration,
               audio_url: episode.audioUrl,
               artwork_url: episode.artworkUrl,
+              website_url: episode.link,
               chapters_url: episode.chaptersUrl
             })} ON CONFLICT (subscription_id, guid) DO NOTHING`
             const [stored] = yield* sql<{

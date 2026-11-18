@@ -2,6 +2,7 @@ import { Library as Domain } from "@podlist/domain"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { FeedFailed, SubscriptionNotFound } from "./Library.ts"
+import { versionHeaders } from "./Sync.ts"
 
 export class SubscribeRequest extends Schema.Class<SubscribeRequest>(
   "@podlist/api/SubscribeRequest"
@@ -15,6 +16,7 @@ export class PodcastFeed extends Schema.Class<PodcastFeed>("@podlist/api/Podcast
   author: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),
   artworkUrl: Schema.NullOr(Schema.String),
+  link: Domain.Subscription.fields.websiteUrl,
   episodes: Schema.Array(
     Schema.Struct({
       guid: Schema.String,
@@ -24,7 +26,8 @@ export class PodcastFeed extends Schema.Class<PodcastFeed>("@podlist/api/Podcast
       duration: Schema.NullOr(Schema.Number),
       audioUrl: Schema.String,
       artworkUrl: Schema.NullOr(Schema.String),
-      chaptersUrl: Schema.NullOr(Schema.String)
+      chaptersUrl: Schema.NullOr(Schema.String),
+      link: Domain.Episode.fields.websiteUrl
     })
   )
 }) {}
@@ -94,6 +97,7 @@ export class SubscriptionsApi extends HttpApiGroup.make("subscriptions")
   .add(
     HttpApiEndpoint.post("readPodcast", "/podcasts/read", {
       payload: SubscribeRequest,
+      headers: versionHeaders,
       success: PodcastFeed,
       error: FeedFailed
     })
@@ -106,11 +110,15 @@ export class SubscriptionsApi extends HttpApiGroup.make("subscriptions")
     })
   )
   .add(
-    HttpApiEndpoint.get("list", "/subscriptions", { success: Schema.Array(Domain.Subscription) })
+    HttpApiEndpoint.get("list", "/subscriptions", {
+      headers: versionHeaders,
+      success: Schema.Array(Domain.Subscription)
+    })
   )
   .add(
     HttpApiEndpoint.post("subscribe", "/subscriptions", {
       payload: SubscribeRequest,
+      headers: versionHeaders,
       success: Domain.Subscription,
       error: FeedFailed
     })
@@ -118,6 +126,7 @@ export class SubscriptionsApi extends HttpApiGroup.make("subscriptions")
   .add(
     HttpApiEndpoint.delete("unsubscribe", "/subscriptions/:id", {
       params: { id: Schema.String },
+      headers: versionHeaders,
       success: Domain.Subscription,
       error: SubscriptionNotFound
     })

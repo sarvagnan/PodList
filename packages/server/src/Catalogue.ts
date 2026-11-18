@@ -62,6 +62,7 @@ interface EpisodeRow {
   readonly duration: number | null
   readonly audio_url: string
   readonly artwork_url: string | null
+  readonly website_url: string | null
   readonly chapters: string
   readonly audio_updated_at: number | null
 }
@@ -77,6 +78,7 @@ const toEpisode = (row: EpisodeRow) =>
     published: row.published,
     duration: row.duration,
     audioUrl: row.audio_url,
+    websiteUrl: row.website_url,
     artwork: row.artwork_url === null ? null : { url: row.artwork_url },
     chapters: JSON.parse(row.chapters),
     audioUpdatedAt: row.audio_updated_at

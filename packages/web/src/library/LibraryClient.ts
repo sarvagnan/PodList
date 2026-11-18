@@ -1,5 +1,5 @@
 import { type Directory, PodListApi, Subscriptions } from "@podlist/api"
-import type { Library } from "@podlist/domain"
+import { type Library, Protocol } from "@podlist/domain"
 import { Context, Effect, Layer } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
@@ -37,16 +37,17 @@ export class LibraryClient extends Context.Service<
               : message
           )
         const offline = serverNeeded
+        const headers = { [Protocol.versionHeader]: String(Protocol.version) }
         return LibraryClient.of({
           search: (q) =>
             client.directory.search({ query: { q } }).pipe(Effect.mapError(fail(offline))),
           subscribe: (feedUrl) =>
             client.subscriptions
-              .subscribe({ payload: new Subscriptions.SubscribeRequest({ feedUrl }) })
+              .subscribe({ payload: new Subscriptions.SubscribeRequest({ feedUrl }), headers })
               .pipe(Effect.mapError(fail(offline))),
           unsubscribe: (id) =>
             client.subscriptions
-              .unsubscribe({ params: { id } })
+              .unsubscribe({ params: { id }, headers })
               .pipe(Effect.asVoid, Effect.mapError(fail(offline))),
           importOpml: (opml) =>
             client.subscriptions

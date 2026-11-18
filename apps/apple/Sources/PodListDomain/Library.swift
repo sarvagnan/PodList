@@ -53,8 +53,10 @@ public struct Subscription: Codable, Equatable, Sendable {
     public var unsubscribedAt: Int64?
     public var playedThreshold: Double?
     public var playbackSettings: PlaybackSettingsOverride
+    /// Absent leaves a cached link alone. An explicit null clears it.
+    public var websiteUrl: String??
 
-    public init(id: String, feedUrl: String, title: String, author: String?, description: String?, artwork: Artwork?, subscribedAt: Int64, unsubscribedAt: Int64?, playedThreshold: Double?, playbackSettings: PlaybackSettingsOverride) {
+    public init(id: String, feedUrl: String, title: String, author: String?, description: String?, artwork: Artwork?, subscribedAt: Int64, unsubscribedAt: Int64?, playedThreshold: Double?, playbackSettings: PlaybackSettingsOverride, websiteUrl: String?? = nil) {
         self.id = id
         self.feedUrl = feedUrl
         self.title = title
@@ -65,10 +67,11 @@ public struct Subscription: Codable, Equatable, Sendable {
         self.unsubscribedAt = unsubscribedAt
         self.playedThreshold = playedThreshold
         self.playbackSettings = playbackSettings
+        self.websiteUrl = websiteUrl
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, feedUrl, title, author, description, artwork, subscribedAt, unsubscribedAt, playedThreshold, playbackSettings
+        case id, feedUrl, title, author, description, artwork, subscribedAt, unsubscribedAt, playedThreshold, playbackSettings, websiteUrl
     }
 
     public init(from decoder: any Decoder) throws {
@@ -83,6 +86,7 @@ public struct Subscription: Codable, Equatable, Sendable {
         unsubscribedAt = try c.decode(Int64?.self, forKey: .unsubscribedAt)
         playedThreshold = try c.decode(Double?.self, forKey: .playedThreshold)
         playbackSettings = try c.decode(PlaybackSettingsOverride.self, forKey: .playbackSettings)
+        websiteUrl = c.contains(.websiteUrl) ? .some(try c.decode(String?.self, forKey: .websiteUrl)) : nil
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -97,6 +101,7 @@ public struct Subscription: Codable, Equatable, Sendable {
         try c.encode(unsubscribedAt, forKey: .unsubscribedAt)
         try c.encode(playedThreshold, forKey: .playedThreshold)
         try c.encode(playbackSettings, forKey: .playbackSettings)
+        if let websiteUrl { try c.encode(websiteUrl, forKey: .websiteUrl) }
     }
 }
 
@@ -112,8 +117,10 @@ public struct Episode: Codable, Equatable, Sendable {
     public var artwork: Artwork?
     public var chapters: [Chapter]
     public var audioUpdatedAt: Int64?
+    /// Absent leaves a cached link alone. An explicit null clears it.
+    public var websiteUrl: String??
 
-    public init(id: String, subscriptionId: String, guid: String, title: String, description: String, published: Int64, duration: Double?, audioUrl: String, artwork: Artwork?, chapters: [Chapter], audioUpdatedAt: Int64?) {
+    public init(id: String, subscriptionId: String, guid: String, title: String, description: String, published: Int64, duration: Double?, audioUrl: String, artwork: Artwork?, chapters: [Chapter], audioUpdatedAt: Int64?, websiteUrl: String?? = nil) {
         self.id = id
         self.subscriptionId = subscriptionId
         self.guid = guid
@@ -125,10 +132,11 @@ public struct Episode: Codable, Equatable, Sendable {
         self.artwork = artwork
         self.chapters = chapters
         self.audioUpdatedAt = audioUpdatedAt
+        self.websiteUrl = websiteUrl
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, subscriptionId, guid, title, description, published, duration, audioUrl, artwork, chapters, audioUpdatedAt
+        case id, subscriptionId, guid, title, description, published, duration, audioUrl, artwork, chapters, audioUpdatedAt, websiteUrl
     }
 
     public init(from decoder: any Decoder) throws {
@@ -144,6 +152,7 @@ public struct Episode: Codable, Equatable, Sendable {
         artwork = try c.decode(Artwork?.self, forKey: .artwork)
         chapters = try c.decode([Chapter].self, forKey: .chapters)
         audioUpdatedAt = try c.decode(Int64?.self, forKey: .audioUpdatedAt)
+        websiteUrl = c.contains(.websiteUrl) ? .some(try c.decode(String?.self, forKey: .websiteUrl)) : nil
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -159,5 +168,6 @@ public struct Episode: Codable, Equatable, Sendable {
         try c.encode(artwork, forKey: .artwork)
         try c.encode(chapters, forKey: .chapters)
         try c.encode(audioUpdatedAt, forKey: .audioUpdatedAt)
+        if let websiteUrl { try c.encode(websiteUrl, forKey: .websiteUrl) }
     }
 }

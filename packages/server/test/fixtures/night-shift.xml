@@ -2,12 +2,14 @@
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Night Shift Histories</title>
+    <link>https://example.test/night-shift</link>
     <itunes:author>Night Shift Media</itunes:author>
     <description><![CDATA[Stories from <b>after dark</b>.]]></description>
     <itunes:image href="https://example.test/podcast.jpg"/>
     <item>
       <title>The night the bridge lights went out</title>
       <guid isPermaLink="false">ns-0212</guid>
+      <link>https://example.test/episodes/0212?from=rss&amp;lang=en</link>
       <pubDate>Wed, 04 Nov 2026 06:00:00 GMT</pubDate>
       <itunes:duration>1:12:04</itunes:duration>
       <enclosure url="https://example.test/0212.mp3" length="1" type="audio/mpeg"/>
