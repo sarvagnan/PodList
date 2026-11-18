@@ -698,7 +698,8 @@ final class PodListUITour: XCTestCase {
             guard perform("sidebar", until: listedEpisode, input: { newThisWeek.click() }) else { continue }
             try hideInspector()
             let episode = try firstEpisodePoint()
-            perform("inspector", until: episodeInspector) { episode.click() }
+            XCTAssertTrue(perform("inspector", until: episodeInspector) { episode.click() },
+                          "A click on a remembered, selected Episode must reopen the Inspector")
 
             try focusListSearch()
             app.typeText("ric")
