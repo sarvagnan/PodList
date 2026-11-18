@@ -105,12 +105,29 @@ public final class TourResponseTiming {
     }
 }
 
+private struct TourResponseKey<Key: Hashable>: Hashable {
+    let step: TourResponseTiming.Step?
+    let key: Key
+}
+
 extension View {
     @ViewBuilder func tourResponse(_ step: @autoclosure () -> TourResponseTiming.Step?) -> some View {
         if let timing = TourResponseTiming.active {
             // The result may replace content in an already-mounted table or Inspector.
             onChange(of: step(), initial: true) { _, result in
                 if let result, let window = NSApp.keyWindow { timing.appeared(result, in: window) }
+            }
+        } else {
+            self
+        }
+    }
+
+    /// Also re-arms when `key` changes, for results whose step value stays the same,
+    /// such as the Inspector reopening on a remembered selection.
+    @ViewBuilder func tourResponse<Key: Hashable>(_ step: @autoclosure () -> TourResponseTiming.Step?, key: Key) -> some View {
+        if let timing = TourResponseTiming.active {
+            onChange(of: TourResponseKey(step: step(), key: key), initial: true) { _, result in
+                if let step = result.step, let window = NSApp.keyWindow { timing.appeared(step, in: window) }
             }
         } else {
             self

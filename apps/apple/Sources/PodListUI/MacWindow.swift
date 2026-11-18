@@ -226,7 +226,7 @@ public struct PodListWindow: SwiftUI.View {
                 EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation,
                                  selectedIDs: inspectorIDs, podcastPreview: preview)
                     #if DEBUG
-                    .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil)
+                    .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil, key: inspectorVisible)
                     #endif
                     .inspectorColumnWidth(min: 260, ideal: window.initialPaneWidths.inspector, max: 440)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
