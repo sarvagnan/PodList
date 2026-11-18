@@ -133,6 +133,13 @@ if [ -n "$vm" ]; then
         > "$out/xcodebuild.log" 2>&1
     mkdir "$run/products"
     cp -R "$apple/.build/ui-tour-derived/Build/Products/." "$run/products/"
+    # One macOS VM at a time on this Mac (owner, 19 Nov 2026): wait while any Tart VM
+    # runs, including other projects' tours such as FinderTools.
+    while running="$(tart list --format json 2>/dev/null | python3 -c 'import json, sys
+print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))')" && [ -n "$running" ]; do
+        echo "Waiting for running VM(s) to finish: $running" >&2
+        sleep 60
+    done
     vm_clone="podlist-ui-run-$run_id"
     tart clone "$vm" "$vm_clone"
     developer="$(xcode-select -p)"
