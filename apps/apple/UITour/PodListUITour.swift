@@ -10,7 +10,7 @@ final class PodListUITour: XCTestCase {
     private var app: XCUIApplication!
     private var appearance = ""
     private var library: XCUIElement {
-        app.windows.containing(.any, identifier: "sidebar.Subscriptions").firstMatch
+        app.windows.containing(.outline, identifier: "Sidebar").firstMatch
     }
 
     func testLight() throws { try tour("Light") }
@@ -37,8 +37,31 @@ final class PodListUITour: XCTestCase {
         } else {
             XCTAssertFalse(showBorders, "Show Borders verification requires NSWorkspace.\(key) in the guest")
         }
+        let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
         let origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
-        let bundleURL = URL(fileURLWithPath: runDirectory).appendingPathComponent(appearance + "/PodList.app")
+        let data = root.appendingPathComponent(appearance + "/data", isDirectory: true)
+        let timings = data.appendingPathComponent("response-timings-\(UUID()).tsv")
+        try launch(from: root, copy: appearance, style: style, origin: origin, timings: showBorders ? nil : timings)
+        defer { app.terminate() }
+        try ready(library)
+        try ready(library.buttons["Open Market Hours, Subscription"])
+        try ready(library.buttons["Open Now Playing"])
+        if timingsOnly {
+            // A fresh VM and app are cold; the full tour times them about ten minutes in.
+            try recordResponseTimings(from: timings, warmUpRuns: 3)
+            return
+        }
+        if showBorders {
+            try captureShowBorders()
+            return
+        }
+        try captureLibrary(timings: timings, style: style)
+        app.terminate()
+        try captureLargeSidebar(from: root, style: style)
+    }
+
+    private func launch(from root: URL, copy: String, style: String, origin: String, timings: URL? = nil) throws {
+        let bundleURL = root.appendingPathComponent(copy + "/PodList.app")
         let info = try NSDictionary(contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist"), error: ())
         let identifier = try XCTUnwrap(info["CFBundleIdentifier"] as? String)
         // Fail before launching if invoked directly with the production app or server.
@@ -53,32 +76,19 @@ final class PodListUITour: XCTestCase {
             throw NSError(domain: "PodListUITour", code: 2,
                           userInfo: [NSLocalizedDescriptionKey: "Refusing to launch against a non-demo server origin"])
         }
-        let data = URL(fileURLWithPath: runDirectory).appendingPathComponent(appearance + "/data", isDirectory: true)
-        let timings = data.appendingPathComponent("response-timings-\(UUID()).tsv")
+        let data = root.appendingPathComponent(copy + "/data", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: data.path))
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
-        if !showBorders { app.launchEnvironment["PODLIST_UI_TIMINGS_FILE"] = timings.path }
+        if let timings { app.launchEnvironment["PODLIST_UI_TIMINGS_FILE"] = timings.path }
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
-                               "-PodList.mcpEnabled", "NO", "-PodList.inspectorVisible", "YES",
+                               "-PodList.mcpEnabled", "NO",
                                "-AppleKeyboardUIMode", "3",
                                "-ApplePersistenceIgnoreState", "YES"]
-        defer {
-            app.terminate()
-        }
         app.launch()
-        try ready(library)
-        try ready(library.buttons["Open Market Hours, Subscription"])
-        try ready(library.buttons["Open Now Playing"])
-        if timingsOnly {
-            // A fresh VM and app are cold; the full tour times them about ten minutes in.
-            try recordResponseTimings(from: timings, warmUpRuns: 3)
-            return
-        }
-        if showBorders {
-            try captureShowBorders()
-            return
-        }
+    }
+
+    private func captureLibrary(timings: URL, style: String) throws {
         let sidebar = library.outlines["Sidebar"]
         try ready(sidebar)
         XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
@@ -98,10 +108,23 @@ final class PodListUITour: XCTestCase {
         let leadingTitleX = library.staticTexts["New this week"].firstMatch.frame.minX
         XCTAssertFalse(library.toolbars.buttons["New View…"].exists)
         try capture("02-new-this-week")
+        try hideInspector()
         try selectFirstEpisode()
+        try ready(episodeInspector)
         try capture("03-episode-inspector")
         try assertInspectorActionTargets()
-        // After the baseline captures; the next navigation clears this selection.
+        try hideInspector()
+        try navigate("Subscriptions")
+        try openNewThisWeek()
+        XCTAssertFalse(episodeInspector.exists, "Restored selection must respect the hidden Inspector")
+        XCTAssertTrue(episodeRows.firstMatch.isSelected, "Returning to the View must restore selection")
+        try firstEpisodePoint().click()
+        try ready(episodeInspector)
+        XCTAssertFalse(episodeInspector.buttons["Show in Window"].exists)
+        app.typeKey("i", modifierFlags: [.command, .option])
+        XCTAssertTrue(episodeInspector.waitForNonExistence(timeout: 5))
+        episodeList.typeKey(.downArrow, modifierFlags: [])
+        try ready(episodeInspector)
         app.typeText("jo")
         let joinery = episodeRows.containing(.staticText, identifier: "Joinery without screws").firstMatch
         try ready(joinery)
@@ -110,7 +133,8 @@ final class PodListUITour: XCTestCase {
         try ready(text("Joinery without screws", in: episodeInspector))
         try navigate("Starred")
         try capture("04-starred")
-        try navigate("All Views")
+        XCTAssertFalse(sidebarItem("All Views").exists)
+        try menuCommand("Views", "Show All Views")
         try ready(library.descendants(matching: .any).matching(identifier: "views.list").firstMatch)
         try capture("05-all-views")
 
@@ -539,6 +563,33 @@ final class PodListUITour: XCTestCase {
         try captureHalfDisplay()
     }
 
+    private func captureLargeSidebar(from root: URL, style: String) throws {
+        let origin = try String(contentsOf: root.appendingPathComponent("sidebar-origin"), encoding: .utf8)
+        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin)
+        let sidebar = library.outlines["Sidebar"]
+        try ready(sidebarItem("Tour View 04"), timeout: 60)
+        try ready(library.buttons["Open Now Playing"])
+        let player = library.descendants(matching: .any).matching(identifier: "library.player").firstMatch
+        try ready(player)
+        try capture("40-large-sidebar")
+
+        let last = sidebarItem("Search")
+        let sidebarPoint = sidebar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        let atBottom = NSPredicate { _, _ in
+            last.exists && !last.frame.isEmpty && sidebar.frame.contains(last.frame)
+                && last.frame.maxY <= player.frame.minY
+        }
+        var reachedBottom = false
+        for _ in 0..<6 where !reachedBottom {
+            sidebarPoint.hover()
+            sidebar.scroll(byDeltaX: 0, deltaY: -600)
+            reachedBottom = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: atBottom, object: nil)], timeout: 2) == .completed
+        }
+        XCTAssertTrue(reachedBottom, "The last sidebar row must scroll above the player")
+        try ready(sidebarItem("Tour Playlist 30"))
+        try capture("41-large-sidebar-bottom")
+    }
+
     private func captureHalfDisplay() throws {
         let screenWidth = try XCTUnwrap(NSScreen.main, "The VM tour requires a display").frame.width
         let windowMenu = app.menuBars.menuBarItems["Window"]
@@ -630,6 +681,7 @@ final class PodListUITour: XCTestCase {
 
             try ready(newThisWeek)
             guard perform("sidebar", until: listedEpisode, input: { newThisWeek.click() }) else { continue }
+            try hideInspector()
             let episode = try firstEpisodePoint()
             perform("inspector", until: episodeInspector) { episode.click() }
 
@@ -910,6 +962,11 @@ final class PodListUITour: XCTestCase {
     private var inspectorButton: XCUIElement {
         library.toolbars.buttons.matching(identifier: "library.inspector").firstMatch
     }
+    private func hideInspector() throws {
+        try ready(inspectorButton)
+        if inspectorButton.label == "Hide Inspector" { try click(inspectorButton) }
+        XCTAssertTrue(episodeInspector.waitForNonExistence(timeout: 5))
+    }
     private func assertInspectorPosition(_ original: CGRect, file: StaticString = #filePath, line: UInt = #line) {
         let actual = inspectorButton.frame
         XCTAssertEqual(actual.minX, original.minX, accuracy: 1, "Selection moved the Inspector toggle", file: file, line: line)
@@ -1188,7 +1245,8 @@ final class PodListUITour: XCTestCase {
         let removed: Set<String> = [
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
-            "Import", "Choose a File…", "Hide Getting Started", "Resume Playback", "Pause Playback"
+            "Import", "Choose a File…", "Hide Getting Started", "Resume Playback", "Pause Playback",
+            "Show Notes in Window", "Show in Window", "Show Notes"
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [
@@ -1198,7 +1256,7 @@ final class PodListUITour: XCTestCase {
             "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Show Subscriptions", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
-            "Episode": ["Show Episode Details", "Show Notes in Window", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
+            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
             "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],

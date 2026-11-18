@@ -211,18 +211,22 @@ struct PlaylistTrashView: SwiftUI.View {
     let library: LibraryModel
     let editing: PlaylistEditingModel
     let search: String
-    @State private var selection: String?
+    @Binding var selectedIDs: Set<String>
     @State private var deleting: Playlist?
     @Binding var scrollAnchor: RowAnchor?
+    private var selection: String? { selectedIDs.first }
+    private var selectionBinding: Binding<String?> {
+        Binding(get: { selection }, set: { selectedIDs = $0.map { [$0] } ?? [] })
+    }
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
             if library.trash.isEmpty {
-                ScrollableEmptyState("Trash Is Empty", systemImage: "trash", description: "Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
+                PodListEmptyState("Trash Is Empty", systemImage: "trash", description: "Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Text("Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
                     .macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle()).padding(12)
-                List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id, selection: $selection) { item in
+                List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id, selection: selectionBinding) { item in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.playlist.name).macContentFont(.headline)
@@ -237,8 +241,9 @@ struct PlaylistTrashView: SwiftUI.View {
                         Button("Delete Permanently…", role: .destructive) { confirmDeletion(item.playlist) }.disabled(editing.busy)
                     }
                 }
+                .playbackBarScrollClearance()
                 .typeSelectingRows(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }
-                    .map { TypeSelectionRow(id: $0.playlist.id, title: $0.playlist.name) }, selection: $selection, anchor: $scrollAnchor)
+                    .map { TypeSelectionRow(id: $0.playlist.id, title: $0.playlist.name) }, selection: selectionBinding, anchor: $scrollAnchor)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

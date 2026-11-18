@@ -9,7 +9,7 @@ if [ -z "${PODLIST_UI_VM:-}" ]; then
     echo "All UI tours require PODLIST_UI_VM (never run on the owner's desktop)" >&2
     exit 2
 fi
-styles="light dark borders-light borders-dark"
+styles="light dark borders-light borders-dark sidebar-light sidebar-dark"
 if [ "$mode" = system ]; then styles=system; fi
 if [ "$mode" = timings ]; then styles=light; fi
 mkdir -p "$1"
@@ -113,7 +113,7 @@ async function stop() {
   await demo.stopped
 }
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { void stop() })
-demo = await startDemo()
+demo = await startDemo({ largeSidebar: process.argv[4] === 'large-sidebar' })
 if (requestedStop) await stop()
 else writeFileSync(process.argv[3], demo.base)
 JS
@@ -232,7 +232,7 @@ import json, re, shutil, sys
 from pathlib import Path
 out, source = map(Path, sys.argv[1:3])
 screens = list(dict.fromkeys(re.findall(r'try capture\("([^"\n]+)"', source.read_text())))
-assert len(screens) == 40, 'Tour screen catalog must have 40 distinct screens'
+assert len(screens) == 42, 'Tour screen catalog must have 42 distinct screens'
 borders_screens = {'02-new-this-week', '03-episode-inspector', '13-new-playlist', '27-settings-general-top', '30-settings-automation'}
 assert borders_screens <= set(screens), 'Show Borders screens must match baseline screen names'
 expected = {f'{style}/{screen}.{ext}' for style in ('light', 'dark') for screen in screens for ext in ('png', 'txt')}
@@ -267,6 +267,7 @@ readme += 'Window screenshots include attached sheets. Text trees use public XCU
 readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
 readme += 'The focused APPEAR-03 pass runs with macOS Show Borders on. Test results: Tour.xcresult and ShowBorders.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/ and borders-attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
 readme += 'Screens 37–39 use Window → Move & Resize → Left to tile the Library to half the display.\n\n'
+readme += 'Screens 40–41 show the top and bottom of a sidebar with 30 Views and 30 Playlists, using a separate demo Library.\n\n'
 readme += 'Response timings are in light/timings.txt and dark/timings.txt. The app measures them in the VM, from the input event to the first display frame that can show the result. RESP-01 sets a 200 ms limit at the 75th percentile. The tour records timings without enforcing the limit. The tour does not measure RESP-02 keystroke and drag frame timing.\n\n'
 readme += '| Screen | Light / Dark files | Show Borders Light / Dark files |\n|---|---|---|\n'
 for screen in screens:

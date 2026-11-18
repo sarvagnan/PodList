@@ -316,26 +316,49 @@ public struct LibraryModel: Sendable {
 
 @MainActor @Observable
 public final class WindowModel {
+    enum ListID: Hashable {
+        case destination(Destination?)
+        case playlist(String, PlaylistTab)
+        case podcast(String)
+    }
+    private struct ListPosition {
+        var selection = Set<String>()
+        var sortOrder: [KeyPathComparator<EpisodeRow>] = []
+        var podcastSort = WindowModel.defaultPodcastSort
+        var timelineSelection: String?
+        var scrollAnchor: RowAnchor?
+    }
+    nonisolated private static let defaultPodcastSort: [WindowSort] = [.init(column: .published, reversed: true)]
+    private var listPositions: [ListID: ListPosition] = [:]
+    private var playlistTabs: [String: PlaylistTab] = [:]
+
     public var destination: Destination? = .subscriptions
     public var search = ""
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
-    var podcastSort: [WindowSort] = [.init(column: .published, reversed: true)]
+    var podcastSort = WindowModel.defaultPodcastSort
+    var podcastFeed: String?
+    var playlistTab = PlaylistTab.entries
+    var subscriptionSelection = Set<String>()
     var timelineSelection: String?
     var scrollAnchor: RowAnchor?
+    var listID: ListID {
+        if let podcastFeed { return .podcast(podcastFeed) }
+        if case let .playlist(id) = destination { return .playlist(id, playlistTab) }
+        return .destination(destination)
+    }
     /// Measured widths, saved for the next launch. Never drives layout during a session.
     var paneWidths = PaneWidths()
     /// The widths the columns open at: set once on restore. Feeding live measurements back
     /// into the columns' ideal width shrank the sidebar below its minimum.
     var initialPaneWidths = PaneWidths()
     var hasRestoredPaneWidths = false
-    var historyRevealPlaylistID: String?
     var pendingDropSelections: [String: [String]] = [:]
     var podcastOrigin: PodcastOrigin?
 
     func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true, scroll: Bool = true) {
         pendingDropSelections[playlistID] = ids
-        if reveal, destination == .playlist(playlistID) { revealDrop(in: playlistID, scroll: scroll) }
+        if reveal, listID == .playlist(playlistID, .entries) { revealDrop(in: playlistID, scroll: scroll) }
     }
     func revealDrop(in playlistID: String, scroll: Bool = true) {
         guard let ids = pendingDropSelections.removeValue(forKey: playlistID), let first = ids.first else { return }
@@ -349,7 +372,7 @@ public final class WindowModel {
         let current = restored.first { destination == .playlist($0.playlistID) }
         guard let target = current ?? restored.first, let first = target.episodeIDs.first else { return false }
         navigate(to: .playlist(target.playlistID))
-        historyRevealPlaylistID = target.playlistID
+        showPlaylistTab(.entries)
         selection = Set(target.episodeIDs); scrollAnchor = RowAnchor(id: first, index: 0)
         return true
     }
@@ -358,37 +381,83 @@ public final class WindowModel {
     /// Podcast pages belong to Subscriptions even though they have no sidebar row.
     public var sidebarSelection: Destination? {
         if case .subscription = destination { return .subscriptions }
+        if destination == .views { return nil }
         return destination
     }
-    /// Feed discovery overlays the current destination; save its browsing state too.
-    func beginPodcastPage() {
-        if podcastOrigin == nil {
+    private func rememberList() {
+        if case let .playlist(id, tab) = listID { playlistTabs[id] = tab }
+        listPositions[listID] = ListPosition(selection: selection, sortOrder: sortOrder,
+            podcastSort: podcastSort, timelineSelection: timelineSelection, scrollAnchor: scrollAnchor)
+    }
+    private func restoreList() {
+        let position = listPositions[listID] ?? ListPosition()
+        selection = position.selection; sortOrder = position.sortOrder; podcastSort = position.podcastSort
+        timelineSelection = position.timelineSelection; scrollAnchor = position.scrollAnchor
+    }
+    func clearListMemory() {
+        listPositions.removeAll()
+        playlistTabs.removeAll()
+    }
+    /// Only a row interaction can open the Inspector. Restoring or reconciling a list
+    /// assigns its selection directly.
+    func selectEpisodes(_ ids: Set<String>, in list: ListID, episodeIDs: Set<String>, openInspector: () -> Void) {
+        guard listID == list else { return }
+        selection = ids
+        if !ids.isDisjoint(with: episodeIDs) { openInspector() }
+    }
+    func showPlaylistTab(_ tab: PlaylistTab) {
+        guard podcastFeed == nil, case let .playlist(id) = destination, playlistTab != tab else { return }
+        rememberList()
+        playlistTab = tab
+        search = ""
+        restoreList()
+        if tab == .entries { revealDrop(in: id) }
+    }
+    private var isPodcastPage: Bool {
+        if podcastFeed != nil { return true }
+        if case .subscription = destination { return true }
+        return false
+    }
+    private func rememberPodcastOrigin() {
+        if !isPodcastPage {
             podcastOrigin = PodcastOrigin(destination: destination, search: search, selection: selection,
                 sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
-                timelineSelection: timelineSelection, scrollAnchor: scrollAnchor)
+                timelineSelection: timelineSelection, scrollAnchor: scrollAnchor, playlistTab: playlistTab)
         }
-        search = ""; selection = []; scrollAnchor = nil
-        podcastSort = [.init(column: .published, reversed: true)]
+    }
+    /// Feed discovery overlays the current destination; its browsing state is keyed by feed.
+    func beginPodcastPage(_ feed: String) {
+        guard podcastFeed != feed else { return }
+        rememberPodcastOrigin()
+        rememberList()
+        podcastFeed = feed
+        search = ""
+        restoreList()
     }
     func backFromPodcast() {
         guard let origin = podcastOrigin else { navigate(to: .subscriptions); return }
-        podcastOrigin = nil
+        rememberList()
+        podcastOrigin = nil; podcastFeed = nil
         destination = origin.destination; search = origin.search; selection = origin.selection
+        playlistTab = origin.playlistTab ?? .entries
         sortOrder = origin.sort.map(\.comparator); podcastSort = origin.podcastSort
         timelineSelection = origin.timelineSelection; scrollAnchor = origin.scrollAnchor
     }
     public func navigate(to destination: Destination?) {
-        historyRevealPlaylistID = nil
+        guard self.destination != destination || podcastFeed != nil else {
+            search = ""
+            return
+        }
         if case .subscription = destination {
-            switch self.destination {
-            case .subscription: break
-            default: beginPodcastPage()
-            }
+            rememberPodcastOrigin()
         } else { podcastOrigin = nil }
-        self.destination = destination; search = ""; selection = []; sortOrder = []
-        podcastSort = [.init(column: .published, reversed: true)]; timelineSelection = nil; scrollAnchor = nil
-        if case let .playlist(id) = destination, let ids = pendingDropSelections[id], let first = ids.first {
-            selection = Set(ids); scrollAnchor = RowAnchor(id: first, index: 0)
+        rememberList()
+        self.destination = destination; podcastFeed = nil; search = ""
+        if case let .playlist(id) = destination { playlistTab = playlistTabs[id] ?? .entries }
+        else { playlistTab = .entries }
+        restoreList()
+        if case let .playlist(id, .entries) = listID {
+            revealDrop(in: id)
         }
     }
     public func rows(in library: LibraryModel) -> [EpisodeRow] {

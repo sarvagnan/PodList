@@ -45,15 +45,21 @@ struct FeedRefreshFeedback: SwiftUI.View {
 /// The parent offers a detail viewport, never the table's AppKit ideal height.
 /// Keep metadata bounded and give only the Episode list the remaining space.
 struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.View {
+    @Environment(\.libraryPlaybackBarInset) private var playbackInset
     @ViewBuilder let header: (CGFloat) -> Header
     @ViewBuilder let episodes: () -> Episodes
     var body: some SwiftUI.View {
         GeometryReader { viewport in
+            let visibleHeight = max(0, viewport.size.height - (playbackInset ?? 0) - 36)
+            let descriptionHeight = max(48, visibleHeight * 0.25)
             VStack(alignment: .leading, spacing: 12) {
-                header(max(48, (viewport.size.height - 36) * 0.25))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 18)
+                ViewThatFits(in: .vertical) {
+                    header(descriptionHeight).fixedSize(horizontal: false, vertical: true)
+                    ScrollView { header(descriptionHeight) }.scrollBounceBehavior(.basedOnSize)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxHeight: max(48, visibleHeight - 112))
+                .padding(.horizontal, 18)
                 GeometryReader { table in
                     episodes().frame(width: table.size.width, height: table.size.height)
                 }
@@ -62,6 +68,16 @@ struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.
             .frame(width: viewport.size.width, height: viewport.size.height, alignment: .topLeading)
         }
     }
+}
+
+/// Publisher metadata is available before an Episode is brought into the Library.
+struct PodcastEpisodePreview: Equatable {
+    let title: String
+    let podcast: String
+    let artworkURL: URL?
+    let published: Date
+    let duration: Double?
+    let notes: String
 }
 
 struct PodcastPageScreen: SwiftUI.View {
@@ -73,8 +89,8 @@ struct PodcastPageScreen: SwiftUI.View {
     @Binding var search: String
     @Binding var savedSort: [WindowSort]
     @Binding var scrollAnchor: RowAnchor?
-    let openEpisode: () -> Void
-    let displayed: ([String]) -> Void
+    let selectEpisodes: (Set<String>, Set<String>) -> Void
+    let displayed: ([String], [String: PodcastEpisodePreview]) -> Void
     private var sortOrder: [KeyPathComparator<PageEpisode>] {
         get { savedSort.map { sort in
             switch sort.column {
@@ -129,6 +145,7 @@ struct PodcastPageScreen: SwiftUI.View {
     private var subscribed: Bool { subscription?.unsubscribedAt == nil && subscription != nil }
     private var catalogueSubscription: Subscription? { subscribed ? subscription : nil }
     private var title: String { catalogueSubscription?.title ?? feed?.title ?? subscription?.title ?? "Podcast" }
+    private var artworkURL: URL? { (catalogueSubscription?.artwork?.url ?? feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)) }
     private struct PageEpisode: Identifiable {
         let guid: String; let title: String; let description: String; let published: Int64; let duration: Double?; let localID: String?
         let stateText: String
@@ -151,11 +168,34 @@ struct PodcastPageScreen: SwiftUI.View {
             Mentions.words(search).allSatisfy { word in [e.title, e.description].contains { Mentions.fold($0).contains(word) } }
         }.sorted(using: sortOrder)
     }
+    private func previews(_ episodes: [PageEpisode]) -> [String: PodcastEpisodePreview] {
+        Dictionary(episodes.filter { $0.localID == nil }.map { episode in
+            (episode.id, PodcastEpisodePreview(title: episode.title, podcast: title, artworkURL: artworkURL,
+                published: Date(timeIntervalSince1970: Double(episode.published) / 1000),
+                duration: episode.duration, notes: episode.description))
+        }, uniquingKeysWith: { first, _ in first })
+    }
     var body: some SwiftUI.View {
-        PodcastPageLayout { descriptionHeight in
+        let episodes = episodes
+        let ids = episodes.map(\.id)
+        let visibleIDs = Set(ids)
+        let previews = previews(episodes)
+        let userSelection = Binding(get: { selection.wrappedValue }, set: { ids in
+            control.reset()
+            selectEpisodes(ids.intersection(visibleIDs), visibleIDs)
+        })
+        let activate: (Set<String>) -> Void = { selected in
+            let chosen = episodes.filter { selected.contains($0.id) }
+            if chosen.allSatisfy({ $0.localID != nil }) {
+                EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: app.editing)
+            } else if let first = chosen.first, !bringing.contains(first.guid), !editor.busy, !editor.edits.busy {
+                bring(first, play: true)
+            }
+        }
+        return PodcastPageLayout { descriptionHeight in
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 16) {
-                    ArtworkView(url: (catalogueSubscription?.artwork?.url ?? feed?.artworkUrl ?? subscription?.artwork?.url).flatMap(URL.init(string:)), title: title, size: 96)
+                    ArtworkView(url: artworkURL, title: title, size: 96)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title).macContentFont(.title2).bold().lineLimit(2)
                         Text(catalogueSubscription?.author ?? feed?.author ?? subscription?.author ?? "").foregroundStyle(MacReadableSecondaryStyle()).lineLimit(1)
@@ -205,7 +245,7 @@ struct PodcastPageScreen: SwiftUI.View {
             } else {
                 Group {
                     if textScale > 1 {
-                        List(selection: selection) {
+                        List(selection: userSelection) {
                             Section {
                                 ForEach(episodes) { episode in
                                     MacReadingRow(isSelected: selection.wrappedValue.contains(episode.id)) { podcastEpisodeTitle(episode) } metadata: {
@@ -214,10 +254,11 @@ struct PodcastPageScreen: SwiftUI.View {
                                 }
                             } header: { MacReadingSortControl(sort: $savedSort) }
                         }
+                        .playbackBarScrollClearance()
                     } else {
                         GeometryReader { geometry in
                             let layout = EpisodeTableLayout(width: geometry.size.width)
-                            Table(of: PageEpisode.self, selection: selection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
+                            Table(of: PageEpisode.self, selection: userSelection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                                 TableColumn("Episode", value: \.title) { episode in
                                     podcastEpisodeTitle(episode)
                                 }.width(min: EpisodeTableLayout.minimumTitleWidth)
@@ -239,6 +280,7 @@ struct PodcastPageScreen: SwiftUI.View {
                                 ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                             }
                             .tableStyle(.inset)
+                            .playbackBarScrollClearance()
                             // Recreate native auto-sized columns after the description changes
                             // the viewport; AppKit otherwise retains scrollbar-compressed widths.
                             .id(descriptionExpanded)
@@ -247,7 +289,8 @@ struct PodcastPageScreen: SwiftUI.View {
                 }
                 .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },
                     physicalIDs: (textScale > 1 ? [nil] : []) + episodes.map { Optional($0.id) },
-                    selection: selection, anchor: $scrollAnchor)
+                    selection: userSelection, anchor: $scrollAnchor,
+                    reselect: { userSelection.wrappedValue = [$0] }, activate: activate)
                 .alternatingRowBackgrounds(.disabled)
                 .contextMenu(forSelectionType: String.self) { ids in
                     let chosen = episodes.filter { ids.contains($0.id) }
@@ -258,10 +301,7 @@ struct PodcastPageScreen: SwiftUI.View {
                         Button("Play Now") { bring(first, play: true) }
                         Button("Add to a Playlist…") { bring(first, play: false) }
                     }
-                } primaryAction: { ids in
-                    selection.wrappedValue = ids
-                    if let episode = episodes.first(where: { ids.contains($0.id) }) { inspect(episode) }
-                }
+                } primaryAction: { activate($0) }
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
                 .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
             }
@@ -269,17 +309,21 @@ struct PodcastPageScreen: SwiftUI.View {
         .focusedSceneValue(\.podListSort, $savedSort)
         .focusedSceneValue(\.podListPodcast, podcastCommands)
         .focusedSceneValue(\.podListRemoteEpisode, remoteEpisodeActions)
-        .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { episode in { inspect(episode) } })
+        .focusedSceneValue(\.podListEpisodeDetails, selectedEpisode.map { _ in
+            { userSelection.wrappedValue = selection.wrappedValue }
+        })
         .modifier(PlaylistSheetHost(presentation: addPresentation, app: app, created: { _ in }))
         .coordinateSpace(name: "podcastPage")
         .task(id: feedURL) { control.reset(); await read() }
         .onChange(of: search) { _, text in control.reset(); editor.setDraft(text, field: "podcast.\(feedURL).search") }
-        .onChange(of: episodes.map(\.id), initial: true) { _, ids in
+        .onChange(of: ids, initial: true) { _, ids in
             if !loading {
                 selection.wrappedValue.formIntersection(Set(ids))
                 scrollAnchor = scrollAnchor?.reconciled(with: ids)
-            }; displayed(ids)
+            }
+            displayed(ids, previews)
         }
+        .onChange(of: previews) { _, previews in displayed(ids, previews) }
         .onChange(of: loading) { _, loading in
             if !loading {
                 selection.wrappedValue.formIntersection(Set(episodes.map(\.id)))
@@ -358,17 +402,6 @@ struct PodcastPageScreen: SwiftUI.View {
         do { feed = try await editor.source.readPodcast(feedURL); await app.reloadLocal() }
         catch { self.error = LibraryMessages.failure(error) }
         loading = false
-    }
-    private func inspect(_ episode: PageEpisode) {
-        control.reset()
-        Task {
-            do {
-                let id: String
-                if let local = episode.localID { id = local }
-                else { id = try await editor.prepareEpisode(feedURL, guid: episode.guid) }
-                selection.wrappedValue = [id]; openEpisode()
-            } catch { editor.error = LibraryMessages.failure(error) }
-        }
     }
     private func bring(_ episode: PageEpisode, play: Bool) {
         control.reset(); bringing.insert(episode.guid)

@@ -37,15 +37,15 @@ struct EpisodeInspector: SwiftUI.View {
     @Bindable var app: ApplicationModel
     let playlistPresentation: PlaylistPresentation
     var startedPlayback: () -> Void = {}
-    @Environment(\.openWindow) private var openWindow
     var scrolls = true
     var selectedIDs: [String] = []
+    var podcastPreview: PodcastEpisodePreview? = nil
     var body: some SwiftUI.View {
         if selectedIDs.count > 1 {
             selectionSummary
         } else if let row {
             Group {
-                if scrolls { ScrollView { details(row) } }
+                if scrolls { ScrollView { details(row) }.playbackBarScrollClearance() }
                 else { details(row) }
             }
             .macContentFont(.body)
@@ -54,6 +54,26 @@ struct EpisodeInspector: SwiftUI.View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Episode Inspector")
             .task(id: row.id) { await app.resolveEpisodeDetails(row.id) }
+        } else if let podcastPreview {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ArtworkView(url: podcastPreview.artworkURL, title: podcastPreview.podcast, size: 180, placeholderSize: 88)
+                        .frame(maxWidth: .infinity)
+                    Text(podcastPreview.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
+                    Text(podcastPreview.podcast).macContentFont(.headline).foregroundStyle(MacReadableSecondaryStyle())
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("Published", value: podcastPreview.published.formatted(date: .abbreviated, time: .omitted))
+                        LabeledContent("Length", value: podcastPreview.duration.map(Presentation.time) ?? "—")
+                    }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle())
+                    Divider()
+                    showNotes(podcastPreview.notes)
+                }
+                .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .playbackBarScrollClearance()
+            .macContentFont(.body)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Episode Inspector")
         } else {
             PodListEmptyState("Select an Episode", systemImage: "info.circle",
                               description: "Its details and Playlists appear here.")
@@ -84,6 +104,7 @@ struct EpisodeInspector: SwiftUI.View {
             .disabled(app.editing?.busy == true)
             .padding(20).frame(maxWidth: .infinity, alignment: .leading)
         }
+        .playbackBarScrollClearance()
         .macContentFont(.body)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Episode selection Inspector")
@@ -145,19 +166,17 @@ struct EpisodeInspector: SwiftUI.View {
                     }
                     Divider()
                 }
-                HStack {
-                    Text("Show Notes").macContentFont(.headline)
-                    Spacer()
-                    Button("Show in Window") { openWindow(id: "episode-notes", value: row.id) }
-                        .accessibilityLabel("Show Notes in Window for \(row.title)")
-                }
-                let notes = Presentation.plainShowNotes(episode.description)
-                Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
+                showNotes(episode.description)
             } else {
                 Text("Episode details will appear when Library sync catches up.").foregroundStyle(MacReadableSecondaryStyle())
             }
         }
         .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+    }
+    @ViewBuilder private func showNotes(_ description: String) -> some SwiftUI.View {
+        Text("Show Notes").macContentFont(.headline)
+        let notes = Presentation.plainShowNotes(description)
+        Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
     }
     private func resolvedArtwork(_ row: EpisodeRow) -> URL? {
         guard let episode = row.episode else { return row.artworkURL }

@@ -37,21 +37,29 @@ import Testing
             windowNumber: window.windowNumber, context: nil, characters: text, charactersIgnoringModifiers: text,
             isARepeat: false, keyCode: 0))
     }
-    #expect(probe.typeSelect(try key("j")) == nil)
-    #expect(probe.typeSelect(try key("o", at: 1.1)) == nil)
+    #expect(probe.handleKey(try key("j")) == nil)
+    #expect(probe.handleKey(try key("o", at: 1.1)) == nil)
     #expect(selected == "25")
     #expect(anchor?.id == "25")
     #expect(table.visibleRect.intersects(table.rect(ofRow: 25)))
-    #expect(probe.typeSelect(try key("j", modifiers: .command)) != nil)
-    #expect(probe.typeSelect(try key("j", modifiers: .control)) != nil)
-    #expect(probe.typeSelect(try key(" ")) != nil) // Playback keeps Space.
-    #expect(probe.typeSelect(try key("\t")) != nil)
+    #expect(probe.handleKey(try key("j", modifiers: .command)) != nil)
+    #expect(probe.handleKey(try key("j", modifiers: .control)) != nil)
+    #expect(probe.handleKey(try key(" ")) != nil) // Playback keeps Space.
+    #expect(probe.handleKey(try key("\t")) != nil)
+    var activated: [Set<String>] = []
+    probe.selection = ["25"]
+    probe.activate = { activated.append($0) }
+    #expect(probe.handleKey(try key("\r")) == nil)
+    #expect(probe.handleKey(try key("\r", modifiers: .command)) != nil)
+    #expect(activated == [["25"]])
     let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 100, height: 24))
     root.addSubview(field)
     #expect(window.makeFirstResponder(field))
     #expect(window.firstResponder is NSTextView)
     selected = nil
-    #expect(probe.typeSelect(try key("j", at: 4)) != nil)
+    #expect(probe.handleKey(try key("j", at: 4)) != nil)
+    #expect(probe.handleKey(try key("\r")) != nil)
+    #expect(activated == [["25"]])
     #expect(selected == nil)
     #expect(!window.isVisible)
 }

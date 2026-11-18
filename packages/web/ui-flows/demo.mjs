@@ -207,7 +207,7 @@ const waitFor = async (url) => {
 
 /** Starts the fixture host and a seeded PodList server; returns its URL and a stop function. */
 /** A demo server; `{ empty: true }` skips the seed, for first-run tests. */
-export const startDemo = async ({ empty = false, large = false, port: requestedPort } = {}) => {
+export const startDemo = async ({ empty = false, large = false, largeSidebar = false, port: requestedPort } = {}) => {
   const fixtures = await startFixtures()
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = requestedPort ?? (await freePort())
@@ -279,7 +279,7 @@ export const startDemo = async ({ empty = false, large = false, port: requestedP
   try {
     await loaded
     await waitFor(`${base}/api/health`)
-    if (!empty) await seed(base, fixtures.origin, large)
+    if (!empty) await seed(base, fixtures.origin, large, largeSidebar)
   } catch (error) {
     const startupStatus = `exit=${server.exitCode}, signal=${server.signalCode}`
     stop()
@@ -299,7 +299,7 @@ const post = async (base, path, body) => {
   return response.json()
 }
 
-const seed = async (base, origin, large) => {
+const seed = async (base, origin, large, largeSidebar) => {
   const subscriptions = []
   for (const podcast of large ? [...podcasts, largePodcast] : podcasts) {
     subscriptions.push(
@@ -402,6 +402,31 @@ const seed = async (base, origin, large) => {
       }
     }
   ]
+  if (largeSidebar) {
+    // The baseline has three Views and three Playlists. Use a separate demo
+    // instance for the Mac sidebar captures so the other tours keep their seed.
+    for (let index = 4; index <= 30; index++) {
+      const number = String(index).padStart(2, "0")
+      changes.push(
+        {
+          _tag: "SaveView",
+          view: {
+            id: `tour-view-${number}`,
+            name: `Tour View ${number}`,
+            filter: { maxDuration: index * 60 },
+            sort: "publishedDesc",
+            limit: null
+          }
+        },
+        {
+          _tag: "CreatePlaylist",
+          playlistId: `tour-playlist-${number}`,
+          name: `Tour Playlist ${number}`,
+          clearOnPlayed: false
+        }
+      )
+    }
+  }
   await post(base, "/sync/push", {
     operations: changes.map((change, sequence) => ({
       id: `demo-${sequence}`,

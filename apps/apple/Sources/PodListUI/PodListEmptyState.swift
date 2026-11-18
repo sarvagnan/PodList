@@ -7,6 +7,7 @@ struct PodListEmptyState<Actions: SwiftUI.View>: SwiftUI.View {
     let systemImage: String
     let description: String?
     @ViewBuilder let actions: () -> Actions
+    @Environment(\.libraryPlaybackBarInset) private var inset
 
     init(_ title: LocalizedStringKey, systemImage: String, description: String? = nil,
          @ViewBuilder actions: @escaping () -> Actions) {
@@ -14,6 +15,14 @@ struct PodListEmptyState<Actions: SwiftUI.View>: SwiftUI.View {
     }
 
     var body: some SwiftUI.View {
+        if inset != nil {
+            LibraryEmptyStateScroll { message }
+        } else {
+            message
+        }
+    }
+
+    private var message: some SwiftUI.View {
         ContentUnavailableView {
             Label {
                 Text(title).foregroundStyle(MacReadableSecondaryStyle())

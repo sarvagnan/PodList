@@ -2,6 +2,44 @@
 import SwiftUI
 import PodListDomain
 
+extension EnvironmentValues {
+    /// The floating bar's measured height, including its outer padding.
+    @Entry var libraryPlaybackBarInset: CGFloat? = nil
+}
+
+private struct PlaybackBarScrollClearance: ViewModifier {
+    @Environment(\.libraryPlaybackBarInset) private var inset
+
+    func body(content: Content) -> some SwiftUI.View {
+        content.contentMargins(.bottom, inset, for: .scrollContent)
+    }
+}
+
+extension SwiftUI.View {
+    func playbackBarScrollClearance() -> some SwiftUI.View {
+        modifier(PlaybackBarScrollClearance())
+    }
+}
+
+/// Center short content in the unobstructed viewport and let longer content scroll.
+struct LibraryEmptyStateScroll<Content: SwiftUI.View>: SwiftUI.View {
+    @Environment(\.libraryPlaybackBarInset) private var inset
+    @ViewBuilder let content: () -> Content
+
+    var body: some SwiftUI.View {
+        GeometryReader { viewport in
+            ScrollView {
+                content()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: max(0, viewport.size.height - (inset ?? 0)))
+            }
+            .playbackBarScrollClearance()
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+}
+
 struct PlayerBar: SwiftUI.View {
     @Bindable var controller: PlaybackController
     let library: LibraryModel
@@ -27,6 +65,7 @@ struct PlayerBar: SwiftUI.View {
             .macGlassSurface()
             .padding(8)
             .accessibilityElement(children: .contain).accessibilityLabel("Player")
+            .accessibilityIdentifier("library.player")
         }
     }
     private func transport(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {

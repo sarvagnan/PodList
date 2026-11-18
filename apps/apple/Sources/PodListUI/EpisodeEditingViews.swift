@@ -13,7 +13,6 @@ final class PlaylistPresentation {
         }
     }
     var sheet: Sheet?
-    var playlistTab = PlaylistTab.entries
 }
 
 struct EpisodeActionItems: SwiftUI.View {
@@ -22,15 +21,10 @@ struct EpisodeActionItems: SwiftUI.View {
     let editing: PlaylistEditingModel?
     let presentation: PlaylistPresentation?
     let app: ApplicationModel
-    @Environment(\.openWindow) private var openWindow
     var keyboardShortcuts = false
     var overrides: EpisodeMenuOverrides? = nil
     var body: some SwiftUI.View {
         if keyboardShortcuts || !ids.isEmpty || overrides != nil {
-            if !keyboardShortcuts {
-                let notes = EpisodeNotesAction.action(ids: ids) { openWindow(id: "episode-notes", value: $0) }
-                Button(EpisodeNotesAction.title) { notes?() }.disabled(notes == nil)
-            }
             Button("Play Now") {
                 if let overrides { overrides.play() } else { Task { await editing?.add(ids, placement: .now) } }
             }
@@ -325,7 +319,6 @@ public struct PlaylistEditingCommands: Commands {
     @FocusedValue(\.podListEpisodes) private var context
     @FocusedValue(\.podListRemovePlaylistSelection) private var removePlaylistSelection
     @FocusedValue(\.podListEpisodeDetails) private var episodeDetails
-    @FocusedValue(\.podListEpisodeNotes) private var episodeNotes
     @FocusedValue(\.podListRemoteEpisode) private var remoteEpisode
     @FocusedValue(\.podListNowPlayingEpisode) private var nowPlayingEpisode
     @FocusedValue(\.podListPlaylist) private var playlistContext
@@ -353,7 +346,6 @@ public struct PlaylistEditingCommands: Commands {
             Button("Show Episode Details") {
                 if let episodeDetails { episodeDetails() } else { context?.showDetails() }
             }.disabled(episodeDetails == nil && context?.ids.isEmpty != false)
-            Button(EpisodeNotesAction.title) { episodeNotes?() }.disabled(episodeNotes == nil)
             Divider()
             EpisodeActionItems(ids: actionIDs, library: nowPlayingEpisode?.library ?? context?.library ?? app.library, editing: app.editing,
                                presentation: nowPlayingEpisode?.presentation ?? context?.presentation, app: app, keyboardShortcuts: true, overrides: remoteEpisode)
@@ -377,7 +369,7 @@ public struct PlaylistEditingCommands: Commands {
                     Button(playlist.name) { context?.window.navigate(to: .playlist(playlist.id)) }
                 }
             }.disabled(context?.library.state.playlists.isEmpty != false)
-            Picker("Section", selection: Binding(get: { playlistContext?.presentation.playlistTab ?? .entries }, set: { playlistContext?.presentation.playlistTab = $0 })) {
+            Picker("Section", selection: Binding(get: { playlistContext?.window.playlistTab ?? .entries }, set: { playlistContext?.window.showPlaylistTab($0) })) {
                 ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.inline).disabled(playlistContext == nil)
             Divider()
@@ -419,7 +411,7 @@ public struct PlaylistEditingCommands: Commands {
     private var selectionUnavailable: Bool { actionIDs.isEmpty || app.editing == nil || app.editing?.busy == true }
     private var playlistUnavailable: Bool { playlistContext == nil || app.editing == nil || app.editing?.busy == true }
     private var entriesPlaylistID: String? {
-        guard playlistContext?.presentation.playlistTab == .entries else { return nil }
+        guard playlistContext?.window.playlistTab == .entries else { return nil }
         return playlistContext?.playlist.id
     }
     private func move(down: Bool) {
