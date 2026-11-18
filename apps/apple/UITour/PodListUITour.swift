@@ -588,15 +588,19 @@ final class PodListUITour: XCTestCase {
 
         let last = sidebarItem("Search")
         let sidebarPoint = sidebar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
-        let atBottom = NSPredicate { _, _ in
-            last.exists && !last.frame.isEmpty && sidebar.frame.contains(last.frame)
-                && last.frame.maxY <= player.frame.minY
-        }
+        // Poll in test code: XCUIElement queries inside an NSPredicate block can fail
+        // mid-query in the VM (seen 18 Nov in Dark only).
         var reachedBottom = false
         for _ in 0..<6 where !reachedBottom {
             sidebarPoint.hover()
             sidebar.scroll(byDeltaX: 0, deltaY: -600)
-            reachedBottom = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: atBottom, object: nil)], timeout: 2) == .completed
+            for _ in 0..<8 where !reachedBottom {
+                if last.waitForExistence(timeout: 0.5) {
+                    let frame = last.frame
+                    reachedBottom = !frame.isEmpty && sidebar.frame.contains(frame) && frame.maxY <= player.frame.minY
+                }
+                if !reachedBottom { Thread.sleep(forTimeInterval: 0.25) }
+            }
         }
         XCTAssertTrue(reachedBottom, "The last sidebar row must scroll above the player")
         try ready(sidebarItem("Tour Playlist 30"))
