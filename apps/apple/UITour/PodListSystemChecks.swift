@@ -176,7 +176,8 @@ final class PodListSystemChecks: XCTestCase {
         XCTAssertFalse(addPodcasts.exists)
 
         let origin = try XCTUnwrap(ProcessInfo.processInfo.environment["PODLIST_UI_SERVER_ORIGIN"])
-        let address = try XCTUnwrap(URL(string: origin + "/api/health?share=podcast&from=system-check"))
+        let fixtureQuery = "share=podcast&from=system-check"
+        let address = try XCTUnwrap(URL(string: origin + "/api/health?" + fixtureQuery))
         let safariID = "com.apple.Safari"
         let safari = XCUIApplication(bundleIdentifier: safariID)
         let safariURL = try XCTUnwrap(NSWorkspace.shared.urlForApplication(withBundleIdentifier: safariID))
@@ -189,18 +190,15 @@ final class PodListSystemChecks: XCTestCase {
         defer {
             if safari.state != .notRunning { safari.terminate() }
         }
-        XCTAssertTrue(safari.windows.firstMatch.waitForExistence(timeout: 30))
-        let shareButton = safari.toolbars.buttons["Share"].firstMatch
-        if shareButton.waitForExistence(timeout: 5) {
-            shareButton.click()
-        } else {
-            safari.menuBars.menuBarItems["File"].click()
-            safari.menuItems.matching(NSPredicate(format: "label BEGINSWITH %@", "Share")).firstMatch.click()
-        }
-        let destination = safari.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@ OR title == %@", "PodList", "PodList")).firstMatch
-        let listed = destination.waitForExistence(timeout: 20)
-        if !listed { capture(safari, name: "safari-share-picker") }
+        safari.activate()
+        let fixtureWindow = safari.windows.matching(NSPredicate(format: "title CONTAINS %@", fixtureQuery)).firstMatch
+        XCTAssertTrue(fixtureWindow.waitForExistence(timeout: 30), "Safari must display the guest fixture URL")
+        let picker = try openSafariSharePicker(safari)
+        let destination = picker.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@ OR label == %@ OR title == %@", identity + ".share", "PodList", "PodList"))
+            .firstMatch
+        let listed = destination.waitForExistence(timeout: 15)
+        capture(picker, name: "safari-share-picker")
         XCTAssertTrue(listed, "Safari's Share picker must offer PodList for the fixture URL")
         destination.click()
 
@@ -210,6 +208,35 @@ final class PodListSystemChecks: XCTestCase {
         XCTAssertEqual(query.value as? String, address.absoluteString)
         XCTAssertTrue(addPodcasts.buttons["Search"].isEnabled, "The shared address must be staged for Search")
         capture(addPodcasts, name: "share-staged-address")
+    }
+
+    private func openSafariSharePicker(_ safari: XCUIApplication) throws -> XCUIElement {
+        let file = safari.menuBars.menuBarItems["File"]
+        let share = file.menuItems["Share"].firstMatch // Safari's identifier for “Share…”
+        let popover = safari.popovers.firstMatch
+        // A built-in service also identifies the open picker when AppKit exposes its
+        // items directly in Safari's tree instead of under a popover.
+        let builtIn = ["AirDrop", "Copy Link", "Edit Extensions", "Edit Extensions…"]
+        let service = safari.descendants(matching: .any)
+            .matching(NSPredicate(format: "label IN %@ OR title IN %@", builtIn, builtIn))
+            .firstMatch
+        let pickerVisible = NSPredicate { _, _ in
+            (popover.exists && !popover.frame.isEmpty) || (service.exists && !service.frame.isEmpty)
+        }
+        for attempt in 0..<3 {
+            file.click()
+            if share.wait(for: \.isHittable, toEqual: true, timeout: 5), share.isEnabled {
+                share.click()
+                let opened = XCTNSPredicateExpectation(predicate: pickerVisible, object: nil)
+                if XCTWaiter.wait(for: [opened], timeout: 5) == .completed {
+                    if popover.exists && !popover.frame.isEmpty { return popover }
+                    return safari
+                }
+            }
+            if attempt < 2 { safari.typeKey(.escape, modifierFlags: []) }
+        }
+        capture(safari, name: "safari-share-picker-unopened")
+        throw failure("Safari's File > Share… command did not open the picker after three attempts")
     }
 
     func testMCPWindowLifecycle() throws {

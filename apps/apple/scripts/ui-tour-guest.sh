@@ -229,7 +229,21 @@ else
     done
     if /usr/bin/grep -Fq "$share_path" "$share_log"; then
         # Enable this destination in the guest's Share picker for the Safari test.
-        /usr/bin/pluginkit -e use -p com.apple.share-services -i "$share_id" >> "$share_log" 2>&1 || result=$?
+        printf '\nEnabling %s for this guest\n' "$share_id" >> "$share_log"
+        if /usr/bin/pluginkit -e use -i "$share_id" >> "$share_log" 2>&1; then
+            for ((attempt = 0; attempt < 10; attempt++)); do
+                election="$(/usr/bin/pluginkit -m -v -p com.apple.share-services -i "$share_id" 2>&1)" || true
+                if /usr/bin/grep -F "$share_path" <<< "$election" | /usr/bin/grep -Eq '^[[:space:]]*\+'; then break; fi
+                sleep 1
+            done
+            printf '%s\n' "$election" >> "$share_log"
+            if [ "$attempt" -eq 10 ]; then
+                echo "PlugInKit did not report an enabled election for $share_id" | tee -a "$share_log" >&2
+                result=1
+            fi
+        else
+            result=$?
+        fi
     else
         echo "PlugInKit did not register $share_id from $app" | tee -a "$share_log" >&2
         result=1
