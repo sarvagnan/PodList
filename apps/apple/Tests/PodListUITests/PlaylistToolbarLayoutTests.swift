@@ -73,6 +73,10 @@ import Testing
                         }
                     }
                     .searchable(text: .constant(""), placement: .toolbar, prompt: "Search this list")
+                    .inspector(isPresented: .constant(true)) {
+                        Text("Select an Episode")
+                            .inspectorColumnWidth(min: 260, ideal: PaneWidths().inspector, max: 440)
+                    }
             }
         }
     }

@@ -75,6 +75,7 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     private func connected(_ library: LibraryModel) -> some SwiftUI.View {
+        let showsEpisodeInspector = window.supportsEpisodeInspector
         let playbackInset = app.playback?.hasDisplay == true ? playbackBarHeight : 0
         let rows = window.rows(in: library)
         let selection = window.selection
@@ -210,7 +211,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
             .searchFocused($searchFocused)
-            .inspector(isPresented: Binding(get: { showsEpisodeInspector && inspectorVisible }, set: { inspectorVisible = $0 })) {
+            .inspector(isPresented: window.inspectorPresentation($inspectorVisible)) {
                 let row = isPodcastPage
                     ? library.snapshot.episodes.first { selection.contains($0.id) }.map { library.row($0.id) }
                     : selectedRows.first
@@ -715,10 +716,7 @@ public struct PodListWindow: SwiftUI.View {
         savedContext = context.encoded
     }
 
-    private var isPodcastPage: Bool {
-        if case .subscription = window.destination { return true }
-        return podcastFeed != nil
-    }
+    private var isPodcastPage: Bool { window.isPodcastPage }
     private func editCurrentView(_ library: LibraryModel) {
         guard let view = selectedView(library) else { return }
         editView(view)
@@ -760,16 +758,6 @@ public struct PodListWindow: SwiftUI.View {
         guard !isPodcastPage, case let .view(id) = window.destination else { return nil }
         return library.state.views.first { $0.id == id }
     }
-    private var showsEpisodeInspector: Bool {
-        if isPodcastPage { return true }
-        switch window.destination {
-        case .view, .search: return true
-        // Timeline rows describe Episodes too. Keep the user's Inspector choice
-        // across sections, including its empty state when no Episode is selected.
-        case .playlist: return true
-        default: return false
-        }
-    }
     private var newWindowAction: (() -> Void)? {
         guard !isPodcastPage, let destination = window.destination else { return nil }
         switch destination {
@@ -804,6 +792,25 @@ public struct PodListWindow: SwiftUI.View {
         case .search: "magnifyingglass"
         case .trash: "trash"
         }
+    }
+}
+
+extension WindowModel {
+    var supportsEpisodeInspector: Bool {
+        if isPodcastPage { return true }
+        switch destination {
+        case .view, .search, .playlist: return true
+        default: return false
+        }
+    }
+
+    func inspectorPresentation(_ preference: Binding<Bool>) -> Binding<Bool> {
+        let list = listID
+        return Binding(get: { self.supportsEpisodeInspector && preference.wrappedValue }, set: { presented in
+            // SwiftUI can write back a dismissal as an outgoing destination loses its pane.
+            guard self.listID == list, self.supportsEpisodeInspector else { return }
+            preference.wrappedValue = presented
+        })
     }
 }
 

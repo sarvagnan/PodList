@@ -413,7 +413,7 @@ public final class WindowModel {
         restoreList()
         if tab == .entries { revealDrop(in: id) }
     }
-    private var isPodcastPage: Bool {
+    var isPodcastPage: Bool {
         if podcastFeed != nil { return true }
         if case .subscription = destination { return true }
         return false
