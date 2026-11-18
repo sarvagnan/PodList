@@ -18,6 +18,7 @@ final class SpotlightIndex {
     private var initialized = false
     private var applied: [String: SpotlightRecord] = [:]
     private let domain = "app.podlist.library"
+    private let logger = Logger(subsystem: "app.podlist", category: "Spotlight")
 
     func update(_ library: LibraryModel?, origin: String?) {
         guard enabled else { return }
@@ -28,7 +29,10 @@ final class SpotlightIndex {
             while let next = pending {
                 pending = nil
                 do { try await apply(next.0, origin: next.1) }
-                catch { Logger(subsystem: "app.podlist", category: "Spotlight").error("Could not update Library index: \(error.localizedDescription, privacy: .public)") }
+                catch {
+                    let failure = error as NSError
+                    logger.error("Library index update failed (\(failure.domain, privacy: .public) \(failure.code)): \(failure.localizedDescription, privacy: .public)")
+                }
             }
             worker = nil
         }
@@ -48,7 +52,10 @@ final class SpotlightIndex {
         let removed = applied.keys.filter { desired[$0] == nil }
         if !removed.isEmpty { try await index.deleteSearchableItems(withIdentifiers: removed) }
         let changed = records.filter { applied[$0.id] != $0 }
-        if !changed.isEmpty { try await index.indexSearchableItems(changed.map { item($0, library: library) }) }
+        if !changed.isEmpty {
+            try await index.indexSearchableItems(changed.map { item($0, library: library) })
+            logger.info("Core Spotlight journaled \(changed.count) Library items")
+        }
         applied = desired
     }
 
@@ -68,8 +75,7 @@ final class SpotlightIndex {
         attributes.album = record.podcast
         attributes.contentCreationDate = record.published
         attributes.keywords = record.keywords
-        attributes.contentURL = record.link.url
-        attributes.relatedUniqueIdentifier = record.id
+        // The unique identifier carries the app link; contentURL is for file URLs.
         let item = CSSearchableItem(uniqueIdentifier: record.id, domainIdentifier: domain, attributeSet: attributes)
         item.expirationDate = .distantFuture
         return item

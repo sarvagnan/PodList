@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import CoreSpotlight
 import XCTest
 import XCUIAutomation
 
@@ -12,7 +11,6 @@ final class PodListSystemChecks: XCTestCase {
     private let bundle = URL(fileURLWithPath: "/Applications/PodList UI Check.app")
     private var identity = ""
     private var exchange: URL!
-    private var spotlightQuery: CSSearchQuery?
     private var library: XCUIElement {
         app.windows.containing(.any, identifier: "sidebar.Subscriptions").firstMatch
     }
@@ -22,7 +20,7 @@ final class PodListSystemChecks: XCTestCase {
         let shortcuts: [String]
     }
 
-    private func launch(mcp: Bool) throws {
+    private func launch(mcp: Bool, spotlightPredicate: String? = nil) throws {
         continueAfterFailure = false
         let env = ProcessInfo.processInfo.environment
         run = URL(fileURLWithPath: try XCTUnwrap(env["PODLIST_UI_RUN_DIRECTORY"]))
@@ -39,7 +37,8 @@ final class PodListSystemChecks: XCTestCase {
               server.path.isEmpty, server.user == nil, server.password == nil,
               server.query == nil, server.fragment == nil else { throw failure("Non-demo server refused") }
         app = XCUIApplication(url: bundle)
-        app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = run.appendingPathComponent("system/data").path
+        app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = dataDirectory.path
+        app.launchEnvironment["PODLIST_UI_SPOTLIGHT_QUERY"] = spotlightPredicate
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.mcpEnabled", mcp ? "YES" : "NO",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-ApplePersistenceIgnoreState", "YES"]
@@ -47,6 +46,8 @@ final class PodListSystemChecks: XCTestCase {
         XCTAssertTrue(library.waitForExistence(timeout: 60))
         XCTAssertTrue(library.buttons["Open Market Hours, Subscription"].waitForExistence(timeout: 60))
     }
+
+    private var dataDirectory: URL { run.appendingPathComponent("system/data", isDirectory: true) }
 
     func testShortcutsDiscovery() throws {
         try launch(mcp: false)
@@ -130,19 +131,23 @@ final class PodListSystemChecks: XCTestCase {
 
     /// Independent from the visual tour: indexing can take longer than a visual step.
     func testLibraryLinksAndSpotlight() async throws {
-        try launch(mcp: false)
-        defer { spotlightQuery?.cancel(); app.terminate() }
+        try launch(mcp: false, spotlightPredicate: #"title == "Who sets the price of rice?""#)
+        defer { app.terminate() }
+        let reportURL = dataDirectory.appendingPathComponent("spotlight-query.json")
         let deadline = Date().addingTimeInterval(180)
-        var matches: [SpotlightMatch] = []
-        while Date() < deadline {
-            matches = try await findFixtureEpisode()
-            if matches.contains(where: { $0.id.hasPrefix("podlist://episode/") }) { break }
-            try await Task.sleep(for: .seconds(2))
+        while !FileManager.default.fileExists(atPath: reportURL.path) && Date() < deadline {
+            try await Task.sleep(for: .seconds(1))
         }
-        attach(matches.map { "\($0.id) · \($0.title)" }.joined(separator: "\n"), name: "spotlight-query-results.txt")
-        let match = try XCTUnwrap(matches.first { $0.id.hasPrefix("podlist://episode/") }, "Spotlight must find the indexed fixture Episode")
-        XCTAssertEqual(match.title, "Who sets the price of rice?")
-        let url = try XCTUnwrap(URL(string: match.id))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reportURL.path),
+                      "PodList must report its Core Spotlight query result. See guest-diagnostics/spotlight.log.")
+        let report = try Data(contentsOf: reportURL)
+        attach(String(decoding: report, as: UTF8.self), name: "spotlight-query-results.txt")
+        let query = try JSONDecoder().decode(SpotlightReport.self, from: report)
+        XCTAssertNil(query.error, "Core Spotlight query failed in PodList")
+        let match = try XCTUnwrap(query.matches.first { $0.key.hasPrefix("podlist://episode/") },
+                                 "Spotlight must find the indexed fixture Episode")
+        XCTAssertEqual(match.value, "Who sets the price of rice?")
+        let url = try XCTUnwrap(URL(string: match.key))
         // Close every Library first so the URL must open a new Library window.
         library.buttons[XCUIIdentifierCloseWindow].click()
         XCTAssertTrue(library.waitForNonExistence(timeout: 10))
@@ -159,32 +164,9 @@ final class PodListSystemChecks: XCTestCase {
         capture(app, name: "app-link-unavailable")
     }
 
-    private struct SpotlightMatch: Sendable { let id: String; let title: String }
-    private final class SpotlightMatches: @unchecked Sendable {
-        private let lock = NSLock()
-        private var items: [SpotlightMatch] = []
-        func append(_ batch: [CSSearchableItem]) {
-            lock.lock(); defer { lock.unlock() }
-            items += batch.map { SpotlightMatch(id: $0.uniqueIdentifier, title: $0.attributeSet.title ?? "") }
-        }
-        func read() -> [SpotlightMatch] { lock.lock(); defer { lock.unlock() }; return items }
-    }
-    private func findFixtureEpisode() async throws -> [SpotlightMatch] {
-        let context = CSSearchQueryContext()
-        context.fetchAttributes = ["title", "contentURL"]
-        let query = CSSearchQuery(queryString: "title == \"Who sets the price of rice?\"", queryContext: context)
-        spotlightQuery = query
-        let matches = SpotlightMatches()
-        query.foundItemsHandler = { matches.append($0) }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            query.completionHandler = { error in
-                if let error { continuation.resume(throwing: error) }
-                else { continuation.resume() }
-            }
-            query.start()
-        }
-        spotlightQuery = nil
-        return matches.read()
+    private struct SpotlightReport: Decodable {
+        let matches: [String: String]
+        let error: String?
     }
 
     func testMCPWindowLifecycle() throws {
