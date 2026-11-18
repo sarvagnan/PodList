@@ -246,7 +246,7 @@ readme += 'Window screenshots include attached sheets. Text trees use public XCU
 readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
 readme += 'The focused APPEAR-03 pass runs with macOS Show Borders on. Test results: Tour.xcresult and ShowBorders.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/ and borders-attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
 readme += 'Screens 37–39 use Window → Move & Resize → Left to tile the Library to half the display.\n\n'
-readme += 'Response timings are in light/timings.txt and dark/timings.txt. These are VM figures, and XCUITest event synthesis and idle waits make them upper-bound estimates. RESP-01 sets a 200 ms limit at the 75th percentile. The tour records timings without enforcing the limit. The tour does not measure RESP-02 keystroke and drag frame timing.\n\n'
+readme += 'Response timings are in light/timings.txt and dark/timings.txt. The app measures them in the VM, from the input event to the first display frame that can show the result. RESP-01 sets a 200 ms limit at the 75th percentile. The tour records timings without enforcing the limit. The tour does not measure RESP-02 keystroke and drag frame timing.\n\n'
 readme += '| Screen | Light / Dark files | Show Borders Light / Dark files |\n|---|---|---|\n'
 for screen in screens:
     borders = f'borders-light/{screen}.png + .txt; borders-dark/{screen}.png + .txt' if screen in borders_screens else ''

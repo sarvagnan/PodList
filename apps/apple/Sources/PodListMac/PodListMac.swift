@@ -145,6 +145,9 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
         appearance = MacAppearanceController()
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        TourResponseTiming.start()
+        #endif
         model = AutomationRuntime.app
         NSApplication.shared.servicesProvider = self
         keyboard = PlaybackKeyboardGuard()

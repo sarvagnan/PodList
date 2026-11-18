@@ -70,6 +70,9 @@ public struct PodListSettings: SwiftUI.View {
         .onPreferenceChange(SettingsPaneHeights.self) { measured in
             for (pane, height) in measured where height > 0 { heights[pane] = height }
         }
+        #if DEBUG
+        .tourWindowResponse(.settings)
+        #endif
     }
 }
 
