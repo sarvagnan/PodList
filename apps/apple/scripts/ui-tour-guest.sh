@@ -28,6 +28,23 @@ sidebar_demo=""
 warmup=""
 result=0
 reset_show_borders=false
+diagnostics="$shared/run/guest-diagnostics"
+spotlight_start=""
+spotlight_status() {
+    local phase="$1" volume status
+    echo "=== $phase ($(date)) ==="
+    for volume in / /System/Volumes/Data; do
+        status="$(LC_ALL=C /usr/bin/mdutil -s "$volume" 2>&1)" || true
+        printf '%s\n' "$status"
+        if [ "$phase" = "Before app launch" ] && [[ "$status" =~ Indexing(\ and\ searching)?\ disabled ]]; then
+            echo "Enabling Spotlight indexing on $volume"
+            sudo -n /usr/bin/mdutil -i on "$volume" || echo "Could not enable indexing on $volume"
+            LC_ALL=C /usr/bin/mdutil -s "$volume" || true
+        fi
+    done
+    printf 'corespotlightd PID(s):\n'
+    pgrep -x corespotlightd || echo 'No running corespotlightd'
+}
 set_show_borders() {
     /usr/bin/defaults write com.apple.Accessibility ButtonShapesEnabled -bool "$1"
 }
@@ -79,10 +96,16 @@ finish() {
     if [ -n "$demo" ]; then kill "$demo" 2>/dev/null || true; wait "$demo" 2>/dev/null || true; fi
     if [ -n "$sidebar_demo" ]; then kill "$sidebar_demo" 2>/dev/null || true; wait "$sidebar_demo" 2>/dev/null || true; fi
     cp -f "$run/demo.log" "$shared/run/guest-demo.log" 2>/dev/null || true
-    mkdir -p "$shared/run/guest-diagnostics"
-    cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$shared/run/guest-diagnostics/" 2>/dev/null || true
+    mkdir -p "$diagnostics"
+    cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$diagnostics/" 2>/dev/null || true
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
-        > "$shared/run/guest-diagnostics/log.txt" 2>&1 || true
+        > "$diagnostics/log.txt" 2>&1 || true
+    if [ -n "$spotlight_start" ]; then
+        spotlight_status "After system checks" >> "$diagnostics/spotlight-status.txt" 2>&1
+        log show --start "$spotlight_start" --style compact --info --predicate \
+            '(process == "PodListMac" AND (subsystem == "com.apple.corespotlight" OR category == "BiomeCascade" OR (subsystem == "app.podlist" AND category == "Spotlight"))) OR process == "SetStoreUpdateService" OR eventMessage CONTAINS "com.apple.SetStoreUpdateService" OR (process == "corespotlightd" AND (messageType == error OR messageType == fault))' \
+            > "$diagnostics/spotlight.log" 2>&1 || true
+    fi
     for bundle in Tour ShowBorders Shortcuts MCP Integration; do
         if [ -d "$run/$bundle.xcresult" ]; then ditto "$run/$bundle.xcresult" "$shared/run/$bundle.xcresult"; fi
     done
@@ -97,6 +120,11 @@ finish() {
 trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [ "$mode" = system ]; then
+    mkdir -p "$diagnostics"
+    spotlight_start="$(date '+%Y-%m-%d %H:%M:%S')"
+    spotlight_status "Before app launch" > "$diagnostics/spotlight-status.txt" 2>&1
+fi
 demo_now="$(node -e 'console.log(Date.now())')"
 : > "$run/demo.log"
 PODLIST_TEST_DEMO_NOW="$demo_now" node "$shared/run/demo.mjs" \
@@ -170,6 +198,7 @@ else
     ditto "$run/system/PodList.app" "$app"
     /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier app.podlist.uitour.system' "$app/Contents/Info.plist"
     codesign --force --sign - "$app" > "$run/system/app-registration.log" 2>&1
+    codesign --verify --strict --verbose "$app" >> "$run/system/app-registration.log" 2>&1
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
         -f "$app" >> "$run/system/app-registration.log" 2>&1
     PODLIST_UI_DATA_DIRECTORY="$run/system/data" "$app/Contents/MacOS/PodListMac" \

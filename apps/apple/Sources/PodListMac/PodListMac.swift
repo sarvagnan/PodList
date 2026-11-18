@@ -17,7 +17,7 @@ struct PodListMac: App {
     init() {
         #if DEBUG
         // Validate before any app service can touch its persistent files.
-        do { _ = try ApplicationStorage.directory() }
+        do { SpotlightSystemCheck.start(in: try ApplicationStorage.directory()) }
         catch { fatalError("Invalid UI test storage: \(error)") }
         #endif
         let model = ApplicationModel()

@@ -197,6 +197,7 @@ passed = sys.argv[2:] == ['0', '0'] and evidence and summary.exists() and json.l
     'MCP.xcresult: bundled stdio client, native Undo, last-window close, same-process reopen and Quit.\n'
     'Kept screenshots, trees and action names: Shortcuts-attachments/, Integration-attachments/ and MCP-attachments/.\n'
     'MCP transcript, summary and stderr: system-results/. Build/demo/test logs are retained.\n'
+    'Spotlight volume and daemon status, index and donation logs: guest-diagnostics/spotlight-status.txt and spotlight.log.\n'
     'A fresh throwaway Tart clone ran all UI; no host app was launched.\n')
 if not passed:
     raise SystemExit('VM system checks incomplete; inspect xcresults, attachments and logs')
