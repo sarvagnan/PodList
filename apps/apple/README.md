@@ -555,12 +555,24 @@ attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
 `.txt`, and `menus.txt`. After the main tours, a macOS 27 Show Borders pass captures
 New this week with the player bar, the Episode Inspector, the New Playlist sheet,
 and General and Automation Settings in `borders-light/` and `borders-dark/`.
-Each main pass records five runs per task in `light/timings.txt` or `dark/timings.txt`,
-with p75 and max in milliseconds and the guest hardware model and macOS version.
-These VM figures include XCUITest event synthesis and idle waits, so they are
-upper-bound estimates. RESP-01 sets a 200 ms limit at the 75th percentile.
-The tour records timings without enforcing the limit. The tour does not measure
-RESP-02 keystroke and drag frame timing.
+Each main pass attempts five runs per task and attaches `light--timings.txt` or
+`dark--timings.txt` (exported as `light/timings.txt` and `dark/timings.txt`). The
+app measures from the mouse-down or key-down event timestamp to the first display
+refresh after the Episode list, Inspector details, New Playlist sheet, Settings
+window or one-row filter result appears. The filter sample starts on the final
+`e` in `rice`. A display link on the result window supplies the refresh timestamp.
+This measures input to first presented frame at the VM display cadence, with
+SwiftUI appearance and AppKit visibility as the result markers.
+
+The report includes the VM hardware and macOS version, nearest-rank p75 and max
+in milliseconds, and sample counts. Steps with fewer than five samples are marked
+unobserved. RESP-01 targets p75 ≤ 200 ms over at least five runs. The tour records
+the results without enforcing that target. RESP-02 keystroke and drag frame timing
+is outside this tour.
+
+Timing is compiled only in DEBUG and requires both a disposable
+`app.podlist.uitour.*` bundle ID and the tour's `PODLIST_UI_TIMINGS_FILE` launch
+environment value, an absolute file path inside temporary storage.
 
 The generated README lists every screen and reports any missing required
 attachments out of 183.

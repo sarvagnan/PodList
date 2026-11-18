@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import QuartzCore
 import XCTest
 import XCUIAutomation
 
@@ -51,9 +52,11 @@ final class PodListUITour: XCTestCase {
                           userInfo: [NSLocalizedDescriptionKey: "Refusing to launch against a non-demo server origin"])
         }
         let data = URL(fileURLWithPath: runDirectory).appendingPathComponent(appearance + "/data", isDirectory: true)
+        let timings = data.appendingPathComponent("response-timings-\(UUID()).tsv")
         XCTAssertTrue(FileManager.default.fileExists(atPath: data.path))
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
+        if !showBorders { app.launchEnvironment["PODLIST_UI_TIMINGS_FILE"] = timings.path }
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
                                "-PodList.mcpEnabled", "NO", "-PodList.inspectorVisible", "YES",
                                "-AppleKeyboardUIMode", "3",
@@ -495,7 +498,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.buttons["Play"].exists)
         XCTAssertFalse(library.buttons["Pause"].exists, "Leave an Episode paused as after relaunch")
 
-        try recordResponseTimings()
+        try recordResponseTimings(from: timings)
 
         // Resize only after the default-size captures and timings.
         // CRITIQUE step 1: the narrowest supported size, and content scrolled beneath the bars.
@@ -566,7 +569,7 @@ final class PodListUITour: XCTestCase {
         try assertEpisodeTableLayout(inPlaylist: true)
     }
 
-    private func recordResponseTimings() throws {
+    private func recordResponseTimings(from output: URL) throws {
         let newThisWeek = sidebarItem("New this week")
         let episodeTitle = "Who sets the price of rice?"
         let listedEpisode = text(episodeTitle, in: episodeTable(in: library))
@@ -575,34 +578,53 @@ final class PodListUITour: XCTestCase {
         // The fixture has one match for "rice". Require the filtered count and the matching row.
         let filteredWindow = app.windows.matching(NSPredicate(format: "title BEGINSWITH %@", "New this week – 1 Episode")).firstMatch
         let filteredEpisode = text(episodeTitle, in: episodeTable(in: filteredWindow))
-        var navigation: [Double?] = []
-        var selection: [Double?] = []
-        var playlist: [Double?] = []
-        var settingsRuns: [Double?] = []
-        var filter: [Double?] = []
-        for _ in 0..<5 {
+        let runCount = 5
+        var inputs: [String: [Range<TimeInterval>]] = [:]
+        @discardableResult
+        func perform(_ step: String, until result: XCUIElement, input: () -> Void) -> Bool {
+            // These bounds identify the intended event in the app log, excluding
+            // setup and screenshot captures. Both times in each delta come from the app.
+            let start = CACurrentMediaTime()
+            input()
+            inputs[step, default: []].append(start..<CACurrentMediaTime())
+            return result.exists || result.waitForExistence(timeout: 30)
+        }
+
+        for _ in 0..<runCount {
             try navigate("Subscriptions")
             try ready(library.buttons["Open Market Hours, Subscription"])
 
-            playlist.append(responseTime(until: newPlaylist) { app.typeKey("n", modifierFlags: [.command, .shift]) })
-            if newPlaylist.exists { try dismissSheet("Cancel") }
+            if perform("playlist", until: newPlaylist, input: { app.typeKey("n", modifierFlags: [.command, .shift]) }) {
+                try dismissSheet("Cancel")
+            }
 
-            settingsRuns.append(responseTime(until: settings) { app.typeKey(",", modifierFlags: .command) })
-            if settings.exists {
+            if perform("settings", until: settings, input: { app.typeKey(",", modifierFlags: .command) }) {
                 settings.typeKey("w", modifierFlags: .command)
                 XCTAssertTrue(settings.waitForNonExistence(timeout: 15), "Close Settings before the next task")
             }
 
             try ready(newThisWeek)
-            let navigationTime = responseTime(until: listedEpisode) { newThisWeek.click() }
-            navigation.append(navigationTime)
-            // If the list never appeared, neither of its inputs can be timed in this run.
-            guard navigationTime != nil || listedEpisode.exists else { continue }
+            guard perform("sidebar", until: listedEpisode, input: { newThisWeek.click() }) else { continue }
             let episode = try firstEpisodePoint()
-            selection.append(responseTime(until: episodeInspector) { episode.click() })
+            perform("inspector", until: episodeInspector) { episode.click() }
 
             try focusListSearch()
-            filter.append(responseTime(until: filteredEpisode) { app.typeText("rice") })
+            app.typeText("ric")
+            perform("filter", until: filteredEpisode) { app.typeKey("e", modifierFlags: []) }
+        }
+
+        let log = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
+        let samples = log.split(separator: "\n").compactMap { line -> (step: String, input: TimeInterval, ms: Double)? in
+            let fields = line.split(separator: "\t")
+            guard fields.count == 4, let input = Double(fields[1]), let ms = Double(fields[3]),
+                  input.isFinite, ms.isFinite, ms >= 0 else { return nil }
+            return (String(fields[0]), input, ms)
+        }
+        func summary(_ step: String, _ name: String) -> String {
+            let observed = inputs[step, default: []].compactMap { range in
+                samples.first { $0.step == step && range.contains($0.input) }?.ms
+            }.sorted()
+            return timingSummary(name, observed, runs: runCount)
         }
 
         let process = ProcessInfo.processInfo
@@ -610,35 +632,26 @@ final class PodListUITour: XCTestCase {
             "Appearance: \(appearance)",
             "VM hardware model: \(hardwareModel()) (\(process.processorCount) CPUs, \(process.physicalMemory / (1 << 30)) GiB RAM)",
             "macOS: \(process.operatingSystemVersionString)",
-            "Default window size, local demo Library, p75 by nearest rank. Results unobserved after a 30 s wait are marked.",
+            "Method: input event to first presented frame, measured in-app in the VM. Uses the first display-link timestamp after the result appears.",
+            "Default window size, local demo Library, p75 by nearest rank. RESP-01 target: p75 ≤ 200 ms over at least five samples.",
             "If sidebar navigation does not reach the Episode list, the selection and filter runs for that iteration are skipped.",
             "",
-            timingSummary("Sidebar → New this week Episode list", navigation),
-            timingSummary("Select Episode → Episode Inspector", selection),
-            timingSummary("Shift-Cmd-N → New Playlist sheet", playlist),
-            timingSummary("Cmd-, → Settings window", settingsRuns),
-            timingSummary("Type rice → filtered Episode list", filter),
+            summary("sidebar", "Sidebar → New this week Episode list"),
+            summary("inspector", "Select Episode → Episode Inspector"),
+            summary("playlist", "Shift-Cmd-N → New Playlist sheet"),
+            summary("settings", "Cmd-, → Settings window"),
+            summary("filter", "Final e in rice → filtered Episode list"),
         ].joined(separator: "\n")
         attach(report + "\n", name: appearance + "--timings.txt")
     }
 
-    private func responseTime(until result: XCUIElement, input: () -> Void) -> Double? {
-        // Use monotonic uptime so setup/reset stays outside the interval and exact samples
-        // are available for p75 and max. The first AX observation includes XCTest's input
-        // synthesis, idle wait and query latency, so this is an upper-bound estimate.
-        let start = ProcessInfo.processInfo.systemUptime
-        input()
-        // Check immediately before falling back to XCTest's polling wait.
-        guard result.exists || result.waitForExistence(timeout: 30) else { return nil }
-        return (ProcessInfo.processInfo.systemUptime - start) * 1000
-    }
-
-    private func timingSummary(_ name: String, _ samples: [Double?]) -> String {
-        let observed = samples.compactMap { $0 }.sorted()
-        let rank = Int(ceil(Double(samples.count) * 0.75))
-        let p75 = rank > 0 && rank <= observed.count ? String(format: "%.1f ms", observed[rank - 1]) : "unobserved"
-        let max = observed.count == samples.count ? observed.last.map { String(format: "%.1f ms", $0) } : nil
-        return "\(name): runs=\(samples.count), unobserved=\(samples.count - observed.count), p75=\(p75), max=\(max ?? "unobserved")"
+    private func timingSummary(_ name: String, _ observed: [Double], runs: Int) -> String {
+        let coverage = "\(name): samples=\(observed.count)/\(runs)"
+        guard observed.count == runs, let max = observed.last else {
+            return coverage + ", unobserved (short sample count)"
+        }
+        let rank = Int(ceil(Double(observed.count) * 0.75))
+        return coverage + String(format: ", p75=%.1f ms, max=%.1f ms", observed[rank - 1], max)
     }
 
     private func hardwareModel() -> String {
