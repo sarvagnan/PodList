@@ -108,6 +108,7 @@ struct EpisodeInspector: SwiftUI.View {
         .macContentFont(.body)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Episode selection Inspector")
+        .accessibilityIdentifier("library.episodeSelectionInspector")
     }
     private func details(_ row: EpisodeRow) -> some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {

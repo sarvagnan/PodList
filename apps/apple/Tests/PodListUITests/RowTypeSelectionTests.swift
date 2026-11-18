@@ -95,7 +95,7 @@ import Testing
     let root = try #require(window.contentView)
     func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
     root.layoutSubtreeIfNeeded()
-    let table = try #require(descendants(root).compactMap { $0 as? NSTableView }.first)
+    let table = try #require(descendants(root).compactMap { $0 as? NSOutlineView }.first)
     let probe = try #require(descendants(root).compactMap { $0 as? MacRowScroll.Probe }.first)
     #expect(window.makeFirstResponder(table))
     table.selectRowIndexes([0], byExtendingSelection: false)

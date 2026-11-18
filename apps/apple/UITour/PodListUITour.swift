@@ -524,10 +524,13 @@ final class PodListUITour: XCTestCase {
         let rowCount = episodeRows.count
         XCTAssertGreaterThan(rowCount, 1)
         episodeList.typeKey("a", modifierFlags: .command)
-        let summary = library.descendants(matching: .any).matching(identifier: "Episode selection Inspector").firstMatch
-        try ready(summary)
-        XCTAssertEqual(episodeRows.matching(NSPredicate(format: "selected == true")).count, rowCount,
-                       "Command-A must select all Episodes in the list")
+        let selectedRows = episodeRows.matching(NSPredicate(format: "selected == true"))
+        let allSelected = NSPredicate { _, _ in selectedRows.count == rowCount }
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: allSelected, object: nil)], timeout: 5)
+        let selectedCount = selectedRows.count
+        XCTAssertEqual(selectedCount, rowCount, "Command-A selected \(selectedCount) of \(rowCount) Episode rows")
+        let summary = library.descendants(matching: .any).matching(identifier: "library.episodeSelectionInspector").firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 15), "Missing Inspector summary with \(selectedCount) Episode rows selected")
         try ready(button("Add to a Playlist"))
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
@@ -618,9 +621,7 @@ final class PodListUITour: XCTestCase {
                     continue
                 }
             }
-            app.typeKey(.escape, modifierFlags: [])
-            app.typeKey(.escape, modifierFlags: [])
-            library.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 8)).click()
+            refocusLibraryAfterMenu()
         }
         XCTAssertTrue(chose, "Window > Move & Resize > Left was unavailable after three attempts")
 
@@ -952,11 +953,25 @@ final class PodListUITour: XCTestCase {
     }
 
     private func firstEpisodePoint() throws -> XCUICoordinate {
-        let row = episodeRows.firstMatch
-        // SwiftUI outline rows report isEnabled == false to accessibility; they still select on click.
-        try ready(row)
-        // The row's centre can fall on its Play Now button; click the title area instead.
-        return row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+        let list = episodeList
+        try ready(episodeRows.firstMatch)
+        let listFrame = list.frame
+        var visibleTop = listFrame.minY
+        for title in ["Episode", "Entry"] {
+            let header = list.buttons[title].firstMatch
+            if header.exists { visibleTop = max(visibleTop, header.frame.maxY) }
+        }
+        // Restoring a scroll anchor can leave the first outline row partly
+        // underneath the sticky column headers. Click its exposed title area.
+        let point = episodeRows.allElementsBoundByIndex.lazy.compactMap { row -> XCUICoordinate? in
+            let frame = row.frame
+            let top = max(frame.minY, visibleTop)
+            let bottom = min(frame.maxY, listFrame.maxY)
+            guard bottom - top > 4 else { return nil }
+            let y = ((top + bottom) / 2 - frame.minY) / frame.height
+            return row.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: y))
+        }.first
+        return try XCTUnwrap(point, "No Episode row has an exposed area below the column headers")
     }
 
     private func selectFirstEpisode() throws {
@@ -1126,9 +1141,34 @@ final class PodListUITour: XCTestCase {
         }
     }
 
-    private func menuCommand(_ menu: String, _ command: String) throws {
-        try click(app.menuBars.menuBarItems[menu])
-        try click(app.menuBars.menuBarItems[menu].menuItems[command].firstMatch)
+    private func menuCommand(_ menu: String, _ command: String,
+                             file: StaticString = #filePath, line: UInt = #line) throws {
+        let menuItem = app.menuBars.menuBarItems[menu]
+        let action = menuItem.menuItems.matching(NSPredicate(format: "title == %@ OR label == %@", command, command)).firstMatch
+        try ready(menuItem, file: file, line: line)
+        for attempt in 0..<3 {
+            menuItem.click()
+            if action.waitForExistence(timeout: 3), let snapshot = try? action.snapshot(), snapshot.isEnabled {
+                let frame = snapshot.frame
+                if !frame.isEmpty, frame.midX.isFinite, frame.midY.isFinite {
+                    // SwiftUI commands share the menuAction: identifier. Use
+                    // the visible snapshot to avoid XCTest's hover re-lookup.
+                    let menuFrame = menuItem.frame
+                    menuItem.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: frame.midX - menuFrame.minX, dy: frame.midY - menuFrame.minY))
+                        .click()
+                    return
+                }
+            }
+            if attempt < 2 { refocusLibraryAfterMenu() }
+        }
+        XCTFail("\(menu) > \(command) was unavailable after three attempts", file: file, line: line)
+    }
+
+    private func refocusLibraryAfterMenu() {
+        app.typeKey(.escape, modifierFlags: [])
+        app.typeKey(.escape, modifierFlags: [])
+        library.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 8)).click()
     }
 
     private func captureMenus() throws {
