@@ -51,12 +51,12 @@ export const tools = [
   tool("list_playlists", "List Playlists with Entry counts and Active status.", page),
   tool(
     "list_episodes",
-    "List a View's Episodes or a Playlist's ordered Entries. Supply exactly one id.",
+    "List a View’s Episodes or a Playlist’s ordered Entries. Supply exactly one id.",
     { ...page, view_id: text, playlist_id: text }
   ),
   tool(
     "search_episodes",
-    "Search Library titles, podcasts and show notes using the app's text matching.",
+    "Search Library titles, podcasts and show notes using the app’s text matching.",
     { ...page, text },
     ["text"]
   ),
