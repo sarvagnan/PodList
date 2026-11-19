@@ -603,6 +603,50 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(reachedBottom, "The last sidebar row must scroll above the player")
         try ready(sidebarItem("Tour Playlist 30"))
         try capture("41-large-sidebar-bottom")
+        try captureSidebarFolding(in: sidebar)
+    }
+
+    private func captureSidebarFolding(in sidebar: XCUIElement) throws {
+        let views = sidebar.staticTexts["Views"]
+        let playlists = sidebar.staticTexts["Playlists"]
+        let newView = sidebar.buttons["New View…"]
+        let newPlaylist = sidebar.buttons["New Playlist…"]
+        let selectedView = sidebarItem("New this week")
+        let defaultPlaylist = sidebarItem("Default")
+
+        func toggle(_ header: XCUIElement, named name: String) throws {
+            try ready(header)
+            header.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).hover()
+            let disclosure = sidebar.outlineRows.containing(.staticText, identifier: name)
+                .firstMatch.disclosureTriangles.firstMatch
+            try click(disclosure.exists ? disclosure : header)
+        }
+
+        sidebar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).hover()
+        try reveal(views, in: sidebar, scrollDelta: 600)
+        try ready(newView)
+        try openNewThisWeek()
+        let viewWindow = app.windows.matching(NSPredicate(format: "title BEGINSWITH %@", "New this week")).firstMatch
+        let viewEpisode = text("Who sets the price of rice?", in: episodeTable(in: viewWindow))
+        try ready(viewEpisode)
+
+        try toggle(views, named: "Views")
+        XCTAssertTrue(selectedView.waitForNonExistence(timeout: 5), "Folding Views must hide the selected row")
+        XCTAssertTrue(newView.waitForNonExistence(timeout: 5), "Folding Views must hide New View")
+        XCTAssertTrue(viewEpisode.exists, "Folding the selected View must keep its detail visible")
+        try toggle(views, named: "Views")
+        try ready(selectedView)
+        try ready(newView)
+
+        try reveal(defaultPlaylist, in: sidebar)
+        try ready(newPlaylist)
+        try toggle(playlists, named: "Playlists")
+        XCTAssertTrue(defaultPlaylist.waitForNonExistence(timeout: 5), "Folding Playlists must hide its rows")
+        XCTAssertTrue(newPlaylist.waitForNonExistence(timeout: 5), "Folding Playlists must hide New Playlist")
+        try capture("42-large-sidebar-playlists-folded")
+        try toggle(playlists, named: "Playlists")
+        try ready(defaultPlaylist)
+        try ready(newPlaylist)
     }
 
     private func captureHalfDisplay() throws {
@@ -1045,13 +1089,13 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
     }
 
-    private func reveal(_ element: XCUIElement, in scroll: XCUIElement) throws {
+    private func reveal(_ element: XCUIElement, in scroll: XCUIElement, scrollDelta: Double = -180) throws {
         for _ in 0..<8 {
             // Glass action strips can report isHittable == false although the control is
             // visible; accept a control whose centre lies inside the scroll view.
             if element.exists, !element.frame.isEmpty, element.isHittable
                 || scroll.frame.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) { return }
-            scroll.scroll(byDeltaX: 0, deltaY: -180)
+            scroll.scroll(byDeltaX: 0, deltaY: scrollDelta)
         }
         XCTFail("Could not reveal \(element)")
     }

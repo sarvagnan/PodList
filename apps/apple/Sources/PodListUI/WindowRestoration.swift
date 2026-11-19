@@ -68,6 +68,7 @@ struct WindowContext: Codable, Equatable {
 
     var scrollAnchor: RowAnchor?
     var paneWidths: PaneWidths?
+    var collapsedSidebarSections: Set<SidebarSection.ID>?
 
     private var isPodcastPage: Bool {
         if case .subscription = destination { return true }
@@ -156,7 +157,7 @@ extension WindowModel {
                       sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
                       playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns,
                       podcastFeed: podcastFeed, podcastOrigin: podcastOrigin, subscriptionSelection: subscriptionSelection,
-                      scrollAnchor: scrollAnchor, paneWidths: paneWidths)
+                      scrollAnchor: scrollAnchor, paneWidths: paneWidths, collapsedSidebarSections: collapsedSidebarSections)
     }
 
     func restore(_ context: WindowContext) {
@@ -167,6 +168,7 @@ extension WindowModel {
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection
         scrollAnchor = context.scrollAnchor; paneWidths = (context.paneWidths ?? PaneWidths()).reconciled
+        collapsedSidebarSections = context.collapsedSidebarSections ?? []
         if !hasRestoredPaneWidths {
             initialPaneWidths = paneWidths
             hasRestoredPaneWidths = true
