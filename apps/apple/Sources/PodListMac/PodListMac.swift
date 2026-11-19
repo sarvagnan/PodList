@@ -81,6 +81,9 @@ struct PodListMac: App {
         stageSharedPodcast()
         shareLogger.notice("Requesting the Add Podcasts window for Share")
         openWindow(id: "add-podcasts")
+        // Add Podcasts is a utility window, which macOS hides while the app is
+        // inactive; the share came from another app, so come forward (as Services does).
+        NSApplication.shared.activate()
     }
 
     var body: some Scene {
