@@ -3,6 +3,9 @@ import PodListUI
 import PodListAutomation
 import AppIntents
 import CoreSpotlight
+import OSLog
+
+private let shareLogger = Logger(subsystem: "app.podlist", category: "share")
 
 @main
 struct PodListMac: App {
@@ -50,22 +53,33 @@ struct PodListMac: App {
     }
 
     private func stageSharedPodcast() {
-        guard let address = pendingPodcastAddress, let editor = model.libraryEditing else { return }
+        guard let address = pendingPodcastAddress else { return }
+        guard let editor = model.libraryEditing else {
+            shareLogger.notice("Deferring shared podcast staging until the Library editor is ready")
+            return
+        }
         pendingPodcastAddress = nil
-        _ = editor.stagePodcastAddress(address)
+        if editor.stagePodcastAddress(address) {
+            shareLogger.notice("Staged shared URL in Add Podcasts: \(address, privacy: .private)")
+        } else {
+            shareLogger.error("Library editor rejected shared podcast address")
+        }
     }
 
     private func routeSharedPodcast(_ url: URL) {
+        shareLogger.notice("Received add-podcast URL: \(url.absoluteString, privacy: .private)")
         guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
               parts.path.isEmpty, parts.user == nil, parts.password == nil, parts.port == nil,
               parts.fragment == nil, let items = parts.queryItems, items.count == 1,
               let item = items.first, item.name == "url",
               let address = item.value, PodListLink.feedSelection(address) != nil else {
+            shareLogger.error("Rejected invalid add-podcast URL")
             linkError = true
             return
         }
         pendingPodcastAddress = address
         stageSharedPodcast()
+        shareLogger.notice("Requesting the Add Podcasts window for Share")
         openWindow(id: "add-podcasts")
     }
 

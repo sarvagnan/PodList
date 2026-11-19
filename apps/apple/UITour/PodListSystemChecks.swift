@@ -201,8 +201,10 @@ final class PodListSystemChecks: XCTestCase {
         capture(picker, name: "safari-share-picker")
         XCTAssertTrue(listed, "Safari's Share picker must offer PodList for the fixture URL")
         destination.click()
+        attach(XCUIScreen.main.screenshot(), name: "safari-share-after-click.png")
 
-        XCTAssertTrue(addPodcasts.waitForExistence(timeout: 30))
+        XCTAssertTrue(addPodcasts.waitForExistence(timeout: 30),
+                      "Sharing from Safari must open Add Podcasts. See guest-diagnostics/podlist.log.")
         let query = addPodcasts.textFields["addPodcasts.query"]
         XCTAssertTrue(query.waitForExistence(timeout: 10))
         XCTAssertEqual(query.value as? String, address.absoluteString)
@@ -313,11 +315,14 @@ final class PodListSystemChecks: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
-    private func capture(_ target: XCUIElement, name: String) {
-        let attachment = XCTAttachment(screenshot: target.screenshot())
-        attachment.name = name + ".png"
+    private func attach(_ screenshot: XCUIScreenshot, name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+    private func capture(_ target: XCUIElement, name: String) {
+        attach(target.screenshot(), name: name + ".png")
         attach(target.debugDescription, name: name + ".txt")
     }
 }

@@ -108,6 +108,8 @@ finish() {
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$diagnostics/log.txt" 2>&1 || true
     if [ -n "$spotlight_start" ]; then
+        log show --start "$spotlight_start" --style compact --info --predicate 'subsystem == "app.podlist"' \
+            > "$diagnostics/podlist.log" 2>&1 || true
         spotlight_status "After system checks" >> "$diagnostics/spotlight-status.txt" 2>&1
         log show --start "$spotlight_start" --style compact --info --predicate \
             '(process == "PodListMac" AND (subsystem == "com.apple.corespotlight" OR category == "BiomeCascade" OR (subsystem == "app.podlist" AND category == "Spotlight"))) OR process == "SetStoreUpdateService" OR eventMessage CONTAINS "com.apple.SetStoreUpdateService" OR (process == "corespotlightd" AND (messageType == error OR messageType == fault))' \

@@ -202,6 +202,7 @@ passed = sys.argv[2:] == ['0', '0'] and evidence and summary.exists() and json.l
     'Kept screenshots, trees and action names: Shortcuts-attachments/, Integration-attachments/ and MCP-attachments/.\n'
     'MCP transcript, summary and stderr: system-results/. Build/demo/test logs are retained.\n'
     'PlugInKit Share registration and election: system-results/share-registration.log.\n'
+    'PodList unified log, including Share item loading and URL handoff: guest-diagnostics/podlist.log.\n'
     'Spotlight volume and daemon status, index and donation logs: guest-diagnostics/spotlight-status.txt and spotlight.log.\n'
     'A fresh throwaway Tart clone ran all UI; no host app was launched.\n')
 if not passed:
