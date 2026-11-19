@@ -85,13 +85,26 @@ public struct PodListWindow: SwiftUI.View {
         let selection = window.selection
         let selectedRows = selection.isEmpty ? [] : selectionRows(library, rows: rows).filter { selection.contains($0.id) }
         let selectedIDs = selectedRows.map(\.id)
+        let sidebar = library.sidebar
         return NavigationSplitView(columnVisibility: $columns) {
             List(selection: Binding(get: { podcastFeed == nil ? window.sidebarSelection : .subscriptions }, set: {
-                if $0 == nil, window.destination == .views { return }
+                if $0 == nil {
+                    if window.destination == .views { return }
+                    // The outline can deselect a hidden row while its detail remains open.
+                    if let selected = podcastFeed == nil ? window.sidebarSelection : .subscriptions,
+                       sidebar.contains(where: { section in
+                           window.collapsedSidebarSections.contains(section.id) && section.items.contains { $0.destination == selected }
+                       }) { return }
+                }
                 window.navigate(to: $0)
             })) {
-                ForEach(library.sidebar) { section in
-                    Section {
+                ForEach(sidebar) { section in
+                    Section(isExpanded: Binding(get: {
+                        !window.collapsedSidebarSections.contains(section.id)
+                    }, set: { expanded in
+                        if expanded { window.collapsedSidebarSections.remove(section.id) }
+                        else { window.collapsedSidebarSections.insert(section.id) }
+                    })) {
                         if section.name == "Views" {
                             Button("New View…", systemImage: "plus") { newView() }.buttonStyle(.plain).selectionDisabled()
                         }

@@ -342,6 +342,7 @@ public final class WindowModel {
     var subscriptionSelection = Set<String>()
     var timelineSelection: String?
     var scrollAnchor: RowAnchor?
+    var collapsedSidebarSections = Set<SidebarSection.ID>()
     var listID: ListID {
         if let podcastFeed { return .podcast(podcastFeed) }
         if case let .playlist(id) = destination { return .playlist(id, playlistTab) }

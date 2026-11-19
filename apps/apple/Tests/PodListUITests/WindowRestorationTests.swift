@@ -168,6 +168,35 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(sorted.scrollAnchor?.id == "b")
 }
 
+@MainActor @Test func sidebarFoldsRoundTripWithTheSelectedDestinationAndStayWindowLocal() throws {
+    let window = WindowModel()
+    let otherWindow = WindowModel()
+    #expect(window.collapsedSidebarSections.isEmpty)
+    window.navigate(to: .view("all"))
+    window.collapsedSidebarSections = ["Views", "Library"]
+    otherWindow.collapsedSidebarSections = ["Playlists"]
+
+    let context = window.context(libraryID: "standalone", columns: .all)
+    let saved = try #require(WindowContext.decode(context.encoded))
+    #expect(saved.collapsedSidebarSections == ["Views", "Library"])
+
+    let relaunched = WindowModel()
+    relaunched.restore(saved.reconciled(in: restorationLibrary()))
+    #expect(relaunched.collapsedSidebarSections == ["Views", "Library"])
+    #expect(relaunched.sidebarSelection == .view("all"))
+    #expect(relaunched.destination == .view("all"))
+    #expect(otherWindow.collapsedSidebarSections == ["Playlists"])
+}
+
+@MainActor @Test func legacyWindowContextOpensAllSidebarSections() throws {
+    let legacy = try #require(WindowContext.decode(WindowContext().encoded))
+    #expect(legacy.collapsedSidebarSections == nil)
+    let window = WindowModel()
+    window.collapsedSidebarSections = ["Views", "Playlists", "Library"]
+    window.restore(legacy)
+    #expect(window.collapsedSidebarSections.isEmpty)
+}
+
 @MainActor @Test func restoredReadingPositionAndWidthsStayWindowLocal() {
     let window = WindowModel(), other = WindowModel()
     let value = WindowContext(scrollAnchor: .init(id: "a", index: 4), paneWidths: .init(sidebar: 290, inspector: 400))
