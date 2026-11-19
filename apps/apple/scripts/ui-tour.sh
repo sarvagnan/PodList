@@ -67,7 +67,10 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-"$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
+PODLIST_SYSTEM_INTEGRATION=0 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
+# Stage only the executable on the host. The guest embeds it after setting the
+# final bundle ID of each copy, so the extension always inherits that prefix.
+cp -f "$apple/.build/debug/PodListShare" "$run/PodListShare"
 for style in $styles; do
     mkdir -p "$run/$style/data"
     cp -Rf "$apple/.build/PodList.app" "$run/$style/PodList.app"
@@ -190,13 +193,16 @@ integration_names = attachment_names('Integration')
 evidence = any(name.startswith('shortcuts-actions') for name in shortcuts_names) and any(name.startswith('shortcuts-final') and name.endswith('.png') for name in shortcuts_names)
 evidence = evidence and any(name.startswith('mcp-reopened') and name.endswith('.png') for name in mcp_names)
 evidence = evidence and any(name.startswith('spotlight-query-results') for name in integration_names) and any(name.startswith('app-link-episode') and name.endswith('.png') for name in integration_names)
+evidence = evidence and any(name.startswith('share-staged-address') and name.endswith('.png') for name in integration_names)
 passed = sys.argv[2:] == ['0', '0'] and evidence and summary.exists() and json.loads(summary.read_text()).get('status') == 'passed'
 (out / 'README.md').write_text('# PodList VM system checks\n\nStatus: ' + ('passed' if passed else 'incomplete') +
     '.\n\nShortcuts.xcresult: source-derived action discovery and optional App Shortcuts.\n'
-    'Integration.xcresult: Spotlight fixture query, Episode app link, reopen and unavailable item.\n'
+    'Integration.xcresult: Spotlight fixture query, Episode app link, reopen, unavailable item and Safari Share handoff.\n'
     'MCP.xcresult: bundled stdio client, native Undo, last-window close, same-process reopen and Quit.\n'
     'Kept screenshots, trees and action names: Shortcuts-attachments/, Integration-attachments/ and MCP-attachments/.\n'
     'MCP transcript, summary and stderr: system-results/. Build/demo/test logs are retained.\n'
+    'PlugInKit Share registration and election: system-results/share-registration.log.\n'
+    'PodList unified log, including Share item loading and URL handoff: guest-diagnostics/podlist.log.\n'
     'Spotlight volume and daemon status, index and donation logs: guest-diagnostics/spotlight-status.txt and spotlight.log.\n'
     'A fresh throwaway Tart clone ran all UI; no host app was launched.\n')
 if not passed:

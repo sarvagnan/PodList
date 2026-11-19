@@ -3,6 +3,9 @@ import PodListUI
 import PodListAutomation
 import AppIntents
 import CoreSpotlight
+import OSLog
+
+private let shareLogger = Logger(subsystem: "app.podlist", category: "share")
 
 @main
 struct PodListMac: App {
@@ -11,6 +14,7 @@ struct PodListMac: App {
     @State private var spotlight = SpotlightIndex()
     @State private var pendingLinks: [PodListLink] = []
     @State private var linkError = false
+    @State private var pendingPodcastAddress: String?
     @State private var pendingOPMLFiles: [URL] = []
     @State private var textSize = MacTextSizePreference()
 
@@ -48,6 +52,42 @@ struct PodListMac: App {
         for link in links { model.openLibraryLink(link, reopen: { openWindow(id: "library") }) }
     }
 
+    private func stageSharedPodcast() {
+        guard let address = pendingPodcastAddress else { return }
+        guard let editor = model.libraryEditing else {
+            shareLogger.notice("Deferring shared podcast staging until the Library editor is ready")
+            return
+        }
+        pendingPodcastAddress = nil
+        if editor.stagePodcastAddress(address) {
+            shareLogger.notice("Staged shared URL in Add Podcasts: \(address, privacy: .private)")
+        } else {
+            shareLogger.error("Library editor rejected shared podcast address")
+        }
+    }
+
+    private func routeSharedPodcast(_ url: URL) {
+        shareLogger.notice("Received add-podcast URL: \(url.absoluteString, privacy: .private)")
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              parts.path.isEmpty, parts.user == nil, parts.password == nil, parts.port == nil,
+              parts.fragment == nil, let items = parts.queryItems, items.count == 1,
+              let item = items.first, item.name == "url",
+              let address = item.value, PodListLink.feedSelection(address) != nil else {
+            shareLogger.error("Rejected invalid add-podcast URL")
+            linkError = true
+            return
+        }
+        pendingPodcastAddress = address
+        stageSharedPodcast()
+        shareLogger.notice("Requesting the Add Podcasts window for Share")
+        // Use the window-scoped action, like Services; the App-level openWindow
+        // did nothing for a URL event in the VM (19 Nov).
+        if let show = delegate.showAddPodcasts { show() } else { openWindow(id: "add-podcasts") }
+        // Add Podcasts is a utility window, which macOS hides while the app is
+        // inactive; the share came from another app, so come forward (as Services does).
+        NSApplication.shared.activate()
+    }
+
     var body: some Scene {
         WindowGroup("PodList", id: "library", for: LibraryWindowTarget.self) { $target in
             PodListWindow(app: model, initialDestination: target?.destination).macTextSize(textSize)
@@ -65,9 +105,13 @@ struct PodListMac: App {
                     }
                 }
                 .onChange(of: model.library?.snapshot.isReady) { _, _ in routeLinks() }
+                // Deliver podlist:// URLs to an open Library window instead of
+                // opening a new one for each event.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 .onOpenURL { url in
                     if url.scheme?.lowercased() == "podlist" {
-                        if let link = PodListLink(url: url) { pendingLinks.append(link); routeLinks() }
+                        if url.host?.lowercased() == "add-podcast" { routeSharedPodcast(url) }
+                        else if let link = PodListLink(url: url) { pendingLinks.append(link); routeLinks() }
                         else { linkError = true }
                         return
                     }
@@ -75,7 +119,10 @@ struct PodListMac: App {
                     pendingOPMLFiles.append(url)
                     stageOPMLFiles()
                 }
-                .onChange(of: model.libraryEditing?.scope) { _, _ in stageOPMLFiles() }
+                .onChange(of: model.libraryEditing?.scope) { _, _ in
+                    stageOPMLFiles()
+                    stageSharedPodcast()
+                }
                 .onChange(of: model.libraryEditing?.busy) { _, _ in stageOPMLFiles() }
         }
         .defaultSize(width: 1180, height: 760)

@@ -15,13 +15,20 @@ touch "$run/uitour-vm"
 for item in light dark borders-light borders-dark sidebar-light sidebar-dark system products checks; do
     if [ -d "$shared/run/$item" ]; then ditto "$shared/run/$item" "$run/$item"; fi
 done
-# Only these disposable VM copies advertise the podlist:// scheme and the Service.
+# Only the disposable VM copies advertise the scheme, Service and Share extension.
 # PlistBuddy splits its command on spaces, and the share path has them.
-cp -f "$shared/repo/apps/apple/scripts/system-integration-keys.plist" "$run/system-integration-keys.plist"
+scripts="$shared/repo/apps/apple/scripts"
+cp -f "$scripts/system-integration-keys.plist" "$run/system-integration-keys.plist"
+enable_integration() {
+    local app="$1"
+    /usr/libexec/PlistBuddy -c "Merge $run/system-integration-keys.plist" "$app/Contents/Info.plist"
+    /bin/bash "$scripts/embed-mac-share-extension.sh" "$app" "$shared/run/PodListShare"
+    codesign --force --sign - "$app"
+}
 for app in "$run"/*/PodList.app; do
     [ -d "$app" ] || continue
-    /usr/libexec/PlistBuddy -c "Merge $run/system-integration-keys.plist" "$app/Contents/Info.plist"
-    codesign --force --sign - "$app"
+    [ "$app" != "$run/system/PodList.app" ] || continue
+    enable_integration "$app"
 done
 demo=""
 sidebar_demo=""
@@ -101,6 +108,8 @@ finish() {
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$diagnostics/log.txt" 2>&1 || true
     if [ -n "$spotlight_start" ]; then
+        log show --start "$spotlight_start" --style compact --info --predicate 'subsystem == "app.podlist"' \
+            > "$diagnostics/podlist.log" 2>&1 || true
         spotlight_status "After system checks" >> "$diagnostics/spotlight-status.txt" 2>&1
         log show --start "$spotlight_start" --style compact --info --predicate \
             '(process == "PodListMac" AND (subsystem == "com.apple.corespotlight" OR category == "BiomeCascade" OR (subsystem == "app.podlist" AND category == "Spotlight"))) OR process == "SetStoreUpdateService" OR eventMessage CONTAINS "com.apple.SetStoreUpdateService" OR (process == "corespotlightd" AND (messageType == error OR messageType == fault))' \
@@ -111,7 +120,7 @@ finish() {
     done
     if [ "$mode" = system ]; then
         mkdir -p "$shared/run/system-results"
-        for file in "$run/system"/mcp-* "$run/system"/app-* "$run/system/catalog.json"; do
+        for file in "$run/system"/mcp-* "$run/system"/app-* "$run/system"/share-* "$run/system/catalog.json"; do
             [ ! -f "$file" ] || cp -f "$file" "$shared/run/system-results/"
         done
     fi
@@ -197,8 +206,8 @@ else
     app='/Applications/PodList UI Check.app'
     ditto "$run/system/PodList.app" "$app"
     /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier app.podlist.uitour.system' "$app/Contents/Info.plist"
-    codesign --force --sign - "$app" > "$run/system/app-registration.log" 2>&1
-    codesign --verify --strict --verbose "$app" >> "$run/system/app-registration.log" 2>&1
+    enable_integration "$app" > "$run/system/app-registration.log" 2>&1
+    codesign --verify --deep --strict --verbose "$app" >> "$run/system/app-registration.log" 2>&1
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
         -f "$app" >> "$run/system/app-registration.log" 2>&1
     PODLIST_UI_DATA_DIRECTORY="$run/system/data" "$app/Contents/MacOS/PodListMac" \
@@ -212,6 +221,35 @@ else
     kill "$warmup"
     wait "$warmup" || true
     warmup=""
+    share_id=app.podlist.uitour.system.share
+    share_path="$app/Contents/PlugIns/PodListShare.appex"
+    share_log="$run/system/share-registration.log"
+    for ((attempt = 0; attempt < 30; attempt++)); do
+        /usr/bin/pluginkit -m -v -p com.apple.share-services -i "$share_id" > "$share_log" 2>&1 || true
+        if /usr/bin/grep -Fq "$share_path" "$share_log"; then break; fi
+        sleep 1
+    done
+    if /usr/bin/grep -Fq "$share_path" "$share_log"; then
+        # Enable this destination in the guest's Share picker for the Safari test.
+        printf '\nEnabling %s for this guest\n' "$share_id" >> "$share_log"
+        if /usr/bin/pluginkit -e use -i "$share_id" >> "$share_log" 2>&1; then
+            for ((attempt = 0; attempt < 10; attempt++)); do
+                election="$(/usr/bin/pluginkit -m -v -p com.apple.share-services -i "$share_id" 2>&1)" || true
+                if /usr/bin/grep -F "$share_path" <<< "$election" | /usr/bin/grep -Eq '^[[:space:]]*\+'; then break; fi
+                sleep 1
+            done
+            printf '%s\n' "$election" >> "$share_log"
+            if [ "$attempt" -eq 10 ]; then
+                echo "PlugInKit did not report an enabled election for $share_id" | tee -a "$share_log" >&2
+                result=1
+            fi
+        else
+            result=$?
+        fi
+    else
+        echo "PlugInKit did not register $share_id from $app" | tee -a "$share_log" >&2
+        result=1
+    fi
     xcodebuild test-without-building -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListSystemChecks/testShortcutsDiscovery \
@@ -220,6 +258,7 @@ else
     xcodebuild test-without-building -xctestrun "$xctestrun" \
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListSystemChecks/testLibraryLinksAndSpotlight \
+        -only-testing:PodListUITour/PodListSystemChecks/testShareFromSafari \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
         -maximum-test-execution-time-allowance 420 -resultBundlePath "$run/Integration.xcresult" || result=$?
     # Run the independent MCP/window test even if another system check failed.

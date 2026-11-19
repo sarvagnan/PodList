@@ -385,9 +385,8 @@ final class PodListUITour: XCTestCase {
         // Discovery stays open while Library is used and reopening brings it forward.
         try navigate("Default")
         XCTAssertTrue(addPodcasts.exists)
-        try menuCommand("File", "Add Podcasts…")
+        try menuCommand("File", "Add Podcasts…", until: podcastQuery, requiringFocus: true)
         XCTAssertEqual(app.windows.matching(NSPredicate(format: "title == %@", "Add Podcasts")).count, 1)
-        assertKeyboardFocus(podcastQuery)
         addPodcasts.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(addPodcasts.waitForNonExistence(timeout: 10))
         app.typeKey("a", modifierFlags: [.command, .shift])
@@ -489,9 +488,8 @@ final class PodListUITour: XCTestCase {
         settings.typeKey("w", modifierFlags: .command)
         try ready(library)
 
-        try menuCommand("Window", "Listening Stats")
         let stats = app.windows.matching(NSPredicate(format: "title == %@", "Listening Stats")).firstMatch
-        try ready(stats)
+        try menuCommand("Window", "Listening Stats", until: stats)
         XCTAssertFalse(stats.scrollViews.staticTexts["Listening Stats"].exists, "The title bar already names the window")
         XCTAssertFalse(stats.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "0:00 listened")).firstMatch.exists,
                        "Sub-minute listening must use visible seconds rather than round to zero")
@@ -1146,11 +1144,13 @@ final class PodListUITour: XCTestCase {
         }
     }
 
-    private func menuCommand(_ menu: String, _ command: String,
+    private func menuCommand(_ menu: String, _ command: String, until result: XCUIElement? = nil,
+                             requiringFocus: Bool = false,
                              file: StaticString = #filePath, line: UInt = #line) throws {
         let menuItem = app.menuBars.menuBarItems[menu]
         let action = menuItem.menuItems.matching(NSPredicate(format: "title == %@ OR label == %@", command, command)).firstMatch
         try ready(menuItem, file: file, line: line)
+        var clicked = false
         for attempt in 0..<3 {
             menuItem.click()
             if action.waitForExistence(timeout: 3), let snapshot = try? action.snapshot(), snapshot.isEnabled {
@@ -1162,12 +1162,21 @@ final class PodListUITour: XCTestCase {
                     menuItem.coordinate(withNormalizedOffset: .zero)
                         .withOffset(CGVector(dx: frame.midX - menuFrame.minX, dy: frame.midY - menuFrame.minY))
                         .click()
-                    return
+                    clicked = true
+                    guard let result else { return }
+                    // Reopening an existing utility panel must give its field focus.
+                    let reached = requiringFocus ? waitForKeyboardFocus(result) : result.waitForExistence(timeout: 5)
+                    if reached { return }
                 }
             }
             if attempt < 2 { refocusLibraryAfterMenu() }
         }
-        XCTFail("\(menu) > \(command) was unavailable after three attempts", file: file, line: line)
+        if clicked, let result {
+            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts",
+                    file: file, line: line)
+        } else {
+            XCTFail("\(menu) > \(command) was unavailable after three attempts", file: file, line: line)
+        }
     }
 
     private func refocusLibraryAfterMenu() {
@@ -1282,11 +1291,15 @@ final class PodListUITour: XCTestCase {
     }
 
     private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(waitForKeyboardFocus(element),
+                      "The search field must receive keyboard focus when Add Podcasts opens", file: file, line: line)
+    }
+
+    private func waitForKeyboardFocus(_ element: XCUIElement) -> Bool {
         let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            element.value(forKey: "hasKeyboardFocus") as? Bool == true
+            element.exists && element.value(forKey: "hasKeyboardFocus") as? Bool == true
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [focused], timeout: 5), .completed,
-                       "The search field must receive keyboard focus when Add Podcasts opens", file: file, line: line)
+        return XCTWaiter.wait(for: [focused], timeout: 5) == .completed
     }
 
     private func assertMenuOrganization(_ menu: any XCUIElementSnapshot) {
