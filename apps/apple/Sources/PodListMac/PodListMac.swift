@@ -80,7 +80,9 @@ struct PodListMac: App {
         pendingPodcastAddress = address
         stageSharedPodcast()
         shareLogger.notice("Requesting the Add Podcasts window for Share")
-        openWindow(id: "add-podcasts")
+        // Use the window-scoped action, like Services; the App-level openWindow
+        // did nothing for a URL event in the VM (19 Nov).
+        if let show = delegate.showAddPodcasts { show() } else { openWindow(id: "add-podcasts") }
         // Add Podcasts is a utility window, which macOS hides while the app is
         // inactive; the share came from another app, so come forward (as Services does).
         NSApplication.shared.activate()
@@ -103,6 +105,9 @@ struct PodListMac: App {
                     }
                 }
                 .onChange(of: model.library?.snapshot.isReady) { _, _ in routeLinks() }
+                // Deliver podlist:// URLs to an open Library window instead of
+                // opening a new one for each event.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 .onOpenURL { url in
                     if url.scheme?.lowercased() == "podlist" {
                         if url.host?.lowercased() == "add-podcast" { routeSharedPodcast(url) }
