@@ -18,9 +18,15 @@ final class ShareViewController: NSViewController {
         ])
     }
 
-    override func beginRequest(with context: NSExtensionContext) {
-        super.beginRequest(with: context)
-        Task { await forwardShare(context) }
+    // ExtensionFoundation calls this from its XPC queue, not the main thread, so it
+    // must not inherit the view controller's main-actor isolation (the 19 Nov VM run
+    // trapped in _checkExpectedExecutor here).
+    nonisolated override func beginRequest(with context: NSExtensionContext) {
+        nonisolated(unsafe) let context = context
+        Task { @MainActor in
+            super.beginRequest(with: context)
+            await self.forwardShare(context)
+        }
     }
 
     private func forwardShare(_ context: NSExtensionContext) async {
