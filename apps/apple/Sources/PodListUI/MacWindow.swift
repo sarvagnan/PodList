@@ -238,7 +238,9 @@ public struct PodListWindow: SwiftUI.View {
                 let preview = isPodcastPage && selection.count == 1 ? selection.first.flatMap { podcastPreviews[$0] } : nil
                 EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation,
                                  selectedIDs: inspectorIDs, podcastPreview: preview)
+                    #if DEBUG || PODLIST_UI_TOUR
                     .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil, key: inspectorVisible)
+                    #endif
                     .inspectorColumnWidth(min: 260, ideal: window.initialPaneWidths.inspector, max: 440)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                         if (260...440).contains(width) { window.paneWidths.inspector = width }
@@ -635,12 +637,15 @@ public struct PodListWindow: SwiftUI.View {
                     EpisodeCopyContent.providers(ids: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
                 })
                 .accessibilityLabel(textScale > 1 ? "Episodes, use Sort by and Descending to change order" : "Episodes, sortable columns")
+                #if DEBUG || PODLIST_UI_TOUR
                 .tourResponse(tourListResult(library, count: rows.count))
+                #endif
             }
         }
         .focusedSceneValue(\.podListSort, Binding(get: { window.sortOrder.compactMap(WindowSort.init) }, set: { window.sortOrder = $0.map(\.comparator) }))
     }
 
+    #if DEBUG || PODLIST_UI_TOUR
     private func tourIsNewThisWeek(_ library: LibraryModel) -> Bool {
         if case .view = window.destination, !isPodcastPage { return library.title(window.destination) == "New this week" }
         return false
@@ -651,6 +656,7 @@ public struct PodListWindow: SwiftUI.View {
         if window.search.isEmpty { return .sidebar }
         return window.search == "rice" && count == 1 ? .filter : nil
     }
+    #endif
 
     private func episodeDragPayload(_ id: String, rows: [EpisodeRow], library: LibraryModel) -> EpisodeTransfer {
         EpisodeTransfer.local(id, selection: rows.map(\.id).filter { window.selection.contains($0) }, library: library)

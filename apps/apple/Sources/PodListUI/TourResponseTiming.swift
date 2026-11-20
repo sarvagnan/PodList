@@ -1,4 +1,4 @@
-#if os(macOS)
+#if (DEBUG || PODLIST_UI_TOUR) && os(macOS)
 import AppKit
 import Darwin
 import OSLog

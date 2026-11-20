@@ -28,7 +28,9 @@ struct NewPlaylistSheet: SwiftUI.View {
                 .createPlaylist: problem == nil && !editing.busy ? { submit() } : nil
             ].compactMapValues { $0 }))
             .onChange(of: nameValidation.message(problem)) { _, message in editing.announcements.error(message) }
+            #if DEBUG || PODLIST_UI_TOUR
             .tourWindowResponse(.playlist)
+            #endif
     }
     private var problem: String? { PlaylistNames.problem(name.wrappedValue, playlists: app.library?.state.playlists ?? []) }
     private func submit() {

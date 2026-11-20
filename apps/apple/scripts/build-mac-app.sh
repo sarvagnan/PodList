@@ -10,6 +10,8 @@ case "$configuration" in
     *) echo "PODLIST_BUILD_CONFIGURATION must be debug or release" >&2; exit 2 ;;
 esac
 build_args=(--scratch-path .build --disable-sandbox --configuration "$configuration")
+# Tour builds compile the UI-tour hooks into Release too; shipped builds never set this.
+if [ "${PODLIST_UI_TOUR_BUILD:-}" = 1 ]; then build_args+=(-Xswiftc -DPODLIST_UI_TOUR); fi
 swift build "${build_args[@]}" --product PodListMac
 swift build "${build_args[@]}" --product podlist-mcp
 swift build "${build_args[@]}" --product PodListShare

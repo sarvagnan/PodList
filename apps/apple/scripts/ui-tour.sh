@@ -70,7 +70,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-PODLIST_SYSTEM_INTEGRATION=0 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
+PODLIST_UI_TOUR_BUILD=1 PODLIST_SYSTEM_INTEGRATION=0 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
 # Stage only the executable on the host. The guest embeds it after setting the
 # final bundle ID of each copy, so the extension always inherits that prefix.
 cp -f "$apple/.build/${PODLIST_BUILD_CONFIGURATION:-debug}/PodListShare" "$run/PodListShare"
