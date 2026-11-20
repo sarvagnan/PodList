@@ -12,7 +12,7 @@ struct WelcomeView: SwiftUI.View {
                 Text("Welcome to PodList").macContentFont(.largeTitle).bold()
                 Text("Your Library, Views and Playlists, together on this Mac.").foregroundStyle(MacReadableSecondaryStyle())
                 Text("Connect to a Server").macContentFont(.title2).bold().padding(.top, 12)
-                Text("Enter your PodList server address. Your Library stays available on this Device when the server is unreachable.")
+                Text("Enter your PodList server address. Your Library stays available on this Mac when the server is unreachable.")
                 Form {
                     LabeledContent("Server address") {
                         TextField("Server address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
@@ -54,7 +54,7 @@ struct WelcomeView: SwiftUI.View {
 
 public struct PodListSettings: SwiftUI.View {
     @Bindable private var app: ApplicationModel
-    @State private var pane = "general"
+    @AppStorage("PodList.settingsPane") private var pane = "general"
     @State private var heights: [String: CGFloat] = [:]
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {

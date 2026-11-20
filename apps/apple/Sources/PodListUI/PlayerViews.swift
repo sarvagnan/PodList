@@ -90,7 +90,7 @@ struct PlayerBar: SwiftUI.View {
                     Label(library.player?.playlistName ?? "Active Playlist", systemImage: "music.note.list").lineLimit(1)
                     Text("\(library.player?.entriesAfter ?? 0) after current").macContentFont(.caption).foregroundStyle(.primary)
                 }.frame(maxWidth: 170 * textScale, alignment: .leading)
-            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist").help("Open Active Playlist")
+            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist").help("Open the Active Playlist")
         }
     }
 }

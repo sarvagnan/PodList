@@ -106,10 +106,14 @@ public struct PodListWindow: SwiftUI.View {
                         else { window.collapsedSidebarSections.insert(section.id) }
                     })) {
                         if section.name == "Views" {
-                            Button("New View…", systemImage: "plus") { newView() }.buttonStyle(.plain).selectionDisabled()
+                            sidebarCommand("New View…", help: "Create a View") { newView() }
                         }
-                        if section.name == "Playlists" { Button("New Playlist…", systemImage: "plus") { playlistPresentation.sheet = .newPlaylist }.buttonStyle(.plain).selectionDisabled() }
-                        if section.name == "Library" { Button("Add Podcasts…", systemImage: "plus") { openWindow(id: "add-podcasts") }.buttonStyle(.plain).selectionDisabled() }
+                        if section.name == "Playlists" {
+                            sidebarCommand("New Playlist…", help: "Create a Playlist") { playlistPresentation.sheet = .newPlaylist }
+                        }
+                        if section.name == "Library" {
+                            sidebarCommand("Add Podcasts…", help: "Find and add Podcasts") { openWindow(id: "add-podcasts") }
+                        }
                         if section.items.isEmpty {
                             Text("No \(section.name)").foregroundStyle(MacReadableSecondaryStyle())
                         }
@@ -205,7 +209,7 @@ public struct PodListWindow: SwiftUI.View {
                 ToolbarItem(placement: .navigation) {
                     if isPodcastPage {
                         Button("Back to Library", systemImage: "chevron.left", action: backToLibrary)
-                            .help("Back to Library (⌘[)")
+                            .help("Back to the Library (⌘[)")
                             .accessibilityLabel("Back to Library")
                     }
                 }
@@ -469,6 +473,12 @@ public struct PodListWindow: SwiftUI.View {
         }
     }
 
+    private func sidebarCommand(_ title: String, help: String, action: @escaping () -> Void) -> some SwiftUI.View {
+        Button(title, systemImage: "plus", action: action)
+            .buttonStyle(.plain).foregroundStyle(MacReadableSecondaryStyle())
+            .help(help).selectionDisabled()
+    }
+
     @ViewBuilder private func sidebarActions(_ destination: Destination, library: LibraryModel) -> some SwiftUI.View {
         switch destination {
         case let .playlist(id):
@@ -636,7 +646,7 @@ public struct PodListWindow: SwiftUI.View {
                 .onCopyCommand(perform: window.selection.isEmpty ? nil : {
                     EpisodeCopyContent.providers(ids: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
                 })
-                .accessibilityLabel(textScale > 1 ? "Episodes, use Sort by and Descending to change order" : "Episodes, sortable columns")
+                .accessibilityLabel(textScale > 1 ? "Episodes, use Sort By and Descending to change order" : "Episodes, sortable columns")
                 #if DEBUG || PODLIST_UI_TOUR
                 .tourResponse(tourListResult(library, count: rows.count))
                 #endif

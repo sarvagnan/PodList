@@ -182,7 +182,7 @@ public struct AdditionalMenuCommands: Commands {
             Menu("Automation") { MenuActionItems(menu: .automation, app: app) }
         }
         CommandGroup(after: .sidebar) {
-            Menu("Sort by") {
+            Menu("Sort By") {
                 Picker("Column", selection: Binding(get: { sort?.wrappedValue.first?.column }, set: { column in
                     sort?.wrappedValue = column.map { [.init(column: $0, reversed: sort?.wrappedValue.first?.reversed ?? false)] } ?? []
                 })) {

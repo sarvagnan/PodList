@@ -65,7 +65,7 @@ public final class PlaylistEditingModel {
     public func endSession() { ended = true; history.clear(); retryAction = nil; retryKind = nil }
     func discardViewSession(_ id: UUID) {
         history.removeAll { $0.sessionID == id }
-        status = "View edits cancelled."; error = nil
+        status = "Cancelled View edits"; error = nil
     }
     /// Share the same serialization and history for metadata requests and State edits.
     /// Return nil when a batch has no successful changes to undo.

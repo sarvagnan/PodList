@@ -13,6 +13,7 @@ struct ContentSizedPanel<Content: SwiftUI.View, Footer: SwiftUI.View>: SwiftUI.V
     @State private var contentHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
     @State private var availableHeight: CGFloat = 440
+    private var viewportHeight: CGFloat { min(contentHeight, max(1, availableHeight - footerHeight)) }
 
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
@@ -23,7 +24,8 @@ struct ContentSizedPanel<Content: SwiftUI.View, Footer: SwiftUI.View>: SwiftUI.V
                     .fixedSize(horizontal: false, vertical: true)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
-            .frame(height: min(contentHeight, max(1, availableHeight - footerHeight)))
+            .frame(height: viewportHeight)
+            .scrollIndicators(contentHeight - viewportHeight > 0.5 ? .automatic : .hidden, axes: .vertical)
             .scrollBounceBehavior(.basedOnSize)
             footer()
                 .macContentFont(.body)

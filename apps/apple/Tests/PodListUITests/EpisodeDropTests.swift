@@ -172,13 +172,14 @@ private struct DropPublisher: PublisherReader {
     #expect(await EpisodeDrop.add([transfer(["pending"])], to: "default", editor: editor) { ids in
         window.didDrop(ids, into: "default")
     })
-    #expect(window.search.isEmpty && window.selection == ["pending"] && window.scrollAnchor?.id == "pending")
+    #expect(window.search == "unrelated" && window.selection == ["b", "a"] && window.scrollAnchor?.id == "b")
     #expect(await EpisodeDrop.add([transfer(["a"])], to: "missing", editor: editor) { ids in
         window.didDrop(ids, into: "missing")
     } == false)
     #expect(window.pendingDropSelections["missing"] == nil)
+    window.search = ""
     window.didDrop(["a"], into: "default", reveal: false)
-    #expect(window.selection == ["pending"])
+    #expect(window.selection == ["b", "a"])
     window.revealDrop(in: "default")
     #expect(window.selection == ["a"])
     #expect(window.destination == .playlist("default"))

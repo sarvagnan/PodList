@@ -9,7 +9,7 @@ struct OPMLImportContent: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Closing this window does not stop the import. Progress stays in Library. Keep PodList running. Unfinished imports resume on next launch unless you cancel.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 480, alignment: .leading)
+                .frame(maxWidth: 420, alignment: .leading)
             if !editor.importName.isEmpty { Text(editor.importName).bold() }
             if editor.importPaused && !editor.busy {
                 Text(editor.cancelledImportSummary).fixedSize(horizontal: false, vertical: true)
@@ -57,7 +57,7 @@ struct OPMLImportProgress: SwiftUI.View {
             }.progressViewStyle(.linear)
             Text("Cancel finishes the current podcast and keeps completed imports. Choose Import later to continue the remainder.")
                 .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 480, alignment: .leading)
+                .frame(maxWidth: 420, alignment: .leading)
             Button(editor.importCancellationRequested ? "Cancelling after Current Podcast…" : "Cancel Import") { editor.cancelImport() }
                 .disabled(editor.importCancellationRequested)
         }

@@ -289,7 +289,7 @@ struct PodcastPageScreen: SwiftUI.View {
                     }
                 } primaryAction: { activate($0) }
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
-                .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort by and Descending to change order" : "Podcast Episodes, sortable columns")
+                .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort By and Descending to change order" : "Podcast Episodes, sortable columns")
             }
         }
         .focusedSceneValue(\.podListSort, $savedSort)
@@ -340,26 +340,36 @@ struct PodcastPageScreen: SwiftUI.View {
                 .background(UnsubscribeInteractionGuard(armed: control.isArmed, focused: unsubscribeFocused) { control.reset() })
                 .accessibilityHint(subscribed ? "Click twice to Unsubscribe. Moving away cancels." : "Add this podcast to your Library")
             if let url = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL) {
-                ShareLink(item: url) {
-                    if compact { Label("Share Podcast", systemImage: "square.and.arrow.up").labelStyle(.iconOnly) }
-                    else { Label("Share Podcast", systemImage: "square.and.arrow.up") }
-                }.help("Share Podcast")
-                Button {
-                    if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) }
-                } label: {
-                    if compact { Label("Copy Feed Address", systemImage: "doc.on.doc").labelStyle(.iconOnly) }
-                    else { Text("Copy Feed Address") }
-                }.help("Copy Feed Address")
+                ViewThatFits(in: .horizontal) {
+                    if !compact { shareActions(url, iconsOnly: false).fixedSize(horizontal: true, vertical: false) }
+                    shareActions(url, iconsOnly: true)
+                }
             }
             if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription settings") }
             let refresh = refreshPodcast
             Button(PodcastCommandContext.refreshTitle, systemImage: "arrow.clockwise") { refresh?() }
-                .labelStyle(.iconOnly).help(PodcastCommandContext.refreshTitle).disabled(refresh == nil)
+                .labelStyle(.iconOnly).help("Refresh this Podcast").disabled(refresh == nil)
             if compact, descriptionTruncated {
-                let title = descriptionExpanded ? "Show Less" : "Show Description"
+                let title = descriptionExpanded ? "Hide Description" : "Show Description"
                 Button(title, systemImage: descriptionExpanded ? "chevron.up" : "chevron.down", action: toggleDescription)
-                    .labelStyle(.iconOnly).help(title)
+                    .labelStyle(.iconOnly).help(descriptionExpanded ? "Hide description" : "Show description")
             }
+        }
+    }
+    private func shareActions(_ url: URL, iconsOnly: Bool) -> some SwiftUI.View {
+        HStack(spacing: iconsOnly ? 4 : nil) {
+            ShareLink(item: url) {
+                if iconsOnly { Label("Share Podcast", systemImage: "square.and.arrow.up").labelStyle(.iconOnly) }
+                else { Label("Share Podcast", systemImage: "square.and.arrow.up") }
+            }
+            .accessibilityLabel("Share Podcast").help("Share this Podcast")
+            Button {
+                if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) }
+            } label: {
+                if iconsOnly { Label("Copy Feed Address", systemImage: "doc.on.doc").labelStyle(.iconOnly) }
+                else { Text("Copy Feed Address") }
+            }
+            .accessibilityLabel("Copy Feed Address").help("Copy the feed address")
         }
     }
     private func dragPayload(_ episode: PageEpisode) -> EpisodeTransfer {
@@ -472,7 +482,7 @@ struct PodcastDescription: SwiftUI.View {
             .scrollBounceBehavior(.basedOnSize)
             .accessibilityLabel("Podcast Description")
             if truncated, showsToggle {
-                Button(expanded ? "Show Less" : "Show Description", action: toggle).buttonStyle(MacReadableAccentButtonStyle())
+                Button(expanded ? "Hide Description" : "Show Description", action: toggle).buttonStyle(MacReadableAccentButtonStyle())
             }
         }
     }
@@ -510,7 +520,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     }
     private var settingsFields: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 16) {
-            PodListSheetSectionHeading("On This Device")
+            PodListSheetSectionHeading("On This Mac")
             DownloadRuleFields(mode: value(\.mode), cap: value(\.cap))
             PodListSheetSectionHeading("Played")
             VStack(alignment: .leading, spacing: 12) {
@@ -519,7 +529,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                         Text("Default (30 seconds)").tag(nil as Double?)
                         ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
                         if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
-                    }.labelsHidden().frame(maxWidth: .infinity)
+                    }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Button("Mark All Played") { markAllPlayed?() }.disabled(markAllPlayed == nil)
                 Text("Mark All Played takes effect immediately and can be undone.")
@@ -527,14 +537,14 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             }
             PodListSheetSectionHeading("Playback Settings Overrides")
             VStack(alignment: .leading, spacing: 12) {
-                Text("Default inherits the global Playback Settings.").foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+                Text("Default inherits the global Playback Settings.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
                 overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                 overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                 PodListSheetField("Volume Boost") {
                     Picker("Volume Boost", selection: value(\.overrides.volumeBoost)) {
                         Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
-                    }.labelsHidden().frame(maxWidth: .infinity)
+                    }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }.disabled(saving)
@@ -546,7 +556,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 Text("Default").tag(nil as Double?)
                 ForEach(choices, id: \.self) { Text(seconds ? CountText.seconds($0) : $0.formatted()).tag(Optional($0)) }
                 if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(seconds ? CountText.seconds(current) : current.formatted()).tag(Optional(current)) }
-            }.labelsHidden().frame(maxWidth: .infinity)
+            }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
         }
     }
     private func value<T>(_ path: WritableKeyPath<SubscriptionSettingsDraft, T>) -> Binding<T> {

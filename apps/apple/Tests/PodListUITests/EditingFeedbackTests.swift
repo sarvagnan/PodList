@@ -75,7 +75,7 @@ import PodListData
     editing.discardViewSession(UUID())
     let notice = try #require(editing.feedbackNotice)
     let beforeExpiry = notice.expiresAt.addingTimeInterval(-0.001)
-    #expect(window.message(for: notice, at: beforeExpiry) == "View edits cancelled.")
+    #expect(window.message(for: notice, at: beforeExpiry) == "Cancelled View edits")
     #expect(window.message(for: notice, at: notice.expiresAt) == nil)
     #expect(window.message(for: notice, at: notice.expiresAt.addingTimeInterval(60)) == nil)
 
@@ -92,11 +92,11 @@ import PodListData
 
 @Test func editFeedbackLifetimeRenewsRepeatedMessagesAndHandlesClearing() {
     let now = Date(timeIntervalSince1970: 1_000)
-    let initial = EditingNotice("View edits cancelled.", at: now)
+    let initial = EditingNotice("Cancelled View edits", at: now)
     let row = EditingFeedbackLifetime(currentNotice: initial)
     #expect(row.message(for: initial, at: now) == nil)
-    let repeated = EditingNotice("View edits cancelled.", at: now.addingTimeInterval(4))
-    #expect(row.message(for: repeated, at: now.addingTimeInterval(5)) == "View edits cancelled.")
+    let repeated = EditingNotice("Cancelled View edits", at: now.addingTimeInterval(4))
+    #expect(row.message(for: repeated, at: now.addingTimeInterval(5)) == "Cancelled View edits")
     #expect(row.message(for: repeated, at: now.addingTimeInterval(9)) == nil)
     #expect(row.message(for: nil, at: now) == nil)
 }

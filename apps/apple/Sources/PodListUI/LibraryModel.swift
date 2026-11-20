@@ -362,8 +362,10 @@ public final class WindowModel {
         if reveal, listID == .playlist(playlistID, .entries) { revealDrop(in: playlistID, scroll: scroll) }
     }
     func revealDrop(in playlistID: String, scroll: Bool = true) {
-        guard let ids = pendingDropSelections.removeValue(forKey: playlistID), let first = ids.first else { return }
-        search = ""; selection = Set(ids)
+        // A drop can finish after the person has started filtering this list.
+        guard let ids = pendingDropSelections.removeValue(forKey: playlistID),
+              search.isEmpty, let first = ids.first else { return }
+        selection = Set(ids)
         if scroll { scrollAnchor = RowAnchor(id: first, index: 0) }
     }
 
