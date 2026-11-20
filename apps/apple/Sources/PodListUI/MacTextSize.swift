@@ -59,9 +59,10 @@ struct MacTextSizeControl: SwiftUI.View {
                 Text("\(percent)%").tag(percent)
             }
         }.accessibilityLabel("Text Size")
-        Text("Enlarges content text in all windows. The sidebar follows macOS Sidebar icon size. You can also use View › Bigger or Smaller.")
+        Text("Enlarges content text in all windows. The sidebar follows macOS sidebar icon size. You can also use View › Bigger or Smaller.")
             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
             .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 420, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -106,7 +107,7 @@ struct MacReadingSortControl: SwiftUI.View {
         }.macContentFont(.body).padding(10)
     }
     @ViewBuilder private var controls: some SwiftUI.View {
-        Picker("Sort by", selection: Binding(get: { sort.first?.column }, set: { column in
+        Picker("Sort By", selection: Binding(get: { sort.first?.column }, set: { column in
             sort = column.map { [.init(column: $0, reversed: sort.first?.reversed ?? false)] } ?? []
         })) {
             Text("Default Order").tag(Optional<WindowSort.Column>.none)

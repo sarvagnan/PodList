@@ -53,15 +53,15 @@ struct AddPodcastsScreen: SwiftUI.View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Podcast name or feed address")
+                    Text("Podcast Name or Feed Address")
                     HStack {
-                        TextField("Podcast name or feed address", text: $state.query).textFieldStyle(.roundedBorder).focused($focused)
+                        TextField("Podcast Name or Feed Address", text: $state.query).textFieldStyle(.roundedBorder).focused($focused)
                             .accessibilityIdentifier("addPodcasts.query")
                             .onSubmit { search() }.onChange(of: state.query) { _, text in editor.setDraft(text, field: "addPodcasts"); state.searchTask?.cancel(); state.loading = false; state.searched = false; state.results = []; state.error = nil }
                         Button("Search") { search() }.keyboardShortcut(.defaultAction).disabled(state.loading || state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    Text("Import with File › Import OPML… or Settings › General › Library. Closing Add Podcasts keeps the import running. Follow its progress in Library.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-                        .frame(maxWidth: 480, alignment: .leading)
+                    Text("Import OPML from the File menu or Library Settings. Follow import progress in the Library window.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                        .frame(maxWidth: 420, alignment: .leading)
                     if !state.searched, !state.loading {
                         PodListEmptyState("Find Your Next Podcast", systemImage: "magnifyingglass",
                                           description: "Search for a podcast by name, or paste its RSS feed address, such as https://example.com/podcast.xml.")

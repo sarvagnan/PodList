@@ -134,7 +134,7 @@ final class PodListUITour: XCTestCase {
         try navigate("Starred")
         try capture("04-starred")
         XCTAssertFalse(sidebarItem("All Views").exists)
-        try menuCommand("Views", "Show All Views")
+        try menuCommand("Saved Views", "Show All Views")
         try ready(library.descendants(matching: .any).matching(identifier: "views.list").firstMatch)
         try capture("05-all-views")
 
@@ -309,20 +309,19 @@ final class PodListUITour: XCTestCase {
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
-        try ready(button("Show less"))
+        try ready(button("Hide Description"))
         let description = library.staticTexts.matching(identifier: "podcast.description").firstMatch
         XCTAssertGreaterThan(description.frame.height, collapsedDescription.height)
         XCTAssertTrue(((description.value as? String) ?? description.label).hasSuffix("Thanks for listening to Market Hours."), "Expansion must retain the complete description")
         try assertPodcastWindowBounds()
         try assertExpandedPodcastControls()
         try capture("19-description-expanded")
-        let showLess = button("Show less")
-        try click(showLess)
+        try click(button("Hide Description"))
         try ready(button("Show description"))
         let restoredColumns = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
             abs(episodeList.buttons["Published"].firstMatch.frame.minX - collapsedPublished.minX) <= 1
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [restoredColumns], timeout: 3), .completed, "Show Less must restore the Podcast table columns")
+        XCTAssertEqual(XCTWaiter.wait(for: [restoredColumns], timeout: 3), .completed, "Hide Description must restore the Podcast table columns")
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
@@ -689,6 +688,11 @@ final class PodListUITour: XCTestCase {
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(text("Who sets the price of rice?", in: episodeList))
+        for name in ["Share Podcast", "Copy Feed Address"] {
+            let action = library.buttons[name]
+            try ready(action)
+            XCTAssertTrue(action.isHittable && library.frame.contains(action.frame))
+        }
         try capture("38-half-display-podcast-market-hours")
         try assertEpisodeTableLayout()
 
@@ -1244,7 +1248,7 @@ final class PodListUITour: XCTestCase {
             text += treeText(snapshot, menus: true) + "\n"
             app.typeKey(.escape, modifierFlags: [])
         }
-        let expectedMenus: Set<String> = ["PodList", "File", "Edit", "View", "Podcast", "Views", "Episode", "Playlist", "Controls", "Window", "Help"]
+        let expectedMenus: Set<String> = ["PodList", "File", "Edit", "View", "Podcast", "Saved Views", "Episode", "Playlist", "Controls", "Window", "Help"]
         XCTAssertTrue(expectedMenus.isSubset(of: capturedMenus), "Missing menus: \(expectedMenus.subtracting(capturedMenus))")
         attach(text, name: "menus.txt")
     }
@@ -1365,10 +1369,10 @@ final class PodListUITour: XCTestCase {
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…", "Retry Bring Over", "Automation", "Copy Configuration", "Retry MCP Server"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
             "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
-            "View": ["Sort by", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
+            "View": ["Sort By", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Show Subscriptions", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
-            "Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
-            "Episode": ["Show Episode Details", "Play Now", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
+            "Saved Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
+            "Episode": ["Show Episode Details", "Play Now", "Play Now In", "Play Next In", "Play Last In", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
             "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],
@@ -1379,7 +1383,7 @@ final class PodListUITour: XCTestCase {
             let configurationItems = titles(menu).filter { ["Settings…", "Connection", "Automation"].contains($0) }
             XCTAssertEqual(configurationItems, ["Settings…", "Connection", "Automation"])
         }
-        if ["Playlist", "Podcast", "Views"].contains(name) {
+        if ["Playlist", "Podcast", "Saved Views"].contains(name) {
             XCTAssertTrue(items.isDisjoint(with: ["Trash", "Subscriptions", "All Views"]), "Navigation commands need Show verbs")
         }
         if name == "Podcast" {

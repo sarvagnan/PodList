@@ -586,7 +586,7 @@ public final class ApplicationModel {
             guard completed || failed else { continue }
             let title = library?.snapshot.episodes.first(where: { $0.id == id })?.title ?? "Episode"
             if completed {
-                editing?.showNotice("Downloaded \(title) on this Device.")
+                editing?.showNotice("Downloaded \(title) on this Mac.")
             } else {
                 // A failed retry is a new event even when the server repeats its error.
                 announcements.error(nil)

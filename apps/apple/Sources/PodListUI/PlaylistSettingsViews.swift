@@ -184,8 +184,10 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                     editing.drafts.stage(updated); draft = updated
                 }))
                 Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 420, alignment: .leading)
                 if !playlist.isDefault {
                     Text("Delete Playlist takes effect immediately and closes these settings. Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 420, alignment: .leading)
                 }
             }.disabled(editing.busy)
         } else { Text("Playlist unavailable.") }
@@ -225,7 +227,7 @@ struct PlaylistTrashView: SwiftUI.View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Text("Deleted Playlists are kept for \(CountText.format(library.state.trashDays ?? 30, .day)), together with their History and Listening Timeline.")
-                    .macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle()).padding(12)
+                    .macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle()).padding(.vertical, 12).padding(.horizontal, 14)
                 List(library.trash.filter { search.isEmpty || $0.playlist.name.localizedStandardContains(search) }, id: \.playlist.id, selection: selectionBinding) { item in
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -256,7 +258,7 @@ struct PlaylistTrashView: SwiftUI.View {
             Button("Delete Permanently", role: .destructive, action: deleteConfirmed)
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: {
-            Text("This removes the Playlist, its History and Listening Timeline from Trash. This cannot be undone. Episodes and the permanent Listening log are kept.")
+            Text("This removes the Playlist, its History and Listening Timeline from Trash. This cannot be undone. Episodes and the permanent Listening Log are kept.")
         }
     }
     private func deleteConfirmed() {

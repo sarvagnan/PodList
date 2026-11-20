@@ -129,7 +129,7 @@ struct EpisodeInspector: SwiftUI.View {
                     if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
                 }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle()).disabled(app.editing?.busy == true)
                 Divider()
-                Text("In your Playlists").macContentFont(.headline)
+                Text("In Your Playlists").macContentFont(.headline)
                 let memberships = library.memberships(row.id)
                 if memberships.isEmpty { Text("No Playlists").foregroundStyle(MacReadableSecondaryStyle()) }
                 ForEach(memberships, id: \.id) { membership in
@@ -162,7 +162,7 @@ struct EpisodeInspector: SwiftUI.View {
                                     await EpisodePlaybackAction.chapter(chapter.start, episodeID: row.id, app: app, started: startedPlayback)
                                 }
                             } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
-                            .buttonStyle(.borderless).help("Play Chapter").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")
+                            .buttonStyle(.borderless).help("Play this chapter").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")
                         }
                     }
                     Divider()

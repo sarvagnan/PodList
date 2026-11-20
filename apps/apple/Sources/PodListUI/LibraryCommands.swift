@@ -102,7 +102,7 @@ public struct LibraryCommands: Commands {
             }.disabled(podcast?.feedURL == nil)
             Button("Copy Feed Address") { if let url = podcast?.feedURL { ShareLinks.copy(url) } }.disabled(podcast?.feedURL == nil)
         }
-        CommandMenu("Views") {
+        CommandMenu("Saved Views") {
             Menu("Open View") {
                 ForEach(context?.library.state.views ?? [], id: \.id) { view in
                     Button(view.name) { context?.window.navigate(to: .view(view.id)) }

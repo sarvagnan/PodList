@@ -203,7 +203,7 @@ public final class LibraryEditingModel {
                 action: { _ = try await db.saveUniqueView(view, at: Self.now) },
                 inverseAction: { try await db.record(.deleteView(viewId: view.id), at: Self.now) })
         }
-        notice = "View \(view.name) deleted"; await changed()
+        notice = "Deleted View “\(view.name)”"; await changed()
     }
     public func subscribe(_ feed: String) async throws {
         try await edits.performExternal {

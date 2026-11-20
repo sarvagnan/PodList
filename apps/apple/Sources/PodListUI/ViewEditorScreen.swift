@@ -57,7 +57,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
                         })) {
                             Text("Any").tag("any"); Text("In the Last Days").tag("days"); Text("Between Dates").tag("between")
-                        }.labelsHidden().frame(maxWidth: .infinity)
+                        }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if publishedMode == "days" {
                         PodListSheetField("Last Days") {
@@ -82,7 +82,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     PodListSheetField("Podcasts") {
                         Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
                             Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
-                        }.labelsHidden().frame(maxWidth: .infinity)
+                        }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if draft.filter.podcasts != nil {
                         ForEach(library.snapshot.subscriptions, id: \.id) { sub in
@@ -99,29 +99,29 @@ struct ViewEditorScreen: SwiftUI.View {
                     PodListSheetField("Played") {
                         Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
                             Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
-                        }.labelsHidden().frame(maxWidth: .infinity)
+                        }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     PodListSheetField("Starred") {
                         Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
                             Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
-                        }.labelsHidden().frame(maxWidth: .infinity)
+                        }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     PodListSheetField("In a Playlist") {
                         Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
                             Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
-                        }.labelsHidden().frame(maxWidth: .infinity)
+                        }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
                     optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
                 } header: {
-                    PodListSheetSectionHeading("All Conditions Must Match")
+                    PodListSheetSectionHeading("All conditions must match")
                 }
                 Section {
                     PodListSheetField("Sort") {
                         Picker("Sort", selection: value(\.sort)) {
                             Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
                             Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
-                        }.labelsHidden().frame(maxWidth: .infinity)
+                        }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     LabeledContent("Episodes to Show (Optional)") {
                         VStack(alignment: .leading, spacing: 4) {

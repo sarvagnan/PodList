@@ -67,12 +67,12 @@ struct DownloadStatusText: SwiftUI.View {
     @Bindable var app: ApplicationModel
     var body: some SwiftUI.View {
         switch app.downloadStatuses[id]?.phase {
-        case .stored: Text("Downloaded on this Device").foregroundStyle(MacReadableSecondaryStyle())
+        case .stored: Text("Downloaded on this Mac").foregroundStyle(MacReadableSecondaryStyle())
         case .queued: Text("Download queued").foregroundStyle(MacReadableSecondaryStyle())
-        case .transferring: Text("Downloading on this Device").foregroundStyle(MacReadableSecondaryStyle())
+        case .transferring: Text("Downloading on this Mac").foregroundStyle(MacReadableSecondaryStyle())
         case .failed:
             FailureFeedback(message: FailureOperation.download.message, indexedElsewhere: true) { app.download(id) }
-        case nil: Text("Not downloaded on this Device").foregroundStyle(MacReadableSecondaryStyle())
+        case nil: Text("Not downloaded on this Mac").foregroundStyle(MacReadableSecondaryStyle())
         }
         if let error = app.downloadError {
             FailureFeedback(message: error, retryTitle: "Retry Download") { app.retryDownloadFailure() }
@@ -86,7 +86,7 @@ struct DownloadIcon: SwiftUI.View {
     private var phase: DownloadPhase? { app.downloadStatuses[id]?.phase }
     private var working: Bool { phase == .transferring || phase == .queued }
     private var label: String {
-        working ? (phase == .queued ? "Cancel download, queued" : "Cancel download, downloading") : phase == .stored ? "Remove download, downloaded on this Device" : phase == .failed ? "Retry download, failed" : "Download, not downloaded"
+        working ? (phase == .queued ? "Cancel download, queued" : "Cancel download, downloading") : phase == .stored ? "Remove download, downloaded on this Mac" : phase == .failed ? "Retry download, failed" : "Download, not downloaded"
     }
     var body: some SwiftUI.View {
         Button {
@@ -126,12 +126,12 @@ struct DownloadRuleFields: SwiftUI.View {
     var compact = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            field(compact ? "Download Rule" : "Download Rule on This Device") {
-                Picker("Download Rule on This Device", selection: $mode) {
+            field(compact ? "Download Rule" : "Download Rule on This Mac") {
+                Picker("Download Rule on This Mac", selection: $mode) {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                     Text("As Episodes are published").tag(DownloadMode.allNew)
-                }.labelsHidden().frame(maxWidth: .infinity).accessibilityLabel("Download Rule on This Device")
+                }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading).accessibilityLabel("Download Rule on This Mac")
                     .accessibilityIdentifier("downloadRule.mode")
             }
             if mode == .allNew {
@@ -140,7 +140,7 @@ struct DownloadRuleFields: SwiftUI.View {
                         Text("All").tag(nil as Int64?)
                         ForEach([1, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag(Optional($0)) }
                         if let cap, cap > 0, ![1, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(Optional(cap)) }
-                    }.labelsHidden().frame(maxWidth: .infinity)
+                    }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }.macContentFont(.body)
@@ -182,7 +182,7 @@ private struct BulkDownloadRuleEditor: SwiftUI.View {
         PodListSheet(title: "Download Rules for \(CountText.format(draft.subscriptionIDs.count, .subscription))", width: 520,
                      actionTitle: "Apply", actionEnabled: !saving && !draft.subscriptionIDs.isEmpty,
                      cancelEnabled: !saving, cancel: cancel, action: apply) {
-            Text("Apply one rule to all selected Subscriptions on this Device.").foregroundStyle(MacReadableSecondaryStyle())
+            Text("Apply one rule to all selected Subscriptions on this Mac.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
             DownloadRuleFields(mode: Binding(get: { draft.mode }, set: { draft.mode = $0; editing.drafts.stage(draft) }),
                                cap: Binding(get: { draft.cap }, set: { draft.cap = $0; editing.drafts.stage(draft) })).disabled(saving)
         } status: {

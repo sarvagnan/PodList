@@ -39,7 +39,7 @@ struct EpisodeActionItems: SwiftUI.View {
                     // retain the common active-Playlist actions and the chooser.
                     if keyboardShortcuts {
                         ForEach([Placement.now, .next, .last], id: \.rawValue) { placement in
-                            Menu(placement == .now ? "Play Now in" : placement == .next ? "Play Next in" : "Play Last in") {
+                            Menu(placement == .now ? "Play Now In" : placement == .next ? "Play Next In" : "Play Last In") {
                                 ForEach(library?.state.playlists ?? [], id: \.id) { playlist in
                                     Button(playlist.name) { Task { await editing?.add(ids, to: playlist.id, placement: placement) } }
                                 }
@@ -155,7 +155,7 @@ struct EpisodeActionButtons: ToolbarContent {
                 Menu("Episode Actions", systemImage: "ellipsis.circle") {
                     EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
                 }.menuStyle(.borderlessButton).fixedSize()
-                    .accessibilityLabel(labels.more).help("More Episode actions").disabled(disabled)
+                    .accessibilityLabel(labels.more).help("Show more Episode actions").disabled(disabled)
                 if let playlist {
                     Button("Playlist Settings…", systemImage: "slider.horizontal.3") { presentation.sheet = .settings(playlist.id) }
                         .help("Playlist settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")

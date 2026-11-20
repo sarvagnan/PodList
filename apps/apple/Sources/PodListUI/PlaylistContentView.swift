@@ -392,7 +392,7 @@ struct RewindSheet: SwiftUI.View {
                     Text("Back in the Playlist").macContentFont(.headline)
                     Text(titles(preview.restored))
                     Text("Kept").macContentFont(.headline)
-                    Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening log is kept. Rewind can be undone.")
+                    Text("Later adds, reorders and manual Played marks stay. Positions gained since this moment are reset. The permanent Listening Log is kept. Rewind can be undone.")
                 }.frame(maxWidth: .infinity, alignment: .leading)
             } else { Text("This moment is no longer available.") }
         } status: {
