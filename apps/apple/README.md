@@ -572,16 +572,20 @@ unobserved. RESP-01 targets p75 ≤ 200 ms over at least five runs. The tour rec
 the results without enforcing that target. RESP-02 keystroke and drag frame timing
 is outside this tour.
 
-Timing is compiled only in DEBUG and requires both a disposable
-`app.podlist.uitour.*` bundle ID and the tour's `PODLIST_UI_TIMINGS_FILE` launch
-environment value, an absolute file path inside temporary storage.
+Timing runs in Debug and Release with a disposable `app.podlist.uitour.*`
+bundle ID and the tour's `PODLIST_UI_TIMINGS_FILE` launch environment value,
+an absolute file path inside temporary storage.
 
 For quick performance checks, `PODLIST_UI_VM=podlist-ui scripts/ui-tour.sh --timings <empty-outdir>`
 runs only the Light timing runs and prints `timings.txt` (about 15–20 minutes). The guest first
 waits for its load average to settle, because a freshly booted clone roughly triples these
-figures, and then does three unrecorded warm-up rounds. Add `PODLIST_UI_PROFILE=1` to either
-mode to record a Time Profiler trace of PodList during the timing runs in
-`guest-diagnostics/timings-profile-N.trace`; the profiler perturbs that run's timings.
+figures, and then does three unrecorded warm-up rounds. Use
+`PODLIST_BUILD_CONFIGURATION=release` to measure the optimized build. Add
+`PODLIST_UI_PROFILE=1` to record a trace in `guest-diagnostics/timings-profile-N.trace`
+and its table of contents in `timings-profile-N-toc.xml`. The default
+`PODLIST_UI_PROFILE_TEMPLATE=SwiftUI` uses SwiftUI and Time Profiler. The
+`os_signpost` instrument records `app.podlist` / `ResponseTiming` intervals,
+with `response_ms` on measured results. The profiler perturbs that run's timings.
 
 The generated README lists every screen and reports any missing required
 attachments out of 191.
@@ -593,13 +597,12 @@ appearance**, `app.podlist.uitour.<UUID>.<appearance>`. This gives AppKit,
 SwiftUI, drafts and `UserDefaults.standard` separate preference domains, including
 window state. `-PodList.serverOrigin`, `-PodList.appearance`,
 `-PodList.inspectorVisible` and `-PodList.mcpEnabled` are passed through the
-standard `NSArgumentDomain`. A DEBUG-only `PODLIST_UI_DATA_DIRECTORY` redirects
+standard `NSArgumentDomain`. The `PODLIST_UI_DATA_DIRECTORY` variable redirects
 all PodList databases (including the Standalone bring-over check), audio downloads
 and the automation socket into that run's temporary directory. It requires both
 a disposable bundle ID and a path beneath a temporary directory, and fails closed
-on malformed configuration. Release builds ignore the override. The production
-`app.podlist.mac` preference domain and `Library/Application Support/PodList` are
-never used by the tour. Each appearance starts fresh. MCP remains off; the demo's
+on malformed configuration. Each appearance starts with fresh preferences and
+temporary app data. MCP remains off and the demo's
 current Episode stays paused, as after a relaunch. Teardown quits the test app;
 the script removes the temporary bundles, data, defaults, caches and window state
 and stops only its own test/demo processes by PID. The demo API reaps its own

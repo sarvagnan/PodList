@@ -71,22 +71,28 @@ watch_for_hangs() {
     done
 }
 profiler=""
-# PODLIST_UI_PROFILE=1 on the host: record a Time Profiler trace of PodList for each
-# main pass's response-timing runs, falling back to sample(1) if xctrace can't attach.
+# Record an Instruments trace for each main pass's response-timing runs.
+# os_signpost captures the named ResponseTiming category.
 profile_timings() {
-    local seen=0 count pid out
+    local seen=0 count pid out trace template
+    template="$(cat "$shared/run/profile")"
     while sleep 1; do
+        [ ! -f "$run/profile-finished" ] || return 0
         count="$(grep -c 'Begin response timing runs' "$test_output" 2>/dev/null || true)"
         [ "${count:-0}" -gt "$seen" ] || continue
         seen="$count"
         pid="$(pgrep -nx PodListMac || true)"
         [ -n "$pid" ] || continue
-        out="$shared/run/guest-diagnostics/timings-profile-$seen"
-        mkdir -p "$shared/run/guest-diagnostics"
-        xcrun xctrace record --template 'Time Profiler' --attach "$pid" --time-limit 150s \
-            --output "$run/timings-profile-$seen.trace" > "$out-xctrace.log" 2>&1 \
-            && ditto "$run/timings-profile-$seen.trace" "$out.trace" \
-            || /usr/bin/sample "$pid" 150 1 -mayDie -file "$out-sample.txt" > /dev/null 2>&1 || true
+        out="$diagnostics/timings-profile-$seen"
+        trace="$run/timings-profile-$seen.trace"
+        mkdir -p "$diagnostics"
+        if xcrun xctrace record --template "$template" --instrument os_signpost --attach "$pid" \
+            --time-limit 150s --output "$trace" > "$out-xctrace.log" 2>&1; then
+            xcrun xctrace export --input "$trace" --toc --output "$out-toc.xml" \
+                >> "$out-xctrace.log" 2>&1 || true
+            if ditto "$trace" "$out.trace" >> "$out-xctrace.log" 2>&1; then continue; fi
+        fi
+        /usr/bin/sample "$pid" 150 1 -mayDie -file "$out-sample.txt" > /dev/null 2>&1 || true
     done
 }
 run_tests() {
@@ -96,7 +102,11 @@ run_tests() {
 finish() {
     local status=$?
     if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
-    if [ -n "$profiler" ]; then kill "$profiler" 2>/dev/null || true; wait "$profiler" 2>/dev/null || true; fi
+    if [ -n "$profiler" ]; then
+        # Let an in-flight trace and its TOC reach the share before the host deletes the VM.
+        touch "$run/profile-finished"
+        wait "$profiler" 2>/dev/null || true
+    fi
     if [ "$reset_show_borders" = true ]; then set_show_borders false || status=$?; fi
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi

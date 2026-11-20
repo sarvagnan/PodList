@@ -1,4 +1,3 @@
-#if DEBUG
 import CoreSpotlight
 import Foundation
 import OSLog
@@ -50,4 +49,3 @@ enum SpotlightSystemCheck {
         }
     }
 }
-#endif
