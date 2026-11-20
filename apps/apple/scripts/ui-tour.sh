@@ -1,5 +1,8 @@
 #!/bin/bash
 # Build on this Mac; run XCUITest only inside a fresh throwaway Tart clone.
+# PODLIST_BUILD_CONFIGURATION=release builds the app and its helpers with optimization (default: debug).
+# PODLIST_UI_PROFILE=1 records response-timing traces in guest-diagnostics (the profiler perturbs timings).
+# PODLIST_UI_PROFILE_TEMPLATE selects the xctrace template by name (default: SwiftUI).
 set -euo pipefail
 mode=tour
 if [ "${1:-}" = --system-checks ]; then mode=system; shift; fi
@@ -67,10 +70,10 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-PODLIST_SYSTEM_INTEGRATION=0 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
+PODLIST_UI_TOUR_BUILD=1 PODLIST_SYSTEM_INTEGRATION=0 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
 # Stage only the executable on the host. The guest embeds it after setting the
 # final bundle ID of each copy, so the extension always inherits that prefix.
-cp -f "$apple/.build/debug/PodListShare" "$run/PodListShare"
+cp -f "$apple/.build/${PODLIST_BUILD_CONFIGURATION:-debug}/PodListShare" "$run/PodListShare"
 for style in $styles; do
     mkdir -p "$run/$style/data"
     cp -Rf "$apple/.build/PodList.app" "$run/$style/PodList.app"
@@ -155,7 +158,9 @@ print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))'
     done
     tart exec "$vm_clone" true
     # Opt-in: profile PodList during the response-timing runs (timings are then perturbed).
-    if [ "${PODLIST_UI_PROFILE:-}" = 1 ]; then touch "$run/profile"; fi
+    if [ "${PODLIST_UI_PROFILE:-}" = 1 ]; then
+        printf '%s\n' "${PODLIST_UI_PROFILE_TEMPLATE:-SwiftUI}" > "$run/profile"
+    fi
     status=0
     tart exec "$vm_clone" /bin/bash "/Volumes/My Shared Files/repo/apps/apple/scripts/ui-tour-guest.sh" \
         "$guest_run" "$mode" >> "$out/xcodebuild.log" 2>&1 || status=$?
@@ -213,7 +218,7 @@ PYSUMMARY
 fi
 
 if [ "$mode" = timings ]; then
-    # Response timings only (Light). PODLIST_UI_PROFILE=1 adds a Time Profiler trace.
+    # Response timings only (Light). PODLIST_UI_PROFILE=1 adds an Instruments trace.
     xcrun xcresulttool export attachments --path "$out/Tour.xcresult" --output-path "$out/attachments"
     python3 - "$out" <<'PYTIMINGS'
 import json, shutil, sys

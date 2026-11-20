@@ -4,10 +4,18 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
-swift build --scratch-path .build --disable-sandbox --product PodListMac
-swift build --scratch-path .build --disable-sandbox --product podlist-mcp
-swift build --scratch-path .build --disable-sandbox --product PodListShare
-bin_dir="$(swift build --scratch-path .build --disable-sandbox --show-bin-path)"
+configuration="${PODLIST_BUILD_CONFIGURATION:-debug}"
+case "$configuration" in
+    debug|release) ;;
+    *) echo "PODLIST_BUILD_CONFIGURATION must be debug or release" >&2; exit 2 ;;
+esac
+build_args=(--scratch-path .build --disable-sandbox --configuration "$configuration")
+# Tour builds compile the UI-tour hooks into Release too; shipped builds never set this.
+if [ "${PODLIST_UI_TOUR_BUILD:-}" = 1 ]; then build_args+=(-Xswiftc -DPODLIST_UI_TOUR); fi
+swift build "${build_args[@]}" --product PodListMac
+swift build "${build_args[@]}" --product podlist-mcp
+swift build "${build_args[@]}" --product PodListShare
+bin_dir="$(swift build "${build_args[@]}" --show-bin-path)"
 app="$PWD/.build/PodList.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" .build/app-intents
 cp -f "$bin_dir/PodListMac" "$app/Contents/MacOS/PodListMac"
@@ -92,13 +100,15 @@ print('Verified four compiled AccentColor variants in the app bundle')
 PYACCENT
 # SwiftPM emits compiler constant values on the Xcode build engine, but does not
 # run the app metadata packaging phase. Collect only this executable's values.
-python3 - <<'PY'
+python3 - "$configuration" <<'PY'
 from pathlib import Path
 import platform
+import sys
 root = Path.cwd()
 files = sorted((root / 'Sources/PodListMac').glob('*.swift'))
-const = sorted(p for p in (root / '.build').glob('**/PodListMac*.build/**/*.swiftconstvalues')
-               if '/Debug/' in str(p) and p.parent.name == platform.machine())
+configuration = sys.argv[1].capitalize()
+const = sorted((root / '.build/out/Intermediates.noindex/PodList.build' / configuration)
+               .glob(f'PodListMac*.build/Objects-normal/{platform.machine()}/*.swiftconstvalues'))
 if not const:
     raise SystemExit('No App Intents compiler metadata found. Use the Xcode SwiftPM build engine (Swift 6.4+).')
 (root / '.build/app-intents/sources').write_text(''.join(str(p) + '\n' for p in files))

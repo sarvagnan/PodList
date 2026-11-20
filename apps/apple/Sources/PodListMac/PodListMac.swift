@@ -19,10 +19,12 @@ struct PodListMac: App {
     @State private var textSize = MacTextSizePreference()
 
     init() {
-        #if DEBUG
-        // Validate before any app service can touch its persistent files.
-        do { SpotlightSystemCheck.start(in: try ApplicationStorage.directory()) }
-        catch { fatalError("Invalid UI test storage: \(error)") }
+        #if DEBUG || PODLIST_UI_TOUR
+        if Bundle.main.bundleIdentifier?.hasPrefix("app.podlist.uitour.") == true {
+            // Validate before any app service can touch its persistent files.
+            do { SpotlightSystemCheck.start(in: try ApplicationStorage.directory()) }
+            catch { fatalError("Invalid UI test storage: \(error)") }
+        }
         #endif
         let model = ApplicationModel()
         _model = State(initialValue: model)
@@ -189,7 +191,7 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
         appearance = MacAppearanceController()
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
-        #if DEBUG
+        #if DEBUG || PODLIST_UI_TOUR
         TourResponseTiming.start()
         #endif
         model = AutomationRuntime.app

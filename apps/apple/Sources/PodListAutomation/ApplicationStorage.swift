@@ -1,10 +1,11 @@
 import Foundation
 
 /// All app-owned files share a root. UI tests use a disposable bundle identity and
-/// a DEBUG-only root; a malformed test launch must never fall back to real data.
+/// a temporary root in Debug and tour builds (PODLIST_UI_TOUR). A malformed test
+/// launch must never fall back to real data. Shipped Release builds ignore both.
 public enum ApplicationStorage {
     public static func directory() throws -> URL {
-        #if DEBUG
+        #if DEBUG || PODLIST_UI_TOUR
         let environment = ProcessInfo.processInfo.environment
         let identifier = Bundle.main.bundleIdentifier ?? ""
         if environment["PODLIST_UI_DATA_DIRECTORY"] != nil || identifier.hasPrefix("app.podlist.uitour.") {
@@ -16,7 +17,7 @@ public enum ApplicationStorage {
             .appendingPathComponent("PodList", isDirectory: true)
     }
 
-    #if DEBUG
+    #if DEBUG || PODLIST_UI_TOUR
     public static func isolatedDirectory(_ path: String?, bundleIdentifier: String) throws -> URL {
         guard bundleIdentifier.hasPrefix("app.podlist.uitour."),
               let path, path.hasPrefix("/"), !path.contains("..") else {

@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEBUG || PODLIST_UI_TOUR
 import CoreSpotlight
 import Foundation
 import OSLog

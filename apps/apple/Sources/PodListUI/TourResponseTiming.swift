@@ -1,14 +1,25 @@
-#if DEBUG && os(macOS)
+#if (DEBUG || PODLIST_UI_TOUR) && os(macOS)
 import AppKit
 import Darwin
+import OSLog
 import QuartzCore
 import SwiftUI
 
 /// Records only the five results exercised by the Mac UI tour.
 @MainActor
 public final class TourResponseTiming {
-    enum Step: String {
+    enum Step: String, CaseIterable {
         case sidebar, inspector, playlist, settings, filter
+
+        var signpostName: StaticString {
+            switch self {
+            case .sidebar: "sidebar"
+            case .inspector: "inspector"
+            case .playlist: "new-playlist-sheet"
+            case .settings: "settings"
+            case .filter: "filter"
+            }
+        }
 
         func matches(_ event: NSEvent) -> Bool {
             if self == .sidebar || self == .inspector { return event.type == .leftMouseDown }
@@ -51,16 +62,18 @@ public final class TourResponseTiming {
     public static func start() { _ = active }
 
     private let output: URL
+    private let signposter = OSSignposter(subsystem: "app.podlist", category: "ResponseTiming")
     private var monitor: Any?
     private var lastInput: NSEvent?
+    private var inputIntervals: [Step: OSSignpostIntervalState] = [:]
     private var lastMeasuredInput: [Step: TimeInterval] = [:]
-    private var pending: (step: Step, input: TimeInterval, appeared: TimeInterval)?
+    private var pending: (step: Step, input: TimeInterval, appeared: TimeInterval, interval: OSSignpostIntervalState?)?
     private var displayLink: CADisplayLink?
 
     private init(output: URL) {
         self.output = output
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { [weak self] event in
-            self?.lastInput = event
+            self?.recordInput(event)
             return event
         }
     }
@@ -69,12 +82,29 @@ public final class TourResponseTiming {
         if let monitor { NSEvent.removeMonitor(monitor) }
     }
 
+    private func recordInput(_ event: NSEvent) {
+        lastInput = event
+        for (step, interval) in inputIntervals {
+            signposter.endInterval(step.signpostName, interval, "unobserved")
+        }
+        inputIntervals.removeAll(keepingCapacity: true)
+        guard signposter.isEnabled else { return }
+        // Start before AppKit dispatches the event. A click can lead to either
+        // result, so the appearance probe decides which interval was observed.
+        for step in Step.allCases where step.matches(event) {
+            inputIntervals[step] = signposter.beginInterval(step.signpostName, id: signposter.makeSignpostID())
+        }
+    }
+
     fileprivate func appeared(_ step: Step, in window: NSWindow) {
         guard window.isVisible, let event = lastInput, step.matches(event),
               lastMeasuredInput[step] != event.timestamp else { return }
         lastMeasuredInput[step] = event.timestamp
         displayLink?.invalidate()
-        pending = (step, event.timestamp, CACurrentMediaTime())
+        if let pending, let interval = pending.interval {
+            signposter.endInterval(pending.step.signpostName, interval, "unobserved")
+        }
+        pending = (step, event.timestamp, CACurrentMediaTime(), inputIntervals.removeValue(forKey: step))
         let link = window.displayLink(target: self, selector: #selector(frameDisplayed(_:)))
         displayLink = link
         link.add(to: .main, forMode: .common)
@@ -90,6 +120,9 @@ public final class TourResponseTiming {
         displayLink = nil
         self.pending = nil
         let delta = (frame - pending.input) * 1_000
+        if let interval = pending.interval {
+            signposter.endInterval(pending.step.signpostName, interval, "response_ms=\(delta, privacy: .public)")
+        }
         guard delta >= 0 else { return }
         append("\(pending.step.rawValue)\t\(pending.input)\t\(frame)\t\(delta)\n")
     }
