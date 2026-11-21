@@ -100,7 +100,14 @@ public struct PodListWindow: SwiftUI.View {
 
     private func updatePanes(_ action: LibraryPanes.Action, requestedColumns: NavigationSplitViewVisibility? = nil) {
         let panes = paneState.applying(action, width: windowWidth ?? .infinity)
-        if !panes.inspector { inspectorExplicitlyOpened = false }
+        if !panes.inspector {
+            if inspectorExplicitlyOpened, case .sidebar(true) = action {
+                // Revealing the sidebar can widen the native window. Preserve the
+                // narrow pane swap even if that resize crosses the wide breakpoint.
+                sceneInspectorEnabled = false
+            }
+            inspectorExplicitlyOpened = false
+        }
         if !panes.sidebar { columns = .detailOnly }
         else if let requestedColumns { columns = requestedColumns }
         if panes.inspector { inspectorExplicitlyOpened = true }
