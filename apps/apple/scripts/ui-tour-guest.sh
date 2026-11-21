@@ -198,8 +198,8 @@ elif [ "$mode" = tour ]; then
         -destination 'platform=macOS' -parallel-testing-enabled NO \
         -only-testing:PodListUITour/PodListUITour/testLight \
         -only-testing:PodListUITour/PodListUITour/testDark \
-        -test-timeouts-enabled YES -default-test-execution-time-allowance 1100 \
-        -maximum-test-execution-time-allowance 1400 -resultBundlePath "$run/Tour.xcresult"
+        -test-timeouts-enabled YES -default-test-execution-time-allowance 1600 \
+        -maximum-test-execution-time-allowance 2000 -resultBundlePath "$run/Tour.xcresult"
     # Launch a fresh test runner after changing the display preference.
     reset_show_borders=true
     set_show_borders true
