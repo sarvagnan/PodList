@@ -56,17 +56,25 @@ public struct PodListSettings: SwiftUI.View {
     @Bindable private var app: ApplicationModel
     @AppStorage("PodList.settingsPane") private var pane = "general"
     @State private var heights: [String: CGFloat] = [:]
+    @State private var openedPanes = Set<String>()
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
         TabView(selection: $pane) {
-            LibrarySettingsScreen(app: app)
-                .tabItem { Label("General", systemImage: "gearshape") }
-                .tag("general")
-            AutomationSettingsScreen(settings: app.automation)
-                .tabItem { Label("Automation", systemImage: "terminal") }
-                .tag("automation")
+            Group {
+                if pane == "general" || openedPanes.contains("general") { LibrarySettingsScreen(app: app) }
+            }
+            .tabItem { Label("General", systemImage: "gearshape") }
+            .tag("general")
+            Group {
+                if pane == "automation" || openedPanes.contains("automation") {
+                    AutomationSettingsScreen(settings: app.automation)
+                }
+            }
+            .tabItem { Label("Automation", systemImage: "terminal") }
+            .tag("automation")
         }
-        .frame(width: 640, height: heights[pane] ?? 440)
+        .frame(width: SettingsPaneHeights.width, height: heights[pane] ?? 440)
+        .onChange(of: pane, initial: true) { _, current in openedPanes.insert(current) }
         .onPreferenceChange(SettingsPaneHeights.self) { measured in
             for (pane, height) in measured where height > 0 { heights[pane] = height }
         }
@@ -86,11 +94,11 @@ public struct PodListHelp: SwiftUI.View {
                 Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌥⌘I). Search filters the current list.")
                 Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; choose Podcast › Edit Download Rules… to change a Subscription’s Download Rule. Playback continues when windows close.")
                 Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
-                Text("Use Copy PodList Link in Episode, Playlist or Views, or an item’s context menu, to reopen that item in Library. Links never start playback. Spotlight finds Library Episodes, Subscriptions and Playlists in release builds. Select a feed address in another app and choose Services › Add to PodList to stage it in Add Podcasts; subscribing still requires Subscribe.")
+                Text("Use Copy PodList Link in Episode, Playlist or Saved Views, or an item’s context menu, to reopen that item in Library. Links never start playback. Spotlight finds Library Episodes, Subscriptions and Playlists in release builds. Select a feed address in another app and choose Services › Add to PodList to stage it in Add Podcasts; subscribing still requires Subscribe.")
                 Text("Read Show Notes in the Episode Inspector. Drag its divider to adjust the reading width.")
                 Divider()
                 Text("Keyboard Shortcuts").macContentFont(.title2).bold()
-                Text("Choose a sidebar item with the arrow keys. In Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Click or select an Episode to open its Inspector. Double-click an Episode or press Return to play it now in the Active Playlist. In Playlist Entries, this moves the Entry just before that Playlist’s Cursor, makes the Playlist active and starts the Entry. Double-click a View or Subscription row to open it.")
+                Text("Choose a sidebar item with the arrow keys. In Episode and Entry lists, use ⇧↑/⇧↓ to extend selection and ⌘A to select all. Select an Episode to show its Inspector in a wide window. In a narrow window, choose View › Show Inspector (⌥⌘I). Double-click an Episode or press Return to play it now in the Active Playlist. In Playlist Entries, this moves the Entry just before that Playlist’s Cursor, makes the Playlist active and starts the Entry. Double-click a View or Subscription row to open it.")
                 Text("With focus in a Library list, table, sidebar or window background, Space plays or pauses the current Episode. If nothing is loaded, it starts the Active Playlist. Space keeps its normal meaning on focused controls, in sheets and in other windows such as Settings and Now Playing. While editing text, Space, Return and ⌘←/⌘→ keep their text meaning. In sheets, Return uses the default action.")
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                     shortcutRow("New View…", "⌘N")

@@ -197,12 +197,12 @@ extension WindowModel {
         })
     }
 
-    func episodeSelection(episodeIDs: [String], otherIDs: [String] = [], openInspector: @escaping () -> Void) -> Binding<Set<String>> {
-        let list = listID
-        let episodes = Set(episodeIDs)
-        let allowed = episodes.union(otherIDs)
-        return Binding(get: { self.selection }, set: {
-            self.selectEpisodes($0.intersection(allowed), in: list, episodeIDs: episodes, openInspector: openInspector)
+    func episodeSelection(episodeIDs: [String], otherIDs: [String] = []) -> Binding<Set<String>> {
+        let selection = listBinding(\.selection)
+        let allowed = Set(episodeIDs).union(otherIDs)
+        return Binding(get: { selection.wrappedValue }, set: { ids in
+            let selected = ids.intersection(allowed)
+            if selection.wrappedValue != selected { selection.wrappedValue = selected }
         })
     }
 }

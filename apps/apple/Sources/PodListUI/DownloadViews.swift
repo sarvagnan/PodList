@@ -126,8 +126,8 @@ struct DownloadRuleFields: SwiftUI.View {
     var compact = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            field(compact ? "Download Rule" : "Download Rule on This Mac") {
-                Picker(compact ? "Download Rule on This Mac" : "", selection: $mode) {
+            field(compact ? "Download Rule" : "Downloads on This Mac") {
+                Picker(compact ? "Downloads on This Mac" : "", selection: $mode) {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                     Text("As Episodes are published").tag(DownloadMode.allNew)
@@ -181,9 +181,9 @@ private struct BulkDownloadRuleEditor: SwiftUI.View {
     }
     var body: some SwiftUI.View {
         PodListSheet(title: "Download Rules for \(CountText.format(draft.subscriptionIDs.count, .subscription))", width: 520,
-                     actionTitle: "Apply", actionEnabled: !saving && !draft.subscriptionIDs.isEmpty,
+                     actionTitle: "Save", actionEnabled: !saving && !draft.subscriptionIDs.isEmpty,
                      cancelEnabled: !saving, cancel: cancel, action: apply) {
-            Text("Apply one rule to all selected Subscriptions on this Mac.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+            Text("Use one rule for all selected Subscriptions on this Mac.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
             DownloadRuleFields(mode: Binding(get: { draft.mode }, set: { draft.mode = $0; editing.drafts.stage(draft) }),
                                cap: Binding(get: { draft.cap }, set: { draft.cap = $0; editing.drafts.stage(draft) })).disabled(saving)
         } status: {
@@ -191,7 +191,7 @@ private struct BulkDownloadRuleEditor: SwiftUI.View {
         }
         .interactiveDismissDisabled(saving)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [
-            .cancel: saving ? nil : { cancel() }, .apply: saving ? nil : { apply() }
+            .cancel: saving ? nil : { cancel() }, .save: saving ? nil : { apply() }
         ].compactMapValues { $0 }))
     }
     private func cancel() { editing.drafts.remove(draft.field); dismiss() }

@@ -20,4 +20,16 @@ func episodeTablesReserveTitleAndVisibleMetadataSpace(width: CGFloat) {
         #expect(layout.showsDateOrPosition && layout.showsLength && layout.showsState)
     }
 }
+
+@Test func compactEpisodeStateMarksReplaceTheHiddenStateColumn() {
+    let compact = EpisodeTableLayout(width: 639)
+    let regular = EpisodeTableLayout(width: 640)
+    #expect(compact.playbackMark(for: "Played") == .played)
+    #expect(compact.playbackMark(for: "Played · Starred") == .played)
+    #expect(compact.playbackMark(for: "In progress · Starred") == .inProgress)
+    #expect(compact.playbackMark(for: "Unplayed · Starred") == nil)
+    #expect(regular.playbackMark(for: "Played") == nil)
+    #expect(regular.playbackMark(for: "In progress") == nil)
+    #expect(EpisodePlaybackMark.played.symbol != EpisodePlaybackMark.inProgress.symbol)
+}
 #endif

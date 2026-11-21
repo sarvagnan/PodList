@@ -130,7 +130,7 @@ public enum Presentation {
         var index = stripped.startIndex
         let entities = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
         while index < stripped.endIndex {
-            if stripped[index] == "&", let end = stripped[index...].firstIndex(of: ";"), stripped.distance(from: index, to: end) < 16 {
+            if stripped[index] == "&", let end = stripped[index...].prefix(16).firstIndex(of: ";") {
                 let key = String(stripped[stripped.index(after: index)..<end])
                 let number: UInt32? = key.hasPrefix("#x") ? UInt32(key.dropFirst(2), radix: 16) : key.hasPrefix("#") ? UInt32(key.dropFirst()) : nil
                 if let value = entities[key] ?? number.flatMap(Unicode.Scalar.init).map(String.init) {
@@ -463,13 +463,6 @@ public final class WindowModel {
         listPositions.removeAll()
         playlistTabs.removeAll()
         pendingRestoredEntries = []
-    }
-    /// Only a row interaction can open the Inspector. Restoring or reconciling a list
-    /// assigns its selection directly.
-    func selectEpisodes(_ ids: Set<String>, in list: ListID, episodeIDs: Set<String>, openInspector: () -> Void) {
-        guard listID == list else { return }
-        if selection != ids { selection = ids }
-        if !ids.isDisjoint(with: episodeIDs) { openInspector() }
     }
     func showPlaylistTab(_ tab: PlaylistTab) {
         guard podcastFeed == nil, case let .playlist(id) = destination, playlistTab != tab else { return }

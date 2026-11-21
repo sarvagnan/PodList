@@ -62,6 +62,7 @@ struct WindowContext: Codable, Equatable {
     var timelineSelection: String?
     var columns = Columns.all
     var inspectorVisible: Bool?
+    var inspectorExplicitlyOpened: Bool?
     // Podcast pages opened from discovery need not have a Subscription yet.
     var podcastFeed: String?
     var podcastOrigin: PodcastOrigin?
@@ -153,10 +154,12 @@ struct WindowContext: Codable, Equatable {
 }
 
 extension WindowModel {
-    func context(libraryID: String, columns: WindowContext.Columns, inspectorVisible: Bool? = nil) -> WindowContext {
+    func context(libraryID: String, columns: WindowContext.Columns, inspectorVisible: Bool? = nil,
+                 inspectorExplicitlyOpened: Bool? = nil) -> WindowContext {
         WindowContext(libraryID: libraryID, destination: destination, search: search, selection: selection,
                       sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
                       playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns, inspectorVisible: inspectorVisible,
+                      inspectorExplicitlyOpened: inspectorExplicitlyOpened,
                       podcastFeed: podcastFeed, podcastOrigin: podcastOrigin, subscriptionSelection: subscriptionSelection,
                       scrollAnchor: scrollAnchor, paneWidths: paneWidths, collapsedSidebarSections: collapsedSidebarSections)
     }
@@ -219,7 +222,14 @@ struct LibraryPanes: Equatable {
     static let threePaneWidth = PaneWidths.sidebarIdeal + listWidth + PaneWidths.inspectorMinimum + 10 + dividers
 
     var sidebar: Bool
+    /// An explicit open request. Selection never changes this state.
     var inspector: Bool
+
+    func presentsInspector(width: Double, hasSelection: Bool, enabled: Bool) -> Bool {
+        guard enabled else { return false }
+        if width >= Self.threePaneWidth { return hasSelection }
+        return inspector && !sidebar
+    }
 
     func applying(_ action: Action, width: Double) -> Self {
         var panes = self

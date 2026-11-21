@@ -28,8 +28,8 @@ import UniformTypeIdentifiers
 
 @Test func dialogButtonsAndMessageLocalHelpersHaveNoMenuEntries() {
     let surfaceOnly: [MenuAction] = [
-        .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
-        .playNow, .playNext, .playLast, .go, .deletePermanently, .apply, .rewind,
+        .done, .close, .cancel, .save, .cancelRename, .createPlaylist, .createView,
+        .playNow, .playNext, .playLast, .go, .deletePermanently, .rewind,
         .bringOver, .notNow, .importSelection, .chooseFile, .dismissTutorial
     ]
     for action in surfaceOnly {

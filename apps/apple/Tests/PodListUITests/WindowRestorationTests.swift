@@ -50,6 +50,40 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(both.applying(.layoutChanged, width: wide) == both)
 }
 
+@Test func wideInspectorFollowsSelectionWhileEnabled() {
+    let width = LibraryPanes.threePaneWidth
+    let panes = LibraryPanes(sidebar: true, inspector: false)
+    #expect(!panes.presentsInspector(width: width, hasSelection: false, enabled: true))
+    #expect(panes.presentsInspector(width: width, hasSelection: true, enabled: true))
+    #expect(!panes.presentsInspector(width: width, hasSelection: true, enabled: false))
+    let explicit = panes.applying(.inspector(true), width: width)
+    #expect(!explicit.presentsInspector(width: width, hasSelection: false, enabled: true))
+    #expect(panes.sidebar)
+}
+
+@Test func narrowSelectionNeverChangesTheExplicitPaneChoice() {
+    let width = LibraryPanes.threePaneWidth - 1
+    let sidebar = LibraryPanes(sidebar: true, inspector: false)
+    #expect(!sidebar.presentsInspector(width: width, hasSelection: true, enabled: true))
+    let explicit = sidebar.applying(.inspector(true), width: width)
+    #expect(!explicit.sidebar)
+    #expect(explicit.presentsInspector(width: width, hasSelection: false, enabled: true))
+    #expect(explicit.presentsInspector(width: width, hasSelection: true, enabled: true))
+    #expect(!explicit.presentsInspector(width: width, hasSelection: true, enabled: false))
+    #expect(explicit.applying(.sidebar(true), width: width) == sidebar)
+    #expect(explicit.applying(.inspector(false), width: width) == .init(sidebar: false, inspector: false))
+}
+
+@Test func windowArchiveRetainsTheInspectorChoiceWhileAutomaticVisibilityChanges() throws {
+    let panes = LibraryPanes(sidebar: true, inspector: false)
+    let context = WindowContext(destination: .view("all"), inspectorVisible: true, inspectorExplicitlyOpened: false)
+    let restored = try #require(WindowContext.decode(context.encoded))
+    #expect(restored.inspectorVisible == true)
+    #expect(restored.inspectorExplicitlyOpened == false)
+    #expect(!panes.presentsInspector(width: LibraryPanes.threePaneWidth, hasSelection: false, enabled: restored.inspectorVisible == true))
+    #expect(panes.presentsInspector(width: LibraryPanes.threePaneWidth, hasSelection: true, enabled: restored.inspectorVisible == true))
+}
+
 @Test func inspectorUsesTheCurrentWidthAfterReopeningTheSidebar() {
     let narrow = 760.0
     let expanded = narrow + PaneWidths.sidebarIdeal

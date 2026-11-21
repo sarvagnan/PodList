@@ -50,7 +50,6 @@ public struct LibrarySettingsScreen: SwiftUI.View {
     @AppStorage("PodList.serverDraft") private var serverDraft = ""
     @AppStorage("PodList.appearance") private var appearance = "System"
     @Environment(\.openWindow) private var openWindow
-    @State private var gettingStarted = false
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
         // A grouped Form owns its scrolling and keeps labels and prose inside
@@ -68,17 +67,20 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         }
                         Button("Export OPML…") { LibraryFileActions.exportOPML(app) }
                         Button("Listening Stats") { openWindow(id: "listening-stats") }
-                        Button("Getting Started") { app.libraryEditing?.showGettingStarted = true; gettingStarted = true }
+                        Button("Getting Started") { openWindow(id: "getting-started") }.disabled(app.libraryEditing == nil)
                     }
                 }
                 if app.library != nil {
                     Section("Publisher Feeds") {
-                        if app.isStandalone {
-                            Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: 480, alignment: .leading)
-                        }
                         let refresh = app.feedRefreshAction(.all)
-                        Button("Refresh Now") { refresh?() }.disabled(refresh == nil)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Button("Refresh Now") { refresh?() }.disabled(refresh == nil)
+                            if app.isStandalone {
+                                Text("Feeds are checked every 30 minutes while PodList runs. Failed checks retry with increasing waits, up to a day. The wait survives restarting PodList.")
+                                    .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                         if app.feedRefreshProgress != nil || app.feedRefreshIssue != nil {
                             FeedRefreshFeedback(app: app)
                         }
@@ -108,8 +110,14 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                         TextField("Server Address", text: $app.serverInput)
                             .accessibilityLabel("Server Address")
-                        Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
-                        if app.isStandalone { Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()) }
+                        VStack(alignment: .leading, spacing: 5) {
+                            Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
+                            if app.isStandalone {
+                                Text("You can preview bringing this Library over after checking the server. Not now keeps the Libraries separate.")
+                                    .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                         if let error = app.connectionError { Text(error).foregroundStyle(Color.podListError) }
                     }
                 }
@@ -122,13 +130,6 @@ public struct LibrarySettingsScreen: SwiftUI.View {
         .focusedSceneValue(\.podListSettingsActions, settingsMenuActions)
         .onAppear { if app.serverInput.isEmpty { app.serverInput = serverDraft } }
         .onChange(of: app.serverInput) { _, text in serverDraft = text }
-        .sheet(isPresented: $gettingStarted, onDismiss: { app.libraryEditing?.showGettingStarted = false }) {
-            if let editor = app.libraryEditing {
-                GettingStartedScreen(editor: editor, add: nil, inSheet: true)
-                    .onExitCommand { editor.showGettingStarted = false; gettingStarted = false }
-                    .onChange(of: editor.showGettingStarted) { _, visible in if !visible { gettingStarted = false } }
-            }
-        }
     }
     private var settingsMenuActions: MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
@@ -266,62 +267,57 @@ private struct PersistentNumberField: SwiftUI.View {
 }
 
 struct GettingStartedScreen: SwiftUI.View {
-    @Bindable var editor: LibraryEditingModel
-    let add: (() -> Void)?
-    var inSheet = false
-    var maxInlineHeight: CGFloat? = nil
+    let add: () -> Void
+    let close: () -> Void
+
     var body: some SwiftUI.View {
-        Group {
-            if inSheet {
-                PodListSheet(title: "Getting Started", width: 500, actionTitle: "Hide Getting Started", cancelTitle: nil,
-                             cancel: { editor.showGettingStarted = false }, action: { editor.showGettingStarted = false }) {
-                    steps
-                }.onExitCommand { editor.showGettingStarted = false }
-            } else if let maxInlineHeight {
-                ViewThatFits(in: .vertical) {
-                    inline.fixedSize(horizontal: false, vertical: true)
-                    ScrollView { inline }.scrollBounceBehavior(.basedOnSize)
-                }.frame(maxHeight: maxInlineHeight)
-            } else {
-                inline
+        ContentSizedPanel(width: 500, settings: true) {
+            GettingStartedSteps()
+        } footer: {
+            HStack {
+                Button("Add Podcasts…", action: add)
+                Spacer()
+                Button("Hide Getting Started", action: close).macDefaultAction()
             }
+            .padding(.horizontal, 24).padding(.vertical, 16)
         }
-        .focusedSceneValue(\.podListTutorialActions, MenuActionContext(actions: [.dismissTutorial: { editor.showGettingStarted = false }]))
+        .closesOnEscape(close)
+        .focusedSceneValue(\.podListTutorialActions, MenuActionContext(actions: [.dismissTutorial: close]))
     }
-    private var inline: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Getting Started").macContentFont(.headline)
-            steps
-            HStack { Spacer(); Button("Hide Getting Started") { editor.showGettingStarted = false } }
-        }.padding(12)
+}
+
+struct GettingStartedSteps: SwiftUI.View {
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 16) {
+            step("Add Podcasts to Your Library", number: 1,
+                 detail: "Search by name or enter a feed address. In Library, you can also choose File › Add Podcasts… (⇧⌘A).")
+            step("Understand Views", number: 2,
+                 detail: "Views find Episodes. Open a View, or edit its conditions to see the match count change.")
+            step("Add Episodes to Playlists", number: 3,
+                 detail: "Use Add to a Playlist or Play Now. Each Playlist remembers its own Position.")
+        }
+        .padding(24)
     }
-    private var steps: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Add Podcasts to Your Library", systemImage: "1.circle")
-            Text("Search by name or enter a feed address.").foregroundStyle(MacReadableSecondaryStyle())
-            if let add { Button("Add Podcasts…", action: add) }
-            else { Text("Use File › Add Podcasts… (⇧⌘A) in the Library window.").macContentFont(.caption) }
-            Label("Understand Views", systemImage: "2.circle")
-            Text("Views find Episodes. Open a View, or edit its conditions to see the match count change.").foregroundStyle(MacReadableSecondaryStyle())
-            Label("Add Episodes to Playlists", systemImage: "3.circle")
-            Text("Use Add to a Playlist or Play Now. Each Playlist remembers its own Position.").foregroundStyle(MacReadableSecondaryStyle())
+
+    private func step(_ title: String, number: Int, detail: String) -> some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: "\(number).circle").macContentFont(.headline)
+            Text(detail).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
 public struct GettingStartedWindow: SwiftUI.View {
     @Bindable var app: ApplicationModel
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+
     public init(app: ApplicationModel) { self.app = app }
+
     public var body: some SwiftUI.View {
-        Group {
-            if let editor = app.libraryEditing {
-                GettingStartedScreen(editor: editor, add: nil).padding(25)
-                    .onAppear { editor.showGettingStarted = true }
-                    .onDisappear { editor.showGettingStarted = false }
-                    .onChange(of: editor.showGettingStarted) { _, visible in if !visible { dismissWindow(id: "getting-started") } }
-            }
-        }.frame(width: 500).macContentFont(.body)
+        GettingStartedScreen(add: { openWindow(id: "add-podcasts") },
+                             close: { dismissWindow(id: "getting-started") })
+            .onDisappear { app.libraryEditing?.showGettingStarted = false }
     }
 }
 

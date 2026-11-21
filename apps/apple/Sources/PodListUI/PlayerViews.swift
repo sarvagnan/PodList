@@ -216,7 +216,7 @@ struct NowPlayingView: SwiftUI.View {
             }
     }
     private var panel: some SwiftUI.View {
-        ContentSizedPanel(width: 560, settings: true) {
+        ContentSizedPanel(width: 560, settings: true, scrollIndicatorOverflowTolerance: 8) {
             VStack(spacing: 0) {
                 if let detailID, let current = app.library {
                     VStack(spacing: 12) {

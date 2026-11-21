@@ -15,30 +15,23 @@ func selectionToolbarNamesAreDistinctAndMatchMenuState(allStarred: Bool) {
 }
 @Test
 @MainActor
-func userEpisodeSelectionOpensInspectorButRestorationLeavesItHidden() {
+func episodeSelectionKeepsAllowedRowsAndIgnoresOutgoingListEvents() {
     let window = WindowModel()
     window.navigate(to: .view("all"))
-    var inspectorVisible = false
-    let selection = window.episodeSelection(episodeIDs: ["one", "two"], otherIDs: ["failed"]) { inspectorVisible = true }
-    selection.wrappedValue = ["failed"]
-    #expect(!inspectorVisible)
-    selection.wrappedValue = []
-    #expect(!inspectorVisible)
+    let selection = window.episodeSelection(episodeIDs: ["one", "two"], otherIDs: ["failed"])
+    selection.wrappedValue = ["failed", "outside"]
+    #expect(window.selection == ["failed"])
     selection.wrappedValue = ["one"]
-    #expect(inspectorVisible && window.selection == ["one"])
+    #expect(window.selection == ["one"])
 
-    inspectorVisible = false
     window.navigate(to: .playlist("default"))
     selection.wrappedValue = ["two"] // An outgoing native list can still send events.
-    #expect(!inspectorVisible && window.selection.isEmpty)
+    #expect(window.selection.isEmpty)
     window.navigate(to: .view("all"))
-    #expect(!inspectorVisible && window.selection == ["one"])
-    selection.wrappedValue = ["one"] // Clicking the already selected Episode reopens it.
-    #expect(inspectorVisible)
+    #expect(window.selection == ["one"])
 
-    inspectorVisible = false
     window.restore(WindowContext(destination: .search, selection: ["two"]))
-    #expect(!inspectorVisible && window.selection == ["two"])
+    #expect(window.selection == ["two"])
 }
 
 @Test(arguments: [true, false])

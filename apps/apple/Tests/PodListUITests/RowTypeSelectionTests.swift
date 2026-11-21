@@ -65,7 +65,7 @@ import Testing
     #expect(!window.isVisible)
 }
 
-@MainActor @Test func nativeClickReopensInspectorForRememberedEpisodeAndPreservesSelectAll() async throws {
+@MainActor @Test func nativeClickReselectsRememberedEpisodeAndPreservesSelectAll() async throws {
     struct Row: Identifiable { let id: String }
     struct Fixture: SwiftUI.View {
         let ids: [String]
@@ -86,8 +86,7 @@ import Testing
     let ids = ["one", "two", "three"]
     let model = WindowModel()
     model.navigate(to: .view("all"))
-    var inspectorVisible = false
-    let selection = model.episodeSelection(episodeIDs: ids) { inspectorVisible = true }
+    let selection = model.episodeSelection(episodeIDs: ids)
     let window = NSWindow(contentViewController: NSHostingController(rootView: Fixture(ids: ids, selection: selection)))
     window.isReleasedWhenClosed = false
     window.setContentSize(NSSize(width: 500, height: 300))
@@ -99,14 +98,13 @@ import Testing
     let probe = try #require(descendants(root).compactMap { $0 as? MacRowScroll.Probe }.first)
     #expect(window.makeFirstResponder(table))
     table.selectRowIndexes([0], byExtendingSelection: false)
-    #expect(model.selection == ["one"] && inspectorVisible)
+    #expect(model.selection == ["one"])
 
-    // Hide the Inspector and return to the remembered selection.
-    inspectorVisible = false
+    // Return to the remembered selection.
     model.navigate(to: .playlist("default"))
     model.navigate(to: .view("all"))
     for _ in 0..<3 { await Task.yield(); root.layoutSubtreeIfNeeded() }
-    #expect(probe.selection.wrappedValue == ["one"] && !inspectorVisible)
+    #expect(probe.selection.wrappedValue == ["one"])
     #expect(window.makeFirstResponder(window))
     let row = table.rect(ofRow: 0)
     let point = table.convert(NSPoint(x: row.midX, y: row.midY), to: nil)
@@ -120,30 +118,27 @@ import Testing
 
     probe.handleMouseDown(click)
     await finishClick()
-    #expect(model.selection == ["one"] && inspectorVisible)
+    #expect(model.selection == ["one"])
 
     // An ordinary click on a selected row can clear the native selection.
-    // The Inspector must reopen for that Episode, even when the binding saw an empty set.
-    inspectorVisible = false
+    // Keep that Episode selected even when the binding saw an empty set.
     probe.handleMouseDown(click)
     table.deselectAll(nil)
-    #expect(model.selection.isEmpty && !inspectorVisible)
+    #expect(model.selection.isEmpty)
     await finishClick()
-    #expect(model.selection == ["one"] && inspectorVisible)
+    #expect(model.selection == ["one"])
 
     // The timing tour starts after capturing a multi-selection. Exercise that
     // remembered selection too, through the same mouse-down path.
     table.selectAll(nil)
     #expect(model.selection == Set(ids))
-    inspectorVisible = false
     probe.handleMouseDown(click)
     table.deselectAll(nil)
     await finishClick()
-    #expect(model.selection == ["one"] && inspectorVisible)
+    #expect(model.selection == ["one"])
 
     // Select All after the click must still win over the deferred reselection.
     table.selectRowIndexes([0], byExtendingSelection: false)
-    inspectorVisible = false
     probe.handleMouseDown(click)
     #expect(window.firstResponder === table)
     #expect(probe.handleKey(selectAll) == nil)
@@ -151,7 +146,6 @@ import Testing
     await finishClick()
     #expect(model.selection == Set(ids))
     #expect(table.selectedRowIndexes.count == ids.count)
-    #expect(inspectorVisible)
 
     let search = NSSearchField(frame: NSRect(x: 0, y: 0, width: 100, height: 24))
     root.addSubview(search)

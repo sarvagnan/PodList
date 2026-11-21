@@ -95,10 +95,6 @@ public final class LibraryEditingModel {
             defaults.set(newValue, forKey: key("gettingStarted"))
         }
     }
-    public func showsGettingStarted(on destination: Destination?, in library: LibraryModel) -> Bool {
-        guard let first = library.state.views.first else { return false }
-        return showGettingStarted && destination == .view(first.id)
-    }
     public func beginAddingPodcasts() { addFlows += 1 }
     public func endAddingPodcasts() {
         addFlows = max(0, addFlows - 1)
