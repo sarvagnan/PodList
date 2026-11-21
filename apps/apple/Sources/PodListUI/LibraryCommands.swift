@@ -75,7 +75,7 @@ public struct LibraryCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Window") { openWindow(id: "library") }.keyboardShortcut("n", modifiers: [.command, .option, .shift])
             Button("New View…", action: { actions?.newView() }).keyboardShortcut("n").disabled(actions == nil)
-            Button("New Playlist…") { context?.presentation.sheet = .newPlaylist }
+            Button("New Playlist…") { context?.presentation.present(.newPlaylist, from: context?.editOrigin) }
                 .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(context == nil || app.editing == nil)
             Button("Open in New Window") { actions?.openInNewWindow?() }.disabled(actions?.openInNewWindow == nil)
             Divider()

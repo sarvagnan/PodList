@@ -244,6 +244,7 @@ struct FailedEpisodeDrop {
 }
 
 struct PlaylistEpisodeDropTarget: ViewModifier {
+    @Environment(\.libraryEditOrigin) private var origin
     let destination: Destination
     let editor: LibraryEditingModel?
     let window: WindowModel
@@ -258,8 +259,8 @@ struct PlaylistEpisodeDropTarget: ViewModifier {
                     window.didDrop(references.compactMap(\.episodeID), into: id)
                     return
                 }
-                Task {
-                    await EpisodeDrop.add(values, to: id, editor: editor) { ids in
+                EditOrigin.start(origin) {
+                    _ = await EpisodeDrop.add(values, to: id, editor: editor) { ids in
                         window.didDrop(ids, into: id, reveal: showingEntries)
                     }
                 }

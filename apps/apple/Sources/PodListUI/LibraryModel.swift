@@ -223,6 +223,15 @@ public struct LibraryModel: Sendable {
             cached[destination] = rows
             return rows
         }
+        return matchingSearch(rows, search: search)
+    }
+
+    /// The Settings sheet can preview a Playlist from Trash using the same Entry projection.
+    func rows(forTrashedPlaylist playlist: Playlist, search: String) -> [EpisodeRow] {
+        matchingSearch(makePlaylistRows(playlist), search: search)
+    }
+
+    private func matchingSearch(_ rows: [EpisodeRow], search: String) -> [EpisodeRow] {
         guard !search.isEmpty, !rows.isEmpty else { return rows }
         let words = Mentions.words(search)
         guard !words.isEmpty else { return rows }
@@ -244,9 +253,7 @@ public struct LibraryModel: Sendable {
         case let .view(id):
             return viewsByID[id].map { viewEpisodes($0).map { row($0.id) } }
         case let .playlist(id):
-            return state.playlists.first { $0.id == id }.map { playlist in
-                playlist.entries.enumerated().map { row($0.element.episodeId, entry: $0.element, cursor: playlist.cursor, ordinal: $0.offset + 1) }
-            }
+            return state.playlists.first { $0.id == id }.map(makePlaylistRows)
         case let .subscription(id):
             guard subscriptionsByID[id] != nil else { return nil }
             return libraryEpisodes.filter { $0.subscriptionId == id }.map { row($0.id) }
@@ -254,6 +261,13 @@ public struct LibraryModel: Sendable {
         default: return nil
         }
     }
+
+    private func makePlaylistRows(_ playlist: Playlist) -> [EpisodeRow] {
+        playlist.entries.enumerated().map {
+            row($0.element.episodeId, entry: $0.element, cursor: playlist.cursor, ordinal: $0.offset + 1)
+        }
+    }
+
     public enum EmptyEpisodes: Equatable, Sendable { case loading, noSubscriptions, noMatches }
     public func emptyEpisodes(syncing: Bool) -> EmptyEpisodes {
         if syncing { return .loading }

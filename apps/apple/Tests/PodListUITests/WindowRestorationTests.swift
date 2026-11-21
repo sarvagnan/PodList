@@ -21,6 +21,7 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
                 let value = WindowContext(libraryID: "https://example.com", destination: destination, search: "science café",
                                           selection: ["a", "b"], sort: [.init(column: .length, reversed: true), .init(column: .title)],
                                           playlistTab: tab, timelineSelection: "listened/a/800", columns: columns,
+                                          inspectorVisible: false,
                                           podcastFeed: "https://example.com/feed", subscriptionSelection: ["s"])
                 let data = try #require(value.encoded)
                 #expect(WindowContext.decode(data) == value)
@@ -28,6 +29,43 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
             }
         }
     }
+}
+
+@Test func narrowLibraryPanesKeepTheLastExplicitlyOpenedPane() {
+    let narrow = LibraryPanes.threePaneWidth - 1
+    let wide = LibraryPanes.threePaneWidth
+    let sidebar = LibraryPanes(sidebar: true, inspector: false)
+    let inspector = LibraryPanes(sidebar: false, inspector: true)
+    let both = LibraryPanes(sidebar: true, inspector: true)
+    let list = LibraryPanes(sidebar: false, inspector: false)
+
+    #expect(sidebar.applying(.inspector(true), width: narrow) == inspector)
+    #expect(inspector.applying(.sidebar(true), width: narrow) == sidebar)
+    #expect(inspector.applying(.inspector(false), width: narrow) == list)
+    #expect(inspector.applying(.layoutChanged, width: wide) == inspector)
+    #expect(list.applying(.layoutChanged, width: wide) == list)
+    #expect(inspector.applying(.sidebar(true), width: wide) == both)
+    #expect(sidebar.applying(.inspector(true), width: wide) == both)
+    #expect(both.applying(.layoutChanged, width: narrow) == inspector)
+    #expect(both.applying(.layoutChanged, width: wide) == both)
+}
+
+@Test func inspectorUsesTheCurrentWidthAfterReopeningTheSidebar() {
+    let narrow = 760.0
+    let expanded = narrow + PaneWidths.sidebarIdeal
+    let inspector = LibraryPanes(sidebar: false, inspector: true)
+    let list = inspector.applying(.inspector(false), width: narrow)
+    let sidebar = list.applying(.sidebar(true), width: narrow)
+
+    // A native sidebar reveal can expand the window by the sidebar's width.
+    // Reopening the Inspector must use the width at the time of the command.
+    let expandedPanes = sidebar.applying(.layoutChanged, width: expanded)
+    #expect(expandedPanes.applying(.inspector(true), width: expanded) == .init(sidebar: true, inspector: true))
+
+    let narrowPanes = expandedPanes.applying(.layoutChanged, width: narrow)
+    let reopened = narrowPanes.applying(.inspector(true), width: narrow)
+    #expect(reopened == inspector)
+    #expect(reopened.applying(.sidebar(true), width: narrow) == sidebar)
 }
 
 @Test func windowContextRejectsInvalidOrFutureArchives() {

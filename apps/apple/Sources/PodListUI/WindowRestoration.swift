@@ -61,6 +61,7 @@ struct WindowContext: Codable, Equatable {
     var playlistTab = PlaylistTab.entries
     var timelineSelection: String?
     var columns = Columns.all
+    var inspectorVisible: Bool?
     // Podcast pages opened from discovery need not have a Subscription yet.
     var podcastFeed: String?
     var podcastOrigin: PodcastOrigin?
@@ -152,10 +153,10 @@ struct WindowContext: Codable, Equatable {
 }
 
 extension WindowModel {
-    func context(libraryID: String, columns: WindowContext.Columns) -> WindowContext {
+    func context(libraryID: String, columns: WindowContext.Columns, inspectorVisible: Bool? = nil) -> WindowContext {
         WindowContext(libraryID: libraryID, destination: destination, search: search, selection: selection,
                       sort: sortOrder.compactMap(WindowSort.init), podcastSort: podcastSort,
-                      playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns,
+                      playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns, inspectorVisible: inspectorVisible,
                       podcastFeed: podcastFeed, podcastOrigin: podcastOrigin, subscriptionSelection: subscriptionSelection,
                       scrollAnchor: scrollAnchor, paneWidths: paneWidths, collapsedSidebarSections: collapsedSidebarSections)
     }
@@ -189,11 +190,49 @@ struct RowAnchor: Codable, Equatable {
 }
 
 struct PaneWidths: Codable, Equatable {
-    var sidebar: Double = 225
-    var inspector: Double = 370
+    static let sidebarMinimum = 180.0
+    static let sidebarIdeal = 225.0
+    static let inspectorMinimum = 260.0
+    static let inspectorIdeal = 370.0
+    static let inspectorMaximum = 440.0
+
+    var sidebar = Self.sidebarIdeal
+    var inspector = Self.inspectorIdeal
+
     var reconciled: Self {
-        Self(sidebar: sidebar.isFinite ? min(max(sidebar, 180), 320) : 225,
-             inspector: inspector.isFinite ? min(max(inspector, 260), 440) : 370)
+        Self(sidebar: sidebar.isFinite ? min(max(sidebar, Self.sidebarMinimum), 320) : Self.sidebarIdeal,
+             inspector: inspector.isFinite ? min(max(inspector, Self.inspectorMinimum), Self.inspectorMaximum) : Self.inspectorIdeal)
+    }
+}
+
+struct LibraryPanes: Equatable {
+    enum Action {
+        case layoutChanged
+        case sidebar(Bool)
+        case inspector(Bool)
+    }
+
+    // Allow 450 pt for the list (above the 400 pt date/position breakpoint),
+    // the ideal sidebar, and 270 pt for the Inspector (10 above its minimum).
+    private static let listWidth = 450.0
+    private static let dividers = 5.0
+    static let threePaneWidth = PaneWidths.sidebarIdeal + listWidth + PaneWidths.inspectorMinimum + 10 + dividers
+
+    var sidebar: Bool
+    var inspector: Bool
+
+    func applying(_ action: Action, width: Double) -> Self {
+        var panes = self
+        switch action {
+        case .layoutChanged: break
+        case let .sidebar(visible): panes.sidebar = visible
+        case let .inspector(visible): panes.inspector = visible
+        }
+        if width < Self.threePaneWidth, panes.sidebar, panes.inspector {
+            if case .sidebar(true) = action { panes.inspector = false }
+            else { panes.sidebar = false }
+        }
+        return panes
     }
 }
 
@@ -206,7 +245,7 @@ final class SidebarWidthRecorder {
     private var task: Task<Void, Never>?
 
     func record(_ width: Double) {
-        guard width.isFinite, (180...320).contains(width) else { return }
+        guard width.isFinite, (PaneWidths.sidebarMinimum...320).contains(width) else { return }
         pending = width
         task?.cancel()
         task = Task { [weak self] in

@@ -64,6 +64,27 @@ func fixtureModel() async throws -> LibraryModel {
     #expect(model.subscriptionGroups(search: "uNivérse").map(\.mode) == [.allNew])
 }
 
+@Test func trashedPlaylistPreviewUsesStoredEntriesWithoutAddingALiveDestination() throws {
+    var state = fixtureState()
+    var playlist = try #require(state.trash?.first?.playlist)
+    playlist.entries = state.playlists[0].entries
+    playlist.cursor = state.playlists[0].cursor
+    state.trash = [.init(playlist: playlist, deletedAt: 500)]
+    let model = LibraryModel(snapshot: .init(state: state, subscriptions: [subscription()],
+                                             episodes: [episode(), episode("b", title: "Beta")]),
+                             deviceID: "this", now: 1_000)
+    let archived = try #require(model.trash.first?.playlist)
+    let rows = model.rows(forTrashedPlaylist: archived, search: "")
+    #expect(rows.map(\.id) == ["b", "a", "pending"])
+    #expect(rows.map(\.ordinal) == [1, 2, 3])
+    #expect(rows.map(\.position) == [0, 65, 8])
+    #expect(rows.first(where: { $0.id == "a" })?.isCursor == true)
+    #expect(model.rows(forTrashedPlaylist: archived, search: "beta science").map(\.id) == ["b"])
+    #expect(model.rows(for: .playlist(playlist.id)).isEmpty)
+    #expect(!model.sidebar.flatMap(\.items).contains { $0.destination == .playlist(playlist.id) })
+    #expect(WindowContext(destination: .playlist(playlist.id)).reconciled(in: model).destination == .subscriptions)
+}
+
 @MainActor @Test func viewRowsFilteringSortingAndWindowIsolation() async throws {
     let library = try await fixtureModel()
     let first = WindowModel(), second = WindowModel()

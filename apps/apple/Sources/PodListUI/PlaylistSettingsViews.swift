@@ -5,6 +5,7 @@ import PodListDomain
 struct NewPlaylistSheet: SwiftUI.View {
     let app: ApplicationModel
     let editing: PlaylistEditingModel
+    let origin: EditOrigin?
     let created: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
@@ -36,7 +37,7 @@ struct NewPlaylistSheet: SwiftUI.View {
     private func submit() {
         nameValidation.submitted()
         guard problem == nil, !editing.busy else { return }
-        Task { if let id = await editing.create(name: name.wrappedValue) { editing.drafts.remove("new/name"); created(id) } }
+        EditOrigin.start(origin) { if let id = await editing.create(name: name.wrappedValue) { editing.drafts.remove("new/name"); created(id) } }
     }
 }
 
@@ -45,6 +46,7 @@ struct AddPlaylistSheet: SwiftUI.View {
     let preferNew: Bool
     let app: ApplicationModel
     let editing: PlaylistEditingModel
+    let origin: EditOrigin?
     var cancelled: (() -> Void)? = nil
     let done: () -> Void
     @State private var target = ""
@@ -105,7 +107,7 @@ struct AddPlaylistSheet: SwiftUI.View {
         attemptedPlacement = placement
         nameValidation.submitted()
         guard problem == nil, !editing.busy else { return }
-        Task {
+        EditOrigin.start(origin) {
             if await editing.add(ids, to: target == "new" ? nil : target, newName: target == "new" ? name.wrappedValue : nil, placement: placement) != nil {
                 editing.drafts.remove(prefix + "/name"); editing.drafts.remove(prefix + "/target"); editing.drafts.remove(prefix + "/open"); done()
             }
@@ -117,10 +119,14 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     let id: String
     let app: ApplicationModel
     let editing: PlaylistEditingModel
+    let origin: EditOrigin?
     let done: () -> Void
     @FocusState private var focused: Bool
     @State private var draft: PlaylistSettingsDraft?
+    @State private var retrySave = false
     private var playlist: Playlist? { app.library?.state.playlists.first { $0.id == id } }
+    private var trashedPlaylist: Playlist? { app.library?.trash.first { $0.playlist.id == id }?.playlist }
+    private var isDeleted: Bool { trashedPlaylist != nil }
     private var name: Binding<String> { Binding(get: { draft?.name ?? playlist?.name ?? "" }, set: { value in
         guard var updated = draft else { return }; updated.name = value
         editing.drafts.stage(updated); draft = updated
@@ -130,20 +136,42 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         return PlaylistNames.problem(stagedName, playlists: app.library?.state.playlists ?? [], excluding: id)
     }
     private var canSave: Bool { playlist != nil && draft != nil && stagedNameProblem == nil && !editing.busy }
-    var body: some SwiftUI.View {
-        PodListSheet(title: "Playlist Settings", width: 500, actionTitle: "Save",
-                     actionEnabled: canSave, cancelEnabled: !editing.busy,
-                     cancel: cancel, action: apply) {
+    private var settingsSheet: some SwiftUI.View {
+        let action: () -> Void = isDeleted ? cancel : apply
+        let retry: (() -> Void)?
+        if retrySave { retry = { apply() } }
+        else { retry = nil }
+        return PodListSheet(title: "Playlist Settings", width: 500, actionTitle: isDeleted ? "Done" : "Save",
+                     actionEnabled: isDeleted ? !editing.busy : canSave,
+                     cancelTitle: isDeleted ? nil : "Cancel", cancelEnabled: !editing.busy,
+                     cancel: cancel, action: action) {
+            if let trashedPlaylist {
+                Text("“\(trashedPlaylist.name)” is in the Trash. To change its settings, restore it first. Your edits below come back when you do.")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             settingsFields
         } status: {
-            EditingFeedback(editing: editing, retry: apply, reservesSpace: false)
+            EditingFeedback(editing: editing, retry: retry, reservesSpace: false)
         } secondary: {
-            if playlist?.isDefault == false {
+            if isDeleted {
+                Button("Restore Playlist", action: restorePlaylist).disabled(editing.busy)
+            } else if playlist?.isDefault == false {
                 Button("Delete Playlist", role: .destructive, action: deletePlaylist).disabled(editing.busy)
             }
         }
+    }
+
+    var body: some SwiftUI.View {
+        settingsSheet
         .interactiveDismissDisabled(editing.busy)
         .onExitCommand { if !editing.busy { cancel() } }
+        .background {
+            if isDeleted {
+                Button("Done", action: cancel).keyboardShortcut(.cancelAction).disabled(editing.busy)
+                    .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true).focusable(false)
+            }
+        }
+        .onChange(of: isDeleted) { _, deleted in if deleted { focused = false } }
         .onAppear {
             if draft == nil, let playlist {
                 let restored = editing.drafts.playlistSettings(playlist)
@@ -161,13 +189,16 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     private var panelActions: MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
         if !editing.busy {
-            actions[.cancel] = cancel
-            if canSave { actions[.save] = apply }
+            if isDeleted { actions[.done] = cancel }
+            else {
+                actions[.cancel] = cancel
+                if canSave { actions[.save] = apply }
+            }
         }
         return MenuActionContext(actions: actions)
     }
     @ViewBuilder private var settingsFields: some SwiftUI.View {
-        if let playlist {
+        if let playlist = playlist ?? trashedPlaylist {
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Name") {
                     VStack(alignment: .leading, spacing: 10) {
@@ -185,16 +216,18 @@ struct PlaylistSettingsSheet: SwiftUI.View {
                 }))
                 Text("When Clear on Played is on, Entries leave this Playlist when their Episode next becomes Played. Turning it on does not remove Entries whose Episodes are already Played.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 420, alignment: .leading)
-                if !playlist.isDefault {
-                    Text("Delete Playlist takes effect immediately and closes these settings. Deleted Playlists can be restored from Trash for \(CountText.format(app.library?.state.trashDays ?? 30, .day)).").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 420, alignment: .leading)
-                }
-            }.disabled(editing.busy)
+            }.disabled(editing.busy || isDeleted)
         } else { Text("Playlist unavailable.") }
     }
     private func deletePlaylist() {
         guard let playlist, !editing.busy else { return }
-        Task { if await editing.delete(playlist) { editing.drafts.discardPlaylistSettings(id); done() } }
+        retrySave = false
+        EditOrigin.start(origin) { _ = await editing.delete(playlist) }
+    }
+    private func restorePlaylist() {
+        guard isDeleted, !editing.busy else { return }
+        retrySave = false
+        EditOrigin.start(origin) { _ = await editing.restore(id) }
     }
     private func cancel() { editing.drafts.discardPlaylistSettings(id); done() }
     private func apply() {
@@ -202,7 +235,8 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let changes = draft.changes
         let objectName = playlist?.name ?? draft.name
-        Task {
+        retrySave = true
+        EditOrigin.start(origin) {
             let saved = changes.isEmpty ? true : await editing.edit(changes, name: "Settings for \(objectName)")
             if saved { editing.drafts.discardPlaylistSettings(id); done() }
         }
@@ -210,6 +244,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
 }
 
 struct PlaylistTrashView: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     let library: LibraryModel
     let editing: PlaylistEditingModel
     let search: String
@@ -235,11 +270,11 @@ struct PlaylistTrashView: SwiftUI.View {
                             Text("\(CountText.format(item.playlist.entries.count, .entry)) · Deleted \(Date(timeIntervalSince1970: Double(item.deletedAt) / 1000).formatted(date: .abbreviated, time: .omitted))").foregroundStyle(MacReadableSecondaryStyle(isSelected: selection == item.playlist.id))
                         }
                         Spacer()
-                        Button("Restore") { Task { await editing.restore(item.playlist.id) } }
+                        Button("Restore") { EditOrigin.start(origin) { _ = await editing.restore(item.playlist.id) } }
                             .accessibilityLabel("Restore Playlist \(item.playlist.name)").disabled(editing.busy)
                     }.padding(.vertical, 4).tag(item.playlist.id)
                     .contextMenu {
-                        Button("Restore") { Task { await editing.restore(item.playlist.id) } }.disabled(editing.busy)
+                        Button("Restore") { EditOrigin.start(origin) { _ = await editing.restore(item.playlist.id) } }.disabled(editing.busy)
                         Button("Delete Permanently…", role: .destructive) { confirmDeletion(item.playlist) }.disabled(editing.busy)
                     }
                 }
@@ -278,7 +313,7 @@ struct PlaylistTrashView: SwiftUI.View {
     }
     private var restoreAction: (() -> Void)? {
         guard deleting == nil, let id = selectedPlaylist?.id else { return nil }
-        return { Task { await editing.restore(id) } }
+        return { EditOrigin.start(origin) { _ = await editing.restore(id) } }
     }
 }
 #endif

@@ -7,11 +7,13 @@ struct PlaylistContentView: SwiftUI.View {
     let playlist: Playlist
     let library: LibraryModel
     let rows: [EpisodeRow]
+    let isTrashed: Bool
     @Bindable var window: WindowModel
     let app: ApplicationModel
     let editing: PlaylistEditingModel
     @Bindable var presentation: PlaylistPresentation
     let openEpisode: () -> Void
+    @Environment(\.libraryEditOrigin) private var origin
     @Environment(\.macTextScale) private var textScale
     @State private var optionCopy = false
     @State private var rewindTarget: TimelineEvent?
@@ -30,12 +32,14 @@ struct PlaylistContentView: SwiftUI.View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .disabled(isTrashed)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
+                    .disabled(isTrashed)
             }
         }
-        .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
+        .focusedSceneValue(\.podListPlaylist, isTrashed ? nil : PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
         .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
             RewindSheet(playlistID: playlist.id, target: event.moment, library: library, editing: editing) {
@@ -52,7 +56,7 @@ struct PlaylistContentView: SwiftUI.View {
     private var entries: some SwiftUI.View {
         let selection = entrySelection
         let activate: (Set<String>) -> Void = { selected in
-            EpisodeRowActivation(orderedIDs: rows.map(\.id), selection: selected, entriesPlaylistID: playlist.id)?.start(using: editing)
+            EpisodeRowActivation(orderedIDs: rows.map(\.id), selection: selected, entriesPlaylistID: playlist.id)?.start(using: editing, origin: origin)
         }
         return VStack(spacing: 0) {
             Group {
@@ -157,14 +161,14 @@ struct PlaylistContentView: SwiftUI.View {
     private var removeSelection: (() -> Void)? {
         let entries = ordered(window.selection)
         let failures = failedDropIDs.filter { window.selection.contains($0) }
-        guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil,
+        guard !isTrashed, !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil,
               !entries.isEmpty || !failures.isEmpty else { return nil }
         return {
             if let editor = app.libraryEditing {
                 for id in failures { EpisodeDrop.remove(id, editor: editor) }
             }
             window.selection.subtract(failures)
-            if !entries.isEmpty { Task { await editing.remove(entries, playlistID: playlist.id) } }
+            if !entries.isEmpty { EditOrigin.start(origin) { await editing.remove(entries, playlistID: playlist.id) } }
         }
     }
     private func placeholder(_ slot: EpisodeDropSlot) -> some SwiftUI.View {
@@ -174,7 +178,7 @@ struct PlaylistContentView: SwiftUI.View {
                 .help(Presentation.tooltip(slot.failure ?? slot.accessibleName))
             Spacer(minLength: 4)
             if slot.failure != nil, let editor = app.libraryEditing {
-                Button("Retry") { Task { await EpisodeDrop.retry(slot.id, editor: editor) } }
+                Button("Retry") { EditOrigin.start(origin) { await EpisodeDrop.retry(slot.id, editor: editor) } }
                     .accessibilityLabel("Retry adding \(slot.title)")
                     .help("Retry adding this Episode")
                 Button("Remove") { EpisodeDrop.remove(slot.id, editor: editor) }
@@ -197,7 +201,7 @@ struct PlaylistContentView: SwiftUI.View {
                 }.macContentFont(.caption)
             }
             Spacer(minLength: 4)
-            Button { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
+            Button { EditOrigin.start(origin) { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from here").accessibilityLabel("Play from here: \(row.title)")
@@ -207,10 +211,10 @@ struct PlaylistContentView: SwiftUI.View {
         if !ids.isEmpty {
             EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app)
             Divider()
-            Button("Play from Here") { Task { await editing.playFromHere(playlistID: playlist.id, episodeID: ids.first) } }
-            Button("Move Up") { Task { await editing.move(Set(ids), playlistID: playlist.id, down: false) } }
-            Button("Move Down") { Task { await editing.move(Set(ids), playlistID: playlist.id, down: true) } }
-            Button("Remove from Playlist") { Task { await editing.remove(ids, playlistID: playlist.id) } }
+            Button("Play from Here") { EditOrigin.start(origin) { await editing.playFromHere(playlistID: playlist.id, episodeID: ids.first) } }
+            Button("Move Up") { EditOrigin.start(origin) { await editing.move(Set(ids), playlistID: playlist.id, down: false) } }
+            Button("Move Down") { EditOrigin.start(origin) { await editing.move(Set(ids), playlistID: playlist.id, down: true) } }
+            Button("Remove from Playlist") { EditOrigin.start(origin) { await editing.remove(ids, playlistID: playlist.id) } }
         }
     }
     private func ordered(_ selection: Set<String>) -> [String] { rows.map(\.id).filter { selection.contains($0) } }
@@ -224,7 +228,7 @@ struct PlaylistContentView: SwiftUI.View {
         guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil else { return false }
         guard let ids = EpisodeDrop.reorderIDs(values, in: playlist) else {
             guard let editor = app.libraryEditing, EpisodeDrop.references(values) != nil else { return false }
-            Task { await EpisodeDrop.add(values, to: playlist.id, before: id, editor: editor) { window.didDrop($0, into: playlist.id, scroll: false) } }
+            EditOrigin.start(origin) { _ = await EpisodeDrop.add(values, to: playlist.id, before: id, editor: editor) { window.didDrop($0, into: playlist.id, scroll: false) } }
             return true
         }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count
@@ -234,7 +238,7 @@ struct PlaylistContentView: SwiftUI.View {
             window.selection = ids
             if let first = rows.first(where: { ids.contains($0.id) }) { window.scrollAnchor = RowAnchor(id: first.id, index: 0) }
         } else {
-            Task { await editing.move(ids, playlistID: playlist.id, to: boundary) }
+            EditOrigin.start(origin) { await editing.move(ids, playlistID: playlist.id, to: boundary) }
         }
         return true
     }
@@ -246,7 +250,7 @@ struct PlaylistContentView: SwiftUI.View {
         let ids = historyIDs
         let selection = window.episodeSelection(episodeIDs: ids, openInspector: openEpisode)
         let activate: (Set<String>) -> Void = { selected in
-            EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: editing)
+            EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: editing, origin: origin)
         }
         return Group {
             if playlist.history.isEmpty {
@@ -279,6 +283,8 @@ struct PlaylistContentView: SwiftUI.View {
             } else {
                 let selection = window.listBinding(\.timelineSelection)
                 List(events, selection: selection) { event in
+                    let selected = selection.wrappedValue == event.id
+                    let canRewind = TimelineRules.pointAt(playlist, to: event.moment) != nil
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(library.row(event.episodeID).title).macContentFont(.headline)
@@ -286,22 +292,24 @@ struct PlaylistContentView: SwiftUI.View {
                             Text(eventLabel(event)).macContentFont(.subheadline).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.timelineSelection == event.id))
                         }
                         Spacer()
-                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                        if selected, canRewind {
                             Button("Rewind to Here…") { rewindTarget = event }
-                                .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle())
+                                .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle())
                                 .accessibilityLabel("Rewind to \(date(event.moment))…")
+                                .accessibilityIdentifier("timeline.rewind")
                                 .help("Preview rewinding this Playlist to this moment")
                         }
                     }.padding(.vertical, 4)
-                    .macRowActions(isSelected: window.timelineSelection == event.id)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(TapGesture().onEnded { selection.wrappedValue = event.id })
                     .accessibilityElement(children: .contain)
                     .accessibilityActions {
-                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                        if canRewind {
                             Button("Rewind to Here…") { rewindTarget = event }
                         }
                     }
                     .contextMenu {
-                        if TimelineRules.pointAt(playlist, to: event.moment) != nil {
+                        if canRewind {
                             Button("Rewind to Here…") { rewindTarget = event }
                         }
                     }
@@ -315,7 +323,7 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private var rewindAction: (() -> Void)? {
-        guard window.playlistTab == .timeline, !editing.busy,
+        guard !isTrashed, window.playlistTab == .timeline, !editing.busy,
               let event = TimelinePresentation.events(playlist).first(where: { $0.id == window.timelineSelection }),
               TimelineRules.pointAt(playlist, to: event.moment) != nil else { return nil }
         return { rewindTarget = event }
@@ -372,6 +380,7 @@ private struct PlaylistSectionPicker: NSViewRepresentable {
 }
 
 struct RewindSheet: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     let playlistID: String
     let target: Int64
     let library: LibraryModel
@@ -406,7 +415,7 @@ struct RewindSheet: SwiftUI.View {
     private var previewAvailable: Bool { TimelinePresentation.preview(library.state, playlistID: playlistID, to: target, at: Int64(Date().timeIntervalSince1970 * 1000)) != nil }
     private func rewind() {
         guard !editing.busy, previewAvailable else { return }
-        Task {
+        EditOrigin.start(origin) {
             if await editing.rewind(playlistID, to: target) { done() }
             else { problem = editing.error ?? "Could not rewind. Try again." }
         }

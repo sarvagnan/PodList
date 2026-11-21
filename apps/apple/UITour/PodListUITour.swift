@@ -10,7 +10,8 @@ final class PodListUITour: XCTestCase {
     private var app: XCUIApplication!
     private var appearance = ""
     private var library: XCUIElement {
-        app.windows.containing(.outline, identifier: "Sidebar").firstMatch
+        // The scene identifier stays the same when the sidebar is hidden.
+        app.windows.matching(NSPredicate(format: "identifier BEGINSWITH %@", "library-AppWindow-")).firstMatch
     }
 
     func testLight() throws { try tour("Light") }
@@ -112,6 +113,7 @@ final class PodListUITour: XCTestCase {
         try selectFirstEpisode()
         try ready(episodeInspector)
         try capture("03-episode-inspector")
+        XCTAssertGreaterThanOrEqual(episodeList.frame.width, 450, "The Inspector must leave room for the list")
         try assertInspectorActionTargets()
         try hideInspector()
         try navigate("Subscriptions")
@@ -176,12 +178,34 @@ final class PodListUITour: XCTestCase {
         try capture("09-listening-timeline")
         assertPlaylistHeader(play: defaultHeader, section: defaultSection)
         assertInspectorPosition(unselectedInspector)
-        let rewind = library.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Rewind to ")).firstMatch
+        let rewindButtons = library.buttons.matching(identifier: "timeline.rewind")
+        let rewind = rewindButtons.firstMatch
+        XCTAssertFalse(rewind.exists, "An unselected Timeline must have no row Rewind button")
+        try ready(episodeRows.firstMatch)
+        let timelineFrame = episodeList.frame
+        let rows = episodeRows.allElementsBoundByIndex
+        var selectedIndex: Int?
+        for (index, row) in rows.enumerated() {
+            guard row.frame.height > 4, timelineFrame.minY <= row.frame.midY,
+                  row.frame.midY < min(timelineFrame.maxY, library.buttons["Open Now Playing"].frame.minY) else { continue }
+            // The title side is a row target regardless of how macOS exposes the List.
+            row.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
+            XCTAssertTrue(row.isSelected, "Clicking a Timeline row must select it")
+            if rewind.waitForExistence(timeout: 1) {
+                selectedIndex = index
+                break
+            }
+        }
         try ready(rewind)
         XCTAssertTrue(rewind.label.hasSuffix("…"), "Rewind opens a preview and needs an ellipsis")
-        // Standard XCUITest pointer input, even when the row already shows its action.
-        rewind.hover()
+        XCTAssertEqual(rewindButtons.count, 1, "Only the selected Timeline row can show Rewind")
         try capture("34a-timeline-rewind-button")
+        if let selectedIndex, selectedIndex + 1 < rows.count {
+            episodeList.typeKey(.downArrow, modifierFlags: [])
+            XCTAssertTrue(rows[selectedIndex + 1].isSelected, "Down Arrow must select the next Timeline row")
+            episodeList.typeKey(.upArrow, modifierFlags: [])
+            XCTAssertTrue(rows[selectedIndex].isSelected)
+        }
         try click(rewind)
         try sheet("Rewind Playlist")
         try capture("34-rewind-summary", in: library, expectsSheet: true)
@@ -237,6 +261,7 @@ final class PodListUITour: XCTestCase {
         try click(newPlaylistName)
         let originalPlaylistName = newPlaylistName.value as? String
         app.typeText("Tour draft")
+        XCTAssertEqual(newPlaylistName.value as? String, "Tour draft")
         app.typeKey("z", modifierFlags: .command)
         XCTAssertEqual(newPlaylistName.value as? String, originalPlaylistName, "Command-Z in a sheet text field must undo typing")
         app.typeKey("z", modifierFlags: [.command, .shift])
@@ -249,6 +274,11 @@ final class PodListUITour: XCTestCase {
         try ready(text("Trash is empty"))
         try capture("14-trash")
         try navigate("Search")
+        try ready(library.buttons["Create View…"])
+        XCTAssertFalse(libraryStatus.buttons["Redo Settings for Commute"].exists)
+        try menuCommand("Edit", "Redo Settings for Commute", until: sidebarItem("Commute edited"))
+        XCTAssertFalse(libraryStatus.buttons["Undo Settings for Commute"].exists)
+        try menuCommand("Edit", "Undo Settings for Commute", until: sidebarItem("Commute"))
         try focusListSearch()
         app.typeText("rice")
         try ready(text("Who sets the price of rice?", in: episodeList))
@@ -256,6 +286,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(.delete, modifierFlags: [])
 
+        try checkPlaylistSettingsTrash()
         try navigate("New this week")
         let viewHeader = episodeList.buttons["Episode"].firstMatch.frame
         try click(button("Edit View"))
@@ -340,6 +371,7 @@ final class PodListUITour: XCTestCase {
         try capture("21-unsubscribe-disarmed")
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
+        XCTAssertFalse(library.sheets.buttons["Mark All Played"].exists)
         try capture("22-subscription-settings", expectsSheet: true)
         try assertSheetAtBothTextSizes()
         library.typeKey(.escape, modifierFlags: [])
@@ -545,32 +577,174 @@ final class PodListUITour: XCTestCase {
         // CRITIQUE step 1: the narrowest supported size, and content scrolled beneath the bars.
         try navigate("Starred")
         try navigate("New this week")
-        try ready(episodeRows.firstMatch)
+        try selectFirstEpisode()
+        try ready(episodeInspector)
+        try ready(sidebar)
         try assertEpisodeTableLayout() // Exercise the Published-text overlap check before metadata gives way.
         try shrinkToMinimumSize(library)
+        XCTAssertTrue(sidebar.waitForNonExistence(timeout: 5), "Narrowing with the Inspector open must hide the sidebar")
         try capture("35-minimum-window")
         try assertEpisodeTableLayout()
-        // The list's vertical scroller reports 0 at the top; a row query would just return the next visible row.
-        let list = episodeList.frame
-        let scroller = library.scrollBars.matching(NSPredicate { candidate, _ in
-            guard let bar = candidate as? XCUIElementAttributes else { return false }
-            return bar.frame.height > bar.frame.width && bar.frame.midX > list.minX && bar.frame.midX <= list.maxX + 2
-        }).firstMatch
-        try ready(scroller)
-        func position() -> Double { Double(String(describing: scroller.value ?? "0")) ?? 0 }
-        XCTAssertEqual(position(), 0, accuracy: 0.01, "The Episode list starts at the top")
-        // Hover a point in the list, not a row: a row squeezed at this width can report itself unhittable.
+        try scrollEpisodesBeneathBars()
+        try capture("36-scrolled-under-bars")
+        try checkNarrowPaneSwaps()
+        try captureHalfDisplay()
+    }
+
+    private func checkNarrowPaneSwaps() throws {
+        try hideInspector()
+        assertLibraryPanes(sidebar: false, inspector: false, after: "closing Inspector")
+
+        // SwiftUI can grow the window when revealing the sidebar. Restore the
+        // narrow width with the sidebar visible before exercising each open route.
+        try showSidebar()
+        narrowLibraryForPaneSwap()
+        try click(inspectorButton)
+        assertLibraryPanes(sidebar: false, inspector: true, after: "clicking the Inspector button")
+        XCTAssertEqual(library.frame.width, 760, accuracy: 1, "Screen 43 must capture the minimum-width Library")
+        try capture("43-narrow-inspector-no-sidebar")
+
+        try showSidebar()
+        assertLibraryPanes(sidebar: true, inspector: false, after: "showing the sidebar with Control-Command-S")
+        narrowLibraryForPaneSwap()
+        app.typeKey("i", modifierFlags: [.command, .option])
+        assertLibraryPanes(sidebar: false, inspector: true, after: "opening Inspector with Option-Command-I")
+
+        try showSidebar()
+        narrowLibraryForPaneSwap()
+        try menuCommand("View", "Show Inspector")
+        assertLibraryPanes(sidebar: false, inspector: true, after: "choosing View > Show Inspector")
+
+        try showSidebar()
+        assertLibraryPanes(sidebar: true, inspector: false, after: "showing the sidebar again")
+        app.typeKey("s", modifierFlags: [.command, .control])
+        assertLibraryPanes(sidebar: false, inspector: false, after: "hiding the sidebar with Control-Command-S")
+    }
+
+    private func narrowLibraryForPaneSwap() {
+        let window = library
+        for inset in [-1.0, 2] where window.frame.width > 761 {
+            let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+                .withOffset(CGVector(dx: inset, dy: 0))
+            let target = window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+                .withOffset(CGVector(dx: 200, dy: 0))
+            edge.click(forDuration: 0.3, thenDragTo: target)
+        }
+        XCTAssertEqual(window.frame.width, 760, accuracy: 1, "The pane swap must start at the minimum Library width")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "resizing for the Inspector command")
+    }
+
+    private func assertLibraryPanes(sidebar: Bool, inspector: Bool, after action: String,
+                                    file: StaticString = #filePath, line: UInt = #line) {
+        let window = library
+        // Read both panes from one tree. A failed element-specific wait can make
+        // XCTest try to resolve the staged application URL again for diagnostics.
+        let deadline = Date().addingTimeInterval(5)
+        var summary = "Library snapshot unavailable"
+        repeat {
+            if let snapshot = try? window.snapshot() {
+                let elements = descendants(snapshot)
+                let hasSidebar = elements.contains { $0.elementType == .outline && $0.label == "Sidebar" }
+                let hasInspector = elements.contains { $0.label == "Episode Inspector" }
+                let inspectorToggle = elements.first { $0.identifier == "library.inspector" }?.label
+                if hasSidebar == sidebar, hasInspector == inspector,
+                   inspectorToggle == (inspector ? "Hide Inspector" : "Show Inspector") { return }
+                summary = "width \(snapshot.frame.width), sidebar \(hasSidebar), Inspector \(hasInspector), toggle \(inspectorToggle ?? "missing")"
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        } while Date() < deadline
+        XCTFail("Expected sidebar \(sidebar) and Inspector \(inspector) after \(action). Found \(summary).", file: file, line: line)
+    }
+
+    private func scrollEpisodesBeneathBars() throws {
+        // Track the same two rows before and after scrolling. Overlay scrollers
+        // are not always present in the Episode list's accessibility tree.
+        let first = episodeRows.containing(.staticText, identifier: "Who sets the price of rice?").firstMatch
+        let last = episodeRows.containing(.staticText, identifier: "Inflation, explained with sandwiches").firstMatch
+        try ready(first)
+        try ready(last)
+        let headerBottom = episodeList.buttons["Episode"].firstMatch.frame.maxY
+        let playerTop = library.buttons["Open Now Playing"].frame.minY - 22
+        let startingBottom = last.frame.maxY
+        XCTAssertGreaterThanOrEqual(first.frame.minY, headerBottom - 1, "The first Episode starts below the column header")
+        XCTAssertGreaterThan(startingBottom, playerTop, "The last Episode initially extends under the player")
+
         let listPoint = episodeList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
-        let scrolled = NSPredicate { _, _ in position() > 0.05 }
-        var didScroll = false
-        for delta in [-160.0, -400.0] where !didScroll {
+        let scrolled = NSPredicate { _, _ in
+            guard let lastFrame = try? last.snapshot().frame, !lastFrame.isEmpty,
+                  lastFrame.maxY < startingBottom - 8, lastFrame.maxY <= playerTop + 1 else { return false }
+            guard let firstFrame = try? first.snapshot().frame else { return true }
+            return firstFrame.isEmpty || firstFrame.minY < headerBottom - 4
+        }
+        for delta in [-160.0, -400.0] {
             listPoint.hover()
             episodeList.scroll(byDeltaX: 0, deltaY: delta)
-            didScroll = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolled, object: nil)], timeout: 5) == .completed
+            let moved = XCTNSPredicateExpectation(predicate: scrolled, object: nil)
+            if XCTWaiter.wait(for: [moved], timeout: 5) == .completed { return }
         }
-        XCTAssertTrue(didScroll, "At the minimum window size the Episode list must overflow and scroll, so rows pass beneath the bars")
-        try capture("36-scrolled-under-bars")
-        try captureHalfDisplay()
+        XCTFail("Scrolling must move the first Episode beneath the column header and bring the last Episode clear of the player")
+    }
+
+    private func checkPlaylistSettingsTrash() throws {
+        try navigate("Commute")
+        try ready(episodeRows.firstMatch)
+        let entryCount = episodeRows.count
+        let settings = library.descendants(matching: .any).matching(identifier: "playlist.settings").firstMatch
+        try click(settings)
+        try sheet("Playlist Settings")
+        let panel = library.sheets.firstMatch
+        let field = panel.textFields["Playlist name"]
+        let delete = panel.buttons["Delete Playlist"]
+        let restore = panel.buttons["Restore Playlist"]
+        let save = panel.buttons["Save"]
+        let done = panel.buttons["Done"]
+        try click(field)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("Morning Commute")
+        try click(delete)
+        try ready(text("“Commute” is in the Trash.", in: panel))
+        try ready(restore)
+        try ready(done)
+        XCTAssertFalse(save.exists)
+        XCTAssertFalse(panel.buttons["Cancel"].exists)
+        XCTAssertFalse(field.isEnabled)
+        XCTAssertEqual(field.value as? String, "Morning Commute")
+        XCTAssertTrue(sidebarItem("Commute").waitForNonExistence(timeout: 5))
+        let trash = sidebarItem("Trash")
+        let trashDescription = trash.label + " " + String(describing: trash.value ?? "")
+        XCTAssertTrue(trashDescription.contains("1"), "The sidebar must count the deleted Playlist")
+        XCTAssertTrue(library.title.hasPrefix("Commute"), "Keep the Playlist title behind its Settings sheet")
+        XCTAssertTrue(library.title.contains("In the Trash"), "Mark the background Playlist as in the Trash")
+        XCTAssertEqual(episodeRows.count, entryCount, "Keep the Playlist Entries visible behind Settings")
+        try capture("11a-playlist-settings-deleted", expectsSheet: true)
+
+        // Use the Edit command's shortcut while the sheet owns the key window.
+        app.typeKey("z", modifierFlags: .command)
+        XCTAssertTrue(save.wait(for: \.isEnabled, toEqual: true, timeout: 10))
+        try ready(sidebarItem("Commute"))
+        XCTAssertTrue(field.isEnabled)
+        XCTAssertEqual(field.value as? String, "Morning Commute")
+
+        try click(delete)
+        XCTAssertTrue(restore.wait(for: \.isEnabled, toEqual: true, timeout: 10))
+        try click(restore)
+        XCTAssertTrue(save.wait(for: \.isEnabled, toEqual: true, timeout: 10))
+        XCTAssertTrue(field.isEnabled)
+        XCTAssertEqual(field.value as? String, "Morning Commute")
+        try ready(sidebarItem("Commute"))
+
+        try click(delete)
+        XCTAssertTrue(done.wait(for: \.isEnabled, toEqual: true, timeout: 5))
+        panel.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Return must activate Done")
+        try ready(library.buttons["Open Market Hours, Subscription"])
+        try navigate("Trash")
+        try click(library.buttons["Restore Playlist Commute"])
+        try navigate("Commute")
+        try click(settings)
+        try sheet("Playlist Settings")
+        XCTAssertEqual(field.value as? String, "Commute", "Done discards the draft")
+        try dismissSheet("Cancel")
     }
 
     private func captureLargeSidebar(from root: URL, style: String) throws {
@@ -650,41 +824,32 @@ final class PodListUITour: XCTestCase {
 
     private func captureHalfDisplay() throws {
         let screenWidth = try XCTUnwrap(NSScreen.main, "The VM tour requires a display").frame.width
-        let windowMenu = app.menuBars.menuBarItems["Window"]
-        let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
-        let left = moveAndResize.menuItems["Left"].firstMatch
-        // In the VM the Window menu sometimes opens without the tiling items, or the
-        // submenu doesn't open on hover. Close the menu, re-focus the window and retry.
-        var chose = false
-        for _ in 0..<3 where !chose {
-            try click(windowMenu)
-            if moveAndResize.waitForExistence(timeout: 5) {
-                moveAndResize.hover()
-                if left.waitForExistence(timeout: 5), left.isEnabled {
-                    left.click()
-                    chose = true
-                    continue
-                }
-            }
-            refocusLibraryAfterMenu()
-        }
-        XCTAssertTrue(chose, "Window > Move & Resize > Left was unavailable after three attempts")
-
-        let tiledLeft = NSPredicate { _, _ in
-            let frame = self.library.frame
+        try tileLibraryOnLeft { frame in
             // macOS can inset a tile from the display edge and the centre divider.
             return abs(frame.minX) <= 32 && abs(frame.width - screenWidth / 2) <= 32
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tiledLeft, object: nil)], timeout: 10),
-                       .completed, "Window > Move & Resize > Left must tile the Library to half the display")
+        XCTAssertFalse(library.outlines["Sidebar"].exists, "Widening must leave the sidebar hidden")
+        let tiledFrame = library.frame
+        func restoreTileIfNeeded() throws {
+            try tileLibraryOnLeft { frame in
+                abs(frame.minX - tiledFrame.minX) <= 1 && abs(frame.width - tiledFrame.width) <= 1
+            }
+        }
+        try showSidebar()
+        try restoreTileIfNeeded()
 
         try navigate("Subscriptions")
         try openNewThisWeek()
         try firstEpisodePoint().click()
         try ready(episodeInspector)
+        try restoreTileIfNeeded()
         try capture("37-half-display-episode-inspector")
         try assertEpisodeTableLayout()
 
+        if !library.outlines["Sidebar"].exists {
+            try showSidebar()
+            try restoreTileIfNeeded()
+        }
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(text("Who sets the price of rice?", in: episodeList))
@@ -700,6 +865,30 @@ final class PodListUITour: XCTestCase {
         try ready(episodeRows.firstMatch)
         try capture("39-half-display-commute")
         try assertEpisodeTableLayout(inPlaylist: true)
+    }
+
+    private func tileLibraryOnLeft(matching tile: (CGRect) -> Bool) throws {
+        if tile(library.frame) { return }
+        let windowMenu = app.menuBars.menuBarItems["Window"]
+        let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
+        let left = moveAndResize.menuItems["Left"].firstMatch
+        // The VM sometimes needs a second attempt to open the submenu or apply the tile.
+        for _ in 0..<3 {
+            try click(windowMenu)
+            if moveAndResize.waitForExistence(timeout: 5) {
+                moveAndResize.hover()
+                if left.waitForExistence(timeout: 5), left.isEnabled {
+                    left.click()
+                    let deadline = Date().addingTimeInterval(5)
+                    repeat {
+                        if tile(library.frame) { return }
+                        Thread.sleep(forTimeInterval: 0.1)
+                    } while Date() < deadline
+                }
+            }
+            refocusLibraryAfterMenu()
+        }
+        XCTFail("Window > Move & Resize > Left must tile the Library to half the display. Found \(library.frame).")
     }
 
     private func recordResponseTimings(from output: URL, warmUpRuns: Int = 0) throws {
@@ -868,9 +1057,6 @@ final class PodListUITour: XCTestCase {
         let row = try episodeRows.firstMatch.snapshot()
         let cells = row.children.filter { $0.elementType == .cell }
         let titleCell = try XCTUnwrap(cells.first, file: file, line: line)
-        func descendants(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
-            [node] + node.children.flatMap { descendants($0) }
-        }
         let content = descendants(titleCell)
         let buttons = content.filter { $0.elementType == .button }
         XCTAssertEqual(buttons.count, inPlaylist ? 1 : 2, "Check all \(titleColumn) row controls", file: file, line: line)
@@ -898,6 +1084,10 @@ final class PodListUITour: XCTestCase {
                 XCTAssertFalse(button.frame.intersects(text.frame), "Row control overlaps \(metadataColumn) or other metadata", file: file, line: line)
             }
         }
+    }
+
+    private func descendants(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+        [node] + node.children.flatMap { descendants($0) }
     }
 
     /// Standard pointer input: drag the window's bottom-right corner past its minimum size,
@@ -1042,6 +1232,10 @@ final class PodListUITour: XCTestCase {
         try ready(inspectorButton)
         if inspectorButton.label == "Hide Inspector" { try click(inspectorButton) }
         XCTAssertTrue(episodeInspector.waitForNonExistence(timeout: 5))
+    }
+    private func showSidebar() throws {
+        app.typeKey("s", modifierFlags: [.command, .control])
+        try ready(library.outlines["Sidebar"])
     }
     private func assertInspectorPosition(_ original: CGRect, file: StaticString = #filePath, line: UInt = #line) {
         let actual = inspectorButton.frame
