@@ -9,12 +9,14 @@ struct LibraryFeedback: SwiftUI.View {
     var origin: EditOrigin? = nil
     var sync: ApplicationModel? = nil
     var reservesSpace = true
-    var restored: (@MainActor ([RestoredEntries]) -> Void)? = nil
+    var reverse: ((Bool) -> Void)? = nil
+    var showRestoredEntries: (() -> Void)? = nil
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             EditingFeedback(editing: editor.edits, surface: surface, origin: origin, sync: sync, additionalError: editor.error, additionalStatus: dropStatus,
-                            undo: { Task { await editor.undo(restored: restored) } }, redo: { Task { await editor.redo(restored: restored) } },
-                            reservesSpace: reservesSpace)
+                            undo: { if let reverse { reverse(false) } else { Task { await editor.undo() } } },
+                            redo: { if let reverse { reverse(true) } else { Task { await editor.redo() } } },
+                            showRestoredEntries: showRestoredEntries, reservesSpace: reservesSpace)
             if let sync, sync.feedRefreshIssue != nil {
                 FeedRefreshFeedback(app: sync).macContentFont(.caption).padding(.horizontal, 14).padding(.bottom, 6)
             }
@@ -171,6 +173,11 @@ struct PodcastPageScreen: SwiftUI.View {
             Mentions.words(search).allSatisfy { word in [e.title, e.description].contains { Mentions.fold($0).contains(word) } }
         }.sorted(using: sortOrder)
     }
+    private func copyURL(for episode: PageEpisode) -> URL? {
+        if let id = episode.localID { return library.episodeShareURL(id) }
+        guard let publisherEpisode = feed?.episodes.first(where: { $0.guid == episode.guid }) else { return nil }
+        return ShareLinks.episode(page: publisherEpisode.link, enclosure: publisherEpisode.audioUrl)
+    }
     private func previews(_ episodes: [PageEpisode]) -> [String: PodcastEpisodePreview] {
         Dictionary(episodes.filter { $0.localID == nil }.map { episode in
             (episode.id, PodcastEpisodePreview(title: episode.title, podcast: title, artworkURL: artworkURL,
@@ -290,6 +297,11 @@ struct PodcastPageScreen: SwiftUI.View {
                         Button("Add to a Playlist…") { bring(first, play: false) }
                     }
                 } primaryAction: { activate($0) }
+                .onCopyCommand(perform: userSelection.wrappedValue.isDisjoint(with: visibleIDs) ? nil : {
+                    episodes.filter { userSelection.wrappedValue.contains($0.id) }.map {
+                        SelectionCopyContent(title: $0.title, url: copyURL(for: $0)).itemProvider()
+                    }
+                })
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
                 .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort By and Descending to change order" : "Podcast Episodes, sortable columns")
             }
@@ -528,7 +540,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             PodListSheetSectionHeading("Played")
             VStack(alignment: .leading, spacing: 12) {
                 PodListSheetField("Played Threshold") {
-                    Picker("Played Threshold", selection: value(\.threshold)) {
+                    Picker("", selection: value(\.threshold)) {
                         Text("Default (30 seconds)").tag(nil as Double?)
                         ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
                         if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
@@ -542,7 +554,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                 overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                 overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                 PodListSheetField("Volume Boost") {
-                    Picker("Volume Boost", selection: value(\.overrides.volumeBoost)) {
+                    Picker("", selection: value(\.overrides.volumeBoost)) {
                         Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))
                     }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -552,7 +564,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
     private func overrideNumber(_ name: String, path: WritableKeyPath<PlaybackSettingsOverride, Double?>, choices: [Double], seconds: Bool = false) -> some SwiftUI.View {
         let overrides: WritableKeyPath<SubscriptionSettingsDraft, PlaybackSettingsOverride> = \.overrides
         return PodListSheetField(name) {
-            Picker(name, selection: value(overrides.appending(path: path))) {
+            Picker("", selection: value(overrides.appending(path: path))) {
                 Text("Default").tag(nil as Double?)
                 ForEach(choices, id: \.self) { Text(seconds ? CountText.seconds($0) : $0.formatted()).tag(Optional($0)) }
                 if let current = draft.overrides[keyPath: path], !choices.contains(current) { Text(seconds ? CountText.seconds(current) : current.formatted()).tag(Optional(current)) }

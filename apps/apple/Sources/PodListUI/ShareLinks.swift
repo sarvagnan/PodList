@@ -13,7 +13,12 @@ public enum ShareLinks {
     public static func podcast(page: String?, feed: String) -> URL? { web(page) ?? web(feed) }
     #if os(macOS)
     @MainActor public static func copy(_ url: URL) {
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        let item = NSPasteboardItem()
+        item.setString(url.absoluteString, forType: .string)
+        item.setString(url.absoluteString, forType: .URL)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([item])
     }
     #endif
 }

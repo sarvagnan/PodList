@@ -4,10 +4,10 @@ import PodListData
 import PodListDomain
 @testable import PodListUI
 
-@MainActor private func editingFixture() async throws -> (LocalDatabase, PlaylistEditingModel) {
+@MainActor private func editingFixture(changed: @escaping @MainActor () async -> Void = {}) async throws -> (LocalDatabase, PlaylistEditingModel) {
     let db = try await fixtureDatabase()
     let defaults = UserDefaults(suiteName: "PodListEditingTests-" + UUID().uuidString)!
-    return (db, PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults)))
+    return (db, PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults), changed: changed))
 }
 
 @MainActor @Test func namedHistoryKeepsItsOriginAcrossUndoAndRedo() async throws {
@@ -275,7 +275,6 @@ import PodListDomain
     let (db, model) = try await editingFixture()
     let window = WindowModel()
     window.navigate(to: .playlist("default"))
-    window.search = "offscreen"
     window.scrollAnchor = RowAnchor(id: "b", index: 0)
     let other = WindowModel()
     other.navigate(to: .playlist("default")); other.selection = ["b"]
@@ -283,10 +282,11 @@ import PodListDomain
     let untouched = other.context(libraryID: "test", columns: .all)
     await model.remove(["a", "pending"], playlistID: "default")
     var restored: [RestoredEntries] = []
-    await model.reverse { entries in
-        restored = entries
-        #expect(window.revealRestoredEntries(entries))
-    }
+    var origin = window.restorationOrigin
+    // The completion uses a snapshot refreshed after the database edit.
+    await model.reverse { entries in restored = entries }
+    var library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
+    #expect(window.revealRestoredEntries(restored, in: library, from: origin))
     #expect(restored == [RestoredEntries(playlistID: "default", episodeIDs: ["a", "pending"])])
     #expect(window.selection == ["a", "pending"])
     #expect(window.search.isEmpty && window.scrollAnchor?.id == "a")
@@ -295,9 +295,10 @@ import PodListDomain
     #expect(await model.add(["t1"], to: "default", placement: .last) == "default")
     await model.reverse()
     window.navigate(to: .subscriptions)
-    await model.reverse(redo: true) { entries in
-        #expect(window.revealRestoredEntries(entries))
-    }
+    origin = window.restorationOrigin
+    await model.reverse(redo: true) { entries in restored = entries }
+    library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
+    #expect(window.revealRestoredEntries(restored, in: library, from: origin))
     #expect(window.destination == .playlist("default"))
     #expect(window.selection == ["t1"] && window.scrollAnchor?.id == "t1")
     #expect(try await db.loadState().playlists[0].entries.last?.episodeId == "t1")
@@ -305,19 +306,70 @@ import PodListDomain
 }
 
 @MainActor @Test func undoRevealsClearOnPlayedRestorationsAndLeavesSelectionForOtherEdits() async throws {
-    let (_, model) = try await editingFixture()
+    let (db, model) = try await editingFixture()
     let window = WindowModel()
     window.navigate(to: .playlist("default"))
+    let origin = window.restorationOrigin
+    var restored: [RestoredEntries] = []
     #expect(await model.markPlayed(["a", "pending"], played: true))
-    await model.reverse { entries in
-        #expect(entries == [RestoredEntries(playlistID: "default", episodeIDs: ["a", "pending"])])
-        #expect(window.revealRestoredEntries(entries))
-    }
+    await model.reverse { restored = $0 }
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
+    #expect(restored == [RestoredEntries(playlistID: "default", episodeIDs: ["a", "pending"])])
+    #expect(window.revealRestoredEntries(restored, in: library, from: origin))
     #expect(window.selection == ["a", "pending"])
     #expect(await model.setStar(["a"], starred: true))
-    await model.reverse { entries in
-        #expect(entries.isEmpty)
-        #expect(!window.revealRestoredEntries(entries))
-    }
+    await model.reverse { restored = $0 }
+    #expect(restored.isEmpty)
+    #expect(!window.revealRestoredEntries(restored, in: library, from: origin))
     #expect(window.selection == ["a", "pending"] && window.scrollAnchor?.id == "a")
+}
+
+@MainActor @Test func entryUndoPreservesSearchEditedWhileTheReversalIsPending() async throws {
+    let window = WindowModel()
+    window.navigate(to: .playlist("default"))
+    window.search = "Science"
+    window.selection = ["b"]
+    window.scrollAnchor = RowAnchor(id: "b", index: 0)
+    var duringRefresh: (() -> Void)?
+    let (db, editing) = try await editingFixture(changed: { duringRefresh?() })
+    await editing.remove(["a"], playlistID: "default")
+
+    let origin = window.restorationOrigin
+    duringRefresh = {
+        // This runs after the database commit and before the UI completion, as
+        // it would if someone typed while the Library was refreshing.
+        window.search += " "
+    }
+    var restored: [RestoredEntries] = []
+    await editing.reverse { restored = $0 }
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
+
+    #expect(!window.revealRestoredEntries(restored, in: library, from: origin))
+    #expect(window.listID == .playlist("default", .entries))
+    #expect(window.search == "Science ")
+    #expect(window.rows(in: library).contains { $0.id == "a" })
+    #expect(window.selection == ["b"] && window.scrollAnchor?.id == "b")
+    #expect(library.state.playlists[0].entries.contains { $0.episodeId == "a" })
+    #expect(window.canShowRestoredEntries(in: library))
+
+    window.showRestoredEntries(in: library)
+    #expect(window.search.isEmpty && window.selection == ["a"] && window.scrollAnchor?.id == "a")
+    #expect(!window.canShowRestoredEntries(in: library))
+}
+
+@MainActor @Test func entryUndoRevealsAMatchingResultWithoutClearingAnUnchangedQuery() async throws {
+    let (db, editing) = try await editingFixture()
+    await editing.remove(["a"], playlistID: "default")
+    let window = WindowModel()
+    window.navigate(to: .playlist("default"))
+    window.search = "Alpha"
+    let origin = window.restorationOrigin
+    var restored: [RestoredEntries] = []
+    await editing.reverse { restored = $0 }
+
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
+    #expect(window.revealRestoredEntries(restored, in: library, from: origin))
+    #expect(window.search == "Alpha")
+    #expect(window.selection == ["a"] && window.scrollAnchor?.id == "a")
+    #expect(!window.canShowRestoredEntries(in: library))
 }

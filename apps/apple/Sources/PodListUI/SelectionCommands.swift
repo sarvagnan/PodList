@@ -113,6 +113,16 @@ private struct EditHistoryCommandKey: FocusedValueKey { typealias Value = EditHi
 struct PlaylistSettingsCommandContext {
     var rename: (() -> Void)?
     var delete: (() -> Void)?
+    var restore: (() -> Void)?
+
+    static func restoreAction(isDeleted: Bool, busy: Bool, perform: @escaping () -> Void) -> (() -> Void)? {
+        isDeleted && !busy ? perform : nil
+    }
+
+    static func focusedRestore(sheet: Self?, trash: (() -> Void)?) -> (() -> Void)? {
+        if let sheet { return sheet.restore }
+        return trash
+    }
 }
 private struct PlaylistSettingsCommandKey: FocusedValueKey { typealias Value = PlaylistSettingsCommandContext }
 struct ViewEditorCommandContext {
@@ -175,10 +185,18 @@ extension FocusedValues {
 
 /// A single pasteboard item offers descriptive text to text destinations and the
 /// share URL to URL destinations. Missing metadata still allows copying its title.
-struct EpisodeCopyContent {
-    let title: String
+struct SelectionCopyContent {
+    let text: String
     let url: URL?
-    var text: String { url.map { "\(title)\n\($0.absoluteString)" } ?? title }
+
+    init(text: String, url: URL?) {
+        self.text = text; self.url = url
+    }
+
+    init(title: String, url: URL?) {
+        self.init(text: url.map { "\(title)\n\($0.absoluteString)" } ?? title, url: url)
+    }
+
     func itemProvider() -> NSItemProvider {
         let provider = NSItemProvider()
         let textData = Data(text.utf8)
@@ -193,8 +211,8 @@ struct EpisodeCopyContent {
         }
         return provider
     }
-    @MainActor static func providers(ids: [String], library: LibraryModel) -> [NSItemProvider] {
-        ids.map { EpisodeCopyContent(title: library.row($0).title, url: library.episodeShareURL($0)).itemProvider() }
+    @MainActor static func episodeProviders(ids: [String], library: LibraryModel) -> [NSItemProvider] {
+        ids.map { SelectionCopyContent(title: library.row($0).title, url: library.episodeShareURL($0)).itemProvider() }
     }
 }
 #endif

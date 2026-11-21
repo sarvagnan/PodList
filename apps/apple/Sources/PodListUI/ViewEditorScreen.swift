@@ -52,7 +52,7 @@ struct ViewEditorScreen: SwiftUI.View {
                 }
                 Section {
                     PodListSheetField("Published") {
-                        Picker("Published", selection: Binding(get: { publishedMode }, set: { mode in
+                        Picker("", selection: Binding(get: { publishedMode }, set: { mode in
                             guard mode != publishedMode else { return }
                             editor.clearDraft(daysField)
                             update { $0.filter.published = mode == "days" ? .lastDays(days: 7) : mode == "between" ? publishedDates : nil }
@@ -81,7 +81,7 @@ struct ViewEditorScreen: SwiftUI.View {
                     }
                     if publishedMode != "days" { validation(fieldProblems[.published]) }
                     PodListSheetField("Podcasts") {
-                        Picker("Podcasts", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
+                        Picker("", selection: Binding(get: { draft.filter.podcasts?.mode.rawValue ?? "any" }, set: { mode in update { $0.filter.podcasts = PodcastMode(rawValue: mode).map { PodcastFilter(mode: $0, subscriptionIds: draft.filter.podcasts?.subscriptionIds ?? []) } } })) {
                             Text("Any").tag("any"); Text("Include Selected").tag("include"); Text("Exclude Selected").tag("exclude")
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -98,17 +98,17 @@ struct ViewEditorScreen: SwiftUI.View {
                             .labelsHidden().textFieldStyle(.roundedBorder)
                     }
                     PodListSheetField("Played") {
-                        Picker("Played", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
+                        Picker("", selection: Binding(get: { draft.filter.played?.rawValue ?? "any" }, set: { text in update { $0.filter.played = PlayedFilter(rawValue: text) } })) {
                             Text("Any").tag("any"); Text("Unplayed").tag("unplayed"); Text("In Progress").tag("inProgress"); Text("Played").tag("played")
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     PodListSheetField("Starred") {
-                        Picker("Starred", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
+                        Picker("", selection: Binding(get: { draft.filter.starred.map { $0 ? "yes" : "no" } ?? "any" }, set: { text in update { $0.filter.starred = text == "any" ? nil : text == "yes" } })) {
                             Text("Any").tag("any"); Text("Starred").tag("yes"); Text("Not Starred").tag("no")
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     PodListSheetField("In a Playlist") {
-                        Picker("In a Playlist", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
+                        Picker("", selection: Binding(get: { draft.filter.notInAnyPlaylist == true }, set: { flag in update { $0.filter.notInAnyPlaylist = flag ? true : nil } })) {
                             Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -119,7 +119,7 @@ struct ViewEditorScreen: SwiftUI.View {
                 }
                 Section {
                     PodListSheetField("Sort") {
-                        Picker("Sort", selection: value(\.sort)) {
+                        Picker("", selection: value(\.sort)) {
                             Text("Newest First").tag(ViewSort.publishedDesc); Text("Oldest First").tag(ViewSort.publishedAsc)
                             Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)

@@ -185,6 +185,25 @@ import UniformTypeIdentifiers
     }
 }
 
+@Test func playlistSettingsRestoreCommandUsesTheSheetActionAndEnablement() throws {
+    var restoredFromSheet = 0
+    var restoredFromTrash = 0
+    let trash = { restoredFromTrash += 1 }
+    for (deleted, busy, enabled) in [(false, false, false), (true, true, false), (true, false, true)] {
+        let button = PlaylistSettingsCommandContext.restoreAction(isDeleted: deleted, busy: busy) { restoredFromSheet += 1 }
+        let sheet = PlaylistSettingsCommandContext(restore: button)
+        let command = PlaylistSettingsCommandContext.focusedRestore(sheet: sheet, trash: trash)
+        #expect((button != nil) == enabled)
+        #expect((command != nil) == enabled)
+        command?()
+    }
+    #expect(restoredFromSheet == 1)
+    #expect(restoredFromTrash == 0)
+    let command = try #require(PlaylistSettingsCommandContext.focusedRestore(sheet: nil, trash: trash))
+    command()
+    #expect(restoredFromTrash == 1)
+}
+
 private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> Data {
     try await withCheckedThrowingContinuation { continuation in
         _ = provider.loadDataRepresentation(for: type) { data, error in
@@ -196,13 +215,13 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
 
 @Test func episodeCopyExportsTitleAndURLForBothPasteDestinations() async throws {
     let url = URL(string: "https://example.com/episodes/one")!
-    let content = EpisodeCopyContent(title: "Episode One", url: url)
+    let content = SelectionCopyContent(title: "Episode One", url: url)
     let provider = content.itemProvider()
     let text = try await copyData(provider, type: .utf8PlainText)
     let address = try await copyData(provider, type: .url)
     #expect(String(data: text, encoding: .utf8) == "Episode One\nhttps://example.com/episodes/one")
     #expect(String(data: address, encoding: .utf8) == url.absoluteString)
-    let pending = EpisodeCopyContent(title: "Details pending", url: nil).itemProvider()
+    let pending = SelectionCopyContent(title: "Details pending", url: nil).itemProvider()
     #expect(!pending.hasItemConformingToTypeIdentifier(UTType.url.identifier))
     let pendingText = try await copyData(pending, type: .utf8PlainText)
     #expect(String(data: pendingText, encoding: .utf8) == "Details pending")

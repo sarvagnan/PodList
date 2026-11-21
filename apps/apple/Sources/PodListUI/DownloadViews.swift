@@ -127,16 +127,16 @@ struct DownloadRuleFields: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
             field(compact ? "Download Rule" : "Download Rule on This Mac") {
-                Picker("Download Rule on This Mac", selection: $mode) {
+                Picker(compact ? "Download Rule on This Mac" : "", selection: $mode) {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                     Text("As Episodes are published").tag(DownloadMode.allNew)
-                }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading).accessibilityLabel("Download Rule on This Mac")
+                }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("downloadRule.mode")
             }
             if mode == .allNew {
                 field("Keep") {
-                    Picker("Keep", selection: $cap) {
+                    Picker(compact ? "Keep" : "", selection: $cap) {
                         Text("All").tag(nil as Int64?)
                         ForEach([1, 5, 10, 20, 50, 100] as [Int64], id: \.self) { Text("\($0) newest").tag(Optional($0)) }
                         if let cap, cap > 0, ![1, 5, 10, 20, 50, 100].contains(cap) { Text("\(cap) newest").tag(Optional(cap)) }
@@ -150,7 +150,7 @@ struct DownloadRuleFields: SwiftUI.View {
                                                           @ViewBuilder content: @escaping () -> Content) -> some SwiftUI.View {
         if compact {
             HStack(spacing: 8) {
-                Text(label).lineLimit(1)
+                Text(label).lineLimit(1).accessibilityHidden(true)
                 content()
             }
         } else {

@@ -308,9 +308,11 @@ public struct PodListWindow: SwiftUI.View {
         let subtitle = deletedPlaylist == nil ? summaryText : "In the Trash · \(summaryText)"
         return VStack(spacing: 0) {
             if let editor = app.libraryEditing {
-                LibraryFeedback(editor: editor, surface: .library, origin: origin, sync: app, reservesSpace: true, restored: { entries in
-                    if app.libraryEditing === editor { window.revealRestoredEntries(entries) }
-                })
+                LibraryFeedback(editor: editor, surface: .library, origin: origin, sync: app,
+                                reverse: { reverseEdit(using: editor, redo: $0) },
+                                showRestoredEntries: window.canShowRestoredEntries(in: library) ? {
+                                    if let current = app.library { window.showRestoredEntries(in: current) }
+                                } : nil)
                     .id(window.destination).id(podcastFeed)
                 if editor.busy { VStack {
                     OPMLImportProgress(editor: editor)
@@ -375,9 +377,11 @@ public struct PodListWindow: SwiftUI.View {
                     .accessibilityIdentifier("library.inspector")
                 }
             }
+            ToolbarItem(placement: .primaryAction) {
+                LibraryToolbarSearch(text: $window.search, focus: $searchFocused,
+                                     scope: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
+            }
         }
-        .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
-        .searchFocused($searchFocused)
         .inspector(isPresented: presentedInspector) {
             let row = isPodcastPage
                 ? library.snapshot.episodes.first { selection.contains($0.id) }.map { library.row($0.id) }
@@ -411,6 +415,19 @@ public struct PodListWindow: SwiftUI.View {
         window.backFromPodcast()
         if let library = app.library { reconcileSelection(library) }
     }
+    private func reverseEdit(using editor: LibraryEditingModel, redo: Bool) {
+        let origin = window.restorationOrigin
+        let restored: @MainActor ([RestoredEntries]) -> Void = { entries in
+            if app.libraryEditing === editor, let library = app.library {
+                window.revealRestoredEntries(entries, in: library, from: origin)
+            }
+        }
+        Task {
+            if redo { await editor.redo(restored: restored) }
+            else { await editor.undo(restored: restored) }
+        }
+    }
+
     private func windowMenuActions(origin: EditOrigin) -> MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
         if !window.search.isEmpty { actions[.clearSearch] = { window.search = "" } }
@@ -454,6 +471,12 @@ public struct PodListWindow: SwiftUI.View {
                 } primaryAction: { ids in
                     if let id = ids.first { window.navigate(to: .view(id)) }
                 }
+                .onCopyCommand(perform: selection.wrappedValue.map { id in
+                    {
+                        let url = PodListLink.view(id).url
+                        return [SelectionCopyContent(text: url.absoluteString, url: url).itemProvider()]
+                    }
+                })
                 .typeSelectingRows(library.state.views.map { TypeSelectionRow(id: $0.id, title: $0.name) },
                     selection: selection, anchor: window.listBinding(\.scrollAnchor))
             }
@@ -546,6 +569,11 @@ public struct PodListWindow: SwiftUI.View {
                     } primaryAction: { ids in
                         if let id = ids.first { window.navigate(to: .subscription(id)) }
                     }
+                    .onCopyCommand(perform: selected.isEmpty ? nil : {
+                        groups.flatMap(\.subscriptions).filter { selected.contains($0.id) }.map {
+                            SelectionCopyContent(title: $0.title, url: ShareLinks.web($0.feedUrl)).itemProvider()
+                        }
+                    })
                 }
                 .sheet(isPresented: $showBulkRules) {
                     BulkDownloadRuleSheet(ids: groups.flatMap { $0.subscriptions.map(\.id) }.filter { selected.contains($0) }, app: app)
@@ -737,7 +765,7 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 } primaryAction: { activate($0) }
                 .onCopyCommand(perform: window.selection.isEmpty ? nil : {
-                    EpisodeCopyContent.providers(ids: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
+                    SelectionCopyContent.episodeProviders(ids: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
                 })
                 .accessibilityLabel(textScale > 1 ? "Episodes, use Sort By and Descending to change order" : "Episodes, sortable columns")
                 #if DEBUG || PODLIST_UI_TOUR
@@ -927,6 +955,35 @@ public struct PodListWindow: SwiftUI.View {
         case .search: "magnifyingglass"
         case .trash: "trash"
         }
+    }
+}
+
+/// A SwiftUI toolbar field with an accessible scope independent of its prompt.
+struct LibraryToolbarSearch: SwiftUI.View {
+    @Binding var text: String
+    let focus: FocusState<Bool>.Binding
+    let scope: String
+
+    var body: some SwiftUI.View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField("", text: $text, prompt: Text(scope))
+                .textFieldStyle(.plain)
+                .focused(focus)
+                .accessibilityLabel(scope)
+                .accessibilityAddTraits(.isSearchField)
+                .accessibilityIdentifier("library.search")
+                .onExitCommand { text = "" }
+            if !text.isEmpty {
+                Button("Clear Search", systemImage: "xmark.circle.fill") {
+                    text = ""
+                    focus.wrappedValue = true
+                }
+                .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 168)
+        .padding(.horizontal, 8)
     }
 }
 

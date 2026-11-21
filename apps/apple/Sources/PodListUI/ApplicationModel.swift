@@ -543,11 +543,14 @@ public final class ApplicationModel {
     public func resolveEpisodeDetails(_ id: String) async {
         guard let database, let library, let episode = library.snapshot.episodes.first(where: { $0.id == id }) else { return }
         let token = generation
+        var readPublisherMetadata = false
         if library.snapshot.episodeLinks[id] == nil, let sub = library.snapshot.subscriptions.first(where: { $0.id == episode.subscriptionId }) {
-            _ = try? await libraryEditing?.source.readPodcast(sub.feedUrl)
+            readPublisherMetadata = (try? await libraryEditing?.source.readPodcast(sub.feedUrl)) != nil
         }
-        _ = try? await ChapterResolver.resolve(episodeID: id, origin: origin.flatMap(URL.init(string:)), database: database)
+        let chapters = try? await ChapterResolver.resolve(episodeID: id, origin: origin.flatMap(URL.init(string:)), database: database)
         guard token == generation else { return }
+        // The resolver also caches the fetch date. That alone does not change the Library UI.
+        guard readPublisherMetadata || chapters.map({ $0 != episode.chapters }) == true else { return }
         await reloadLocal(); playback?.refresh()
     }
     public func setDownloadRule(subscription: String, mode: DownloadMode, cap: Int64?) {
