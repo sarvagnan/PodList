@@ -107,14 +107,28 @@ private actor FakeTransport: SyncTransport {
     }
 
     try await checkName("Commute edited")
+    // The pull still contains the pre-Undo server snapshot when it completes.
+    await transport.holdNextPull()
+    let refreshDuringUndo = Task { await app.sync() }
+    await transport.waitForPausedPull()
     await editor.undo { #expect($0.isEmpty) }
     #expect(editing.redoTitle == "Redo Settings for Commute")
-    try await checkName("Commute")
+    await transport.releasePull()
+    await refreshDuringUndo.value
+    #expect(app.library?.state.playlists.first { $0.id == id }?.name == "Commute")
 
+    // Now let sync push Undo and hold that snapshot while Search dispatches Redo.
+    await transport.holdNextPull()
+    let refreshDuringRedo = Task { await app.sync() }
+    await transport.waitForPausedPull()
+    window.navigate(to: .trash)
     window.navigate(to: .search)
     #expect(editing.historyTitle(at: .library(window.destination), redo: true) == nil)
     await editor.redo { #expect($0.isEmpty) }
     #expect(editing.undoTitle == "Undo Settings for Commute")
+    await transport.releasePull()
+    await refreshDuringRedo.value
+    #expect(app.library?.state.playlists.first { $0.id == id }?.name == "Commute edited")
     try await checkName("Commute edited")
     await editor.undo { #expect($0.isEmpty) }
     #expect(editing.redoTitle == "Redo Settings for Commute")

@@ -36,6 +36,7 @@ result=0
 reset_show_borders=false
 diagnostics="$shared/run/guest-diagnostics"
 spotlight_start=""
+tour_start=""
 spotlight_status() {
     local phase="$1" volume status
     echo "=== $phase ($(date)) ==="
@@ -121,6 +122,10 @@ finish() {
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$diagnostics/" 2>/dev/null || true
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
         > "$diagnostics/log.txt" 2>&1 || true
+    if [ -n "$tour_start" ]; then
+        log show --start "$tour_start" --style compact --predicate 'subsystem == "app.podlist" AND category == "TourEditHistory"' \
+            > "$diagnostics/edit-history.log" 2>&1 || true
+    fi
     if [ -n "$spotlight_start" ]; then
         log show --start "$spotlight_start" --style compact --info --predicate 'subsystem == "app.podlist"' \
             > "$diagnostics/podlist.log" 2>&1 || true
@@ -147,6 +152,8 @@ if [ "$mode" = system ]; then
     mkdir -p "$diagnostics"
     spotlight_start="$(date '+%Y-%m-%d %H:%M:%S')"
     spotlight_status "Before app launch" > "$diagnostics/spotlight-status.txt" 2>&1
+else
+    tour_start="$(date '+%Y-%m-%d %H:%M:%S')"
 fi
 demo_now="$(node -e 'console.log(Date.now())')"
 : > "$run/demo.log"

@@ -105,17 +105,40 @@ struct EditHistoryMenuAction {
     @discardableResult
     func perform(textUndo: MacTextUndo, keyboardShortcut: Bool, editor: LibraryEditingModel? = nil,
                  context: EditHistoryCommandContext? = nil) -> Task<Void, Never>? {
+        #if PODLIST_UI_TOUR
+        let trace = "Edit command \(title) keyboard=\(keyboardShortcut)"
+        TourEditHistoryTrace.record("\(trace) received")
+        #endif
         if keyboardShortcut {
-            if textUndo.perform(redo: redo) { return nil }
+            if textUndo.perform(redo: redo) {
+                #if PODLIST_UI_TOUR
+                TourEditHistoryTrace.record("\(trace) route=live text editor")
+                #endif
+                return nil
+            }
         } else if text != nil {
+            #if PODLIST_UI_TOUR
+            TourEditHistoryTrace.record("\(trace) route=advertised text editor")
+            #endif
             textUndo.perform(redo: redo)
             return nil
         }
-        guard let editing, editing.canReverse(redo: redo) else { return nil }
+        guard let editing, editing.canReverse(redo: redo) else {
+            #if PODLIST_UI_TOUR
+            TourEditHistoryTrace.record("\(trace) route=history preflight rejected editing=\(editing != nil) busy=\(editing?.busy == true)")
+            #endif
+            return nil
+        }
         if let editor, editor.edits === editing {
             let restored = context?.restoredEntriesHandler(editor)
+            #if PODLIST_UI_TOUR
+            TourEditHistoryTrace.record("\(trace) route=Library history restoredEntries=\(restored != nil)")
+            #endif
             return Task { await editor.reverse(redo: redo, restored: restored) }
         }
+        #if PODLIST_UI_TOUR
+        TourEditHistoryTrace.record("\(trace) route=editing history")
+        #endif
         return Task { await editing.reverse(redo: redo) }
     }
 

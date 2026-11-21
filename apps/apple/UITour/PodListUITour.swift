@@ -1083,8 +1083,11 @@ final class PodListUITour: XCTestCase {
         // The VM sometimes needs a second attempt to open the submenu or apply the tile.
         for _ in 0..<3 {
             try click(windowMenu)
-            if moveAndResize.waitForExistence(timeout: 5) {
-                moveAndResize.hover()
+            if moveAndResize.waitForExistence(timeout: 5),
+               let row = try? moveAndResize.snapshot(),
+               let menu = try? windowMenu.snapshot(),
+               let target = menuRowCoordinate(windowMenu, menu: menu.frame, row: row.frame) {
+                target.hover()
                 if left.waitForExistence(timeout: 5), left.isEnabled {
                     left.click()
                     let deadline = Date().addingTimeInterval(5)
@@ -1711,52 +1714,86 @@ final class PodListUITour: XCTestCase {
                              file: StaticString = #filePath, line: UInt = #line) throws {
         let menuItem = app.menuBars.menuBarItems[menu]
         let action = menuItem.menuItems.matching(NSPredicate(format: "title == %@ OR label == %@", command, command)).firstMatch
-        try ready(menuItem, file: file, line: line)
+        guard menuItem.waitForExistence(timeout: 15) else {
+            captureMenuFailure(menu, command, attempts: ["The menu bar item was unavailable"])
+            XCTFail("Missing \(menu) menu. See the menu-failure attachments.", file: file, line: line)
+            return
+        }
         var clicked = false
-        for attempt in 0..<3 {
+        var attempts: [String] = []
+        for attempt in 1...3 {
             menuItem.click()
-            if action.waitForExistence(timeout: 3), let snapshot = try? action.snapshot(), snapshot.isEnabled {
-                let frame = snapshot.frame
-                if !frame.isEmpty, frame.midX.isFinite, frame.midY.isFinite {
-                    // SwiftUI commands share the menuAction: identifier. Use
-                    // the visible snapshot to avoid XCTest's hover re-lookup.
-                    let menuFrame = menuItem.frame
-                    menuItem.coordinate(withNormalizedOffset: .zero)
-                        .withOffset(CGVector(dx: frame.midX - menuFrame.minX, dy: frame.midY - menuFrame.minY))
-                        .click()
-                    clicked = true
-                    guard let result else { return }
-                    // Reopening an existing utility panel must give its field focus.
-                    let reached = requiringFocus ? waitForKeyboardFocus(result) : result.waitForExistence(timeout: 5)
-                    if reached { return }
+            if action.waitForExistence(timeout: 3), let snapshot = try? menuItem.snapshot() {
+                let items = descendants(snapshot).filter { $0.elementType == .menuItem }
+                attempts.append("Attempt \(attempt)\n" + menuItemDetails(items))
+                if let item = items.first(where: { ($0.title == command || $0.label == command) && $0.isEnabled && !$0.frame.isEmpty }) {
+                    let menuFrame = snapshot.frame
+                    let frame = item.frame
+                    if let target = menuRowCoordinate(menuItem, menu: menuFrame, row: frame) {
+                        target.click()
+                        clicked = true
+                        guard let result else { return }
+                        // Reopening an existing utility panel must give its field focus.
+                        let reached = requiringFocus ? waitForKeyboardFocus(result) : result.waitForExistence(timeout: 5)
+                        if reached { return }
+                    } else {
+                        attempts.append("No direct pointer path in \(menuFrame) to \(frame)")
+                    }
                 }
+            } else {
+                attempts.append("Attempt \(attempt): command or menu snapshot unavailable")
             }
-            if attempt < 2 {
+            if attempt < 3 {
                 if let retryFocus {
                     // Clicking inside a sheet closes the menu without sending Escape to the sheet.
                     retryFocus.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
                 } else { refocusLibraryAfterMenu() }
             }
         }
+        captureMenuFailure(menu, command, attempts: attempts)
         if clicked, let result {
-            var diagnostic = ""
-            if menu == "Edit", let window = try? library.snapshot() {
-                diagnostic = " Library window: \(window.title)."
-                if let status = descendants(window).first(where: { $0.identifier == "library.status" }) {
-                    let labels = descendants(status).compactMap { element -> String? in
-                        guard element.elementType == .button || element.elementType == .staticText else { return nil }
-                        return element.label.isEmpty ? element.value as? String : element.label
-                    }
-                    diagnostic += " Library status: " + labels.joined(separator: " | ")
-                } else {
-                    diagnostic += " Library status is absent from the window snapshot."
-                }
-            }
-            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts.\(diagnostic)",
+            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts. See the menu-failure attachments.",
                     file: file, line: line)
         } else {
-            XCTFail("\(menu) > \(command) was unavailable after three attempts", file: file, line: line)
+            XCTFail("\(menu) > \(command) was unavailable after three attempts. See the menu-failure attachments.", file: file, line: line)
         }
+    }
+
+    private func menuRowCoordinate(_ item: XCUIElement, menu: CGRect, row: CGRect) -> XCUICoordinate? {
+        // Stay within the originating menu-bar item on the way down. Moving
+        // diagonally toward the row's centre can open the neighbouring menu.
+        let left = max(menu.minX, row.minX + 4)
+        let right = min(menu.maxX, row.maxX - 4)
+        guard !menu.isEmpty, !row.isEmpty, left.isFinite, right.isFinite,
+              left < right, row.midY.isFinite else { return nil }
+        return item.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: (left + right) / 2 - menu.minX, dy: row.midY - menu.minY))
+    }
+
+    private func menuItemDetails(_ items: [XCUIElementSnapshot]) -> String {
+        items.map { item in
+            let title = item.title.isEmpty ? item.label : item.title
+            return "\(title) · enabled=\(item.isEnabled) · \(item.frame)"
+        }.joined(separator: "\n")
+    }
+
+    private func captureMenuFailure(_ menu: String, _ command: String, attempts: [String]) {
+        let prefix = "\(appearance)--menu-failure"
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "\(prefix)-screen.png"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        // Tab overview replaces the identifier and contents of the Library
+        // window. Preserve the visible window tree even in that state.
+        let window = library.exists ? library : app.windows.firstMatch
+        let tree = window.exists ? window.debugDescription : "No Library window.\n\(app.windows.debugDescription)"
+        attach(tree, name: "\(prefix)-library.txt")
+
+        let edit = app.menuBars.menuBarItems["Edit"]
+        let items = (try? edit.snapshot()).map { descendants($0).filter { $0.elementType == .menuItem } } ?? []
+        let editDetails = items.isEmpty ? "Edit menu snapshot unavailable" : menuItemDetails(items)
+        attach((["\(menu) > \(command)"] + attempts + ["Final Edit menu\n\(editDetails)"]).joined(separator: "\n\n"),
+               name: "\(prefix)-items.txt")
     }
 
     private func refocusLibraryAfterMenu() {

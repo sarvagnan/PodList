@@ -431,6 +431,12 @@ public struct PodListWindow: SwiftUI.View {
     }
     private func reverseEdit(using editor: LibraryEditingModel, redo: Bool) {
         let restored = restoredEntriesHandler(using: editor)
+        #if PODLIST_UI_TOUR
+        if !redo {
+            let origin = window.restorationOrigin
+            editor.edits.prepareTourEntryUndo { [window] in window.restorationOrigin == origin }
+        }
+        #endif
         Task { await editor.reverse(redo: redo, restored: restored) }
     }
 

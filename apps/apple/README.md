@@ -620,7 +620,11 @@ the script removes the temporary bundles, data, defaults, caches and window stat
 and stops only its own test/demo processes by PID. The demo API reaps its own
 server child and database. The tour build also accepts `PODLIST_UI_DELAY_ENTRY_UNDO=1` for a disposable
 bundle identity. This delays the first Undo of Remove from Playlist by two
-seconds during the full Light and Dark runs.
+seconds during the full Light and Dark runs. The hook gives slow VM input up
+to six seconds total to change toolbar Search before letting Undo finish. The
+guest exports Edit-menu dispatch and reversal outcomes to
+`guest-diagnostics/edit-history.log`. Failed menu checks keep a guest screen
+capture, Library debug description and menu item states in the result bundle.
 
 XCUITest's public snapshot API supplies `XCUIElementType`, label, title, value,
 identifier, enabled, selected and screen-coordinate frame. It does **not** expose
