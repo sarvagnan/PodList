@@ -214,7 +214,7 @@ private struct DropPublisher: PublisherReader {
     #expect(await editing.restore(id) == false)
     #expect(await editing.deletePermanently("default") == false)
     #expect(await editing.deletePermanently(id) == false)
-    #expect(editing.history.undo?.name != "Move to Trash")
+    #expect(editing.history.undo?.name != "Delete Playlist")
     #expect(try await db.outbox().contains { $0.change == .purgePlaylist(playlistId: id) })
 }
 #endif

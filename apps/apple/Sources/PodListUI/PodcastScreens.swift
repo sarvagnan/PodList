@@ -6,12 +6,13 @@ import PodListDomain
 struct LibraryFeedback: SwiftUI.View {
     @Bindable var editor: LibraryEditingModel
     var surface: EditingFeedbackSurface = .secondary
+    var origin: EditOrigin? = nil
     var sync: ApplicationModel? = nil
     var reservesSpace = true
     var restored: (@MainActor ([RestoredEntries]) -> Void)? = nil
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
-            EditingFeedback(editing: editor.edits, surface: surface, sync: sync, additionalError: editor.error, additionalStatus: dropStatus,
+            EditingFeedback(editing: editor.edits, surface: surface, origin: origin, sync: sync, additionalError: editor.error, additionalStatus: dropStatus,
                             undo: { Task { await editor.undo(restored: restored) } }, redo: { Task { await editor.redo(restored: restored) } },
                             reservesSpace: reservesSpace)
             if let sync, sync.feedRefreshIssue != nil {
@@ -82,6 +83,7 @@ struct PodcastEpisodePreview: Equatable {
 }
 
 struct PodcastPageScreen: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     let feedURL: String
     @Bindable var app: ApplicationModel
     @Bindable var editor: LibraryEditingModel
@@ -188,7 +190,7 @@ struct PodcastPageScreen: SwiftUI.View {
         let activate: (Set<String>) -> Void = { selected in
             let chosen = episodes.filter { selected.contains($0.id) }
             if chosen.allSatisfy({ $0.localID != nil }) {
-                EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: app.editing)
+                EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: app.editing, origin: origin)
             } else if let first = chosen.first, !bringing.contains(first.guid), !editor.busy, !editor.edits.busy {
                 bring(first, play: true)
             }
@@ -394,7 +396,7 @@ struct PodcastPageScreen: SwiftUI.View {
         if subscribed && available {
             commands.settings = { openSettings() }
             commands.downloadRules = { control.reset(); downloadRules = true }
-            commands.markAllPlayed = SubscriptionPlayedAction.action(subscription, editor: editor)
+            commands.markAllPlayed = SubscriptionPlayedAction.action(subscription, editor: editor, origin: origin)
         }
         commands.shareURL = ShareLinks.podcast(page: feed?.link ?? subscription.flatMap { library.snapshot.podcastLinks[$0.id] }, feed: feedURL)
         commands.feedURL = ShareLinks.web(feedURL)
@@ -416,7 +418,7 @@ struct PodcastPageScreen: SwiftUI.View {
     private func changeSubscription() {
         guard !subscriptionBusy, !editor.busy, !editor.edits.busy else { return }
         control.reset(); subscriptionBusy = true
-        Task {
+        EditOrigin.start(origin) {
             do {
                 if subscribed, let subscription { try await editor.unsubscribe(subscription) }
                 else { try await editor.subscribe(feedURL) }
@@ -438,13 +440,13 @@ struct PodcastPageScreen: SwiftUI.View {
     }
     private func bring(_ episode: PageEpisode, play: Bool) {
         control.reset(); bringing.insert(episode.guid)
-        Task {
+        EditOrigin.start(origin) {
             do {
                 let id: String
                 if let local = library.snapshot.episodes.first(where: { $0.subscriptionId == subscription?.id && $0.guid == episode.guid }) { id = local.id }
                 else { id = try await editor.prepareEpisode(feedURL, guid: episode.guid) }
                 if play { _ = await app.editing?.add([id], placement: .now) }
-                else { addPresentation.sheet = .add([id], false) }
+                else { addPresentation.present(.add([id], false), from: origin) }
             } catch { editor.error = LibraryMessages.failure(error) }
             bringing.remove(episode.guid)
         }
@@ -490,6 +492,7 @@ struct PodcastDescription: SwiftUI.View {
 }
 
 struct SubscriptionSettingsScreen: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     let subscription: Subscription
     let library: LibraryModel
     @Bindable var app: ApplicationModel
@@ -531,9 +534,6 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
                         if let threshold = draft.threshold, ![0.0, 10, 30, 60, 120, 300].contains(threshold) { Text(CountText.seconds(threshold)).tag(Optional(threshold)) }
                     }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Button("Mark All Played") { markAllPlayed?() }.disabled(markAllPlayed == nil)
-                Text("Mark All Played takes effect immediately and can be undone.")
-                    .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
             }
             PodListSheetSectionHeading("Playback Settings Overrides")
             VStack(alignment: .leading, spacing: 12) {
@@ -566,14 +566,14 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
         })
     }
     private var markAllPlayed: (() -> Void)? {
-        saving ? nil : SubscriptionPlayedAction.action(subscription, editor: editor)
+        saving ? nil : SubscriptionPlayedAction.action(subscription, editor: editor, origin: origin)
     }
     private func cancel() { editor.edits.drafts.remove(draft.field); dismiss() }
     private func save() {
         guard !saving, !editor.edits.busy else { return }
         let changes = draft.changes
         saving = true
-        Task {
+        EditOrigin.start(origin) {
             let saved = changes.isEmpty ? true : await editor.edits.edit(changes, name: "Subscription Settings", reload: true)
             if saved { editor.edits.drafts.remove(draft.field); dismiss() }
             saving = false

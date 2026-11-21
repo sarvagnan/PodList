@@ -154,13 +154,20 @@ The other recorded owner choices did not require code changes in this batch. The
 
 ## Owner choices
 
-- **Undo reveal for Views and empty Playlists.** Keep the named restoration notice and current location, or navigate to the restored object when Undo restores one. Recommend retaining the current location. It preserves the user's list and focus.
-- **Repeated Play controls.** Keep the row, toolbar, and Inspector actions, or remove the Inspector's Play Now affordance when the toolbar offers it. Recommend keeping them. Each remains available in the surface where the user is working.
-- **Playlist toolbar scopes.** Keep settings and selection in the compact capsule, move settings to its own group, or leave settings to the existing Playlist menu and sidebar context menu. Recommend keeping the capsule because a separate group costs width on the existing half-display layout.
-- **Unsubscribe from menus.** Keep the two-click Podcast page control and immediate undoable menu commands, or give the menu and context menu a shared confirmation. Recommend keeping the current routes. A direct command already names the action, and Undo can recover it.
-- **Empty Inspector at minimum width.** Keep the pane and saved width, narrow the empty pane at constrained widths, or automatically hide the empty pane there. Recommend testing the narrower placeholder if this is revisited. The user's Inspector visibility preference can remain in force.
-- **Show Notes reading width.** Keep the resizable pane, or give populated Inspectors more default width in roomy windows. Recommend testing the latter while preserving enough room for the Episode list. The separate notes window was removed by owner choice.
-- **Undo/Redo across screens.** Keep the operation name in both the status row and Edit menu, show the inline button only for the current screen's edit, or keep history commands in Edit alone. Recommend keeping the named global command in Edit and limiting the status button to edits belonging to the current screen.
-- **Mark All Played in Subscription Settings.** Keep the immediate command and its explanation, or move it to the existing Podcast and Subscription context menus alone. Recommend the second option so Save and Cancel describe every change made in the sheet.
-- **Delete Playlist in Playlist Settings.** Keep the immediate action and its explanation, or remove the sheet action and use the Playlist and sidebar menus. Recommend the second option for the same Save/Cancel consistency.
-- **Timeline Rewind.** Keep visible row actions, show the affordance only when selected, or use the context and Playlist menus alone. Recommend the current visible actions given the prior VM failure. A selection-only variant would need a separate VM pass covering keyboard and pointer access.
+The owner decided these items on 21 November 2026 in pod-apx.5.131.
+
+- **0A. Saved Views menu.** Keep the Saved Views name.
+- **1A. Undo reveal.** When Undo restores a View or an empty Playlist, keep the current destination and show the restoration notice.
+- **2A. Play controls.** Keep the row, toolbar, and Inspector actions.
+- **3A. Playlist toolbar.** Keep Settings and selection actions in the same compact group.
+- **4A. Unsubscribe from menus.** Keep the immediate, undoable command in the Podcast menu and context menus. Keep the two-click control on the Podcast page.
+- **5D. Narrow Library windows.** Below 950 pt, opening the Inspector hides the sidebar, and showing the sidebar closes the Inspector. Narrowing with both open also hides the sidebar. Only the person can show it again. At 950 pt and above, all three panes may be visible. The threshold reserves 225 pt for the default sidebar, 450 pt for the list, 270 pt for the Inspector, and 5 pt for dividers. Restored windows follow the same rule.
+- **6B. Inspector width.** Start at 370 pt when space permits, with at least 450 pt reserved for the list. Preserve a divider width chosen by the person and cap it to the available space.
+- **7B. Undo and Redo.** Offer the next named action in the Library status row only on its originating destination. Edit menu commands and keyboard shortcuts still operate on the app-wide history.
+- **8B. Subscription Settings.** Remove Mark All Played and its explanatory text from the sheet. The command is available in the Podcast menu and Subscription context menus.
+- **9D. Playlist Settings.** Delete moves the Playlist to Trash immediately and keeps the sheet open. Its fields are disabled, Restore Playlist replaces Delete, and Done replaces Save and Cancel. Restore and Edit → Undo Delete Playlist both re-enable the existing draft. Done, Escape, and Return close the deleted-state sheet and discard the draft.
+- **10B. Timeline Rewind.** An eligible selected row shows its Rewind to Here… button. Click and arrow keys select rows. The accessibility action, row context menu, and Playlist menu preserve access to Rewind.
+
+The prior screen 03 used a disposable app identity and showed a 270 pt Inspector beside a 687 pt list in an 1180 pt window. The list had enough space for a wider Inspector. SwiftUI treated the ideal as a preference, and the app also archived the resulting width for the next scene restoration. The app now seeds the opening width and then releases the divider for resizing.
+
+The round 17 Timeline snapshot exposes its rows as outline rows with a blank center and text on the left. The earlier tour clicked each row's default accessibility point. The row now has a full-width hit area, and the tour clicks inside that area and checks selection, the button, and the Rewind preview.

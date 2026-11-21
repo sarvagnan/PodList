@@ -32,6 +32,7 @@ struct ArtworkView: SwiftUI.View {
 }
 
 struct EpisodeInspector: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     let row: EpisodeRow?
     let library: LibraryModel
     @Bindable var app: ApplicationModel
@@ -89,15 +90,15 @@ struct EpisodeInspector: SwiftUI.View {
                     .labeledContentStyle(InspectorLabeledContentStyle())
                 if let editing = app.editing, summary.allAvailable {
                     Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") {
-                        playlistPresentation.sheet = .add(summary.ids, false)
+                        playlistPresentation.present(.add(summary.ids, false), from: origin)
                     }
                     let allStarred = summary.ids.allSatisfy { library.state.episodeStates[$0]?.starred == true }
                     Button(allStarred ? "Unstar" : "Star", systemImage: allStarred ? "star.fill" : "star") {
-                        Task { await editing.setStar(summary.ids, starred: !allStarred) }
+                        EditOrigin.start(origin) { await editing.setStar(summary.ids, starred: !allStarred) }
                     }
                     let allPlayed = summary.ids.allSatisfy { library.state.episodeStates[$0]?.played != nil }
                     Button(allPlayed ? "Mark Unplayed" : "Mark Played", systemImage: "checkmark.circle") {
-                        Task { await editing.markPlayed(summary.ids, played: !allPlayed) }
+                        EditOrigin.start(origin) { await editing.markPlayed(summary.ids, played: !allPlayed) }
                     }
                 }
             }
@@ -137,7 +138,7 @@ struct EpisodeInspector: SwiftUI.View {
                         LabeledContent(membership.name, value: Presentation.time(membership.position))
                             .labeledContentStyle(InspectorLabeledContentStyle())
                         Button {
-                            Task {
+                            EditOrigin.start(origin) {
                                 await EpisodePlaybackAction.resume(episodeID: row.id, playlistID: membership.id, app: app, started: startedPlayback)
                             }
                         } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
@@ -158,7 +159,7 @@ struct EpisodeInspector: SwiftUI.View {
                             }
                             Spacer()
                             Button {
-                                Task {
+                                EditOrigin.start(origin) {
                                     await EpisodePlaybackAction.chapter(chapter.start, episodeID: row.id, app: app, started: startedPlayback)
                                 }
                             } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
@@ -194,6 +195,7 @@ struct InspectorActions: SwiftUI.View {
     let editing: PlaylistEditingModel
     let presentation: PlaylistPresentation
     let startedPlayback: () -> Void
+    @Environment(\.libraryEditOrigin) private var origin
     private var starred: Bool { library.state.episodeStates[row.id]?.starred == true }
     private var played: Bool { library.state.episodeStates[row.id]?.played != nil }
     private var playing: Bool { app.playback?.display?.episodeID == row.id && app.playback?.wantsPlayback == true }
@@ -202,16 +204,16 @@ struct InspectorActions: SwiftUI.View {
             VStack(spacing: 10) {
                 Button {
                     if playing { app.playback?.pause() }
-                    else { Task { if await editing.add([row.id], placement: .now) != nil { startedPlayback() } } }
+                    else { EditOrigin.start(origin) { if await editing.add([row.id], placement: .now) != nil { startedPlayback() } } }
                 } label: {
                     Image(systemName: playing ? "pause.fill" : "play.fill").macContentFont(.body.weight(.semibold))
                         .frame(minWidth: 32, minHeight: 32)
                 }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play now (not playing)")
                     .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
                 HStack(spacing: 8) {
-                    icon("Add to a Playlist", symbol: "text.line.last.and.arrowtriangle.forward") { presentation.sheet = .add([row.id], false) }
-                    icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { Task { await editing.setStar([row.id], starred: !starred) } }
-                    icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { Task { await editing.markPlayed([row.id], played: !played) } }
+                    icon("Add to a Playlist", symbol: "text.line.last.and.arrowtriangle.forward") { presentation.present(.add([row.id], false), from: origin) }
+                    icon(starred ? "Unstar" : "Star", state: starred ? "Starred" : "Not starred", symbol: starred ? "star.fill" : "star") { EditOrigin.start(origin) { await editing.setStar([row.id], starred: !starred) } }
+                    icon(played ? "Mark Unplayed" : "Mark Played", state: played ? "Played" : "Unplayed", symbol: played ? "checkmark.circle.fill" : "checkmark.circle") { EditOrigin.start(origin) { await editing.markPlayed([row.id], played: !played) } }
                     DownloadIcon(id: row.id, app: app)
                     if let url = library.episodeShareURL(row.id) {
                         ShareLink(item: url) {

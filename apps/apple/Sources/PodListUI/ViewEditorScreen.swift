@@ -3,6 +3,7 @@ import SwiftUI
 import PodListDomain
 
 struct ViewEditorScreen: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     @Bindable var editor: LibraryEditingModel
     let library: LibraryModel
     let initial: PodListDomain.View
@@ -241,7 +242,7 @@ struct ViewEditorScreen: SwiftUI.View {
     private func enqueue(_ view: PodListDomain.View) {
         let previous = pending
         applying += 1
-        pending = Task {
+        pending = EditOrigin.start(origin) {
             await previous?.value
             do { try await editor.saveView(view, sessionID: sessionID) } catch { editor.error = LibraryMessages.failure(error) }
             applying -= 1
@@ -261,7 +262,7 @@ struct ViewEditorScreen: SwiftUI.View {
         guard canFinish else { return }
         problem = nil
         saving = true
-        Task {
+        EditOrigin.start(origin) {
             await pending?.value
             do {
                 let saved = try await editor.savedView(draft.id)

@@ -2,6 +2,7 @@
 import SwiftUI
 
 struct OPMLImportContent: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     @Bindable var editor: LibraryEditingModel
     let choose: () -> Void
     var inSheet = false
@@ -19,7 +20,7 @@ struct OPMLImportContent: SwiftUI.View {
                     Text("\(CountText.format(editor.importTotal, .podcast)); \(editor.importExisting) already in the Library.")
                 }
                 if !inSheet { HStack {
-                    Button("Import") { editor.startImport() }.keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
+                    Button("Import", action: startImport).keyboardShortcut(inSheet ? .defaultAction : nil).disabled(editor.importTotal == 0)
                     if showsFileChooser { Button("Choose a Different File…", action: choose) }
                     Button("Cancel", action: cancelImport)
                 } }
@@ -35,15 +36,17 @@ struct OPMLImportContent: SwiftUI.View {
                 }.frame(height: min(220, CGFloat(editor.importFeeds.count) * 44))
             }
             if let error = editor.error { Text(error).foregroundStyle(Color.podListError) }
-            if !editor.importFailed.isEmpty { Button("Retry Failed Imports") { Task { await editor.retryImport() } }.disabled(editor.busy) }
+            if !editor.importFailed.isEmpty { Button("Retry Failed Imports", action: retryImport).disabled(editor.busy) }
         }
         .focusedSceneValue(\.podListImportActions, MenuActionContext(actions: [
-            .importSelection: editor.importReady && editor.importTotal > 0 ? { editor.startImport() } : nil,
+            .importSelection: editor.importReady && editor.importTotal > 0 ? startImport : nil,
             .chooseFile: editor.importReady || !editor.busy ? choose : nil,
             .cancelImport: editor.busy && !editor.importCancellationRequested ? { editor.cancelImport() } : nil,
-            .retryImport: !editor.importFailed.isEmpty && !editor.busy ? { Task { await editor.retryImport() } } : nil
+            .retryImport: !editor.importFailed.isEmpty && !editor.busy ? retryImport : nil
         ].compactMapValues { $0 }))
     }
+    private func startImport() { EditOrigin.$current.withValue(origin) { editor.startImport() } }
+    private func retryImport() { EditOrigin.start(origin) { await editor.retryImport() } }
     private func cancelImport() { editor.cancelImportSelection(); editor.importPresented = false }
 }
 

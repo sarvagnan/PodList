@@ -540,7 +540,7 @@ signing/notarization are outside this check; no account credentials are requeste
 
 ### Tour coverage and isolation
 
-The 42 main-tour states (01–41 and 34a) cover Subscriptions grouped by Download Rule,
+The 45 main-tour states (01–43, 11a and 34a) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
 Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours
 and its subscription controls, Add to a Playlist, Add podcasts, Download Rules,
@@ -549,14 +549,17 @@ View multi-selection. Screens 35–36 cover the minimum window size and scrollin
 under the bars. Screens 37–39 use Window → Move & Resize → Left to capture New
 this week with a selected Episode and its Inspector open, the Market Hours Podcast
 page, and the Commute playlist at half-display width. The tour checks table layout
-at that width. Screens 40–41 are `40-large-sidebar` and `41-large-sidebar-bottom`.
-They show 30 Views and 30 Playlists using a separate demo Library.
+at that width. Screens 40–42 show 30 Views and 30 Playlists using a separate demo
+Library. Screen 11a shows Playlist Settings after Delete, 34a shows the Rewind
+button on a clicked Timeline row, and 43 shows the open Inspector with the sidebar
+hidden at minimum width.
 Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
 `.txt`, and `menus.txt`. After the main tours, a macOS 27 Show Borders pass captures
 New this week with the player bar, the Episode Inspector, the New Playlist sheet,
 and General and Automation Settings in `borders-light/` and `borders-dark/`.
+The full tour exports 203 required attachments, including menu and timing text.
 Each main pass attempts five runs per task and attaches `light--timings.txt` or
 `dark--timings.txt` (exported as `light/timings.txt` and `dark/timings.txt`). The
 app measures from the mouse-down or key-down event timestamp to the first display

@@ -238,7 +238,10 @@ public final class LibraryEditingModel {
         await edits.reverse(redo: true, restored: restored); error = edits.error; await changed()
     }
     public func run(_ action: @escaping @MainActor () async throws -> Void) {
-        Task { do { try await action(); error = nil } catch { self.error = LibraryMessages.failure(error) } }
+        run(origin: EditOrigin.current, action)
+    }
+    func run(origin: EditOrigin?, _ action: @escaping @MainActor () async throws -> Void) {
+        EditOrigin.start(origin) { do { try await action(); self.error = nil } catch { self.error = LibraryMessages.failure(error) } }
     }
     public func selectOPML(_ xml: String, name: String) async {
         guard !busy else { return }

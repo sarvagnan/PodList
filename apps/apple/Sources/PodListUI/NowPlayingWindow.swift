@@ -36,7 +36,7 @@ final class NowPlayingLibraryNavigation {
         case let .link(link): openLink?(link)
         case let .playlist(id): window.navigate(to: .playlist(id))
         case let .podcast(feed): openPodcast?(feed)
-        case let .add(ids, preferNew): presentation.sheet = .add(ids, preferNew)
+        case let .add(ids, preferNew): presentation.present(.add(ids, preferNew), from: nil)
         }
         return true
     }

@@ -42,7 +42,7 @@ struct SearchViewCreation: SwiftUI.View {
         if let problem = ViewNames.problem(name, views: library.state.views) { error = problem; return }
         saving = true
         let view = PodListDomain.View(id: UUID().uuidString, name: name, filter: .init(text: query), sort: .publishedDesc, limit: nil)
-        Task {
+        EditOrigin.start(.library(.search)) {
             do {
                 try await editor.saveView(view)
                 editor.setDraft("", field: "searchView.open"); editor.setDraft("", field: "searchView.name")

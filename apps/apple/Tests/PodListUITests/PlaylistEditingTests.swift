@@ -10,6 +10,33 @@ import PodListDomain
     return (db, PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "test", defaults: defaults)))
 }
 
+@MainActor @Test func namedHistoryKeepsItsOriginAcrossUndoAndRedo() async throws {
+    let (_, model) = try await editingFixture()
+    let playlist = EditOrigin.library(.playlist("commute"))
+    let search = EditOrigin.library(.search)
+    await EditOrigin.$current.withValue(playlist) { await model.setStar(["a"], starred: true) }
+    #expect(model.historyTitle(at: playlist) == "Undo Star")
+    #expect(model.historyTitle(at: search) == nil)
+    #expect(model.historyTitle(at: nil) == nil)
+    await EditOrigin.$current.withValue(search) { await model.reverse() }
+    #expect(model.redoTitle == "Redo Star")
+    #expect(model.historyTitle(at: playlist, redo: true) == "Redo Star")
+    #expect(model.historyTitle(at: search, redo: true) == nil)
+
+    let podcast = EditOrigin.podcast("https://example.com/feed")
+    try await EditOrigin.$current.withValue(podcast) {
+        try await model.performExternal {
+            NamedEdit(name: "Subscribe", changes: [], reload: false, action: {}, inverseAction: {})
+        }
+    }
+    #expect(model.historyTitle(at: podcast) == "Undo Subscribe")
+    #expect(model.historyTitle(at: playlist) == nil)
+    await model.reverse()
+    #expect(model.historyTitle(at: podcast, redo: true) == "Redo Subscribe")
+    await model.reverse(redo: true)
+    #expect(model.historyTitle(at: podcast) == "Undo Subscribe")
+}
+
 @MainActor @Test func episodeActionsMultiSelectUndoRedoAndUserHistory() async throws {
     let (db, model) = try await editingFixture()
     await model.setStar(["a", "b"], starred: true)
@@ -161,7 +188,7 @@ import PodListDomain
     try await db.saveState(state)
     let original = state.playlists[index]
     #expect(await model.delete(original))
-    #expect(model.status == "Playlist Commute moved to Trash" && model.undoTitle == "Undo Move to Trash")
+    #expect(model.status == "Playlist Commute moved to Trash" && model.undoTitle == "Undo Delete Playlist")
     #expect(try await db.loadState().activePlaylistId == "default")
     // Another Device claims the old name while this edit is on the Undo stack.
     try await db.record(.createPlaylist(playlistId: "other", name: "COMMUTE", clearOnPlayed: false), at: Int64(Date().timeIntervalSince1970 * 1000))
@@ -191,7 +218,7 @@ import PodListDomain
     var revealed = false
     await model.reverse { _ in revealed = true }
     #expect(!revealed)
-    #expect(model.error != nil && model.undoTitle == "Undo Move to Trash" && model.history.redo == nil)
+    #expect(model.error != nil && model.undoTitle == "Undo Delete Playlist" && model.history.redo == nil)
     let count = try await db.outbox().count
     do {
         _ = try await db.reversibleEdit(at: 100) { _ in [.setStar(episodeId: "pending", starred: true), .createPlaylist(playlistId: "bad", name: "Default", clearOnPlayed: false)] }

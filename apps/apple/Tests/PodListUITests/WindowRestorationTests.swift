@@ -21,6 +21,7 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
                 let value = WindowContext(libraryID: "https://example.com", destination: destination, search: "science café",
                                           selection: ["a", "b"], sort: [.init(column: .length, reversed: true), .init(column: .title)],
                                           playlistTab: tab, timelineSelection: "listened/a/800", columns: columns,
+                                          inspectorVisible: false,
                                           podcastFeed: "https://example.com/feed", subscriptionSelection: ["s"])
                 let data = try #require(value.encoded)
                 #expect(WindowContext.decode(data) == value)
@@ -28,6 +29,36 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
             }
         }
     }
+}
+
+@Test func narrowLibraryPanesKeepTheLastExplicitlyOpenedPane() {
+    let narrow = LibraryPanes.threePaneWidth - 1
+    let wide = LibraryPanes.threePaneWidth
+    let sidebar = LibraryPanes(sidebar: true, inspector: false)
+    let inspector = LibraryPanes(sidebar: false, inspector: true)
+    let both = LibraryPanes(sidebar: true, inspector: true)
+    let list = LibraryPanes(sidebar: false, inspector: false)
+
+    #expect(sidebar.applying(.inspector(true), width: narrow) == inspector)
+    #expect(inspector.applying(.sidebar(true), width: narrow) == sidebar)
+    #expect(inspector.applying(.inspector(false), width: narrow) == list)
+    #expect(inspector.applying(.layoutChanged, width: wide) == inspector)
+    #expect(list.applying(.layoutChanged, width: wide) == list)
+    #expect(inspector.applying(.sidebar(true), width: wide) == both)
+    #expect(sidebar.applying(.inspector(true), width: wide) == both)
+    #expect(both.applying(.layoutChanged, width: narrow) == inspector)
+    #expect(both.applying(.layoutChanged, width: wide) == both)
+}
+
+@Test func inspectorWidthReservesListRoomAndKeepsExplicitPreferences() {
+    let legacy = PaneWidths(inspector: 270)
+    let resized = PaneWidths(inspector: 270, inspectorWasResized: true)
+    #expect(legacy.preferredInspector == 370)
+    #expect(resized.preferredInspector == 270)
+    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 1180, sidebarWidth: 225, preferred: 370) == 370)
+    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 1180, sidebarWidth: 225, preferred: 315) == 315)
+    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 950, sidebarWidth: 225, preferred: 370) == 270)
+    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 760, sidebarWidth: 0, preferred: 370) == 305)
 }
 
 @Test func windowContextRejectsInvalidOrFutureArchives() {

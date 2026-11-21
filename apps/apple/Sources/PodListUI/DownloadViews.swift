@@ -169,6 +169,7 @@ struct BulkDownloadRuleSheet: SwiftUI.View {
 }
 
 private struct BulkDownloadRuleEditor: SwiftUI.View {
+    @Environment(\.libraryEditOrigin) private var origin
     let editing: PlaylistEditingModel
     @State private var draft: BulkDownloadRulesDraft
     @State private var saving = false
@@ -197,7 +198,7 @@ private struct BulkDownloadRuleEditor: SwiftUI.View {
     private func apply() {
         guard !saving else { return }
         saving = true
-        Task {
+        EditOrigin.start(origin) {
             if await draft.apply(using: editing) { dismiss() }
             else {
                 draft = editing.drafts.bulkDownloadRules(ids: draft.subscriptionIDs, deviceID: draft.deviceID, rules: draft.originalRules)

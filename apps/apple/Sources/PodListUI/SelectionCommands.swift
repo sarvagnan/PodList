@@ -63,9 +63,11 @@ enum TrashSelectionAction {
 }
 
 enum SubscriptionPlayedAction {
-    @MainActor static func action(_ subscription: Subscription?, editor: LibraryEditingModel) -> (() -> Void)? {
+    @MainActor static func action(_ subscription: Subscription?, editor: LibraryEditingModel, origin: EditOrigin? = nil) -> (() -> Void)? {
         guard let subscription, subscription.unsubscribedAt == nil, !editor.busy, !editor.edits.busy else { return nil }
-        return { editor.run { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) } }
+        return {
+            editor.run(origin: origin) { try await editor.edit(.markSubscriptionPlayed(subscriptionId: subscription.id)) }
+        }
     }
 }
 
@@ -97,9 +99,9 @@ struct EpisodeRowActivation: Equatable {
         await editing.add(ids, to: playlistID, placement: .now)
     }
 
-    @MainActor func start(using editing: PlaylistEditingModel?) {
+    @MainActor func start(using editing: PlaylistEditingModel?, origin: EditOrigin? = nil) {
         guard let editing, !editing.busy else { return }
-        Task { await play(using: editing) }
+        EditOrigin.start(origin) { await play(using: editing) }
     }
 }
 

@@ -3,6 +3,19 @@ import Observation
 import PodListData
 import PodListDomain
 
+enum EditOrigin: Equatable, Sendable {
+    case library(Destination?)
+    case podcast(String)
+
+    @TaskLocal static var current: Self?
+
+    // Capture the destination at the UI action. An edit can suspend while the
+    // person navigates or brings another Library window forward.
+    @MainActor @discardableResult static func start(_ origin: Self?, _ action: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        Task { await $current.withValue(origin, operation: action) }
+    }
+}
+
 public struct NamedEdit: Sendable {
     public var id = UUID()
     public let name: String
@@ -12,6 +25,7 @@ public struct NamedEdit: Sendable {
     public var inverseAction: (@MainActor @Sendable () async throws -> Void)? = nil
     public var sessionID: UUID? = nil
     public var message: String? = nil
+    var origin: EditOrigin? = nil
 }
 
 /// Entries newly present after a successful Undo or Redo, in Playlist order.
@@ -70,11 +84,13 @@ public final class PlaylistEditingModel {
     /// Share the same serialization and history for metadata requests and State edits.
     /// Return nil when a batch has no successful changes to undo.
     public func performExternal(recordHistory: Bool = true, _ apply: @MainActor () async throws -> NamedEdit?) async throws {
+        let origin = EditOrigin.current
         guard !busy else { throw DatabaseFailure(description: "An edit is already in progress. Try again.") }
         busy = true; error = nil; retryAction = nil; retryKind = nil
         defer { busy = false }
         do {
-            if let step = try await apply() {
+            if var step = try await apply() {
+                step.origin = origin
                 if !ended, recordHistory { history.record(step) }
                 status = step.message ?? step.name
             }
@@ -85,6 +101,12 @@ public final class PlaylistEditingModel {
     public var undoTitle: String { history.undo.map { "Undo \($0.name)" } ?? "Undo" }
     public var redoTitle: String { history.redo.map { "Redo \($0.name)" } ?? "Redo" }
 
+    func historyTitle(at origin: EditOrigin?, redo: Bool = false) -> String? {
+        let step = redo ? history.redo : history.undo
+        guard let origin, step?.origin == origin else { return nil }
+        return redo ? redoTitle : undoTitle
+    }
+
     @discardableResult
     public func edit(_ changes: [Change], name: String, message: String? = nil, reload: Bool = false, undoManager: UndoManager? = nil) async -> Bool {
         await edit(name: name, message: message, reload: reload, undoManager: undoManager) { _ in changes }
@@ -93,13 +115,14 @@ public final class PlaylistEditingModel {
     public func edit(name: String, message: String? = nil, reload: Bool = false, start: Bool = false, undoManager: UndoManager? = nil,
                      build: @escaping @Sendable (State) throws -> [Change]) async -> Bool {
         guard !busy, !ended else { return false }
+        let origin = EditOrigin.current
         busy = true; error = nil; retryAction = nil; retryKind = nil
         defer { busy = false }
         do {
             let action: @MainActor () async throws -> Void = {
                 let inverse = try await self.database.reversibleEdit(at: Self.now, build: build)
                 if !inverse.isEmpty {
-                    let step = NamedEdit(name: name, changes: inverse, reload: reload || start)
+                    let step = NamedEdit(name: name, changes: inverse, reload: reload || start, origin: origin)
                     self.history.record(step)
                     if let undoManager { self.registerIntentUndo(undoManager, id: step.id, name: step.name, redo: false) }
                 }
@@ -113,7 +136,9 @@ public final class PlaylistEditingModel {
             self.error = LibraryMessages.failure(error, operation: .playlistEdit)
             retryKind = .edit
             retryAction = { [weak self] in
-                _ = await self?.edit(name: name, message: message, reload: reload, start: start, undoManager: undoManager, build: build)
+                await EditOrigin.$current.withValue(origin) {
+                    _ = await self?.edit(name: name, message: message, reload: reload, start: start, undoManager: undoManager, build: build)
+                }
             }
             await changed(); return false
         }
@@ -135,12 +160,12 @@ public final class PlaylistEditingModel {
                 let action: @MainActor () async throws -> Void = {
                     if let external = step.action, let inverse = step.inverseAction {
                         try await external()
-                        self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: [], reload: true, action: inverse, inverseAction: external, sessionID: step.sessionID), redo: redo)
+                        self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: [], reload: true, action: inverse, inverseAction: external, sessionID: step.sessionID, origin: step.origin), redo: redo)
                         self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
                         return
                     }
                     let inverse = try await self.database.reversibleEdit(at: Self.now) { _ in step.changes }
-                    self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: inverse, reload: step.reload), redo: redo)
+                    self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: inverse, reload: step.reload, origin: step.origin), redo: redo)
                     self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
                     let restoredIDs = step.changes.compactMap { change -> String? in
                         if case let .restorePlaylist(id) = change { return id }; return nil
@@ -260,7 +285,7 @@ public final class PlaylistEditingModel {
     }
     public func delete(_ playlist: Playlist) async -> Bool {
         guard !playlist.isDefault else { return false }
-        return await edit([.deletePlaylist(playlistId: playlist.id)], name: "Move to Trash", message: "Playlist \(playlist.name) moved to Trash", reload: true)
+        return await edit([.deletePlaylist(playlistId: playlist.id)], name: "Delete Playlist", message: "Playlist \(playlist.name) moved to Trash", reload: true)
     }
     public func restore(_ id: String) async -> Bool {
         let success = await edit([.restorePlaylist(playlistId: id)], name: "Restore Playlist")
