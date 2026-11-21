@@ -175,33 +175,45 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(searchField.label, "Search this list")
         XCTAssertGreaterThan(searchField.frame.width, 100, "Search must remain a full field at the default window width")
         try capture("06-default-playlist")
-        let unselectedSection = playlistSection("Entries").frame
-        let unselectedPlay = playlistPlayButton.frame
+        let closedHeader = playlistHeaderFrames
         XCTAssertEqual(playlistPlayButton.label, "Play This Playlist")
         XCTAssertFalse(library.toolbars.buttons["New Playlist…"].exists)
-        let unselectedInspector = inspectorButton.frame
-        try selectFirstEpisode()
+        let firstEntry = episodeRows.firstMatch
+        let firstEntryPoint = try firstEpisodePoint()
+        let clickLocation = firstEntryPoint.screenPoint
+        let firstEntryBefore = firstEntry.frame
+        firstEntryPoint.click()
+        assertLibraryPanes(sidebar: true, inspector: true, after: "selecting the first Entry")
+        XCTAssertTrue(firstEntry.isSelected)
+        XCTAssertTrue(firstEntry.frame.contains(clickLocation), "The clicked point must remain inside the selected Entry")
+        XCTAssertEqual(firstEntry.frame.minY, firstEntryBefore.minY, accuracy: 1, "Opening the Inspector moved the selected Entry vertically")
         XCTAssertNotEqual(playlistPlayButton.label, "Play This Playlist", "The same Play control now targets the selection")
-        assertInspectorPosition(unselectedInspector)
-        assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
+        let openHeader = playlistHeaderFrames
+        assertPlaylistHeader(openHeader)
+        XCTContext.runActivity(named: "Inspector open: Playlist section dx \(openHeader.section.minX - closedHeader.section.minX) pt, Play dx \(openHeader.play.minX - closedHeader.play.minX) pt, Inspector toggle dx \(openHeader.inspector.minX - closedHeader.inspector.minX) pt, clicked Entry width \(firstEntryBefore.width) to \(firstEntry.frame.width) pt") { _ in }
         try capture("07-entry-inspector")
         try assertInspectorActionTargets()
-        // The section switcher and Playlist action belong to the window toolbar.
-        let defaultHeader = playlistPlayButton.frame
-        let defaultSection = playlistSection("Entries").frame
+
+        let secondEntry = episodeRows.element(boundBy: 1)
+        try ready(secondEntry)
+        secondEntry.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
+        XCTAssertTrue(secondEntry.isSelected)
+        assertLibraryPanes(sidebar: true, inspector: true, after: "selecting another Entry")
+        assertPlaylistHeader(openHeader)
+
         try segment("History")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening History without a selection")
+        assertPlaylistHeader(closedHeader)
         try capture("08-history")
-        assertPlaylistHeader(play: defaultHeader, section: defaultSection)
-        assertInspectorPosition(unselectedInspector)
         let historyDescription = text("Manual Played marks do not create History")
         try ready(historyDescription)
         XCTAssertLessThanOrEqual(historyDescription.frame.maxY, library.buttons["Open Now Playing"].frame.minY - 22,
                                  "History must fit above the player at the default window size")
         try segment("Listening Timeline")
         try ready(library.descendants(matching: .any).matching(identifier: "Listening Timeline").firstMatch)
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening Listening Timeline")
+        assertPlaylistHeader(closedHeader)
         try capture("09-listening-timeline")
-        assertPlaylistHeader(play: defaultHeader, section: defaultSection)
-        assertInspectorPosition(unselectedInspector)
         let rewindButtons = library.buttons.matching(identifier: "timeline.rewind")
         let rewind = rewindButtons.firstMatch
         XCTAssertFalse(rewind.exists, "An unselected Timeline must have no row Rewind button")
@@ -237,8 +249,7 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Commute")
         try capture("10-commute")
-        let commuteHeader = playlistPlayButton.frame
-        let commuteSection = playlistSection("Entries").frame
+        let commuteHeader = playlistHeaderFrames
         let entryColumn = episodeList.buttons["Entry"].firstMatch.frame
         // Every toolbar control needs its own accessible name (round 9: a pull-down was announced
         // by its symbol name).
@@ -276,7 +287,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("z", modifierFlags: .command)
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute").firstMatch)
         try ready(library.buttons["Redo Settings for Commute"])
-        assertPlaylistHeader(play: commuteHeader, section: commuteSection)
+        assertPlaylistHeader(commuteHeader)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
         try openNewPlaylist()
         XCTAssertFalse(library.sheets.staticTexts["Enter a Playlist name."].exists)
@@ -291,9 +302,8 @@ final class PodListUITour: XCTestCase {
         app.typeKey("z", modifierFlags: [.command, .shift])
         XCTAssertEqual(newPlaylistName.value as? String, "Tour draft", "Shift-Command-Z must redo the field edit")
         try dismissSheet("Cancel")
-        assertPlaylistHeader(play: commuteHeader, section: commuteSection)
+        assertPlaylistHeader(commuteHeader)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
-        try checkDelayedEntryUndo()
 
         try navigate("Trash")
         try ready(text("Trash is empty"))
@@ -311,6 +321,7 @@ final class PodListUITour: XCTestCase {
         try ready(text(firstEpisodeTitle, in: episodeList))
         XCTAssertEqual(searchField.value as? String, "rice")
         XCTAssertEqual(searchField.label, "Search Library", "Typing must preserve the Search field's name")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "filtering Search without selecting a result")
         try capture("15-search-rice")
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(.delete, modifierFlags: [])
@@ -422,6 +433,8 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
 
         try navigate("New this week")
+        try selectFirstEpisode()
+        try ready(episodeInspector)
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
         try sheet("to a Playlist")
@@ -601,7 +614,7 @@ final class PodListUITour: XCTestCase {
         stats.typeKey("w", modifierFlags: .command)
         app.typeKey(",", modifierFlags: .command)
         try ready(settings)
-        try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
+        try click(settingsTab("General", in: settings))
         let generalForm = settings.scrollViews.firstMatch
         if generalForm.exists {
             generalForm.hover()
@@ -645,6 +658,10 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.buttons["Play"].exists)
         XCTAssertFalse(library.buttons["Pause"].exists, "Leave an Episode paused as after relaunch")
 
+        // This completed edit replaces the redo stack. Run it after the earlier
+        // Settings-for-Commute Redo and the menu inventory.
+        try navigate("Commute")
+        try checkDelayedEntryUndo()
         try recordResponseTimings(from: timings)
 
         // Resize only after the default-size captures and timings.
@@ -657,7 +674,7 @@ final class PodListUITour: XCTestCase {
         try assertEpisodeTableLayout() // Exercise the Published-text overlap check before metadata gives way.
         try shrinkToMinimumSize(library)
         assertLibraryPanes(sidebar: true, inspector: false, after: "narrowing with an automatically shown Inspector")
-        try selectFirstEpisode()
+        try firstEpisodePoint().click()
         assertLibraryPanes(sidebar: true, inspector: false, after: "selecting an Episode in a narrow window")
         try click(inspectorButton)
         assertLibraryPanes(sidebar: false, inspector: true, after: "opening the Inspector explicitly at minimum width")
@@ -710,6 +727,15 @@ final class PodListUITour: XCTestCase {
         try ready(removedRow)
         XCTAssertTrue(removedRow.isSelected, "Show Restored Entries must reveal and select the restored Entry")
         XCTAssertTrue(reveal.waitForNonExistence(timeout: 5))
+        // Clear the restored selection so the tiled Commute capture starts
+        // with the same empty selection as the first visit.
+        try focusListSearch()
+        app.typeText("no matching tour episode")
+        XCTAssertTrue(removedRow.waitForNonExistence(timeout: 10))
+        assertLibraryPanes(sidebar: true, inspector: false, after: "clearing the restored Entry selection")
+        app.typeKey(.escape, modifierFlags: [])
+        try ready(removedRow)
+        XCTAssertFalse(removedRow.isSelected)
     }
 
     private func checkNarrowPaneSwaps() throws {
@@ -766,7 +792,10 @@ final class PodListUITour: XCTestCase {
             if let snapshot = try? window.snapshot() {
                 let elements = descendants(snapshot)
                 let hasSidebar = elements.contains { $0.elementType == .outline && $0.label == "Sidebar" }
-                let hasInspector = elements.contains { $0.label == "Episode Inspector" }
+                let hasInspector = elements.contains {
+                    $0.label == "Episode Inspector" || $0.identifier == "library.episodeSelectionInspector"
+                        || ($0.elementType == .staticText && $0.value as? String == "Select an Episode")
+                }
                 let inspectorToggle = elements.first { $0.identifier == "library.inspector" }?.label
                 if hasSidebar == sidebar, hasInspector == inspector,
                    inspectorToggle == (inspector ? "Hide Inspector" : "Show Inspector") { return }
@@ -968,8 +997,8 @@ final class PodListUITour: XCTestCase {
         try navigate("Subscriptions")
         try openNewThisWeek()
         try firstEpisodePoint().click()
-        if library.frame.width < 950 || inspectorButton.label == "Show Inspector" {
-            try click(inspectorButton)
+        if !episodeInspector.exists {
+            try menuCommand("Episode", "Show Episode Details", until: episodeInspector)
         }
         try ready(episodeInspector)
         try restoreTileIfNeeded()
@@ -988,11 +1017,13 @@ final class PodListUITour: XCTestCase {
             try ready(action)
             XCTAssertTrue(action.isHittable && library.frame.contains(action.frame))
         }
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening the tiled Podcast page")
         try capture("38-half-display-podcast-market-hours")
         try assertEpisodeTableLayout()
 
         try navigate("Commute")
         try ready(episodeRows.firstMatch)
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening tiled Commute without a selection")
         try capture("39-half-display-commute")
         try assertEpisodeTableLayout(inPlaylist: true)
     }
@@ -1074,7 +1105,9 @@ final class PodListUITour: XCTestCase {
                           "The first selection must open the Inspector at the default width")
             let second = episodeRows.element(boundBy: 1)
             try ready(second)
-            let secondTitle = second.staticTexts.firstMatch.label
+            let title = second.staticTexts.firstMatch
+            let secondTitle = (title.value as? String) ?? title.label
+            XCTAssertFalse(secondTitle.isEmpty, "Use the second row’s title for the open-Inspector timing")
             perform("inspector-open", until: text(secondTitle, in: episodeInspector)) {
                 second.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).click()
             }
@@ -1218,17 +1251,28 @@ final class PodListUITour: XCTestCase {
         app.typeKey(",", modifierFlags: .command)
         let settings = settingsWindow
         try ready(settings)
-        try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
+        try click(settingsTab("General", in: settings))
         try ready(text("Speed", in: settings))
+        try ready(settingsTab("Automation", in: settings))
+        XCTAssertFalse(mcpSetting(in: settings).exists, "Only the General pane should be exposed")
         return settings
     }
 
     private func openAutomationSettings(in settings: XCUIElement) throws -> XCUIElement {
-        try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
-        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
+        try click(settingsTab("Automation", in: settings))
+        let mcp = mcpSetting(in: settings)
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
         return mcp
+    }
+
+    private func settingsTab(_ name: String, in settings: XCUIElement) -> XCUIElement {
+        settings.toolbars.descendants(matching: .any).matching(identifier: name).firstMatch
+    }
+
+    private func mcpSetting(in settings: XCUIElement) -> XCUIElement {
+        settings.descendants(matching: .any).matching(NSPredicate(
+            format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
     }
 
     private func assertEpisodeTableLayout(inPlaylist: Bool = false, file: StaticString = #filePath, line: UInt = #line) throws {
@@ -1337,20 +1381,34 @@ final class PodListUITour: XCTestCase {
         XCTAssertLessThan(rule.frame.maxY, count.frame.minY, file: file, line: line)
     }
 
-    private func assertPlaylistHeader(play: CGRect, section: CGRect,
+    private struct PlaylistHeaderFrames {
+        var play: CGRect
+        var section: CGRect
+        var inspector: CGRect
+    }
+
+    private var playlistHeaderFrames: PlaylistHeaderFrames {
+        let section = library.toolbars.descendants(matching: .any).matching(identifier: "playlist.section").firstMatch
+        return PlaylistHeaderFrames(play: playlistPlayButton.frame, section: section.frame, inspector: inspectorButton.frame)
+    }
+
+    private func assertPlaylistHeader(_ expected: PlaylistHeaderFrames,
                                       file: StaticString = #filePath, line: UInt = #line) {
-        let actualPlay = playlistPlayButton.frame
-        let actualSection = playlistSection("Entries").frame
+        let actual = playlistHeaderFrames
+        let actualPlay = actual.play
+        let actualSection = actual.section
         let toolbar = library.toolbars.firstMatch
         XCTAssertTrue(toolbar.frame.contains(actualSection), "The section switcher must be in the toolbar", file: file, line: line)
         XCTAssertTrue(toolbar.frame.contains(actualPlay), "The Playlist action must be in the toolbar", file: file, line: line)
         XCTAssertGreaterThan(actualPlay.minX, actualSection.maxX, "Play belongs in trailing actions, outside the switcher", file: file, line: line)
-        // Principal placement must preserve X when sections or selection actions change.
-        XCTAssertEqual(actualPlay.width, play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
-        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
-        XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
-        XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
-        XCTAssertEqual(actualSection.minY, section.minY, accuracy: 1, "Section control moved", file: file, line: line)
+        // Compare positions at the same pane visibility. The open transition
+        // is logged separately, and a second selection must leave controls fixed.
+        XCTAssertEqual(actualPlay.width, expected.play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
+        XCTAssertEqual(actualPlay.minY, expected.play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
+        XCTAssertEqual(actualPlay.minX, expected.play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
+        XCTAssertEqual(actualSection.minX, expected.section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
+        XCTAssertEqual(actualSection.minY, expected.section.minY, accuracy: 1, "Section control moved", file: file, line: line)
+        assertInspectorPosition(expected.inspector, file: file, line: line)
         XCTAssertLessThan(abs(actualPlay.midY - actualSection.midY), 8, "Controls must share a row", file: file, line: line)
     }
 

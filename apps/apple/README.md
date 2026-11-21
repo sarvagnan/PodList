@@ -554,6 +554,10 @@ Library. Screen 11a shows deleted Playlist Settings with Restore Playlist and Cl
 Screen 32 shows the Getting Started window, reached from Settings › General or
 Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, and
 43 shows the Inspector explicitly opened at minimum width.
+Screens 06–09 check the Playlist toolbar and which panes are visible. The test
+log records the toolbar shifts and selected Entry width on the first selection.
+It checks that the original click still lies in the selected row and that a
+second selection leaves the open Inspector's toolbar positions fixed.
 Screen 44 captures a delayed Undo of Remove from Playlist. The named result,
 the retained Search and selected Entry, and Show Restored Entries are visible.
 The tour asserts that the action reveals and selects the restored Entry.
