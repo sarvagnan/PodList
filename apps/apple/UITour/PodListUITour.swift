@@ -318,6 +318,7 @@ final class PodListUITour: XCTestCase {
         try capture("14-trash")
         try navigate("Search")
         try ready(library.buttons["Create View…"])
+        try ready(libraryStatus)
         XCTAssertFalse(libraryStatus.buttons["Redo Settings for Commute"].exists)
         try menuCommand("Edit", "Redo Settings for Commute", until: sidebarItem("Commute edited"))
         XCTAssertFalse(libraryStatus.buttons["Undo Settings for Commute"].exists)
@@ -1681,13 +1682,17 @@ final class PodListUITour: XCTestCase {
         }
         if clicked, let result {
             var diagnostic = ""
-            if menu == "Edit", let status = try? library.descendants(matching: .any)
-                .matching(identifier: "library.status").firstMatch.snapshot() {
-                let labels = descendants(status).compactMap { element -> String? in
-                    guard element.elementType == .button || element.elementType == .staticText else { return nil }
-                    return element.label.isEmpty ? element.value as? String : element.label
+            if menu == "Edit", let window = try? library.snapshot() {
+                diagnostic = " Library window: \(window.title)."
+                if let status = descendants(window).first(where: { $0.identifier == "library.status" }) {
+                    let labels = descendants(status).compactMap { element -> String? in
+                        guard element.elementType == .button || element.elementType == .staticText else { return nil }
+                        return element.label.isEmpty ? element.value as? String : element.label
+                    }
+                    diagnostic += " Library status: " + labels.joined(separator: " | ")
+                } else {
+                    diagnostic += " Library status is absent from the window snapshot."
                 }
-                diagnostic = " Library status: " + labels.joined(separator: " | ")
             }
             XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts.\(diagnostic)",
                     file: file, line: line)
