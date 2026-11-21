@@ -30,8 +30,7 @@ for app in "$run"/*/PodList.app; do
     [ "$app" != "$run/system/PodList.app" ] || continue
     enable_integration "$app"
 done
-demo=""
-sidebar_demo=""
+demo_pids=""
 warmup=""
 result=0
 reset_show_borders=false
@@ -99,6 +98,12 @@ run_tests() {
     # pipefail makes a failed xcodebuild the pipeline's status; record it and go on.
     xcodebuild test-without-building "$@" 2>&1 | tee -a "$test_output" || result=$?
 }
+stop_demos() {
+    local pid
+    for pid in $demo_pids; do kill "$pid" 2>/dev/null || true; done
+    for pid in $demo_pids; do wait "$pid" 2>/dev/null || true; done
+    demo_pids=""
+}
 finish() {
     local status=$?
     if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
@@ -110,8 +115,7 @@ finish() {
     if [ "$reset_show_borders" = true ]; then set_show_borders false || status=$?; fi
     # Preserve partial evidence even when a check fails. The host deletes the whole VM.
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
-    if [ -n "$demo" ]; then kill "$demo" 2>/dev/null || true; wait "$demo" 2>/dev/null || true; fi
-    if [ -n "$sidebar_demo" ]; then kill "$sidebar_demo" 2>/dev/null || true; wait "$sidebar_demo" 2>/dev/null || true; fi
+    stop_demos
     cp -f "$run/demo.log" "$shared/run/guest-demo.log" 2>/dev/null || true
     mkdir -p "$diagnostics"
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$diagnostics/" 2>/dev/null || true
@@ -146,14 +150,6 @@ if [ "$mode" = system ]; then
 fi
 demo_now="$(node -e 'console.log(Date.now())')"
 : > "$run/demo.log"
-PODLIST_TEST_DEMO_NOW="$demo_now" node "$shared/run/demo.mjs" \
-    "$shared/repo/packages/web/ui-flows/demo.mjs" "$run/origin" >> "$run/demo.log" 2>&1 &
-demo=$!
-if [ "$mode" = tour ]; then
-    PODLIST_TEST_DEMO_NOW="$demo_now" node "$shared/run/demo.mjs" \
-        "$shared/repo/packages/web/ui-flows/demo.mjs" "$run/sidebar-origin" large-sidebar >> "$run/demo.log" 2>&1 &
-    sidebar_demo=$!
-fi
 wait_for_demo() {
     local origin="$1" pid="$2" i
     for ((i = 0; i < 600; i++)); do
@@ -164,15 +160,32 @@ wait_for_demo() {
     cat "$run/demo.log"
     return 1
 }
-wait_for_demo "$run/origin" "$demo"
-if [ -n "$sidebar_demo" ]; then wait_for_demo "$run/sidebar-origin" "$sidebar_demo"; fi
+start_demo() {
+    local origin="$1" variant="${2:-}" pid
+    PODLIST_TEST_DEMO_NOW="$demo_now" node "$shared/run/demo.mjs" \
+        "$shared/repo/packages/web/ui-flows/demo.mjs" "$origin" "$variant" >> "$run/demo.log" 2>&1 &
+    pid=$!
+    demo_pids="$demo_pids $pid"
+    wait_for_demo "$origin" "$pid"
+}
+if [ "$mode" = tour ]; then
+    # The apps have separate local stores, but a shared demo server would sync
+    # a failed pass's saved edits into the next appearance.
+    start_demo "$run/dark/origin"
+    start_demo "$run/light/origin"
+    start_demo "$run/sidebar-origin" large-sidebar
+else
+    start_demo "$run/origin"
+fi
 # Login banners can obscure screenshots.
 sleep 30
 cd "$run/products"
 xctestruns=(*.xctestrun)
 [ "${#xctestruns[@]}" -eq 1 ] || { echo 'Expected one xctestrun' >&2; exit 1; }
 xctestrun="${xctestruns[0]}"
-/usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
+if [ "$mode" != tour ]; then
+    /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
+fi
 if [ "$mode" = timings ]; then
     # A freshly booted clone indexes and launches services for several minutes, which
     # roughly triples these figures. Wait (up to 12 min) for the 1-minute load to settle.
@@ -200,6 +213,9 @@ elif [ "$mode" = tour ]; then
         -only-testing:PodListUITour/PodListUITour/testDark \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 1600 \
         -maximum-test-execution-time-allowance 2000 -resultBundlePath "$run/Tour.xcresult"
+    stop_demos
+    start_demo "$run/borders-dark/origin"
+    start_demo "$run/borders-light/origin"
     # Launch a fresh test runner after changing the display preference.
     reset_show_borders=true
     set_show_borders true

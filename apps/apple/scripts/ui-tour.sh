@@ -283,7 +283,7 @@ complete = not missing and sys.argv[3:] == ['0', '0']
 readme = '# PodList Mac XCUITest tour\n\n'
 readme += f'Status: {"complete" if complete else "incomplete"}. {len(written)}/{len(expected)} required attachments exported.\n\n'
 readme += 'Window screenshots include attached sheets. Text trees use public XCUI snapshots; role is XCUIElementType, and AX subrole and keyboard shortcuts are unavailable. Inspect NSMenuItem.keyEquivalent/keyEquivalentModifierMask in Xcode/LLDB for shortcuts. Apple and Services are excluded.\n\n'
-readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
+readme += 'Each appearance starts with its own seeded demo server, disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
 readme += 'The focused APPEAR-03 pass runs with macOS Show Borders on. Test results: Tour.xcresult and ShowBorders.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/ and borders-attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
 readme += 'Screens 37–39 use Window → Move & Resize → Left to tile the Library to half the display.\n\n'
 readme += 'Screens 40–42 show a sidebar with 30 Views and 30 Playlists, using a separate demo Library: top, bottom, and Playlists folded.\n\n'

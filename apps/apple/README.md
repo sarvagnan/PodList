@@ -613,8 +613,8 @@ standard `NSArgumentDomain`. The `PODLIST_UI_DATA_DIRECTORY` variable redirects
 all PodList databases (including the Standalone bring-over check), audio downloads
 and the automation socket into that run's temporary directory. It requires both
 a disposable bundle ID and a path beneath a temporary directory, and fails closed
-on malformed configuration. Each appearance starts with fresh preferences and
-temporary app data. MCP remains off and the demo's
+on malformed configuration. Each appearance starts with fresh preferences, temporary app data and its own
+seeded demo server. MCP remains off and the demo's
 current Episode stays paused, as after a relaunch. Teardown quits the test app;
 the script removes the temporary bundles, data, defaults, caches and window state
 and stops only its own test/demo processes by PID. The demo API reaps its own

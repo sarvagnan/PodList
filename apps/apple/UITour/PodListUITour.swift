@@ -39,8 +39,14 @@ final class PodListUITour: XCTestCase {
             XCTAssertFalse(showBorders, "Show Borders verification requires NSWorkspace.\(key) in the guest")
         }
         let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
-        let origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
-        let data = root.appendingPathComponent(appearance + "/data", isDirectory: true)
+        let fixture = root.appendingPathComponent(appearance, isDirectory: true)
+        let origin: String
+        if timingsOnly {
+            origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
+        } else {
+            origin = try String(contentsOf: fixture.appendingPathComponent("origin"), encoding: .utf8)
+        }
+        let data = fixture.appendingPathComponent("data", isDirectory: true)
         let timings = data.appendingPathComponent("response-timings-\(UUID()).tsv")
         try launch(from: root, copy: appearance, style: style, origin: origin, timings: showBorders ? nil : timings,
                    delayEntryUndo: !showBorders && !timingsOnly)
@@ -98,6 +104,8 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
         let libraryStatus = library.descendants(matching: .any).matching(identifier: "library.status").firstMatch
         try ready(libraryStatus)
+        XCTAssertTrue(sidebarItem("Commute").exists, "The appearance must start with a freshly seeded Commute")
+        XCTAssertFalse(sidebarItem("Commute edited").exists, "This appearance inherited another pass’s rename")
         XCTAssertGreaterThan(libraryStatus.frame.height, 0)
         XCTAssertLessThanOrEqual(libraryStatus.frame.height, 33, "Sync and edit feedback must share one compact row")
         XCTAssertFalse(sidebar.images["Clear on Played on"].exists, "Clear on Played must not repeat the Add to a Playlist glyph")
@@ -313,7 +321,18 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(libraryStatus.buttons["Redo Settings for Commute"].exists)
         try menuCommand("Edit", "Redo Settings for Commute", until: sidebarItem("Commute edited"))
         XCTAssertFalse(libraryStatus.buttons["Undo Settings for Commute"].exists)
+        // This is a Library Undo. Put the native list in focus before invoking
+        // the command so a field editor cannot consume it as a text Undo.
+        try firstEpisodePoint().click()
+        XCTAssertFalse(searchField.value(forKey: "hasKeyboardFocus") as? Bool == true)
         try menuCommand("Edit", "Undo Settings for Commute", until: sidebarItem("Commute"))
+        // The list click selected an Episode. Clear that selection before
+        // capturing Search with no selection and no Inspector.
+        try focusListSearch()
+        app.typeText("no matching tour episode")
+        try ready(text("No Matching Episodes"))
+        assertLibraryPanes(sidebar: true, inspector: false, after: "clearing the Search selection")
+        app.typeKey(.escape, modifierFlags: [])
         try ready(searchField)
         XCTAssertEqual(searchField.label, "Search Library")
         try focusListSearch()
@@ -1661,7 +1680,16 @@ final class PodListUITour: XCTestCase {
             }
         }
         if clicked, let result {
-            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts",
+            var diagnostic = ""
+            if menu == "Edit", let status = try? library.descendants(matching: .any)
+                .matching(identifier: "library.status").firstMatch.snapshot() {
+                let labels = descendants(status).compactMap { element -> String? in
+                    guard element.elementType == .button || element.elementType == .staticText else { return nil }
+                    return element.label.isEmpty ? element.value as? String : element.label
+                }
+                diagnostic = " Library status: " + labels.joined(separator: " | ")
+            }
+            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts.\(diagnostic)",
                     file: file, line: line)
         } else {
             XCTFail("\(menu) > \(command) was unavailable after three attempts", file: file, line: line)
