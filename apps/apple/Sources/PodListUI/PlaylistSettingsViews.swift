@@ -3,9 +3,9 @@ import SwiftUI
 import PodListDomain
 
 struct NewPlaylistSheet: SwiftUI.View {
-    @Environment(\.libraryEditOrigin) private var origin
     let app: ApplicationModel
     let editing: PlaylistEditingModel
+    let origin: EditOrigin?
     let created: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
@@ -42,11 +42,11 @@ struct NewPlaylistSheet: SwiftUI.View {
 }
 
 struct AddPlaylistSheet: SwiftUI.View {
-    @Environment(\.libraryEditOrigin) private var origin
     let ids: [String]
     let preferNew: Bool
     let app: ApplicationModel
     let editing: PlaylistEditingModel
+    let origin: EditOrigin?
     var cancelled: (() -> Void)? = nil
     let done: () -> Void
     @State private var target = ""
@@ -119,9 +119,9 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     let id: String
     let app: ApplicationModel
     let editing: PlaylistEditingModel
+    let origin: EditOrigin?
     let done: () -> Void
     @FocusState private var focused: Bool
-    @Environment(\.libraryEditOrigin) private var origin
     @State private var draft: PlaylistSettingsDraft?
     @State private var retrySave = false
     private var playlist: Playlist? { app.library?.state.playlists.first { $0.id == id } }

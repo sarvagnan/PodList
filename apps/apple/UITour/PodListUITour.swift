@@ -10,7 +10,8 @@ final class PodListUITour: XCTestCase {
     private var app: XCUIApplication!
     private var appearance = ""
     private var library: XCUIElement {
-        app.windows.containing(.outline, identifier: "Sidebar").firstMatch
+        // The scene identifier stays the same when the sidebar is hidden.
+        app.windows.matching(NSPredicate(format: "identifier BEGINSWITH %@", "library-AppWindow-")).firstMatch
     }
 
     func testLight() throws { try tour("Light") }
@@ -112,8 +113,6 @@ final class PodListUITour: XCTestCase {
         try selectFirstEpisode()
         try ready(episodeInspector)
         try capture("03-episode-inspector")
-        XCTAssertEqual(library.frame.maxX - episodeList.frame.maxX, 370, accuracy: 12,
-                       "A fresh Inspector must open near its ideal width in the default window")
         XCTAssertGreaterThanOrEqual(episodeList.frame.width, 450, "The Inspector must leave room for the list")
         try assertInspectorActionTargets()
         try hideInspector()
@@ -262,6 +261,7 @@ final class PodListUITour: XCTestCase {
         try click(newPlaylistName)
         let originalPlaylistName = newPlaylistName.value as? String
         app.typeText("Tour draft")
+        XCTAssertEqual(newPlaylistName.value as? String, "Tour draft")
         app.typeKey("z", modifierFlags: .command)
         XCTAssertEqual(newPlaylistName.value as? String, originalPlaylistName, "Command-Z in a sheet text field must undo typing")
         app.typeKey("z", modifierFlags: [.command, .shift])
@@ -274,8 +274,10 @@ final class PodListUITour: XCTestCase {
         try ready(text("Trash is empty"))
         try capture("14-trash")
         try navigate("Search")
-        XCTAssertFalse(library.buttons["Redo Settings for Commute"].exists)
+        try ready(library.buttons["Create View…"])
+        XCTAssertFalse(libraryStatus.buttons["Redo Settings for Commute"].exists)
         try menuCommand("Edit", "Redo Settings for Commute", until: sidebarItem("Commute edited"))
+        XCTAssertFalse(libraryStatus.buttons["Undo Settings for Commute"].exists)
         try menuCommand("Edit", "Undo Settings for Commute", until: sidebarItem("Commute"))
         try focusListSearch()
         app.typeText("rice")
@@ -575,7 +577,9 @@ final class PodListUITour: XCTestCase {
         // CRITIQUE step 1: the narrowest supported size, and content scrolled beneath the bars.
         try navigate("Starred")
         try navigate("New this week")
-        try ready(episodeRows.firstMatch)
+        try selectFirstEpisode()
+        try ready(episodeInspector)
+        try ready(sidebar)
         try assertEpisodeTableLayout() // Exercise the Published-text overlap check before metadata gives way.
         try shrinkToMinimumSize(library)
         XCTAssertTrue(sidebar.waitForNonExistence(timeout: 5), "Narrowing with the Inspector open must hide the sidebar")
@@ -644,14 +648,17 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(trashDescription.contains("1"), "The sidebar must count the deleted Playlist")
         try capture("11a-playlist-settings-deleted", expectsSheet: true)
 
-        try menuCommand("Edit", "Undo Delete Playlist", until: save)
+        // Use the Edit command's shortcut while the sheet owns the key window.
+        app.typeKey("z", modifierFlags: .command)
+        XCTAssertTrue(save.wait(for: \.isEnabled, toEqual: true, timeout: 10))
         try ready(sidebarItem("Commute"))
         XCTAssertTrue(field.isEnabled)
         XCTAssertEqual(field.value as? String, "Morning Commute")
 
         try click(delete)
+        XCTAssertTrue(restore.wait(for: \.isEnabled, toEqual: true, timeout: 10))
         try click(restore)
-        try ready(save)
+        XCTAssertTrue(save.wait(for: \.isEnabled, toEqual: true, timeout: 10))
         XCTAssertTrue(field.isEnabled)
         XCTAssertEqual(field.value as? String, "Morning Commute")
         try ready(sidebarItem("Commute"))

@@ -120,19 +120,6 @@ public struct PodListWindow: SwiftUI.View {
         updatePanes(.layoutChanged)
     }
 
-    private var inspectorOpeningWidth: Double {
-        inspectorWidth(allowing: window.paneWidths.preferredInspector)
-    }
-
-    private var inspectorMaximumWidth: Double {
-        inspectorWidth(allowing: PaneWidths.inspectorMaximum)
-    }
-
-    private func inspectorWidth(allowing preferred: Double) -> Double {
-        LibraryPanes.openingInspectorWidth(windowWidth: windowWidth ?? .infinity,
-            sidebarWidth: sidebarVisible ? window.paneWidths.sidebar : 0, preferred: preferred)
-    }
-
     private var isPlaylist: Bool {
         if case .playlist = window.destination { return !isPodcastPage }; return false
     }
@@ -308,7 +295,6 @@ public struct PodListWindow: SwiftUI.View {
         let showsEpisodeInspector = window.supportsEpisodeInspector
         let selection = window.selection
         let selectedIDs = selectedRows.map(\.id)
-        let presentation = presentedInspector
         return VStack(spacing: 0) {
             if let editor = app.libraryEditing {
                 LibraryFeedback(editor: editor, surface: .library, origin: origin, sync: app, reservesSpace: true, restored: { entries in
@@ -381,7 +367,7 @@ public struct PodListWindow: SwiftUI.View {
         }
         .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
         .searchFocused($searchFocused)
-        .inspector(isPresented: presentation) {
+        .inspector(isPresented: presentedInspector) {
             let row = isPodcastPage
                 ? library.snapshot.episodes.first { selection.contains($0.id) }.map { library.row($0.id) }
                 : selectedRows.first
@@ -393,13 +379,13 @@ public struct PodListWindow: SwiftUI.View {
                 #if DEBUG || PODLIST_UI_TOUR
                 .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil, key: inspectorVisible)
                 #endif
-                .background(MacInspectorWidth(presented: presentation.wrappedValue,
-                    preferred: inspectorOpeningWidth, maximum: inspectorMaximumWidth) { width in
-                        window.paneWidths.inspector = width
-                        window.paneWidths.inspectorWasResized = true
-                    })
                 .inspectorColumnWidth(min: PaneWidths.inspectorMinimum,
-                                      ideal: inspectorOpeningWidth, max: inspectorMaximumWidth)
+                                      ideal: window.initialPaneWidths.inspector, max: PaneWidths.inspectorMaximum)
+                .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
+                    if (PaneWidths.inspectorMinimum...PaneWidths.inspectorMaximum).contains(width) {
+                        window.paneWidths.inspector = width
+                    }
+                }
         }
     }
 

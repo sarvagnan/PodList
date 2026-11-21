@@ -299,17 +299,15 @@ struct PlaylistSheetHost: ViewModifier {
     func body(content: Content) -> some SwiftUI.View {
         content.sheet(item: $presentation.sheet) { sheet in
             if let editing = app.editing {
-                Group {
-                    switch sheet {
-                    case .newPlaylist:
-                        NewPlaylistSheet(app: app, editing: editing) { id in presentation.sheet = nil; created(id) }
-                    case let .add(ids, new):
-                        AddPlaylistSheet(ids: ids, preferNew: new, app: app, editing: editing) { presentation.sheet = nil }
-                    case let .settings(id):
-                        PlaylistSettingsSheet(id: id, app: app, editing: editing) { presentation.sheet = nil }
-                    }
+                let origin = presentation.sheetOrigin
+                switch sheet {
+                case .newPlaylist:
+                    NewPlaylistSheet(app: app, editing: editing, origin: origin) { id in presentation.sheet = nil; created(id) }
+                case let .add(ids, new):
+                    AddPlaylistSheet(ids: ids, preferNew: new, app: app, editing: editing, origin: origin) { presentation.sheet = nil }
+                case let .settings(id):
+                    PlaylistSettingsSheet(id: id, app: app, editing: editing, origin: origin) { presentation.sheet = nil }
                 }
-                .environment(\.libraryEditOrigin, presentation.sheetOrigin)
             }
         }
     }
@@ -338,6 +336,7 @@ extension FocusedValues {
 
 public struct PlaylistEditingCommands: Commands {
     @Bindable private var app: ApplicationModel
+    @State private var textUndo = MacTextUndo()
     @FocusedValue(\.podListEpisodes) private var context
     @FocusedValue(\.podListRemovePlaylistSelection) private var removePlaylistSelection
     @FocusedValue(\.podListEpisodeDetails) private var episodeDetails
@@ -351,17 +350,19 @@ public struct PlaylistEditingCommands: Commands {
     @FocusedValue(\.podListRewind) private var rewind
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
+        let text = textUndo.state
         CommandGroup(replacing: .undoRedo) {
-            Button(textEditor == nil ? app.editing?.undoTitle ?? "Undo" : textEditor?.undoManager?.undoMenuItemTitle ?? "Undo") {
-                if let editor = textEditor { editor.undoManager?.undo() }
-                else if let undo = editHistory?.undo { undo() }
+            Button(text?.undoTitle ?? app.editing?.undoTitle ?? "Undo") {
+                guard !textUndo.perform() else { return }
+                if let undo = editHistory?.undo { undo() }
                 else { Task { await app.editing?.reverse() } }
-            }.keyboardShortcut("z").disabled(textEditor == nil ? app.editing?.history.undo == nil || app.editing?.busy == true : textEditor?.undoManager?.canUndo != true)
-            Button(textEditor == nil ? app.editing?.redoTitle ?? "Redo" : textEditor?.undoManager?.redoMenuItemTitle ?? "Redo") {
-                if let editor = textEditor { editor.undoManager?.redo() }
-                else if let redo = editHistory?.redo { redo() }
+            }.keyboardShortcut("z").disabled(!(text?.canUndo ?? (app.editing?.history.undo != nil && app.editing?.busy == false)))
+            Button(text?.redoTitle ?? app.editing?.redoTitle ?? "Redo") {
+                guard !textUndo.perform(redo: true) else { return }
+                if let redo = editHistory?.redo { redo() }
                 else { Task { await app.editing?.reverse(redo: true) } }
-            }.keyboardShortcut("z", modifiers: [.command, .shift]).disabled(textEditor == nil ? app.editing?.history.redo == nil || app.editing?.busy == true : textEditor?.undoManager?.canRedo != true)
+            }.keyboardShortcut("z", modifiers: [.command, .shift])
+                .disabled(!(text?.canRedo ?? (app.editing?.history.redo != nil && app.editing?.busy == false)))
         }
         CommandMenu("Episode") {
             MenuActionItems(menu: .episode, app: app)
@@ -384,7 +385,7 @@ public struct PlaylistEditingCommands: Commands {
                 .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
             Button(context?.ids.isEmpty == true && removePlaylistSelection != nil ? "Remove Selected Failed Episode Drops" : "Remove from Playlist") {
                 removePlaylistSelection?()
-            }.keyboardShortcut(.delete, modifiers: .command).disabled(removePlaylistSelection == nil || textEditor != nil)
+            }.keyboardShortcut(.delete, modifiers: .command).disabled(removePlaylistSelection == nil || text != nil)
         }
         CommandMenu("Playlist") {
             Menu("Open Playlist") {
@@ -444,10 +445,6 @@ public struct PlaylistEditingCommands: Commands {
     private func move(down: Bool) {
         guard let id = entriesPlaylistID else { return }
         EditOrigin.start(context?.editOrigin) { await app.editing?.move(Set(context?.ids ?? []), playlistID: id, down: down) }
-    }
-    private var textEditor: NSTextView? {
-        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isEditable else { return nil }
-        return editor
     }
 }
 #endif

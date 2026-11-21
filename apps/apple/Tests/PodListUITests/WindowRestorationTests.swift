@@ -1,7 +1,4 @@
 import Foundation
-#if os(macOS)
-import AppKit
-#endif
 import Testing
 import PodListData
 import PodListDomain
@@ -52,53 +49,6 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(both.applying(.layoutChanged, width: narrow) == inspector)
     #expect(both.applying(.layoutChanged, width: wide) == both)
 }
-
-@Test func inspectorWidthReservesListRoomAndKeepsExplicitPreferences() {
-    let legacy = PaneWidths(inspector: 270)
-    let resized = PaneWidths(inspector: 270, inspectorWasResized: true)
-    #expect(legacy.preferredInspector == 370)
-    #expect(resized.preferredInspector == 270)
-    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 1180, sidebarWidth: 225, preferred: 370) == 370)
-    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 1180, sidebarWidth: 225, preferred: 315) == 315)
-    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 950, sidebarWidth: 225, preferred: 370) == 270)
-    #expect(LibraryPanes.openingInspectorWidth(windowWidth: 760, sidebarWidth: 0, preferred: 370) == 305)
-}
-
-#if os(macOS)
-@MainActor @Test func nativeInspectorDividerHonorsOpeningWidthAndKeepsLaterResizes() {
-    let controller = NSSplitViewController()
-    let detail = NSViewController()
-    let inspector = NSViewController()
-    detail.view = NSView()
-    inspector.view = NSView()
-    let inspectorItem = NSSplitViewItem(inspectorWithViewController: inspector)
-    controller.addSplitViewItem(NSSplitViewItem(viewController: detail))
-    controller.addSplitViewItem(inspectorItem)
-    let split = controller.splitView
-    split.isVertical = true
-    controller.view.frame = CGRect(x: 0, y: 0, width: 955, height: 708)
-    split.frame = controller.view.bounds
-    split.adjustSubviews()
-    controller.view.layoutSubtreeIfNeeded()
-
-    split.setPosition(split.arrangedSubviews[0].frame.maxX + 270 - 370, ofDividerAt: 0)
-    controller.view.layoutSubtreeIfNeeded()
-    #expect(inspector.view.frame.width == 270)
-
-    #expect(MacInspectorWidth.Probe.applyWidth(in: split, item: inspectorItem, preferred: 370,
-                                              maximum: 440, alreadyPositioned: false))
-    controller.view.layoutSubtreeIfNeeded()
-    #expect(abs(inspector.view.frame.width - 370) <= 1)
-    #expect(detail.view.frame.width >= LibraryPanes.listWidth)
-
-    split.setPosition(split.arrangedSubviews[0].frame.maxX + inspector.view.frame.width - 310, ofDividerAt: 0)
-    controller.view.layoutSubtreeIfNeeded()
-    #expect(MacInspectorWidth.Probe.applyWidth(in: split, item: inspectorItem, preferred: 370,
-                                              maximum: 440, alreadyPositioned: true))
-    controller.view.layoutSubtreeIfNeeded()
-    #expect(abs(inspector.view.frame.width - 310) <= 1)
-}
-#endif
 
 @Test func windowContextRejectsInvalidOrFutureArchives() {
     #expect(WindowContext.decode(nil) == nil)
@@ -283,7 +233,7 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     window.restore(WindowContext(paneWidths: .init(sidebar: 270, inspector: 360)))
     #expect(window.initialPaneWidths.sidebar == 270)
 
-    let recorder = PaneWidthRecorder()
+    let recorder = SidebarWidthRecorder()
     recorder.changed = { window.paneWidths.sidebar = $0 }
     recorder.record(305)
     #expect(window.paneWidths.sidebar == 270)
@@ -336,7 +286,7 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
 }
 
 @MainActor @Test func sidebarRecordingAcceptsBoundsAndIgnoresCollapsedOrInvalidWidths() {
-    let recorder = PaneWidthRecorder()
+    let recorder = SidebarWidthRecorder()
     var recorded: [Double] = []
     recorder.changed = { recorded.append($0) }
     for width in [180.0, 225, 320] {
@@ -351,7 +301,7 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
 }
 
 @MainActor @Test func sidebarRecordingDebouncesToTheLastUserWidth() async throws {
-    let recorder = PaneWidthRecorder()
+    let recorder = SidebarWidthRecorder()
     var recorded: [Double] = []
     recorder.changed = { recorded.append($0) }
     recorder.record(240)

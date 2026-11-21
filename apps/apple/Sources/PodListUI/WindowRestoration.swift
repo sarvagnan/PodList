@@ -198,18 +198,10 @@ struct PaneWidths: Codable, Equatable {
 
     var sidebar = Self.sidebarIdeal
     var inspector = Self.inspectorIdeal
-    var inspectorWasResized: Bool?
-
-    var preferredInspector: Double {
-        // Older scenes saved layout measurements, including the native 270 pt default.
-        if inspectorWasResized ?? (inspector > 271) { return inspector }
-        return Self.inspectorIdeal
-    }
 
     var reconciled: Self {
         Self(sidebar: sidebar.isFinite ? min(max(sidebar, Self.sidebarMinimum), 320) : Self.sidebarIdeal,
-             inspector: inspector.isFinite ? min(max(inspector, Self.inspectorMinimum), Self.inspectorMaximum) : Self.inspectorIdeal,
-             inspectorWasResized: inspectorWasResized)
+             inspector: inspector.isFinite ? min(max(inspector, Self.inspectorMinimum), Self.inspectorMaximum) : Self.inspectorIdeal)
     }
 }
 
@@ -222,7 +214,7 @@ struct LibraryPanes: Equatable {
 
     // Allow 450 pt for the list (above the 400 pt date/position breakpoint),
     // the ideal sidebar, and 270 pt for the Inspector (10 above its minimum).
-    static let listWidth = 450.0
+    private static let listWidth = 450.0
     private static let dividers = 5.0
     static let threePaneWidth = PaneWidths.sidebarIdeal + listWidth + PaneWidths.inspectorMinimum + 10 + dividers
 
@@ -242,26 +234,18 @@ struct LibraryPanes: Equatable {
         }
         return panes
     }
-
-    static func openingInspectorWidth(windowWidth: Double, sidebarWidth: Double, preferred: Double) -> Double {
-        let available = windowWidth - sidebarWidth - listWidth - dividers
-        return min(preferred, max(PaneWidths.inspectorMinimum, available))
-    }
 }
 
 /// Coalesce divider movement before writing scene storage. Invalid/collapsed geometry
 /// is ignored rather than replacing a valid preference with the minimum width.
 @MainActor
-final class PaneWidthRecorder {
+final class SidebarWidthRecorder {
     var changed: ((Double) -> Void)?
-    private let range: ClosedRange<Double>
     private var pending: Double?
     private var task: Task<Void, Never>?
 
-    init(range: ClosedRange<Double> = PaneWidths.sidebarMinimum...320) { self.range = range }
-
     func record(_ width: Double) {
-        guard width.isFinite, range.contains(width) else { return }
+        guard width.isFinite, (PaneWidths.sidebarMinimum...320).contains(width) else { return }
         pending = width
         task?.cancel()
         task = Task { [weak self] in
