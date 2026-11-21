@@ -406,7 +406,8 @@ final class PodListUITour: XCTestCase {
         let episodeHeading = episodeList.buttons["Episode"].firstMatch
         let episodeCount = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
         XCTAssertEqual(episodeHeading.frame.minX, episodeCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
-        let collapsedPublished = episodeList.buttons["Published"].firstMatch.frame
+        let collapsedColumns = podcastColumnFrames(in: try episodeList.snapshot())
+        XCTAssertEqual(collapsedColumns.count, 4, "The default-width Podcast must show all four columns")
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
@@ -419,10 +420,17 @@ final class PodListUITour: XCTestCase {
         try capture("19-description-expanded")
         try click(button("Hide Description"))
         try ready(button("Show description"))
+        var actualColumns: [String: CGRect] = [:]
         let restoredColumns = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
-            abs(episodeList.buttons["Published"].firstMatch.frame.minX - collapsedPublished.minX) <= 1
+            guard let snapshot = try? episodeList.snapshot() else { return false }
+            actualColumns = podcastColumnFrames(in: snapshot)
+            return collapsedColumns.allSatisfy { name, frame in
+                guard let actual = actualColumns[name] else { return false }
+                return abs(actual.minX - frame.minX) <= 1 && abs(actual.width - frame.width) <= 1
+            }
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [restoredColumns], timeout: 3), .completed, "Hide Description must restore the Podcast table columns")
+        let restored = XCTWaiter.wait(for: [restoredColumns], timeout: 3)
+        XCTAssertEqual(restored, .completed, "Hide Description must restore the Podcast columns. Before: \(collapsedColumns). After: \(actualColumns).")
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
@@ -704,6 +712,12 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(playbackState.value as? String, "In progress")
         try capture("35-minimum-window")
         try assertEpisodeTableLayout()
+        // All six tightly spaced rows can now fit at minimum height. Use the
+        // complete Library table to exercise scrolling in the same narrow window.
+        app.typeKey("f", modifierFlags: .command)
+        try ready(library.buttons["Create View…"])
+        try selectFirstEpisode()
+        assertLibraryPanes(sidebar: false, inspector: true, after: "opening full Library results for the scroll check")
         try scrollEpisodesBeneathBars()
         try capture("36-scrolled-under-bars")
         try checkNarrowPaneSwaps()
@@ -736,8 +750,15 @@ final class PodListUITour: XCTestCase {
         // An unchanged query at completion reveals the Entry immediately, so the
         // recovery action also proves that the edit arrived during the delay.
         let reveal = library.buttons["Show Restored Entries"]
-        try ready(reveal)
-        try ready(text("Undone: Remove from Playlist"))
+        let completion = NSPredicate { [self] _, _ in
+            guard let snapshot = try? library.snapshot(),
+                  let status = descendants(snapshot).first(where: { $0.identifier == "library.status" }) else { return false }
+            let feedback = descendants(status)
+            return feedback.contains { $0.label == "Show Restored Entries" && $0.isEnabled } &&
+                feedback.contains { ($0.value as? String ?? $0.label) == "Undone: Remove from Playlist" }
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: completion, object: nil)], timeout: 10), .completed,
+                       "Entry Undo must announce completion and offer Show Restored Entries while the new query is active")
         XCTAssertEqual(search.value as? String, "Inflation")
         XCTAssertTrue(retainedRow.isSelected, "The later query and the selected matching Entry must survive Undo")
         XCTAssertFalse(removedRow.exists, "Undo must preserve the filter until the person asks to reveal the Entry")
@@ -829,19 +850,27 @@ final class PodListUITour: XCTestCase {
     private func scrollEpisodesBeneathBars() throws {
         // Track the same two rows before and after scrolling. Overlay scrollers
         // are not always present in the Episode list's accessibility tree.
-        let first = episodeRows.containing(.staticText, identifier: "Who sets the price of rice?").firstMatch
-        let last = episodeRows.containing(.staticText, identifier: "Inflation, explained with sandwiches").firstMatch
-        try ready(first)
-        try ready(last)
-        let headerBottom = episodeList.buttons["Episode"].firstMatch.frame.maxY
+        let list = episodeList
+        let table = try list.snapshot()
+        let headerBottom = list.buttons["Episode"].firstMatch.frame.maxY
         let playerTop = library.buttons["Open Now Playing"].frame.minY - 22
-        let startingBottom = last.frame.maxY
-        XCTAssertGreaterThanOrEqual(first.frame.minY, headerBottom - 1, "The first Episode starts below the column header")
-        XCTAssertGreaterThan(startingBottom, playerTop, "The last Episode initially extends under the player")
+        let rows = descendants(table).filter { [.tableRow, .outlineRow].contains($0.elementType) }
+        let firstRow = try XCTUnwrap(rows.first)
+        let underPlayer = try XCTUnwrap(rows.first { $0.frame.maxY > playerTop + 8 && $0.frame.minY < table.frame.maxY },
+                                       "The Library results must include an Episode starting beneath the player")
+        func row(matching snapshot: XCUIElementSnapshot) throws -> XCUIElement {
+            let title = try XCTUnwrap(descendants(snapshot).first { $0.elementType == .staticText })
+            return episodeRows.containing(.staticText, identifier: title.value as? String ?? title.label).firstMatch
+        }
+        let first = try row(matching: firstRow)
+        let last = try row(matching: underPlayer)
+        let startingBottom = underPlayer.frame.maxY
+        XCTAssertGreaterThanOrEqual(firstRow.frame.minY, headerBottom - 1, "The first Episode starts below the column header")
 
         let listPoint = episodeList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
         let scrolled = NSPredicate { _, _ in
             guard let lastFrame = try? last.snapshot().frame, !lastFrame.isEmpty,
+                  lastFrame.minY >= headerBottom - 1,
                   lastFrame.maxY < startingBottom - 8, lastFrame.maxY <= playerTop + 1 else { return false }
             guard let firstFrame = try? first.snapshot().frame else { return true }
             return firstFrame.isEmpty || firstFrame.minY < headerBottom - 4
@@ -852,7 +881,7 @@ final class PodListUITour: XCTestCase {
             let moved = XCTNSPredicateExpectation(predicate: scrolled, object: nil)
             if XCTWaiter.wait(for: [moved], timeout: 5) == .completed { return }
         }
-        XCTFail("Scrolling must move the first Episode beneath the column header and bring the last Episode clear of the player")
+        XCTFail("Scrolling must move the first Episode beneath the column header and bring the overlapping Episode clear of the player")
     }
 
     private func checkPlaylistSettingsTrash() throws {
@@ -1399,6 +1428,15 @@ final class PodListUITour: XCTestCase {
                            "Episode count must be outside scrolling content", file: file, line: line)
         }
         XCTAssertLessThan(rule.frame.maxY, count.frame.minY, file: file, line: line)
+    }
+
+    private func podcastColumnFrames(in table: XCUIElementSnapshot) -> [String: CGRect] {
+        let headings = ["Episode", "Published", "Length", "State"]
+        var frames: [String: CGRect] = [:]
+        for button in descendants(table) where button.elementType == .button && headings.contains(button.title) {
+            frames[button.title] = button.frame
+        }
+        return frames
     }
 
     private struct PlaylistHeaderFrames {

@@ -631,12 +631,11 @@ to inspect `NSMenuItem.keyEquivalent` and `keyEquivalentModifierMask` in Xcode's
 LLDB debugger, or inspect the rendered menus manually. No custom AX utility is
 provided. Menu enabled states reflect the final multi-selection in the Light tour.
 
-The Unsubscribe sequence clicks Subscribed only once, captures the armed control,
-then waits until at least six seconds after that click before capturing Subscribed
-again. The product's arm lasts four seconds; XCUITest synchronization/screenshot
-latency can consume that short interval. The test fails explicitly if the armed
-control has expired during capture. It never clicks Unsubscribe or changes Library
-content through the preview sheets. The delayed Undo test briefly removes an
+The Unsubscribe sequence clicks Subscribed once, captures the armed control, and
+then clicks the Episode count to disarm it. The tour verifies that Subscribed and
+Share Podcast keep their positions as the control arms and disarms. Screen 36
+uses the full Library results to verify that rows scroll beneath the column
+headers and clear the player at minimum window size. The delayed Undo test briefly removes an
 Entry from the demo Library and verifies that it comes back. The Timeline Rewind action is also available
 to keyboard/VoiceOver users as a named accessibility action and context command.
 With no Subscriptions selected, Edit Download Rules opens the all-Subscriptions
@@ -655,9 +654,9 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
 swift test --scratch-path .build --disable-sandbox
 ```
 
-The main-session foreground run is still needed to validate the UI locators,
-menu hierarchy, window/sheet screenshots, export manifest and short armed-state
-timing. Do not run the UI tests in a screenless agent sandbox.
+The VM foreground run validates UI locators, menu hierarchy, window and sheet
+captures, and the export manifest. Do not run the UI tests in a screenless agent
+sandbox.
 
 ### Library app links, Spotlight and Services
 
