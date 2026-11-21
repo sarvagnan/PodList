@@ -252,13 +252,16 @@ struct LibraryPanes: Equatable {
 /// Coalesce divider movement before writing scene storage. Invalid/collapsed geometry
 /// is ignored rather than replacing a valid preference with the minimum width.
 @MainActor
-final class SidebarWidthRecorder {
+final class PaneWidthRecorder {
     var changed: ((Double) -> Void)?
+    private let range: ClosedRange<Double>
     private var pending: Double?
     private var task: Task<Void, Never>?
 
+    init(range: ClosedRange<Double> = PaneWidths.sidebarMinimum...320) { self.range = range }
+
     func record(_ width: Double) {
-        guard width.isFinite, (180...320).contains(width) else { return }
+        guard width.isFinite, range.contains(width) else { return }
         pending = width
         task?.cancel()
         task = Task { [weak self] in

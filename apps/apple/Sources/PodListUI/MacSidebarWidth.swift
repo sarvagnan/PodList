@@ -16,7 +16,7 @@ struct MacSidebarWidth: NSViewRepresentable {
     static func dismantleNSView(_ view: Probe, coordinator: ()) { view.stopObserving() }
 
     final class Probe: NSView {
-        let recorder = SidebarWidthRecorder()
+        let recorder = PaneWidthRecorder()
         private weak var splitView: NSSplitView?
         private var observation: NSObjectProtocol?
         private var eventMonitor: Any?

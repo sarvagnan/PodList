@@ -19,14 +19,6 @@ public struct PodListWindow: SwiftUI.View {
     @State private var columns = NavigationSplitViewVisibility.all
     @State private var windowWidth: Double?
     @State private var sceneInspectorVisible: Bool?
-    @State private var inspectorSeeded = false
-    @State private var inspectorMeasurement: InspectorMeasurement?
-    private struct InspectorMeasurement {
-        let width: Double
-        let windowWidth: Double
-        let sidebar: Bool
-        let maximum: Double
-    }
     @SceneStorage("PodList.windowContext.v1") private var savedContext: Data?
     @State private var contextLoaded = false
     @State private var contextLibraryID: String?
@@ -139,24 +131,6 @@ public struct PodListWindow: SwiftUI.View {
     private func inspectorWidth(allowing preferred: Double) -> Double {
         LibraryPanes.openingInspectorWidth(windowWidth: windowWidth ?? .infinity,
             sidebarWidth: sidebarVisible ? window.paneWidths.sidebar : 0, preferred: preferred)
-    }
-
-    private func measureInspector(_ width: Double) {
-        guard let windowWidth, width >= PaneWidths.inspectorMinimum - 1 else { return }
-        let measurement = InspectorMeasurement(width: width, windowWidth: windowWidth,
-                                               sidebar: sidebarVisible, maximum: inspectorMaximumWidth)
-        let previous = inspectorMeasurement
-        inspectorMeasurement = measurement
-        // SwiftUI's ideal is only a preference. Seed the opening width, then let
-        // the native divider move anywhere within the available range.
-        guard inspectorSeeded else {
-            if width >= inspectorOpeningWidth - 1 { inspectorSeeded = true }
-            return
-        }
-        guard let previous, previous.windowWidth == windowWidth, previous.sidebar == sidebarVisible,
-              previous.maximum == measurement.maximum, abs(previous.width - width) >= 1 else { return }
-        window.paneWidths.inspector = min(max(width, PaneWidths.inspectorMinimum), PaneWidths.inspectorMaximum)
-        window.paneWidths.inspectorWasResized = true
     }
 
     private var isPlaylist: Bool {
@@ -334,6 +308,7 @@ public struct PodListWindow: SwiftUI.View {
         let showsEpisodeInspector = window.supportsEpisodeInspector
         let selection = window.selection
         let selectedIDs = selectedRows.map(\.id)
+        let presentation = presentedInspector
         return VStack(spacing: 0) {
             if let editor = app.libraryEditing {
                 LibraryFeedback(editor: editor, surface: .library, origin: origin, sync: app, reservesSpace: true, restored: { entries in
@@ -406,7 +381,7 @@ public struct PodListWindow: SwiftUI.View {
         }
         .searchable(text: $window.search, placement: .toolbar, prompt: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
         .searchFocused($searchFocused)
-        .inspector(isPresented: presentedInspector) {
+        .inspector(isPresented: presentation) {
             let row = isPodcastPage
                 ? library.snapshot.episodes.first { selection.contains($0.id) }.map { library.row($0.id) }
                 : selectedRows.first
@@ -418,13 +393,13 @@ public struct PodListWindow: SwiftUI.View {
                 #if DEBUG || PODLIST_UI_TOUR
                 .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil, key: inspectorVisible)
                 #endif
-                .inspectorColumnWidth(min: inspectorSeeded ? PaneWidths.inspectorMinimum : inspectorOpeningWidth,
+                .background(MacInspectorWidth(presented: presentation.wrappedValue,
+                    preferred: inspectorOpeningWidth, maximum: inspectorMaximumWidth) { width in
+                        window.paneWidths.inspector = width
+                        window.paneWidths.inspectorWasResized = true
+                    })
+                .inspectorColumnWidth(min: PaneWidths.inspectorMinimum,
                                       ideal: inspectorOpeningWidth, max: inspectorMaximumWidth)
-                .onGeometryChange(for: Double.self) { $0.size.width } action: { measureInspector($0) }
-                .onDisappear {
-                    inspectorSeeded = false
-                    inspectorMeasurement = nil
-                }
         }
     }
 
@@ -868,8 +843,6 @@ public struct PodListWindow: SwiftUI.View {
         window.restore(context)
         columns = context.columns.visibility
         sceneInspectorVisible = context.inspectorVisible ?? defaultInspectorVisible
-        inspectorSeeded = false
-        inspectorMeasurement = nil
         updatePanes(.layoutChanged)
         contextLibraryID = libraryID
         contextLoaded = true
