@@ -230,7 +230,7 @@ public struct PodListWindow: SwiftUI.View {
         }
         .onChange(of: window.listID) { _, _ in reconcileSelection(library) }
         .onChange(of: showsEpisodeInspector) { _, _ in updatePanes(.layoutChanged) }
-        .onChange(of: playlistPresentation.sheet?.id) { _, _ in reconcileSelection(library) }
+        .onChange(of: deletedPlaylist?.id) { _, _ in reconcileSelection(library) }
         .onChange(of: currentContext) { _, context in
             if contextLoaded, context.libraryID == contextLibraryID { savedContext = context.encoded }
         }
@@ -877,9 +877,12 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     private func deletedPlaylistBehindSettings(in library: LibraryModel) -> Playlist? {
-        guard !isPodcastPage, case let .settings(id) = playlistPresentation.sheet,
-              window.destination == .playlist(id) else { return nil }
-        return library.trash.first { $0.playlist.id == id }?.playlist
+        // Only the deleted Playlist preview needs to observe sheet presentation.
+        // A New Playlist or Add sheet is otherwise owned by PlaylistSheetHost.
+        guard !isPodcastPage, case let .playlist(id) = window.destination,
+              let playlist = library.trash.first(where: { $0.playlist.id == id })?.playlist,
+              case .settings(id) = playlistPresentation.sheet else { return nil }
+        return playlist
     }
 
     private var currentContext: WindowContext {

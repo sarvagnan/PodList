@@ -193,33 +193,39 @@ struct EpisodeInspector: SwiftUI.View {
     }
 }
 
-/// Selectable publisher text is prepared off the main actor. The Inspector can
-/// lay out its title and actions before formatting a long description.
+/// Plain notes are ready on the first layout. Publisher markup is stripped off
+/// the main actor so a long description cannot delay the title and actions.
 private struct InspectorShowNotes: SwiftUI.View {
     let description: String
     let compact: Bool
-    @State private var notes: String?
+    @State private var prepared: (description: String, notes: String)?
 
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Show Notes").macContentFont(.headline)
-            if let notes {
-                Text(notes.isEmpty ? "No show notes" : notes)
-                    .macContentFont(compact ? .footnote : .body)
-                    .textSelection(.enabled)
+            if let plain = Presentation.showNotesWithoutMarkup(description) {
+                noteText(plain)
             } else {
-                ProgressView().controlSize(.small).accessibilityLabel("Preparing Show Notes")
+                Group {
+                    if let prepared, prepared.description == description { noteText(prepared.notes) }
+                    else { ProgressView().controlSize(.small).accessibilityLabel("Preparing Show Notes") }
+                }
+                .task(id: description) {
+                    let notes = await Self.prepare(description)
+                    if !Task.isCancelled { prepared = (description, notes) }
+                }
             }
-        }
-        .task(id: description) {
-            notes = nil
-            let prepared = await Self.prepare(description)
-            if !Task.isCancelled { notes = prepared }
         }
     }
 
+    private func noteText(_ text: String) -> some SwiftUI.View {
+        Text(text.isEmpty ? "No show notes" : text)
+            .macContentFont(compact ? .footnote : .body)
+            .textSelection(.enabled)
+    }
+
     @concurrent private static func prepare(_ description: String) async -> String {
-        Presentation.plainShowNotes(description)
+        Presentation.stripShowNotesMarkup(description)
     }
 }
 

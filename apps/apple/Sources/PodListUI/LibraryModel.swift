@@ -119,9 +119,16 @@ public enum Presentation {
 
     /// Publisher markup is displayed as text, never as an embedded web document.
     public static func plainShowNotes(_ input: String) -> String {
-        if !input.utf8.contains(UInt8(ascii: "<")), !input.utf8.contains(UInt8(ascii: "&")) {
-            return input.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        if let text = showNotesWithoutMarkup(input) { return text }
+        return stripShowNotesMarkup(input)
+    }
+
+    static func showNotesWithoutMarkup(_ input: String) -> String? {
+        guard !input.utf8.contains(where: { $0 == UInt8(ascii: "<") || $0 == UInt8(ascii: "&") }) else { return nil }
+        return input.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func stripShowNotesMarkup(_ input: String) -> String {
         let stripped = input
             .replacingOccurrences(of: "(?is)<(script|style)[^>]*>.*?</\\1\\s*>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?i)<(?:br\\s*/?|/p|/div|/h[1-6]|/li)\\s*>", with: "\n", options: .regularExpression)
