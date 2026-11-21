@@ -81,25 +81,30 @@ public struct PodListWindow: SwiftUI.View {
 
     private var sidebarPresentation: Binding<NavigationSplitViewVisibility> {
         Binding(get: { columns }, set: { visibility in
+            guard visibility != columns else { return }
             updatePanes(.sidebar(visibility != .detailOnly), requestedColumns: visibility)
         })
     }
 
     private var inspectorPreference: Binding<Bool> {
-        Binding(get: { inspectorVisible }, set: { visible in
-            guard visible != inspectorVisible else { return }
-            defaultInspectorVisible = visible
-            updatePanes(.inspector(visible))
-        })
+        Binding(get: { inspectorVisible }, set: setInspectorVisible)
+    }
+
+    private func setInspectorVisible(_ visible: Bool) {
+        let preferenceChanged = visible != inspectorVisible
+        updatePanes(.inspector(visible))
+        if preferenceChanged { defaultInspectorVisible = visible }
     }
 
     private func updatePanes(_ action: LibraryPanes.Action, requestedColumns: NavigationSplitViewVisibility? = nil) {
         let supportsInspector = window.supportsEpisodeInspector
         let panes = LibraryPanes(sidebar: sidebarVisible, inspector: supportsInspector && inspectorVisible)
             .applying(action, width: windowWidth ?? .infinity)
-        if supportsInspector { sceneInspectorVisible = panes.inspector }
+        // Collapse the outgoing pane before requesting the incoming one.
+        if supportsInspector, !panes.inspector { sceneInspectorVisible = false }
         if !panes.sidebar { columns = .detailOnly }
         else if let requestedColumns { columns = requestedColumns }
+        if supportsInspector, panes.inspector { sceneInspectorVisible = true }
     }
 
     private var presentedInspector: Binding<Bool> {
@@ -116,8 +121,7 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     private func showEpisodeInspector() {
-        inspectorPreference.wrappedValue = true
-        updatePanes(.layoutChanged)
+        setInspectorVisible(true)
     }
 
     private var isPlaylist: Bool {
@@ -364,7 +368,7 @@ public struct PodListWindow: SwiftUI.View {
             ToolbarItem(placement: .primaryAction) {
                 if showsEpisodeInspector {
                     Button(inspectorVisible ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right") {
-                        inspectorPreference.wrappedValue.toggle()
+                        setInspectorVisible(!inspectorVisible)
                     }
                     .help("Show or hide Inspector (⌥⌘I)")
                     .accessibilityLabel(inspectorVisible ? "Hide Inspector" : "Show Inspector")

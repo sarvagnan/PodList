@@ -587,19 +587,73 @@ final class PodListUITour: XCTestCase {
         try assertEpisodeTableLayout()
         try scrollEpisodesBeneathBars()
         try capture("36-scrolled-under-bars")
-        try hideInspector()
-        XCTAssertFalse(sidebar.exists, "Closing Inspector must leave the sidebar hidden")
-        try showSidebar()
-        try click(inspectorButton)
-        XCTAssertTrue(sidebar.waitForNonExistence(timeout: 5), "Opening Inspector in a narrow window must hide the sidebar")
-        try ready(episodeInspector)
-        try capture("43-narrow-inspector-no-sidebar")
-        try showSidebar()
-        XCTAssertTrue(episodeInspector.waitForNonExistence(timeout: 5), "Showing the sidebar must close Inspector in a narrow window")
-        XCTAssertEqual(inspectorButton.label, "Show Inspector")
-        app.typeKey("s", modifierFlags: [.command, .control])
-        XCTAssertTrue(sidebar.waitForNonExistence(timeout: 5))
+        try checkNarrowPaneSwaps()
         try captureHalfDisplay()
+    }
+
+    private func checkNarrowPaneSwaps() throws {
+        try hideInspector()
+        assertLibraryPanes(sidebar: false, inspector: false, after: "closing Inspector")
+
+        // SwiftUI can grow the window when revealing the sidebar. Restore the
+        // narrow width with the sidebar visible before exercising each open route.
+        try showSidebar()
+        narrowLibraryForPaneSwap()
+        try click(inspectorButton)
+        assertLibraryPanes(sidebar: false, inspector: true, after: "clicking the Inspector button")
+        XCTAssertEqual(library.frame.width, 760, accuracy: 1, "Screen 43 must capture the minimum-width Library")
+        try capture("43-narrow-inspector-no-sidebar")
+
+        try showSidebar()
+        assertLibraryPanes(sidebar: true, inspector: false, after: "showing the sidebar with Control-Command-S")
+        narrowLibraryForPaneSwap()
+        app.typeKey("i", modifierFlags: [.command, .option])
+        assertLibraryPanes(sidebar: false, inspector: true, after: "opening Inspector with Option-Command-I")
+
+        try showSidebar()
+        narrowLibraryForPaneSwap()
+        try menuCommand("View", "Show Inspector")
+        assertLibraryPanes(sidebar: false, inspector: true, after: "choosing View > Show Inspector")
+
+        try showSidebar()
+        assertLibraryPanes(sidebar: true, inspector: false, after: "showing the sidebar again")
+        app.typeKey("s", modifierFlags: [.command, .control])
+        assertLibraryPanes(sidebar: false, inspector: false, after: "hiding the sidebar with Control-Command-S")
+    }
+
+    private func narrowLibraryForPaneSwap() {
+        let window = library
+        for inset in [-1.0, 2] where window.frame.width > 761 {
+            let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+                .withOffset(CGVector(dx: inset, dy: 0))
+            let target = window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+                .withOffset(CGVector(dx: 200, dy: 0))
+            edge.click(forDuration: 0.3, thenDragTo: target)
+        }
+        XCTAssertEqual(window.frame.width, 760, accuracy: 1, "The pane swap must start at the minimum Library width")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "resizing for the Inspector command")
+    }
+
+    private func assertLibraryPanes(sidebar: Bool, inspector: Bool, after action: String,
+                                    file: StaticString = #filePath, line: UInt = #line) {
+        let window = library
+        // Read both panes from one tree. A failed element-specific wait can make
+        // XCTest try to resolve the staged application URL again for diagnostics.
+        let deadline = Date().addingTimeInterval(5)
+        var summary = "Library snapshot unavailable"
+        repeat {
+            if let snapshot = try? window.snapshot() {
+                let elements = descendants(snapshot)
+                let hasSidebar = elements.contains { $0.elementType == .outline && $0.label == "Sidebar" }
+                let hasInspector = elements.contains { $0.label == "Episode Inspector" }
+                let inspectorToggle = elements.first { $0.identifier == "library.inspector" }?.label
+                if hasSidebar == sidebar, hasInspector == inspector,
+                   inspectorToggle == (inspector ? "Hide Inspector" : "Show Inspector") { return }
+                summary = "width \(snapshot.frame.width), sidebar \(hasSidebar), Inspector \(hasInspector), toggle \(inspectorToggle ?? "missing")"
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        } while Date() < deadline
+        XCTFail("Expected sidebar \(sidebar) and Inspector \(inspector) after \(action). Found \(summary).", file: file, line: line)
     }
 
     private func scrollEpisodesBeneathBars() throws {
@@ -770,44 +824,32 @@ final class PodListUITour: XCTestCase {
 
     private func captureHalfDisplay() throws {
         let screenWidth = try XCTUnwrap(NSScreen.main, "The VM tour requires a display").frame.width
-        let windowMenu = app.menuBars.menuBarItems["Window"]
-        let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
-        let left = moveAndResize.menuItems["Left"].firstMatch
-        // In the VM the Window menu sometimes opens without the tiling items, or the
-        // submenu doesn't open on hover. Close the menu, re-focus the window and retry.
-        var chose = false
-        for _ in 0..<3 where !chose {
-            try click(windowMenu)
-            if moveAndResize.waitForExistence(timeout: 5) {
-                moveAndResize.hover()
-                if left.waitForExistence(timeout: 5), left.isEnabled {
-                    left.click()
-                    chose = true
-                    continue
-                }
-            }
-            refocusLibraryAfterMenu()
-        }
-        XCTAssertTrue(chose, "Window > Move & Resize > Left was unavailable after three attempts")
-
-        let tiledLeft = NSPredicate { _, _ in
-            let frame = self.library.frame
+        try tileLibraryOnLeft { frame in
             // macOS can inset a tile from the display edge and the centre divider.
             return abs(frame.minX) <= 32 && abs(frame.width - screenWidth / 2) <= 32
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tiledLeft, object: nil)], timeout: 10),
-                       .completed, "Window > Move & Resize > Left must tile the Library to half the display")
         XCTAssertFalse(library.outlines["Sidebar"].exists, "Widening must leave the sidebar hidden")
+        let tiledFrame = library.frame
+        func restoreTileIfNeeded() throws {
+            try tileLibraryOnLeft { frame in
+                abs(frame.minX - tiledFrame.minX) <= 1 && abs(frame.width - tiledFrame.width) <= 1
+            }
+        }
         try showSidebar()
+        try restoreTileIfNeeded()
 
         try navigate("Subscriptions")
         try openNewThisWeek()
         try firstEpisodePoint().click()
         try ready(episodeInspector)
+        try restoreTileIfNeeded()
         try capture("37-half-display-episode-inspector")
         try assertEpisodeTableLayout()
 
-        if !library.outlines["Sidebar"].exists { try showSidebar() }
+        if !library.outlines["Sidebar"].exists {
+            try showSidebar()
+            try restoreTileIfNeeded()
+        }
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
         try ready(text("Who sets the price of rice?", in: episodeList))
@@ -823,6 +865,30 @@ final class PodListUITour: XCTestCase {
         try ready(episodeRows.firstMatch)
         try capture("39-half-display-commute")
         try assertEpisodeTableLayout(inPlaylist: true)
+    }
+
+    private func tileLibraryOnLeft(matching tile: (CGRect) -> Bool) throws {
+        if tile(library.frame) { return }
+        let windowMenu = app.menuBars.menuBarItems["Window"]
+        let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
+        let left = moveAndResize.menuItems["Left"].firstMatch
+        // The VM sometimes needs a second attempt to open the submenu or apply the tile.
+        for _ in 0..<3 {
+            try click(windowMenu)
+            if moveAndResize.waitForExistence(timeout: 5) {
+                moveAndResize.hover()
+                if left.waitForExistence(timeout: 5), left.isEnabled {
+                    left.click()
+                    let deadline = Date().addingTimeInterval(5)
+                    repeat {
+                        if tile(library.frame) { return }
+                        Thread.sleep(forTimeInterval: 0.1)
+                    } while Date() < deadline
+                }
+            }
+            refocusLibraryAfterMenu()
+        }
+        XCTFail("Window > Move & Resize > Left must tile the Library to half the display. Found \(library.frame).")
     }
 
     private func recordResponseTimings(from output: URL, warmUpRuns: Int = 0) throws {
@@ -991,9 +1057,6 @@ final class PodListUITour: XCTestCase {
         let row = try episodeRows.firstMatch.snapshot()
         let cells = row.children.filter { $0.elementType == .cell }
         let titleCell = try XCTUnwrap(cells.first, file: file, line: line)
-        func descendants(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
-            [node] + node.children.flatMap { descendants($0) }
-        }
         let content = descendants(titleCell)
         let buttons = content.filter { $0.elementType == .button }
         XCTAssertEqual(buttons.count, inPlaylist ? 1 : 2, "Check all \(titleColumn) row controls", file: file, line: line)
@@ -1021,6 +1084,10 @@ final class PodListUITour: XCTestCase {
                 XCTAssertFalse(button.frame.intersects(text.frame), "Row control overlaps \(metadataColumn) or other metadata", file: file, line: line)
             }
         }
+    }
+
+    private func descendants(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+        [node] + node.children.flatMap { descendants($0) }
     }
 
     /// Standard pointer input: drag the window's bottom-right corner past its minimum size,

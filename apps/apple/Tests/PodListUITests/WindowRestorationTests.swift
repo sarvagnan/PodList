@@ -50,6 +50,24 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(both.applying(.layoutChanged, width: wide) == both)
 }
 
+@Test func inspectorUsesTheCurrentWidthAfterReopeningTheSidebar() {
+    let narrow = 760.0
+    let expanded = narrow + PaneWidths.sidebarIdeal
+    let inspector = LibraryPanes(sidebar: false, inspector: true)
+    let list = inspector.applying(.inspector(false), width: narrow)
+    let sidebar = list.applying(.sidebar(true), width: narrow)
+
+    // A native sidebar reveal can expand the window by the sidebar's width.
+    // Reopening the Inspector must use the width at the time of the command.
+    let expandedPanes = sidebar.applying(.layoutChanged, width: expanded)
+    #expect(expandedPanes.applying(.inspector(true), width: expanded) == .init(sidebar: true, inspector: true))
+
+    let narrowPanes = expandedPanes.applying(.layoutChanged, width: narrow)
+    let reopened = narrowPanes.applying(.inspector(true), width: narrow)
+    #expect(reopened == inspector)
+    #expect(reopened.applying(.sidebar(true), width: narrow) == sidebar)
+}
+
 @Test func windowContextRejectsInvalidOrFutureArchives() {
     #expect(WindowContext.decode(nil) == nil)
     #expect(WindowContext.decode(Data("broken".utf8)) == nil)
