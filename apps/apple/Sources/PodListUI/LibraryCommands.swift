@@ -25,6 +25,7 @@ public struct LibraryWindowActions {
     public var add: () -> Void
     public var newView: () -> Void
     public var search: () -> Void
+    public var focusListSearch: () -> Void
     public var editView: () -> Void
     public var openInNewWindow: (() -> Void)?
     public var renameView: (() -> Void)? = nil
@@ -124,10 +125,15 @@ public struct LibraryCommands: Commands {
                 actions?.deleteView?()
             }.disabled(viewEditor != nil ? viewEditor?.delete == nil : actions?.deleteView == nil)
         }
-        CommandGroup(after: .textEditing) {
-            Button("Search Library", action: { actions?.search() }).keyboardShortcut("f").disabled(actions == nil)
-            MenuActionItems(menu: .edit)
+        // The standard Find submenu also uses Command-F. SwiftUI resolves
+        // duplicate equivalents in menu order.
+        CommandGroup(before: .textEditing) {
+            Button(PodListShortcut.searchLibrary.title) { actions?.search() }
+                .keyboardShortcut(PodListShortcut.searchLibrary.shortcut).disabled(actions == nil)
+            Button(PodListShortcut.searchThisList.title) { actions?.focusListSearch() }
+                .keyboardShortcut(PodListShortcut.searchThisList.shortcut).disabled(actions == nil)
         }
+        CommandGroup(after: .textEditing) { MenuActionItems(menu: .edit) }
     }
     private var selectedViewID: String? {
         actions?.selectedViewID

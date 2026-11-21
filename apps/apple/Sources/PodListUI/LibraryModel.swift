@@ -502,6 +502,10 @@ public final class WindowModel {
         sortOrder = origin.sort.map(\.comparator); podcastSort = origin.podcastSort
         timelineSelection = origin.timelineSelection; scrollAnchor = origin.scrollAnchor
     }
+    func openLibrarySearch() {
+        if listID != .destination(.search) { navigate(to: .search) }
+    }
+
     public func navigate(to destination: Destination?) {
         guard self.destination != destination || podcastFeed != nil else {
             search = ""

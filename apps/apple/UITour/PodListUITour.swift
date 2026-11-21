@@ -130,6 +130,17 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(fullyVisibleRows.count, min(8, episodeRows.count), "At least eight Episodes should fit when available")
         try capture("02-new-this-week")
+        app.typeKey("f", modifierFlags: [.option, .command])
+        try ready(librarySearchField)
+        XCTAssertEqual(librarySearchField.label, "Search this list")
+        assertKeyboardFocus(librarySearchField)
+        app.typeText("rice")
+        XCTAssertEqual(librarySearchField.value as? String, "rice")
+        XCTAssertTrue(library.title.hasPrefix("New this week"), "Option-Command-F must keep the current View")
+        try searchLibraryWithShortcut()
+        XCTAssertTrue((librarySearchField.value as? String ?? "").isEmpty, "A View’s filter must not carry into Library Search")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening Library Search at default width")
+        try openNewThisWeek()
         try selectFirstEpisode()
         try ready(episodeInspector)
         try capture("03-episode-inspector")
@@ -712,8 +723,7 @@ final class PodListUITour: XCTestCase {
         try assertEpisodeTableLayout()
         // All six tightly spaced rows can now fit at minimum height. Use the
         // complete Library table to exercise scrolling in the same narrow window.
-        app.typeKey("f", modifierFlags: .command)
-        try ready(library.buttons["Create View…"])
+        try searchLibraryWithShortcut()
         try selectFirstEpisode()
         assertLibraryPanes(sidebar: false, inspector: true, after: "opening full Library results for the scroll check")
         try scrollEpisodesBeneathBars()
@@ -1251,6 +1261,15 @@ final class PodListUITour: XCTestCase {
         let search = librarySearchField
         try ready(search)
         search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+    }
+
+    private func searchLibraryWithShortcut() throws {
+        app.typeKey("f", modifierFlags: .command)
+        try ready(library.buttons["Create View…"])
+        let search = librarySearchField
+        try ready(search)
+        XCTAssertEqual(search.label, "Search Library")
+        assertKeyboardFocus(search)
     }
 
     private func checkOPMLOpenShortcut() throws {
@@ -1909,7 +1928,7 @@ final class PodListUITour: XCTestCase {
 
     private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(waitForKeyboardFocus(element),
-                      "The search field must receive keyboard focus when Add Podcasts opens", file: file, line: line)
+                      "The search field must receive keyboard focus", file: file, line: line)
     }
 
     private func waitForKeyboardFocus(_ element: XCUIElement) -> Bool {
@@ -1937,7 +1956,7 @@ final class PodListUITour: XCTestCase {
         let required: [String: Set<String>] = [
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…", "Retry Bring Over", "Automation", "Copy Configuration", "Retry MCP Server"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
-            "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
+            "Edit": ["Search Library", "Search This List", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort By", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Show Subscriptions", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Saved Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],

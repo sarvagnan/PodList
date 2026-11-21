@@ -95,7 +95,7 @@ public struct PodListHelp: SwiftUI.View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("PodList").macContentFont(.largeTitle).bold()
                 Text("Views find Episodes in your Library. Playlists hold Entries in order, each with its own Position.")
-                Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌥⌘I). Search filters the current list.")
+                Text("Connect to your server on Welcome. Choose a View, Playlist or Subscriptions in the sidebar. Select an Episode to read its Inspector (⌥⌘I). Press ⌘F to open Search Library, or ⌥⌘F to focus the toolbar and filter the current list.")
                 Text("Use the player or Controls menu to play the Active Playlist. Click its Artwork for Now Playing and Chapters. Download Episodes in the Inspector; choose Podcast › Edit Download Rules… to change a Subscription’s Download Rule. Playback continues when windows close.")
                 Text("To change servers, disconnect in Settings (⌘,). Each server’s local Library is kept separately.")
                 Text("Use Copy PodList Link in Episode, Playlist or Saved Views, or an item’s context menu, to reopen that item in Library. Links never start playback. Spotlight finds Library Episodes, Subscriptions and Playlists in release builds. Select a feed address in another app and choose Services › Add to PodList to stage it in Add Podcasts; subscribing still requires Subscribe.")
@@ -108,7 +108,6 @@ public struct PodListHelp: SwiftUI.View {
                     shortcutRow("New View…", "⌘N")
                     shortcutRow("New Playlist…", "⇧⌘N")
                     shortcutRow("Add Podcasts…", "⇧⌘A")
-                    shortcutRow("Search Library", "⌘F")
                     shortcutRow("Show / Hide Inspector", "⌥⌘I")
                     shortcutRow("Play / Pause current Episode", "Space")
                     ForEach(PodListShortcut.allCases, id: \.self) { action in

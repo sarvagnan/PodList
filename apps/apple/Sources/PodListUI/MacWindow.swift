@@ -178,7 +178,12 @@ public struct PodListWindow: SwiftUI.View {
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
         .focusedSceneValue(\.podListWindowActions, windowMenuActions(origin: origin))
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs, library: library, window: window, presentation: playlistPresentation, showDetails: showEpisodeInspector, editOrigin: origin))
-        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(add: { openWindow(id: "add-podcasts") }, newView: { newView() }, search: { window.navigate(to: .search); searchFocused = true }, editView: { editCurrentView(library) }, openInNewWindow: newWindowAction, renameView: renameViewAction(library), selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
+        .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(
+            add: { openWindow(id: "add-podcasts") }, newView: { newView() },
+            search: { window.openLibrarySearch(); searchFocused = true },
+            focusListSearch: { searchFocused = true }, editView: { editCurrentView(library) },
+            openInNewWindow: newWindowAction, renameView: renameViewAction(library),
+            selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
             if let editor = app.libraryEditing {
                 PodListSheet(title: editor.groupsDroppedImport ? "Import Podcasts" : "Import OPML", width: 600, actionTitle: editor.importReady ? "Import" : "Close",

@@ -228,7 +228,9 @@ Views have New View (⌘N), Edit View, every condition in one form, Sort, Show, 
 explicit Rename/Cancel/Save and Delete with Undo. Condition edits are recorded as made;
 invalid numeric drafts remain visible across reopening and restart. Names are checked in the
 database actor, ignoring case and surrounding whitespace, including races between windows.
-Search Library (⌘F) reports its count and offers inline Create View with a name. Add-podcast,
+Search Library (⌘F) focuses Library-wide Search, which reports its count and offers
+inline Create View with a name. Search This List (⌥⌘F) focuses the toolbar field
+and keeps the current destination. Add-podcast,
 Search, New View, Rename and numeric-setting drafts are scoped to their Library and persisted.
 View and subscription changes register with the key window's native Undo manager; inline
 Undo/Redo also expose retry after a failed network action. Part 4a's editing integration can

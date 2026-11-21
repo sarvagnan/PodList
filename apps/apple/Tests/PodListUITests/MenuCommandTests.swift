@@ -234,7 +234,9 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     // editing; plus PodList's existing app, playback, list and text-size bindings.
     // Command–R refreshes the Library in PodList; the Finder's alias command
     // uses it in its own app.
-    let command = Array("abcdefghijkmnopqstuvwxyz,.;/`1234[]{}+-=0")
+    // Command-F and Option–Command-F are intentionally assigned to the two
+    // PodList Search scopes ahead of the system Find group.
+    let command = Array("abcdeghijkmnopqstuvwxyz,.;/`1234[]{}+-=0")
         + [Character(" "), KeyEquivalent.leftArrow.character, KeyEquivalent.rightArrow.character,
            KeyEquivalent.upArrow.character, KeyEquivalent.downArrow.character, KeyEquivalent.delete.character,
            KeyEquivalent.tab.character]
@@ -242,7 +244,7 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
         + [KeyEquivalent.leftArrow.character, KeyEquivalent.rightArrow.character,
            KeyEquivalent.upArrow.character, KeyEquivalent.downArrow.character, KeyEquivalent.delete.character,
            KeyEquivalent.tab.character, Character(" "), "3", "4", "5", "6"]
-    let optionCommand = Array("cdfhilmnpstvwy")
+    let optionCommand = Array("cdhilmnpstvwy")
         + [Character(" "), KeyEquivalent.escape.character, KeyEquivalent.upArrow.character,
            KeyEquivalent.downArrow.character]
     let reserved: [(EventModifiers, [Character])] = [
@@ -264,8 +266,28 @@ private func copyData(_ provider: NSItemProvider, type: UTType) async throws -> 
     #expect(MenuAction.refresh.rawValue == PodListShortcut.refreshAllFeeds.title)
     #expect(PodcastCommandContext.refreshTitle == "Refresh Podcast")
     #expect(PodListShortcut.allCases.map(\.notation) == [
-        "↩", "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→", "⌘R"
+        "⌘F", "⌥⌘F", "↩", "⇧⌘L", "⇧⌘E", "—", "⇧⌘J", "⌥⌘J", "⌥⌘A", "⌘L", "⌥⌘,", "⌥⌘E", "⌥⌘←", "⌥⌘→", "⌘R"
     ])
+}
+
+@MainActor @Test func openingLibrarySearchChangesScopeAndPreservesAnExistingQuery() {
+    let window = WindowModel()
+    window.navigate(to: .view("a"))
+    window.search = "View filter"
+    window.openLibrarySearch()
+    #expect(window.destination == .search)
+    #expect(window.search.isEmpty)
+
+    window.search = "Library query"
+    window.openLibrarySearch()
+    #expect(window.search == "Library query")
+
+    window.beginPodcastPage("https://example.com/feed")
+    window.search = "Podcast filter"
+    window.openLibrarySearch()
+    #expect(window.podcastFeed == nil)
+    #expect(window.destination == .search)
+    #expect(window.search.isEmpty)
 }
 
 @Test func downloadCommandsTargetOnlyEligibleSelectedEpisodes() {
