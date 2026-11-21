@@ -235,13 +235,10 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     }
     private func cancel() { editing.drafts.discardPlaylistSettings(id); done() }
     private func apply() {
-        guard canSave, var draft else { return }
-        draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let changes = draft.changes
-        let objectName = playlist?.name ?? draft.name
+        guard canSave, let draft, let playlist else { return }
         retrySave = true
         EditOrigin.start(origin) {
-            let saved = changes.isEmpty ? true : await editing.edit(changes, name: "Settings for \(objectName)")
+            let saved = await draft.apply(playlistName: playlist.name, using: editing)
             if saved { editing.drafts.discardPlaylistSettings(id); done() }
         }
     }

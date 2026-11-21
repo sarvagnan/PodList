@@ -77,6 +77,14 @@ struct PlaylistSettingsDraft: Codable {
         if clearOnPlayed != originalClearOnPlayed { result.append(.setClearOnPlayed(playlistId: playlistID, clearOnPlayed: clearOnPlayed)) }
         return result
     }
+
+    @MainActor func apply(playlistName: String, using editing: PlaylistEditingModel) async -> Bool {
+        var draft = self
+        draft.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let changes = draft.changes
+        guard !changes.isEmpty else { return true }
+        return await editing.edit(changes, name: "Settings for \(playlistName)")
+    }
 }
 
 struct SubscriptionSettingsDraft: Codable {
