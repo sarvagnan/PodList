@@ -585,25 +585,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(sidebar.waitForNonExistence(timeout: 5), "Narrowing with the Inspector open must hide the sidebar")
         try capture("35-minimum-window")
         try assertEpisodeTableLayout()
-        // The list's vertical scroller reports 0 at the top; a row query would just return the next visible row.
-        let list = episodeList.frame
-        let scroller = library.scrollBars.matching(NSPredicate { candidate, _ in
-            guard let bar = candidate as? XCUIElementAttributes else { return false }
-            return bar.frame.height > bar.frame.width && bar.frame.midX > list.minX && bar.frame.midX <= list.maxX + 2
-        }).firstMatch
-        try ready(scroller)
-        func position() -> Double { Double(String(describing: scroller.value ?? "0")) ?? 0 }
-        XCTAssertEqual(position(), 0, accuracy: 0.01, "The Episode list starts at the top")
-        // Hover a point in the list, not a row: a row squeezed at this width can report itself unhittable.
-        let listPoint = episodeList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
-        let scrolled = NSPredicate { _, _ in position() > 0.05 }
-        var didScroll = false
-        for delta in [-160.0, -400.0] where !didScroll {
-            listPoint.hover()
-            episodeList.scroll(byDeltaX: 0, deltaY: delta)
-            didScroll = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolled, object: nil)], timeout: 5) == .completed
-        }
-        XCTAssertTrue(didScroll, "At the minimum window size the Episode list must overflow and scroll, so rows pass beneath the bars")
+        try scrollEpisodesBeneathBars()
         try capture("36-scrolled-under-bars")
         try hideInspector()
         XCTAssertFalse(sidebar.exists, "Closing Inspector must leave the sidebar hidden")
@@ -620,8 +602,39 @@ final class PodListUITour: XCTestCase {
         try captureHalfDisplay()
     }
 
+    private func scrollEpisodesBeneathBars() throws {
+        // Track the same two rows before and after scrolling. Overlay scrollers
+        // are not always present in the Episode list's accessibility tree.
+        let first = episodeRows.containing(.staticText, identifier: "Who sets the price of rice?").firstMatch
+        let last = episodeRows.containing(.staticText, identifier: "Inflation, explained with sandwiches").firstMatch
+        try ready(first)
+        try ready(last)
+        let headerBottom = episodeList.buttons["Episode"].firstMatch.frame.maxY
+        let playerTop = library.buttons["Open Now Playing"].frame.minY - 22
+        let startingBottom = last.frame.maxY
+        XCTAssertGreaterThanOrEqual(first.frame.minY, headerBottom - 1, "The first Episode starts below the column header")
+        XCTAssertGreaterThan(startingBottom, playerTop, "The last Episode initially extends under the player")
+
+        let listPoint = episodeList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        let scrolled = NSPredicate { _, _ in
+            guard let lastFrame = try? last.snapshot().frame, !lastFrame.isEmpty,
+                  lastFrame.maxY < startingBottom - 8, lastFrame.maxY <= playerTop + 1 else { return false }
+            guard let firstFrame = try? first.snapshot().frame else { return true }
+            return firstFrame.isEmpty || firstFrame.minY < headerBottom - 4
+        }
+        for delta in [-160.0, -400.0] {
+            listPoint.hover()
+            episodeList.scroll(byDeltaX: 0, deltaY: delta)
+            let moved = XCTNSPredicateExpectation(predicate: scrolled, object: nil)
+            if XCTWaiter.wait(for: [moved], timeout: 5) == .completed { return }
+        }
+        XCTFail("Scrolling must move the first Episode beneath the column header and bring the last Episode clear of the player")
+    }
+
     private func checkPlaylistSettingsTrash() throws {
         try navigate("Commute")
+        try ready(episodeRows.firstMatch)
+        let entryCount = episodeRows.count
         let settings = library.descendants(matching: .any).matching(identifier: "playlist.settings").firstMatch
         try click(settings)
         try sheet("Playlist Settings")
@@ -646,6 +659,9 @@ final class PodListUITour: XCTestCase {
         let trash = sidebarItem("Trash")
         let trashDescription = trash.label + " " + String(describing: trash.value ?? "")
         XCTAssertTrue(trashDescription.contains("1"), "The sidebar must count the deleted Playlist")
+        XCTAssertTrue(library.title.hasPrefix("Commute"), "Keep the Playlist title behind its Settings sheet")
+        XCTAssertTrue(library.title.contains("In the Trash"), "Mark the background Playlist as in the Trash")
+        XCTAssertEqual(episodeRows.count, entryCount, "Keep the Playlist Entries visible behind Settings")
         try capture("11a-playlist-settings-deleted", expectsSheet: true)
 
         // Use the Edit command's shortcut while the sheet owns the key window.
@@ -667,6 +683,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(done.wait(for: \.isEnabled, toEqual: true, timeout: 5))
         panel.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Return must activate Done")
+        try ready(library.buttons["Open Market Hours, Subscription"])
         try navigate("Trash")
         try click(library.buttons["Restore Playlist Commute"])
         try navigate("Commute")

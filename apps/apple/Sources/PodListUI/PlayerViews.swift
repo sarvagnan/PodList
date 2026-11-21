@@ -9,15 +9,21 @@ extension EnvironmentValues {
 
 private struct PlaybackBarScrollClearance: ViewModifier {
     @Environment(\.libraryPlaybackBarInset) private var inset
+    var usesNativeInsets = false
 
+    @ViewBuilder
     func body(content: Content) -> some SwiftUI.View {
-        content.contentMargins(.bottom, inset, for: .scrollContent)
+        if usesNativeInsets {
+            content.safeAreaPadding(.bottom, inset)
+        } else {
+            content.contentMargins(.bottom, inset, for: .scrollContent)
+        }
     }
 }
 
 extension SwiftUI.View {
-    func playbackBarScrollClearance() -> some SwiftUI.View {
-        modifier(PlaybackBarScrollClearance())
+    func playbackBarScrollClearance(usesNativeInsets: Bool = false) -> some SwiftUI.View {
+        modifier(PlaybackBarScrollClearance(usesNativeInsets: usesNativeInsets))
     }
 }
 

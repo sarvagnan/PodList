@@ -7,6 +7,7 @@ struct PlaylistContentView: SwiftUI.View {
     let playlist: Playlist
     let library: LibraryModel
     let rows: [EpisodeRow]
+    let isTrashed: Bool
     @Bindable var window: WindowModel
     let app: ApplicationModel
     let editing: PlaylistEditingModel
@@ -31,12 +32,14 @@ struct PlaylistContentView: SwiftUI.View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .disabled(isTrashed)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
+                    .disabled(isTrashed)
             }
         }
-        .focusedSceneValue(\.podListPlaylist, PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
+        .focusedSceneValue(\.podListPlaylist, isTrashed ? nil : PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
         .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
             RewindSheet(playlistID: playlist.id, target: event.moment, library: library, editing: editing) {
@@ -158,7 +161,7 @@ struct PlaylistContentView: SwiftUI.View {
     private var removeSelection: (() -> Void)? {
         let entries = ordered(window.selection)
         let failures = failedDropIDs.filter { window.selection.contains($0) }
-        guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil,
+        guard !isTrashed, !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil,
               !entries.isEmpty || !failures.isEmpty else { return nil }
         return {
             if let editor = app.libraryEditing {
@@ -320,7 +323,7 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private var rewindAction: (() -> Void)? {
-        guard window.playlistTab == .timeline, !editing.busy,
+        guard !isTrashed, window.playlistTab == .timeline, !editing.busy,
               let event = TimelinePresentation.events(playlist).first(where: { $0.id == window.timelineSelection }),
               TimelineRules.pointAt(playlist, to: event.moment) != nil else { return nil }
         return { rewindTarget = event }
