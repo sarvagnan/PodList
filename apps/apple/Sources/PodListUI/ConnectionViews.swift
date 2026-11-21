@@ -60,18 +60,22 @@ public struct PodListSettings: SwiftUI.View {
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
         TabView(selection: $pane) {
-            Group {
-                if pane == "general" || openedPanes.contains("general") { LibrarySettingsScreen(app: app) }
-            }
-            .tabItem { Label("General", systemImage: "gearshape") }
-            .tag("general")
-            Group {
-                if pane == "automation" || openedPanes.contains("automation") {
-                    AutomationSettingsScreen(settings: app.automation)
+            Tab(value: "general") {
+                VStack {
+                    if pane == "general" || openedPanes.contains("general") { LibrarySettingsScreen(app: app) }
                 }
+            } label: {
+                Label("General", systemImage: "gearshape").accessibilityIdentifier("General")
             }
-            .tabItem { Label("Automation", systemImage: "terminal") }
-            .tag("automation")
+            Tab(value: "automation") {
+                VStack {
+                    if pane == "automation" || openedPanes.contains("automation") {
+                        AutomationSettingsScreen(settings: app.automation)
+                    }
+                }
+            } label: {
+                Label("Automation", systemImage: "terminal").accessibilityIdentifier("Automation")
+            }
         }
         .frame(width: SettingsPaneHeights.width, height: heights[pane] ?? 440)
         .onChange(of: pane, initial: true) { _, current in openedPanes.insert(current) }

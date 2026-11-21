@@ -45,7 +45,7 @@ import Testing
 
 #if os(macOS)
 /// Inspect the real unified toolbar without ordering a window onto the desktop.
-@MainActor @Test func playlistPrincipalAndSearchFitDefaultWindow() async throws {
+@MainActor @Test func playlistSectionAndSearchFitDefaultWindow() async throws {
     let db = try await fixtureDatabase()
     let library = try await fixtureModel()
     let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: "toolbar", defaults: UserDefaults(suiteName: UUID().uuidString)!))
@@ -65,7 +65,7 @@ import Testing
             } detail: {
                 Text("Episodes").navigationTitle("Default").navigationSubtitle("4 Entries")
                     .toolbar {
-                        ToolbarItem(placement: .principal) { PlaylistToolbar(selection: .constant(section)) }
+                        ToolbarItem(placement: .primaryAction) { PlaylistToolbar(selection: .constant(section)) }
                         EpisodeActionButtons(ids: selected ? [library.snapshot.episodes[0].id] : [], library: library,
                             editing: editing, presentation: presentation, app: app, playlist: library.state.playlists[0])
                         ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -108,8 +108,9 @@ import Testing
             playFrames.append(play.convert(play.bounds, to: nil))
             #expect(!toolbar.items.contains { $0.label == "New Playlist…" })
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
-            let frame = picker.convert(picker.bounds, to: root)
+            let frame = picker.convert(picker.bounds, to: nil)
             frames.append(frame)
+            #expect(frame.maxX < playFrames.last!.minX, "The section control leads the Play action in the same toolbar run")
             let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search this list" })
             #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
             #expect(search.frame.width > 100, "At 1180 pt, Search must remain a field even with selection actions")

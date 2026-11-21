@@ -314,6 +314,7 @@ public struct PodListWindow: SwiftUI.View {
         let showsEpisodeInspector = window.supportsEpisodeInspector
         let selection = window.selection
         let selectedIDs = selectedRows.map(\.id)
+        let playlist = toolbarPlaylist(library)
         let title = podcastFeed == nil ? deletedPlaylist?.name ?? library.title(window.destination) : "Podcast"
         let summaryText = Self.subtitle(summary: isPodcastPage ? "" : summary(library, rowCount: rows.count),
                                         playbackError: app.playback?.error)
@@ -363,11 +364,19 @@ public struct PodListWindow: SwiftUI.View {
                         .accessibilityLabel("Back to Library")
                 }
             }
+            if app.editing != nil, playlist != nil || deletedPlaylist != nil {
+                // A principal item recentres in the space left by the Inspector.
+                // Keep the section picker in the same toolbar run as Play.
+                ToolbarItem(placement: .primaryAction) {
+                    PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
+                        .disabled(deletedPlaylist != nil)
+                }
+            }
             if let editing = app.editing, showsEpisodeInspector {
                 // Retain disabled selection controls to keep the three groups,
                 // Inspector and Search in the same positions as selection changes.
                     EpisodeActionButtons(ids: deletedPlaylist == nil ? selectedIDs : [], library: library, editing: editing, presentation: playlistPresentation, app: app, origin: origin,
-                    playlist: toolbarPlaylist(library), editView: toolbarView(library).map { view in { editView(view) } })
+                    playlist: playlist, editView: toolbarView(library).map { view in { editView(view) } })
             }
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {

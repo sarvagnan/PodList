@@ -32,12 +32,6 @@ struct PlaylistContentView: SwiftUI.View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .disabled(isTrashed)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
-                    .disabled(isTrashed)
-            }
-        }
         .focusedSceneValue(\.podListPlaylist, isTrashed ? nil : PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
         .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
@@ -339,7 +333,7 @@ struct PlaylistContentView: SwiftUI.View {
     private func date(_ at: Int64) -> String { Presentation.timelineDate(at) }
 }
 
-/// A single, intrinsically sized centre item, independent of the current section.
+/// One intrinsically sized control, independent of the current section.
 struct PlaylistToolbar: SwiftUI.View {
     @Binding var selection: PlaylistTab
 
