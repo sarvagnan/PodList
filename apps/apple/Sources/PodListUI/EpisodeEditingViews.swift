@@ -210,6 +210,7 @@ struct LibrarySyncStatus: SwiftUI.View {
 struct EditingFeedback: SwiftUI.View {
     @Environment(\.macTextScale) private var textScale
     @State private var lifetime: EditingFeedbackLifetime
+    @State private var expiredNotice: UUID?
     let editing: PlaylistEditingModel
     let surface: EditingFeedbackSurface
     let origin: EditOrigin?
@@ -233,20 +234,22 @@ struct EditingFeedback: SwiftUI.View {
     }
     private var error: String? { additionalError ?? editing.error }
     var body: some SwiftUI.View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            feedback(at: context.date)
-        }
-        .onChange(of: additionalError) { _, message in editing.announcements.error(message) }
-    }
-    private func feedback(at now: Date) -> some SwiftUI.View {
-        let text = error ?? additionalStatus ?? lifetime.message(for: editing.feedbackNotice, at: now)
-        return Group {
+        let notice = editing.feedbackNotice
+        let message = expiredNotice == notice?.id ? nil : lifetime.message(for: notice, at: .now)
+        let text = error ?? additionalStatus ?? message
+        Group {
             if reservesSpace || text != nil || sync != nil || retryCommand != nil || undoTitle != nil || redoTitle != nil {
                 feedbackRow(text: text)
             }
         }
-        // Keep menu commands available even when there is no visible status row.
-        .focusedSceneValue(\.podListEditHistory, undo != nil || redo != nil ? EditHistoryCommandContext(undo: undo, redo: redo) : nil)
+        // The row and its accessibility identifier stay mounted while a notice expires.
+        .task(id: notice?.id) {
+            guard let notice, lifetime.message(for: notice, at: .now) != nil else { return }
+            do { try await Task.sleep(for: .seconds(max(0, notice.expiresAt.timeIntervalSinceNow))) }
+            catch { return }
+            if !Task.isCancelled { expiredNotice = notice.id }
+        }
+        .onChange(of: additionalError) { _, message in editing.announcements.error(message) }
         .modifier(FocusedRetry(action: retryCommand, title: editing.retryKind == .undo ? "Retry Undo" : editing.retryKind == .redo ? "Retry Redo" : "Retry Last Edit"))
     }
     private var undoTitle: String? { surface == .library ? editing.historyTitle(at: origin) : nil }
@@ -356,18 +359,17 @@ public struct PlaylistEditingCommands: Commands {
     public init(app: ApplicationModel) { self.app = app }
     public var body: some Commands {
         let text = textUndo.state
+        let undo = EditHistoryMenuAction(redo: false, text: text, editing: app.editing)
+        let redo = EditHistoryMenuAction(redo: true, text: text, editing: app.editing)
         CommandGroup(replacing: .undoRedo) {
-            Button(text?.undoTitle ?? app.editing?.undoTitle ?? "Undo") {
-                guard !textUndo.perform() else { return }
-                if let undo = editHistory?.undo { undo() }
-                else { Task { await app.editing?.reverse() } }
-            }.keyboardShortcut("z").disabled(!(text?.canUndo ?? (app.editing?.history.undo != nil && app.editing?.busy == false)))
-            Button(text?.redoTitle ?? app.editing?.redoTitle ?? "Redo") {
-                guard !textUndo.perform(redo: true) else { return }
-                if let redo = editHistory?.redo { redo() }
-                else { Task { await app.editing?.reverse(redo: true) } }
-            }.keyboardShortcut("z", modifiers: [.command, .shift])
-                .disabled(!(text?.canRedo ?? (app.editing?.history.redo != nil && app.editing?.busy == false)))
+            Button(undo.title) {
+                undo.perform(textUndo: textUndo, keyboardShortcut: EditHistoryMenuAction.isKeyboardShortcut,
+                             editor: app.libraryEditing, context: editHistory)
+            }.keyboardShortcut("z").disabled(!undo.isEnabled)
+            Button(redo.title) {
+                redo.perform(textUndo: textUndo, keyboardShortcut: EditHistoryMenuAction.isKeyboardShortcut,
+                             editor: app.libraryEditing, context: editHistory)
+            }.keyboardShortcut("z", modifiers: [.command, .shift]).disabled(!redo.isEnabled)
         }
         CommandMenu("Episode") {
             MenuActionItems(menu: .episode, app: app)

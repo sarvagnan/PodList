@@ -143,6 +143,10 @@ public final class PlaylistEditingModel {
             await changed(); return false
         }
     }
+    func canReverse(redo: Bool) -> Bool {
+        !busy && !ended && (redo ? history.redo != nil : history.undo != nil)
+    }
+
     public func reverse(redo: Bool = false, restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
         await beginReverse(redo: redo, restored: restored)?.value
     }
@@ -154,7 +158,7 @@ public final class PlaylistEditingModel {
 
     private func beginReverse(redo: Bool, expectedID: UUID? = nil,
                               restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) -> Task<Void, Never>? {
-        guard !busy, !ended, let step = redo ? history.redo : history.undo,
+        guard canReverse(redo: redo), let step = redo ? history.redo : history.undo,
               expectedID == nil || expectedID == step.id else { return nil }
         busy = true; error = nil; retryAction = nil; retryKind = nil
         return Task { @MainActor in

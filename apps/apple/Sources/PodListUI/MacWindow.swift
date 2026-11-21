@@ -208,6 +208,7 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .focusedSceneValue(\.podListInspector, canToggleInspector ? inspectorToggle : nil)
+        .focusedSceneValue(\.podListEditHistory, EditHistoryCommandContext(restoredEntriesHandler: restoredEntriesHandler))
         .background(NowPlayingLibraryHost(navigation: app.nowPlayingNavigation, model: window, presentation: playlistPresentation, openPodcast: window.beginPodcastPage, openLink: openLink))
         .background(LibraryPlaybackSpaceHost(toggle: .init(controller: app.playback, library: library)))
         .focusedSceneValue(\.podListOpenPlaylist, { window.navigate(to: .playlist(library.state.activePlaylistId)) })
@@ -340,6 +341,7 @@ public struct PodListWindow: SwiftUI.View {
                 EditingFeedback(editing: editing, surface: .library, origin: origin, sync: app, reservesSpace: true).id(window.destination).id(podcastFeed)
             } else {
                 LibrarySyncStatus(app: app).macContentFont(.caption).padding(.horizontal, 14).frame(height: 32)
+                    .accessibilityElement(children: .contain).accessibilityIdentifier("library.status")
             }
             // Lists and AppKit tables must fit the space left by window feedback.
             GeometryReader { viewport in
@@ -428,15 +430,16 @@ public struct PodListWindow: SwiftUI.View {
         if let library = app.library { reconcileSelection(library) }
     }
     private func reverseEdit(using editor: LibraryEditingModel, redo: Bool) {
+        let restored = restoredEntriesHandler(using: editor)
+        Task { await editor.reverse(redo: redo, restored: restored) }
+    }
+
+    private func restoredEntriesHandler(using editor: LibraryEditingModel) -> @MainActor ([RestoredEntries]) -> Void {
         let origin = window.restorationOrigin
-        let restored: @MainActor ([RestoredEntries]) -> Void = { entries in
+        return { entries in
             if app.libraryEditing === editor, let library = app.library {
                 window.revealRestoredEntries(entries, in: library, from: origin)
             }
-        }
-        Task {
-            if redo { await editor.redo(restored: restored) }
-            else { await editor.undo(restored: restored) }
         }
     }
 

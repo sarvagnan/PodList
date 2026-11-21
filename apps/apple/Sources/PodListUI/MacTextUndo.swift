@@ -83,4 +83,45 @@ final class MacTextUndo {
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 }
+
+/// A menu item dispatches the action it advertised. A Command-Z shortcut
+/// still follows the live text responder, including a just-focused editor.
+@MainActor
+struct EditHistoryMenuAction {
+    let redo: Bool
+    let text: MacTextUndo.State?
+    let editing: PlaylistEditingModel?
+
+    var title: String {
+        if redo { return text?.redoTitle ?? editing?.redoTitle ?? "Redo" }
+        return text?.undoTitle ?? editing?.undoTitle ?? "Undo"
+    }
+
+    var isEnabled: Bool {
+        if let text { return redo ? text.canRedo : text.canUndo }
+        return editing?.canReverse(redo: redo) == true
+    }
+
+    @discardableResult
+    func perform(textUndo: MacTextUndo, keyboardShortcut: Bool, editor: LibraryEditingModel? = nil,
+                 context: EditHistoryCommandContext? = nil) -> Task<Void, Never>? {
+        if keyboardShortcut {
+            if textUndo.perform(redo: redo) { return nil }
+        } else if text != nil {
+            textUndo.perform(redo: redo)
+            return nil
+        }
+        guard let editing, editing.canReverse(redo: redo) else { return nil }
+        if let editor, editor.edits === editing {
+            let restored = context?.restoredEntriesHandler(editor)
+            return Task { await editor.reverse(redo: redo, restored: restored) }
+        }
+        return Task { await editing.reverse(redo: redo) }
+    }
+
+    static var isKeyboardShortcut: Bool {
+        guard let event = NSApp?.currentEvent, event.type == .keyDown, event.modifierFlags.contains(.command) else { return false }
+        return event.charactersIgnoringModifiers?.lowercased() == "z"
+    }
+}
 #endif
