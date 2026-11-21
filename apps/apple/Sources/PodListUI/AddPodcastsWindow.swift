@@ -49,16 +49,20 @@ struct AddPodcastsScreen: SwiftUI.View {
     let close: () -> Void
     @FocusState private var focused: Bool
     @State private var resultsAnchor: RowAnchor?
+    private let queryTitle = "Podcast Name or Feed Address"
+    private var canSearch: Bool { !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Podcast Name or Feed Address")
+                    Text(queryTitle).accessibilityHidden(true)
                     HStack {
-                        TextField("Podcast Name or Feed Address", text: $state.query).textFieldStyle(.roundedBorder).focused($focused)
+                        TextField("", text: $state.query).textFieldStyle(.roundedBorder).focused($focused)
+                            .accessibilityLabel(queryTitle)
                             .accessibilityIdentifier("addPodcasts.query")
-                            .onSubmit { search() }.onChange(of: state.query) { _, text in editor.setDraft(text, field: "addPodcasts"); state.searchTask?.cancel(); state.loading = false; state.searched = false; state.results = []; state.error = nil }
-                        Button("Search") { search() }.keyboardShortcut(.defaultAction).disabled(state.loading || state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .onSubmit { if canSearch { search() } }
+                            .onChange(of: state.query) { _, text in editor.setDraft(text, field: "addPodcasts"); state.searchTask?.cancel(); state.loading = false; state.searched = false; state.results = []; state.error = nil }
+                        Button("Search") { search() }.disabled(!canSearch)
                     }
                     Text("Import OPML from the File menu or Library Settings. Follow import progress in the Library window.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                         .frame(maxWidth: 420, alignment: .leading)
@@ -95,9 +99,10 @@ struct AddPodcastsScreen: SwiftUI.View {
                                     Button("Subscribe") { subscribe(result) }
                                 }
                             }
-                        }
+                        } primaryAction: { activateResult($0) }
                         .typeSelectingRows(state.results.map { TypeSelectionRow(id: $0.feedUrl, title: $0.title) },
-                            selection: $state.selectedFeed, anchor: $resultsAnchor)
+                            selection: $state.selectedFeed, anchor: $resultsAnchor, activate: activateResult)
+                        .accessibilityIdentifier("addPodcasts.results")
                         .frame(height: min(320, CGFloat(state.results.count) * 70))
                     }
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +115,7 @@ struct AddPodcastsScreen: SwiftUI.View {
         .closesOnEscape(close)
         .focusedSceneValue(\.podListPanelActions, MenuActionContext(actions: [.done: { close() }]))
         .focusedSceneValue(\.podListDiscoveryActions, MenuActionContext(actions: [
-            .searchPodcasts: !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { search() } : nil
+            .searchPodcasts: canSearch ? { search() } : nil
         ].compactMapValues { $0 }))
         .focusedSceneValue(\.podListPodcast, discoveryCommands)
         .onAppear {
@@ -131,6 +136,9 @@ struct AddPodcastsScreen: SwiftUI.View {
     private func canSubscribe(_ result: DirectoryPodcast) -> Bool {
         !library.subscriptions.contains { $0.feedUrl == result.feedUrl }
             && !state.subscribing.contains(result.feedUrl) && !editor.busy && !editor.edits.busy
+    }
+    private func activateResult(_ feeds: Set<String>) {
+        if let result = state.results.first(where: { feeds.contains($0.feedUrl) }) { openResult(result) }
     }
     private func openResult(_ result: DirectoryPodcast) { open(result.feedUrl) }
     private func subscribe(_ result: DirectoryPodcast) {

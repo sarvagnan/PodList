@@ -135,6 +135,9 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         guard let stagedName = draft?.name, playlist?.isDefault == false else { return nil }
         return PlaylistNames.problem(stagedName, playlists: app.library?.state.playlists ?? [], excluding: id)
     }
+    private var restoreAction: (() -> Void)? {
+        PlaylistSettingsCommandContext.restoreAction(isDeleted: isDeleted, busy: editing.busy, perform: restorePlaylist)
+    }
     private var canSave: Bool { playlist != nil && draft != nil && stagedNameProblem == nil && !editing.busy }
     private var settingsSheet: some SwiftUI.View {
         let action: () -> Void = isDeleted ? cancel : apply
@@ -154,7 +157,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
             EditingFeedback(editing: editing, retry: retry, reservesSpace: false)
         } secondary: {
             if isDeleted {
-                Button("Restore Playlist", action: restorePlaylist).disabled(editing.busy)
+                Button("Restore Playlist") { restoreAction?() }.disabled(restoreAction == nil)
             } else if playlist?.isDefault == false {
                 Button("Delete Playlist", role: .destructive, action: deletePlaylist).disabled(editing.busy)
             }
@@ -183,7 +186,8 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         .focusedSceneValue(\.podListPanelActions, panelActions)
         .focusedSceneValue(\.podListPlaylistSettingsActions, PlaylistSettingsCommandContext(
             rename: playlist?.isDefault == false && !editing.busy ? { focused = true } : nil,
-            delete: playlist?.isDefault == false && !editing.busy ? { deletePlaylist() } : nil))
+            delete: playlist?.isDefault == false && !editing.busy ? { deletePlaylist() } : nil,
+            restore: restoreAction))
         .onChange(of: stagedNameProblem) { _, message in editing.announcements.error(message) }
     }
     private var panelActions: MenuActionContext {

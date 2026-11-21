@@ -80,7 +80,8 @@ public struct LibraryCommands: Commands {
             Button("Open in New Window") { actions?.openInNewWindow?() }.disabled(actions?.openInNewWindow == nil)
             Divider()
             Button("Add Podcasts…") { openWindow(id: "add-podcasts") }.keyboardShortcut("a", modifiers: [.command, .shift]).disabled(app.libraryEditing == nil)
-            Button("Import OPML…") { LibraryFileActions.importOPML(app) }.disabled(app.library == nil || app.libraryEditing?.busy == true)
+            Button("Import OPML…") { LibraryFileActions.importOPML(app) }
+                .keyboardShortcut("o").disabled(app.libraryEditing?.busy != false)
             Button("Export OPML…") { LibraryFileActions.exportOPML(app) }.disabled(app.library == nil)
             MenuActionItems(menu: .file, app: app)
         }

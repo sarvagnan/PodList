@@ -183,7 +183,7 @@ public struct AdditionalMenuCommands: Commands {
         }
         CommandGroup(after: .sidebar) {
             Menu("Sort By") {
-                Picker("Column", selection: Binding(get: { sort?.wrappedValue.first?.column }, set: { column in
+                Picker("Sort Column", selection: Binding(get: { sort?.wrappedValue.first?.column }, set: { column in
                     sort?.wrappedValue = column.map { [.init(column: $0, reversed: sort?.wrappedValue.first?.reversed ?? false)] } ?? []
                 })) {
                     Text("Default Order").tag(Optional<WindowSort.Column>.none)

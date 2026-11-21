@@ -147,7 +147,7 @@ struct PlaylistContentView: SwiftUI.View {
                 entryActions(ordered(selection))
             } primaryAction: { activate($0) }
             .onCopyCommand(perform: window.selection.isEmpty ? nil : {
-                EpisodeCopyContent.providers(ids: ordered(window.selection), library: library)
+                SelectionCopyContent.episodeProviders(ids: ordered(window.selection), library: library)
             })
             .onDeleteCommand(perform: removeSelection)
             .focusedSceneValue(\.podListRemovePlaylistSelection, removeSelection)
@@ -271,6 +271,9 @@ struct PlaylistContentView: SwiftUI.View {
                     EpisodeActionItems(ids: ids.filter { selected.contains($0) }, library: library, editing: editing, presentation: presentation, app: app)
                         .disabled(editing.busy)
                 } primaryAction: { activate($0) }
+                .onCopyCommand(perform: selection.wrappedValue.isEmpty ? nil : {
+                    SelectionCopyContent.episodeProviders(ids: ids.filter { selection.wrappedValue.contains($0) }, library: library)
+                })
                 .accessibilityLabel("Playlist History")
             }
         }

@@ -239,8 +239,12 @@ private struct PersistentNumberField: SwiftUI.View {
     @Environment(\.locale) private var locale
     @State private var text: String?
     @FocusState private var focused: Bool
-    private var raw: String { text ?? (editor.hasDraft(field) ? editor.draft(field) : FormNumbers.string(value, locale: locale)) }
-    private var valid: Bool { FormNumbers.nonnegative(raw, locale: locale) != nil }
+    private var stagedText: String? { text ?? editor.storedDraft(field) }
+    private var raw: String { stagedText ?? FormNumbers.string(value, locale: locale) }
+    private var valid: Bool {
+        guard let stagedText else { return value.isFinite && value >= 0 }
+        return FormNumbers.nonnegative(stagedText, locale: locale) != nil
+    }
     var body: some SwiftUI.View {
         LabeledContent(label) {
             VStack(alignment: .leading, spacing: 4) {

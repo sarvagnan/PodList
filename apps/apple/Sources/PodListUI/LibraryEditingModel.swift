@@ -120,7 +120,8 @@ public final class LibraryEditingModel {
         gettingStartedReopened = remembered == true
     }
     private func key(_ suffix: String) -> String { "PodList.\(scope).\(suffix)" }
-    public func draft(_ field: String) -> String { defaults.string(forKey: key("draft." + field)) ?? "" }
+    func storedDraft(_ field: String) -> String? { defaults.string(forKey: key("draft." + field)) }
+    public func draft(_ field: String) -> String { storedDraft(field) ?? "" }
     public func endSession() { edits.endSession() }
     public func hasDraft(_ field: String) -> Bool { defaults.object(forKey: key("draft." + field)) != nil }
     public func clearDraft(_ field: String) { defaults.removeObject(forKey: key("draft." + field)) }
@@ -152,7 +153,7 @@ public final class LibraryEditingModel {
         let name: String
         switch change {
         case .setSubscriptionOverrides: name = "Subscription Settings"
-        case .markSubscriptionPlayed: name = "Mark Subscription Played"
+        case .markSubscriptionPlayed: name = "Mark All Played"
         default: name = "Library Change"
         }
         if case let .markSubscriptionPlayed(id) = change {

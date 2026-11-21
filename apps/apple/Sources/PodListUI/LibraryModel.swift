@@ -119,6 +119,9 @@ public enum Presentation {
 
     /// Publisher markup is displayed as text, never as an embedded web document.
     public static func plainShowNotes(_ input: String) -> String {
+        if !input.utf8.contains(UInt8(ascii: "<")), !input.utf8.contains(UInt8(ascii: "&")) {
+            return input.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         let stripped = input
             .replacingOccurrences(of: "(?is)<(script|style)[^>]*>.*?</\\1\\s*>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?i)<(?:br\\s*/?|/p|/div|/h[1-6]|/li)\\s*>", with: "\n", options: .regularExpression)
@@ -347,7 +350,16 @@ public final class WindowModel {
     private var playlistTabs: [String: PlaylistTab] = [:]
 
     public var destination: Destination? = .subscriptions
-    public var search = ""
+    public var search = "" {
+        didSet { if search != oldValue { searchRevision &+= 1 } }
+    }
+    @ObservationIgnored private var searchRevision: UInt64 = 0
+    struct RestorationOrigin: Equatable {
+        let list: ListID
+        let searchRevision: UInt64
+    }
+    var restorationOrigin: RestorationOrigin { RestorationOrigin(list: listID, searchRevision: searchRevision) }
+    private var pendingRestoredEntries: [RestoredEntries] = []
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
     var podcastSort = WindowModel.defaultPodcastSort
@@ -383,15 +395,51 @@ public final class WindowModel {
         if scroll { scrollAnchor = RowAnchor(id: first, index: 0) }
     }
 
-    /// A window-local completion, never an app-wide selection notification.
+    /// A window-local completion. A later search or navigation takes precedence.
     @discardableResult
-    func revealRestoredEntries(_ restored: [RestoredEntries]) -> Bool {
-        let current = restored.first { destination == .playlist($0.playlistID) }
-        guard let target = current ?? restored.first, let first = target.episodeIDs.first else { return false }
+    func revealRestoredEntries(_ restored: [RestoredEntries], in library: LibraryModel, from origin: RestorationOrigin) -> Bool {
+        guard let target = restoredTarget(restored, in: library) else { return false }
+        let targetList = ListID.playlist(target.playlistID, .entries)
+        let staysOnList = listID == targetList
+        guard origin == restorationOrigin,
+              !staysOnList || search.isEmpty || Set(library.rows(for: destination, search: search).map(\.id)).isSuperset(of: target.episodeIDs)
+        else {
+            pendingRestoredEntries = restored
+            return false
+        }
+        if !staysOnList {
+            navigate(to: .playlist(target.playlistID))
+            showPlaylistTab(.entries)
+        }
+        selectRestoredEntries(target)
+        return true
+    }
+
+    func canShowRestoredEntries(in library: LibraryModel) -> Bool {
+        restoredTarget(pendingRestoredEntries, in: library) != nil
+    }
+
+    func showRestoredEntries(in library: LibraryModel) {
+        guard let target = restoredTarget(pendingRestoredEntries, in: library) else { return }
         navigate(to: .playlist(target.playlistID))
         showPlaylistTab(.entries)
-        selection = Set(target.episodeIDs); scrollAnchor = RowAnchor(id: first, index: 0)
-        return true
+        selectRestoredEntries(target)
+    }
+
+    private func restoredTarget(_ restored: [RestoredEntries], in library: LibraryModel) -> RestoredEntries? {
+        let available = restored.compactMap { result -> RestoredEntries? in
+            guard let playlist = library.state.playlists.first(where: { $0.id == result.playlistID }) else { return nil }
+            let ids = Set(playlist.entries.map(\.episodeId))
+            let remaining = result.episodeIDs.filter { ids.contains($0) }
+            return remaining.isEmpty ? nil : RestoredEntries(playlistID: result.playlistID, episodeIDs: remaining)
+        }
+        return available.first { destination == .playlist($0.playlistID) } ?? available.first
+    }
+
+    private func selectRestoredEntries(_ target: RestoredEntries) {
+        pendingRestoredEntries = []
+        selection = Set(target.episodeIDs)
+        scrollAnchor = target.episodeIDs.first.map { RowAnchor(id: $0, index: 0) }
     }
 
     public init() {}
@@ -414,6 +462,7 @@ public final class WindowModel {
     func clearListMemory() {
         listPositions.removeAll()
         playlistTabs.removeAll()
+        pendingRestoredEntries = []
     }
     /// Only a row interaction can open the Inspector. Restoring or reconciling a list
     /// assigns its selection directly.

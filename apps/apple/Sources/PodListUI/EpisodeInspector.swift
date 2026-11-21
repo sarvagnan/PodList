@@ -41,6 +41,7 @@ struct EpisodeInspector: SwiftUI.View {
     var scrolls = true
     var selectedIDs: [String] = []
     var podcastPreview: PodcastEpisodePreview? = nil
+    private var detailInset: CGFloat { scrolls ? 12 : 20 }
     var body: some SwiftUI.View {
         if selectedIDs.count > 1 {
             selectionSummary
@@ -69,7 +70,7 @@ struct EpisodeInspector: SwiftUI.View {
                     Divider()
                     showNotes(podcastPreview.notes)
                 }
-                .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 20).padding(.horizontal, detailInset).frame(maxWidth: .infinity, alignment: .leading)
             }
             .playbackBarScrollClearance()
             .macContentFont(.body)
@@ -134,8 +135,9 @@ struct EpisodeInspector: SwiftUI.View {
                 let memberships = library.memberships(row.id)
                 if memberships.isEmpty { Text("No Playlists").foregroundStyle(MacReadableSecondaryStyle()) }
                 ForEach(memberships, id: \.id) { membership in
+                    let position = Presentation.time(membership.position)
                     HStack {
-                        LabeledContent(membership.name, value: Presentation.time(membership.position))
+                        LabeledContent(membership.name, value: position)
                             .labeledContentStyle(InspectorLabeledContentStyle())
                         Button {
                             EditOrigin.start(origin) {
@@ -143,7 +145,7 @@ struct EpisodeInspector: SwiftUI.View {
                             }
                         } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
                         .buttonStyle(.borderless).help("Resume in this Playlist")
-                        .accessibilityLabel("Resume in \(membership.name) at \(Presentation.time(membership.position))")
+                        .accessibilityLabel("Resume in \(membership.name) at \(position)")
                     }
                 }
                 Divider()
@@ -173,12 +175,12 @@ struct EpisodeInspector: SwiftUI.View {
                 Text("Episode details will appear when Library sync catches up.").foregroundStyle(MacReadableSecondaryStyle())
             }
         }
-        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 20).padding(.horizontal, detailInset).frame(maxWidth: .infinity, alignment: .leading)
     }
     @ViewBuilder private func showNotes(_ description: String) -> some SwiftUI.View {
         Text("Show Notes").macContentFont(.headline)
         let notes = Presentation.plainShowNotes(description)
-        Text(notes.isEmpty ? "No show notes" : notes).textSelection(.enabled)
+        Text(notes.isEmpty ? "No show notes" : notes).macContentFont(scrolls ? .callout : .body).textSelection(.enabled)
     }
     private func resolvedArtwork(_ row: EpisodeRow) -> URL? {
         guard let episode = row.episode else { return row.artworkURL }

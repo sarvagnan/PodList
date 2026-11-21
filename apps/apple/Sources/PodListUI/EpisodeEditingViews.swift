@@ -219,13 +219,15 @@ struct EditingFeedback: SwiftUI.View {
     var undo: (() -> Void)? = nil
     var redo: (() -> Void)? = nil
     var retry: (() -> Void)? = nil
+    var showRestoredEntries: (() -> Void)?
     var reservesSpace: Bool
     init(editing: PlaylistEditingModel, surface: EditingFeedbackSurface = .secondary, origin: EditOrigin? = nil, sync: ApplicationModel? = nil,
          additionalError: String? = nil, additionalStatus: String? = nil,
          undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil,
-         reservesSpace: Bool = true) {
+         showRestoredEntries: (() -> Void)? = nil, reservesSpace: Bool = true) {
         self.editing = editing; self.surface = surface; self.sync = sync; self.additionalError = additionalError; self.additionalStatus = additionalStatus; self.undo = undo; self.redo = redo; self.retry = retry
         self.origin = origin
+        self.showRestoredEntries = showRestoredEntries
         self.reservesSpace = reservesSpace
         _lifetime = State(initialValue: EditingFeedbackLifetime(currentNotice: editing.feedbackNotice))
     }
@@ -262,6 +264,9 @@ struct EditingFeedback: SwiftUI.View {
             Spacer(minLength: 8)
             if retryCommand != nil {
                 Button("Retry", action: retryFailure).disabled(editing.busy)
+            }
+            if let showRestoredEntries {
+                Button("Show Restored Entries", action: showRestoredEntries).disabled(editing.busy)
             }
             if let undoTitle {
                 Button(undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
@@ -393,7 +398,7 @@ public struct PlaylistEditingCommands: Commands {
                     Button(playlist.name) { context?.window.navigate(to: .playlist(playlist.id)) }
                 }
             }.disabled(context?.library.state.playlists.isEmpty != false)
-            Picker("Section", selection: Binding(get: { playlistContext?.window.playlistTab ?? .entries }, set: { playlistContext?.window.showPlaylistTab($0) })) {
+            Picker("Show", selection: Binding(get: { playlistContext?.window.playlistTab ?? .entries }, set: { playlistContext?.window.showPlaylistTab($0) })) {
                 ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.inline).disabled(playlistContext == nil)
             Divider()
@@ -403,7 +408,8 @@ public struct PlaylistEditingCommands: Commands {
                     await app.editing?.edit([.setClearOnPlayed(playlistId: playlistContext.playlist.id, clearOnPlayed: value)], name: "Clear on Played")
                 }
             })).disabled(playlistContext == nil || app.editing == nil || app.editing?.busy == true)
-            Button("Restore") { restore?() }.disabled(restore == nil)
+            let restoreAction = PlaylistSettingsCommandContext.focusedRestore(sheet: playlistSettings, trash: restore)
+            Button("Restore") { restoreAction?() }.disabled(restoreAction == nil)
             Button("Delete Permanently…", role: .destructive) { deletePermanently?() }.disabled(deletePermanently == nil)
             Button("Rewind to Here…") { rewind?() }.disabled(rewind == nil)
             Divider()

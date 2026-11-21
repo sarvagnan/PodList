@@ -66,6 +66,7 @@ struct PodListSheetReadingSurface<Content: SwiftUI.View>: SwiftUI.View {
 }
 
 /// Bound label and control columns to the proposed sheet width, including at 200% text.
+/// Place pop-ups here with an empty Picker title so the row supplies their accessible name.
 struct PodListSheetField<Content: SwiftUI.View>: SwiftUI.View {
     let title: String
     @ViewBuilder let content: () -> Content

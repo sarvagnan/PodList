@@ -58,6 +58,7 @@ import Testing
         let editing: PlaylistEditingModel
         let app: ApplicationModel
         let presentation: PlaylistPresentation
+        @FocusState private var searchFocused: Bool
         var body: some SwiftUI.View {
             NavigationSplitView {
                 Text("Sidebar").navigationSplitViewColumnWidth(225)
@@ -71,8 +72,10 @@ import Testing
                         ToolbarItem(placement: .primaryAction) {
                             Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
+                        ToolbarItem(placement: .primaryAction) {
+                            LibraryToolbarSearch(text: .constant(""), focus: $searchFocused, scope: "Search this list")
+                        }
                     }
-                    .searchable(text: .constant(""), placement: .toolbar, prompt: "Search this list")
                     .inspector(isPresented: .constant(true)) {
                         Text("Select an Episode")
                             .inspectorColumnWidth(min: 260, ideal: PaneWidths().inspector, max: 440)
@@ -107,7 +110,7 @@ import Testing
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
             let frame = picker.convert(picker.bounds, to: root)
             frames.append(frame)
-            let search = try #require(views.first { String(describing: type(of: $0)) == "NSSearchToolbarItemView" })
+            let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search this list" })
             #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
             #expect(search.frame.width > 100, "At 1180 pt, Search must remain a field even with selection actions")
             #expect(!window.isVisible)

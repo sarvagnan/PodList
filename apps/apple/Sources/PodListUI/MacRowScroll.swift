@@ -76,7 +76,8 @@ struct MacRowScroll: NSViewRepresentable {
                 if found != nil { break }
                 parent = view.superview
             }
-            guard let found, let clip = found.enclosingScrollView?.contentView else { return }
+            guard let found, let scrollView = found.enclosingScrollView else { return }
+            let clip = scrollView.contentView
             if table !== found {
                 stopObserving(); table = found; applied = nil
                 inputMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
@@ -94,9 +95,16 @@ struct MacRowScroll: NSViewRepresentable {
             guard found.numberOfRows == ids.count else { return }
             if let anchor, anchor != applied, let index = ids.firstIndex(of: anchor.id) {
                 restoring = true
-                let y = found.rect(ofRow: index).minY
-                clip.scroll(to: NSPoint(x: clip.bounds.minX, y: y))
-                found.enclosingScrollView?.reflectScrolledClipView(clip)
+                // Rects are in document coordinates. Leave the row below the
+                // floating header and keep short lists at their native top.
+                let header = found.headerView?.frame.height ?? 0
+                let top = clip.documentRect.minY - scrollView.contentInsets.top
+                let lastRow = found.rect(ofRow: found.numberOfRows - 1)
+                let fits = lastRow.maxY <= top + clip.bounds.height - scrollView.contentInsets.bottom
+                var bounds = clip.bounds
+                bounds.origin.y = fits || index == 0 ? top : max(top, found.rect(ofRow: index).minY - header)
+                clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+                scrollView.reflectScrolledClipView(clip)
                 applied = anchor; restoring = false
             }
         }
@@ -212,10 +220,11 @@ extension SwiftUI.View {
     }
 
     func typeSelectingRows(_ rows: [TypeSelectionRow], physicalIDs: [String?]? = nil,
-                           selection: Binding<String?>, anchor: Binding<RowAnchor?>) -> some SwiftUI.View {
+                           selection: Binding<String?>, anchor: Binding<RowAnchor?>,
+                           activate: ((Set<String>) -> Void)? = nil) -> some SwiftUI.View {
         typeSelectingRows(rows, physicalIDs: physicalIDs, selection: Binding<Set<String>>(
             get: { selection.wrappedValue.map { [$0] } ?? [] },
-            set: { selection.wrappedValue = $0.first }), anchor: anchor)
+            set: { selection.wrappedValue = $0.first }), anchor: anchor, activate: activate)
     }
 
     func restoringRows(_ ids: [String?], anchor: Binding<RowAnchor?>) -> some SwiftUI.View {
