@@ -303,7 +303,7 @@ final class PodListUITour: XCTestCase {
         try sheet("Edit View")
         XCTAssertEqual(try firstEpisodeOffset(title: firstEpisodeTitle), initialFirstRowOffset, accuracy: 1,
                        "Returning from Search and Playlist Settings must preserve the first row's alignment")
-        try assertPopUpNames(["Published", "Podcasts", "Played", "Starred", "In a Playlist", "Sort"])
+        assertPopUpNames(["Published", "Podcasts", "Played", "Starred", "In a Playlist", "Sort"])
         try capture("16-edit-view", expectsSheet: true)
         let viewName = library.sheets.textFields["View name"]
         try click(viewName)
@@ -392,7 +392,7 @@ final class PodListUITour: XCTestCase {
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         XCTAssertFalse(library.sheets.buttons["Mark All Played"].exists)
-        try assertPopUpNames(["Download Rule on This Mac", "Played Threshold", "Speed", "Skip Intro", "Skip Outro", "Volume Boost"])
+        assertPopUpNames(["Download Rule on This Mac", "Played Threshold", "Speed", "Skip Intro", "Skip Outro", "Volume Boost"])
         try capture("22-subscription-settings", expectsSheet: true)
         try assertSheetAtBothTextSizes()
         library.typeKey(.escape, modifierFlags: [])
@@ -452,19 +452,28 @@ final class PodListUITour: XCTestCase {
         podcastQuery.typeText("Market Hours")
         podcastQuery.typeKey(.return, modifierFlags: [])
         let resultList = addPodcasts.descendants(matching: .any).matching(identifier: "addPodcasts.results").firstMatch
+        let openPodcast = "Open Podcast page for Market Hours"
         let result = resultList.descendants(matching: .any).matching(NSPredicate(
             format: "elementType == %d OR elementType == %d",
-            XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue)).firstMatch
-        try ready(result.buttons["Open Podcast page for Market Hours"])
-        // Select the row in the space between the title and the subscription state.
+            XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue))
+            .containing(.button, identifier: openPodcast).firstMatch
+        try ready(result)
+        // Click the row gap beyond its title button so the gesture exercises row activation.
         let selectResult = result.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.5))
+        XCTAssertLessThan(result.buttons[openPodcast].frame.maxX, result.frame.minX + result.frame.width * 0.72)
+        let back = library.buttons["Back to Library"]
         selectResult.click()
+        XCTAssertTrue(result.wait(for: \.isSelected, toEqual: true, timeout: 5), "Single-click must select the result")
+        XCTAssertFalse(back.exists, "Single-click on the row must leave the Podcast page closed")
         addPodcasts.typeKey(.return, modifierFlags: [])
-        try ready(library.buttons["Back to Library"])
+        try ready(back)
         try ready(text(firstEpisodeTitle, in: episodeList))
-        try click(library.buttons["Back to Library"])
+        try click(back)
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5), "Return to Library before testing double-click")
+        // Opening the Podcast page made Library key. Give Add Podcasts focus again.
+        try click(podcastQuery)
         selectResult.doubleClick()
-        try ready(library.buttons["Back to Library"])
+        try ready(back)
         try ready(text(firstEpisodeTitle, in: episodeList))
         // Focus the panel again so Escape closes it after opening the Podcast page.
         try click(podcastQuery)
@@ -478,7 +487,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("a", modifierFlags: .command)
         try click(library.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Edit Download Rules for'")).firstMatch)
         try ready(library.sheets.firstMatch)
-        try assertPopUpNames(["Download Rule on This Mac"])
+        assertPopUpNames(["Download Rule on This Mac"])
         try capture("25-download-rules", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Default")
@@ -763,8 +772,8 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(episodeRows.count, entryCount, "Keep the Playlist Entries visible behind Settings")
         try capture("11a-playlist-settings-deleted", expectsSheet: true)
 
-        // Use the Edit command's shortcut while the sheet owns the key window.
-        app.typeKey("z", modifierFlags: .command)
+        // The Restore command belongs to the deleted settings sheet from screen 11a.
+        try menuCommand("Playlist", "Restore", until: save, retryFocus: text("Playlist Settings", in: panel))
         XCTAssertTrue(save.wait(for: \.isEnabled, toEqual: true, timeout: 10))
         try ready(sidebarItem("Commute"))
         XCTAssertTrue(field.isEnabled)
@@ -772,7 +781,8 @@ final class PodListUITour: XCTestCase {
 
         try click(delete)
         XCTAssertTrue(restore.wait(for: \.isEnabled, toEqual: true, timeout: 10))
-        try menuCommand("Playlist", "Restore", until: save)
+        // Use the Edit command's shortcut while the sheet owns the key window.
+        app.typeKey("z", modifierFlags: .command)
         XCTAssertTrue(save.wait(for: \.isEnabled, toEqual: true, timeout: 10))
         XCTAssertTrue(field.isEnabled)
         XCTAssertEqual(field.value as? String, "Morning Commute")
@@ -1070,23 +1080,34 @@ final class PodListUITour: XCTestCase {
     }
 
     private func checkOPMLOpenShortcut() throws {
+        // AppKit exposes the panel as a window, with its controls hosted by the
+        // Open and Save Panel service. Its Open control has a title but no label.
+        let chooser = app.windows.matching(identifier: "open-panel").firstMatch
+        XCTAssertFalse(chooser.exists, "The OPML chooser must be closed before ⌘O")
         app.typeKey("o", modifierFlags: .command)
-        let open = app.buttons.matching(NSPredicate(format: "label == %@", "Open")).firstMatch
-        try ready(open)
+        try ready(chooser)
+        try ready(text("Choose an OPML", in: chooser))
         app.typeKey(.escape, modifierFlags: [])
-        XCTAssertTrue(open.waitForNonExistence(timeout: 5), "Escape must dismiss the OPML chooser")
+        XCTAssertTrue(chooser.waitForNonExistence(timeout: 5), "Escape must dismiss the OPML chooser")
+        XCTAssertTrue(library.buttons["Open Market Hours, Subscription"].wait(for: \.isEnabled, toEqual: true, timeout: 5),
+                      "The Library must be usable again after dismissing the chooser")
     }
 
-    private func assertPopUpNames(_ names: [String], file: StaticString = #filePath, line: UInt = #line) throws {
+    private func assertPopUpNames(_ names: [String], file: StaticString = #filePath, line: UInt = #line) {
         let popUps = library.sheets.firstMatch.popUpButtons
         for name in names {
-            try ready(popUps.matching(NSPredicate(format: "label == %@", name)).firstMatch, file: file, line: line)
+            let popUp = popUps.matching(NSPredicate(format: "label == %@", name)).firstMatch
+            if !popUp.waitForExistence(timeout: 5) {
+                XCTFail("Expected a pop-up named \(name). Sheet pop-up labels: \(popUps.allElementsBoundByIndex.map(\.label))",
+                        file: file, line: line)
+            }
         }
     }
 
     private func firstEpisodeOffset(title: String) throws -> CGFloat {
-        let first = text(title, in: episodeList)
-        let header = episodeList.buttons["Episode"].firstMatch
+        let table = episodeTable(in: library)
+        let first = table.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", title, title)).firstMatch
+        let header = table.buttons["Episode"].firstMatch
         try ready(first)
         try ready(header)
         let offset = first.frame.minY - header.frame.maxY
@@ -1459,7 +1480,7 @@ final class PodListUITour: XCTestCase {
     }
 
     private func menuCommand(_ menu: String, _ command: String, until result: XCUIElement? = nil,
-                             requiringFocus: Bool = false,
+                             requiringFocus: Bool = false, retryFocus: XCUIElement? = nil,
                              file: StaticString = #filePath, line: UInt = #line) throws {
         let menuItem = app.menuBars.menuBarItems[menu]
         let action = menuItem.menuItems.matching(NSPredicate(format: "title == %@ OR label == %@", command, command)).firstMatch
@@ -1483,7 +1504,12 @@ final class PodListUITour: XCTestCase {
                     if reached { return }
                 }
             }
-            if attempt < 2 { refocusLibraryAfterMenu() }
+            if attempt < 2 {
+                if let retryFocus {
+                    // Clicking inside a sheet closes the menu without sending Escape to the sheet.
+                    retryFocus.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+                } else { refocusLibraryAfterMenu() }
+            }
         }
         if clicked, let result {
             XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts",
