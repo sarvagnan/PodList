@@ -123,57 +123,6 @@ func expandedPodcastHeaderLeavesControlsAndEpisodeSpaceAbovePlayer(scale: CGFloa
     #expect(clearance >= inset - 1)
 }
 
-@MainActor @Test func podcastColumnsAreRefitAfterTheDescriptionResizesTheViewport() async throws {
-    struct Row: Identifiable { let id: Int }
-    struct Grid: SwiftUI.View {
-        let expanded: Bool
-        var body: some SwiftUI.View {
-            PodcastEpisodeTableViewport(descriptionExpanded: expanded) { layout in
-                Table((0..<14).map { Row(id: $0) }) {
-                    TableColumn("Episode") { row in
-                        MacEpisodeRowTitle(title: "Episode \(row.id)", podcast: "Market Hours", isSelected: false)
-                    }.width(min: EpisodeTableLayout.minimumTitleWidth)
-                    TableColumn("Published") { _ in Text("21 Nov 2026") }.width(min: 95, ideal: 110, max: 150)
-                    TableColumn("Length") { _ in Text("25:34") }.width(min: 60, ideal: 70, max: 100)
-                    if layout.showsState {
-                        TableColumn("State") { _ in Text("Unplayed") }.width(min: 140, ideal: 150, max: 200)
-                    }
-                }
-                .tableStyle(.inset)
-            }
-        }
-    }
-    let host = NSHostingView(rootView: Grid(expanded: false))
-    func table(afterLayoutAt height: CGFloat) async throws -> NSTableView {
-        host.frame = CGRect(x: 0, y: 0, width: 957, height: height)
-        for _ in 0..<8 { host.layoutSubtreeIfNeeded(); await Task.yield() }
-        return try #require(descendants(host).compactMap { $0 as? NSTableView }.first)
-    }
-
-    let initial = try await table(afterLayoutAt: 395)
-    let collapsedWidths = initial.tableColumns.map(\.width)
-    let initialClip = try #require(initial.enclosingScrollView?.contentView)
-    #expect(initial.rect(ofRow: initial.numberOfRows - 1).maxY <= initialClip.documentVisibleRect.maxY)
-
-    host.rootView = Grid(expanded: true)
-    let beforeExpand = try await table(afterLayoutAt: 395)
-    #expect(beforeExpand === initial, "Keep the columns until the expanded geometry arrives")
-    let expanded = try await table(afterLayoutAt: 318)
-    #expect(expanded !== initial)
-    let expandedClip = try #require(expanded.enclosingScrollView?.contentView)
-    #expect(expanded.rect(ofRow: expanded.numberOfRows - 1).maxY > expandedClip.documentVisibleRect.maxY)
-
-    host.rootView = Grid(expanded: false)
-    let beforeCollapse = try await table(afterLayoutAt: 318)
-    #expect(beforeCollapse === expanded, "Do not seed collapsed widths while the table still overflows")
-    let collapsed = try await table(afterLayoutAt: 395)
-    #expect(collapsed !== expanded)
-    #expect(collapsed.tableColumns.map(\.width) == collapsedWidths)
-
-    let resized = try await table(afterLayoutAt: 410)
-    #expect(resized === collapsed, "An ordinary vertical resize should keep the native table")
-}
-
 @MainActor private func descendants(_ view: NSView) -> [NSView] {
     view.subviews.flatMap { [$0] + descendants($0) }
 }

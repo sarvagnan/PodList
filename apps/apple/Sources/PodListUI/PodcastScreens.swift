@@ -74,26 +74,6 @@ struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.
     }
 }
 
-/// Let the old table lay out at the new height before recreating its native
-/// columns. Resetting when the description binding changes can seed the
-/// collapsed table while it still has the expanded viewport's scroller gutter.
-struct PodcastEpisodeTableViewport<Content: SwiftUI.View>: SwiftUI.View {
-    let descriptionExpanded: Bool
-    @ViewBuilder let content: (EpisodeTableLayout) -> Content
-    @State private var laidOutExpansion = false
-
-    var body: some SwiftUI.View {
-        GeometryReader { table in
-            content(EpisodeTableLayout(width: table.size.width))
-                .id(laidOutExpansion)
-                .frame(width: table.size.width, height: table.size.height)
-        }
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
-            laidOutExpansion = descriptionExpanded
-        }
-    }
-}
-
 /// Publisher metadata is available before an Episode is brought into the Library.
 struct PodcastEpisodePreview: Equatable {
     let title: String
@@ -273,7 +253,8 @@ struct PodcastPageScreen: SwiftUI.View {
                         }
                         .playbackBarScrollClearance()
                     } else {
-                        PodcastEpisodeTableViewport(descriptionExpanded: descriptionExpanded) { layout in
+                        GeometryReader { geometry in
+                            let layout = EpisodeTableLayout(width: geometry.size.width)
                             Table(of: PageEpisode.self, selection: userSelection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                                 TableColumn("Episode", value: \.title) { episode in
                                     podcastEpisodeTitle(episode, state: layout.playbackMark(for: episode.stateText))
@@ -297,6 +278,9 @@ struct PodcastPageScreen: SwiftUI.View {
                             }
                             .tableStyle(.inset)
                             .playbackBarScrollClearance()
+                            // Recreate native auto-sized columns after the description changes
+                            // the viewport; AppKit otherwise retains scrollbar-compressed widths.
+                            .id(descriptionExpanded)
                         }
                     }
                 }

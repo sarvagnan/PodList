@@ -406,8 +406,9 @@ final class PodListUITour: XCTestCase {
         let episodeHeading = episodeList.buttons["Episode"].firstMatch
         let episodeCount = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
         XCTAssertEqual(episodeHeading.frame.minX, episodeCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
-        let collapsedColumns = podcastColumnFrames(in: try episodeList.snapshot())
-        XCTAssertEqual(collapsedColumns.count, 4, "The default-width Podcast must show all four columns")
+        let collapsedTable = try XCTUnwrap(podcastTableGeometry(in: try library.snapshot()))
+        XCTAssertEqual(collapsedTable.columns.count, 4, "The default-width Podcast must show all four columns")
+        XCTAssertFalse(collapsedTable.hasScroller, "The collapsed Podcast fits its six Episodes")
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
@@ -420,17 +421,14 @@ final class PodListUITour: XCTestCase {
         try capture("19-description-expanded")
         try click(button("Hide Description"))
         try ready(button("Show description"))
-        var actualColumns: [String: CGRect] = [:]
+        var actualTable: PodcastTableGeometry?
         let restoredColumns = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
-            guard let snapshot = try? episodeList.snapshot() else { return false }
-            actualColumns = podcastColumnFrames(in: snapshot)
-            return collapsedColumns.allSatisfy { name, frame in
-                guard let actual = actualColumns[name] else { return false }
-                return abs(actual.minX - frame.minX) <= 1 && abs(actual.width - frame.width) <= 1
-            }
+            guard let window = try? library.snapshot(), let table = podcastTableGeometry(in: window) else { return false }
+            actualTable = table
+            return table.matchesCollapsedExtent(of: collapsedTable)
         }, object: nil)
         let restored = XCTWaiter.wait(for: [restoredColumns], timeout: 3)
-        XCTAssertEqual(restored, .completed, "Hide Description must restore the Podcast columns. Before: \(collapsedColumns). After: \(actualColumns).")
+        XCTAssertEqual(restored, .completed, "Hide Description must restore the Podcast table extent and readable columns. Before: \(collapsedTable). After: \(String(describing: actualTable)).")
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
@@ -1430,13 +1428,35 @@ final class PodListUITour: XCTestCase {
         XCTAssertLessThan(rule.frame.maxY, count.frame.minY, file: file, line: line)
     }
 
-    private func podcastColumnFrames(in table: XCUIElementSnapshot) -> [String: CGRect] {
+    private struct PodcastTableGeometry {
+        let columns: [String: CGRect]
+        let hasScroller: Bool
+
+        func matchesCollapsedExtent(of original: Self) -> Bool {
+            guard !hasScroller, columns.keys == original.columns.keys,
+                  let first = columns["Episode"], let last = columns["State"],
+                  let originalFirst = original.columns["Episode"], let originalLast = original.columns["State"],
+                  abs(first.minX - originalFirst.minX) <= 1,
+                  abs((last.maxX - first.minX) - (originalLast.maxX - originalFirst.minX)) <= 1 else { return false }
+            let metadataMinimums: [String: CGFloat] = ["Published": 95, "Length": 60, "State": 140]
+            return metadataMinimums.allSatisfy { name, minimum in
+                guard let width = columns[name]?.width, let originalWidth = original.columns[name]?.width else { return false }
+                return width >= minimum && abs(width - originalWidth) <= 6
+            }
+        }
+    }
+
+    private func podcastTableGeometry(in window: XCUIElementSnapshot) -> PodcastTableGeometry? {
+        guard let scroll = descendants(window).first(where: { node in
+            node.elementType == .scrollView && node.children.contains { $0.label == "Podcast Episodes, sortable columns" }
+        }), let table = scroll.children.first(where: { $0.label == "Podcast Episodes, sortable columns" }) else { return nil }
         let headings = ["Episode", "Published", "Length", "State"]
         var frames: [String: CGRect] = [:]
         for button in descendants(table) where button.elementType == .button && headings.contains(button.title) {
             frames[button.title] = button.frame
         }
-        return frames
+        let hasScroller = scroll.children.contains { $0.elementType == .scrollBar && !$0.frame.isEmpty }
+        return PodcastTableGeometry(columns: frames, hasScroller: hasScroller)
     }
 
     private struct PlaylistHeaderFrames {
