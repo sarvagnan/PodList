@@ -146,6 +146,12 @@ public final class PlaylistEditingModel {
     public func reverse(redo: Bool = false, restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
         await beginReverse(redo: redo, restored: restored)?.value
     }
+    #if PODLIST_UI_TOUR
+    private static var delaysNextEntryUndo =
+        Bundle.main.bundleIdentifier?.hasPrefix("app.podlist.uitour.") == true &&
+        ProcessInfo.processInfo.environment["PODLIST_UI_DELAY_ENTRY_UNDO"] == "1"
+    #endif
+
     private func beginReverse(redo: Bool, expectedID: UUID? = nil,
                               restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) -> Task<Void, Never>? {
         guard !busy, !ended, let step = redo ? history.redo : history.undo,
@@ -154,6 +160,13 @@ public final class PlaylistEditingModel {
         return Task { @MainActor in
             defer { self.busy = false }
             do {
+                #if PODLIST_UI_TOUR
+                if !redo, restored != nil, step.name == "Remove from Playlist", Self.delaysNextEntryUndo {
+                    Self.delaysNextEntryUndo = false
+                    try await Task.sleep(for: .seconds(2))
+                    guard !self.ended else { return }
+                }
+                #endif
                 // Compare the committed states, including external Undo steps and
                 // Clear on Played side effects. Failed reversals never reveal content.
                 let before = restored == nil ? nil : try? await self.database.loadState()

@@ -540,7 +540,7 @@ signing/notarization are outside this check; no account credentials are requeste
 
 ### Tour coverage and isolation
 
-The 45 main-tour states (01–43, 11a and 34a) cover Subscriptions grouped by Download Rule,
+The 46 main-tour states (01–44, 11a and 34a) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
 Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours
 and its subscription controls, Add to a Playlist, Add podcasts, Download Rules,
@@ -550,21 +550,26 @@ under the bars. Screens 37–39 use Window → Move & Resize → Left to capture
 this week with a selected Episode and its Inspector open, the Market Hours Podcast
 page, and the Commute playlist at half-display width. The tour checks table layout
 at that width. Screens 40–42 show 30 Views and 30 Playlists using a separate demo
-Library. Screen 11a shows Playlist Settings after Delete, 34a shows the Rewind
-button on a clicked Timeline row, and 43 shows the open Inspector with the sidebar
-hidden at minimum width.
+Library. Screen 11a shows deleted Playlist Settings with Restore Playlist and Close.
+Screen 32 shows the Getting Started window, reached from Settings › General or
+Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, and
+43 shows the Inspector explicitly opened at minimum width.
+Screen 44 captures a delayed Undo of Remove from Playlist. The named result,
+the retained Search and selected Entry, and Show Restored Entries are visible.
+The tour asserts that the action reveals and selects the restored Entry.
 Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
 `.txt`, and `menus.txt`. After the main tours, a macOS 27 Show Borders pass captures
 New this week with the player bar, the Episode Inspector, the New Playlist sheet,
 and General and Automation Settings in `borders-light/` and `borders-dark/`.
-The full tour exports 203 required attachments, including menu and timing text.
+The full tour exports 207 required attachments, including menu and timing text.
 Each main pass attempts five runs per task and attaches `light--timings.txt` or
 `dark--timings.txt` (exported as `light/timings.txt` and `dark/timings.txt`). The
 app measures from the mouse-down or key-down event timestamp to the first display
-refresh after the Episode list, Inspector details, New Playlist sheet, Settings
-window or one-row filter result appears. The filter sample starts on the final
+refresh after the Episode list, Inspector, New Playlist sheet, Settings window
+or one-row filter result appears. The Inspector is timed both when selection
+opens the pane and when a different selection updates the open pane. The filter sample starts on the final
 `e` in `rice`. A display link on the result window supplies the target time of that refresh.
 This measures input to first presented frame at the VM display cadence, with
 SwiftUI appearance and AppKit visibility as the result markers.
@@ -591,7 +596,7 @@ and its table of contents in `timings-profile-N-toc.xml`. The default
 with `response_ms` on measured results. The profiler perturbs that run's timings.
 
 The generated README lists every screen and reports any missing required
-attachments out of 191.
+attachments out of 207.
 `Tour.xcresult`, `ShowBorders.xcresult`, raw attachments and build/demo/test logs
 are retained. The tour never opens Apple, Services, Import/Export OPML, Open or Save panels.
 
@@ -609,7 +614,9 @@ temporary app data. MCP remains off and the demo's
 current Episode stays paused, as after a relaunch. Teardown quits the test app;
 the script removes the temporary bundles, data, defaults, caches and window state
 and stops only its own test/demo processes by PID. The demo API reaps its own
-server child and database. No custom AX or in-app snapshot tour is involved.
+server child and database. The tour build also accepts `PODLIST_UI_DELAY_ENTRY_UNDO=1` for a disposable
+bundle identity. This delays the first Undo of Remove from Playlist by two
+seconds during the full Light and Dark runs.
 
 XCUITest's public snapshot API supplies `XCUIElementType`, label, title, value,
 identifier, enabled, selected and screen-coordinate frame. It does **not** expose
@@ -625,7 +632,8 @@ then waits until at least six seconds after that click before capturing Subscrib
 again. The product's arm lasts four seconds; XCUITest synchronization/screenshot
 latency can consume that short interval. The test fails explicitly if the armed
 control has expired during capture. It never clicks Unsubscribe or changes Library
-content through the preview sheets. The Timeline Rewind action is also available
+content through the preview sheets. The delayed Undo test briefly removes an
+Entry from the demo Library and verifies that it comes back. The Timeline Rewind action is also available
 to keyboard/VoiceOver users as a named accessibility action and context command.
 With no Subscriptions selected, Edit Download Rules opens the all-Subscriptions
 editor; Cancel closes it without applying anything.
