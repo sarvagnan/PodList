@@ -7,7 +7,7 @@ public struct PodListWindow: SwiftUI.View {
     @State private var window = WindowModel()
     @State private var linkError: String?
     @State private var playlistPresentation = PlaylistPresentation()
-    @FocusState private var searchFocused: Bool
+    @State private var searchFocusRequested = false
     @FocusState private var viewsFocused: Bool
     @State private var editingView: PodListDomain.View?
     @State private var creatingView = false
@@ -26,6 +26,7 @@ public struct PodListWindow: SwiftUI.View {
     @AppStorage("PodList.inspectorVisible") private var defaultInspectorVisible = true
     @Environment(\.macTextScale) private var textScale
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.appearsActive) private var appearsActive
     @Environment(\.openWindow) private var openWindow
     private let initialDestination: Destination?
 
@@ -172,6 +173,17 @@ public struct PodListWindow: SwiftUI.View {
             }
         }
         .environment(\.libraryPlaybackBarInset, playbackInset)
+        .background {
+            // Window shortcuts are resolved ahead of the app-wide Find menu.
+            VStack {
+                Button(PodListShortcut.searchLibrary.title, action: searchLibrary)
+                    .keyboardShortcut(PodListShortcut.searchLibrary.shortcut).focusable(false)
+                Button(PodListShortcut.searchThisList.title, action: focusListSearch)
+                    .keyboardShortcut(PodListShortcut.searchThisList.shortcut).focusable(false)
+            }
+            .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
+            .disabled(!appearsActive)
+        }
         .onDrop(of: LibraryWindowDropTarget.types, delegate: LibraryWindowDropTarget(available: app.libraryEditing != nil && app.libraryEditing?.busy == false) { batch in
             await app.libraryEditing?.selectLibraryDrops(batch)
         })
@@ -180,8 +192,7 @@ public struct PodListWindow: SwiftUI.View {
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs, library: library, window: window, presentation: playlistPresentation, showDetails: showEpisodeInspector, editOrigin: origin))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(
             add: { openWindow(id: "add-podcasts") }, newView: { newView() },
-            search: { window.openLibrarySearch(); searchFocused = true },
-            focusListSearch: { searchFocused = true }, editView: { editCurrentView(library) },
+            search: searchLibrary, focusListSearch: focusListSearch, editView: { editCurrentView(library) },
             openInNewWindow: newWindowAction, renameView: renameViewAction(library),
             selectedViewID: selectedView(library)?.id, deleteView: deleteViewAction(library)))
         .sheet(isPresented: Binding(get: { app.libraryEditing?.importPresented == true }, set: { app.libraryEditing?.importPresented = $0 })) {
@@ -398,7 +409,7 @@ public struct PodListWindow: SwiftUI.View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                LibraryToolbarSearch(text: $window.search, focus: $searchFocused,
+                LibraryToolbarSearch(text: $window.search, focusRequested: $searchFocusRequested,
                                      scope: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
             }
         }
@@ -421,6 +432,15 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
         }
+    }
+
+    private func searchLibrary() {
+        window.openLibrarySearch()
+        focusListSearch()
+    }
+
+    private func focusListSearch() {
+        searchFocusRequested = true
     }
 
     private func editOrigin(in library: LibraryModel) -> EditOrigin {
@@ -1012,23 +1032,29 @@ private struct SidebarCommandButton: SwiftUI.View {
 /// A SwiftUI toolbar field with an accessible scope independent of its prompt.
 struct LibraryToolbarSearch: SwiftUI.View {
     @Binding var text: String
-    let focus: FocusState<Bool>.Binding
+    @Binding var focusRequested: Bool
     let scope: String
+    @FocusState private var focused: Bool
 
     var body: some SwiftUI.View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             TextField("", text: $text, prompt: Text(scope))
                 .textFieldStyle(.plain)
-                .focused(focus)
+                .focused($focused)
                 .accessibilityLabel(scope)
                 .accessibilityAddTraits(.isSearchField)
                 .accessibilityIdentifier("library.search")
                 .onExitCommand { text = "" }
+                .onChange(of: focusRequested, initial: true) { _, requested in
+                    guard requested else { return }
+                    focused = true
+                    focusRequested = false
+                }
             if !text.isEmpty {
                 Button("Clear Search", systemImage: "xmark.circle.fill") {
                     text = ""
-                    focus.wrappedValue = true
+                    focused = true
                 }
                 .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary)
             }

@@ -58,7 +58,6 @@ import Testing
         let editing: PlaylistEditingModel
         let app: ApplicationModel
         let presentation: PlaylistPresentation
-        @FocusState private var searchFocused: Bool
         var body: some SwiftUI.View {
             NavigationSplitView {
                 Text("Sidebar").navigationSplitViewColumnWidth(225)
@@ -73,7 +72,7 @@ import Testing
                             Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
                         ToolbarItem(placement: .primaryAction) {
-                            LibraryToolbarSearch(text: .constant(""), focus: $searchFocused, scope: "Search this list")
+                            LibraryToolbarSearch(text: .constant(""), focusRequested: .constant(false), scope: "Search this list")
                         }
                     }
                     .inspector(isPresented: .constant(true)) {
