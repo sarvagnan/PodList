@@ -15,30 +15,23 @@ func selectionToolbarNamesAreDistinctAndMatchMenuState(allStarred: Bool) {
 }
 @Test
 @MainActor
-func userEpisodeSelectionOpensInspectorButRestorationLeavesItHidden() {
+func episodeSelectionKeepsAllowedRowsAndIgnoresOutgoingListEvents() {
     let window = WindowModel()
     window.navigate(to: .view("all"))
-    var inspectorVisible = false
-    let selection = window.episodeSelection(episodeIDs: ["one", "two"], otherIDs: ["failed"]) { inspectorVisible = true }
-    selection.wrappedValue = ["failed"]
-    #expect(!inspectorVisible)
-    selection.wrappedValue = []
-    #expect(!inspectorVisible)
+    let selection = window.episodeSelection(episodeIDs: ["one", "two"], otherIDs: ["failed"])
+    selection.wrappedValue = ["failed", "outside"]
+    #expect(window.selection == ["failed"])
     selection.wrappedValue = ["one"]
-    #expect(inspectorVisible && window.selection == ["one"])
+    #expect(window.selection == ["one"])
 
-    inspectorVisible = false
     window.navigate(to: .playlist("default"))
     selection.wrappedValue = ["two"] // An outgoing native list can still send events.
-    #expect(!inspectorVisible && window.selection.isEmpty)
+    #expect(window.selection.isEmpty)
     window.navigate(to: .view("all"))
-    #expect(!inspectorVisible && window.selection == ["one"])
-    selection.wrappedValue = ["one"] // Clicking the already selected Episode reopens it.
-    #expect(inspectorVisible)
+    #expect(window.selection == ["one"])
 
-    inspectorVisible = false
     window.restore(WindowContext(destination: .search, selection: ["two"]))
-    #expect(!inspectorVisible && window.selection == ["two"])
+    #expect(window.selection == ["two"])
 }
 
 @Test(arguments: [true, false])
@@ -66,5 +59,32 @@ func inspectorChoiceSurvivesNavigationThroughAllViews(initiallyVisible: Bool) {
     #expect(playlist.wrappedValue == initiallyVisible)
     playlist.wrappedValue = !initiallyVisible
     #expect(visible != initiallyVisible)
+}
+
+@MainActor @Test
+func viewMenuInspectorCommandUsesNarrowPaneRulesAfterResize() {
+    @MainActor final class WindowFixture {
+        var width = LibraryPanes.threePaneWidth + 50
+        var panes = LibraryPanes(sidebar: true, inspector: false)
+        var enabled = false
+    }
+    let window = WindowFixture()
+    // Capture the menu's binding at the wide width. Update geometry before
+    // invoking the same action that View > Show Inspector uses.
+    let inspector = Binding(get: {
+        window.panes.presentsInspector(width: window.width, hasSelection: true, enabled: window.enabled)
+    }, set: { visible in
+        window.enabled = visible
+        window.panes = window.panes.applying(.inspector(visible), width: window.width)
+    })
+    window.width = 760
+    window.panes = window.panes.applying(.layoutChanged, width: window.width)
+    PodListCommands.toggleInspector(inspector)
+    #expect(inspector.wrappedValue)
+    #expect(window.panes == LibraryPanes(sidebar: false, inspector: true))
+
+    PodListCommands.toggleInspector(inspector)
+    #expect(!inspector.wrappedValue)
+    #expect(window.panes == LibraryPanes(sidebar: false, inspector: false))
 }
 #endif

@@ -1,6 +1,8 @@
 #if os(macOS)
 import AppKit
 import Testing
+import PodListData
+import PodListDomain
 @testable import PodListUI
 
 @MainActor
@@ -53,5 +55,56 @@ private final class DraftFieldEditor: NSTextView {
     await settleMenu()
     #expect(menu.state == nil)
     #expect(!menu.perform())
+}
+
+@MainActor @Test func namedLibraryRedoUsesTheOfferedCommandWhenFocusChangesDuringMenuTracking() async throws {
+    let db = try await fixtureDatabase()
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
+    let id = try #require(await editing.create(name: "Commute"))
+    let playlist = try #require(try await db.loadState().playlists.first { $0.id == id })
+    var draft = PlaylistSettingsDraft(playlist)
+    draft.name = "Commute edited"
+    try #require(await draft.apply(playlistName: playlist.name, using: editing))
+    await editing.reverse()
+    #expect(try await db.loadState().playlists.first { $0.id == id }?.name == "Commute")
+
+    final class Focus {
+        var editor: NSTextView?
+    }
+    let focus = Focus()
+    let textUndo = MacTextUndo(editor: { focus.editor })
+    let redo = EditHistoryMenuAction(redo: true, text: textUndo.state, editing: editing)
+    #expect(redo.title == "Redo Settings for Commute")
+    #expect(redo.isEnabled)
+
+    // AppKit can change its first responder during menu tracking, before the
+    // observer publishes the new editor state.
+    focus.editor = DraftFieldEditor()
+    #expect(redo.perform(textUndo: textUndo, keyboardShortcut: true) == nil)
+    #expect(try await db.loadState().playlists.first { $0.id == id }?.name == "Commute")
+    let reversal = try #require(redo.perform(textUndo: textUndo, keyboardShortcut: false))
+    await reversal.value
+    #expect(try await db.loadState().playlists.first { $0.id == id }?.name == "Commute edited")
+}
+
+@MainActor @Test func historyMenuDisablesRedoUntilThePreviousReversalFinishes() async throws {
+    let db = try await fixtureDatabase()
+    weak var current: PlaylistEditingModel?
+    var checked = false
+    let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString), changed: {
+        guard let current, current.history.redo != nil else { return }
+        let redo = EditHistoryMenuAction(redo: true, text: nil, editing: current)
+        #expect(current.busy)
+        #expect(!redo.isEnabled)
+        checked = true
+    })
+    current = editing
+    try #require(await editing.setStar(["a"], starred: true))
+    await editing.reverse()
+    #expect(checked)
+    let redo = EditHistoryMenuAction(redo: true, text: nil, editing: editing)
+    #expect(redo.isEnabled)
+    editing.endSession()
+    #expect(!redo.isEnabled)
 }
 #endif

@@ -11,7 +11,7 @@ import PodListData
     editor.showGettingStarted = true
     editor.reconcile(.init(state: .initial(), subscriptions: [], episodes: []))
     func image() throws -> NSBitmapImageRep {
-        let renderer = ImageRenderer(content: GettingStartedScreen(editor: editor, add: nil).frame(width: 500))
+        let renderer = ImageRenderer(content: GettingStartedSteps().frame(width: 500))
         let data = try #require(renderer.nsImage?.tiffRepresentation)
         return try #require(NSBitmapImageRep(data: data))
     }

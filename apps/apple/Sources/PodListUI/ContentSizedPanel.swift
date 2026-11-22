@@ -8,6 +8,7 @@ struct ContentSizedPanel<Content: SwiftUI.View, Footer: SwiftUI.View>: SwiftUI.V
     let width: CGFloat
     var settings = false
     var pane: String? = nil
+    var scrollIndicatorOverflowTolerance: CGFloat = 0.5
     @ViewBuilder let content: () -> Content
     @ViewBuilder let footer: () -> Footer
     @State private var contentHeight: CGFloat = 0
@@ -25,7 +26,7 @@ struct ContentSizedPanel<Content: SwiftUI.View, Footer: SwiftUI.View>: SwiftUI.V
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .frame(height: viewportHeight)
-            .scrollIndicators(contentHeight - viewportHeight > 0.5 ? .automatic : .hidden, axes: .vertical)
+            .scrollIndicators(contentHeight - viewportHeight > scrollIndicatorOverflowTolerance ? .automatic : .hidden, axes: .vertical)
             .scrollBounceBehavior(.basedOnSize)
             footer()
                 .macContentFont(.body)
@@ -38,8 +39,11 @@ struct ContentSizedPanel<Content: SwiftUI.View, Footer: SwiftUI.View>: SwiftUI.V
 }
 
 extension ContentSizedPanel where Footer == EmptyView {
-    init(width: CGFloat, settings: Bool = false, pane: String? = nil, @ViewBuilder content: @escaping () -> Content) {
-        self.width = width; self.settings = settings; self.pane = pane; self.content = content; footer = { EmptyView() }
+    init(width: CGFloat, settings: Bool = false, pane: String? = nil, scrollIndicatorOverflowTolerance: CGFloat = 0.5,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.width = width; self.settings = settings; self.pane = pane
+        self.scrollIndicatorOverflowTolerance = scrollIndicatorOverflowTolerance
+        self.content = content; footer = { EmptyView() }
     }
 }
 
@@ -84,6 +88,7 @@ struct PanelHeightReader: NSViewRepresentable {
 }
 
 struct SettingsPaneHeights: PreferenceKey {
+    static let width: CGFloat = 580
     static let defaultValue: [String: CGFloat] = [:]
     static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
         value.merge(nextValue(), uniquingKeysWith: { _, height in height })
@@ -109,7 +114,7 @@ private struct ContentSizedSettingsForm: ViewModifier {
             } action: { _, measured in
                 if measured > 0 { contentHeight = measured }
             }
-            .frame(width: 640, height: height)
+            .frame(width: SettingsPaneHeights.width, height: height)
             .preference(key: SettingsPaneHeights.self, value: [pane: height])
             .background(PanelHeightReader(settings: true) { availableHeight = $0 })
     }

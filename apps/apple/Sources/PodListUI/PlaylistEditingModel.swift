@@ -3,6 +3,21 @@ import Observation
 import PodListData
 import PodListDomain
 
+#if PODLIST_UI_TOUR
+import OSLog
+
+enum TourEditHistoryTrace {
+    private static let bundleID = Bundle.main.bundleIdentifier ?? ""
+    private static let logger = Logger(subsystem: "app.podlist", category: "TourEditHistory")
+
+    static func record(_ message: @autoclosure () -> String) {
+        guard bundleID.hasPrefix("app.podlist.uitour.") else { return }
+        let line = message()
+        logger.notice("\(bundleID, privacy: .public) \(line, privacy: .public)")
+    }
+}
+#endif
+
 enum EditOrigin: Equatable, Sendable {
     case library(Destination?)
     case podcast(String)
@@ -143,17 +158,65 @@ public final class PlaylistEditingModel {
             await changed(); return false
         }
     }
+    func canReverse(redo: Bool) -> Bool {
+        !busy && !ended && (redo ? history.redo != nil : history.undo != nil)
+    }
+
     public func reverse(redo: Bool = false, restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
         await beginReverse(redo: redo, restored: restored)?.value
     }
+    #if PODLIST_UI_TOUR
+    private static var delaysNextEntryUndo =
+        Bundle.main.bundleIdentifier?.hasPrefix("app.podlist.uitour.") == true &&
+        ProcessInfo.processInfo.environment["PODLIST_UI_DELAY_ENTRY_UNDO"] == "1"
+    @ObservationIgnored private var tourUndoSearchUnchanged: (@MainActor () -> Bool)?
+
+    func prepareTourEntryUndo(whileSearchUnchanged: @escaping @MainActor () -> Bool) {
+        if Self.delaysNextEntryUndo && history.undo?.name == "Remove from Playlist" {
+            tourUndoSearchUnchanged = whileSearchUnchanged
+        }
+    }
+    #endif
+
     private func beginReverse(redo: Bool, expectedID: UUID? = nil,
                               restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) -> Task<Void, Never>? {
-        guard !busy, !ended, let step = redo ? history.redo : history.undo,
-              expectedID == nil || expectedID == step.id else { return nil }
+        let candidate = redo ? history.redo : history.undo
+        guard !busy, !ended, let step = candidate, expectedID == nil || expectedID == step.id else {
+            #if PODLIST_UI_TOUR
+            let rejection = ended ? "ended" : busy ? "busy" : candidate == nil ? "no step" : "step changed"
+            TourEditHistoryTrace.record("beginReverse redo=\(redo) step=\(candidate?.name ?? "none") result=nil (\(rejection))")
+            #endif
+            return nil
+        }
+        #if PODLIST_UI_TOUR
+        let trace = "beginReverse redo=\(redo) step=\(step.name) id=\(step.id)"
+        TourEditHistoryTrace.record("\(trace) result=started")
+        #endif
         busy = true; error = nil; retryAction = nil; retryKind = nil
         return Task { @MainActor in
             defer { self.busy = false }
             do {
+                #if PODLIST_UI_TOUR
+                if !redo, restored != nil, step.name == "Remove from Playlist", Self.delaysNextEntryUndo {
+                    Self.delaysNextEntryUndo = false
+                    let searchUnchanged = self.tourUndoSearchUnchanged
+                    self.tourUndoSearchUnchanged = nil
+                    let inputDeadline = ContinuousClock.now + .seconds(6)
+                    try await Task.sleep(for: .seconds(8))
+                    // XCTest may wait for the guest to idle between the Search
+                    // click and typing. Give that input a bounded grace period.
+                    while !self.ended, ContinuousClock.now < inputDeadline, searchUnchanged?() == true {
+                        try await Task.sleep(for: .milliseconds(50))
+                    }
+                    if searchUnchanged?() == true {
+                        TourEditHistoryTrace.record("\(trace) tour Search input deadline expired")
+                    }
+                    guard !self.ended else {
+                        TourEditHistoryTrace.record("\(trace) result=ended during delay")
+                        return
+                    }
+                }
+                #endif
                 // Compare the committed states, including external Undo steps and
                 // Clear on Played side effects. Failed reversals never reveal content.
                 let before = restored == nil ? nil : try? await self.database.loadState()
@@ -181,7 +244,13 @@ public final class PlaylistEditingModel {
                 let after = before == nil ? nil : try? await self.database.loadState()
                 await changed()
                 if !self.ended, let before, let after { restored?(RestoredEntries.between(before, and: after)) }
+                #if PODLIST_UI_TOUR
+                TourEditHistoryTrace.record("\(trace) result=success changes=\(step.changes.count)")
+                #endif
             } catch {
+                #if PODLIST_UI_TOUR
+                TourEditHistoryTrace.record("\(trace) result=error \(LibraryMessages.failure(error))")
+                #endif
                 self.error = LibraryMessages.failure(error, operation: redo ? .redo : .undo)
                 self.retryKind = redo ? .redo : .undo
                 self.retryAction = { [weak self] in await self?.reverse(redo: redo, restored: restored) }

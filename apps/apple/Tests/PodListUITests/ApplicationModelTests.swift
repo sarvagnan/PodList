@@ -19,7 +19,8 @@ private actor FakeTransport: SyncTransport {
     var updateRequired = false
     func setUpdateRequired(_ value: Bool) { updateRequired = value }
     var healthResponse = #"{"status":"ok","protocolVersion":4}"#
-    var snapshot = fixtureState()
+    var snapshot: State
+    init(snapshot: State = fixtureState()) { self.snapshot = snapshot }
     var paths: [String] = []
     private var failedFeedCount = 0
     private var podcastRefreshFails = false
@@ -71,6 +72,68 @@ private actor FakeTransport: SyncTransport {
         default: throw SyncResponseFailure("Unexpected request \(method) \(path)")
         }
     }
+}
+
+@MainActor @Test func playlistSettingsRenameUndoesAndRedoesAcrossSyncedLibraryDestinations() async throws {
+    let id = "settings-commute"
+    var initial = fixtureState()
+    initial.playlists.append(.init(id: id, name: "Commute", isDefault: false, clearOnPlayed: true,
+                                  entries: [], cursor: nil, history: [], timeline: []))
+    let db = try LocalDatabase(path: ":memory:")
+    let transport = FakeTransport(snapshot: initial)
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false,
+                               databaseFactory: { _ in db }, transportFactory: { _ in transport })
+    app.serverInput = "https://example.com"
+    await app.connect()
+    let editing = try #require(app.editing)
+    let editor = try #require(app.libraryEditing)
+    let playlist = try #require(app.library?.state.playlists.first { $0.id == id })
+    let window = WindowModel()
+    window.navigate(to: .playlist(id))
+    var draft = editing.drafts.playlistSettings(playlist)
+    draft.name = "  Commute edited  "
+    let saved = await EditOrigin.$current.withValue(.library(window.destination)) {
+        await draft.apply(playlistName: playlist.name, using: editing)
+    }
+    try #require(saved)
+    #expect(editing.undoTitle == "Undo Settings for Commute")
+
+    func checkName(_ expected: String) async throws {
+        #expect(try await db.loadState().playlists.first { $0.id == id }?.name == expected)
+        await app.sync()
+        #expect(app.library?.sidebar.flatMap(\.items).first { $0.destination == .playlist(id) }?.name == expected)
+        #expect(await transport.snapshot.playlists.first { $0.id == id }?.name == expected)
+        #expect(editor.error == nil)
+    }
+
+    try await checkName("Commute edited")
+    // The pull still contains the pre-Undo server snapshot when it completes.
+    await transport.holdNextPull()
+    let refreshDuringUndo = Task { await app.sync() }
+    await transport.waitForPausedPull()
+    await editor.undo { #expect($0.isEmpty) }
+    #expect(editing.redoTitle == "Redo Settings for Commute")
+    await transport.releasePull()
+    await refreshDuringUndo.value
+    #expect(app.library?.state.playlists.first { $0.id == id }?.name == "Commute")
+
+    // Now let sync push Undo and hold that snapshot while Search dispatches Redo.
+    await transport.holdNextPull()
+    let refreshDuringRedo = Task { await app.sync() }
+    await transport.waitForPausedPull()
+    window.navigate(to: .trash)
+    window.navigate(to: .search)
+    #expect(editing.historyTitle(at: .library(window.destination), redo: true) == nil)
+    await editor.redo { #expect($0.isEmpty) }
+    #expect(editing.undoTitle == "Undo Settings for Commute")
+    await transport.releasePull()
+    await refreshDuringRedo.value
+    #expect(app.library?.state.playlists.first { $0.id == id }?.name == "Commute edited")
+    try await checkName("Commute edited")
+    await editor.undo { #expect($0.isEmpty) }
+    #expect(editing.redoTitle == "Redo Settings for Commute")
+    try await checkName("Commute")
+    app.disconnect()
 }
 
 @MainActor @Test func manualFeedRefreshPostsThenSyncsAndDisablesBothCommandsUntilDone() async throws {

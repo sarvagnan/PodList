@@ -106,8 +106,7 @@ struct EpisodeRowActivation: Equatable {
 }
 
 struct EditHistoryCommandContext {
-    var undo: (() -> Void)?
-    var redo: (() -> Void)?
+    let restoredEntriesHandler: @MainActor (LibraryEditingModel) -> (@MainActor ([RestoredEntries]) -> Void)
 }
 private struct EditHistoryCommandKey: FocusedValueKey { typealias Value = EditHistoryCommandContext }
 struct PlaylistSettingsCommandContext {

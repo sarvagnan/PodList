@@ -541,7 +541,7 @@ public final class ApplicationModel {
         _ = await editing?.edit([change], name: name, reload: true)
     }
     public func resolveEpisodeDetails(_ id: String) async {
-        guard let database, let library, let episode = library.snapshot.episodes.first(where: { $0.id == id }) else { return }
+        guard let database, let library, let episode = library.row(id).episode else { return }
         let token = generation
         var readPublisherMetadata = false
         if library.snapshot.episodeLinks[id] == nil, let sub = library.snapshot.subscriptions.first(where: { $0.id == episode.subscriptionId }) {

@@ -4,7 +4,7 @@ import QuartzCore
 import XCTest
 import XCUIAutomation
 
-/// A foreground tour of the production UI. No in-app navigation or capture hooks.
+/// A foreground tour using public UI routes. A tour-only hook delays one Undo.
 @MainActor
 final class PodListUITour: XCTestCase {
     private var app: XCUIApplication!
@@ -39,10 +39,17 @@ final class PodListUITour: XCTestCase {
             XCTAssertFalse(showBorders, "Show Borders verification requires NSWorkspace.\(key) in the guest")
         }
         let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
-        let origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
-        let data = root.appendingPathComponent(appearance + "/data", isDirectory: true)
+        let fixture = root.appendingPathComponent(appearance, isDirectory: true)
+        let origin: String
+        if timingsOnly {
+            origin = try XCTUnwrap(env["PODLIST_UI_SERVER_ORIGIN"])
+        } else {
+            origin = try String(contentsOf: fixture.appendingPathComponent("origin"), encoding: .utf8)
+        }
+        let data = fixture.appendingPathComponent("data", isDirectory: true)
         let timings = data.appendingPathComponent("response-timings-\(UUID()).tsv")
-        try launch(from: root, copy: appearance, style: style, origin: origin, timings: showBorders ? nil : timings)
+        try launch(from: root, copy: appearance, style: style, origin: origin, timings: showBorders ? nil : timings,
+                   delayEntryUndo: !showBorders && !timingsOnly)
         defer { app.terminate() }
         try ready(library)
         try ready(library.buttons["Open Market Hours, Subscription"])
@@ -61,7 +68,8 @@ final class PodListUITour: XCTestCase {
         try captureLargeSidebar(from: root, style: style)
     }
 
-    private func launch(from root: URL, copy: String, style: String, origin: String, timings: URL? = nil) throws {
+    private func launch(from root: URL, copy: String, style: String, origin: String, timings: URL? = nil,
+                        delayEntryUndo: Bool = false) throws {
         let bundleURL = root.appendingPathComponent(copy + "/PodList.app")
         let info = try NSDictionary(contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist"), error: ())
         let identifier = try XCTUnwrap(info["CFBundleIdentifier"] as? String)
@@ -81,7 +89,9 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: data.path))
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
+        app.launchEnvironment["PODLIST_UI_WATCHDOG"] = "1"
         if let timings { app.launchEnvironment["PODLIST_UI_TIMINGS_FILE"] = timings.path }
+        if delayEntryUndo { app.launchEnvironment["PODLIST_UI_DELAY_ENTRY_UNDO"] = "1" }
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
                                "-PodList.mcpEnabled", "NO",
                                "-AppleKeyboardUIMode", "3",
@@ -95,6 +105,8 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
         let libraryStatus = library.descendants(matching: .any).matching(identifier: "library.status").firstMatch
         try ready(libraryStatus)
+        XCTAssertTrue(sidebarItem("Commute").exists, "The appearance must start with a freshly seeded Commute")
+        XCTAssertFalse(sidebarItem("Commute edited").exists, "This appearance inherited another pass’s rename")
         XCTAssertGreaterThan(libraryStatus.frame.height, 0)
         XCTAssertLessThanOrEqual(libraryStatus.frame.height, 33, "Sync and edit feedback must share one compact row")
         XCTAssertFalse(sidebar.images["Clear on Played on"].exists, "Clear on Played must not repeat the Add to a Playlist glyph")
@@ -111,8 +123,17 @@ final class PodListUITour: XCTestCase {
         let initialFirstRowOffset = try firstEpisodeOffset(title: firstEpisodeTitle)
         let leadingTitleX = library.staticTexts["New this week"].firstMatch.frame.minX
         XCTAssertFalse(library.toolbars.buttons["New View…"].exists)
+        XCTAssertGreaterThanOrEqual(library.frame.width, 950)
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening a View with no selection")
+        let playerTop = library.buttons["Open Now Playing"].frame.minY
+        let fullyVisibleRows = episodeRows.allElementsBoundByIndex.filter {
+            $0.frame.height > 4 && $0.frame.minY >= episodeList.frame.minY && $0.frame.maxY <= playerTop
+        }
+        XCTAssertGreaterThanOrEqual(fullyVisibleRows.count, min(8, episodeRows.count), "At least eight Episodes should fit when available")
         try capture("02-new-this-week")
-        try hideInspector()
+        try searchLibraryWithShortcut()
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening Library Search at default width")
+        try openNewThisWeek()
         try selectFirstEpisode()
         try ready(episodeInspector)
         try capture("03-episode-inspector")
@@ -124,13 +145,28 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(try firstEpisodeOffset(title: firstEpisodeTitle), initialFirstRowOffset, accuracy: 1,
                        "Returning to a short View must keep its first row below the column header")
         XCTAssertFalse(episodeInspector.exists, "Restored selection must respect the hidden Inspector")
-        XCTAssertTrue(episodeRows.firstMatch.isSelected, "Returning to the View must restore selection")
+        let restoredSelection = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            episodeRows.firstMatch.exists && episodeRows.firstMatch.isSelected
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [restoredSelection], timeout: 5), .completed,
+                       "Returning to the View must restore selection")
         try firstEpisodePoint().click()
+        XCTAssertFalse(episodeInspector.exists, "Reselecting an Episode must respect an explicit off choice")
+        app.typeKey("i", modifierFlags: [.command, .option])
         try ready(episodeInspector)
         XCTAssertFalse(episodeInspector.buttons["Show in Window"].exists)
         app.typeKey("i", modifierFlags: [.command, .option])
         XCTAssertTrue(episodeInspector.waitForNonExistence(timeout: 5))
         episodeList.typeKey(.downArrow, modifierFlags: [])
+        XCTAssertFalse(episodeInspector.exists, "Moving selection must respect an explicit off choice")
+        try click(inspectorButton)
+        try ready(episodeInspector)
+        try focusListSearch()
+        app.typeText("no matching tour episode")
+        try ready(text("No Matching Episodes"))
+        assertLibraryPanes(sidebar: true, inspector: false, after: "clearing the selection through Search")
+        app.typeKey(.escape, modifierFlags: [])
+        try selectFirstEpisode()
         try ready(episodeInspector)
         app.typeText("jo")
         let joinery = episodeRows.containing(.staticText, identifier: "Joinery without screws").firstMatch
@@ -149,41 +185,51 @@ final class PodListUITour: XCTestCase {
         try ready(episodeList)
         XCTAssertEqual(library.staticTexts["Default"].firstMatch.frame.minX, leadingTitleX, accuracy: 1,
                        "The Playlist title must retain the library's leading title position")
-        try ready(text("Select an Episode"))
-        try ready(inspectorButton)
-        XCTAssertEqual(inspectorButton.label, "Hide Inspector", "The Inspector choice must survive Show All Views")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening a Playlist with no selection")
         let searchField = librarySearchField
         try ready(searchField)
         XCTAssertEqual(searchField.label, "Search this list")
         XCTAssertGreaterThan(searchField.frame.width, 100, "Search must remain a full field at the default window width")
         try capture("06-default-playlist")
-        let unselectedSection = playlistSection("Entries").frame
-        let unselectedPlay = playlistPlayButton.frame
+        let closedHeader = playlistHeaderFrames
         XCTAssertEqual(playlistPlayButton.label, "Play This Playlist")
         XCTAssertFalse(library.toolbars.buttons["New Playlist…"].exists)
-        let unselectedInspector = inspectorButton.frame
-        try selectFirstEpisode()
+        let firstEntry = episodeRows.firstMatch
+        let firstEntryPoint = try firstEpisodePoint()
+        let clickLocation = firstEntryPoint.screenPoint
+        let firstEntryBefore = firstEntry.frame
+        firstEntryPoint.click()
+        assertLibraryPanes(sidebar: true, inspector: true, after: "selecting the first Entry")
+        XCTAssertTrue(firstEntry.isSelected)
+        XCTAssertTrue(firstEntry.frame.contains(clickLocation), "The clicked point must remain inside the selected Entry")
+        XCTAssertEqual(firstEntry.frame.minY, firstEntryBefore.minY, accuracy: 1, "Opening the Inspector moved the selected Entry vertically")
         XCTAssertNotEqual(playlistPlayButton.label, "Play This Playlist", "The same Play control now targets the selection")
-        assertInspectorPosition(unselectedInspector)
-        assertPlaylistHeader(play: unselectedPlay, section: unselectedSection)
+        let openHeader = playlistHeaderFrames
+        assertPlaylistHeader(openHeader)
+        XCTContext.runActivity(named: "Inspector open: Playlist section dx \(openHeader.section.minX - closedHeader.section.minX) pt, Play dx \(openHeader.play.minX - closedHeader.play.minX) pt, Inspector toggle dx \(openHeader.inspector.minX - closedHeader.inspector.minX) pt, clicked Entry width \(firstEntryBefore.width) to \(firstEntry.frame.width) pt") { _ in }
         try capture("07-entry-inspector")
         try assertInspectorActionTargets()
-        // The section switcher and Playlist action belong to the window toolbar.
-        let defaultHeader = playlistPlayButton.frame
-        let defaultSection = playlistSection("Entries").frame
+
+        let secondEntry = episodeRows.element(boundBy: 1)
+        try ready(secondEntry)
+        secondEntry.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
+        XCTAssertTrue(secondEntry.isSelected)
+        assertLibraryPanes(sidebar: true, inspector: true, after: "selecting another Entry")
+        assertPlaylistHeader(openHeader)
+
         try segment("History")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening History without a selection")
+        assertPlaylistHeader(closedHeader)
         try capture("08-history")
-        assertPlaylistHeader(play: defaultHeader, section: defaultSection)
-        assertInspectorPosition(unselectedInspector)
         let historyDescription = text("Manual Played marks do not create History")
         try ready(historyDescription)
         XCTAssertLessThanOrEqual(historyDescription.frame.maxY, library.buttons["Open Now Playing"].frame.minY - 22,
                                  "History must fit above the player at the default window size")
         try segment("Listening Timeline")
         try ready(library.descendants(matching: .any).matching(identifier: "Listening Timeline").firstMatch)
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening Listening Timeline")
+        assertPlaylistHeader(closedHeader)
         try capture("09-listening-timeline")
-        assertPlaylistHeader(play: defaultHeader, section: defaultSection)
-        assertInspectorPosition(unselectedInspector)
         let rewindButtons = library.buttons.matching(identifier: "timeline.rewind")
         let rewind = rewindButtons.firstMatch
         XCTAssertFalse(rewind.exists, "An unselected Timeline must have no row Rewind button")
@@ -219,8 +265,7 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Commute")
         try capture("10-commute")
-        let commuteHeader = playlistPlayButton.frame
-        let commuteSection = playlistSection("Entries").frame
+        let commuteHeader = playlistHeaderFrames
         let entryColumn = episodeList.buttons["Entry"].firstMatch.frame
         // Every toolbar control needs its own accessible name (round 9: a pull-down was announced
         // by its symbol name).
@@ -258,7 +303,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("z", modifierFlags: .command)
         try ready(library.descendants(matching: .any).matching(identifier: "sidebar.Commute").firstMatch)
         try ready(library.buttons["Redo Settings for Commute"])
-        assertPlaylistHeader(play: commuteHeader, section: commuteSection)
+        assertPlaylistHeader(commuteHeader)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
         try openNewPlaylist()
         XCTAssertFalse(library.sheets.staticTexts["Enter a Playlist name."].exists)
@@ -273,7 +318,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("z", modifierFlags: [.command, .shift])
         XCTAssertEqual(newPlaylistName.value as? String, "Tour draft", "Shift-Command-Z must redo the field edit")
         try dismissSheet("Cancel")
-        assertPlaylistHeader(play: commuteHeader, section: commuteSection)
+        assertPlaylistHeader(commuteHeader)
         XCTAssertEqual(episodeList.buttons["Entry"].firstMatch.frame.minY, entryColumn.minY, accuracy: 1)
 
         try navigate("Trash")
@@ -281,17 +326,30 @@ final class PodListUITour: XCTestCase {
         try capture("14-trash")
         try navigate("Search")
         try ready(library.buttons["Create View…"])
+        try ready(libraryStatus)
         XCTAssertFalse(libraryStatus.buttons["Redo Settings for Commute"].exists)
         try menuCommand("Edit", "Redo Settings for Commute", until: sidebarItem("Commute edited"))
         XCTAssertFalse(libraryStatus.buttons["Undo Settings for Commute"].exists)
+        // This is a Library Undo. Put the native list in focus before invoking
+        // the command so a field editor cannot consume it as a text Undo.
+        try firstEpisodePoint().click()
+        XCTAssertFalse(searchField.value(forKey: "hasKeyboardFocus") as? Bool == true)
         try menuCommand("Edit", "Undo Settings for Commute", until: sidebarItem("Commute"))
+        // The list click selected an Episode. Clear that selection before
+        // capturing Search with no selection and no Inspector.
+        try focusListSearch()
+        app.typeText("no matching tour episode")
+        try ready(text("No Matching Episodes"))
+        assertLibraryPanes(sidebar: true, inspector: false, after: "clearing the Search selection")
+        app.typeKey(.escape, modifierFlags: [])
         try ready(searchField)
         XCTAssertEqual(searchField.label, "Search Library")
         try focusListSearch()
         app.typeText("rice")
         try ready(text(firstEpisodeTitle, in: episodeList))
-        XCTAssertEqual(searchField.value as? String, "rice")
+        assertSearchValue(searchField, "rice", "Clicking the toolbar field must route typing to Library Search")
         XCTAssertEqual(searchField.label, "Search Library", "Typing must preserve the Search field's name")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "filtering Search without selecting a result")
         try capture("15-search-rice")
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(.delete, modifierFlags: [])
@@ -356,7 +414,9 @@ final class PodListUITour: XCTestCase {
         let episodeHeading = episodeList.buttons["Episode"].firstMatch
         let episodeCount = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
         XCTAssertEqual(episodeHeading.frame.minX, episodeCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
-        let collapsedPublished = episodeList.buttons["Published"].firstMatch.frame
+        let collapsedTable = try XCTUnwrap(podcastTableGeometry(in: try library.snapshot()))
+        XCTAssertEqual(collapsedTable.columns.count, 4, "The default-width Podcast must show all four columns")
+        XCTAssertFalse(collapsedTable.hasScroller, "The collapsed Podcast fits its six Episodes")
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show description"))
@@ -369,10 +429,14 @@ final class PodListUITour: XCTestCase {
         try capture("19-description-expanded")
         try click(button("Hide Description"))
         try ready(button("Show description"))
+        var actualTable: PodcastTableGeometry?
         let restoredColumns = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
-            abs(episodeList.buttons["Published"].firstMatch.frame.minX - collapsedPublished.minX) <= 1
+            guard let window = try? library.snapshot(), let table = podcastTableGeometry(in: window) else { return false }
+            actualTable = table
+            return table.matchesCollapsedExtent(of: collapsedTable)
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [restoredColumns], timeout: 3), .completed, "Hide Description must restore the Podcast table columns")
+        let restored = XCTWaiter.wait(for: [restoredColumns], timeout: 3)
+        XCTAssertEqual(restored, .completed, "Hide Description must restore the Podcast table extent and readable columns. Before: \(collapsedTable). After: \(String(describing: actualTable)).")
         let subscriptionFrame = library.buttons["Subscribed"].frame
         let shareFrame = library.buttons["Share Podcast"].frame
         try click(library.buttons["Subscribed"])
@@ -392,7 +456,7 @@ final class PodListUITour: XCTestCase {
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         XCTAssertFalse(library.sheets.buttons["Mark All Played"].exists)
-        assertPopUpNames(["Download Rule on This Mac", "Played Threshold", "Speed", "Skip Intro", "Skip Outro", "Volume Boost"])
+        assertPopUpNames(["Downloads on This Mac", "Played Threshold", "Speed", "Skip Intro", "Skip Outro", "Volume Boost"])
         try capture("22-subscription-settings", expectsSheet: true)
         try assertSheetAtBothTextSizes()
         library.typeKey(.escape, modifierFlags: [])
@@ -403,6 +467,8 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
 
         try navigate("New this week")
+        try selectFirstEpisode()
+        try ready(episodeInspector)
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
         try click(add)
         try sheet("to a Playlist")
@@ -473,7 +539,17 @@ final class PodListUITour: XCTestCase {
         // Opening the Podcast page made Library key. Give Add Podcasts focus again.
         try click(podcastQuery)
         selectResult.doubleClick()
-        try ready(back)
+        if !back.waitForExistence(timeout: 15) {
+            // Record what was on screen before XCTest describes the failure;
+            // run 16 lost this when describing the missing button threw.
+            let prefix = "\(appearance)--double-click-failure"
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "\(prefix)-screen.png"
+            screenshot.lifetime = .keepAlways
+            self.add(screenshot)
+            attach(app.windows.debugDescription, name: "\(prefix)-windows.txt")
+            XCTFail("Double-clicking a result must open its Podcast page")
+        }
         try ready(text(firstEpisodeTitle, in: episodeList))
         // Focus the panel again so Escape closes it after opening the Podcast page.
         try click(podcastQuery)
@@ -487,7 +563,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("a", modifierFlags: .command)
         try click(library.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Edit Download Rules for'")).firstMatch)
         try ready(library.sheets.firstMatch)
-        assertPopUpNames(["Download Rule on This Mac"])
+        assertPopUpNames(["Downloads on This Mac"])
         try capture("25-download-rules", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Default")
@@ -582,7 +658,7 @@ final class PodListUITour: XCTestCase {
         stats.typeKey("w", modifierFlags: .command)
         app.typeKey(",", modifierFlags: .command)
         try ready(settings)
-        try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
+        try click(settingsTab("General", in: settings))
         let generalForm = settings.scrollViews.firstMatch
         if generalForm.exists {
             generalForm.hover()
@@ -591,15 +667,16 @@ final class PodListUITour: XCTestCase {
             try reveal(button("Getting started", in: settings), in: generalForm)
         }
         try click(button("Getting started", in: settings))
-        try ready(settings.sheets.firstMatch)
-        XCTAssertTrue(settings.sheets.buttons["Hide Getting Started"].exists)
-        try capture("32-getting-started", in: settings, expectsSheet: true)
-        settings.typeKey(.escape, modifierFlags: [])
-        XCTAssertTrue(settings.sheets.firstMatch.waitForNonExistence(timeout: 10))
-        try click(button("Getting started", in: settings))
-        try ready(settings.sheets.firstMatch)
-        settings.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(settings.sheets.firstMatch.waitForNonExistence(timeout: 10))
+        let introduction = app.windows["Getting Started"].firstMatch
+        try ready(introduction.buttons["Hide Getting Started"])
+        XCTAssertFalse(settings.sheets.firstMatch.exists)
+        try capture("32-getting-started", in: introduction)
+        introduction.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(introduction.waitForNonExistence(timeout: 10))
+        try menuCommand("Help", "Getting Started", until: introduction)
+        try ready(introduction.buttons["Hide Getting Started"])
+        introduction.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(introduction.waitForNonExistence(timeout: 10))
         settings.typeKey("w", modifierFlags: .command)
 
         try navigate("New this week")
@@ -625,6 +702,10 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.buttons["Play"].exists)
         XCTAssertFalse(library.buttons["Pause"].exists, "Leave an Episode paused as after relaunch")
 
+        // This completed edit replaces the redo stack. Run it after the earlier
+        // Settings-for-Commute Redo and the menu inventory.
+        try navigate("Commute")
+        try checkDelayedEntryUndo()
         try recordResponseTimings(from: timings)
 
         // Resize only after the default-size captures and timings.
@@ -636,13 +717,81 @@ final class PodListUITour: XCTestCase {
         try ready(sidebar)
         try assertEpisodeTableLayout() // Exercise the Published-text overlap check before metadata gives way.
         try shrinkToMinimumSize(library)
-        XCTAssertTrue(sidebar.waitForNonExistence(timeout: 5), "Narrowing with the Inspector open must hide the sidebar")
+        assertLibraryPanes(sidebar: true, inspector: false, after: "narrowing with an automatically shown Inspector")
+        try firstEpisodePoint().click()
+        assertLibraryPanes(sidebar: true, inspector: false, after: "selecting an Episode in a narrow window")
+        try click(inspectorButton)
+        assertLibraryPanes(sidebar: false, inspector: true, after: "opening the Inspector explicitly at minimum width")
+        let playbackState = episodeRows.containing(.staticText, identifier: firstEpisodeTitle).firstMatch
+            .descendants(matching: .any).matching(identifier: "Playback State").firstMatch
+        try ready(playbackState)
+        XCTAssertEqual(playbackState.value as? String, "In progress")
         try capture("35-minimum-window")
         try assertEpisodeTableLayout()
+        // All six tightly spaced rows can now fit at minimum height. Use the
+        // complete Library table to exercise scrolling in the same narrow window.
+        try searchLibraryWithShortcut()
+        try selectFirstEpisode()
+        assertLibraryPanes(sidebar: false, inspector: true, after: "opening full Library results for the scroll check")
         try scrollEpisodesBeneathBars()
         try capture("36-scrolled-under-bars")
         try checkNarrowPaneSwaps()
         try captureHalfDisplay()
+    }
+
+    private func checkDelayedEntryUndo() throws {
+        let returning = "When a currency disappears"
+        let retained = "Inflation, explained with sandwiches"
+        let removedRow = episodeRows.containing(.staticText, identifier: returning).firstMatch
+        let retainedRow = episodeRows.containing(.staticText, identifier: retained).firstMatch
+        try ready(removedRow)
+        removedRow.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
+        XCTAssertTrue(removedRow.isSelected)
+        episodeList.typeKey(.delete, modifierFlags: [])
+        XCTAssertTrue(removedRow.waitForNonExistence(timeout: 10))
+        let undo = library.buttons["Undo Remove from Playlist"]
+        try ready(undo)
+        try ready(retainedRow)
+        retainedRow.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
+        XCTAssertTrue(retainedRow.isSelected)
+        let search = librarySearchField
+        try ready(search)
+        let searchPoint = search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+
+        try click(undo)
+        searchPoint.click()
+        app.typeText("Inflation")
+
+        // An unchanged query at completion reveals the Entry immediately, so the
+        // recovery action also proves that the edit arrived during the delay.
+        let reveal = library.buttons["Show Restored Entries"]
+        let completion = NSPredicate { [self] _, _ in
+            guard let snapshot = try? library.snapshot(),
+                  let status = descendants(snapshot).first(where: { $0.identifier == "library.status" }) else { return false }
+            let feedback = descendants(status)
+            return feedback.contains { $0.label == "Show Restored Entries" && $0.isEnabled } &&
+                feedback.contains { ($0.value as? String ?? $0.label) == "Undone: Remove from Playlist" }
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: completion, object: nil)], timeout: 20), .completed,
+                       "Entry Undo must announce completion and offer Show Restored Entries while the new query is active")
+        XCTAssertEqual(search.value as? String, "Inflation")
+        XCTAssertTrue(retainedRow.isSelected, "The later query and the selected matching Entry must survive Undo")
+        XCTAssertFalse(removedRow.exists, "Undo must preserve the filter until the person asks to reveal the Entry")
+        try capture("44-delayed-entry-undo")
+
+        try click(reveal)
+        try ready(removedRow)
+        XCTAssertTrue(removedRow.isSelected, "Show Restored Entries must reveal and select the restored Entry")
+        XCTAssertTrue(reveal.waitForNonExistence(timeout: 5))
+        // Clear the restored selection so the tiled Commute capture starts
+        // with the same empty selection as the first visit.
+        try focusListSearch()
+        app.typeText("no matching tour episode")
+        XCTAssertTrue(removedRow.waitForNonExistence(timeout: 10))
+        assertLibraryPanes(sidebar: true, inspector: false, after: "clearing the restored Entry selection")
+        app.typeKey(.escape, modifierFlags: [])
+        try ready(removedRow)
+        XCTAssertFalse(removedRow.isSelected)
     }
 
     private func checkNarrowPaneSwaps() throws {
@@ -666,7 +815,9 @@ final class PodListUITour: XCTestCase {
 
         try showSidebar()
         narrowLibraryForPaneSwap()
-        try menuCommand("View", "Show Inspector")
+        let openInspectorToggle = library.toolbars.buttons.matching(NSPredicate(
+            format: "identifier == %@ AND label == %@", "library.inspector", "Hide Inspector")).firstMatch
+        try menuCommand("View", "Show Inspector", until: openInspectorToggle)
         assertLibraryPanes(sidebar: false, inspector: true, after: "choosing View > Show Inspector")
 
         try showSidebar()
@@ -699,7 +850,10 @@ final class PodListUITour: XCTestCase {
             if let snapshot = try? window.snapshot() {
                 let elements = descendants(snapshot)
                 let hasSidebar = elements.contains { $0.elementType == .outline && $0.label == "Sidebar" }
-                let hasInspector = elements.contains { $0.label == "Episode Inspector" }
+                let hasInspector = elements.contains {
+                    $0.label == "Episode Inspector" || $0.identifier == "library.episodeSelectionInspector"
+                        || ($0.elementType == .staticText && $0.value as? String == "Select an Episode")
+                }
                 let inspectorToggle = elements.first { $0.identifier == "library.inspector" }?.label
                 if hasSidebar == sidebar, hasInspector == inspector,
                    inspectorToggle == (inspector ? "Hide Inspector" : "Show Inspector") { return }
@@ -713,19 +867,27 @@ final class PodListUITour: XCTestCase {
     private func scrollEpisodesBeneathBars() throws {
         // Track the same two rows before and after scrolling. Overlay scrollers
         // are not always present in the Episode list's accessibility tree.
-        let first = episodeRows.containing(.staticText, identifier: "Who sets the price of rice?").firstMatch
-        let last = episodeRows.containing(.staticText, identifier: "Inflation, explained with sandwiches").firstMatch
-        try ready(first)
-        try ready(last)
-        let headerBottom = episodeList.buttons["Episode"].firstMatch.frame.maxY
+        let list = episodeList
+        let table = try list.snapshot()
+        let headerBottom = list.buttons["Episode"].firstMatch.frame.maxY
         let playerTop = library.buttons["Open Now Playing"].frame.minY - 22
-        let startingBottom = last.frame.maxY
-        XCTAssertGreaterThanOrEqual(first.frame.minY, headerBottom - 1, "The first Episode starts below the column header")
-        XCTAssertGreaterThan(startingBottom, playerTop, "The last Episode initially extends under the player")
+        let rows = descendants(table).filter { [.tableRow, .outlineRow].contains($0.elementType) }
+        let firstRow = try XCTUnwrap(rows.first)
+        let underPlayer = try XCTUnwrap(rows.first { $0.frame.maxY > playerTop + 8 && $0.frame.minY < table.frame.maxY },
+                                       "The Library results must include an Episode starting beneath the player")
+        func row(matching snapshot: XCUIElementSnapshot) throws -> XCUIElement {
+            let title = try XCTUnwrap(descendants(snapshot).first { $0.elementType == .staticText })
+            return episodeRows.containing(.staticText, identifier: title.value as? String ?? title.label).firstMatch
+        }
+        let first = try row(matching: firstRow)
+        let last = try row(matching: underPlayer)
+        let startingBottom = underPlayer.frame.maxY
+        XCTAssertGreaterThanOrEqual(firstRow.frame.minY, headerBottom - 1, "The first Episode starts below the column header")
 
         let listPoint = episodeList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
         let scrolled = NSPredicate { _, _ in
             guard let lastFrame = try? last.snapshot().frame, !lastFrame.isEmpty,
+                  lastFrame.minY >= headerBottom - 1,
                   lastFrame.maxY < startingBottom - 8, lastFrame.maxY <= playerTop + 1 else { return false }
             guard let firstFrame = try? first.snapshot().frame else { return true }
             return firstFrame.isEmpty || firstFrame.minY < headerBottom - 4
@@ -736,7 +898,7 @@ final class PodListUITour: XCTestCase {
             let moved = XCTNSPredicateExpectation(predicate: scrolled, object: nil)
             if XCTWaiter.wait(for: [moved], timeout: 5) == .completed { return }
         }
-        XCTFail("Scrolling must move the first Episode beneath the column header and bring the last Episode clear of the player")
+        XCTFail("Scrolling must move the first Episode beneath the column header and bring the overlapping Episode clear of the player")
     }
 
     private func checkPlaylistSettingsTrash() throws {
@@ -751,14 +913,14 @@ final class PodListUITour: XCTestCase {
         let delete = panel.buttons["Delete Playlist"]
         let restore = panel.buttons["Restore Playlist"]
         let save = panel.buttons["Save"]
-        let done = panel.buttons["Done"]
+        let close = panel.buttons["Close"]
         try click(field)
         app.typeKey("a", modifierFlags: .command)
         app.typeText("Morning Commute")
         try click(delete)
         try ready(text("“Commute” is in the Trash.", in: panel))
         try ready(restore)
-        try ready(done)
+        try ready(close)
         XCTAssertFalse(save.exists)
         XCTAssertFalse(panel.buttons["Cancel"].exists)
         XCTAssertFalse(field.isEnabled)
@@ -789,17 +951,22 @@ final class PodListUITour: XCTestCase {
         try ready(sidebarItem("Commute"))
 
         try click(delete)
-        XCTAssertTrue(done.wait(for: \.isEnabled, toEqual: true, timeout: 5))
+        XCTAssertTrue(close.wait(for: \.isEnabled, toEqual: true, timeout: 5))
         panel.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Return must activate Done")
+        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Return must activate Close")
         try ready(library.buttons["Open Market Hours, Subscription"])
         try navigate("Trash")
         try click(library.buttons["Restore Playlist Commute"])
         try navigate("Commute")
         try click(settings)
         try sheet("Playlist Settings")
-        XCTAssertEqual(field.value as? String, "Commute", "Done discards the draft")
-        try dismissSheet("Cancel")
+        XCTAssertEqual(field.value as? String, "Commute", "Close discards the draft")
+        try click(delete)
+        XCTAssertTrue(close.wait(for: \.isEnabled, toEqual: true, timeout: 5))
+        panel.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Escape must activate Close")
+        try navigate("Trash")
+        try click(library.buttons["Restore Playlist Commute"])
     }
 
     private func captureLargeSidebar(from root: URL, style: String) throws {
@@ -896,6 +1063,9 @@ final class PodListUITour: XCTestCase {
         try navigate("Subscriptions")
         try openNewThisWeek()
         try firstEpisodePoint().click()
+        if !episodeInspector.exists {
+            try menuCommand("Episode", "Show Episode Details", until: episodeInspector)
+        }
         try ready(episodeInspector)
         try restoreTileIfNeeded()
         try capture("37-half-display-episode-inspector")
@@ -913,11 +1083,13 @@ final class PodListUITour: XCTestCase {
             try ready(action)
             XCTAssertTrue(action.isHittable && library.frame.contains(action.frame))
         }
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening the tiled Podcast page")
         try capture("38-half-display-podcast-market-hours")
         try assertEpisodeTableLayout()
 
         try navigate("Commute")
         try ready(episodeRows.firstMatch)
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening tiled Commute without a selection")
         try capture("39-half-display-commute")
         try assertEpisodeTableLayout(inPlaylist: true)
     }
@@ -930,10 +1102,19 @@ final class PodListUITour: XCTestCase {
         // The VM sometimes needs a second attempt to open the submenu or apply the tile.
         for _ in 0..<3 {
             try click(windowMenu)
-            if moveAndResize.waitForExistence(timeout: 5) {
-                moveAndResize.hover()
-                if left.waitForExistence(timeout: 5), left.isEnabled {
-                    left.click()
+            if moveAndResize.waitForExistence(timeout: 5),
+               let row = try? moveAndResize.snapshot(),
+               let menu = try? windowMenu.snapshot(),
+               let target = menuRowCoordinate(windowMenu, menu: menu.frame, row: row.frame) {
+                target.hover()
+                // Click the snapshot's position: if the submenu closes before the
+                // click, XCTest's re-lookup would fail the test instead of retrying.
+                if left.waitForExistence(timeout: 5), let item = try? left.snapshot(), item.isEnabled,
+                   !item.frame.isEmpty {
+                    let menuFrame = windowMenu.frame
+                    windowMenu.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: item.frame.midX - menuFrame.minX, dy: item.frame.midY - menuFrame.minY))
+                        .click()
                     let deadline = Date().addingTimeInterval(5)
                     repeat {
                         if tile(library.frame) { return }
@@ -986,14 +1167,30 @@ final class PodListUITour: XCTestCase {
 
             try ready(newThisWeek)
             guard perform("sidebar", until: listedEpisode, input: { newThisWeek.click() }) else { continue }
-            try hideInspector()
+            if episodeInspector.exists {
+                try focusListSearch()
+                app.typeText("no matching tour episode")
+                try ready(text("No Matching Episodes"))
+                app.typeKey(.escape, modifierFlags: [])
+                try ready(listedEpisode)
+            }
+            XCTAssertFalse(episodeInspector.exists, "Measure the first selection with a hidden Inspector")
             let episode = try firstEpisodePoint()
             XCTAssertTrue(perform("inspector", until: episodeInspector) { episode.click() },
-                          "A click on a remembered, selected Episode must reopen the Inspector")
+                          "The first selection must open the Inspector at the default width")
+            let second = episodeRows.element(boundBy: 1)
+            try ready(second)
+            let title = second.staticTexts.firstMatch
+            let secondTitle = (title.value as? String) ?? title.label
+            XCTAssertFalse(secondTitle.isEmpty, "Use the second row’s title for the open-Inspector timing")
+            perform("inspector-open", until: text(secondTitle, in: episodeInspector)) {
+                second.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).click()
+            }
 
             try focusListSearch()
             app.typeText("ric")
             perform("filter", until: filteredEpisode) { app.typeKey("e", modifierFlags: []) }
+            app.typeKey(.escape, modifierFlags: [])
         }
 
         let log = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
@@ -1003,9 +1200,9 @@ final class PodListUITour: XCTestCase {
                   input.isFinite, ms.isFinite, ms >= 0 else { return nil }
             return (String(fields[0]), input, ms)
         }
-        func summary(_ step: String, _ name: String) -> String {
+        func summary(_ step: String, _ name: String, loggedAs: String? = nil) -> String {
             let observed = inputs[step, default: []].compactMap { range in
-                samples.first { $0.step == step && range.contains($0.input) }?.ms
+                samples.first { $0.step == (loggedAs ?? step) && range.contains($0.input) }?.ms
             }.sorted()
             return timingSummary(name, observed, runs: runCount)
         }
@@ -1020,7 +1217,8 @@ final class PodListUITour: XCTestCase {
             "If sidebar navigation does not reach the Episode list, the selection and filter runs for that iteration are skipped.",
             "",
             summary("sidebar", "Sidebar → New this week Episode list"),
-            summary("inspector", "Select Episode → Episode Inspector"),
+            summary("inspector", "Select Episode → Episode Inspector (pane opens)"),
+            summary("inspector-open", "Select Episode → Episode Inspector (pane stays open)", loggedAs: "inspector"),
             summary("playlist", "Shift-Cmd-N → New Playlist sheet"),
             summary("settings", "Cmd-, → Settings window"),
             summary("filter", "Final e in rice → filtered Episode list"),
@@ -1050,6 +1248,7 @@ final class PodListUITour: XCTestCase {
         try ready(episodeRows.firstMatch)
         try capture("02-new-this-week")
         try selectFirstEpisode()
+        try ready(episodeInspector)
         try capture("03-episode-inspector")
         try openNewPlaylist()
         try capture("13-new-playlist", expectsSheet: true)
@@ -1077,6 +1276,23 @@ final class PodListUITour: XCTestCase {
         let search = librarySearchField
         try ready(search)
         search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+    }
+
+    private func searchLibraryWithShortcut() throws {
+        app.typeKey("f", modifierFlags: .command)
+        try ready(library.buttons["Create View…"])
+        let search = librarySearchField
+        try ready(search)
+        XCTAssertEqual(search.label, "Search Library")
+    }
+
+    private func assertSearchValue(_ field: XCUIElement, _ expected: String, _ message: String,
+                                   file: StaticString = #filePath, line: UInt = #line) {
+        let landed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            field.exists && field.value as? String == expected
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 5), .completed,
+                       "\(message). Value: \(String(describing: field.value))", file: file, line: line)
     }
 
     private func checkOPMLOpenShortcut() throws {
@@ -1127,17 +1343,28 @@ final class PodListUITour: XCTestCase {
         app.typeKey(",", modifierFlags: .command)
         let settings = settingsWindow
         try ready(settings)
-        try click(settings.descendants(matching: .any).matching(identifier: "General").firstMatch)
+        try click(settingsTab("General", in: settings))
         try ready(text("Speed", in: settings))
+        try ready(settingsTab("Automation", in: settings))
+        XCTAssertFalse(mcpSetting(in: settings).exists, "Only the General pane should be exposed")
         return settings
     }
 
     private func openAutomationSettings(in settings: XCUIElement) throws -> XCUIElement {
-        try click(settings.descendants(matching: .any).matching(identifier: "Automation").firstMatch)
-        let mcp = settings.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
+        try click(settingsTab("Automation", in: settings))
+        let mcp = mcpSetting(in: settings)
         try ready(mcp)
         XCTAssertEqual(String(describing: mcp.value ?? ""), "0", "MCP must remain off")
         return mcp
+    }
+
+    private func settingsTab(_ name: String, in settings: XCUIElement) -> XCUIElement {
+        settings.toolbars.descendants(matching: .any).matching(identifier: name).firstMatch
+    }
+
+    private func mcpSetting(in settings: XCUIElement) -> XCUIElement {
+        settings.descendants(matching: .any).matching(NSPredicate(
+            format: "label == %@ OR title == %@", "Enable MCP Server", "Enable MCP Server")).firstMatch
     }
 
     private func assertEpisodeTableLayout(inPlaylist: Bool = false, file: StaticString = #filePath, line: UInt = #line) throws {
@@ -1155,7 +1382,7 @@ final class PodListUITour: XCTestCase {
         // Playlist rows put their ordinal before the title.
         let title = try XCTUnwrap(content.filter { $0.elementType == .staticText }.dropFirst(inPlaylist ? 1 : 0).first,
                                   file: file, line: line)
-        // Titles wrap, so the text frame is only as wide as its longest line; measure the cell.
+        // The title can truncate inside its column; measure the cell separately.
         XCTAssertGreaterThanOrEqual(titleCell.frame.width, 180, "The \(titleColumn) column must keep room for titles", file: file, line: line)
         XCTAssertGreaterThanOrEqual(title.frame.width, 80, "Episode title text must remain readable", file: file, line: line)
         for button in buttons {
@@ -1246,20 +1473,65 @@ final class PodListUITour: XCTestCase {
         XCTAssertLessThan(rule.frame.maxY, count.frame.minY, file: file, line: line)
     }
 
-    private func assertPlaylistHeader(play: CGRect, section: CGRect,
+    private struct PodcastTableGeometry {
+        let columns: [String: CGRect]
+        let hasScroller: Bool
+
+        func matchesCollapsedExtent(of original: Self) -> Bool {
+            guard !hasScroller, columns.keys == original.columns.keys,
+                  let first = columns["Episode"], let last = columns["State"],
+                  let originalFirst = original.columns["Episode"], let originalLast = original.columns["State"],
+                  abs(first.minX - originalFirst.minX) <= 1,
+                  abs((last.maxX - first.minX) - (originalLast.maxX - originalFirst.minX)) <= 1 else { return false }
+            let metadataMinimums: [String: CGFloat] = ["Published": 95, "Length": 60, "State": 140]
+            return metadataMinimums.allSatisfy { name, minimum in
+                guard let width = columns[name]?.width, let originalWidth = original.columns[name]?.width else { return false }
+                return width >= minimum && abs(width - originalWidth) <= 6
+            }
+        }
+    }
+
+    private func podcastTableGeometry(in window: XCUIElementSnapshot) -> PodcastTableGeometry? {
+        guard let scroll = descendants(window).first(where: { node in
+            node.elementType == .scrollView && node.children.contains { $0.label == "Podcast Episodes, sortable columns" }
+        }), let table = scroll.children.first(where: { $0.label == "Podcast Episodes, sortable columns" }) else { return nil }
+        let headings = ["Episode", "Published", "Length", "State"]
+        var frames: [String: CGRect] = [:]
+        for button in descendants(table) where button.elementType == .button && headings.contains(button.title) {
+            frames[button.title] = button.frame
+        }
+        let hasScroller = scroll.children.contains { $0.elementType == .scrollBar && !$0.frame.isEmpty }
+        return PodcastTableGeometry(columns: frames, hasScroller: hasScroller)
+    }
+
+    private struct PlaylistHeaderFrames {
+        var play: CGRect
+        var section: CGRect
+        var inspector: CGRect
+    }
+
+    private var playlistHeaderFrames: PlaylistHeaderFrames {
+        let section = library.toolbars.descendants(matching: .any).matching(identifier: "playlist.section").firstMatch
+        return PlaylistHeaderFrames(play: playlistPlayButton.frame, section: section.frame, inspector: inspectorButton.frame)
+    }
+
+    private func assertPlaylistHeader(_ expected: PlaylistHeaderFrames,
                                       file: StaticString = #filePath, line: UInt = #line) {
-        let actualPlay = playlistPlayButton.frame
-        let actualSection = playlistSection("Entries").frame
+        let actual = playlistHeaderFrames
+        let actualPlay = actual.play
+        let actualSection = actual.section
         let toolbar = library.toolbars.firstMatch
         XCTAssertTrue(toolbar.frame.contains(actualSection), "The section switcher must be in the toolbar", file: file, line: line)
         XCTAssertTrue(toolbar.frame.contains(actualPlay), "The Playlist action must be in the toolbar", file: file, line: line)
         XCTAssertGreaterThan(actualPlay.minX, actualSection.maxX, "Play belongs in trailing actions, outside the switcher", file: file, line: line)
-        // Principal placement must preserve X when sections or selection actions change.
-        XCTAssertEqual(actualPlay.width, play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
-        XCTAssertEqual(actualPlay.minY, play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
-        XCTAssertEqual(actualPlay.minX, play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
-        XCTAssertEqual(actualSection.minX, section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
-        XCTAssertEqual(actualSection.minY, section.minY, accuracy: 1, "Section control moved", file: file, line: line)
+        // Compare positions at the same pane visibility. The open transition
+        // is logged separately, and a second selection must leave controls fixed.
+        XCTAssertEqual(actualPlay.width, expected.play.width, accuracy: 1, "Playlist action changed form", file: file, line: line)
+        XCTAssertEqual(actualPlay.minY, expected.play.minY, accuracy: 1, "Playlist action moved", file: file, line: line)
+        XCTAssertEqual(actualPlay.minX, expected.play.minX, accuracy: 1, "Playlist action moved horizontally", file: file, line: line)
+        XCTAssertEqual(actualSection.minX, expected.section.minX, accuracy: 1, "Section control moved horizontally", file: file, line: line)
+        XCTAssertEqual(actualSection.minY, expected.section.minY, accuracy: 1, "Section control moved", file: file, line: line)
+        assertInspectorPosition(expected.inspector, file: file, line: line)
         XCTAssertLessThan(abs(actualPlay.midY - actualSection.midY), 8, "Controls must share a row", file: file, line: line)
     }
 
@@ -1484,38 +1756,98 @@ final class PodListUITour: XCTestCase {
                              file: StaticString = #filePath, line: UInt = #line) throws {
         let menuItem = app.menuBars.menuBarItems[menu]
         let action = menuItem.menuItems.matching(NSPredicate(format: "title == %@ OR label == %@", command, command)).firstMatch
-        try ready(menuItem, file: file, line: line)
+        guard menuItem.waitForExistence(timeout: 15) else {
+            captureMenuFailure(menu, command, attempts: ["The menu bar item was unavailable"])
+            XCTFail("Missing \(menu) menu. See the menu-failure attachments.", file: file, line: line)
+            return
+        }
         var clicked = false
-        for attempt in 0..<3 {
+        var attempts: [String] = []
+        for attempt in 1...3 {
             menuItem.click()
-            if action.waitForExistence(timeout: 3), let snapshot = try? action.snapshot(), snapshot.isEnabled {
-                let frame = snapshot.frame
-                if !frame.isEmpty, frame.midX.isFinite, frame.midY.isFinite {
-                    // SwiftUI commands share the menuAction: identifier. Use
-                    // the visible snapshot to avoid XCTest's hover re-lookup.
-                    let menuFrame = menuItem.frame
-                    menuItem.coordinate(withNormalizedOffset: .zero)
-                        .withOffset(CGVector(dx: frame.midX - menuFrame.minX, dy: frame.midY - menuFrame.minY))
-                        .click()
-                    clicked = true
-                    guard let result else { return }
-                    // Reopening an existing utility panel must give its field focus.
-                    let reached = requiringFocus ? waitForKeyboardFocus(result) : result.waitForExistence(timeout: 5)
-                    if reached { return }
-                }
+            if menu == "View" {
+                // AppKit can remove the tab and full-screen commands as the
+                // pointer leaves the menu bar, shifting the Inspector row.
+                // Enter the dropdown before reading the click coordinates.
+                menuItem.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1))
+                    .withOffset(CGVector(dx: 0, dy: 12)).hover()
             }
-            if attempt < 2 {
+            if action.waitForExistence(timeout: 3), let snapshot = try? menuItem.snapshot() {
+                let items = descendants(snapshot).filter { $0.elementType == .menuItem }
+                attempts.append("Attempt \(attempt)\n" + menuItemDetails(items))
+                if let item = items.first(where: { ($0.title == command || $0.label == command) && $0.isEnabled && !$0.frame.isEmpty }) {
+                    let menuFrame = snapshot.frame
+                    let frame = item.frame
+                    if let target = menuRowCoordinate(menuItem, menu: menuFrame, row: frame) {
+                        target.click()
+                        clicked = true
+                        guard let result else { return }
+                        // Reopening an existing utility panel must give its field focus.
+                        let reached = requiringFocus ? waitForKeyboardFocus(result) : result.waitForExistence(timeout: 5)
+                        if reached { return }
+                    } else {
+                        attempts.append("No direct pointer path in \(menuFrame) to \(frame)")
+                    }
+                }
+            } else {
+                attempts.append("Attempt \(attempt): command or menu snapshot unavailable")
+            }
+            if attempt < 3 {
                 if let retryFocus {
                     // Clicking inside a sheet closes the menu without sending Escape to the sheet.
                     retryFocus.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
                 } else { refocusLibraryAfterMenu() }
             }
         }
+        captureMenuFailure(menu, command, attempts: attempts)
         if clicked, let result {
-            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts",
+            XCTFail("\(menu) > \(command) did not \(requiringFocus ? "focus" : "show") \(result) after three attempts. See the menu-failure attachments.",
                     file: file, line: line)
         } else {
-            XCTFail("\(menu) > \(command) was unavailable after three attempts", file: file, line: line)
+            XCTFail("\(menu) > \(command) was unavailable after three attempts. See the menu-failure attachments.", file: file, line: line)
+        }
+    }
+
+    private func menuRowCoordinate(_ item: XCUIElement, menu: CGRect, row: CGRect) -> XCUICoordinate? {
+        // Stay within the originating menu-bar item on the way down. Moving
+        // diagonally toward the row's centre can open the neighbouring menu.
+        let left = max(menu.minX, row.minX + 4)
+        let right = min(menu.maxX, row.maxX - 4)
+        guard !menu.isEmpty, !row.isEmpty, left.isFinite, right.isFinite,
+              left < right, row.midY.isFinite else { return nil }
+        return item.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: (left + right) / 2 - menu.minX, dy: row.midY - menu.minY))
+    }
+
+    private func menuItemDetails(_ items: [XCUIElementSnapshot]) -> String {
+        items.map { item in
+            let title = item.title.isEmpty ? item.label : item.title
+            return "\(title) · enabled=\(item.isEnabled) · \(item.frame)"
+        }.joined(separator: "\n")
+    }
+
+    private func captureMenuFailure(_ menu: String, _ command: String, attempts: [String]) {
+        let prefix = "\(appearance)--menu-failure"
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "\(prefix)-screen.png"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        // Tab overview replaces the identifier and contents of the Library
+        // window. Preserve the visible window tree even in that state.
+        let window = library.exists ? library : app.windows.firstMatch
+        let tree = window.exists ? window.debugDescription : "No Library window.\n\(app.windows.debugDescription)"
+        attach(tree, name: "\(prefix)-library.txt")
+
+        func menuDetails(_ name: String) -> String {
+            let item = app.menuBars.menuBarItems[name]
+            let items = (try? item.snapshot()).map { descendants($0).filter { $0.elementType == .menuItem } } ?? []
+            return items.isEmpty ? "\(name) menu snapshot unavailable" : menuItemDetails(items)
+        }
+        attach((["\(menu) > \(command)"] + attempts + ["Final Edit menu\n\(menuDetails("Edit"))"]).joined(separator: "\n\n"),
+               name: "\(prefix)-items.txt")
+        if menu == "View" {
+            attach((attempts + ["Final View menu\n\(menuDetails("View"))"]).joined(separator: "\n\n"),
+                   name: "\(prefix)-view-items.txt")
         }
     }
 
@@ -1632,7 +1964,7 @@ final class PodListUITour: XCTestCase {
 
     private func assertKeyboardFocus(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(waitForKeyboardFocus(element),
-                      "The search field must receive keyboard focus when Add Podcasts opens", file: file, line: line)
+                      "The search field must receive keyboard focus", file: file, line: line)
     }
 
     private func waitForKeyboardFocus(_ element: XCUIElement) -> Bool {
@@ -1650,11 +1982,15 @@ final class PodListUITour: XCTestCase {
             return own + node.children.flatMap { titles($0) }
         }
         let items = Set(titles(menu))
+        if name == "View" {
+            let inspectorItems = titles(menu).filter { $0 == "Show Inspector" || $0 == "Hide Inspector" }
+            XCTAssertEqual(inspectorItems.count, 1, "View must have one Inspector command")
+        }
         let removed: Set<String> = [
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
             "Import", "Choose a File…", "Hide Getting Started", "Resume Playback", "Pause Playback",
-            "Show Notes in Window", "Show in Window", "Show Notes"
+            "Show Notes in Window", "Show in Window", "Show Notes", "Search This List"
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [

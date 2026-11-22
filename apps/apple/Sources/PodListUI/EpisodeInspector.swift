@@ -31,6 +31,10 @@ struct ArtworkView: SwiftUI.View {
     }
 }
 
+enum InspectorLayout {
+    static let horizontalInset: CGFloat = 8
+}
+
 struct EpisodeInspector: SwiftUI.View {
     @Environment(\.libraryEditOrigin) private var origin
     let row: EpisodeRow?
@@ -41,14 +45,21 @@ struct EpisodeInspector: SwiftUI.View {
     var scrolls = true
     var selectedIDs: [String] = []
     var podcastPreview: PodcastEpisodePreview? = nil
-    private var detailInset: CGFloat { scrolls ? 12 : 20 }
     var body: some SwiftUI.View {
         if selectedIDs.count > 1 {
             selectionSummary
         } else if let row {
             Group {
-                if scrolls { ScrollView { details(row) }.playbackBarScrollClearance() }
-                else { details(row) }
+                if scrolls {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 16) { details(row) }
+                            .padding(.vertical, 20).padding(.horizontal, InspectorLayout.horizontalInset)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }.playbackBarScrollClearance()
+                } else {
+                    VStack(alignment: .leading, spacing: 16) { details(row) }
+                        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .macContentFont(.body)
             // One labelled container. Without it, the unscrolled Inspector (inside Now Playing)
@@ -58,7 +69,7 @@ struct EpisodeInspector: SwiftUI.View {
             .task(id: row.id) { await app.resolveEpisodeDetails(row.id) }
         } else if let podcastPreview {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     ArtworkView(url: podcastPreview.artworkURL, title: podcastPreview.podcast, size: 180, placeholderSize: 88)
                         .frame(maxWidth: .infinity)
                     Text(podcastPreview.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
@@ -68,9 +79,9 @@ struct EpisodeInspector: SwiftUI.View {
                         LabeledContent("Length", value: podcastPreview.duration.map(Presentation.time) ?? "—")
                     }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle())
                     Divider()
-                    showNotes(podcastPreview.notes)
+                    InspectorShowNotes(description: podcastPreview.notes, compact: true).id(podcastPreview.title)
                 }
-                .padding(.vertical, 20).padding(.horizontal, detailInset).frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 20).padding(.horizontal, InspectorLayout.horizontalInset).frame(maxWidth: .infinity, alignment: .leading)
             }
             .playbackBarScrollClearance()
             .macContentFont(.body)
@@ -112,81 +123,109 @@ struct EpisodeInspector: SwiftUI.View {
         .accessibilityLabel("Episode selection Inspector")
         .accessibilityIdentifier("library.episodeSelectionInspector")
     }
-    private func details(_ row: EpisodeRow) -> some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 16) {
-            ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180, placeholderSize: 88)
-                .frame(maxWidth: .infinity)
-            Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
-            Text(row.podcast).macContentFont(.headline).foregroundStyle(MacReadableSecondaryStyle())
-            if let episode = row.episode {
-                VStack(alignment: .leading, spacing: 8) {
-                    LabeledContent("Published", value: row.publishedDate.formatted(date: .abbreviated, time: .omitted))
-                    LabeledContent("Length", value: row.durationText)
-                    LabeledContent("State", value: row.stateText)
-                    if let editing = app.editing {
-                        InspectorActions(row: row, library: library, app: app, editing: editing,
-                                         presentation: playlistPresentation, startedPlayback: startedPlayback)
-                    }
-                    DownloadStatusText(id: row.id, app: app)
-                    if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
-                }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle()).disabled(app.editing?.busy == true)
-                Divider()
-                Text("In Your Playlists").macContentFont(.headline)
-                let memberships = library.memberships(row.id)
-                if memberships.isEmpty { Text("No Playlists").foregroundStyle(MacReadableSecondaryStyle()) }
-                ForEach(memberships, id: \.id) { membership in
-                    let position = Presentation.time(membership.position)
+    @ViewBuilder private func details(_ row: EpisodeRow) -> some SwiftUI.View {
+        ArtworkView(url: resolvedArtwork(row), title: row.podcast, size: 180, placeholderSize: 88)
+            .frame(maxWidth: .infinity)
+        Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
+        Text(row.podcast).macContentFont(.headline).foregroundStyle(MacReadableSecondaryStyle())
+        if let episode = row.episode {
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledContent("Published", value: row.publishedDate.formatted(date: .abbreviated, time: .omitted))
+                LabeledContent("Length", value: row.durationText)
+                LabeledContent("State", value: row.stateText)
+                if let editing = app.editing {
+                    InspectorActions(row: row, library: library, app: app, editing: editing,
+                                     presentation: playlistPresentation, startedPlayback: startedPlayback)
+                }
+                DownloadStatusText(id: row.id, app: app)
+                if let position = row.position { LabeledContent("Position", value: Presentation.time(position)) }
+            }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle()).disabled(app.editing?.busy == true)
+            Divider()
+            Text("In Your Playlists").macContentFont(.headline)
+            let memberships = library.memberships(row.id)
+            if memberships.isEmpty { Text("No Playlists").foregroundStyle(MacReadableSecondaryStyle()) }
+            ForEach(memberships, id: \.id) { membership in
+                let position = Presentation.time(membership.position)
+                HStack {
+                    LabeledContent(membership.name, value: position)
+                        .labeledContentStyle(InspectorLabeledContentStyle())
+                    Button {
+                        EditOrigin.start(origin) {
+                            await EpisodePlaybackAction.resume(episodeID: row.id, playlistID: membership.id, app: app, started: startedPlayback)
+                        }
+                    } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
+                    .buttonStyle(.borderless).help("Resume in this Playlist")
+                    .accessibilityLabel("Resume in \(membership.name) at \(position)")
+                }
+            }
+            Divider()
+            if !episode.chapters.isEmpty {
+                Text("Chapters").macContentFont(.headline)
+                ForEach(episode.chapters.enumerated(), id: \.element.start) { index, chapter in
                     HStack {
-                        LabeledContent(membership.name, value: position)
-                            .labeledContentStyle(InspectorLabeledContentStyle())
+                        ArtworkView(url: PlaybackPolicy.artwork(episode.chapters, position: chapter.start, episode: episode.artwork,
+                            podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }, title: row.podcast, size: 40)
+                        VStack(alignment: .leading) {
+                            Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
+                            Text(Presentation.time(chapter.start)).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                        }
+                        Spacer()
                         Button {
                             EditOrigin.start(origin) {
-                                await EpisodePlaybackAction.resume(episodeID: row.id, playlistID: membership.id, app: app, started: startedPlayback)
+                                await EpisodePlaybackAction.chapter(chapter.start, episodeID: row.id, app: app, started: startedPlayback)
                             }
                         } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
-                        .buttonStyle(.borderless).help("Resume in this Playlist")
-                        .accessibilityLabel("Resume in \(membership.name) at \(position)")
+                        .buttonStyle(.borderless).help("Play this chapter").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")
                     }
                 }
                 Divider()
-                if !episode.chapters.isEmpty {
-                    Text("Chapters").macContentFont(.headline)
-                    ForEach(episode.chapters.enumerated(), id: \.element.start) { index, chapter in
-                        HStack {
-                            ArtworkView(url: PlaybackPolicy.artwork(episode.chapters, position: chapter.start, episode: episode.artwork,
-                                podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }, title: row.podcast, size: 40)
-                            VStack(alignment: .leading) {
-                                Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                                Text(Presentation.time(chapter.start)).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-                            }
-                            Spacer()
-                            Button {
-                                EditOrigin.start(origin) {
-                                    await EpisodePlaybackAction.chapter(chapter.start, episodeID: row.id, app: app, started: startedPlayback)
-                                }
-                            } label: { MacIconLabel(title: "Play", systemImage: "play.circle") }
-                            .buttonStyle(.borderless).help("Play this chapter").accessibilityLabel("Play Chapter \(index + 1): \(chapter.title)")
-                        }
-                    }
-                    Divider()
-                }
-                showNotes(episode.description)
-            } else {
-                Text("Episode details will appear when Library sync catches up.").foregroundStyle(MacReadableSecondaryStyle())
             }
+            InspectorShowNotes(description: episode.description, compact: scrolls).id(row.id)
+        } else {
+            Text("Episode details will appear when Library sync catches up.").foregroundStyle(MacReadableSecondaryStyle())
         }
-        .padding(.vertical, 20).padding(.horizontal, detailInset).frame(maxWidth: .infinity, alignment: .leading)
-    }
-    @ViewBuilder private func showNotes(_ description: String) -> some SwiftUI.View {
-        Text("Show Notes").macContentFont(.headline)
-        let notes = Presentation.plainShowNotes(description)
-        Text(notes.isEmpty ? "No show notes" : notes).macContentFont(scrolls ? .callout : .body).textSelection(.enabled)
     }
     private func resolvedArtwork(_ row: EpisodeRow) -> URL? {
         guard let episode = row.episode else { return row.artworkURL }
         let position = app.playback?.display?.episodeID == row.id ? app.playback?.display?.position ?? 0 : row.position ?? 0
         return PlaybackPolicy.artwork(episode.chapters, position: position, episode: episode.artwork,
             podcast: library.snapshot.subscriptions.first { $0.id == episode.subscriptionId }?.artwork).flatMap { URL(string: $0.url) }
+    }
+}
+
+/// Plain notes are ready on the first layout. Publisher markup is stripped off
+/// the main actor so a long description cannot delay the title and actions.
+private struct InspectorShowNotes: SwiftUI.View {
+    let description: String
+    let compact: Bool
+    @State private var prepared: (description: String, notes: String)?
+
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Show Notes").macContentFont(.headline)
+            if let plain = Presentation.showNotesWithoutMarkup(description) {
+                noteText(plain)
+            } else {
+                Group {
+                    if let prepared, prepared.description == description { noteText(prepared.notes) }
+                    else { ProgressView().controlSize(.small).accessibilityLabel("Preparing Show Notes") }
+                }
+                .task(id: description) {
+                    let notes = await Self.prepare(description)
+                    if !Task.isCancelled { prepared = (description, notes) }
+                }
+            }
+        }
+    }
+
+    private func noteText(_ text: String) -> some SwiftUI.View {
+        Text(text.isEmpty ? "No show notes" : text)
+            .macContentFont(compact ? .footnote : .body)
+            .textSelection(.enabled)
+    }
+
+    @concurrent private static func prepare(_ description: String) async -> String {
+        Presentation.stripShowNotesMarkup(description)
     }
 }
 

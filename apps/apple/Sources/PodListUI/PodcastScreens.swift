@@ -94,7 +94,6 @@ struct PodcastPageScreen: SwiftUI.View {
     @Binding var search: String
     @Binding var savedSort: [WindowSort]
     @Binding var scrollAnchor: RowAnchor?
-    let selectEpisodes: (Set<String>, Set<String>) -> Void
     let displayed: ([String], [String: PodcastEpisodePreview]) -> Void
     private var sortOrder: [KeyPathComparator<PageEpisode>] {
         get { savedSort.map { sort in
@@ -130,10 +129,12 @@ struct PodcastPageScreen: SwiftUI.View {
     @FocusState private var unsubscribeFocused: Bool
     @State private var bringing = Set<String>()
     @State private var addPresentation = PlaylistPresentation()
-    private func podcastEpisodeTitle(_ episode: PageEpisode) -> some SwiftUI.View {
-        HStack {
-            Text(episode.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-            Spacer()
+    private func podcastEpisodeTitle(_ episode: PageEpisode, state: EpisodePlaybackMark? = nil) -> some SwiftUI.View {
+        let selected = selection.wrappedValue.contains(episode.id)
+        return HStack(spacing: 8) {
+            MacEpisodeRowTitle(title: episode.title, podcast: title, isSelected: selected)
+            Spacer(minLength: 4)
+            if let state { MacEpisodeStateMark(state: state, isSelected: selected) }
             Button { bring(episode, play: false) } label: {
                 MacIconLabel(title: "Add to a Playlist", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
@@ -144,7 +145,7 @@ struct PodcastPageScreen: SwiftUI.View {
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Play \(episode.title) now")
                 .help("Play now")
-        }.macRowActions(isSelected: selection.wrappedValue.contains(episode.id)).disabled(bringing.contains(episode.guid)).padding(.vertical, 4)
+        }.macRowActions(isSelected: selected).disabled(bringing.contains(episode.guid))
     }
     private var subscription: Subscription? { library.snapshot.subscriptions.first { $0.feedUrl == feedURL } }
     private var subscribed: Bool { subscription?.unsubscribedAt == nil && subscription != nil }
@@ -192,7 +193,8 @@ struct PodcastPageScreen: SwiftUI.View {
         let previews = previews(episodes)
         let userSelection = Binding(get: { selection.wrappedValue }, set: { ids in
             control.reset()
-            selectEpisodes(ids.intersection(visibleIDs), visibleIDs)
+            let selected = ids.intersection(visibleIDs)
+            if selection.wrappedValue != selected { selection.wrappedValue = selected }
         })
         let activate: (Set<String>) -> Void = { selected in
             let chosen = episodes.filter { selected.contains($0.id) }
@@ -255,7 +257,7 @@ struct PodcastPageScreen: SwiftUI.View {
                             let layout = EpisodeTableLayout(width: geometry.size.width)
                             Table(of: PageEpisode.self, selection: userSelection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                                 TableColumn("Episode", value: \.title) { episode in
-                                    podcastEpisodeTitle(episode)
+                                    podcastEpisodeTitle(episode, state: layout.playbackMark(for: episode.stateText))
                                 }.width(min: EpisodeTableLayout.minimumTitleWidth)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { episode in

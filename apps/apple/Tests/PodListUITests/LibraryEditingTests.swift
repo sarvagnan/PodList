@@ -425,21 +425,6 @@ private actor SubscriptionTransport: SyncTransport {
 }
 
 
-@MainActor @Test func gettingStartedOnlyAppearsOnTheFirstView() async throws {
-    let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
-    let editor = editing(db)
-    try await editor.initialize()
-    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "test")
-    editor.reconcile(library.snapshot)
-    let first = library.state.views[0].id, second = library.state.views[1].id
-    #expect(editor.showsGettingStarted(on: .view(first), in: library))
-    #expect(!editor.showsGettingStarted(on: .view(second), in: library))
-    #expect(!editor.showsGettingStarted(on: .views, in: library))
-    editor.showGettingStarted = true
-    #expect(!editor.showsGettingStarted(on: .view(second), in: library))
-    #expect(editor.showsGettingStarted(on: .view(first), in: library))
-}
-
 @MainActor @Test func opmlSelectionCancelErrorsAndDuplicatesNeverSubscribeBeforeImport() async throws {
     let db = try LocalDatabase(path: ":memory:", standalone: true); try await db.ensureState()
     let actions = editing(db)

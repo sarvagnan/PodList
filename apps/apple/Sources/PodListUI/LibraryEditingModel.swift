@@ -95,10 +95,6 @@ public final class LibraryEditingModel {
             defaults.set(newValue, forKey: key("gettingStarted"))
         }
     }
-    public func showsGettingStarted(on destination: Destination?, in library: LibraryModel) -> Bool {
-        guard let first = library.state.views.first else { return false }
-        return showGettingStarted && destination == .view(first.id)
-    }
     public func beginAddingPodcasts() { addFlows += 1 }
     public func endAddingPodcasts() {
         addFlows = max(0, addFlows - 1)
@@ -233,10 +229,15 @@ public final class LibraryEditingModel {
         _ = await edits.add([id], placement: play ? .now : .last)
     }
     public func undo(restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
-        await edits.reverse(restored: restored); error = edits.error; await changed()
+        await reverse(redo: false, restored: restored)
     }
     public func redo(restored: (@MainActor ([RestoredEntries]) -> Void)? = nil) async {
-        await edits.reverse(redo: true, restored: restored); error = edits.error; await changed()
+        await reverse(redo: true, restored: restored)
+    }
+    func reverse(redo: Bool, restored: (@MainActor ([RestoredEntries]) -> Void)?) async {
+        await edits.reverse(redo: redo, restored: restored)
+        error = edits.error
+        await changed()
     }
     public func run(_ action: @escaping @MainActor () async throws -> Void) {
         run(origin: EditOrigin.current, action)

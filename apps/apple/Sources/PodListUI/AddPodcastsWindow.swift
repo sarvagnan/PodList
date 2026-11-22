@@ -64,7 +64,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                             .onChange(of: state.query) { _, text in editor.setDraft(text, field: "addPodcasts"); state.searchTask?.cancel(); state.loading = false; state.searched = false; state.results = []; state.error = nil }
                         Button("Search") { search() }.disabled(!canSearch)
                     }
-                    Text("Import OPML from the File menu or Library Settings. Follow import progress in the Library window.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                    Text("Import OPML from File › Import OPML… or Settings › General. Follow import progress in the Library window.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
                         .frame(maxWidth: 420, alignment: .leading)
                     if !state.searched, !state.loading {
                         PodListEmptyState("Find Your Next Podcast", systemImage: "magnifyingglass",

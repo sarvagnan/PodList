@@ -144,7 +144,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         let retry: (() -> Void)?
         if retrySave { retry = { apply() } }
         else { retry = nil }
-        return PodListSheet(title: "Playlist Settings", width: 500, actionTitle: isDeleted ? "Done" : "Save",
+        return PodListSheet(title: "Playlist Settings", width: 500, actionTitle: isDeleted ? "Close" : "Save",
                      actionEnabled: isDeleted ? !editing.busy : canSave,
                      cancelTitle: isDeleted ? nil : "Cancel", cancelEnabled: !editing.busy,
                      cancel: cancel, action: action) {
@@ -170,7 +170,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         .onExitCommand { if !editing.busy { cancel() } }
         .background {
             if isDeleted {
-                Button("Done", action: cancel).keyboardShortcut(.cancelAction).disabled(editing.busy)
+                Button("Close", action: cancel).keyboardShortcut(.cancelAction).disabled(editing.busy)
                     .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true).focusable(false)
             }
         }
@@ -193,7 +193,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     private var panelActions: MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
         if !editing.busy {
-            if isDeleted { actions[.done] = cancel }
+            if isDeleted { actions[.close] = cancel }
             else {
                 actions[.cancel] = cancel
                 if canSave { actions[.save] = apply }
@@ -235,13 +235,10 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     }
     private func cancel() { editing.drafts.discardPlaylistSettings(id); done() }
     private func apply() {
-        guard canSave, var draft else { return }
-        draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let changes = draft.changes
-        let objectName = playlist?.name ?? draft.name
+        guard canSave, let draft, let playlist else { return }
         retrySave = true
         EditOrigin.start(origin) {
-            let saved = changes.isEmpty ? true : await editing.edit(changes, name: "Settings for \(objectName)")
+            let saved = await draft.apply(playlistName: playlist.name, using: editing)
             if saved { editing.drafts.discardPlaylistSettings(id); done() }
         }
     }

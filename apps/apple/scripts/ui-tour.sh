@@ -35,6 +35,14 @@ cleanup() {
         if [ -n "$vm_pid" ]; then wait "$vm_pid" 2>/dev/null || true; fi
         tart delete "$vm_clone" >/dev/null 2>&1 || true
     fi
+    # The app writes these directly to the share. Keep them on interruption
+    # even if the guest never reached its normal result export.
+    local report
+    for report in "$run/guest-diagnostics"/main-thread-stall-*; do
+        [ -f "$report" ] || continue
+        mkdir -p "$out/guest-diagnostics"
+        cp -f "$report" "$out/guest-diagnostics/" || true
+    done
     if [ -n "$test_pid" ]; then kill -TERM "$test_pid" 2>/dev/null || true; wait "$test_pid" 2>/dev/null || true; fi
     if [ -n "$demo_pid" ]; then kill -TERM "$demo_pid" 2>/dev/null || true; wait "$demo_pid" 2>/dev/null || true; fi
     # XCTest normally terminates its app. If the runner was interrupted, identify
@@ -251,7 +259,7 @@ import json, re, shutil, sys
 from pathlib import Path
 out, source = map(Path, sys.argv[1:3])
 screens = list(dict.fromkeys(re.findall(r'try capture\("([^"\n]+)"', source.read_text())))
-assert len(screens) == 45, 'Tour screen catalog must have 45 distinct screens'
+assert len(screens) == 46, 'Tour screen catalog must have 46 distinct screens'
 borders_screens = {'02-new-this-week', '03-episode-inspector', '13-new-playlist', '27-settings-general-top', '30-settings-automation'}
 assert borders_screens <= set(screens), 'Show Borders screens must match baseline screen names'
 expected = {f'{style}/{screen}.{ext}' for style in ('light', 'dark') for screen in screens for ext in ('png', 'txt')}
@@ -283,11 +291,11 @@ complete = not missing and sys.argv[3:] == ['0', '0']
 readme = '# PodList Mac XCUITest tour\n\n'
 readme += f'Status: {"complete" if complete else "incomplete"}. {len(written)}/{len(expected)} required attachments exported.\n\n'
 readme += 'Window screenshots include attached sheets. Text trees use public XCUI snapshots; role is XCUIElementType, and AX subrole and keyboard shortcuts are unavailable. Inspect NSMenuItem.keyEquivalent/keyEquivalentModifierMask in Xcode/LLDB for shortcuts. Apple and Services are excluded.\n\n'
-readme += 'Each appearance starts with its own disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
+readme += 'Each appearance starts with its own seeded demo server, disposable identity, data directory and defaults. An Episode remains paused throughout. The test app quits at teardown and its files are removed. No owner Library is used.\n\n'
 readme += 'The focused APPEAR-03 pass runs with macOS Show Borders on. Test results: Tour.xcresult and ShowBorders.xcresult. Logs: build.log, demo.log, xcodebuild.log. Raw exports: attachments/ and borders-attachments/. UI execution is confined to the throwaway VM desktop.\n\n'
 readme += 'Screens 37–39 use Window → Move & Resize → Left to tile the Library to half the display.\n\n'
 readme += 'Screens 40–42 show a sidebar with 30 Views and 30 Playlists, using a separate demo Library: top, bottom, and Playlists folded.\n\n'
-readme += 'Screens 11a, 34a and 43 show Playlist Settings after Delete, the selected Timeline row with Rewind, and the Inspector open with the sidebar hidden at minimum width.\n\n'
+readme += 'Screen 11a shows deleted Playlist Settings with Restore Playlist and Close. Screen 32 shows the Getting Started window. Screen 34a shows the selected Timeline row with Rewind. Screen 43 shows the Inspector explicitly opened at minimum width. Screen 44 shows a delayed Entry Undo after completion, with the typed Search, retained selection, and Show Restored Entries action.\n\n'
 readme += 'Response timings are in light/timings.txt and dark/timings.txt. The app measures them in the VM, from the input event to the first display frame that can show the result. RESP-01 sets a 200 ms limit at the 75th percentile. The tour records timings without enforcing the limit. The tour does not measure RESP-02 keystroke and drag frame timing.\n\n'
 readme += '| Screen | Light / Dark files | Show Borders Light / Dark files |\n|---|---|---|\n'
 for screen in screens:

@@ -12,7 +12,6 @@ struct PlaylistContentView: SwiftUI.View {
     let app: ApplicationModel
     let editing: PlaylistEditingModel
     @Bindable var presentation: PlaylistPresentation
-    let openEpisode: () -> Void
     @Environment(\.libraryEditOrigin) private var origin
     @Environment(\.macTextScale) private var textScale
     @State private var optionCopy = false
@@ -33,12 +32,6 @@ struct PlaylistContentView: SwiftUI.View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .disabled(isTrashed)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
-                    .disabled(isTrashed)
-            }
-        }
         .focusedSceneValue(\.podListPlaylist, isTrashed ? nil : PlaylistCommandContext(playlist: playlist, presentation: presentation, window: window))
         .focusedSceneValue(\.podListRewind, rewindAction)
         .sheet(item: $rewindTarget) { event in
@@ -51,7 +44,7 @@ struct PlaylistContentView: SwiftUI.View {
         PlaylistDropRow.rows(rows, batches: app.libraryEditing?.pendingEpisodeDrops ?? [], playlistID: playlist.id)
     }
     private var entrySelection: Binding<Set<String>> {
-        window.episodeSelection(episodeIDs: rows.map(\.id), otherIDs: failedDropIDs, openInspector: openEpisode)
+        window.episodeSelection(episodeIDs: rows.map(\.id), otherIDs: failedDropIDs)
     }
     private var entries: some SwiftUI.View {
         let selection = entrySelection
@@ -82,7 +75,7 @@ struct PlaylistContentView: SwiftUI.View {
                         let layout = EpisodeTableLayout(width: geometry.size.width)
                         Table(of: PlaylistDropRow.self, selection: selection) {
                             TableColumn("Entry") { (item: PlaylistDropRow) in
-                                if let row = item.entry { entryTitle(row) }
+                                if let row = item.entry { entryTitle(row, state: layout.playbackMark(for: row.stateText)) }
                                 else if let slot = item.placeholder { placeholder(slot) }
                             }.width(min: EpisodeTableLayout.minimumTitleWidth)
                             if layout.showsDateOrPosition {
@@ -112,11 +105,9 @@ struct PlaylistContentView: SwiftUI.View {
             }
             .overlay {
                 if displayedRows.isEmpty {
-                    LibraryEmptyStateScroll {
-                        VStack(spacing: 8) {
-                            Text("This Playlist has no Entries.").foregroundStyle(MacReadableSecondaryStyle())
-                            Button("Find Episodes") { window.navigate(to: .search) }
-                        }
+                    PodListEmptyState("No Entries", systemImage: "music.note.list",
+                                      description: "Add Episodes to build this Playlist.") {
+                        Button("Find Episodes") { window.navigate(to: .search) }
                     }
                 }
             }
@@ -190,22 +181,18 @@ struct PlaylistContentView: SwiftUI.View {
         .disabled(app.libraryEditing?.episodeDrop != nil && slot.failure != nil)
         .accessibilityElement(children: .contain)
     }
-    private func entryTitle(_ row: EpisodeRow) -> some SwiftUI.View {
-        HStack(spacing: 8) {
+    private func entryTitle(_ row: EpisodeRow, state: EpisodePlaybackMark? = nil) -> some SwiftUI.View {
+        let selected = window.selection.contains(row.id)
+        return HStack(spacing: 8) {
             if let ordinal = row.ordinal { Text(ordinal, format: .number).monospacedDigit().foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id))) }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(row.title).lineLimit(textScale > 1 ? nil : 2).fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 6) {
-                    Text(row.podcast).lineLimit(textScale > 1 ? nil : 1).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(row.id)))
-                    if row.isCursor { Label("Current Entry", systemImage: "play.circle.fill").fixedSize().foregroundStyle(MacRowAccentStyle()) }
-                }.macContentFont(.caption)
-            }
+            MacEpisodeRowTitle(title: row.title, podcast: row.podcast, isSelected: selected, isCurrentEntry: row.isCursor)
             Spacer(minLength: 4)
+            if let state { MacEpisodeStateMark(state: state, isSelected: selected) }
             Button { EditOrigin.start(origin) { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from here").accessibilityLabel("Play from here: \(row.title)")
-        }.padding(.vertical, 5).macRowActions(isSelected: window.selection.contains(row.id)).accessibilityElement(children: .contain)
+        }.macRowActions(isSelected: selected).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {
         if !ids.isEmpty {
@@ -248,7 +235,7 @@ struct PlaylistContentView: SwiftUI.View {
     }
     private var history: some SwiftUI.View {
         let ids = historyIDs
-        let selection = window.episodeSelection(episodeIDs: ids, openInspector: openEpisode)
+        let selection = window.episodeSelection(episodeIDs: ids)
         let activate: (Set<String>) -> Void = { selected in
             EpisodeRowActivation(orderedIDs: ids, selection: selected)?.start(using: editing, origin: origin)
         }
@@ -346,7 +333,7 @@ struct PlaylistContentView: SwiftUI.View {
     private func date(_ at: Int64) -> String { Presentation.timelineDate(at) }
 }
 
-/// A single, intrinsically sized centre item, independent of the current section.
+/// One intrinsically sized control, independent of the current section.
 struct PlaylistToolbar: SwiftUI.View {
     @Binding var selection: PlaylistTab
 

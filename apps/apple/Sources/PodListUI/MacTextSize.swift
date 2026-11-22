@@ -54,16 +54,16 @@ struct MacTextSizeControl: SwiftUI.View {
     @Environment(MacTextSizePreference.self) private var preference
     var body: some SwiftUI.View {
         @Bindable var preference = preference
-        Picker("Text Size", selection: $preference.percent) {
-            ForEach(Array(stride(from: 100, through: 200, by: 10)), id: \.self) { percent in
-                Text("\(percent)%").tag(percent)
-            }
-        }.accessibilityLabel("Text Size")
-        Text("Enlarges content text in all windows. The sidebar follows macOS sidebar icon size. You can also use View › Bigger or Smaller.")
-            .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: 420, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 5) {
+            Picker("Text Size", selection: $preference.percent) {
+                ForEach(Array(stride(from: 100, through: 200, by: 10)), id: \.self) { percent in
+                    Text("\(percent)%").tag(percent)
+                }
+            }.accessibilityLabel("Text Size")
+            Text("Enlarges content text in all windows. The sidebar follows macOS sidebar icon size. You can also use View › Bigger or Smaller.")
+                .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                .fixedSize(horizontal: false, vertical: true)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -80,6 +80,45 @@ public struct MacTextSizeCommands: Commands {
             Button("Actual Size") { preference.actualSize() }
                 .keyboardShortcut("0", modifiers: .command).disabled(preference.percent == 100)
         }
+    }
+}
+
+/// The title and Podcast share the same baseline spacing in every Episode table.
+struct MacEpisodeRowTitle: SwiftUI.View {
+    let title: String
+    let podcast: String
+    let isSelected: Bool
+    var isCurrentEntry = false
+    @Environment(\.macTextScale) private var textScale
+
+    var body: some SwiftUI.View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).lineLimit(textScale > 1 ? nil : 1).truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(title)
+            HStack(spacing: 6) {
+                Text(podcast).lineLimit(textScale > 1 ? nil : 1)
+                    .foregroundStyle(MacReadableSecondaryStyle(isSelected: isSelected))
+                if isCurrentEntry {
+                    Label("Current Entry", systemImage: "play.circle.fill")
+                        .fixedSize().foregroundStyle(MacRowAccentStyle())
+                }
+            }.macContentFont(.caption)
+        }
+        .padding(.vertical, textScale > 1 ? 4 : 2)
+    }
+}
+
+struct MacEpisodeStateMark: SwiftUI.View {
+    let state: EpisodePlaybackMark
+    let isSelected: Bool
+
+    var body: some SwiftUI.View {
+        Image(systemName: state.symbol)
+            .foregroundStyle(MacReadableSecondaryStyle(isSelected: isSelected))
+            .accessibilityLabel("Playback State")
+            .accessibilityValue(state.rawValue)
+            .help(state.rawValue)
     }
 }
 

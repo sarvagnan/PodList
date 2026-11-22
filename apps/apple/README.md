@@ -228,7 +228,9 @@ Views have New View (⌘N), Edit View, every condition in one form, Sort, Show, 
 explicit Rename/Cancel/Save and Delete with Undo. Condition edits are recorded as made;
 invalid numeric drafts remain visible across reopening and restart. Names are checked in the
 database actor, ignoring case and surrounding whitespace, including races between windows.
-Search Library (⌘F) reports its count and offers inline Create View with a name. Add-podcast,
+Search Library (⌘F) opens Library-wide Search, which reports its count and offers
+inline Create View with a name. Click the toolbar search field to type a Library
+query or to filter the list you’re viewing. Add-podcast,
 Search, New View, Rename and numeric-setting drafts are scoped to their Library and persisted.
 View and subscription changes register with the key window's native Undo manager; inline
 Undo/Redo also expose retry after a failed network action. Part 4a's editing integration can
@@ -540,7 +542,7 @@ signing/notarization are outside this check; no account credentials are requeste
 
 ### Tour coverage and isolation
 
-The 45 main-tour states (01–43, 11a and 34a) cover Subscriptions grouped by Download Rule,
+The 46 main-tour states (01–44, 11a and 34a) cover Subscriptions grouped by Download Rule,
 Views and Inspector, Default Entries/History/Timeline and the Rewind preview,
 Commute/Settings/Rename, New Playlist, Trash, Search, View editors, Market Hours
 and its subscription controls, Add to a Playlist, Add podcasts, Download Rules,
@@ -550,21 +552,30 @@ under the bars. Screens 37–39 use Window → Move & Resize → Left to capture
 this week with a selected Episode and its Inspector open, the Market Hours Podcast
 page, and the Commute playlist at half-display width. The tour checks table layout
 at that width. Screens 40–42 show 30 Views and 30 Playlists using a separate demo
-Library. Screen 11a shows Playlist Settings after Delete, 34a shows the Rewind
-button on a clicked Timeline row, and 43 shows the open Inspector with the sidebar
-hidden at minimum width.
+Library. Screen 11a shows deleted Playlist Settings with Restore Playlist and Close.
+Screen 32 shows the Getting Started window, reached from Settings › General or
+Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, and
+43 shows the Inspector explicitly opened at minimum width.
+Screens 06–09 check the Playlist toolbar and which panes are visible. The test
+log records the toolbar shifts and selected Entry width on the first selection.
+It checks that the original click still lies in the selected row and that a
+second selection leaves the open Inspector's toolbar positions fixed.
+Screen 44 captures a delayed Undo of Remove from Playlist. The named result,
+the retained Search and selected Entry, and Show Restored Entries are visible.
+The tour asserts that the action reveals and selects the restored Entry.
 Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
 `.txt`, and `menus.txt`. After the main tours, a macOS 27 Show Borders pass captures
 New this week with the player bar, the Episode Inspector, the New Playlist sheet,
 and General and Automation Settings in `borders-light/` and `borders-dark/`.
-The full tour exports 203 required attachments, including menu and timing text.
+The full tour exports 207 required attachments, including menu and timing text.
 Each main pass attempts five runs per task and attaches `light--timings.txt` or
 `dark--timings.txt` (exported as `light/timings.txt` and `dark/timings.txt`). The
 app measures from the mouse-down or key-down event timestamp to the first display
-refresh after the Episode list, Inspector details, New Playlist sheet, Settings
-window or one-row filter result appears. The filter sample starts on the final
+refresh after the Episode list, Inspector, New Playlist sheet, Settings window
+or one-row filter result appears. The Inspector is timed both when selection
+opens the pane and when a different selection updates the open pane. The filter sample starts on the final
 `e` in `rice`. A display link on the result window supplies the target time of that refresh.
 This measures input to first presented frame at the VM display cadence, with
 SwiftUI appearance and AppKit visibility as the result markers.
@@ -591,7 +602,7 @@ and its table of contents in `timings-profile-N-toc.xml`. The default
 with `response_ms` on measured results. The profiler perturbs that run's timings.
 
 The generated README lists every screen and reports any missing required
-attachments out of 191.
+attachments out of 207.
 `Tour.xcresult`, `ShowBorders.xcresult`, raw attachments and build/demo/test logs
 are retained. The tour never opens Apple, Services, Import/Export OPML, Open or Save panels.
 
@@ -604,12 +615,22 @@ standard `NSArgumentDomain`. The `PODLIST_UI_DATA_DIRECTORY` variable redirects
 all PodList databases (including the Standalone bring-over check), audio downloads
 and the automation socket into that run's temporary directory. It requires both
 a disposable bundle ID and a path beneath a temporary directory, and fails closed
-on malformed configuration. Each appearance starts with fresh preferences and
-temporary app data. MCP remains off and the demo's
+on malformed configuration. Each appearance starts with fresh preferences, temporary app data and its own
+seeded demo server. MCP remains off and the demo's
 current Episode stays paused, as after a relaunch. Teardown quits the test app;
 the script removes the temporary bundles, data, defaults, caches and window state
 and stops only its own test/demo processes by PID. The demo API reaps its own
-server child and database. No custom AX or in-app snapshot tour is involved.
+server child and database. The tour build also accepts `PODLIST_UI_DELAY_ENTRY_UNDO=1` for a disposable
+bundle identity. This delays the first Undo of Remove from Playlist by two
+seconds during the full Light and Dark runs. The hook gives slow VM input up
+to six seconds total to change toolbar Search before letting Undo finish. The
+guest exports Edit-menu dispatch and reversal outcomes to
+`guest-diagnostics/edit-history.log`. Failed menu checks keep a guest screen
+capture, Library debug description and menu item states in the result bundle.
+In the disposable tour app, a background heartbeat samples PodList by PID
+after five seconds without a main-run-loop response. The sample and its
+command log go directly into `guest-diagnostics/main-thread-stall-*`, so
+they can be recovered even if Xcode stalls during result export.
 
 XCUITest's public snapshot API supplies `XCUIElementType`, label, title, value,
 identifier, enabled, selected and screen-coordinate frame. It does **not** expose
@@ -620,12 +641,12 @@ to inspect `NSMenuItem.keyEquivalent` and `keyEquivalentModifierMask` in Xcode's
 LLDB debugger, or inspect the rendered menus manually. No custom AX utility is
 provided. Menu enabled states reflect the final multi-selection in the Light tour.
 
-The Unsubscribe sequence clicks Subscribed only once, captures the armed control,
-then waits until at least six seconds after that click before capturing Subscribed
-again. The product's arm lasts four seconds; XCUITest synchronization/screenshot
-latency can consume that short interval. The test fails explicitly if the armed
-control has expired during capture. It never clicks Unsubscribe or changes Library
-content through the preview sheets. The Timeline Rewind action is also available
+The Unsubscribe sequence clicks Subscribed once, captures the armed control, and
+then clicks the Episode count to disarm it. The tour verifies that Subscribed and
+Share Podcast keep their positions as the control arms and disarms. Screen 36
+uses the full Library results to verify that rows scroll beneath the column
+headers and clear the player at minimum window size. The delayed Undo test briefly removes an
+Entry from the demo Library and verifies that it comes back. The Timeline Rewind action is also available
 to keyboard/VoiceOver users as a named accessibility action and context command.
 With no Subscriptions selected, Edit Download Rules opens the all-Subscriptions
 editor; Cancel closes it without applying anything.
@@ -643,9 +664,9 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
 swift test --scratch-path .build --disable-sandbox
 ```
 
-The main-session foreground run is still needed to validate the UI locators,
-menu hierarchy, window/sheet screenshots, export manifest and short armed-state
-timing. Do not run the UI tests in a screenless agent sandbox.
+The VM foreground run validates UI locators, menu hierarchy, window and sheet
+captures, and the export manifest. Do not run the UI tests in a screenless agent
+sandbox.
 
 ### Library app links, Spotlight and Services
 

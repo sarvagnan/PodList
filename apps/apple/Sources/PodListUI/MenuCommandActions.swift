@@ -5,11 +5,11 @@ import AppKit
 /// The visible surface publishes its existing handlers and validation. Menu
 /// placement follows the object or task, independently of the publishing surface.
 enum MenuAction: String, CaseIterable {
-    case done = "Done", cancel = "Cancel", save = "Save", cancelRename = "Cancel Rename"
+    case done = "Done", close = "Close", cancel = "Cancel", save = "Save", cancelRename = "Cancel Rename"
     case createPlaylist = "Create Playlist", createView = "Create View"
     case playNow = "Play Now", playNext = "Play Next", playLast = "Play Last"
     case go = "Go", deletePermanently = "Delete Permanently"
-    case apply = "Apply", rewind = "Rewind", bringOver = "Bring Over", notNow = "Not Now"
+    case rewind = "Rewind", bringOver = "Bring Over", notNow = "Not Now"
     case refresh = "Refresh All Feeds", retryFeedRefresh = "Retry Feed Refresh"
     case showImport = "Show Import Results", retryImport = "Retry Failed Imports"
     case importSelection = "Import", chooseFile = "Choose a File…", cancelImport = "Cancel Import"
@@ -33,8 +33,8 @@ enum MenuAction: String, CaseIterable {
         case .backToNowPlaying, .retryPlayback: .controls
         case .copyConfiguration, .retryAutomation: .automation
         // Dialog submission stays on its own surface; recovery is indexed separately.
-        case .done, .cancel, .save, .cancelRename, .createPlaylist, .createView,
-             .playNow, .playNext, .playLast, .go, .deletePermanently, .apply,
+        case .done, .close, .cancel, .save, .cancelRename, .createPlaylist, .createView,
+             .playNow, .playNext, .playLast, .go, .deletePermanently,
              .rewind, .bringOver, .notNow, .importSelection, .chooseFile,
              .dismissTutorial: nil
         }

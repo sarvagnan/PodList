@@ -119,9 +119,16 @@ public enum Presentation {
 
     /// Publisher markup is displayed as text, never as an embedded web document.
     public static func plainShowNotes(_ input: String) -> String {
-        if !input.utf8.contains(UInt8(ascii: "<")), !input.utf8.contains(UInt8(ascii: "&")) {
-            return input.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        if let text = showNotesWithoutMarkup(input) { return text }
+        return stripShowNotesMarkup(input)
+    }
+
+    static func showNotesWithoutMarkup(_ input: String) -> String? {
+        guard !input.utf8.contains(where: { $0 == UInt8(ascii: "<") || $0 == UInt8(ascii: "&") }) else { return nil }
+        return input.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func stripShowNotesMarkup(_ input: String) -> String {
         let stripped = input
             .replacingOccurrences(of: "(?is)<(script|style)[^>]*>.*?</\\1\\s*>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?i)<(?:br\\s*/?|/p|/div|/h[1-6]|/li)\\s*>", with: "\n", options: .regularExpression)
@@ -130,7 +137,7 @@ public enum Presentation {
         var index = stripped.startIndex
         let entities = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
         while index < stripped.endIndex {
-            if stripped[index] == "&", let end = stripped[index...].firstIndex(of: ";"), stripped.distance(from: index, to: end) < 16 {
+            if stripped[index] == "&", let end = stripped[index...].prefix(16).firstIndex(of: ";") {
                 let key = String(stripped[stripped.index(after: index)..<end])
                 let number: UInt32? = key.hasPrefix("#x") ? UInt32(key.dropFirst(2), radix: 16) : key.hasPrefix("#") ? UInt32(key.dropFirst()) : nil
                 if let value = entities[key] ?? number.flatMap(Unicode.Scalar.init).map(String.init) {
@@ -464,13 +471,6 @@ public final class WindowModel {
         playlistTabs.removeAll()
         pendingRestoredEntries = []
     }
-    /// Only a row interaction can open the Inspector. Restoring or reconciling a list
-    /// assigns its selection directly.
-    func selectEpisodes(_ ids: Set<String>, in list: ListID, episodeIDs: Set<String>, openInspector: () -> Void) {
-        guard listID == list else { return }
-        if selection != ids { selection = ids }
-        if !ids.isDisjoint(with: episodeIDs) { openInspector() }
-    }
     func showPlaylistTab(_ tab: PlaylistTab) {
         guard podcastFeed == nil, case let .playlist(id) = destination, playlistTab != tab else { return }
         rememberList()
@@ -509,6 +509,10 @@ public final class WindowModel {
         sortOrder = origin.sort.map(\.comparator); podcastSort = origin.podcastSort
         timelineSelection = origin.timelineSelection; scrollAnchor = origin.scrollAnchor
     }
+    func openLibrarySearch() {
+        if listID != .destination(.search) { navigate(to: .search) }
+    }
+
     public func navigate(to destination: Destination?) {
         guard self.destination != destination || podcastFeed != nil else {
             search = ""
