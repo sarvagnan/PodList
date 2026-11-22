@@ -78,6 +78,10 @@ final class PodListUITour: XCTestCase {
             throw NSError(domain: "PodListUITour", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Refusing to launch a production bundle identity"])
         }
+        let icon = try XCTUnwrap(info["CFBundleIconFile"] as? String)
+        XCTAssertEqual(icon, "PodList.icns")
+        let resources = bundleURL.appendingPathComponent("Contents/Resources", isDirectory: true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: resources.appendingPathComponent(icon).path))
         let server = try XCTUnwrap(URLComponents(string: origin))
         guard server.scheme == "http", server.host == "127.0.0.1", server.port != nil,
               server.path.isEmpty, server.user == nil, server.password == nil,
@@ -189,7 +193,7 @@ final class PodListUITour: XCTestCase {
         let searchField = librarySearchField
         try ready(searchField)
         XCTAssertEqual(searchField.label, "Search this list")
-        XCTAssertGreaterThan(searchField.frame.width, 100, "Search must remain a full field at the default window width")
+        XCTAssertGreaterThan(searchField.frame.width, 80, "Search must leave room for typing beside its scope")
         try capture("06-default-playlist")
         let closedHeader = playlistHeaderFrames
         XCTAssertEqual(playlistPlayButton.label, "Play This Playlist")
@@ -223,6 +227,7 @@ final class PodListUITour: XCTestCase {
         try capture("08-history")
         let historyDescription = text("Manual Played marks do not create History")
         try ready(historyDescription)
+        try ready(library.buttons["playlist.history.play"])
         XCTAssertLessThanOrEqual(historyDescription.frame.maxY, library.buttons["Open Now Playing"].frame.minY - 22,
                                  "History must fit above the player at the default window size")
         try segment("Listening Timeline")
@@ -351,6 +356,19 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(searchField.label, "Search Library", "Typing must preserve the Search field's name")
         assertLibraryPanes(sidebar: true, inspector: false, after: "filtering Search without selecting a result")
         try capture("15-search-rice")
+        app.typeKey(.space, modifierFlags: [])
+        assertSearchValue(searchField, "rice ", "Space must insert a character in toolbar Search")
+        try click(library.buttons["Create View…"])
+        let inlineName = library.textFields["search.view-name"]
+        try click(inlineName)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("Tour")
+        app.typeKey(.space, modifierFlags: [])
+        app.typeText("View")
+        assertSearchValue(inlineName, "Tour View", "Space must insert a character in the inline View name")
+        try click(library.buttons["Cancel"])
+        XCTAssertFalse(library.buttons["Pause"].exists, "Editing Search and the View name must keep playback paused")
+        try focusListSearch()
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(.delete, modifierFlags: [])
 
@@ -388,7 +406,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.sheets.staticTexts["Enter a View name."].exists)
         XCTAssertFalse(library.sheets.buttons["Create View"].isEnabled)
         XCTAssertFalse(library.sheets.buttons["Done"].exists)
-        for label in ["Mentions (Optional)", "Minimum Length (Optional)", "Maximum Length (Optional)", "Episodes to Show (Optional)"] {
+        for label in ["Mentions (optional)", "Minimum length (optional)", "Maximum length (optional)", "Episodes to show (optional)"] {
             XCTAssertTrue(library.sheets.staticTexts[label].exists)
         }
         try capture("17-new-view", expectsSheet: true)
@@ -398,10 +416,10 @@ final class PodListUITour: XCTestCase {
         try navigate("Subscriptions")
         try click(library.buttons["Open Deep Field, Subscription"])
         try ready(library.staticTexts["Deep Field by Ines Okafor."])
-        XCTAssertFalse(button("Show description").exists, "A short description must not offer an expansion that changes nothing")
+        XCTAssertFalse(button("Show Description").exists, "A short description must not offer an expansion that changes nothing")
         try navigate("Subscriptions")
         try click(library.buttons["Open Market Hours, Subscription"])
-        try ready(button("Show description"))
+        try ready(button("Show Description"))
         try ready(text("Who sets the price of rice?", in: episodeList))
         try assertPodcastWindowBounds()
         XCTAssertEqual(searchField.label, "Search Episodes")
@@ -419,16 +437,17 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(collapsedTable.hasScroller, "The collapsed Podcast fits its six Episodes")
         try capture("18-podcast-market-hours")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
-        try click(button("Show description"))
+        try click(button("Show Description"))
         try ready(button("Hide Description"))
         let description = library.staticTexts.matching(identifier: "podcast.description").firstMatch
         XCTAssertGreaterThan(description.frame.height, collapsedDescription.height)
+        XCTAssertLessThanOrEqual(description.frame.width, 521, "Podcast prose must have a readable line length")
         XCTAssertTrue(((description.value as? String) ?? description.label).hasSuffix("Thanks for listening to Market Hours."), "Expansion must retain the complete description")
         try assertPodcastWindowBounds()
         try assertExpandedPodcastControls()
         try capture("19-description-expanded")
         try click(button("Hide Description"))
-        try ready(button("Show description"))
+        try ready(button("Show Description"))
         var actualTable: PodcastTableGeometry?
         let restoredColumns = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
             guard let window = try? library.snapshot(), let table = podcastTableGeometry(in: window) else { return false }
@@ -456,7 +475,7 @@ final class PodListUITour: XCTestCase {
         try click(button("Subscription settings"))
         try sheet("Market Hours settings")
         XCTAssertFalse(library.sheets.buttons["Mark All Played"].exists)
-        assertPopUpNames(["Downloads on This Mac", "Played Threshold", "Speed", "Skip Intro", "Skip Outro", "Volume Boost"])
+        assertPopUpNames(["Downloads on this Mac", "Played threshold", "Speed", "Skip intro", "Skip outro", "Volume Boost"])
         try capture("22-subscription-settings", expectsSheet: true)
         try assertSheetAtBothTextSizes()
         library.typeKey(.escape, modifierFlags: [])
@@ -488,10 +507,13 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(library.sheets.firstMatch.exists)
         let podcastQuery = addPodcasts.textFields["addPodcasts.query"]
         assertKeyboardFocus(podcastQuery)
-        XCTAssertEqual(podcastQuery.label, "Podcast Name or Feed Address")
+        XCTAssertEqual(podcastQuery.label, "Podcast name or feed address")
         try capture("24-add-podcasts", in: addPodcasts)
-        podcastQuery.typeText("PodList tour draft")
-        XCTAssertEqual(podcastQuery.label, "Podcast Name or Feed Address", "Typing must preserve the query field's name")
+        podcastQuery.typeText("PodList")
+        podcastQuery.typeKey(.space, modifierFlags: [])
+        podcastQuery.typeText("tour draft")
+        assertSearchValue(podcastQuery, "PodList tour draft", "Space must insert a character in Add Podcasts")
+        XCTAssertEqual(podcastQuery.label, "Podcast name or feed address", "Typing must preserve the query field's name")
         let minimize = addPodcasts.buttons["_XCUI:MinimizeWindow"]
         let zoom = addPodcasts.buttons["_XCUI:ZoomWindow"]
         XCTAssertFalse(minimize.exists && minimize.isEnabled, "Add Podcasts is a utility panel")
@@ -563,7 +585,7 @@ final class PodListUITour: XCTestCase {
         app.typeKey("a", modifierFlags: .command)
         try click(library.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Edit Download Rules for'")).firstMatch)
         try ready(library.sheets.firstMatch)
-        assertPopUpNames(["Downloads on This Mac"])
+        assertPopUpNames(["Downloads on this Mac"])
         try capture("25-download-rules", expectsSheet: true)
         try dismissSheet("Cancel")
         try navigate("Default")
@@ -654,6 +676,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(stats.scrollViews.staticTexts["Listening Stats"].exists, "The title bar already names the window")
         XCTAssertFalse(stats.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "0:00 listened")).firstMatch.exists,
                        "Sub-minute listening must use visible seconds rather than round to zero")
+        try ready(stats.buttons["Open Active Playlist"])
         try capture("31-listening-stats", in: stats)
         stats.typeKey("w", modifierFlags: .command)
         app.typeKey(",", modifierFlags: .command)
@@ -779,8 +802,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertFalse(removedRow.exists, "Undo must preserve the filter until the person asks to reveal the Entry")
         try capture("44-delayed-entry-undo")
 
-        try click(reveal)
-        try ready(removedRow)
+        try menuCommand("Edit", "Show Restored Entries", until: removedRow)
         XCTAssertTrue(removedRow.isSelected, "Show Restored Entries must reveal and select the restored Entry")
         XCTAssertTrue(reveal.waitForNonExistence(timeout: 5))
         // Clear the restored selection so the tiled Commute capture starts
@@ -914,9 +936,18 @@ final class PodListUITour: XCTestCase {
         let restore = panel.buttons["Restore Playlist"]
         let save = panel.buttons["Save"]
         let close = panel.buttons["Close"]
+        let clearOnPlayed = panel.checkBoxes["Clear on Played"]
+        try ready(clearOnPlayed)
+        let savedClearOnPlayed = String(describing: try XCTUnwrap(clearOnPlayed.value))
         try click(field)
         app.typeKey("a", modifierFlags: .command)
-        app.typeText("Morning Commute")
+        app.typeText("Morning")
+        app.typeKey(.space, modifierFlags: [])
+        app.typeText("Commute")
+        assertSearchValue(field, "Morning Commute", "Space must insert a character in Playlist Settings")
+        try click(clearOnPlayed)
+        let stagedClearOnPlayed = String(describing: try XCTUnwrap(clearOnPlayed.value))
+        XCTAssertNotEqual(stagedClearOnPlayed, savedClearOnPlayed)
         try click(delete)
         try ready(text("“Commute” is in the Trash.", in: panel))
         try ready(restore)
@@ -950,23 +981,28 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(field.value as? String, "Morning Commute")
         try ready(sidebarItem("Commute"))
 
-        try click(delete)
-        XCTAssertTrue(close.wait(for: \.isEnabled, toEqual: true, timeout: 5))
-        panel.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Return must activate Close")
-        try ready(library.buttons["Open Market Hours, Subscription"])
-        try navigate("Trash")
-        try click(library.buttons["Restore Playlist Commute"])
-        try navigate("Commute")
+        for key: XCUIKeyboardKey? in [nil, .return, .escape] {
+            try click(delete)
+            XCTAssertTrue(close.wait(for: \.isEnabled, toEqual: true, timeout: 5))
+            if let key { panel.typeKey(key, modifierFlags: []) } else { try click(close) }
+            XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Close must dismiss with a click, Return and Escape")
+            try ready(library.buttons["Open Market Hours, Subscription"])
+            try navigate("Trash")
+            try click(library.buttons["Restore Playlist Commute"])
+            try navigate("Commute")
+            try click(settings)
+            try sheet("Playlist Settings")
+            XCTAssertEqual(field.value as? String, "Morning Commute", "Close must preserve the draft name")
+            XCTAssertEqual(String(describing: try XCTUnwrap(clearOnPlayed.value)), stagedClearOnPlayed,
+                           "Close must preserve the draft Clear on Played setting")
+        }
+        try dismissSheet("Cancel")
         try click(settings)
         try sheet("Playlist Settings")
-        XCTAssertEqual(field.value as? String, "Commute", "Close discards the draft")
-        try click(delete)
-        XCTAssertTrue(close.wait(for: \.isEnabled, toEqual: true, timeout: 5))
-        panel.typeKey(.escape, modifierFlags: [])
-        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Escape must activate Close")
-        try navigate("Trash")
-        try click(library.buttons["Restore Playlist Commute"])
+        XCTAssertEqual(field.value as? String, "Commute", "Editable Cancel must discard the draft name")
+        XCTAssertEqual(String(describing: try XCTUnwrap(clearOnPlayed.value)), savedClearOnPlayed,
+                       "Editable Cancel must discard the draft Clear on Played setting")
+        try dismissSheet("Cancel")
     }
 
     private func captureLargeSidebar(from root: URL, style: String) throws {
@@ -1090,6 +1126,11 @@ final class PodListUITour: XCTestCase {
         try navigate("Commute")
         try ready(episodeRows.firstMatch)
         assertLibraryPanes(sidebar: true, inspector: false, after: "opening tiled Commute without a selection")
+        let search = librarySearchField
+        try ready(search)
+        XCTAssertTrue(search.isHittable && library.frame.contains(search.frame), "Playlist Search must stay visible at half width")
+        XCTAssertEqual(search.label, "Search this list")
+        XCTAssertTrue(library.toolbars.firstMatch.frame.contains(search.frame))
         try capture("39-half-display-commute")
         try assertEpisodeTableLayout(inPlaylist: true)
     }
@@ -1996,10 +2037,10 @@ final class PodListUITour: XCTestCase {
         let required: [String: Set<String>] = [
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…", "Retry Bring Over", "Automation", "Copy Configuration", "Retry MCP Server"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
-            "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
+            "Edit": ["Show Restored Entries", "Show Added Entries", "Search Library", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort By", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Show Subscriptions", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
-            "Saved Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],
+            "Saved Views": ["Open View", "Show All Views", "Create View from Search…", "Open Created View", "Edit View…", "Rename View…", "Delete View"],
             "Episode": ["Show Episode Details", "Play Now", "Play Now In", "Play Next In", "Play Last In", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Failed Episode Drop", "Remove Failed Episode Drops"],
             "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Retry Playback"],
@@ -2021,11 +2062,20 @@ final class PodListUITour: XCTestCase {
             XCTAssertEqual(titles(menu).filter { ["Play", "Pause"].contains($0) }.count, 1,
                            "Controls must offer one state-dependent Play/Pause command")
         }
+        if name == "Edit" {
+            let ordered = titles(menu)
+            if let reveal = ordered.firstIndex(of: "Show Restored Entries"), reveal > 0 {
+                XCTAssertTrue(ordered[reveal - 1].hasPrefix("Redo"), "Show Restored Entries belongs next to Undo and Redo")
+            }
+            let reveal = descendants(menu).first { ($0.title.isEmpty ? $0.label : $0.title) == "Show Restored Entries" }
+            XCTAssertEqual(reveal?.isEnabled, false, "The recovery command is dimmed when there are no pending Entries")
+        }
         if name == "View" {
             XCTAssertTrue(!items.isDisjoint(with: ["Show Description", "Hide Description"]))
         }
         let owners = ["Connection": "PodList", "Refresh All Feeds": "Podcast", "Refresh Podcast": "Podcast", "Retry Feed Refresh": "Podcast", "Add Podcasts…": "File",
                       "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
+                      "Show Restored Entries": "Edit", "Show Added Entries": "Edit", "Open Created View": "Saved Views",
                       "Cancel Import": "File", "Retry Failed Imports": "File", "Retry Failed Operation": "Edit", "Retry Failed Episode Drop": "Episode",
                       "Retry Bring Over": "PodList", "Copy Configuration": "PodList", "Retry MCP Server": "PodList", "Retry Playback": "Controls",
                       "Show Description": "View", "Hide Description": "View", "Show Daily Table": "View"]

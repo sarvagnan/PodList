@@ -77,7 +77,8 @@ struct PlayerBar: SwiftUI.View {
     private func transport(_ value: PlaybackDisplay.Metadata) -> some SwiftUI.View {
         HStack(spacing: 10) {
             Button(action: openNowPlaying) { ArtworkView(url: value.artwork, title: value.podcast, size: 48) }
-                .buttonStyle(.plain).help("Open Now Playing").accessibilityLabel("Open Now Playing")
+                .buttonStyle(.plain).modifier(MacButtonShape(cornerRadius: 8))
+                .help("Open Now Playing").accessibilityLabel("Open Now Playing")
             TransportControls(controller: controller)
         }
     }
@@ -96,7 +97,8 @@ struct PlayerBar: SwiftUI.View {
                     Label(library.player?.playlistName ?? "Active Playlist", systemImage: "music.note.list").lineLimit(1)
                     Text("\(library.player?.entriesAfter ?? 0) after current").macContentFont(.caption).foregroundStyle(.primary)
                 }.frame(maxWidth: 170 * textScale, alignment: .leading)
-            }.buttonStyle(.plain).accessibilityLabel("Open Active Playlist").help("Open the Active Playlist")
+            }.buttonStyle(.plain).modifier(MacButtonShape(cornerRadius: 6, outset: 5))
+                .accessibilityLabel("Open Active Playlist").help("Open the Active Playlist")
         }
     }
 }
@@ -105,14 +107,14 @@ struct TransportControls: SwiftUI.View {
     var body: some SwiftUI.View {
         HStack(spacing: 14) {
             Button { controller.skip(-15) } label: {
-                MacIconLabel(title: "Back 15 seconds", systemImage: "gobackward.15")
-            }.help("Back 15 seconds")
+                MacIconLabel(title: "Back 15 Seconds", systemImage: "gobackward.15")
+            }.help("Back 15 Seconds")
             Button { controller.toggle() } label: {
                 MacIconLabel(title: controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill")
             }.help(controller.wantsPlayback ? "Pause (Space in Library)" : "Play (Space in Library)")
             Button { controller.skip(30) } label: {
-                MacIconLabel(title: "Forward 30 seconds", systemImage: "goforward.30")
-            }.help("Forward 30 seconds")
+                MacIconLabel(title: "Forward 30 Seconds", systemImage: "goforward.30")
+            }.help("Forward 30 Seconds")
         }.labelStyle(.iconOnly).buttonStyle(.borderless).font(.title3)
     }
 }

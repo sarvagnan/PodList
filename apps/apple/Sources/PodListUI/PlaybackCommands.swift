@@ -34,8 +34,8 @@ public struct PlaybackCommands: Commands {
     private var toggle: PlaybackToggleCommand { .init(controller: app.playback, library: app.library) }
     public var body: some Commands {
         CommandMenu("Controls") {
-            // Space is a contextual accelerator, not an app-wide menu equivalent.
             Button(toggle.title, action: toggle.perform)
+                .keyboardShortcut(.space, modifiers: [])
                 .disabled(!toggle.isEnabled)
             Button("Go to Time…") { seek?() }.disabled(seek == nil)
             Button("Back 15 Seconds") { app.playback?.skip(-15) }.keyboardShortcut(.leftArrow, modifiers: .command).disabled(app.playback?.display == nil)
@@ -116,7 +116,7 @@ struct LibraryPlaybackSpaceHost: NSViewRepresentable {
         guard let window = NSApp.keyWindow else { return false }
         return window.sheetParent != nil || window.attachedSheet != nil
     }
-    enum Route: Equatable { case text, sheetDefault, cancelSheet, menu }
+    enum Route: Equatable { case text, sheetDefault, sheetSpace, cancelSheet, menu }
     static func route(characters: String?, modifiers: NSEvent.ModifierFlags, editable: Bool, sheet: Bool) -> Route {
         let modifiers = modifiers.intersection([.command, .control, .option, .shift])
         if sheet && characters == "." && modifiers == .command { return .cancelSheet }
@@ -124,6 +124,7 @@ struct LibraryPlaybackSpaceHost: NSViewRepresentable {
             if sheet { return .sheetDefault }
             if editable { return .text }
         }
+        if characters == " " && modifiers.isEmpty && sheet && !editable { return .sheetSpace }
         guard editable else { return .menu }
         if characters == " " && modifiers.subtracting(.shift).isEmpty { return .text }
         if [String(UnicodeScalar(NSLeftArrowFunctionKey)!), String(UnicodeScalar(NSRightArrowFunctionKey)!)].contains(characters ?? ""),
@@ -144,6 +145,11 @@ struct LibraryPlaybackSpaceHost: NSViewRepresentable {
                 if let window = NSApp.keyWindow?.attachedSheet ?? NSApp.keyWindow {
                     if !window.performKeyEquivalent(with: event) { window.sendEvent(event) }
                 }
+                return nil
+            case .sheetSpace:
+                // Let the sheet's focused control handle Space before the Controls menu.
+                let window = NSApp.keyWindow?.attachedSheet ?? NSApp.keyWindow
+                window?.sendEvent(event)
                 return nil
             case .cancelSheet:
                 guard let window = NSApp.keyWindow?.attachedSheet ?? NSApp.keyWindow,

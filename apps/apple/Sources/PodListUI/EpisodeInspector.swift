@@ -98,7 +98,7 @@ struct EpisodeInspector: SwiftUI.View {
             VStack(alignment: .leading, spacing: 16) {
                 Label(summary.title, systemImage: "square.stack")
                     .macContentFont(.title2).bold()
-                LabeledContent("Total Length", value: summary.lengthText)
+                LabeledContent("Total length", value: summary.lengthText)
                     .labeledContentStyle(InspectorLabeledContentStyle())
                 if let editing = app.editing, summary.allAvailable {
                     Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") {
@@ -120,7 +120,7 @@ struct EpisodeInspector: SwiftUI.View {
         .playbackBarScrollClearance()
         .macContentFont(.body)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Episode selection Inspector")
+        .accessibilityLabel("Episode selection inspector")
         .accessibilityIdentifier("library.episodeSelectionInspector")
     }
     @ViewBuilder private func details(_ row: EpisodeRow) -> some SwiftUI.View {
@@ -249,7 +249,7 @@ struct InspectorActions: SwiftUI.View {
                 } label: {
                     Image(systemName: playing ? "pause.fill" : "play.fill").macContentFont(.body.weight(.semibold))
                         .frame(minWidth: 32, minHeight: 32)
-                }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play now (not playing)")
+                }.buttonStyle(MacGlassButtonStyle()).buttonBorderShape(.circle).help(playing ? "Pause (playing)" : "Play Now (not playing)")
                     .accessibilityLabel(playing ? "Pause \(row.title), playing" : "Play Now: \(row.title), not playing")
                 HStack(spacing: 8) {
                     icon("Add to a Playlist", symbol: "text.line.last.and.arrowtriangle.forward") { presentation.present(.add([row.id], false), from: origin) }

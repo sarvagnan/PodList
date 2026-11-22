@@ -61,13 +61,13 @@ struct ViewEditorScreen: SwiftUI.View {
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if publishedMode == "days" {
-                        PodListSheetField("Last Days") {
+                        PodListSheetField("Last days") {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    TextField("Last Days", text: Binding(get: { daysDraft }, set: setDaysDraft))
+                                    TextField("Last days", text: Binding(get: { daysDraft }, set: setDaysDraft))
                                         .labelsHidden().textFieldStyle(.roundedBorder).frame(width: 88)
                                     Text("days")
-                                    Stepper("Last Days", value: Binding(get: { lastDays }, set: { days in
+                                    Stepper("Last days", value: Binding(get: { lastDays }, set: { days in
                                         setDaysDraft(days.formatted(.number.locale(locale).grouping(.never)))
                                     }), in: 1...3650).labelsHidden()
                                 }
@@ -93,7 +93,7 @@ struct ViewEditorScreen: SwiftUI.View {
                             } }))
                         }
                     }
-                    PodListSheetField("Mentions (Optional)") {
+                    PodListSheetField("Mentions (optional)") {
                         TextField("Mentions", text: Binding(get: { draft.filter.text ?? "" }, set: { text in update { $0.filter.text = text.isEmpty ? nil : text } }), prompt: Text("Any"))
                             .labelsHidden().textFieldStyle(.roundedBorder)
                     }
@@ -124,10 +124,10 @@ struct ViewEditorScreen: SwiftUI.View {
                             Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    LabeledContent("Episodes to Show (Optional)") {
+                    LabeledContent("Episodes to show (optional)") {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                TextField("Episodes to Show", text: Binding(get: {
+                                TextField("Episodes to show", text: Binding(get: {
                                     editor.hasDraft("limit.\(draft.id)") ? editor.draft("limit.\(draft.id)")
                                         : draft.limit.map { $0.formatted(.number.locale(locale).grouping(.never)) } ?? ""
                                 }, set: { text in
@@ -197,7 +197,7 @@ struct ViewEditorScreen: SwiftUI.View {
         return editor.hasDraft(key) ? editor.draft(key) : draft[keyPath: path].map { FormNumbers.string($0 / 60, locale: locale) } ?? ""
     }
     private func optionalNumber(_ label: String, field: ViewEdits.Field, path: WritableKeyPath<PodListDomain.View, Double?>) -> some SwiftUI.View {
-        LabeledContent("\(label.replacingOccurrences(of: "length", with: "Length")) (Optional)") {
+        LabeledContent("\(label) (optional)") {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     TextField(label, text: Binding(get: { numberDraft(label, path: path) }, set: { text in

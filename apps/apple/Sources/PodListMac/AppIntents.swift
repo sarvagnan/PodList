@@ -94,7 +94,7 @@ enum TransportAction: String, AppEnum {
     case toggle, skipBack, skipForward, nowPlaying
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Playback action"
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .toggle: "Play or pause", .skipBack: "Back 15 seconds", .skipForward: "Forward 30 seconds", .nowPlaying: "Now Playing"
+        .toggle: "Play or Pause", .skipBack: "Back 15 Seconds", .skipForward: "Forward 30 Seconds", .nowPlaying: "Now Playing"
     ]
     var action: String { switch self { case .toggle: "toggle"; case .skipBack: "skip_back"; case .skipForward: "skip_forward"; case .nowPlaying: "now_playing" } }
 }

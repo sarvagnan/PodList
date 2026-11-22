@@ -140,14 +140,14 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     }
     private var canSave: Bool { playlist != nil && draft != nil && stagedNameProblem == nil && !editing.busy }
     private var settingsSheet: some SwiftUI.View {
-        let action: () -> Void = isDeleted ? cancel : apply
+        let action: () -> Void = isDeleted ? done : apply
         let retry: (() -> Void)?
         if retrySave { retry = { apply() } }
         else { retry = nil }
         return PodListSheet(title: "Playlist Settings", width: 500, actionTitle: isDeleted ? "Close" : "Save",
                      actionEnabled: isDeleted ? !editing.busy : canSave,
                      cancelTitle: isDeleted ? nil : "Cancel", cancelEnabled: !editing.busy,
-                     cancel: cancel, action: action) {
+                     cancel: dismissSettings, action: action) {
             if let trashedPlaylist {
                 Text("“\(trashedPlaylist.name)” is in the Trash. To change its settings, restore it first. Your edits below come back when you do.")
                     .fixedSize(horizontal: false, vertical: true)
@@ -167,10 +167,10 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     var body: some SwiftUI.View {
         settingsSheet
         .interactiveDismissDisabled(editing.busy)
-        .onExitCommand { if !editing.busy { cancel() } }
+        .onExitCommand { if !editing.busy { dismissSettings() } }
         .background {
             if isDeleted {
-                Button("Close", action: cancel).keyboardShortcut(.cancelAction).disabled(editing.busy)
+                Button("Close", action: done).keyboardShortcut(.cancelAction).disabled(editing.busy)
                     .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true).focusable(false)
             }
         }
@@ -193,9 +193,9 @@ struct PlaylistSettingsSheet: SwiftUI.View {
     private var panelActions: MenuActionContext {
         var actions: [MenuAction: () -> Void] = [:]
         if !editing.busy {
-            if isDeleted { actions[.close] = cancel }
+            if isDeleted { actions[.close] = done }
             else {
-                actions[.cancel] = cancel
+                actions[.cancel] = dismissSettings
                 if canSave { actions[.save] = apply }
             }
         }
@@ -233,7 +233,10 @@ struct PlaylistSettingsSheet: SwiftUI.View {
         retrySave = false
         EditOrigin.start(origin) { _ = await editing.restore(id) }
     }
-    private func cancel() { editing.drafts.discardPlaylistSettings(id); done() }
+    private func dismissSettings() {
+        if !isDeleted { editing.drafts.discardPlaylistSettings(id) }
+        done()
+    }
     private func apply() {
         guard canSave, let draft, let playlist else { return }
         retrySave = true

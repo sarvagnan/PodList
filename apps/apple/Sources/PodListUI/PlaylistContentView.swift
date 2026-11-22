@@ -111,7 +111,6 @@ struct PlaylistContentView: SwiftUI.View {
                     }
                 }
             }
-            .onAppear { window.revealDrop(in: playlist.id) }
             .onChange(of: failedDropIDs) { previous, current in
                 window.selection.subtract(Set(previous).subtracting(current))
             }
@@ -132,7 +131,7 @@ struct PlaylistContentView: SwiftUI.View {
                     optionCopy = NSEvent.modifierFlags.contains(.option)
                 }
             }
-            .modifier(PlaylistEpisodeDropTarget(destination: .playlist(playlist.id), editor: app.libraryEditing, window: window, allowsReorder: true))
+            .modifier(PlaylistEpisodeDropTarget(destination: .playlist(playlist.id), app: app, window: window, allowsReorder: true))
             .alternatingRowBackgrounds(.disabled)
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
@@ -170,10 +169,10 @@ struct PlaylistContentView: SwiftUI.View {
             Spacer(minLength: 4)
             if slot.failure != nil, let editor = app.libraryEditing {
                 Button("Retry") { EditOrigin.start(origin) { await EpisodeDrop.retry(slot.id, editor: editor) } }
-                    .accessibilityLabel("Retry adding \(slot.title)")
-                    .help("Retry adding this Episode")
+                    .accessibilityLabel("Retry Adding \(slot.title)")
+                    .help("Retry Adding this Episode")
                 Button("Remove") { EpisodeDrop.remove(slot.id, editor: editor) }
-                    .accessibilityLabel("Remove failed drop for \(slot.title)")
+                    .accessibilityLabel("Remove Failed Drop for \(slot.title)")
                     .help("Remove this failed Episode drop")
             }
         }
@@ -191,7 +190,7 @@ struct PlaylistContentView: SwiftUI.View {
             Button { EditOrigin.start(origin) { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from here").accessibilityLabel("Play from here: \(row.title)")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from Here").accessibilityLabel("Play from Here: \(row.title)")
         }.macRowActions(isSelected: selected).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {
@@ -215,7 +214,12 @@ struct PlaylistContentView: SwiftUI.View {
         guard !editing.busy, app.libraryEditing?.busy != true, app.libraryEditing?.episodeDrop == nil else { return false }
         guard let ids = EpisodeDrop.reorderIDs(values, in: playlist) else {
             guard let editor = app.libraryEditing, EpisodeDrop.references(values) != nil else { return false }
-            EditOrigin.start(origin) { _ = await EpisodeDrop.add(values, to: playlist.id, before: id, editor: editor) { window.didDrop($0, into: playlist.id, scroll: false) } }
+            EditOrigin.start(origin) {
+                _ = await EpisodeDrop.add(values, to: playlist.id, before: id, editor: editor) { ids in
+                    guard app.libraryEditing === editor, let current = app.library else { return }
+                    window.didDrop(ids, into: playlist.id, in: current, scroll: false)
+                }
+            }
             return true
         }
         let boundary = id.flatMap { id in playlist.entries.firstIndex { $0.episodeId == id } } ?? playlist.entries.count
@@ -241,7 +245,18 @@ struct PlaylistContentView: SwiftUI.View {
         }
         return Group {
             if playlist.history.isEmpty {
-                PodListEmptyState("No History", systemImage: "clock", description: "Entries finished through this Playlist’s playback appear here. Manual Played marks do not create History.")
+                PodListEmptyState("No History", systemImage: "clock",
+                                  description: "Play an Entry to begin. Entries finished through this Playlist’s playback appear here. Manual Played marks do not create History.") {
+                    if playlist.entries.isEmpty {
+                        Button("Find Episodes") { window.openLibrarySearch() }
+                    } else {
+                        Button("Play This Playlist") {
+                            EditOrigin.start(origin) {
+                                await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId)
+                            }
+                        }.disabled(editing.busy).accessibilityIdentifier("playlist.history.play")
+                    }
+                }
             } else {
                 List(Array(playlist.history.enumerated().reversed()), id: \.offset, selection: selection) { _, item in
                     let row = library.row(item.episodeId)

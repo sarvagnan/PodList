@@ -246,22 +246,22 @@ struct FailedEpisodeDrop {
 struct PlaylistEpisodeDropTarget: ViewModifier {
     @Environment(\.libraryEditOrigin) private var origin
     let destination: Destination
-    let editor: LibraryEditingModel?
+    let app: ApplicationModel
     let window: WindowModel
-    var showingEntries = true
     var allowsReorder = false
     @State private var optionCopy = false
     @ViewBuilder func body(content: Content) -> some SwiftUI.View {
-        if case let .playlist(id) = destination, let editor {
+        if case let .playlist(id) = destination, let editor = app.libraryEditing {
             content.dropDestination(for: EpisodeTransfer.self, isEnabled: !editor.busy && !editor.edits.busy && editor.episodeDrop == nil) { values, _ in
                 if optionCopy, values.allSatisfy({ $0.sourcePlaylistID == id }),
-                   let references = EpisodeDrop.references(values) {
-                    window.didDrop(references.compactMap(\.episodeID), into: id)
+                   let references = EpisodeDrop.references(values), let library = app.library {
+                    window.didDrop(references.compactMap(\.episodeID), into: id, in: library)
                     return
                 }
                 EditOrigin.start(origin) {
                     _ = await EpisodeDrop.add(values, to: id, editor: editor) { ids in
-                        window.didDrop(ids, into: id, reveal: showingEntries)
+                        guard app.libraryEditing === editor, let library = app.library else { return }
+                        window.didDrop(ids, into: id, in: library)
                     }
                 }
             }

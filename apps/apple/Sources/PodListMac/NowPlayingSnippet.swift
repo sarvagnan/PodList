@@ -44,11 +44,11 @@ private struct NowPlayingSnippetView: View {
                 Text(Presentation.time(display.position)).monospacedDigit()
                     .accessibilityLabel("Position \(Presentation.time(display.position))")
                 HStack(spacing: 24) {
-                    Button(intent: SnippetPlaybackIntent(.skipBack)) { Label("Back 15 seconds", systemImage: "gobackward.15") }
+                    Button(intent: SnippetPlaybackIntent(.skipBack)) { Label("Back 15 Seconds", systemImage: "gobackward.15") }
                     Button(intent: SnippetPlaybackIntent(.toggle)) {
                         Label(display.playing ? "Pause" : "Play", systemImage: display.playing ? "pause.fill" : "play.fill")
                     }
-                    Button(intent: SnippetPlaybackIntent(.skipForward)) { Label("Forward 30 seconds", systemImage: "goforward.30") }
+                    Button(intent: SnippetPlaybackIntent(.skipForward)) { Label("Forward 30 Seconds", systemImage: "goforward.30") }
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)

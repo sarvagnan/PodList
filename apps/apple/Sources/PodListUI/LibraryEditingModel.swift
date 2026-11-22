@@ -29,7 +29,7 @@ public enum ViewEdits {
             errors[.minimumLength] = "Minimum length must not exceed Maximum length."
             errors[.maximumLength] = "Maximum length must be at least Minimum length."
         }
-        if let limit = view.limit, limit < 1 { errors[.show] = "Episodes to Show must be a positive whole number." }
+        if let limit = view.limit, limit < 1 { errors[.show] = "Episodes to show must be a positive whole number." }
         if case let .lastDays(days) = f.published, days < 1 { errors[.published] = "Published days must be positive." }
         if case let .between(from, to) = f.published, let from, let to, from > to { errors[.published] = "From must be before Through." }
         return errors
@@ -67,6 +67,15 @@ public final class LibraryEditingModel {
     var episodeDrop: EpisodeDropProgress?
     var failedEpisodeDrop: FailedEpisodeDrop?
     let podcastDiscovery = PodcastDiscoveryModel()
+    @ObservationIgnored private(set) var searchViewDraftRevision = 0
+
+    @discardableResult
+    func stageSearchViewDraft(_ name: String?) -> Int {
+        searchViewDraftRevision &+= 1
+        setDraft(name ?? "", field: "searchView.name")
+        setDraft(name == nil ? "" : "true", field: "searchView.open")
+        return searchViewDraftRevision
+    }
     #endif
     public var importName = ""
     public var importFeeds: [String] = []
