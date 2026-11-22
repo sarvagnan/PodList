@@ -539,7 +539,17 @@ final class PodListUITour: XCTestCase {
         // Opening the Podcast page made Library key. Give Add Podcasts focus again.
         try click(podcastQuery)
         selectResult.doubleClick()
-        try ready(back)
+        if !back.waitForExistence(timeout: 15) {
+            // Record what was on screen before XCTest describes the failure;
+            // run 16 lost this when describing the missing button threw.
+            let prefix = "\(appearance)--double-click-failure"
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "\(prefix)-screen.png"
+            screenshot.lifetime = .keepAlways
+            self.add(screenshot)
+            attach(app.windows.debugDescription, name: "\(prefix)-windows.txt")
+            XCTFail("Double-clicking a result must open its Podcast page")
+        }
         try ready(text(firstEpisodeTitle, in: episodeList))
         // Focus the panel again so Escape closes it after opening the Podcast page.
         try click(podcastQuery)
