@@ -25,7 +25,6 @@ public struct LibraryWindowActions {
     public var add: () -> Void
     public var newView: () -> Void
     public var search: () -> Void
-    public var focusListSearch: () -> Void
     public var editView: () -> Void
     public var openInNewWindow: (() -> Void)?
     public var renameView: (() -> Void)? = nil
@@ -130,8 +129,6 @@ public struct LibraryCommands: Commands {
         CommandGroup(before: .textEditing) {
             Button(PodListShortcut.searchLibrary.title) { actions?.search() }
                 .keyboardShortcut(PodListShortcut.searchLibrary.shortcut).disabled(actions == nil)
-            Button(PodListShortcut.searchThisList.title) { actions?.focusListSearch() }
-                .keyboardShortcut(PodListShortcut.searchThisList.shortcut).disabled(actions == nil)
         }
         CommandGroup(after: .textEditing) { MenuActionItems(menu: .edit) }
     }

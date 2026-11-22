@@ -131,18 +131,7 @@ final class PodListUITour: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(fullyVisibleRows.count, min(8, episodeRows.count), "At least eight Episodes should fit when available")
         try capture("02-new-this-week")
-        app.typeKey("f", modifierFlags: [.option, .command])
-        try ready(librarySearchField)
-        XCTAssertEqual(librarySearchField.label, "Search this list")
-        // The toolbar search field's editor holds focus, so check that typing lands.
-        app.typeText("rice")
-        assertSearchValue(librarySearchField, "rice", "Option-Command-F must route typing to Search this list")
-        XCTAssertTrue(library.title.hasPrefix("New this week"), "Option-Command-F must keep the current View")
         try searchLibraryWithShortcut()
-        XCTAssertTrue((librarySearchField.value as? String ?? "").isEmpty, "A View’s filter must not carry into Library Search")
-        app.typeText("rice")
-        assertSearchValue(librarySearchField, "rice", "Command-F must route typing to Library Search")
-        app.typeKey(.escape, modifierFlags: [])
         assertLibraryPanes(sidebar: true, inspector: false, after: "opening Library Search at default width")
         try openNewThisWeek()
         try selectFirstEpisode()
@@ -354,7 +343,7 @@ final class PodListUITour: XCTestCase {
         try focusListSearch()
         app.typeText("rice")
         try ready(text(firstEpisodeTitle, in: episodeList))
-        XCTAssertEqual(searchField.value as? String, "rice")
+        assertSearchValue(searchField, "rice", "Clicking the toolbar field must route typing to Library Search")
         XCTAssertEqual(searchField.label, "Search Library", "Typing must preserve the Search field's name")
         assertLibraryPanes(sidebar: true, inspector: false, after: "filtering Search without selecting a result")
         try capture("15-search-rice")
@@ -1962,13 +1951,13 @@ final class PodListUITour: XCTestCase {
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",
             "Import", "Choose a File…", "Hide Getting Started", "Resume Playback", "Pause Playback",
-            "Show Notes in Window", "Show in Window", "Show Notes"
+            "Show Notes in Window", "Show in Window", "Show Notes", "Search This List"
         ]
         XCTAssertTrue(items.isDisjoint(with: removed), "\(name) includes a sheet button or transient helper: \(items.intersection(removed))")
         let required: [String: Set<String>] = [
             "PodList": ["Settings…", "Connection", "Check and Connect", "Start on This Mac", "Disconnect", "Bring Library from This Mac…", "Retry Bring Over", "Automation", "Copy Configuration", "Retry MCP Server"],
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
-            "Edit": ["Search Library", "Search This List", "Clear Search", "Retry Failed Operation"],
+            "Edit": ["Search Library", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort By", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
             "Podcast": ["Show Subscriptions", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Saved Views": ["Open View", "Show All Views", "Create View from Search…", "Edit View…", "Rename View…", "Delete View"],

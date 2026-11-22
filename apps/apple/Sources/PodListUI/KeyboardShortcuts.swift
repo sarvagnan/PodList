@@ -1,11 +1,11 @@
 #if os(macOS)
 import SwiftUI
 
-/// One reference for menu equivalents, tooltips and Help. The two Search
-/// scopes use the Find keys. Other custom bindings leave standard equivalents
+/// One reference for menu equivalents, tooltips and Help. Library Search
+/// uses Command-F. Other custom bindings leave standard equivalents
 /// free, and related queue and chapter commands share a key family.
 enum PodListShortcut: CaseIterable {
-    case searchLibrary, searchThisList
+    case searchLibrary
     case playNow, star, played, download, playNext, playLast, addToPlaylist
     case nowPlaying, playlistSettings, editView, previousChapter, nextChapter
     case refreshAllFeeds
@@ -13,7 +13,6 @@ enum PodListShortcut: CaseIterable {
     var title: String {
         switch self {
         case .searchLibrary: "Search Library"
-        case .searchThisList: "Search This List"
         case .playNow: "Play Now"
         case .star: "Star / Unstar"
         case .played: "Mark Played / Unplayed"
@@ -31,7 +30,7 @@ enum PodListShortcut: CaseIterable {
     }
     var key: KeyEquivalent? {
         switch self {
-        case .searchLibrary, .searchThisList: "f"
+        case .searchLibrary: "f"
         case .playNow: .return
         case .star: "l"
         case .played: "e"
@@ -52,7 +51,7 @@ enum PodListShortcut: CaseIterable {
         case .playNow: []
         case .searchLibrary, .nowPlaying, .download, .refreshAllFeeds: .command
         case .star, .played, .playNext: [.shift, .command]
-        case .searchThisList, .playLast, .addToPlaylist, .playlistSettings, .editView, .previousChapter, .nextChapter: [.option, .command]
+        case .playLast, .addToPlaylist, .playlistSettings, .editView, .previousChapter, .nextChapter: [.option, .command]
         }
     }
     // D is reserved with Command, Shift–Command and Option–Command. Keep

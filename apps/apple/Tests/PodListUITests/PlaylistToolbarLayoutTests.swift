@@ -72,7 +72,7 @@ import Testing
                             Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
                         ToolbarItem(placement: .primaryAction) {
-                            LibraryToolbarSearch(text: .constant(""), focusRequested: .constant(false), scope: "Search this list")
+                            LibraryToolbarSearch(text: .constant(""), scope: "Search this list")
                         }
                     }
                     .inspector(isPresented: .constant(true)) {
