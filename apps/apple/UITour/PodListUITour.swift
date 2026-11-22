@@ -134,14 +134,14 @@ final class PodListUITour: XCTestCase {
         app.typeKey("f", modifierFlags: [.option, .command])
         try ready(librarySearchField)
         XCTAssertEqual(librarySearchField.label, "Search this list")
-        assertKeyboardFocus(librarySearchField)
+        // The toolbar search field's editor holds focus, so check that typing lands.
         app.typeText("rice")
-        XCTAssertEqual(librarySearchField.value as? String, "rice")
+        assertSearchValue(librarySearchField, "rice", "Option-Command-F must route typing to Search this list")
         XCTAssertTrue(library.title.hasPrefix("New this week"), "Option-Command-F must keep the current View")
         try searchLibraryWithShortcut()
         XCTAssertTrue((librarySearchField.value as? String ?? "").isEmpty, "A View’s filter must not carry into Library Search")
         app.typeText("rice")
-        XCTAssertEqual(librarySearchField.value as? String, "rice", "Command-F must route typing to Library Search")
+        assertSearchValue(librarySearchField, "rice", "Command-F must route typing to Library Search")
         app.typeKey(.escape, modifierFlags: [])
         assertLibraryPanes(sidebar: true, inspector: false, after: "opening Library Search at default width")
         try openNewThisWeek()
@@ -1273,7 +1273,15 @@ final class PodListUITour: XCTestCase {
         let search = librarySearchField
         try ready(search)
         XCTAssertEqual(search.label, "Search Library")
-        assertKeyboardFocus(search)
+    }
+
+    private func assertSearchValue(_ field: XCUIElement, _ expected: String, _ message: String,
+                                   file: StaticString = #filePath, line: UInt = #line) {
+        let landed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            field.exists && field.value as? String == expected
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 5), .completed,
+                       "\(message). Value: \(String(describing: field.value))", file: file, line: line)
     }
 
     private func checkOPMLOpenShortcut() throws {
