@@ -30,7 +30,7 @@ struct WelcomeView: SwiftUI.View {
                     Button(app.connecting ? "Checking…" : "Check and Connect") { connect() }
                         .macDefaultAction()
                         .disabled(app.connecting || app.serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityLabel("Check and connect to server")
+                        .accessibilityLabel(app.connecting ? "Checking…" : "Check and Connect")
                     if app.connecting { ProgressView().controlSize(.small).accessibilityLabel("Checking server") }
                 }
                 Divider().padding(.vertical, 8)

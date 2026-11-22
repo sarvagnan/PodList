@@ -49,7 +49,7 @@ struct AddPodcastsScreen: SwiftUI.View {
     let close: () -> Void
     @FocusState private var focused: Bool
     @State private var resultsAnchor: RowAnchor?
-    private let queryTitle = "Podcast Name or Feed Address"
+    private let queryTitle = "Podcast name or feed address"
     private var canSearch: Bool { !state.loading && !state.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var body: some SwiftUI.View {
         VStack(spacing: 0) {

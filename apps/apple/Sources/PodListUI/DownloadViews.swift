@@ -86,7 +86,7 @@ struct DownloadIcon: SwiftUI.View {
     private var phase: DownloadPhase? { app.downloadStatuses[id]?.phase }
     private var working: Bool { phase == .transferring || phase == .queued }
     private var label: String {
-        working ? (phase == .queued ? "Cancel download, queued" : "Cancel download, downloading") : phase == .stored ? "Remove download, downloaded on this Mac" : phase == .failed ? "Retry download, failed" : "Download, not downloaded"
+        working ? (phase == .queued ? "Cancel Download, queued" : "Cancel Download, downloading") : phase == .stored ? "Remove Download, downloaded on this Mac" : phase == .failed ? "Retry Download, failed" : "Download, not downloaded"
     }
     var body: some SwiftUI.View {
         Button {
@@ -97,7 +97,7 @@ struct DownloadIcon: SwiftUI.View {
                     ProgressView(value: app.downloadStatuses[id]?.progress.fraction).progressViewStyle(.circular).controlSize(.small)
                     Image(systemName: "xmark").font(.system(size: 8))
                 } else { Image(systemName: phase == .stored ? "arrow.down.circle.fill" : phase == .failed ? "arrow.clockwise.circle" : "arrow.down.circle") }
-            }.frame(width: 28, height: 28).contentShape(Rectangle())
+            }.frame(width: 28, height: 28).contentShape(Rectangle()).modifier(MacButtonShape(cornerRadius: 6))
         }.buttonStyle(.borderless).help(label).accessibilityLabel(label)
             .contextMenu {
                 EpisodeDownloadItems(ids: [id], app: app)
@@ -126,8 +126,8 @@ struct DownloadRuleFields: SwiftUI.View {
     var compact = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            field(compact ? "Download Rule" : "Downloads on This Mac") {
-                Picker(compact ? "Downloads on This Mac" : "", selection: $mode) {
+            field(compact ? "Download Rule" : "Downloads on this Mac") {
+                Picker(compact ? "Downloads on this Mac" : "", selection: $mode) {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                     Text("As Episodes are published").tag(DownloadMode.allNew)
