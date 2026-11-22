@@ -160,27 +160,31 @@ private struct DropPublisher: PublisherReader {
     let db = try await fixtureDatabase()
     let defaults = UserDefaults(suiteName: UUID().uuidString)!
     let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "selection-drop", defaults: defaults)
+    let library = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this", now: 1_000)
     let window = WindowModel()
     #expect(await EpisodeDrop.add([transfer(["b", "a"])], to: "default", editor: editor) { ids in
-        window.didDrop(ids, into: "default")
+        window.didDrop(ids, into: "default", in: library)
     })
     #expect(window.destination == .subscriptions && window.selection.isEmpty)
     window.navigate(to: .playlist("default"))
-    window.revealDrop(in: "default")
     #expect(window.selection == ["b", "a"] && window.scrollAnchor?.id == "b")
-    window.search = "unrelated"
-    #expect(await EpisodeDrop.add([transfer(["pending"])], to: "default", editor: editor) { ids in
-        window.didDrop(ids, into: "default")
-    })
-    #expect(window.search == "unrelated" && window.selection == ["b", "a"] && window.scrollAnchor?.id == "b")
+    window.search = "Beta"
+    window.didDrop(["b", "pending"], into: "default", in: library)
+    #expect(window.search == "Beta" && window.selection == ["b"] && window.scrollAnchor?.id == "b")
+    window.didDrop(["a"], into: "default", in: library)
+    #expect(window.search == "Beta" && window.selection == ["b"])
+    #expect(window.canShowAddedEntries(in: library))
+    window.showAddedEntries(in: library)
+    #expect(window.search.isEmpty && window.selection == ["b", "pending", "a"] && window.scrollAnchor?.id == "b")
+    #expect(!window.canShowAddedEntries(in: library))
     #expect(await EpisodeDrop.add([transfer(["a"])], to: "missing", editor: editor) { ids in
-        window.didDrop(ids, into: "missing")
+        window.didDrop(ids, into: "missing", in: library)
     } == false)
     #expect(window.pendingDropSelections["missing"] == nil)
-    window.search = ""
-    window.didDrop(["a"], into: "default", reveal: false)
-    #expect(window.selection == ["b", "a"])
-    window.revealDrop(in: "default")
+    window.showPlaylistTab(.history)
+    window.didDrop(["a"], into: "default", in: library)
+    #expect(window.playlistTab == .history)
+    window.showPlaylistTab(.entries)
     #expect(window.selection == ["a"])
     #expect(window.destination == .playlist("default"))
 }
@@ -312,20 +316,20 @@ private actor SlowDropPublisher: PublisherReader {
     #expect(editor.edits.history.undo == nil)
 }
 
-@MainActor @Test func replacingVisibleDropSlotsSelectsResultsWithoutScrollingTheList() {
+@MainActor @Test func replacingVisibleDropSlotsSelectsResultsWithoutScrollingTheList() async throws {
+    let library = try await fixtureModel()
     let window = WindowModel()
     window.navigate(to: .playlist("default"))
     let anchor = RowAnchor(id: "b", index: 0)
     window.scrollAnchor = anchor
-    window.didDrop(["new"], into: "default", scroll: false)
+    window.didDrop(["new"], into: "default", in: library, scroll: false)
     #expect(window.selection == ["new"] && window.scrollAnchor == anchor)
     #expect(window.pendingDropSelections.isEmpty)
     // A drop completed while another destination is open is still revealed on return.
     window.navigate(to: .search)
-    window.didDrop(["later"], into: "default", scroll: false)
+    window.didDrop(["later"], into: "default", in: library, scroll: false)
     #expect(window.pendingDropSelections["default"] == ["later"])
     window.navigate(to: .playlist("default"))
-    window.revealDrop(in: "default")
     #expect(window.selection == ["later"] && window.scrollAnchor?.id == "later")
 }
 

@@ -104,7 +104,7 @@ func episodeCountDraftsAcceptOnlyPositiveWholeNumbers(_ identifier: String) {
     }
     for raw in ["0", "-1", "1.5", "1,5", "1 Episode", "9223372036854775808"] {
         #expect(FormNumbers.positiveCount(raw, locale: locale) == nil)
-        #expect(FormNumbers.countProblem(raw, locale: locale) == "Episodes to Show must be a positive whole number.")
+        #expect(FormNumbers.countProblem(raw, locale: locale) == "Episodes to show must be a positive whole number.")
     }
     for raw in ["", "  "] { #expect(FormNumbers.countProblem(raw, locale: locale) == nil) }
 }
@@ -136,7 +136,7 @@ func invalidNumberDraftsAreNotSilentlyCoerced(_ raw: String) {
     var errors = ViewEdits.problems(view)
     #expect(errors[.minimumLength]?.contains("Minimum length") == true)
     #expect(errors[.maximumLength]?.contains("Maximum length") == true)
-    #expect(errors[.show] == "Episodes to Show must be a positive whole number.")
+    #expect(errors[.show] == "Episodes to show must be a positive whole number.")
     view.filter.maxDuration = 180; view.limit = 10
     #expect(ViewEdits.problems(view).isEmpty)
     view.filter.minDuration = -.infinity; view.filter.maxDuration = .nan
@@ -232,7 +232,7 @@ func lastDaysDraftsRequireAnEditableWholeNumberWithinRange(_ identifier: String)
     }
     for text in ["", " ", "0", "-1", "3651", "1.5", "1,5", "seven", "9223372036854775808"] {
         #expect(FormNumbers.lastDays(text, locale: locale) == nil)
-        #expect(FormNumbers.lastDaysProblem(text, locale: locale) == "Last Days must be a whole number from 1 to 3650.")
+        #expect(FormNumbers.lastDaysProblem(text, locale: locale) == "Last days must be a whole number from 1 to 3650.")
     }
 }
 

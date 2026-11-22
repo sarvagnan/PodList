@@ -39,6 +39,35 @@ func fixtureModel() async throws -> LibraryModel {
     LibraryModel(snapshot: try await fixtureDatabase().readLibrary(), deviceID: "this", now: 1_000)
 }
 
+@MainActor @Test func searchViewCreationDefersNavigationWhenTheDraftOrSearchChanges() async throws {
+    let library = try await fixtureModel()
+    let window = WindowModel()
+    window.openLibrarySearch()
+    window.search = "Alpha"
+    let submitted = window.restorationOrigin
+
+    window.search = "Beta"
+    #expect(!window.finishSearchViewCreation("all", from: submitted, draftUnchanged: true))
+    #expect(window.destination == .search && window.search == "Beta")
+    #expect(window.createdView(in: library)?.id == "all")
+    window.openCreatedView(in: library)
+    #expect(window.destination == .view("all") && window.createdView(in: library) == nil)
+
+    window.openLibrarySearch()
+    window.search = "Alpha"
+    let nextSubmission = window.restorationOrigin
+    #expect(!window.finishSearchViewCreation("unplayed", from: nextSubmission, draftUnchanged: false))
+    #expect(window.destination == .search && window.search == "Alpha")
+    window.navigate(to: .subscriptions)
+    #expect(!window.finishSearchViewCreation("unplayed", from: nextSubmission, draftUnchanged: true))
+    #expect(window.destination == .subscriptions)
+
+    window.openLibrarySearch()
+    window.search = "Alpha"
+    #expect(window.finishSearchViewCreation("unplayed", from: window.restorationOrigin, draftUnchanged: true))
+    #expect(window.destination == .view("unplayed") && window.createdView(in: library) == nil)
+}
+
 @Test func typedLibraryReadRoundTripsAllMetadataAndState() async throws {
     let db = try await fixtureDatabase()
     let snapshot = try await db.readLibrary()

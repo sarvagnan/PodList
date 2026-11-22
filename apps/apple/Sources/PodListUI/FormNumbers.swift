@@ -24,7 +24,7 @@ enum FormNumbers {
     }
 
     static func lastDaysProblem(_ text: String, locale: Locale) -> String? {
-        lastDays(text, locale: locale) == nil ? "Last Days must be a whole number from 1 to 3650." : nil
+        lastDays(text, locale: locale) == nil ? "Last days must be a whole number from 1 to 3650." : nil
     }
 
     static func seekPosition(_ text: String, duration: Double?, locale: Locale) -> Double? {
@@ -41,7 +41,7 @@ enum FormNumbers {
 
     static func countProblem(_ text: String, locale: Locale) -> String? {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return positiveCount(text, locale: locale) == nil ? "Episodes to Show must be a positive whole number." : nil
+        return positiveCount(text, locale: locale) == nil ? "Episodes to show must be a positive whole number." : nil
     }
 
     static func string(_ value: Double, locale: Locale) -> String {

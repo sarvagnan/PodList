@@ -10,13 +10,13 @@ struct LibraryFeedback: SwiftUI.View {
     var sync: ApplicationModel? = nil
     var reservesSpace = true
     var reverse: ((Bool) -> Void)? = nil
-    var showRestoredEntries: (() -> Void)? = nil
+    var followUp = MenuActionContext()
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             EditingFeedback(editing: editor.edits, surface: surface, origin: origin, sync: sync, additionalError: editor.error, additionalStatus: dropStatus,
                             undo: { if let reverse { reverse(false) } else { Task { await editor.undo() } } },
                             redo: { if let reverse { reverse(true) } else { Task { await editor.redo() } } },
-                            showRestoredEntries: showRestoredEntries, reservesSpace: reservesSpace)
+                            followUp: followUp, reservesSpace: reservesSpace)
             if let sync, sync.feedRefreshIssue != nil {
                 FeedRefreshFeedback(app: sync).macContentFont(.caption).padding(.horizontal, 14).padding(.bottom, 6)
             }
@@ -368,7 +368,7 @@ struct PodcastPageScreen: SwiftUI.View {
             if compact, descriptionTruncated {
                 let title = descriptionExpanded ? "Hide Description" : "Show Description"
                 Button(title, systemImage: descriptionExpanded ? "chevron.up" : "chevron.down", action: toggleDescription)
-                    .labelStyle(.iconOnly).help(descriptionExpanded ? "Hide description" : "Show description")
+                    .labelStyle(.iconOnly).help(title)
             }
         }
     }
@@ -476,6 +476,7 @@ struct PodcastDescription: SwiftUI.View {
     var maximumHeight: CGFloat = 140
     var showsToggle = true
     let toggle: () -> Void
+    @Environment(\.macTextScale) private var textScale
     @State private var fullHeight: CGFloat = 0
     @State private var collapsedHeight: CGFloat = 0
     var body: some SwiftUI.View {
@@ -494,6 +495,7 @@ struct PodcastDescription: SwiftUI.View {
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { collapsedHeight = $0; updateTruncation() }
                     }
             }
+            .frame(maxWidth: 520 * textScale)
             .frame(height: min(expanded ? fullHeight : collapsedHeight, maximumHeight))
             .scrollBounceBehavior(.basedOnSize)
             .accessibilityLabel("Podcast Description")
@@ -541,7 +543,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             DownloadRuleFields(mode: value(\.mode), cap: value(\.cap))
             PodListSheetSectionHeading("Played")
             VStack(alignment: .leading, spacing: 12) {
-                PodListSheetField("Played Threshold") {
+                PodListSheetField("Played threshold") {
                     Picker("", selection: value(\.threshold)) {
                         Text("Default (30 seconds)").tag(nil as Double?)
                         ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
@@ -553,8 +555,8 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Default inherits the global Playback Settings.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
-                overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
-                overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                overrideNumber("Skip intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                overrideNumber("Skip outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                 PodListSheetField("Volume Boost") {
                     Picker("", selection: value(\.overrides.volumeBoost)) {
                         Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))

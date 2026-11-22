@@ -15,8 +15,9 @@ enum MenuAction: String, CaseIterable {
     case importSelection = "Import", chooseFile = "Choose a File…", cancelImport = "Cancel Import"
     case connect = "Check and Connect", standalone = "Start on This Mac", disconnect = "Disconnect"
     case offerBringOver = "Bring Library from This Mac…", retryBringOver = "Retry Bring Over"
+    case showRestoredEntries = "Show Restored Entries", showAddedEntries = "Show Added Entries"
     case clearSearch = "Clear Search", backToLibrary = "Back to Library", dismissTutorial = "Hide Getting Started"
-    case createViewFromSearch = "Create View from Search…", searchPodcasts = "Search Podcasts"
+    case createViewFromSearch = "Create View from Search…", openCreatedView = "Open Created View", searchPodcasts = "Search Podcasts"
     case retry = "Retry Failed Operation", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
     case backToNowPlaying = "Back to Now Playing", retryPlayback = "Retry Playback"
     case retryEpisodeDrop = "Retry Failed Episode Drop"
@@ -25,10 +26,11 @@ enum MenuAction: String, CaseIterable {
     var menu: MenuActionMenu? {
         switch self {
         case .showImport, .cancelImport, .retryImport: .file
+        case .showRestoredEntries, .showAddedEntries: .editHistory
         case .clearSearch, .retry: .edit
         case .retryEpisodeDrop, .removeEpisodeDrop: .episode
         case .refresh, .retryFeedRefresh, .backToLibrary, .searchPodcasts: .podcast
-        case .createViewFromSearch: .views
+        case .createViewFromSearch, .openCreatedView: .views
         case .connect, .standalone, .disconnect, .offerBringOver, .retryBringOver: .connection
         case .backToNowPlaying, .retryPlayback: .controls
         case .copyConfiguration, .retryAutomation: .automation
@@ -50,13 +52,29 @@ enum MenuAction: String, CaseIterable {
 }
 
 enum MenuActionMenu: CaseIterable {
-    case file, edit, podcast, views, episode, connection, controls, automation
+    case file, editHistory, edit, podcast, views, episode, connection, controls, automation
     var items: [MenuAction] { MenuAction.allCases.filter { $0.menu == self } }
 }
 struct MenuActionContext {
     var actions: [MenuAction: () -> Void] = [:]
     var retryTitle = "Retry Failed Operation"
     subscript(_ action: MenuAction) -> (() -> Void)? { actions[action] }
+}
+
+extension WindowModel {
+    func followUpActions(in library: LibraryModel, currentLibrary: @escaping () -> LibraryModel?) -> MenuActionContext {
+        var actions: [MenuAction: () -> Void] = [:]
+        if canShowRestoredEntries(in: library) {
+            actions[.showRestoredEntries] = { if let current = currentLibrary() { self.showRestoredEntries(in: current) } }
+        }
+        if canShowAddedEntries(in: library) {
+            actions[.showAddedEntries] = { if let current = currentLibrary() { self.showAddedEntries(in: current) } }
+        }
+        if createdView(in: library) != nil {
+            actions[.openCreatedView] = { if let current = currentLibrary() { self.openCreatedView(in: current) } }
+        }
+        return MenuActionContext(actions: actions)
+    }
 }
 private struct PanelActionsKey: FocusedValueKey { typealias Value = MenuActionContext }
 private struct WindowActionsKey: FocusedValueKey { typealias Value = MenuActionContext }

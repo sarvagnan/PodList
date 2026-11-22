@@ -367,6 +367,8 @@ public final class WindowModel {
     }
     var restorationOrigin: RestorationOrigin { RestorationOrigin(list: listID, searchRevision: searchRevision) }
     private var pendingRestoredEntries: [RestoredEntries] = []
+    private var pendingAddedEntries: [RestoredEntries] = []
+    private var pendingCreatedViewID: String?
     public var selection = Set<String>()
     public var sortOrder: [KeyPathComparator<EpisodeRow>] = []
     var podcastSort = WindowModel.defaultPodcastSort
@@ -390,14 +392,27 @@ public final class WindowModel {
     var pendingDropSelections: [String: [String]] = [:]
     var podcastOrigin: PodcastOrigin?
 
-    func didDrop(_ ids: [String], into playlistID: String, reveal: Bool = true, scroll: Bool = true) {
-        pendingDropSelections[playlistID] = ids
-        if reveal, listID == .playlist(playlistID, .entries) { revealDrop(in: playlistID, scroll: scroll) }
+    func didDrop(_ ids: [String], into playlistID: String, in library: LibraryModel, scroll: Bool = true) {
+        guard !ids.isEmpty else { return }
+        guard listID == .playlist(playlistID, .entries) else {
+            pendingDropSelections[playlistID] = ids
+            return
+        }
+        let visible = search.isEmpty ? ids : ids.filter(Set(library.rows(for: destination, search: search).map(\.id)).contains)
+        if visible.count < ids.count {
+            let previous = pendingAddedEntries.first { $0.playlistID == playlistID }?.episodeIDs ?? []
+            let previousIDs = Set(previous)
+            pendingAddedEntries.removeAll { $0.playlistID == playlistID }
+            pendingAddedEntries.append(RestoredEntries(playlistID: playlistID, episodeIDs: previous + ids.filter { !previousIDs.contains($0) }))
+        }
+        selectEntries(visible, scroll: scroll)
     }
-    func revealDrop(in playlistID: String, scroll: Bool = true) {
-        // A drop can finish after the person has started filtering this list.
-        guard let ids = pendingDropSelections.removeValue(forKey: playlistID),
-              search.isEmpty, let first = ids.first else { return }
+    private func revealDrop(in playlistID: String) {
+        guard let ids = pendingDropSelections.removeValue(forKey: playlistID) else { return }
+        selectEntries(ids)
+    }
+    private func selectEntries(_ ids: [String], scroll: Bool = true) {
+        guard let first = ids.first else { return }
         selection = Set(ids)
         if scroll { scrollAnchor = RowAnchor(id: first, index: 0) }
     }
@@ -405,7 +420,7 @@ public final class WindowModel {
     /// A window-local completion. A later search or navigation takes precedence.
     @discardableResult
     func revealRestoredEntries(_ restored: [RestoredEntries], in library: LibraryModel, from origin: RestorationOrigin) -> Bool {
-        guard let target = restoredTarget(restored, in: library) else { return false }
+        guard let target = entryRevealTarget(restored, in: library) else { return false }
         let targetList = ListID.playlist(target.playlistID, .entries)
         let staysOnList = listID == targetList
         guard origin == restorationOrigin,
@@ -414,27 +429,59 @@ public final class WindowModel {
             pendingRestoredEntries = restored
             return false
         }
-        if !staysOnList {
-            navigate(to: .playlist(target.playlistID))
-            showPlaylistTab(.entries)
-        }
+        if !staysOnList { openPlaylistEntries(target.playlistID) }
         selectRestoredEntries(target)
         return true
     }
 
     func canShowRestoredEntries(in library: LibraryModel) -> Bool {
-        restoredTarget(pendingRestoredEntries, in: library) != nil
+        entryRevealTarget(pendingRestoredEntries, in: library) != nil
     }
 
     func showRestoredEntries(in library: LibraryModel) {
-        guard let target = restoredTarget(pendingRestoredEntries, in: library) else { return }
-        navigate(to: .playlist(target.playlistID))
-        showPlaylistTab(.entries)
+        guard let target = entryRevealTarget(pendingRestoredEntries, in: library) else { return }
+        openPlaylistEntries(target.playlistID)
         selectRestoredEntries(target)
     }
 
-    private func restoredTarget(_ restored: [RestoredEntries], in library: LibraryModel) -> RestoredEntries? {
-        let available = restored.compactMap { result -> RestoredEntries? in
+    func canShowAddedEntries(in library: LibraryModel) -> Bool {
+        entryRevealTarget(pendingAddedEntries, in: library) != nil
+    }
+
+    func showAddedEntries(in library: LibraryModel) {
+        guard let target = entryRevealTarget(pendingAddedEntries, in: library) else { return }
+        pendingAddedEntries.removeAll { $0.playlistID == target.playlistID }
+        openPlaylistEntries(target.playlistID)
+        selectEntries(target.episodeIDs)
+    }
+
+    func finishSearchViewCreation(_ id: String, from origin: RestorationOrigin, draftUnchanged: Bool) -> Bool {
+        guard draftUnchanged, restorationOrigin == origin else {
+            pendingCreatedViewID = id
+            return false
+        }
+        pendingCreatedViewID = nil
+        navigate(to: .view(id))
+        return true
+    }
+
+    func createdView(in library: LibraryModel) -> PodListDomain.View? {
+        library.state.views.first { $0.id == pendingCreatedViewID }
+    }
+
+    func openCreatedView(in library: LibraryModel) {
+        guard let view = createdView(in: library) else { return }
+        pendingCreatedViewID = nil
+        navigate(to: .view(view.id))
+    }
+
+    private func openPlaylistEntries(_ id: String) {
+        navigate(to: .playlist(id))
+        showPlaylistTab(.entries)
+    }
+
+    private func entryRevealTarget(_ results: [RestoredEntries], in library: LibraryModel) -> RestoredEntries? {
+        let available = results.compactMap { result -> RestoredEntries? in
             guard let playlist = library.state.playlists.first(where: { $0.id == result.playlistID }) else { return nil }
             let ids = Set(playlist.entries.map(\.episodeId))
             let remaining = result.episodeIDs.filter { ids.contains($0) }
@@ -445,8 +492,7 @@ public final class WindowModel {
 
     private func selectRestoredEntries(_ target: RestoredEntries) {
         pendingRestoredEntries = []
-        selection = Set(target.episodeIDs)
-        scrollAnchor = target.episodeIDs.first.map { RowAnchor(id: $0, index: 0) }
+        selectEntries(target.episodeIDs)
     }
 
     public init() {}
@@ -470,6 +516,9 @@ public final class WindowModel {
         listPositions.removeAll()
         playlistTabs.removeAll()
         pendingRestoredEntries = []
+        pendingDropSelections.removeAll()
+        pendingAddedEntries = []
+        pendingCreatedViewID = nil
     }
     func showPlaylistTab(_ tab: PlaylistTab) {
         guard podcastFeed == nil, case let .playlist(id) = destination, playlistTab != tab else { return }

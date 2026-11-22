@@ -72,7 +72,7 @@ import Testing
                             Button("Hide Inspector", systemImage: "sidebar.right") {}
                         }
                         ToolbarItem(placement: .primaryAction) {
-                            LibraryToolbarSearch(text: .constant(""), scope: "Search this list")
+                            LibraryToolbarSearch(text: .constant(""), scope: .list)
                         }
                     }
                     .inspector(isPresented: .constant(true)) {
@@ -110,9 +110,9 @@ import Testing
             let frame = picker.convert(picker.bounds, to: nil)
             frames.append(frame)
             #expect(frame.maxX < playFrames.last!.minX, "The section control leads the Play action in the same toolbar run")
-            let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search this list" })
+            let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search" })
             #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
-            #expect(search.frame.width > 100, "At 1180 pt, Search must remain a field even with selection actions")
+            #expect(search.frame.width > 80, "At 1180 pt, Search must leave room for typing beside its scope")
             #expect(!window.isVisible)
         }
     }

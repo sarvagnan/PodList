@@ -15,15 +15,32 @@ import UniformTypeIdentifiers
 
 @Test func supplementalCommandsAreFiledByTaskAndObject() {
     #expect(Set(MenuActionMenu.file.items) == [.showImport, .cancelImport, .retryImport])
+    #expect(MenuActionMenu.editHistory.items == [.showRestoredEntries, .showAddedEntries])
     #expect(MenuActionMenu.edit.items == [.clearSearch, .retry])
     #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .retryFeedRefresh, .backToLibrary, .searchPodcasts])
-    #expect(MenuActionMenu.views.items == [.createViewFromSearch])
+    #expect(MenuActionMenu.views.items == [.createViewFromSearch, .openCreatedView])
     #expect(MenuActionMenu.episode.items == [.retryEpisodeDrop, .removeEpisodeDrop])
     #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver, .retryBringOver])
     #expect(MenuActionMenu.controls.items == [.backToNowPlaying, .retryPlayback])
     #expect(MenuActionMenu.automation.items == [.copyConfiguration, .retryAutomation])
     let items = MenuActionMenu.allCases.flatMap(\.items)
     #expect(Set(items).count == items.count)
+}
+
+@MainActor @Test func restoredEntriesCommandIsScopedToTheWindowAndRevealsTheAvailableEntries() async throws {
+    let library = try await fixtureModel()
+    let window = WindowModel()
+    let otherWindow = WindowModel()
+    window.navigate(to: .playlist("default"))
+    let origin = window.restorationOrigin
+    #expect(window.followUpActions(in: library) { library }[.showRestoredEntries] == nil)
+    window.search = "Beta"
+    #expect(!window.revealRestoredEntries([.init(playlistID: "default", episodeIDs: ["a"])], in: library, from: origin))
+    #expect(otherWindow.followUpActions(in: library) { library }[.showRestoredEntries] == nil)
+    let command = try #require(window.followUpActions(in: library) { library }[.showRestoredEntries])
+    command()
+    #expect(window.search.isEmpty && window.selection == ["a"] && window.scrollAnchor?.id == "a")
+    #expect(window.followUpActions(in: library) { library }[.showRestoredEntries] == nil)
 }
 
 @Test func dialogButtonsAndMessageLocalHelpersHaveNoMenuEntries() {
@@ -181,7 +198,7 @@ import UniformTypeIdentifiers
     for editable in [false, true] {
         #expect(PlaybackKeyboardGuard.route(characters: "\r", modifiers: [], editable: editable, sheet: true) == .sheetDefault)
         #expect(PlaybackKeyboardGuard.route(characters: "\r", modifiers: .command, editable: editable, sheet: true) == .menu)
-        #expect(PlaybackKeyboardGuard.route(characters: " ", modifiers: [], editable: editable, sheet: true) == (editable ? .text : .menu))
+        #expect(PlaybackKeyboardGuard.route(characters: " ", modifiers: [], editable: editable, sheet: true) == (editable ? .text : .sheetSpace))
     }
 }
 

@@ -151,12 +151,13 @@ public struct PodListWindow: SwiftUI.View {
         let canToggleInspector = showsEpisodeInspector &&
             ((windowWidth ?? 0) < LibraryPanes.threePaneWidth || hasInspectorSelection || !inspectorEnabled)
         let inspectorToggle = Binding(get: { inspector.wrappedValue }, set: setInspectorVisible)
+        let followUp = window.followUpActions(in: library) { app.library }
         return NavigationSplitView(columnVisibility: sidebarPresentation) {
             librarySidebar(library, playbackInset: playbackInset)
         } detail: {
             libraryDetail(library, rows: rows, selectedRows: selectedRows, deletedPlaylist: deletedPlaylist,
                           origin: origin, inspector: inspector, inspectorToggle: inspectorToggle,
-                          canToggleInspector: canToggleInspector)
+                          canToggleInspector: canToggleInspector, followUp: followUp)
         }
         .focusedSceneValue(\.podListSidebar, LibrarySidebarContext(visible: sidebarVisible) {
             sidebarPresentation.wrappedValue = sidebarVisible ? .detailOnly : .all
@@ -183,7 +184,7 @@ public struct PodListWindow: SwiftUI.View {
             await app.libraryEditing?.selectLibraryDrops(batch)
         })
         .modifier(PlaylistSheetHost(presentation: playlistPresentation, app: app, created: { window.navigate(to: .playlist($0)) }))
-        .focusedSceneValue(\.podListWindowActions, windowMenuActions(origin: origin))
+        .focusedSceneValue(\.podListWindowActions, windowMenuActions(origin: origin, followUp: followUp))
         .focusedSceneValue(\.podListEpisodes, EpisodeCommandContext(ids: selectedIDs, library: library, window: window, presentation: playlistPresentation, showDetails: showEpisodeInspector, editOrigin: origin))
         .focusedSceneValue(\.podListLibraryActions, LibraryWindowActions(
             add: { openWindow(id: "add-podcasts") }, newView: { newView() },
@@ -300,7 +301,7 @@ public struct PodListWindow: SwiftUI.View {
                             }
                         })
                         .contextMenu { sidebarActions(item.destination, library: library) }
-                        .modifier(PlaylistEpisodeDropTarget(destination: item.destination, editor: app.libraryEditing, window: window, showingEntries: window.playlistTab == .entries))
+                        .modifier(PlaylistEpisodeDropTarget(destination: item.destination, app: app, window: window))
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("sidebar.\(item.name)")
                         .accessibilityLabel("\(item.name)\(item.destination == .search ? "" : ", \(item.count)")\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
@@ -322,22 +323,27 @@ public struct PodListWindow: SwiftUI.View {
 
     private func libraryDetail(_ library: LibraryModel, rows: [EpisodeRow], selectedRows: [EpisodeRow],
                                deletedPlaylist: Playlist?, origin: EditOrigin, inspector: Binding<Bool>,
-                               inspectorToggle: Binding<Bool>, canToggleInspector: Bool) -> some SwiftUI.View {
+                               inspectorToggle: Binding<Bool>, canToggleInspector: Bool, followUp: MenuActionContext) -> some SwiftUI.View {
         let showsEpisodeInspector = window.supportsEpisodeInspector
         let selection = window.selection
         let selectedIDs = selectedRows.map(\.id)
         let playlist = toolbarPlaylist(library)
+        let hasPlaylistSections = app.editing != nil && (playlist != nil || deletedPlaylist != nil)
+        let sectionsBelowToolbar = hasPlaylistSections && (windowWidth ?? .infinity) <= 1_100
         let title = podcastFeed == nil ? deletedPlaylist?.name ?? library.title(window.destination) : "Podcast"
         let summaryText = Self.subtitle(summary: isPodcastPage ? "" : summary(library, rowCount: rows.count),
                                         playbackError: app.playback?.error)
         let subtitle = deletedPlaylist == nil ? summaryText : "In the Trash · \(summaryText)"
         return VStack(spacing: 0) {
+            if sectionsBelowToolbar {
+                playlistSections(isTrashed: deletedPlaylist != nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14).padding(.top, 8)
+            }
             if let editor = app.libraryEditing {
                 LibraryFeedback(editor: editor, surface: .library, origin: origin, sync: app,
                                 reverse: { reverseEdit(using: editor, redo: $0) },
-                                showRestoredEntries: window.canShowRestoredEntries(in: library) ? {
-                                    if let current = app.library { window.showRestoredEntries(in: current) }
-                                } : nil)
+                                followUp: followUp)
                     .id(window.destination).id(podcastFeed)
                 if editor.busy { VStack {
                     OPMLImportProgress(editor: editor)
@@ -377,12 +383,11 @@ public struct PodListWindow: SwiftUI.View {
                         .accessibilityLabel("Back to Library")
                 }
             }
-            if app.editing != nil, playlist != nil || deletedPlaylist != nil {
+            if hasPlaylistSections && !sectionsBelowToolbar {
                 // A principal item recentres in the space left by the Inspector.
                 // Keep the section picker in the same toolbar run as Play.
                 ToolbarItem(placement: .primaryAction) {
-                    PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
-                        .disabled(deletedPlaylist != nil)
+                    playlistSections(isTrashed: deletedPlaylist != nil)
                 }
             }
             if let editing = app.editing, showsEpisodeInspector {
@@ -405,7 +410,7 @@ public struct PodListWindow: SwiftUI.View {
             }
             ToolbarItem(placement: .primaryAction) {
                 LibraryToolbarSearch(text: $window.search,
-                                     scope: isPodcastPage ? "Search Episodes" : window.destination == .search ? "Search Library" : "Search this list")
+                                     scope: isPodcastPage ? .episodes : window.destination == .search ? .library : .list)
             }
         }
         .inspector(isPresented: inspector) {
@@ -427,6 +432,11 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
         }
+    }
+
+    private func playlistSections(isTrashed: Bool) -> some SwiftUI.View {
+        PlaylistToolbar(selection: Binding(get: { window.playlistTab }, set: window.showPlaylistTab))
+            .disabled(isTrashed)
     }
 
     private func editOrigin(in library: LibraryModel) -> EditOrigin {
@@ -460,8 +470,8 @@ public struct PodListWindow: SwiftUI.View {
         }
     }
 
-    private func windowMenuActions(origin: EditOrigin) -> MenuActionContext {
-        var actions: [MenuAction: () -> Void] = [:]
+    private func windowMenuActions(origin: EditOrigin, followUp: MenuActionContext) -> MenuActionContext {
+        var actions = app.editing?.busy == false ? followUp.actions : [:]
         if !window.search.isEmpty { actions[.clearSearch] = { window.search = "" } }
         if isPodcastPage { actions[.backToLibrary] = { backToLibrary() } }
         if let editor = app.libraryEditing {
@@ -476,7 +486,7 @@ public struct PodListWindow: SwiftUI.View {
         case .views:
             if library.state.views.isEmpty {
                 PodListEmptyState("No Views", systemImage: "line.3.horizontal.decrease",
-                                  description: "Create a View to find Episodes.") { Button("New View") { newView() } }
+                                  description: "Create a View to find Episodes.") { Button("New View…") { newView() } }
             } else {
                 let ids = window.listBinding(\.selection)
                 let selection = Binding<String?>(get: {
@@ -532,7 +542,9 @@ public struct PodListWindow: SwiftUI.View {
             episodeTable(library, rows: rows)
         case .search:
             VStack(alignment: .leading) {
-                if let editor = app.libraryEditing { SearchViewCreation(editor: editor, library: library, query: window.search, count: rows.count) { id in window.navigate(to: .view(id)) } }
+                if let editor = app.libraryEditing {
+                    SearchViewCreation(editor: editor, library: library, window: window, count: rows.count) { app.libraryEditing === editor }
+                }
                 episodeTable(library, rows: rows)
             }
         case nil:
@@ -1004,6 +1016,7 @@ private struct SidebarCommandButton: SwiftUI.View {
         Button(title, systemImage: "plus", action: action)
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
+            .modifier(MacButtonShape(cornerRadius: 5, outset: 3))
             .background {
                 if hovered {
                     RoundedRectangle(cornerRadius: 5).fill(.primary.opacity(0.07))
@@ -1017,17 +1030,28 @@ private struct SidebarCommandButton: SwiftUI.View {
 
 /// A SwiftUI toolbar field with an accessible scope independent of its prompt.
 struct LibraryToolbarSearch: SwiftUI.View {
+    enum Scope: String {
+        case episodes = "Episodes", library = "Library", list = "this list"
+        var title: String { "Search \(rawValue)" }
+        var caption: String { self == .list ? "This list" : rawValue }
+    }
+
     @Binding var text: String
-    let scope: String
+    let scope: Scope
     @FocusState private var focused: Bool
 
     var body: some SwiftUI.View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-            TextField("", text: $text, prompt: Text(scope))
+            Text(scope.caption)
+                .font(.caption).foregroundStyle(.secondary).fixedSize()
+                .padding(.trailing, 5)
+                .overlay(alignment: .trailing) { Divider().frame(height: 12) }
+                .accessibilityHidden(true)
+            TextField("", text: $text, prompt: Text("Search"))
                 .textFieldStyle(.plain)
                 .focused($focused)
-                .accessibilityLabel(scope)
+                .accessibilityLabel(scope.title)
                 .accessibilityAddTraits(.isSearchField)
                 .accessibilityIdentifier("library.search")
                 .onExitCommand { text = "" }
@@ -1036,7 +1060,7 @@ struct LibraryToolbarSearch: SwiftUI.View {
                     text = ""
                     focused = true
                 }
-                .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary)
+                .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary).help("Clear Search")
             }
         }
         .frame(width: 168)

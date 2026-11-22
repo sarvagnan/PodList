@@ -220,15 +220,15 @@ struct EditingFeedback: SwiftUI.View {
     var undo: (() -> Void)? = nil
     var redo: (() -> Void)? = nil
     var retry: (() -> Void)? = nil
-    var showRestoredEntries: (() -> Void)?
+    var followUp = MenuActionContext()
     var reservesSpace: Bool
     init(editing: PlaylistEditingModel, surface: EditingFeedbackSurface = .secondary, origin: EditOrigin? = nil, sync: ApplicationModel? = nil,
          additionalError: String? = nil, additionalStatus: String? = nil,
          undo: (() -> Void)? = nil, redo: (() -> Void)? = nil, retry: (() -> Void)? = nil,
-         showRestoredEntries: (() -> Void)? = nil, reservesSpace: Bool = true) {
+         followUp: MenuActionContext = MenuActionContext(), reservesSpace: Bool = true) {
         self.editing = editing; self.surface = surface; self.sync = sync; self.additionalError = additionalError; self.additionalStatus = additionalStatus; self.undo = undo; self.redo = redo; self.retry = retry
         self.origin = origin
-        self.showRestoredEntries = showRestoredEntries
+        self.followUp = followUp
         self.reservesSpace = reservesSpace
         _lifetime = State(initialValue: EditingFeedbackLifetime(currentNotice: editing.feedbackNotice))
     }
@@ -268,8 +268,10 @@ struct EditingFeedback: SwiftUI.View {
             if retryCommand != nil {
                 Button("Retry", action: retryFailure).disabled(editing.busy)
             }
-            if let showRestoredEntries {
-                Button("Show Restored Entries", action: showRestoredEntries).disabled(editing.busy)
+            ForEach([MenuAction.showRestoredEntries, .showAddedEntries, .openCreatedView], id: \.self) { command in
+                if let action = followUp[command] {
+                    Button(command.rawValue, action: action).disabled(editing.busy)
+                }
             }
             if let undoTitle {
                 Button(undoTitle) { if let undo { undo() } else { Task { await editing.reverse() } } }.disabled(editing.busy)
@@ -370,6 +372,7 @@ public struct PlaylistEditingCommands: Commands {
                 redo.perform(textUndo: textUndo, keyboardShortcut: EditHistoryMenuAction.isKeyboardShortcut,
                              editor: app.libraryEditing, context: editHistory)
             }.keyboardShortcut("z", modifiers: [.command, .shift]).disabled(!redo.isEnabled)
+            MenuActionItems(menu: .editHistory)
         }
         CommandMenu("Episode") {
             MenuActionItems(menu: .episode, app: app)
