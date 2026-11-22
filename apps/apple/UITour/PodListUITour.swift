@@ -1097,8 +1097,14 @@ final class PodListUITour: XCTestCase {
                let menu = try? windowMenu.snapshot(),
                let target = menuRowCoordinate(windowMenu, menu: menu.frame, row: row.frame) {
                 target.hover()
-                if left.waitForExistence(timeout: 5), left.isEnabled {
-                    left.click()
+                // Click the snapshot's position: if the submenu closes before the
+                // click, XCTest's re-lookup would fail the test instead of retrying.
+                if left.waitForExistence(timeout: 5), let item = try? left.snapshot(), item.isEnabled,
+                   !item.frame.isEmpty {
+                    let menuFrame = windowMenu.frame
+                    windowMenu.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: item.frame.midX - menuFrame.minX, dy: item.frame.midY - menuFrame.minY))
+                        .click()
                     let deadline = Date().addingTimeInterval(5)
                     repeat {
                         if tile(library.frame) { return }
