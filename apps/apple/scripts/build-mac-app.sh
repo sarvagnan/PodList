@@ -20,6 +20,7 @@ app="$PWD/.build/PodList.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" .build/app-intents
 cp -f "$bin_dir/PodListMac" "$app/Contents/MacOS/PodListMac"
 cp -f "$bin_dir/podlist-mcp" "$app/Contents/MacOS/podlist-mcp"
+cp -f Resources/PodList.icns "$app/Contents/Resources/PodList.icns"
 # SwiftPM resource bundles (Bundle.module looks in Contents/Resources). Without them the
 # first edit traps when protocol validation loads its schema.
 for bundle in "$bin_dir"/*.bundle; do
@@ -34,6 +35,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>PodList</string>
 <key>CFBundleDisplayName</key><string>PodList</string>
 <key>CFBundleExecutable</key><string>PodListMac</string>
+<key>CFBundleIconFile</key><string>PodList.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
 <key>CFBundleVersion</key><string>1</string>
