@@ -145,7 +145,11 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(try firstEpisodeOffset(title: firstEpisodeTitle), initialFirstRowOffset, accuracy: 1,
                        "Returning to a short View must keep its first row below the column header")
         XCTAssertFalse(episodeInspector.exists, "Restored selection must respect the hidden Inspector")
-        XCTAssertTrue(episodeRows.firstMatch.isSelected, "Returning to the View must restore selection")
+        let restoredSelection = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            episodeRows.firstMatch.exists && episodeRows.firstMatch.isSelected
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [restoredSelection], timeout: 5), .completed,
+                       "Returning to the View must restore selection")
         try firstEpisodePoint().click()
         XCTAssertFalse(episodeInspector.exists, "Reselecting an Episode must respect an explicit off choice")
         app.typeKey("i", modifierFlags: [.command, .option])
