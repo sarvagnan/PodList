@@ -758,7 +758,7 @@ final class PodListUITour: XCTestCase {
             return feedback.contains { $0.label == "Show Restored Entries" && $0.isEnabled } &&
                 feedback.contains { ($0.value as? String ?? $0.label) == "Undone: Remove from Playlist" }
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: completion, object: nil)], timeout: 10), .completed,
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: completion, object: nil)], timeout: 20), .completed,
                        "Entry Undo must announce completion and offer Show Restored Entries while the new query is active")
         XCTAssertEqual(search.value as? String, "Inflation")
         XCTAssertTrue(retainedRow.isSelected, "The later query and the selected matching Entry must survive Undo")

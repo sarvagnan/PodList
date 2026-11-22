@@ -202,7 +202,7 @@ public final class PlaylistEditingModel {
                     let searchUnchanged = self.tourUndoSearchUnchanged
                     self.tourUndoSearchUnchanged = nil
                     let inputDeadline = ContinuousClock.now + .seconds(6)
-                    try await Task.sleep(for: .seconds(2))
+                    try await Task.sleep(for: .seconds(8))
                     // XCTest may wait for the guest to idle between the Search
                     // click and typing. Give that input a bounded grace period.
                     while !self.ended, ContinuousClock.now < inputDeadline, searchUnchanged?() == true {
