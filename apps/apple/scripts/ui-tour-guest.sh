@@ -220,6 +220,8 @@ elif [ "$mode" = tour ]; then
         -only-testing:PodListUITour/PodListUITour/testDark \
         -test-timeouts-enabled YES -default-test-execution-time-allowance 1600 \
         -maximum-test-execution-time-allowance 2000 -resultBundlePath "$run/Tour.xcresult"
+    # Preserve the main pass even if xcodebuild stalls before the Borders tests start.
+    if [ -d "$run/Tour.xcresult" ]; then ditto "$run/Tour.xcresult" "$shared/run/Tour.xcresult"; fi
     stop_demos
     start_demo "$run/borders-dark/origin"
     start_demo "$run/borders-light/origin"

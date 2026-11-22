@@ -191,6 +191,9 @@ final class MacApplicationDelegate: NSObject, NSApplicationDelegate {
         appearance = MacAppearanceController()
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if PODLIST_UI_TOUR
+        TourMainThreadWatchdog.start()
+        #endif
         #if DEBUG || PODLIST_UI_TOUR
         TourResponseTiming.start()
         #endif

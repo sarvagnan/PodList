@@ -61,6 +61,29 @@ private func restorationLibrary(ready: Bool = true) -> LibraryModel {
     #expect(panes.sidebar)
 }
 
+@MainActor @Test func subscriptionRestorationAndPaneLayoutSettleAfterOneReconciliation() {
+    let library = restorationLibrary()
+    let window = WindowModel()
+    window.subscriptionSelection = ["s", "removed"]
+    var panes = LibraryPanes(sidebar: true, inspector: false)
+    var updates = 0
+    // Repeat the state calculations used by Library snapshot and geometry
+    // callbacks. Changes from AppKit's own run loop require the VM check.
+    for _ in 0..<8 {
+        let current = window.context(libraryID: "standalone", columns: .all, inspectorVisible: true)
+        let reconciled = current.reconciled(in: library)
+        if reconciled != current {
+            updates += 1
+            window.restore(reconciled)
+        }
+        panes = panes.applying(.layoutChanged, width: 1_180)
+        #expect(panes == .init(sidebar: true, inspector: false))
+        #expect(!window.supportsEpisodeInspector)
+    }
+    #expect(updates == 1)
+    #expect(window.subscriptionSelection == ["s"])
+}
+
 @Test func narrowSelectionNeverChangesTheExplicitPaneChoice() {
     let width = LibraryPanes.threePaneWidth - 1
     let sidebar = LibraryPanes(sidebar: true, inspector: false)

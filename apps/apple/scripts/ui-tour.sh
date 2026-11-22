@@ -35,6 +35,14 @@ cleanup() {
         if [ -n "$vm_pid" ]; then wait "$vm_pid" 2>/dev/null || true; fi
         tart delete "$vm_clone" >/dev/null 2>&1 || true
     fi
+    # The app writes these directly to the share. Keep them on interruption
+    # even if the guest never reached its normal result export.
+    local report
+    for report in "$run/guest-diagnostics"/main-thread-stall-*; do
+        [ -f "$report" ] || continue
+        mkdir -p "$out/guest-diagnostics"
+        cp -f "$report" "$out/guest-diagnostics/" || true
+    done
     if [ -n "$test_pid" ]; then kill -TERM "$test_pid" 2>/dev/null || true; wait "$test_pid" 2>/dev/null || true; fi
     if [ -n "$demo_pid" ]; then kill -TERM "$demo_pid" 2>/dev/null || true; wait "$demo_pid" 2>/dev/null || true; fi
     # XCTest normally terminates its app. If the runner was interrupted, identify

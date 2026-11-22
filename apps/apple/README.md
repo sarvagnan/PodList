@@ -627,6 +627,10 @@ to six seconds total to change toolbar Search before letting Undo finish. The
 guest exports Edit-menu dispatch and reversal outcomes to
 `guest-diagnostics/edit-history.log`. Failed menu checks keep a guest screen
 capture, Library debug description and menu item states in the result bundle.
+In the disposable tour app, a background heartbeat samples PodList by PID
+after five seconds without a main-run-loop response. The sample and its
+command log go directly into `guest-diagnostics/main-thread-stall-*`, so
+they can be recovered even if Xcode stalls during result export.
 
 XCUITest's public snapshot API supplies `XCUIElementType`, label, title, value,
 identifier, enabled, selected and screen-coordinate frame. It does **not** expose

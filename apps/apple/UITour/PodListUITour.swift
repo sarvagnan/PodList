@@ -89,6 +89,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: data.path))
         app = XCUIApplication(url: bundleURL)
         app.launchEnvironment["PODLIST_UI_DATA_DIRECTORY"] = data.path
+        app.launchEnvironment["PODLIST_UI_WATCHDOG"] = "1"
         if let timings { app.launchEnvironment["PODLIST_UI_TIMINGS_FILE"] = timings.path }
         if delayEntryUndo { app.launchEnvironment["PODLIST_UI_DELAY_ENTRY_UNDO"] = "1" }
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
