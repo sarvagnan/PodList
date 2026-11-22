@@ -801,7 +801,9 @@ final class PodListUITour: XCTestCase {
 
         try showSidebar()
         narrowLibraryForPaneSwap()
-        try menuCommand("View", "Show Inspector")
+        let openInspectorToggle = library.toolbars.buttons.matching(NSPredicate(
+            format: "identifier == %@ AND label == %@", "library.inspector", "Hide Inspector")).firstMatch
+        try menuCommand("View", "Show Inspector", until: openInspectorToggle)
         assertLibraryPanes(sidebar: false, inspector: true, after: "choosing View > Show Inspector")
 
         try showSidebar()
@@ -1743,6 +1745,13 @@ final class PodListUITour: XCTestCase {
         var attempts: [String] = []
         for attempt in 1...3 {
             menuItem.click()
+            if menu == "View" {
+                // AppKit can remove the tab and full-screen commands as the
+                // pointer leaves the menu bar, shifting the Inspector row.
+                // Enter the dropdown before reading the click coordinates.
+                menuItem.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1))
+                    .withOffset(CGVector(dx: 0, dy: 12)).hover()
+            }
             if action.waitForExistence(timeout: 3), let snapshot = try? menuItem.snapshot() {
                 let items = descendants(snapshot).filter { $0.elementType == .menuItem }
                 attempts.append("Attempt \(attempt)\n" + menuItemDetails(items))
@@ -1809,11 +1818,17 @@ final class PodListUITour: XCTestCase {
         let tree = window.exists ? window.debugDescription : "No Library window.\n\(app.windows.debugDescription)"
         attach(tree, name: "\(prefix)-library.txt")
 
-        let edit = app.menuBars.menuBarItems["Edit"]
-        let items = (try? edit.snapshot()).map { descendants($0).filter { $0.elementType == .menuItem } } ?? []
-        let editDetails = items.isEmpty ? "Edit menu snapshot unavailable" : menuItemDetails(items)
-        attach((["\(menu) > \(command)"] + attempts + ["Final Edit menu\n\(editDetails)"]).joined(separator: "\n\n"),
+        func menuDetails(_ name: String) -> String {
+            let item = app.menuBars.menuBarItems[name]
+            let items = (try? item.snapshot()).map { descendants($0).filter { $0.elementType == .menuItem } } ?? []
+            return items.isEmpty ? "\(name) menu snapshot unavailable" : menuItemDetails(items)
+        }
+        attach((["\(menu) > \(command)"] + attempts + ["Final Edit menu\n\(menuDetails("Edit"))"]).joined(separator: "\n\n"),
                name: "\(prefix)-items.txt")
+        if menu == "View" {
+            attach((attempts + ["Final View menu\n\(menuDetails("View"))"]).joined(separator: "\n\n"),
+                   name: "\(prefix)-view-items.txt")
+        }
     }
 
     private func refocusLibraryAfterMenu() {
@@ -1947,6 +1962,10 @@ final class PodListUITour: XCTestCase {
             return own + node.children.flatMap { titles($0) }
         }
         let items = Set(titles(menu))
+        if name == "View" {
+            let inspectorItems = titles(menu).filter { $0 == "Show Inspector" || $0 == "Hide Inspector" }
+            XCTAssertEqual(inspectorItems.count, 1, "View must have one Inspector command")
+        }
         let removed: Set<String> = [
             "Current Dialog", "OPML Import", "Done", "Cancel", "Save", "Cancel Rename",
             "Create Playlist", "Create View", "Play Next", "Play Last", "Delete Permanently", "Apply", "Rewind", "Bring Over", "Not Now", "Go",

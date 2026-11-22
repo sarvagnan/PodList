@@ -1082,16 +1082,21 @@ public extension FocusedValues {
 }
 
 public struct PodListCommands: Commands {
-    @FocusedBinding(\.podListInspector) private var inspectorVisible: Bool?
+    @FocusedValue(\.podListInspector) private var inspector
     public init() {}
     public var body: some Commands {
         CommandGroup(after: .sidebar) {
-            Button(inspectorVisible == true ? "Hide Inspector" : "Show Inspector") {
-                inspectorVisible?.toggle()
+            Button(inspector?.wrappedValue == true ? "Hide Inspector" : "Show Inspector") {
+                Self.toggleInspector(inspector)
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
-            .disabled(inspectorVisible == nil)
+            .disabled(inspector == nil)
         }
+    }
+
+    static func toggleInspector(_ inspector: Binding<Bool>?) {
+        guard let inspector else { return }
+        inspector.wrappedValue.toggle()
     }
 }
 private extension WindowContext.Columns {

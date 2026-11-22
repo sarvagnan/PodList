@@ -60,4 +60,31 @@ func inspectorChoiceSurvivesNavigationThroughAllViews(initiallyVisible: Bool) {
     playlist.wrappedValue = !initiallyVisible
     #expect(visible != initiallyVisible)
 }
+
+@MainActor @Test
+func viewMenuInspectorCommandUsesNarrowPaneRulesAfterResize() {
+    @MainActor final class WindowFixture {
+        var width = LibraryPanes.threePaneWidth + 50
+        var panes = LibraryPanes(sidebar: true, inspector: false)
+        var enabled = false
+    }
+    let window = WindowFixture()
+    // Capture the menu's binding at the wide width. Update geometry before
+    // invoking the same action that View > Show Inspector uses.
+    let inspector = Binding(get: {
+        window.panes.presentsInspector(width: window.width, hasSelection: true, enabled: window.enabled)
+    }, set: { visible in
+        window.enabled = visible
+        window.panes = window.panes.applying(.inspector(visible), width: window.width)
+    })
+    window.width = 760
+    window.panes = window.panes.applying(.layoutChanged, width: window.width)
+    PodListCommands.toggleInspector(inspector)
+    #expect(inspector.wrappedValue)
+    #expect(window.panes == LibraryPanes(sidebar: false, inspector: true))
+
+    PodListCommands.toggleInspector(inspector)
+    #expect(!inspector.wrappedValue)
+    #expect(window.panes == LibraryPanes(sidebar: false, inspector: false))
+}
 #endif
