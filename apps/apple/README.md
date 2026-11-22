@@ -65,9 +65,9 @@ are grouped by this Device's Download Rule and open an Episode table with its ru
 bar restores the Active Playlist's current Entry paused at its Position. Its three centred
 lines are Episode name, podcast name and a scrubbable seek bar with Chapter ticks. Click the
 Artwork for the Now Playing sheet, with larger controls and Chapter navigation. The queue
-control opens the Active Playlist. App/File/Edit/View/Controls/Window/Help menus include
-play/pause (Space outside text editing), skip forward/back (⌘→/⌘←), stop (⌘.), Speed, Sleep,
-Chapters and Now Playing. There is no Xcode project or app bundle yet.
+control opens the Active Playlist. The Controls menu shows Space beside Play or Pause and
+offers Back 15 Seconds (⌘←), Forward 30 Seconds (⌘→), Stop (⌘.), Playback Speed, Sleep Timer,
+Chapters and Now Playing. Space remains available for text entry.
 
 ## Playback and downloads
 
@@ -224,14 +224,16 @@ The green Subscribed control arms Unsubscribe for four seconds on its first clic
 unsubscribes on its second, with Undo/Redo and no dialog, staying on the page. Settings opens
 Played threshold, inherited Playback Settings overrides and this Device's Download Rule.
 
-Views have New View (⌘N), Edit View, every condition in one form, Sort, Show, a live count,
+Views have New View… (⌘N), Edit View, every condition in one form, Sort, Show, a live count,
 explicit Rename/Cancel/Save and Delete with Undo. Condition edits are recorded as made;
 invalid numeric drafts remain visible across reopening and restart. Names are checked in the
 database actor, ignoring case and surrounding whitespace, including races between windows.
 Search Library (⌘F) opens Library-wide Search, which reports its count and offers
-inline Create View with a name. Click the toolbar search field to type a Library
-query or to filter the list you’re viewing. Add-podcast,
-Search, New View, Rename and numeric-setting drafts are scoped to their Library and persisted.
+inline Create View with a name. If the name, query or destination changes during a save,
+the Library preserves current input and offers Open Created View in the status row and
+Saved Views menu. The toolbar search field shows its scope while you type.
+At narrow widths, Playlist sections move below the toolbar to leave room for Search.
+Add Podcasts, Search, New View, Rename and numeric-setting drafts are saved per Library.
 View and subscription changes register with the key window's native Undo manager; inline
 Undo/Redo also expose retry after a failed network action. Part 4a's editing integration can
 use `LibraryEditingModel` alongside its Episode/Playlist undo history.
@@ -309,8 +311,8 @@ and enabled only in release builds. They are also disabled when the bundle id st
 contains `PODLIST_UI_DATA_DIRECTORY` (including an empty value).
 
 **Show Now Playing** returns an interactive Siri/Shortcuts snippet with the current
-Episode title, podcast and Position, plus Play/Pause, Back 15 seconds and Forward
-30 seconds buttons. Each render reads live playback state; intent-backed controls
+Episode title, podcast and Position, plus Play/Pause, Back 15 Seconds and Forward
+30 Seconds buttons. Each render reads live playback state; intent-backed controls
 refresh the snippet after the action. An empty Playlist shows a no-current-Episode
 message. Control Playback also returns this snippet alongside its JSON result.
 No entities are indexed in Spotlight.
@@ -393,7 +395,9 @@ Build a development bundle:
 open .build/PodList.app
 ```
 
-The script builds only under `.build/`. It writes an Info.plist, runs Xcode's
+The script builds only under `.build/`. It packages the PodList Mac icon in both
+development and tour bundles. The icon uses the launcher and favicon mark on the Mac icon
+grid. Its source is `Resources/PodListIcon.svg`. The script writes an Info.plist, runs Xcode's
 `appintentsmetadataprocessor`, verifies `Metadata.appintents/extract.actionsdata`, and
 ad-hoc signs `.build/PodList.app`. It never installs into `/Applications` or registers
 the app itself. It needs the selected Xcode toolchain and its SwiftPM compiler constant
@@ -551,8 +555,10 @@ View multi-selection. Screens 35–36 cover the minimum window size and scrollin
 under the bars. Screens 37–39 use Window → Move & Resize → Left to capture New
 this week with a selected Episode and its Inspector open, the Market Hours Podcast
 page, and the Commute playlist at half-display width. The tour checks table layout
-at that width. Screens 40–42 show 30 Views and 30 Playlists using a separate demo
-Library. Screen 11a shows deleted Playlist Settings with Restore Playlist and Close.
+and visible, scoped Playlist Search at that width. Screens 40–42 show 30 Views and
+30 Playlists using a separate demo Library. Screen 11a shows deleted Playlist Settings
+with Restore Playlist and Close. The tour verifies that clicking Close, pressing Return,
+and pressing Escape all preserve the draft after Trash Restore. Editable Cancel discards it.
 Screen 32 shows the Getting Started window, reached from Settings › General or
 Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, and
 43 shows the Inspector explicitly opened at minimum width.
@@ -562,13 +568,16 @@ It checks that the original click still lies in the selected row and that a
 second selection leaves the open Inspector's toolbar positions fixed.
 Screen 44 captures a delayed Undo of Remove from Playlist. The named result,
 the retained Search and selected Entry, and Show Restored Entries are visible.
-The tour asserts that the action reveals and selects the restored Entry.
+The tour uses Edit › Show Restored Entries to reveal and select the restored Entry.
+It also checks that Space inserts a space in toolbar Search, the inline View name,
+Playlist Settings and Add Podcasts. Empty History and Stats expose the next action.
 Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
 `.txt`, and `menus.txt`. After the main tours, a macOS 27 Show Borders pass captures
 New this week with the player bar, the Episode Inspector, the New Playlist sheet,
 and General and Automation Settings in `borders-light/` and `borders-dark/`.
+The Library captures show the borders on row, Inspector, player and sidebar actions.
 The full tour exports 207 required attachments, including menu and timing text.
 Each main pass attempts five runs per task and attaches `light--timings.txt` or
 `dark--timings.txt` (exported as `light/timings.txt` and `dark/timings.txt`). The
