@@ -729,9 +729,9 @@ final class PodListUITour: XCTestCase {
         try ready(button("Add to a Playlist"))
         try capture("33-multi-selection")
         if style == "Light" { try captureMenus() }
-        try menuCommand("Controls", "Play")
+        try menuCommand("Controls", "Play", waitForEnabled: true)
         try ready(library.buttons["Pause"])
-        try menuCommand("Controls", "Pause")
+        try menuCommand("Controls", "Pause", waitForEnabled: true)
         try ready(library.buttons["Play"])
         XCTAssertTrue(library.buttons["Open Now Playing"].exists)
         XCTAssertTrue(library.buttons["Play"].exists)
@@ -793,7 +793,8 @@ final class PodListUITour: XCTestCase {
             return (Double(String(describing: value)) ?? 0) >= 1
         }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: advanced, object: nil)], timeout: 20), .completed)
-        try menuCommand("Controls", "Pause", until: player.buttons["Play"], retryFocus: text(title, in: player))
+        try menuCommand("Controls", "Pause", until: player.buttons["Play"], retryFocus: text(title, in: player),
+                        waitForEnabled: true)
         let chapter = player.buttons["Go to The question at 11:18"]
         try ready(chapter)
         try reveal(chapter, in: player.scrollViews.firstMatch)
@@ -817,13 +818,26 @@ final class PodListUITour: XCTestCase {
         stats.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(stats.waitForNonExistence(timeout: 10), "Listening Stats must close")
 
+        try navigate("Trash")
+        try ready(text("Trash is empty"))
+        let currentTitle = text(title, in: player)
+        try menuCommand("Controls", "Now Playing", until: currentTitle, waitForEnabled: true)
+        // This action brings Library forward and opens the Playlist from Trash.
+        try menuCommand("Controls", "Open Active Playlist", until: text(title, in: episodeList), retryFocus: currentTitle)
         try firstEpisodePoint().click()
+        let entryCount = episodeRows.count
+        XCTAssertGreaterThan(entryCount, 1, "Exercise Select All with more than one Entry")
         episodeList.typeKey("a", modifierFlags: .command)
+        let selectedEntries = episodeRows.matching(NSPredicate(format: "selected == true"))
+        let allSelected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in selectedEntries.count == entryCount }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [allSelected], timeout: 10), .completed, "Library must receive Command-A and select all Entries")
         try menuCommand("Episode", "Remove from Playlist")
         try ready(text("No Entries"))
-        try navigate("Trash")
-        try menuCommand("Controls", "Now Playing", until: player)
+
         try ready(text("Choose an Episode in Library to begin.", in: player))
+        try navigate("Trash")
+        try ready(text("Trash is empty"))
+        try menuCommand("Window", "Now Playing", until: player)
         try click(player.buttons["Open Active Playlist"])
         try ready(text("No Entries"))
     }
@@ -1964,7 +1978,7 @@ final class PodListUITour: XCTestCase {
     }
 
     private func menuCommand(_ menu: String, _ command: String, until result: XCUIElement? = nil,
-                             requiringFocus: Bool = false, retryFocus: XCUIElement? = nil,
+                             requiringFocus: Bool = false, retryFocus: XCUIElement? = nil, waitForEnabled: Bool = false,
                              file: StaticString = #filePath, line: UInt = #line) throws {
         let menuItem = app.menuBars.menuBarItems[menu]
         let action = menuItem.menuItems.matching(NSPredicate(format: "title == %@ OR label == %@", command, command)).firstMatch
@@ -1984,7 +1998,11 @@ final class PodListUITour: XCTestCase {
                 menuItem.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1))
                     .withOffset(CGVector(dx: 0, dy: 12)).hover()
             }
-            if action.waitForExistence(timeout: 3), let snapshot = try? menuItem.snapshot() {
+            if waitForEnabled {
+                // The transport control and menu can reflect the same playback change at different times.
+                _ = action.wait(for: \.isEnabled, toEqual: true, timeout: 5)
+            }
+            if waitForEnabled || action.waitForExistence(timeout: 3), let snapshot = try? menuItem.snapshot() {
                 let items = descendants(snapshot).filter { $0.elementType == .menuItem }
                 attempts.append("Attempt \(attempt)\n" + menuItemDetails(items))
                 if let item = items.first(where: { ($0.title == command || $0.label == command) && $0.isEnabled && !$0.frame.isEmpty }) {

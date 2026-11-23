@@ -661,8 +661,10 @@ provided. Menu enabled states in `menus.txt` reflect the final multi-selection i
 Light tour. The tour separately invokes Podcast → Open Podcast Page from a selected
 Add Podcasts result and Controls → Open Active Playlist from Listening Stats with
 Library open and closed. After the Light captures, the tour follows a named Chapter
-jump, invokes Open Active Playlist from populated Listening Stats, and opens the
-Active Playlist from Now Playing's connected empty state.
+jump and invokes Open Active Playlist from populated Listening Stats. It opens Now
+Playing from Controls while an Entry is current, empties the Active Playlist in
+Library, and uses the existing Now Playing window's empty-state button to return
+to that Playlist.
 
 The Unsubscribe sequence clicks Subscribed once, captures the armed control, and
 then clicks the Episode count to disarm it. The tour verifies that Subscribed and
