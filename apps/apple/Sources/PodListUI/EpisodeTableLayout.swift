@@ -15,8 +15,13 @@ struct EpisodeTableLayout {
     var podcastTitleWidth: CGFloat {
         let metadataWidth = (showsDateOrPosition ? Self.podcastPublishedWidth : 0)
             + (showsLength ? Self.podcastLengthWidth : 0) + (showsState ? Self.podcastStateWidth : 0)
-        // Leave room for the inset, column spacing and scroller in either description state.
-        return max(Self.minimumTitleWidth, width - metadataWidth - 60)
+        let columnCount: CGFloat = 1 + (showsDateOrPosition ? 1 : 0)
+            + (showsLength ? 1 : 0) + (showsState ? 1 : 0)
+        // Fixed SwiftUI widths describe the cells. The inset table adds horizontal
+        // padding to each column and margins at the edges. Reserve a legacy
+        // vertical scroller even while collapsed so expanding can't shift a column.
+        let tableChrome = 17 * columnCount + 2 * 10 + 16
+        return max(Self.minimumTitleWidth, width - metadataWidth - tableChrome)
     }
     func playbackMark(for stateText: String) -> EpisodePlaybackMark? {
         showsState ? nil : EpisodePlaybackMark(stateText: stateText)

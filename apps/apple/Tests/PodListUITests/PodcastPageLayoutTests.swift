@@ -123,6 +123,41 @@ func expandedPodcastHeaderLeavesControlsAndEpisodeSpaceAbovePlayer(scale: CGFloa
     #expect(clearance >= inset - 1)
 }
 
+@MainActor @Test(arguments: [400.0, 480.0, 640.0, 735.0, 955.0], [100.0, 393.0])
+func podcastColumnsFitTheNativeViewport(width: CGFloat, height: CGFloat) throws {
+    struct Row: Identifiable { let id: Int }
+    let layout = EpisodeTableLayout(width: width)
+    let rows = (0..<6).map { Row(id: $0) }
+    let root = Table(rows) {
+        TableColumn("Episode") { row in Text("Episode \(row.id)") }.width(layout.podcastTitleWidth)
+        if layout.showsDateOrPosition {
+            TableColumn("Published") { _ in Text("Nov 23, 2026") }.width(EpisodeTableLayout.podcastPublishedWidth)
+        }
+        if layout.showsLength {
+            TableColumn("Length") { _ in Text("25:34") }.width(EpisodeTableLayout.podcastLengthWidth)
+        }
+        if layout.showsState {
+            TableColumn("State") { _ in Text("In progress") }.width(EpisodeTableLayout.podcastStateWidth)
+        }
+    }.tableStyle(.inset)
+    let host = NSHostingView(rootView: root)
+    host.frame = CGRect(x: 0, y: 0, width: width, height: height)
+    host.layoutSubtreeIfNeeded()
+    let table = try #require(descendants(host).compactMap { $0 as? NSTableView }.first)
+    let scroll = try #require(table.enclosingScrollView)
+    scroll.scrollerStyle = .legacy
+    scroll.tile()
+    let requiredWidth = table.rect(ofColumn: table.numberOfColumns - 1).maxX
+    let visibleWidth = scroll.documentVisibleRect.width
+    #expect(requiredWidth <= visibleWidth + 1,
+            "The final column ends at \(requiredWidth) pt in a \(visibleWidth) pt viewport")
+    let clip = scroll.contentView
+    var proposed = clip.bounds
+    proposed.origin.x = width
+    #expect(clip.constrainBoundsRect(proposed).minX <= clip.bounds.minX + 1,
+            "Podcast columns must fit without horizontal scrolling")
+}
+
 @MainActor private func descendants(_ view: NSView) -> [NSView] {
     view.subviews.flatMap { [$0] + descendants($0) }
 }

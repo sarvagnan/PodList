@@ -429,13 +429,15 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(searchField.label, "Search Episodes")
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(.delete, modifierFlags: [])
+        let unfilteredCount = library.staticTexts.matching(NSPredicate(
+            format: "identifier == %@ AND (value == %@ OR label == %@)", "podcast.episodeCount", "6 Episodes", "6 Episodes")).firstMatch
+        try ready(unfilteredCount)
         let episodeHeading = episodeList.buttons["Episode"].firstMatch
-        let episodeCount = library.staticTexts.matching(identifier: "podcast.episodeCount").firstMatch
-        XCTAssertEqual(episodeHeading.frame.minX, episodeCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
+        XCTAssertEqual(episodeHeading.frame.minX, unfilteredCount.frame.minX, accuracy: 8, "Podcast table and metadata must share a leading edge")
         let collapsedTable = try XCTUnwrap(podcastTableGeometry(in: try library.snapshot()))
-        XCTAssertEqual(collapsedTable.columns.count, 4, "The default-width Podcast must show all four columns")
-        XCTAssertFalse(collapsedTable.hasScroller, "The collapsed Podcast fits its six Episodes")
         try capture("18-podcast-market-hours")
+        XCTAssertEqual(collapsedTable.columns.count, 4, "The default-width Podcast must show all four columns")
+        XCTAssertFalse(collapsedTable.hasScroller, "The collapsed Podcast must fit its six Episodes. \(collapsedTable)")
         let collapsedDescription = library.staticTexts.matching(identifier: "podcast.description").firstMatch.frame
         try click(button("Show Description"))
         try ready(button("Hide Description"))
@@ -479,7 +481,7 @@ final class PodListUITour: XCTestCase {
         library.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
 
-        try navigate("New this week")
+        try openNewThisWeek()
         try selectFirstEpisode()
         try ready(episodeInspector)
         let add = episodeList.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add ' AND label ENDSWITH ' to a Playlist'")).firstMatch
@@ -547,7 +549,7 @@ final class PodListUITour: XCTestCase {
         selectResult.click()
         XCTAssertTrue(result.wait(for: \.isSelected, toEqual: true, timeout: 5), "Single-click must select the result")
         XCTAssertFalse(back.exists, "Single-click on the row must leave the Podcast page closed")
-        try menuCommand("Podcast", "Open Podcast Page", until: back, retryFocus: result)
+        try menuCommand("Podcast", "Open Podcast Page", until: back, retryFocus: podcastQuery)
         try ready(text(firstEpisodeTitle, in: episodeList))
         try click(back)
         XCTAssertTrue(back.waitForNonExistence(timeout: 5))
@@ -681,6 +683,7 @@ final class PodListUITour: XCTestCase {
         let statsHeading = text("No Listening Time Yet", in: stats)
         let activeEntry = text("The long life of a shipping container", in: episodeList)
         try navigate("Trash")
+        try ready(text("Trash is empty"))
         try click(statsHeading)
         try menuCommand("Controls", "Open Active Playlist", until: activeEntry, retryFocus: statsHeading)
         try click(library.buttons["_XCUI:CloseWindow"])
@@ -711,7 +714,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(introduction.waitForNonExistence(timeout: 10))
         settings.typeKey("w", modifierFlags: .command)
 
-        try navigate("New this week")
+        try openNewThisWeek()
         try selectFirstEpisode()
         let rowCount = episodeRows.count
         XCTAssertGreaterThan(rowCount, 1)
@@ -743,7 +746,7 @@ final class PodListUITour: XCTestCase {
         // Resize only after the default-size captures and timings.
         // CRITIQUE step 1: the narrowest supported size, and content scrolled beneath the bars.
         try navigate("Starred")
-        try navigate("New this week")
+        try openNewThisWeek()
         try selectFirstEpisode()
         try ready(episodeInspector)
         try ready(sidebar)
@@ -1174,8 +1177,8 @@ final class PodListUITour: XCTestCase {
         if !episodeInspector.exists {
             try menuCommand("Episode", "Show Episode Details", until: episodeInspector)
         }
-        try ready(episodeInspector)
         try restoreTileIfNeeded()
+        try assertInspectorActionTargets()
         try capture("37-half-display-episode-inspector")
         try assertEpisodeTableLayout()
 
@@ -1197,9 +1200,9 @@ final class PodListUITour: XCTestCase {
 
         try navigate("Commute")
         try ready(episodeRows.firstMatch)
-        assertLibraryPanes(sidebar: true, inspector: false, after: "opening tiled Commute without a selection")
         let search = librarySearchField
-        try ready(search)
+        XCTAssertTrue(search.wait(for: \.label, toEqual: "Search this list", timeout: 15))
+        assertLibraryPanes(sidebar: true, inspector: false, after: "opening tiled Commute without a selection")
         XCTAssertTrue(search.isHittable && library.frame.contains(search.frame), "Playlist Search must stay visible at half width")
         XCTAssertEqual(search.label, "Search this list")
         XCTAssertTrue(library.toolbars.firstMatch.frame.contains(search.frame))
@@ -1625,7 +1628,9 @@ final class PodListUITour: XCTestCase {
 
     private struct PodcastTableGeometry {
         let columns: [String: CGRect]
-        let hasScroller: Bool
+        let viewport: CGRect
+        let scrollers: [CGRect]
+        var hasScroller: Bool { !scrollers.isEmpty }
 
         func matchesColumns(of original: Self) -> Bool {
             columns.keys == original.columns.keys && original.columns.allSatisfy { name, frame in
@@ -1640,7 +1645,10 @@ final class PodListUITour: XCTestCase {
         let stable = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
             guard let window = try? library.snapshot(), let table = podcastTableGeometry(in: window) else { return false }
             actual = table
-            return table.matchesColumns(of: original) && (!expectsNoScroller || !table.hasScroller)
+            guard table.matchesColumns(of: original) else { return false }
+            guard expectsNoScroller else { return true }
+            return !table.hasScroller && abs(table.viewport.minY - original.viewport.minY) <= 1
+                && abs(table.viewport.height - original.viewport.height) <= 1
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [stable], timeout: 3), .completed,
                        "Description changes must preserve column positions and widths. Before: \(original). After: \(String(describing: actual)).")
@@ -1655,8 +1663,8 @@ final class PodListUITour: XCTestCase {
         for button in descendants(table) where button.elementType == .button && headings.contains(button.title) {
             frames[button.title] = button.frame
         }
-        let hasScroller = scroll.children.contains { $0.elementType == .scrollBar && !$0.frame.isEmpty }
-        return PodcastTableGeometry(columns: frames, hasScroller: hasScroller)
+        let scrollers = scroll.children.filter { $0.elementType == .scrollBar && !$0.frame.isEmpty }.map(\.frame)
+        return PodcastTableGeometry(columns: frames, viewport: scroll.frame, scrollers: scrollers)
     }
 
     private struct PlaylistHeaderFrames {
