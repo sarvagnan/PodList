@@ -812,8 +812,10 @@ final class PodListUITour: XCTestCase {
         let populated = text("Time Listened", in: stats)
         try ready(populated)
         try menuCommand("Controls", "Open Active Playlist", until: text(title, in: episodeList), retryFocus: populated)
-        try click(stats.buttons["_XCUI:CloseWindow"])
-        XCTAssertTrue(stats.waitForNonExistence(timeout: 10))
+        // Open Active Playlist brings Library forward, which can cover the Stats close button.
+        try menuCommand("Window", "Listening Stats", until: stats)
+        stats.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(stats.waitForNonExistence(timeout: 10), "Listening Stats must close")
 
         try firstEpisodePoint().click()
         episodeList.typeKey("a", modifierFlags: .command)
