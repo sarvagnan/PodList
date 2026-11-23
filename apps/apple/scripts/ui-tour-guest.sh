@@ -190,9 +190,6 @@ cd "$run/products"
 xctestruns=(*.xctestrun)
 [ "${#xctestruns[@]}" -eq 1 ] || { echo 'Expected one xctestrun' >&2; exit 1; }
 xctestrun="${xctestruns[0]}"
-# Failure screenshots, not screen recordings: a kept recording of a long failed pass
-# (713 MB in one run) filled the guest disk and failed the next pass.
-/usr/libexec/PlistBuddy -c "Set :PodListUITour:PreferredScreenCaptureFormat screenshots" "$xctestrun"
 if [ "$mode" != tour ]; then
     /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
 fi
