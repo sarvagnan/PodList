@@ -772,7 +772,7 @@ final class PodListUITour: XCTestCase {
         try capture("36-scrolled-under-bars")
         try checkNarrowPaneSwaps()
         // Revealing the sidebar can grow the window; return to the minimum width first.
-        narrowLibraryForPaneSwap()
+        narrowLibraryForPaneSwap(sidebar: false)
         try assertClearSearchTarget(windowWidth: 760)
         try captureHalfDisplay()
         if style == "Light" { try checkNowPlayingFollowUps() }
@@ -917,7 +917,7 @@ final class PodListUITour: XCTestCase {
         assertLibraryPanes(sidebar: false, inspector: false, after: "hiding the sidebar with Control-Command-S")
     }
 
-    private func narrowLibraryForPaneSwap() {
+    private func narrowLibraryForPaneSwap(sidebar: Bool = true) {
         let window = library
         for inset in [-1.0, 2] where window.frame.width > 761 {
             let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
@@ -927,7 +927,7 @@ final class PodListUITour: XCTestCase {
             edge.click(forDuration: 0.3, thenDragTo: target)
         }
         XCTAssertEqual(window.frame.width, 760, accuracy: 1, "The pane swap must start at the minimum Library width")
-        assertLibraryPanes(sidebar: true, inspector: false, after: "resizing for the Inspector command")
+        assertLibraryPanes(sidebar: sidebar, inspector: false, after: "resizing for the Inspector command")
     }
 
     private func assertLibraryPanes(sidebar: Bool, inspector: Bool, after action: String,
