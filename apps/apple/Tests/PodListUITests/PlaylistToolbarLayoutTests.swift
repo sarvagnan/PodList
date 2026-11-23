@@ -70,6 +70,7 @@ import Testing
                             Button("Hide Sidebar", systemImage: "sidebar.left") {}
                         }
                         ToolbarItem(placement: .primaryAction) { PlaylistToolbar(selection: .constant(section)) }
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
                         EpisodeActionButtons(ids: selected ? [library.snapshot.episodes[0].id] : [], library: library,
                             editing: editing, presentation: presentation, app: app, playlist: library.state.playlists[0])
                         ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -112,11 +113,21 @@ import Testing
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
             let frame = picker.convert(picker.bounds, to: nil)
             frames.append(frame)
-            let actionItems = toolbar.items.compactMap { $0.view }.map { $0.convert($0.bounds, to: nil) }.filter {
-                $0.width > 20 && $0.minX >= frame.maxX && $0.maxX <= inspectorFrames.last!.minX
-            }
-            #expect(actionItems.count == 1, "The toolbar hosts one view for the Episode actions")
-            playFrames.append(try #require(actionItems.first))
+            let playTitle = selected ? "Play Now" : "Play This Playlist"
+            let playIndex = try #require(toolbar.items.firstIndex { $0.label == playTitle })
+            let actions = Array(toolbar.items.dropFirst(playIndex).prefix(4))
+            #expect(actions.map(\.label) == [playTitle, "Add to a Playlist", "Episode Actions", "Playlist Settings…"])
+            #expect(actions.map(\.toolTip) == [
+                selected ? "Play selected episodes now (\(PodListShortcut.playNow.notation))" : "Play this playlist",
+                "Add selected episodes to a playlist",
+                "Show more episode actions",
+                "Playlist settings (\(PodListShortcut.playlistSettings.notation))"
+            ])
+            let play = try #require(actions.first?.view)
+            let playFrame = play.convert(play.bounds, to: nil)
+            #expect(frame.maxX < playFrame.minX)
+            #expect(playFrame.maxX < inspectorFrames.last!.minX)
+            playFrames.append(playFrame)
             let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search" })
             #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
             #expect(search.frame.width > 80, "At 1180 pt, Search must leave room for typing beside its scope")

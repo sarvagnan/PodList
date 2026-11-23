@@ -402,6 +402,7 @@ public struct PodListWindow: SwiftUI.View {
                 ToolbarItem(placement: .primaryAction) {
                     playlistSections(isTrashed: deletedPlaylist != nil)
                 }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
             }
             if let editing = app.editing, showsEpisodeInspector {
                 // Retain disabled selection controls to keep the action group,

@@ -1798,9 +1798,14 @@ final class PodListUITour: XCTestCase {
         XCTAssertEqual(add.label, "Add to a Playlist")
         XCTAssertEqual(add.isEnabled, hasSelection)
         // macOS may expose the native menu as “More” with the command name in its title.
-        let more = toolbar.descendants(matching: .any).matching(NSPredicate(
+        let menus = toolbar.descendants(matching: .any).matching(NSPredicate(
+            format: "elementType IN %@", [XCUIElement.ElementType.menuButton.rawValue, XCUIElement.ElementType.popUpButton.rawValue,
+                                          XCUIElement.ElementType.button.rawValue]))
+        let identifiedMore = menus.matching(identifier: "toolbar.more").firstMatch
+        let more = identifiedMore.exists ? identifiedMore : menus.matching(NSPredicate(
             format: "label == %@ OR title == %@ OR label == %@", "More Episode Actions", "Episode Actions", "Episode Actions")).firstMatch
         try ready(more)
+        XCTAssertTrue([more.label, more.title].contains { ["More Episode Actions", "Episode Actions"].contains($0) })
         XCTAssertEqual(more.isEnabled, hasSelection)
         XCTAssertEqual(toolbar.buttons.matching(identifier: "playlist.settings").firstMatch.label, "Playlist Settings…")
     }
