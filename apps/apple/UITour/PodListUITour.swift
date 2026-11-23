@@ -1290,6 +1290,15 @@ final class PodListUITour: XCTestCase {
 
     private func tileLibraryOnLeft(matching tile: (CGRect) -> Bool) throws {
         if tile(library.frame) { return }
+        // Prefer the system Tile Left shortcut (Globe-Control-Left Arrow): snapshotting the
+        // system-owned Move & Resize submenu intermittently crashes XCTest in the VM
+        // ("Failed to determine bundle identifier"). The menu remains the fallback.
+        library.typeKey(.leftArrow, modifierFlags: [.function, .control])
+        let shortcutDeadline = Date().addingTimeInterval(5)
+        repeat {
+            if tile(library.frame) { return }
+            Thread.sleep(forTimeInterval: 0.1)
+        } while Date() < shortcutDeadline
         let windowMenu = app.menuBars.menuBarItems["Window"]
         let moveAndResize = windowMenu.menuItems["Move & Resize"].firstMatch
         let left = moveAndResize.menuItems["Left"].firstMatch
