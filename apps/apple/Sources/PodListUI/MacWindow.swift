@@ -160,12 +160,12 @@ public struct PodListWindow: SwiftUI.View {
         let followUp = window.followUpActions(in: library) { app.library }
         return NavigationSplitView(columnVisibility: sidebarPresentation) {
             librarySidebar(library, playbackInset: playbackInset)
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             libraryDetail(library, rows: rows, selectedRows: selectedRows, deletedPlaylist: deletedPlaylist,
                           origin: origin, inspector: inspector, inspectorToggle: inspectorToggle,
                           canToggleInspector: canToggleInspector, followUp: followUp)
         }
-        .toolbar(removing: .sidebarToggle)
         .focusedSceneValue(\.podListSidebar, sidebarContext)
         .modifier(PlaybackSeekHost(app: app))
         .overlay(alignment: .bottom) {

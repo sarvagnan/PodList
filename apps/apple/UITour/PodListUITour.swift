@@ -947,7 +947,10 @@ final class PodListUITour: XCTestCase {
                 if hasSidebar == sidebar, hasInspector == inspector,
                    sidebarToggles.count == 1, sidebarToggle == (sidebar ? "Hide Sidebar" : "Show Sidebar"),
                    inspectorToggle == (inspector ? "Hide Inspector" : "Show Inspector") { return }
-                summary = "width \(snapshot.frame.width), sidebar \(hasSidebar), sidebar buttons \(sidebarToggles.map(\.label)), Inspector \(hasInspector), toggle \(inspectorToggle ?? "missing")"
+                let toggleDescriptions = sidebarToggles.map { button in
+                    "\(button.label) (identifier=\(button.identifier.isEmpty ? "<none>" : button.identifier))"
+                }
+                summary = "width \(snapshot.frame.width), sidebar \(hasSidebar), sidebar buttons \(toggleDescriptions), Inspector \(hasInspector), toggle \(inspectorToggle ?? "missing")"
             }
             Thread.sleep(forTimeInterval: 0.1)
         } while Date() < deadline
