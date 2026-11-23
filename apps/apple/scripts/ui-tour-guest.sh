@@ -193,15 +193,27 @@ xctestrun="${xctestruns[0]}"
 if [ "$mode" != tour ]; then
     /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
 fi
-if [ "$mode" = timings ]; then
+if [ "$mode" = timings ] || [ "$mode" = tour ]; then
     # A freshly booted clone indexes and launches services for several minutes, which
     # roughly triples these figures. Wait (up to 12 min) for the 1-minute load to settle.
-    for ((i = 0; i < 72; i++)); do
+    settle_start=$SECONDS
+    while :; do
         load="$(sysctl -n vm.loadavg | awk '{print $2}')"
-        echo "Guest load average before timings: $load"
-        awk -v l="$load" 'BEGIN { exit !(l < 0.8) }' && break
-        sleep 10
+        elapsed=$((SECONDS - settle_start))
+        echo "Guest load average before $mode: $load (${elapsed}s elapsed)"
+        if awk -v l="$load" 'BEGIN { exit !(l != "" && l < 0.8) }'; then
+            echo "Guest settled after ${elapsed}s"
+            break
+        fi
+        if [ "$elapsed" -ge 720 ]; then
+            echo "Guest settle wait reached 12 minutes; proceeding with $mode at load $load"
+            break
+        fi
+        remaining=$((720 - elapsed))
+        if [ "$remaining" -lt 10 ]; then sleep "$remaining"; else sleep 10; fi
     done
+fi
+if [ "$mode" = timings ]; then
     if [ -f "$shared/run/profile" ]; then profile_timings & profiler=$!; fi
     set_show_borders false
     run_tests -xctestrun "$xctestrun" \
