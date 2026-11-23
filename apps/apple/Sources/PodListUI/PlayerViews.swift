@@ -98,7 +98,7 @@ struct PlayerBar: SwiftUI.View {
                     Text("\(library.player?.entriesAfter ?? 0) after current").macContentFont(.caption).foregroundStyle(.primary)
                 }.frame(maxWidth: 170 * textScale, alignment: .leading)
             }.buttonStyle(.plain).modifier(MacButtonShape(cornerRadius: 6, outset: 5))
-                .accessibilityLabel("Open Active Playlist").help("Open the Active Playlist")
+                .accessibilityLabel("Open Active Playlist").help("Open the active playlist")
         }
     }
 }
@@ -108,13 +108,13 @@ struct TransportControls: SwiftUI.View {
         HStack(spacing: 14) {
             Button { controller.skip(-15) } label: {
                 MacIconLabel(title: "Back 15 Seconds", systemImage: "gobackward.15")
-            }.help("Back 15 Seconds")
+            }.help("Go back 15 seconds")
             Button { controller.toggle() } label: {
                 MacIconLabel(title: controller.wantsPlayback ? "Pause" : "Play", systemImage: controller.wantsPlayback ? "pause.fill" : "play.fill")
             }.help(controller.wantsPlayback ? "Pause (Space in Library)" : "Play (Space in Library)")
             Button { controller.skip(30) } label: {
                 MacIconLabel(title: "Forward 30 Seconds", systemImage: "goforward.30")
-            }.help("Forward 30 Seconds")
+            }.help("Go forward 30 seconds")
         }.labelStyle(.iconOnly).buttonStyle(.borderless).font(.title3)
     }
 }
@@ -235,7 +235,10 @@ struct NowPlayingView: SwiftUI.View {
                         chapters(value).padding([.horizontal, .bottom], 28)
                     }
                 } else {
-                    PodListEmptyState("No Current Entry", systemImage: "music.note").frame(height: 360)
+                    PodListEmptyState("No Current Entry", systemImage: "music.note",
+                                      description: "Choose an Episode in Library to begin.") {
+                        Button("Open Active Playlist", action: openPlaylist)
+                    }.frame(minHeight: 360)
                 }
             }
         }
@@ -266,6 +269,8 @@ struct NowPlayingView: SwiftUI.View {
         VStack {
             Divider()
             ForEach(value.chapters.enumerated(), id: \.element.start) { index, chapter in
+                let title = chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title
+                let time = Presentation.time(chapter.start)
                 Button { controller.seek(chapter.start) } label: {
                     HStack {
                         let current = app.library ?? library
@@ -273,10 +278,14 @@ struct NowPlayingView: SwiftUI.View {
                         let podcast = current.snapshot.subscriptions.first { $0.id == episode?.subscriptionId }
                         ArtworkView(url: PlaybackPolicy.artwork(value.chapters, position: chapter.start, episode: episode?.artwork, podcast: podcast?.artwork).flatMap { URL(string: $0.url) }, title: value.podcast, size: 36)
                         if value.chapterIndex == index { Image(systemName: "speaker.wave.2.fill") }
-                        Text(chapter.title.isEmpty ? "Chapter \(index + 1)" : chapter.title)
-                        Spacer(); Text(Presentation.time(chapter.start)).monospacedDigit()
-                    }.frame(maxWidth: .infinity)
-                }.buttonStyle(.plain).padding(.vertical, 5)
+                        Text(title)
+                        Spacer(); Text(time).monospacedDigit()
+                    }.frame(maxWidth: .infinity).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(Presentation.tooltip("Go to chapter at \(time): \(title)"))
+                .accessibilityLabel("Go to \(title) at \(time)")
+                .padding(.vertical, 5)
             }
         }
     }

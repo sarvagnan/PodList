@@ -84,6 +84,14 @@ extension ApplicationModel {
     public func openLibraryLink(_ link: PodListLink, reopen: () -> Void) {
         if !nowPlayingNavigation.perform(.link(link)) { reopen() }
     }
+
+    func activePlaylistLinkAction(reopen: @escaping () -> Void) -> (() -> Void)? {
+        guard library != nil else { return nil }
+        return { [weak self] in
+            guard let self, let library else { return }
+            openLibraryLink(.playlist(library.state.activePlaylistId), reopen: reopen)
+        }
+    }
 }
 
 public struct NowPlayingWindow: SwiftUI.View {

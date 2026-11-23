@@ -327,6 +327,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
     @State private var table = false
     public init(app: ApplicationModel) { self.app = app }
     public var body: some SwiftUI.View {
+        let openPlaylist = app.activePlaylistLinkAction { openWindow(id: "library") }
         Group {
             if let library = app.library {
                 let ids = Set(library.snapshot.episodes.map(\.id))
@@ -335,9 +336,7 @@ public struct ListeningStatsScreen: SwiftUI.View {
                 if stats.isEmpty {
                     PodListEmptyState("No Listening Time Yet", systemImage: "chart.bar",
                                       description: "Stats count the time you spend playing Episodes. Moving an Episode’s Position without playing it doesn’t count.") {
-                        Button("Open Active Playlist") {
-                            app.openLibraryLink(.playlist(library.state.activePlaylistId)) { openWindow(id: "library") }
-                        }
+                        if let openPlaylist { Button("Open Active Playlist", action: openPlaylist) }
                     }
                 } else {
                     ScrollView {
@@ -385,7 +384,9 @@ public struct ListeningStatsScreen: SwiftUI.View {
                     .focusedSceneValue(\.podListDailyTable, stats.days.contains(where: { $0.seconds > 0 }) ? $table : nil)
                 }
             } else { PodListEmptyState("Open a Library to see Listening Stats", systemImage: "chart.bar") }
-        }.macContentFont(.body).frame(minWidth: 650, minHeight: 600)
+        }
+        .focusedSceneValue(\.podListOpenPlaylist, openPlaylist)
+        .macContentFont(.body).frame(minWidth: 650, minHeight: 600)
     }
 }
 

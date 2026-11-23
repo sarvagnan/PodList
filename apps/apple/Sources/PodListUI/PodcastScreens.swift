@@ -139,7 +139,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 MacIconLabel(title: "Add to a Playlist", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(episode.title) to a Playlist")
-                .help("Add to a Playlist")
+                .help("Add to a playlist")
             Button { bring(episode, play: true) } label: {
                 MacIconLabel(title: "Play", systemImage: "play.fill")
             }
@@ -258,29 +258,26 @@ struct PodcastPageScreen: SwiftUI.View {
                             Table(of: PageEpisode.self, selection: userSelection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                                 TableColumn("Episode", value: \.title) { episode in
                                     podcastEpisodeTitle(episode, state: layout.playbackMark(for: episode.stateText))
-                                }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                                }.width(layout.podcastTitleWidth)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { episode in
                                         Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
-                                    }.width(min: 95, ideal: 110, max: 150)
+                                    }.width(EpisodeTableLayout.podcastPublishedWidth)
                                 }
                                 if layout.showsLength {
                                     TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
-                                        .width(min: 60, ideal: 70, max: 100)
+                                        .width(EpisodeTableLayout.podcastLengthWidth)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { episode in
                                         Text(episode.stateText).fixedSize(horizontal: false, vertical: true)
-                                    }.width(min: 140, ideal: 150, max: 200)
+                                    }.width(EpisodeTableLayout.podcastStateWidth)
                                 }
                             } rows: {
                                 ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
                             }
                             .tableStyle(.inset)
                             .playbackBarScrollClearance()
-                            // Recreate native auto-sized columns after the description changes
-                            // the viewport; AppKit otherwise retains scrollbar-compressed widths.
-                            .id(descriptionExpanded)
                         }
                     }
                 }
@@ -364,11 +361,11 @@ struct PodcastPageScreen: SwiftUI.View {
             if subscribed { Button("Subscription Settings…", systemImage: "gearshape", action: openSettings).labelStyle(.iconOnly).help("Subscription settings") }
             let refresh = refreshPodcast
             Button(PodcastCommandContext.refreshTitle, systemImage: "arrow.clockwise") { refresh?() }
-                .labelStyle(.iconOnly).help("Refresh this Podcast").disabled(refresh == nil)
+                .labelStyle(.iconOnly).help("Refresh this podcast").disabled(refresh == nil)
             if compact, descriptionTruncated {
                 let title = descriptionExpanded ? "Hide Description" : "Show Description"
                 Button(title, systemImage: descriptionExpanded ? "chevron.up" : "chevron.down", action: toggleDescription)
-                    .labelStyle(.iconOnly).help(title)
+                    .labelStyle(.iconOnly).help(descriptionExpanded ? "Hide description" : "Show description")
             }
         }
     }
@@ -378,7 +375,7 @@ struct PodcastPageScreen: SwiftUI.View {
                 if iconsOnly { Label("Share Podcast", systemImage: "square.and.arrow.up").labelStyle(.iconOnly) }
                 else { Label("Share Podcast", systemImage: "square.and.arrow.up") }
             }
-            .accessibilityLabel("Share Podcast").help("Share this Podcast")
+            .accessibilityLabel("Share Podcast").help("Share this podcast")
             Button {
                 if let feed = ShareLinks.web(feedURL) { ShareLinks.copy(feed) }
             } label: {

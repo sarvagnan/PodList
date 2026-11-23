@@ -94,7 +94,7 @@ struct AddPodcastsScreen: SwiftUI.View {
                         }
                         .contextMenu(forSelectionType: String.self) { feeds in
                             if let result = state.results.first(where: { feeds.contains($0.feedUrl) }) {
-                                Button("Open Podcast Page") { openResult(result) }
+                                Button(PodcastCommandContext.openPodcastPageTitle) { openResult(result) }
                                 if canSubscribe(result) {
                                     Button("Subscribe") { subscribe(result) }
                                 }
@@ -128,9 +128,12 @@ struct AddPodcastsScreen: SwiftUI.View {
         .background(KeyUtilityPanel())
     }
     private var discoveryCommands: PodcastCommandContext {
-        guard let result = state.results.first(where: { $0.feedUrl == state.selectedFeed }) else { return PodcastCommandContext() }
+        let openTitle = PodcastCommandContext.openPodcastPageTitle
+        guard let result = state.results.first(where: { $0.feedUrl == state.selectedFeed }) else {
+            return PodcastCommandContext(openTitle: openTitle)
+        }
         let subscribed = library.subscriptions.contains { $0.feedUrl == result.feedUrl }
-        return PodcastCommandContext(open: { openResult(result) }, subscribed: subscribed,
+        return PodcastCommandContext(open: { openResult(result) }, openTitle: openTitle, subscribed: subscribed,
             subscriptionAction: canSubscribe(result) ? { subscribe(result) } : nil)
     }
     private func canSubscribe(_ result: DirectoryPodcast) -> Bool {

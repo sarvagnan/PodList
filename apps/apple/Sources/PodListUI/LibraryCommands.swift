@@ -88,7 +88,7 @@ public struct LibraryCommands: Commands {
         CommandMenu("Podcast") {
             Button(LibraryNavigationCommand.subscriptions.title) { context?.window.navigate(to: LibraryNavigationCommand.subscriptions.destination) }.disabled(context == nil)
             MenuActionItems(menu: .podcast, app: app)
-            Button("Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
+            Button(podcast?.openTitle ?? "Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()
             Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }
                 .disabled(podcast?.subscriptionAction == nil)

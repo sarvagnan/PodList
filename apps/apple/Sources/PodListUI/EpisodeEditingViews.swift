@@ -152,7 +152,8 @@ struct EpisodeActionButtons: ToolbarContent {
     private var disabled: Bool { ids.isEmpty || editing.busy }
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            ControlGroup {
+            // A single toolbar view keeps the menu and buttons in the same native background.
+            HStack(spacing: 10) {
                 Button("Play Now", systemImage: "play.fill") {
                     EditOrigin.start(origin) {
                         if playsPlaylist, let playlist {
@@ -162,22 +163,27 @@ struct EpisodeActionButtons: ToolbarContent {
                 }
                     .accessibilityIdentifier("toolbar.play")
                     .accessibilityLabel(playsPlaylist ? "Play This Playlist" : labels.play)
-                    .help(playsPlaylist ? "Play this Playlist" : "Play selected Episodes now (\(PodListShortcut.playNow.notation))")
+                    .help(playsPlaylist ? "Play this playlist" : "Play selected episodes now (\(PodListShortcut.playNow.notation))")
                     .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
                 Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") { presentation.present(.add(ids, false), from: origin) }
-                    .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
+                    .accessibilityLabel(labels.add).help("Add selected episodes to a playlist").disabled(disabled)
                 Menu("Episode Actions", systemImage: "ellipsis.circle") {
                     EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app, commandOrigin: origin)
-                }.menuStyle(.borderlessButton).fixedSize()
-                    .accessibilityLabel(labels.more).help("Show more Episode actions").disabled(disabled)
+                }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .accessibilityLabel(labels.more).help("Show more episode actions").disabled(disabled)
                 if let playlist {
                     Button("Playlist Settings…", systemImage: "slider.horizontal.3") { presentation.present(.settings(playlist.id), from: origin) }
                         .help("Playlist settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")
                 } else if let editView {
                     Button("Edit View…", systemImage: "slider.horizontal.3", action: editView)
-                        .help("Edit View (\(PodListShortcut.editView.notation))")
+                        .help("Edit view (\(PodListShortcut.editView.notation))")
                 }
-            }.controlSize(.small).labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .labelStyle(.iconOnly)
+            .padding(.horizontal, 6)
+            .fixedSize()
         }
     }
 }

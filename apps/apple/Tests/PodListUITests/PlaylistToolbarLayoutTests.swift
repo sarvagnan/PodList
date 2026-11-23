@@ -101,15 +101,15 @@ import Testing
             inspectorFrames.append(inspector.convert(inspector.bounds, to: nil))
             let root = try #require(window.contentView?.superview)
             let views = descendants(root)
-            let group = try #require(toolbar.items.compactMap { $0 as? NSToolbarItemGroup }.first)
-            #expect(group.subitems.map(\.label) == ["Play Now", "Add to a Playlist…", "Episode Actions", "Playlist Settings…"])
-            let play = try #require(group.subitems.first?.view)
-            playFrames.append(play.convert(play.bounds, to: nil))
             #expect(!toolbar.items.contains { $0.label == "New Playlist…" })
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
             let frame = picker.convert(picker.bounds, to: nil)
             frames.append(frame)
-            #expect(frame.maxX < playFrames.last!.minX, "The section control leads the Play action in the same toolbar run")
+            let actionItems = toolbar.items.compactMap { $0.view }.map { $0.convert($0.bounds, to: nil) }.filter {
+                $0.width > 20 && $0.minX >= frame.maxX && $0.maxX <= inspectorFrames.last!.minX
+            }
+            #expect(actionItems.count == 1, "The toolbar hosts one view for the Episode actions")
+            playFrames.append(try #require(actionItems.first))
             let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search" })
             #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
             #expect(search.frame.width > 80, "At 1180 pt, Search must leave room for typing beside its scope")
