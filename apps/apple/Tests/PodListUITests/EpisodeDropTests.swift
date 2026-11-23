@@ -44,17 +44,23 @@ private func transfer(_ ids: [String], source: String? = nil, url: URL? = URL(st
 
 @MainActor @Test func reorderAcceptsOnlyCurrentEntriesAndKeepsOrderedSelections() async throws {
     let library = try await fixtureModel()
-    let payload = EpisodeTransfer.local("a", selection: ["b", "a"], sourcePlaylistID: "default", library: library)
-    #expect(payload.episodes.compactMap(\.episodeID) == ["b", "a"])
-    #expect(payload.shareURL == library.episodeShareURL("a"))
+    let payload = ["b", "a"].map { EpisodeTransfer.local($0, sourcePlaylistID: "default", library: library) }
+    #expect(payload.map(\.dragID) == ["b", "a"])
+    #expect(payload.map { $0.episodes.compactMap(\.episodeID) } == [["b"], ["a"]])
+    for (item, id) in zip(payload, ["b", "a"]) {
+        let url = try #require(library.episodeShareURL(id))
+        let exported = try await item.exported(as: .url)
+        #expect(URL(dataRepresentation: exported, relativeTo: nil) == url)
+        #expect(String(data: try await item.exported(as: .utf8PlainText), encoding: .utf8) == library.row(id).title)
+    }
     let playlist = library.state.playlists[0]
-    #expect(EpisodeDrop.reorderIDs([payload], in: playlist) == ["b", "a"])
+    #expect(EpisodeDrop.reorderIDs(payload, in: playlist) == ["b", "a"])
     #expect(EpisodeDrop.reorderIDs([transfer(["a"], source: "other")], in: playlist) == nil)
     #expect(EpisodeDrop.reorderIDs([transfer(["a"])], in: playlist) == nil)
     #expect(EpisodeDrop.reorderIDs([transfer(["gone"], source: "default")], in: playlist) == nil)
     #expect(EpisodeDrop.reorderIDs([], in: playlist) == nil)
-    #expect(EpisodeDrop.references([payload, payload])?.compactMap(\.episodeID) == ["b", "a"])
-    #expect(EpisodeTransfer.local("pending", selection: ["b", "a"], library: library).episodes.compactMap(\.episodeID) == ["pending"])
+    #expect(EpisodeDrop.references(payload + payload)?.compactMap(\.episodeID) == ["b", "a"])
+    #expect(EpisodeTransfer.local("pending", library: library).episodes.compactMap(\.episodeID) == ["pending"])
 }
 
 @MainActor @Test func sidebarEntryCopyAndEpisodeDropAreSingleUndoablePlayLastEdits() async throws {
@@ -381,7 +387,7 @@ private actor SlowDropPublisher: PublisherReader {
     #expect(failed.failure != nil && failed.resolvedID == "t1" && !failed.committed)
     #expect(editor.edits.history.undo == nil && !editor.edits.canRetry)
     try await db.record(.createPlaylist(playlistId: "new-target", name: "Target", clearOnPlayed: false), at: 1000)
-    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] != nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] != nil)
     let recovery = try #require(editor.failedEpisodeDrop)
     await recovery.retry()
     #expect(editor.pendingEpisodeDrops.isEmpty)

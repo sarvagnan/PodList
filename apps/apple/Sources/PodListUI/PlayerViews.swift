@@ -307,23 +307,32 @@ private struct PlaybackSeekSheet: SwiftUI.View {
     @Bindable var controller: PlaybackController
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
-    @State private var seconds = ""
+    @State private var time = ""
     @State private var episodeID: String?
     @State private var validation = FormValidationVisibility()
+    private var episodeChanged: Bool { episodeID != nil && episodeID != controller.display?.episodeID }
     private var position: Double? {
-        guard episodeID == controller.display?.episodeID else { return nil }
-        return FormNumbers.seekPosition(seconds, duration: controller.display?.duration, locale: locale)
+        guard episodeID != nil, !episodeChanged else { return nil }
+        return FormNumbers.seekPosition(time, duration: controller.display?.duration, locale: locale)
+    }
+    private var problem: String? {
+        if episodeChanged { return "The playing Episode changed. Cancel and reopen Go to Time." }
+        return validation.message(FormNumbers.seekProblem(time, duration: controller.display?.duration, locale: locale))
     }
     var body: some SwiftUI.View {
         PodListSheet(title: "Go to Time", width: 420, actionTitle: "Go", actionEnabled: position != nil,
                      cancel: { dismiss() }, action: go) {
             VStack(alignment: .leading, spacing: 16) {
-                LabeledContent("Position (seconds)") {
+                LabeledContent("Position") {
                     VStack(alignment: .leading, spacing: 4) {
-                        TextField("Position in seconds", text: Binding(get: { seconds }, set: { text in
-                            validation.edited(from: seconds, to: text); seconds = text
-                        })).labelsHidden().onSubmit { go() }
-                        if let message = validation.message(FormNumbers.seekProblem(seconds, duration: controller.display?.duration, locale: locale)) {
+                        TextField("Position", text: Binding(get: { time }, set: { text in
+                            validation.edited(from: time, to: text); time = text
+                        })).labelsHidden().accessibilityIdentifier("seek.position").onSubmit { go() }
+                        if !episodeChanged, let hint = FormNumbers.seekHint(duration: controller.display?.duration) {
+                            Text(hint).macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle())
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let message = problem {
                             Text(message).macContentFont(.caption).foregroundStyle(Color.podListError)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

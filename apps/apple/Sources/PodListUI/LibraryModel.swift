@@ -181,7 +181,9 @@ public struct LibraryModel: Sendable {
     public var sidebar: [SidebarSection] {
         cache.sidebar.withLock { cached in
             if let cached { return cached }
-            let sections = [SidebarSection(name: "Views", items: state.views.map {
+            let sections = [SidebarSection(name: "Views", items: [
+                SidebarItem(destination: .views, name: "All Views", count: state.views.count)
+            ] + state.views.map {
                 SidebarItem(destination: .view($0.id), name: $0.name, count: viewEpisodes($0).count)
             }), SidebarSection(name: "Playlists", items: state.playlists.map {
                 SidebarItem(destination: .playlist($0.id), name: $0.name, count: $0.entries.count, active: $0.id == state.activePlaylistId, clearOnPlayed: $0.clearOnPlayed)
@@ -499,7 +501,6 @@ public final class WindowModel {
     /// Podcast pages belong to Subscriptions even though they have no sidebar row.
     public var sidebarSelection: Destination? {
         if case .subscription = destination { return .subscriptions }
-        if destination == .views { return nil }
         return destination
     }
     private func rememberList() {
@@ -563,6 +564,7 @@ public final class WindowModel {
     }
 
     public func navigate(to destination: Destination?) {
+        if destination == .views { collapsedSidebarSections.remove("Views") }
         guard self.destination != destination || podcastFeed != nil else {
             search = ""
             return

@@ -17,9 +17,9 @@ struct EpisodeTableLayout {
             + (showsLength ? Self.podcastLengthWidth : 0) + (showsState ? Self.podcastStateWidth : 0)
         let columnCount: CGFloat = 1 + (showsDateOrPosition ? 1 : 0)
             + (showsLength ? 1 : 0) + (showsState ? 1 : 0)
-        // Fixed SwiftUI widths describe the cells. The inset table adds horizontal
-        // padding to each column and margins at the edges. Reserve a legacy
-        // vertical scroller even while collapsed so expanding can't shift a column.
+        // SwiftUI's ideal widths describe the cells. The inset table adds horizontal
+        // padding to each column and margins at the edges. Leave a little
+        // room for SwiftUI to distribute among the resizable metadata columns.
         let tableChrome = 17 * columnCount + 2 * 10 + 16
         return max(Self.minimumTitleWidth, width - metadataWidth - tableChrome)
     }

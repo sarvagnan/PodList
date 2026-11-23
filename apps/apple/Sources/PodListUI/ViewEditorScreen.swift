@@ -43,7 +43,7 @@ struct ViewEditorScreen: SwiftUI.View {
             Form {
                 Section {
                     LabeledContent("Name") {
-                        TextField("View name", text: Binding(get: { name }, set: { text in
+                        TextField("View Name", text: Binding(get: { name }, set: { text in
                             nameValidation.edited(from: name, to: text)
                             name = text; editor.setDraft(text, field: "rename.\(draft.id)")
                         })).labelsHidden().focused($nameFocused).onSubmit { finish() }
@@ -61,13 +61,13 @@ struct ViewEditorScreen: SwiftUI.View {
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if publishedMode == "days" {
-                        PodListSheetField("Last days") {
+                        PodListSheetField("Last Days") {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    TextField("Last days", text: Binding(get: { daysDraft }, set: setDaysDraft))
+                                    TextField("Last Days", text: Binding(get: { daysDraft }, set: setDaysDraft))
                                         .labelsHidden().textFieldStyle(.roundedBorder).frame(width: 88)
                                     Text("days")
-                                    Stepper("Last days", value: Binding(get: { lastDays }, set: { days in
+                                    Stepper("Last Days", value: Binding(get: { lastDays }, set: { days in
                                         setDaysDraft(days.formatted(.number.locale(locale).grouping(.never)))
                                     }), in: 1...3650).labelsHidden()
                                 }
@@ -112,8 +112,8 @@ struct ViewEditorScreen: SwiftUI.View {
                             Text("Any").tag(false); Text("Not in Any Playlist").tag(true)
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    optionalNumber("Minimum length", field: .minimumLength, path: \.filter.minDuration)
-                    optionalNumber("Maximum length", field: .maximumLength, path: \.filter.maxDuration)
+                    optionalNumber("Minimum Length", draftLabel: "Minimum length", field: .minimumLength, path: \.filter.minDuration)
+                    optionalNumber("Maximum Length", draftLabel: "Maximum length", field: .maximumLength, path: \.filter.maxDuration)
                 } header: {
                     PodListSheetSectionHeading("All conditions must match")
                 }
@@ -124,10 +124,10 @@ struct ViewEditorScreen: SwiftUI.View {
                             Text("Shortest First").tag(ViewSort.durationAsc); Text("Longest First").tag(ViewSort.durationDesc)
                         }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    LabeledContent("Episodes to show (optional)") {
+                    LabeledContent("Episodes to Show (optional)") {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                TextField("Episodes to show", text: Binding(get: {
+                                TextField("Episodes to Show", text: Binding(get: {
                                     editor.hasDraft("limit.\(draft.id)") ? editor.draft("limit.\(draft.id)")
                                         : draft.limit.map { $0.formatted(.number.locale(locale).grouping(.never)) } ?? ""
                                 }, set: { text in
@@ -196,12 +196,13 @@ struct ViewEditorScreen: SwiftUI.View {
         let key = "\(draft.id).\(label) (minutes)"
         return editor.hasDraft(key) ? editor.draft(key) : draft[keyPath: path].map { FormNumbers.string($0 / 60, locale: locale) } ?? ""
     }
-    private func optionalNumber(_ label: String, field: ViewEdits.Field, path: WritableKeyPath<PodListDomain.View, Double?>) -> some SwiftUI.View {
+    private func optionalNumber(_ label: String, draftLabel: String, field: ViewEdits.Field,
+                                path: WritableKeyPath<PodListDomain.View, Double?>) -> some SwiftUI.View {
         LabeledContent("\(label) (optional)") {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    TextField(label, text: Binding(get: { numberDraft(label, path: path) }, set: { text in
-                        editor.setDraft(text, field: "\(draft.id).\(label) (minutes)")
+                    TextField(label, text: Binding(get: { numberDraft(draftLabel, path: path) }, set: { text in
+                        editor.setDraft(text, field: "\(draft.id).\(draftLabel) (minutes)")
                         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { update { $0[keyPath: path] = nil } }
                         else if let seconds = FormNumbers.seconds(fromMinutes: text, locale: locale) { update { $0[keyPath: path] = seconds } }
                     }), prompt: Text("No limit")).labelsHidden()

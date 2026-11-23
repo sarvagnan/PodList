@@ -24,7 +24,7 @@ struct LibraryFeedback: SwiftUI.View {
     }
     private var dropStatus: String? {
         if let drop = editor.episodeDrop { return "Adding Episodes… \(drop.completed) of \(drop.total) prepared" }
-        if editor.failedEpisodeDrop != nil { return "Some Episodes could not be added. Use Episode › Retry Failed Episode Drop, or open the destination Playlist." }
+        if editor.failedEpisodeDrop != nil { return "Some Episodes could not be added. Use Episode › Retry All Failed Episode Drops, or open the destination Playlist." }
         return nil
     }
 }
@@ -247,7 +247,7 @@ struct PodcastPageScreen: SwiftUI.View {
                                 ForEach(episodes) { episode in
                                     MacReadingRow(isSelected: selection.wrappedValue.contains(episode.id)) { podcastEpisodeTitle(episode) } metadata: {
                                         "Published \(Date(timeIntervalSince1970: Double(episode.published) / 1000).formatted(date: .abbreviated, time: .omitted)) · Length \(episode.duration.map(Presentation.time) ?? "—") · \(episode.stateText)"
-                                    }.tag(episode.id).draggable(dragPayload(episode))
+                                    }.episodeDragSource(episode.id).tag(episode.id)
                                 }
                             } header: { MacReadingSortControl(sort: $savedSort) }
                         }
@@ -258,29 +258,40 @@ struct PodcastPageScreen: SwiftUI.View {
                             Table(of: PageEpisode.self, selection: userSelection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                                 TableColumn("Episode", value: \.title) { episode in
                                     podcastEpisodeTitle(episode, state: layout.playbackMark(for: episode.stateText))
-                                }.width(layout.podcastTitleWidth)
+                                        .episodeDragSource(episode.id)
+                                }.width(min: EpisodeTableLayout.minimumTitleWidth, ideal: layout.podcastTitleWidth)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { episode in
                                         Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
-                                    }.width(EpisodeTableLayout.podcastPublishedWidth)
+                                            .episodeDragSource(episode.id)
+                                    }.width(min: 95, ideal: EpisodeTableLayout.podcastPublishedWidth, max: 150)
                                 }
                                 if layout.showsLength {
-                                    TableColumn("Length", value: \.length) { episode in Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit() }
-                                        .width(EpisodeTableLayout.podcastLengthWidth)
+                                    TableColumn("Length", value: \.length) { episode in
+                                        Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit().episodeDragSource(episode.id)
+                                    }.width(min: 60, ideal: EpisodeTableLayout.podcastLengthWidth, max: 100)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { episode in
-                                        Text(episode.stateText).fixedSize(horizontal: false, vertical: true)
-                                    }.width(EpisodeTableLayout.podcastStateWidth)
+                                        Text(episode.stateText).fixedSize(horizontal: false, vertical: true).episodeDragSource(episode.id)
+                                    }.width(min: 120, ideal: EpisodeTableLayout.podcastStateWidth, max: 200)
                                 }
                             } rows: {
-                                ForEach(episodes) { episode in TableRow(episode).draggable(dragPayload(episode)) }
+                                ForEach(episodes) { TableRow($0) }
                             }
                             .tableStyle(.inset)
+                            // A legacy vertical scrollbar changes the viewport's width.
+                            // Keep the native columns steady as the description opens.
+                            .scrollIndicators(.never, axes: .vertical)
                             .playbackBarScrollClearance()
                         }
                     }
                 }
+                .dragContainer(for: EpisodeTransfer.self, itemID: \.dragID) { (ids: [String]) in
+                    let dragged = Set(ids)
+                    return episodes.filter { dragged.contains($0.id) }.map(dragPayload)
+                }
+                .dragContainerSelection(episodes.map(\.id).filter { userSelection.wrappedValue.contains($0) })
                 .typeSelectingRows(episodes.map { TypeSelectionRow(id: $0.id, title: $0.title) },
                     physicalIDs: (textScale > 1 ? [nil] : []) + episodes.map { Optional($0.id) },
                     selection: userSelection, anchor: $scrollAnchor,
@@ -302,7 +313,7 @@ struct PodcastPageScreen: SwiftUI.View {
                     }
                 })
                 .simultaneousGesture(DragGesture().onChanged { _ in control.reset() })
-                .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort By and Descending to change order" : "Podcast Episodes, sortable columns")
+                .accessibilityLabel(textScale > 1 ? "Podcast Episodes, use Sort By and Descending to change order" : "Podcast Episodes, sortable and resizable columns")
             }
         }
         .focusedSceneValue(\.podListSort, $savedSort)
@@ -386,13 +397,11 @@ struct PodcastPageScreen: SwiftUI.View {
         }
     }
     private func dragPayload(_ episode: PageEpisode) -> EpisodeTransfer {
-        let chosen = selection.wrappedValue.contains(episode.id) ? episodes.filter { selection.wrappedValue.contains($0.id) } : [episode]
-        let references = chosen.map { item in
-            item.localID.map { DraggedEpisode(episodeID: $0, title: item.title) } ?? DraggedEpisode(episodeID: nil, feedURL: feedURL, guid: item.guid, title: item.title)
-        }
+        let reference = episode.localID.map { DraggedEpisode(episodeID: $0, title: episode.title) }
+            ?? DraggedEpisode(episodeID: nil, feedURL: feedURL, guid: episode.guid, title: episode.title)
         let published = feed?.episodes.first { $0.guid == episode.guid }
         let url = episode.localID.flatMap { library.episodeShareURL($0) } ?? ShareLinks.episode(page: published?.link, enclosure: published?.audioUrl)
-        return EpisodeTransfer(episodes: references, sourcePlaylistID: nil, title: episode.title, shareURL: url)
+        return EpisodeTransfer(episodes: [reference], sourcePlaylistID: nil, title: episode.title, shareURL: url)
     }
     private var remoteEpisodeActions: EpisodeMenuOverrides? {
         guard let episode = selectedEpisode, episodes.contains(where: { selection.wrappedValue.contains($0.id) && $0.localID == nil }),
@@ -540,7 +549,7 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             DownloadRuleFields(mode: value(\.mode), cap: value(\.cap))
             PodListSheetSectionHeading("Played")
             VStack(alignment: .leading, spacing: 12) {
-                PodListSheetField("Played threshold") {
+                PodListSheetField("Played Threshold") {
                     Picker("", selection: value(\.threshold)) {
                         Text("Default (30 seconds)").tag(nil as Double?)
                         ForEach([0.0, 10, 30, 60, 120, 300], id: \.self) { Text(CountText.format(Int($0), .second)).tag(Optional($0)) }
@@ -552,8 +561,8 @@ struct SubscriptionSettingsScreen: SwiftUI.View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Default inherits the global Playback Settings.").macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                 overrideNumber("Speed", path: \.speed, choices: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3])
-                overrideNumber("Skip intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
-                overrideNumber("Skip outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                overrideNumber("Skip Intro", path: \.skipIntro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
+                overrideNumber("Skip Outro", path: \.skipOutro, choices: [0, 15, 30, 45, 60, 90, 120], seconds: true)
                 PodListSheetField("Volume Boost") {
                     Picker("", selection: value(\.overrides.volumeBoost)) {
                         Text("Default").tag(nil as Bool?); Text("On").tag(Optional(true)); Text("Off").tag(Optional(false))

@@ -29,14 +29,32 @@ enum FormNumbers {
 
     static func seekPosition(_ text: String, duration: Double?, locale: Locale) -> Double? {
         guard let duration, duration.isFinite, duration > 0,
-              let seconds = nonnegative(text, locale: locale), seconds <= duration else { return nil }
+              let seconds = clockSeconds(text) ?? nonnegative(text, locale: locale),
+              seconds <= duration else { return nil }
         return seconds
+    }
+
+    private static func clockSeconds(_ text: String) -> Double? {
+        let fields = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ":", omittingEmptySubsequences: false)
+        guard (2...3).contains(fields.count),
+              fields.dropFirst().allSatisfy({ $0.count == 2 }) else { return nil }
+        let values = fields.compactMap { field in
+            field.allSatisfy { $0.isASCII && $0.isNumber } ? Int(field) : nil
+        }
+        guard values.count == fields.count, values.dropFirst().allSatisfy({ $0 < 60 }) else { return nil }
+        return values.reduce(0.0) { $0 * 60 + Double($1) }
+    }
+
+    static func seekHint(duration: Double?) -> String? {
+        guard let duration, duration.isFinite, duration > 0 else { return nil }
+        return "Use m:ss, h:mm:ss, or seconds. Enter a time from 0:00 to \(Presentation.time(duration))."
     }
 
     static func seekProblem(_ text: String, duration: Double?, locale: Locale) -> String? {
         guard seekPosition(text, duration: duration, locale: locale) == nil else { return nil }
-        guard let duration, duration.isFinite, duration > 0 else { return "The Episode duration is unavailable." }
-        return "Enter a time from 0:00 to \(Presentation.time(duration)) (in seconds)."
+        guard seekHint(duration: duration) != nil else { return "The Episode duration is unavailable." }
+        return "Enter a valid time within the range shown."
     }
 
     static func countProblem(_ text: String, locale: Locale) -> String? {

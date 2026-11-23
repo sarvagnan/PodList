@@ -32,7 +32,7 @@ struct SearchViewCreation: SwiftUI.View {
             if naming {
                 HStack {
                     Text("Name").accessibilityHidden(true)
-                    TextField("View name", text: nameInput)
+                    TextField("View Name", text: nameInput)
                         .onSubmit(save)
                         .accessibilityIdentifier("search.view-name")
                     Button("Cancel", action: cancelNaming)

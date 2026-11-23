@@ -36,6 +36,8 @@ struct EpisodeTransfer: Codable, Equatable, Sendable, Transferable {
     let title: String
     let shareURL: URL?
 
+    var dragID: String { episodes.first.flatMap { $0.episodeID ?? $0.guid } ?? "" }
+
     var isValid: Bool {
         !episodes.isEmpty && episodes.allSatisfy(\.isValid) &&
         (sourcePlaylistID.map { !$0.isEmpty && episodes.allSatisfy { $0.episodeID != nil } } ?? true)
@@ -55,11 +57,22 @@ struct EpisodeTransfer: Codable, Equatable, Sendable, Transferable {
         ProxyRepresentation(exporting: \.title)
     }
 
-    /// Include the ordered selection in the private representation, preserving
-    /// multi-row moves even when the system asks only the dragged row for data.
-    @MainActor static func local(_ id: String, selection: [String], sourcePlaylistID: String? = nil, library: LibraryModel) -> Self {
-        Self(episodes: (selection.contains(id) ? selection : [id]).map { DraggedEpisode(episodeID: $0, title: library.row($0).title) },
-             sourcePlaylistID: sourcePlaylistID, title: library.row(id).title, shareURL: library.episodeShareURL(id))
+    @MainActor static func local(_ id: String, sourcePlaylistID: String? = nil, library: LibraryModel) -> Self {
+        let title = library.row(id).title
+        return Self(episodes: [DraggedEpisode(episodeID: id, title: title)],
+                    sourcePlaylistID: sourcePlaylistID, title: title, shareURL: library.episodeShareURL(id))
+    }
+}
+
+extension SwiftUI.View {
+    /// A drag container supplies one transferable per selected row. Table
+    /// cells in different columns share the same drag item ID.
+    @ViewBuilder func episodeDragSource(_ id: String?) -> some SwiftUI.View {
+        if let id {
+            frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .draggable(containerItemID: id)
+        } else { self }
     }
 }
 
@@ -155,6 +168,14 @@ enum EpisodeDrop {
     @MainActor static func retry(_ slotID: String, editor: LibraryEditingModel) async {
         guard let batch = editor.pendingEpisodeDrops.first(where: { $0.slots.contains { $0.id == slotID && $0.failure != nil } }) else { return }
         _ = await prepare(batch.id, only: slotID, editor: editor)
+    }
+
+    @MainActor static func selectedRetry(selection: Set<String>, playlistID: String,
+                                        editor: LibraryEditingModel) -> (@MainActor () async -> Void)? {
+        guard !editor.busy, !editor.edits.busy, editor.episodeDrop == nil,
+              selection.count == 1, let id = selection.first,
+              failedIDs(editor: editor, playlistID: playlistID).contains(id) else { return nil }
+        return { await retry(id, editor: editor) }
     }
 
     @MainActor static func failedIDs(editor: LibraryEditingModel, playlistID: String? = nil) -> [String] {
