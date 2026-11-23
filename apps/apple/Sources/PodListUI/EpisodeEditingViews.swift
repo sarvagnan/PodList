@@ -173,14 +173,28 @@ struct EpisodeActionButtons: ToolbarContent {
             .accessibilityIdentifier("toolbar.add")
             .help("Add selected episodes to a playlist")
             .disabled(disabled)
-            Menu("Episode Actions", systemImage: "ellipsis.circle") {
-                EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app, commandOrigin: origin)
+        }
+        .sharedBackgroundVisibility(.visible)
+        ToolbarItem(placement: .primaryAction) {
+            // Host the labelled Menu as the only control in its item. The automatic
+            // toolbar menu in a ToolbarItemGroup was drawn without an AX element.
+            HStack {
+                Menu {
+                    EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app, commandOrigin: origin)
+                } label: {
+                    Label(labels.more, systemImage: "ellipsis.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden)
+                .accessibilityLabel(labels.more)
+                .accessibilityIdentifier("toolbar.more")
+                .help("Show more episode actions")
+                .disabled(disabled)
             }
-            .labelStyle(.iconOnly).menuIndicator(.hidden)
-            .accessibilityLabel(labels.more)
-            .accessibilityIdentifier("toolbar.more")
-            .help("Show more episode actions")
-            .disabled(disabled)
+            .fixedSize()
+        }
+        .sharedBackgroundVisibility(.visible)
+        ToolbarItem(placement: .primaryAction) {
             if let playlist {
                 Button("Playlist Settings…", systemImage: "slider.horizontal.3") {
                     presentation.present(.settings(playlist.id), from: origin)

@@ -144,6 +144,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThanOrEqual(episodeList.frame.width, 450, "The Inspector must leave room for the list")
         try hideInspector()
         try navigate("Subscriptions")
+        try ready(library.buttons["Open Market Hours, Subscription"])
         try openNewThisWeek()
         XCTAssertEqual(try firstEpisodeOffset(title: firstEpisodeTitle), initialFirstRowOffset, accuracy: 1,
                        "Returning to a short View must keep its first row below the column header")
@@ -1405,7 +1406,12 @@ final class PodListUITour: XCTestCase {
 
     private func openNewThisWeek() throws {
         try navigate("New this week")
-        try ready(episodeTable(in: library))
+        // Search uses the same Episode table. Wait for the destination before
+        // clicking a row so it cannot land in the outgoing Search results.
+        let view = app.windows.matching(NSPredicate(
+            format: "identifier == %@ AND (title == %@ OR title BEGINSWITH %@)",
+            library.identifier, "New this week", "New this week – ")).firstMatch
+        try ready(episodeTable(in: view))
     }
 
     private func episodeTable(in window: XCUIElement) -> XCUIElement {
@@ -1801,9 +1807,7 @@ final class PodListUITour: XCTestCase {
         let menus = toolbar.descendants(matching: .any).matching(NSPredicate(
             format: "elementType IN %@", [XCUIElement.ElementType.menuButton.rawValue, XCUIElement.ElementType.popUpButton.rawValue,
                                           XCUIElement.ElementType.button.rawValue]))
-        let identifiedMore = menus.matching(identifier: "toolbar.more").firstMatch
-        let more = identifiedMore.exists ? identifiedMore : menus.matching(NSPredicate(
-            format: "label == %@ OR title == %@ OR label == %@", "More Episode Actions", "Episode Actions", "Episode Actions")).firstMatch
+        let more = menus.matching(identifier: "toolbar.more").firstMatch
         try ready(more)
         XCTAssertTrue([more.label, more.title].contains { ["More Episode Actions", "Episode Actions"].contains($0) })
         XCTAssertEqual(more.isEnabled, hasSelection)

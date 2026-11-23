@@ -116,7 +116,7 @@ import Testing
             let playTitle = selected ? "Play Now" : "Play This Playlist"
             let playIndex = try #require(toolbar.items.firstIndex { $0.label == playTitle })
             let actions = Array(toolbar.items.dropFirst(playIndex).prefix(4))
-            #expect(actions.map(\.label) == [playTitle, "Add to a Playlist", "Episode Actions", "Playlist Settings…"])
+            #expect(actions.map(\.label) == [playTitle, "Add to a Playlist", "More Episode Actions", "Playlist Settings…"])
             #expect(actions.map(\.toolTip) == [
                 selected ? "Play selected episodes now (\(PodListShortcut.playNow.notation))" : "Play this playlist",
                 "Add selected episodes to a playlist",
