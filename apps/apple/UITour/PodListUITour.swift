@@ -195,7 +195,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertGreaterThan(searchField.frame.width, 80, "Search must leave room for typing beside its scope")
         try capture("06-default-playlist")
         let closedHeader = playlistHeaderFrames
-        XCTAssertEqual(playlistPlayButton.label, "Play This Playlist")
+        try assertPlaylistToolbarActions(hasSelection: false)
         XCTAssertFalse(library.toolbars.buttons["New Playlist…"].exists)
         let firstEntry = episodeRows.firstMatch
         let firstEntryPoint = try firstEpisodePoint()
@@ -206,7 +206,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(firstEntry.isSelected)
         XCTAssertTrue(firstEntry.frame.contains(clickLocation), "The clicked point must remain inside the selected Entry")
         XCTAssertEqual(firstEntry.frame.minY, firstEntryBefore.minY, accuracy: 1, "Opening the Inspector moved the selected Entry vertically")
-        XCTAssertNotEqual(playlistPlayButton.label, "Play This Playlist", "The same Play control now targets the selection")
+        try assertPlaylistToolbarActions(hasSelection: true)
         let openHeader = playlistHeaderFrames
         assertPlaylistHeader(openHeader)
         XCTContext.runActivity(named: "Inspector open: Playlist section dx \(openHeader.section.minX - closedHeader.section.minX) pt, Play dx \(openHeader.play.minX - closedHeader.play.minX) pt, Inspector toggle dx \(openHeader.inspector.minX - closedHeader.inspector.minX) pt, clicked Entry width \(firstEntryBefore.width) to \(firstEntry.frame.width) pt") { _ in }
@@ -1788,6 +1788,23 @@ final class PodListUITour: XCTestCase {
     }
 
     private var playlistPlayButton: XCUIElement { library.toolbars.buttons.matching(identifier: "toolbar.play").firstMatch }
+
+    private func assertPlaylistToolbarActions(hasSelection: Bool) throws {
+        XCTAssertEqual(playlistPlayButton.label, hasSelection ? "Play Now" : "Play This Playlist")
+        XCTAssertTrue(playlistPlayButton.isEnabled)
+        let toolbar = library.toolbars.firstMatch
+        let add = toolbar.buttons.matching(identifier: "toolbar.add").firstMatch
+        try ready(add)
+        XCTAssertEqual(add.label, "Add to a Playlist")
+        XCTAssertEqual(add.isEnabled, hasSelection)
+        // macOS may expose the native menu as “More” with the command name in its title.
+        let more = toolbar.descendants(matching: .any).matching(NSPredicate(
+            format: "label == %@ OR title == %@ OR label == %@", "More Episode Actions", "Episode Actions", "Episode Actions")).firstMatch
+        try ready(more)
+        XCTAssertEqual(more.isEnabled, hasSelection)
+        XCTAssertEqual(toolbar.buttons.matching(identifier: "playlist.settings").firstMatch.label, "Playlist Settings…")
+    }
+
     private func playlistSection(_ name: String) -> XCUIElement {
         library.toolbars.descendants(matching: .any).matching(NSPredicate(
             format: "(elementType == %d OR elementType == %d) AND label == %@",

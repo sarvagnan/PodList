@@ -152,39 +152,50 @@ struct EpisodeActionButtons: ToolbarContent {
     private var disabled: Bool { ids.isEmpty || editing.busy }
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
+            let playTitle = playsPlaylist ? "Play This Playlist" : labels.play
             // A single toolbar view keeps the menu and buttons in the same native background.
             HStack(spacing: 10) {
-                Button("Play Now", systemImage: "play.fill") {
+                iconButton(playTitle, symbol: "play.fill") {
                     EditOrigin.start(origin) {
                         if playsPlaylist, let playlist {
                             await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId)
                         } else { await editing.add(ids, placement: .now) }
                     }
                 }
-                    .accessibilityIdentifier("toolbar.play")
-                    .accessibilityLabel(playsPlaylist ? "Play This Playlist" : labels.play)
-                    .help(playsPlaylist ? "Play this playlist" : "Play selected episodes now (\(PodListShortcut.playNow.notation))")
-                    .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
-                Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") { presentation.present(.add(ids, false), from: origin) }
-                    .accessibilityLabel(labels.add).help("Add selected episodes to a playlist").disabled(disabled)
+                .accessibilityIdentifier("toolbar.play")
+                .help(playsPlaylist ? "Play this playlist" : "Play selected episodes now (\(PodListShortcut.playNow.notation))")
+                .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
+                iconButton(labels.add, symbol: "text.line.last.and.arrowtriangle.forward") {
+                    presentation.present(.add(ids, false), from: origin)
+                }
+                .accessibilityIdentifier("toolbar.add")
+                .help("Add selected episodes to a playlist")
+                .disabled(disabled)
                 Menu("Episode Actions", systemImage: "ellipsis.circle") {
                     EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app, commandOrigin: origin)
-                }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .accessibilityLabel(labels.more).help("Show more episode actions").disabled(disabled)
+                }
+                .labelStyle(.iconOnly).menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel(labels.more).help("Show more episode actions").disabled(disabled)
                 if let playlist {
-                    Button("Playlist Settings…", systemImage: "slider.horizontal.3") { presentation.present(.settings(playlist.id), from: origin) }
-                        .help("Playlist settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")
+                    iconButton("Playlist Settings…", symbol: "slider.horizontal.3") {
+                        presentation.present(.settings(playlist.id), from: origin)
+                    }
+                    .help("Playlist settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")
                 } else if let editView {
-                    Button("Edit View…", systemImage: "slider.horizontal.3", action: editView)
+                    iconButton("Edit View…", symbol: "slider.horizontal.3", action: editView)
                         .help("Edit view (\(PodListShortcut.editView.notation))")
                 }
             }
             .buttonStyle(.borderless)
             .controlSize(.small)
-            .labelStyle(.iconOnly)
             .padding(.horizontal, 6)
             .fixedSize()
         }
+    }
+
+    private func iconButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some SwiftUI.View {
+        Button(action: action) { MacIconLabel(title: title, systemImage: symbol) }
+            .accessibilityLabel(title)
     }
 }
 
