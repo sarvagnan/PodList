@@ -771,6 +771,8 @@ final class PodListUITour: XCTestCase {
         try scrollEpisodesBeneathBars()
         try capture("36-scrolled-under-bars")
         try checkNarrowPaneSwaps()
+        // Revealing the sidebar can grow the window; return to the minimum width first.
+        narrowLibraryForPaneSwap()
         try assertClearSearchTarget(windowWidth: 760)
         try captureHalfDisplay()
         if style == "Light" { try checkNowPlayingFollowUps() }
