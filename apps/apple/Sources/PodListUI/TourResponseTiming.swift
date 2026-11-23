@@ -61,13 +61,37 @@ public final class TourResponseTiming {
 
     public static func start() { _ = active }
 
+    #if PODLIST_UI_TOUR
+    static var isActive: Bool { active != nil }
+
+    static func inspectorSelectionHandled(_ id: String) {
+        guard let timing = active, let event = timing.lastInput, Step.inspector.matches(event) else { return }
+        timing.inspectorPhases = InspectorPhases(id: id, input: event.timestamp, selection: CACurrentMediaTime())
+    }
+
+    static func inspectorBodyEvaluated(_ id: String) {
+        guard let timing = active, var phases = timing.inspectorPhases,
+              phases.id == id, phases.input == timing.lastInput?.timestamp, phases.body == nil else { return }
+        phases.body = CACurrentMediaTime()
+        timing.inspectorPhases = phases
+    }
+    #endif
+
+    private struct InspectorPhases {
+        let id: String
+        let input: TimeInterval
+        let selection: TimeInterval
+        var body: TimeInterval?
+    }
+
     private let output: URL
     private let signposter = OSSignposter(subsystem: "app.podlist", category: "ResponseTiming")
     private var monitor: Any?
     private var lastInput: NSEvent?
     private var inputIntervals: [Step: OSSignpostIntervalState] = [:]
     private var lastMeasuredInput: [Step: TimeInterval] = [:]
-    private var pending: (step: Step, input: TimeInterval, appeared: TimeInterval, interval: OSSignpostIntervalState?)?
+    private var pending: (step: Step, input: TimeInterval, appeared: TimeInterval, interval: OSSignpostIntervalState?, inspectorID: String?)?
+    private var inspectorPhases: InspectorPhases?
     private var displayLink: CADisplayLink?
 
     private init(output: URL) {
@@ -96,7 +120,7 @@ public final class TourResponseTiming {
         }
     }
 
-    fileprivate func appeared(_ step: Step, in window: NSWindow) {
+    fileprivate func appeared(_ step: Step, in window: NSWindow, inspectorID: String? = nil) {
         guard window.isVisible, let event = lastInput, step.matches(event),
               lastMeasuredInput[step] != event.timestamp else { return }
         lastMeasuredInput[step] = event.timestamp
@@ -104,7 +128,7 @@ public final class TourResponseTiming {
         if let pending, let interval = pending.interval {
             signposter.endInterval(pending.step.signpostName, interval, "unobserved")
         }
-        pending = (step, event.timestamp, CACurrentMediaTime(), inputIntervals.removeValue(forKey: step))
+        pending = (step, event.timestamp, CACurrentMediaTime(), inputIntervals.removeValue(forKey: step), inspectorID)
         let link = window.displayLink(target: self, selector: #selector(frameDisplayed(_:)))
         displayLink = link
         link.add(to: .main, forMode: .common)
@@ -124,7 +148,12 @@ public final class TourResponseTiming {
             signposter.endInterval(pending.step.signpostName, interval, "response_ms=\(delta, privacy: .public)")
         }
         guard delta >= 0 else { return }
-        append("\(pending.step.rawValue)\t\(pending.input)\t\(frame)\t\(delta)\n")
+        var line = "\(pending.step.rawValue)\t\(pending.input)\t\(frame)\t\(delta)"
+        if let phases = inspectorPhases, pending.inspectorID == phases.id,
+           pending.input == phases.input, let body = phases.body, body >= phases.selection, frame >= body {
+            line += "\t\(phases.selection)\t\(body)"
+        }
+        append(line + "\n")
     }
 
     private func append(_ line: String) {
@@ -136,11 +165,6 @@ public final class TourResponseTiming {
         guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         try? file.write(contentsOf: Data(line.utf8))
     }
-}
-
-private struct TourResponseKey<Key: Hashable>: Hashable {
-    let step: TourResponseTiming.Step?
-    let key: Key
 }
 
 extension View {
@@ -155,17 +179,18 @@ extension View {
         }
     }
 
-    /// Also re-arms when `key` changes, for results whose step value stays the same,
-    /// such as the Inspector reopening on a remembered selection.
-    @ViewBuilder func tourResponse<Key: Hashable>(_ step: @autoclosure () -> TourResponseTiming.Step?, key: Key) -> some View {
+    #if PODLIST_UI_TOUR
+    /// Re-arm while the pane stays open and the selected Episode changes.
+    @ViewBuilder func tourInspectorResponse(key: String?) -> some View {
         if let timing = TourResponseTiming.active {
-            onChange(of: TourResponseKey(step: step(), key: key), initial: true) { _, result in
-                if let step = result.step, let window = NSApp.keyWindow { timing.appeared(step, in: window) }
+            onChange(of: key, initial: true) { _, id in
+                if let id, let window = NSApp.keyWindow { timing.appeared(.inspector, in: window, inspectorID: id) }
             }
         } else {
             self
         }
     }
+    #endif
 
     @ViewBuilder func tourWindowResponse(_ step: TourResponseTiming.Step) -> some View {
         if TourResponseTiming.active != nil {

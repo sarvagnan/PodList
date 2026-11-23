@@ -430,11 +430,7 @@ public struct PodListWindow: SwiftUI.View {
             // Publisher rows not yet imported still count toward the selection summary.
             let inspectorIDs = selectedIDs + selection.subtracting(Set(selectedIDs)).sorted()
             let preview = isPodcastPage && selection.count == 1 ? selection.first.flatMap { podcastPreviews[$0] } : nil
-            EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation,
-                             selectedIDs: inspectorIDs, podcastPreview: preview)
-                #if DEBUG || PODLIST_UI_TOUR
-                .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil, key: row?.id)
-                #endif
+            episodeInspector(row: row, library: library, selectedIDs: inspectorIDs, preview: preview)
                 .inspectorColumnWidth(min: PaneWidths.inspectorMinimum,
                                       ideal: window.initialPaneWidths.inspector, max: PaneWidths.inspectorMaximum)
                 .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
@@ -444,6 +440,18 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
         }
+    }
+
+    private func episodeInspector(row: EpisodeRow?, library: LibraryModel, selectedIDs: [String],
+                                  preview: PodcastEpisodePreview?) -> EpisodeInspector {
+        var inspector = EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation,
+                                        selectedIDs: selectedIDs, podcastPreview: preview)
+        #if PODLIST_UI_TOUR
+        if selectedIDs.count == 1 && TourResponseTiming.isActive && tourIsNewThisWeek(library) {
+            inspector.timingKey = row?.id
+        }
+        #endif
+        return inspector
     }
 
     private func playlistSections(isTrashed: Bool) -> some SwiftUI.View {
