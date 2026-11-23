@@ -160,7 +160,6 @@ public struct PodListWindow: SwiftUI.View {
         let followUp = window.followUpActions(in: library) { app.library }
         return NavigationSplitView(columnVisibility: sidebarPresentation) {
             librarySidebar(library, playbackInset: playbackInset)
-                .toolbar(removing: .sidebarToggle)
         } detail: {
             libraryDetail(library, rows: rows, selectedRows: selectedRows, deletedPlaylist: deletedPlaylist,
                           origin: origin, inspector: inspector, inspectorToggle: inspectorToggle,
@@ -322,8 +321,10 @@ public struct PodListWindow: SwiftUI.View {
         // Observe AppKit's divider from the background, without wrapping the column
         // root or feeding live measurements into its ideal width.
         .background(MacSidebarWidth { window.paneWidths.sidebar = $0 })
-        .navigationSplitViewColumnWidth(min: PaneWidths.sidebarMinimum, ideal: window.initialPaneWidths.sidebar, max: 320)
         .navigationTitle("PodList")
+        .toolbar(removing: .sidebarToggle)
+        // Keep the column width outside the toolbar modifier so the split view observes it.
+        .navigationSplitViewColumnWidth(min: PaneWidths.sidebarMinimum, ideal: window.initialPaneWidths.sidebar, max: 320)
     }
 
     private func libraryDetail(_ library: LibraryModel, rows: [EpisodeRow], selectedRows: [EpisodeRow],

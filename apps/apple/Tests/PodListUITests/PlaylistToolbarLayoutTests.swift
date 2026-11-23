@@ -60,8 +60,9 @@ import Testing
         let presentation: PlaylistPresentation
         var body: some SwiftUI.View {
             NavigationSplitView {
-                Text("Sidebar").navigationSplitViewColumnWidth(225)
+                Text("Sidebar")
                     .toolbar(removing: .sidebarToggle)
+                    .navigationSplitViewColumnWidth(225)
             } detail: {
                 Text("Episodes").navigationTitle("Default").navigationSubtitle("4 Entries")
                     .toolbar {
