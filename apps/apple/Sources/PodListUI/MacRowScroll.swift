@@ -202,7 +202,13 @@ extension WindowModel {
         let allowed = Set(episodeIDs).union(otherIDs)
         return Binding(get: { selection.wrappedValue }, set: { ids in
             let selected = ids.intersection(allowed)
-            if selection.wrappedValue != selected { selection.wrappedValue = selected }
+            guard selection.wrappedValue != selected else { return }
+            selection.wrappedValue = selected
+            #if PODLIST_UI_TOUR
+            if selection.wrappedValue == selected, selected.count == 1, let id = selected.first {
+                TourResponseTiming.inspectorSelectionHandled(id)
+            }
+            #endif
         })
     }
 }

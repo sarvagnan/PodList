@@ -60,11 +60,17 @@ import Testing
         let presentation: PlaylistPresentation
         var body: some SwiftUI.View {
             NavigationSplitView {
-                Text("Sidebar").navigationSplitViewColumnWidth(225)
+                Text("Sidebar")
+                    .toolbar(removing: .sidebarToggle)
+                    .navigationSplitViewColumnWidth(225)
             } detail: {
                 Text("Episodes").navigationTitle("Default").navigationSubtitle("4 Entries")
                     .toolbar {
+                        ToolbarItem(placement: .navigation) {
+                            Button("Hide Sidebar", systemImage: "sidebar.left") {}
+                        }
                         ToolbarItem(placement: .primaryAction) { PlaylistToolbar(selection: .constant(section)) }
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
                         EpisodeActionButtons(ids: selected ? [library.snapshot.episodes[0].id] : [], library: library,
                             editing: editing, presentation: presentation, app: app, playlist: library.state.playlists[0])
                         ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -97,19 +103,31 @@ import Testing
             for _ in 0..<5 { await Task.yield(); window.contentView?.superview?.layoutSubtreeIfNeeded() }
             let toolbar = try #require(window.toolbar)
             #expect(!toolbar.items.isEmpty)
+            // The live tour checks for duplicates in the accessibility tree.
+            #expect(toolbar.items.filter { $0.label == "Hide Sidebar" }.count == 1)
             let inspector = try #require(toolbar.items.first(where: { $0.label == "Hide Inspector" })?.view)
             inspectorFrames.append(inspector.convert(inspector.bounds, to: nil))
             let root = try #require(window.contentView?.superview)
             let views = descendants(root)
-            let group = try #require(toolbar.items.compactMap { $0 as? NSToolbarItemGroup }.first)
-            #expect(group.subitems.map(\.label) == ["Play Now", "Add to a Playlist…", "Episode Actions", "Playlist Settings…"])
-            let play = try #require(group.subitems.first?.view)
-            playFrames.append(play.convert(play.bounds, to: nil))
             #expect(!toolbar.items.contains { $0.label == "New Playlist…" })
             let picker = try #require(views.compactMap { $0 as? NSSegmentedControl }.first { !$0.isHiddenOrHasHiddenAncestor })
             let frame = picker.convert(picker.bounds, to: nil)
             frames.append(frame)
-            #expect(frame.maxX < playFrames.last!.minX, "The section control leads the Play action in the same toolbar run")
+            let playTitle = selected ? "Play Now" : "Play This Playlist"
+            let playIndex = try #require(toolbar.items.firstIndex { $0.label == playTitle })
+            let actions = Array(toolbar.items.dropFirst(playIndex).prefix(4))
+            #expect(actions.map(\.label) == [playTitle, "Add to a Playlist", "More Episode Actions", "Playlist Settings…"])
+            #expect(actions.map(\.toolTip) == [
+                selected ? "Play selected episodes now (\(PodListShortcut.playNow.notation))" : "Play this playlist",
+                "Add selected episodes to a playlist",
+                "Show more episode actions",
+                "Playlist settings (\(PodListShortcut.playlistSettings.notation))"
+            ])
+            let play = try #require(actions.first?.view)
+            let playFrame = play.convert(play.bounds, to: nil)
+            #expect(frame.maxX < playFrame.minX)
+            #expect(playFrame.maxX < inspectorFrames.last!.minX)
+            playFrames.append(playFrame)
             let search = try #require(views.compactMap { $0 as? NSTextField }.first { $0.placeholderString == "Search" })
             #expect(inspectorFrames.last!.maxX < search.convert(search.bounds, to: nil).minX)
             #expect(search.frame.width > 80, "At 1180 pt, Search must leave room for typing beside its scope")

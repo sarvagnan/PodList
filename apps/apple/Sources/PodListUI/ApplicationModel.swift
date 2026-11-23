@@ -522,11 +522,16 @@ public final class ApplicationModel {
     }
 
     public func reloadLocal() async {
+        await reloadLocal(onlyIfChanged: false)
+    }
+
+    private func reloadLocal(onlyIfChanged: Bool) async {
         guard let database else { return }
         let token = generation
         do {
             let snapshot = try await database.readLibrary()
             guard generation == token else { return }
+            if onlyIfChanged, library?.snapshot == snapshot { return }
             library = LibraryModel(snapshot: snapshot, deviceID: deviceID)
             libraryEditing?.reconcile(snapshot)
             scheduleRules()
@@ -551,7 +556,7 @@ public final class ApplicationModel {
         guard token == generation else { return }
         // The resolver also caches the fetch date. That alone does not change the Library UI.
         guard readPublisherMetadata || chapters.map({ $0 != episode.chapters }) == true else { return }
-        await reloadLocal(); playback?.refresh()
+        await reloadLocal(onlyIfChanged: true); playback?.refresh()
     }
     public func setDownloadRule(subscription: String, mode: DownloadMode, cap: Int64?) {
         Task { _ = await setDownloadRules(subscriptions: [subscription], mode: mode, cap: cap) }

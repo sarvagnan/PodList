@@ -170,10 +170,10 @@ struct PlaylistContentView: SwiftUI.View {
             if slot.failure != nil, let editor = app.libraryEditing {
                 Button("Retry") { EditOrigin.start(origin) { await EpisodeDrop.retry(slot.id, editor: editor) } }
                     .accessibilityLabel("Retry Adding \(slot.title)")
-                    .help("Retry Adding this Episode")
+                    .help("Retry adding this episode")
                 Button("Remove") { EpisodeDrop.remove(slot.id, editor: editor) }
                     .accessibilityLabel("Remove Failed Drop for \(slot.title)")
-                    .help("Remove this failed Episode drop")
+                    .help("Remove this failed episode drop")
             }
         }
         .buttonStyle(.borderless).padding(.vertical, 5)
@@ -190,7 +190,7 @@ struct PlaylistContentView: SwiftUI.View {
             Button { EditOrigin.start(origin) { await editing.playFromHere(playlistID: playlist.id, episodeID: row.id) } } label: {
                 MacIconLabel(title: "Play from Here", systemImage: "play.fill")
             }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from Here").accessibilityLabel("Play from Here: \(row.title)")
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).help("Play from here").accessibilityLabel("Play from Here: \(row.title)")
         }.macRowActions(isSelected: selected).accessibilityElement(children: .contain)
     }
     @ViewBuilder private func entryActions(_ ids: [String]) -> some SwiftUI.View {
@@ -302,7 +302,7 @@ struct PlaylistContentView: SwiftUI.View {
                                 .buttonStyle(.borderless).foregroundStyle(MacRowAccentStyle())
                                 .accessibilityLabel("Rewind to \(date(event.moment))…")
                                 .accessibilityIdentifier("timeline.rewind")
-                                .help("Preview rewinding this Playlist to this moment")
+                                .help("Preview rewinding this playlist to this moment")
                         }
                     }.padding(.vertical, 4)
                     .contentShape(Rectangle())

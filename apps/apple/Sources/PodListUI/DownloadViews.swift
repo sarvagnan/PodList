@@ -88,6 +88,12 @@ struct DownloadIcon: SwiftUI.View {
     private var label: String {
         working ? (phase == .queued ? "Cancel Download, queued" : "Cancel Download, downloading") : phase == .stored ? "Remove Download, downloaded on this Mac" : phase == .failed ? "Retry Download, failed" : "Download, not downloaded"
     }
+    private var help: String {
+        if working { return "Cancel download" }
+        if phase == .stored { return "Remove the download from this Mac" }
+        if phase == .failed { return "Retry download" }
+        return "Download this episode"
+    }
     var body: some SwiftUI.View {
         Button {
             EpisodeDownloadAction.primary(for: phase).perform([id], app: app)
@@ -98,7 +104,7 @@ struct DownloadIcon: SwiftUI.View {
                     Image(systemName: "xmark").font(.system(size: 8))
                 } else { Image(systemName: phase == .stored ? "arrow.down.circle.fill" : phase == .failed ? "arrow.clockwise.circle" : "arrow.down.circle") }
             }.frame(width: 28, height: 28).contentShape(Rectangle()).modifier(MacButtonShape(cornerRadius: 6))
-        }.buttonStyle(.borderless).help(label).accessibilityLabel(label)
+        }.buttonStyle(.borderless).help(help).accessibilityLabel(label)
             .contextMenu {
                 EpisodeDownloadItems(ids: [id], app: app)
             }

@@ -151,34 +151,64 @@ struct EpisodeActionButtons: ToolbarContent {
     }
     private var disabled: Bool { ids.isEmpty || editing.busy }
     var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            ControlGroup {
-                Button("Play Now", systemImage: "play.fill") {
-                    EditOrigin.start(origin) {
-                        if playsPlaylist, let playlist {
-                            await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId)
-                        } else { await editing.add(ids, placement: .now) }
-                    }
+        // Give each action its own native toolbar item so its name and help
+        // stay attached to that control while the glass background is shared.
+        ToolbarItemGroup(placement: .primaryAction) {
+            let playTitle = playsPlaylist ? "Play This Playlist" : labels.play
+            Button(playTitle, systemImage: "play.fill") {
+                EditOrigin.start(origin) {
+                    if playsPlaylist, let playlist {
+                        await editing.playFromHere(playlistID: playlist.id, episodeID: playlist.cursor ?? playlist.entries.first?.episodeId)
+                    } else { await editing.add(ids, placement: .now) }
                 }
-                    .accessibilityIdentifier("toolbar.play")
-                    .accessibilityLabel(playsPlaylist ? "Play This Playlist" : labels.play)
-                    .help(playsPlaylist ? "Play this Playlist" : "Play selected Episodes now (\(PodListShortcut.playNow.notation))")
-                    .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
-                Button("Add to a Playlist…", systemImage: "text.line.last.and.arrowtriangle.forward") { presentation.present(.add(ids, false), from: origin) }
-                    .accessibilityLabel(labels.add).help("Add selected Episodes to a Playlist").disabled(disabled)
-                Menu("Episode Actions", systemImage: "ellipsis.circle") {
-                    EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app, commandOrigin: origin)
-                }.menuStyle(.borderlessButton).fixedSize()
-                    .accessibilityLabel(labels.more).help("Show more Episode actions").disabled(disabled)
-                if let playlist {
-                    Button("Playlist Settings…", systemImage: "slider.horizontal.3") { presentation.present(.settings(playlist.id), from: origin) }
-                        .help("Playlist settings (\(PodListShortcut.playlistSettings.notation))").accessibilityIdentifier("playlist.settings")
-                } else if let editView {
-                    Button("Edit View…", systemImage: "slider.horizontal.3", action: editView)
-                        .help("Edit View (\(PodListShortcut.editView.notation))")
-                }
-            }.controlSize(.small).labelStyle(.iconOnly)
+            }
+            .labelStyle(.iconOnly)
+            .accessibilityIdentifier("toolbar.play")
+            .help(playsPlaylist ? "Play this playlist" : "Play selected episodes now (\(PodListShortcut.playNow.notation))")
+            .disabled(editing.busy || (playsPlaylist ? playlist?.entries.isEmpty != false : ids.isEmpty))
+            Button(labels.add, systemImage: "text.line.last.and.arrowtriangle.forward") {
+                presentation.present(.add(ids, false), from: origin)
+            }
+            .labelStyle(.iconOnly)
+            .accessibilityIdentifier("toolbar.add")
+            .help("Add selected episodes to a playlist")
+            .disabled(disabled)
         }
+        .sharedBackgroundVisibility(.visible)
+        ToolbarItem(placement: .primaryAction) {
+            // Host the labelled Menu as the only control in its item. The automatic
+            // toolbar menu in a ToolbarItemGroup was drawn without an AX element.
+            HStack {
+                Menu {
+                    EpisodeActionItems(ids: ids, library: library, editing: editing, presentation: presentation, app: app, commandOrigin: origin)
+                } label: {
+                    Label(labels.more, systemImage: "ellipsis.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden)
+                .accessibilityLabel(labels.more)
+                .accessibilityIdentifier("toolbar.more")
+                .help("Show more episode actions")
+                .disabled(disabled)
+            }
+            .fixedSize()
+        }
+        .sharedBackgroundVisibility(.visible)
+        ToolbarItem(placement: .primaryAction) {
+            if let playlist {
+                Button("Playlist Settings…", systemImage: "slider.horizontal.3") {
+                    presentation.present(.settings(playlist.id), from: origin)
+                }
+                .labelStyle(.iconOnly)
+                .help("Playlist settings (\(PodListShortcut.playlistSettings.notation))")
+                .accessibilityIdentifier("playlist.settings")
+            } else if let editView {
+                Button("Edit View…", systemImage: "slider.horizontal.3", action: editView)
+                    .labelStyle(.iconOnly)
+                    .help("Edit view (\(PodListShortcut.editView.notation))")
+            }
+        }
+        .sharedBackgroundVisibility(.visible)
     }
 }
 

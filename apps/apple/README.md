@@ -583,11 +583,19 @@ Each main pass attempts five runs per task and attaches `light--timings.txt` or
 `dark--timings.txt` (exported as `light/timings.txt` and `dark/timings.txt`). The
 app measures from the mouse-down or key-down event timestamp to the first display
 refresh after the Episode list, Inspector, New Playlist sheet, Settings window
-or one-row filter result appears. The Inspector is timed both when selection
-opens the pane and when a different selection updates the open pane. The filter sample starts on the final
-`e` in `rice`. A display link on the result window supplies the target time of that refresh.
+or one-row filter result appears. The Inspector marker is the selected Episode's title,
+both when selection opens the pane and when a different selection updates the open pane.
+The filter sample starts on the final `e` in `rice`. A display link on the result
+window supplies the target time of that refresh.
 This measures input to first presented frame at the VM display cadence, with
 SwiftUI appearance and AppKit visibility as the result markers.
+
+For each Inspector path, `timings.txt` also reports input to selection handling,
+selection handling to shell body evaluation, and shell body evaluation to the
+first frame. Each phase has its own sample count, p75 and maximum. The final
+phase includes layout and the display-link interval. Actions, artwork loading,
+playlist memberships, chapters and Show Notes follow the title. The artwork
+slot retains its size as details arrive.
 
 The report includes the VM hardware and macOS version, nearest-rank p75 and max
 in milliseconds, and sample counts. Steps with fewer than five samples are marked
@@ -595,7 +603,8 @@ unobserved. RESP-01 targets p75 ≤ 200 ms over at least five runs. The tour rec
 the results without enforcing that target. RESP-02 keystroke and drag frame timing
 is outside this tour.
 
-Timing runs in Debug and Release with a disposable `app.podlist.uitour.*`
+Inspector phase timing is compiled into tour builds only. Run the Debug or Release
+tour build with a disposable `app.podlist.uitour.*`
 bundle ID and the tour's `PODLIST_UI_TIMINGS_FILE` launch environment value,
 an absolute file path inside temporary storage.
 
@@ -648,13 +657,25 @@ role as the XCUI type (plus its numeric value), and explicitly mark subrole and
 keyboard shortcuts unavailable. The standard alternative for exact shortcuts is
 to inspect `NSMenuItem.keyEquivalent` and `keyEquivalentModifierMask` in Xcode's
 LLDB debugger, or inspect the rendered menus manually. No custom AX utility is
-provided. Menu enabled states reflect the final multi-selection in the Light tour.
+provided. Menu enabled states in `menus.txt` reflect the final multi-selection in the
+Light tour. The tour separately invokes Podcast → Open Podcast Page from a selected
+Add Podcasts result and Controls → Open Active Playlist from Listening Stats with
+Library open and closed. After the Light captures, the tour follows a named Chapter
+jump and invokes Open Active Playlist from populated Listening Stats. It opens Now
+Playing from Controls while an Entry is current, empties the Active Playlist in
+Library, and uses the existing Now Playing window's empty-state button to return
+to that Playlist.
 
 The Unsubscribe sequence clicks Subscribed once, captures the armed control, and
 then clicks the Episode count to disarm it. The tour verifies that Subscribed and
-Share Podcast keep their positions as the control arms and disarms. Screen 36
-uses the full Library results to verify that rows scroll beneath the column
-headers and clear the player at minimum window size. The delayed Undo test briefly removes an
+Share Podcast keep their positions as the control arms and disarms. Expanding and
+collapsing the Podcast description must preserve every Episode column's width and
+horizontal position. Screen 36 uses the full Library results to verify that rows
+scroll beneath the column headers and clear the player at minimum window size.
+Pane checks require one sidebar toolbar button with the label for its current action.
+They also exercise the toolbar click and Control-Command-S in the narrow layout.
+Search checks exercise the 28 pt Clear Search control, scope and query at 760 and
+960 pt. The delayed Undo test briefly removes an
 Entry from the demo Library and verifies that it comes back. The Timeline Rewind action is also available
 to keyboard/VoiceOver users as a named accessibility action and context command.
 With no Subscriptions selected, Edit Download Rules opens the all-Subscriptions

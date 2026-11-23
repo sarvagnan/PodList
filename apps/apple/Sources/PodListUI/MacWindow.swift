@@ -78,6 +78,12 @@ public struct PodListWindow: SwiftUI.View {
     private var inspectorEnabled: Bool { sceneInspectorEnabled ?? defaultInspectorVisible }
     private var sidebarVisible: Bool { columns != .detailOnly }
 
+    private var sidebarContext: LibrarySidebarContext {
+        LibrarySidebarContext(visible: sidebarVisible) {
+            sidebarPresentation.wrappedValue = sidebarVisible ? .detailOnly : .all
+        }
+    }
+
     private var sidebarPresentation: Binding<NavigationSplitViewVisibility> {
         Binding(get: { columns }, set: { visibility in
             guard visibility != columns else { return }
@@ -159,9 +165,7 @@ public struct PodListWindow: SwiftUI.View {
                           origin: origin, inspector: inspector, inspectorToggle: inspectorToggle,
                           canToggleInspector: canToggleInspector, followUp: followUp)
         }
-        .focusedSceneValue(\.podListSidebar, LibrarySidebarContext(visible: sidebarVisible) {
-            sidebarPresentation.wrappedValue = sidebarVisible ? .detailOnly : .all
-        })
+        .focusedSceneValue(\.podListSidebar, sidebarContext)
         .modifier(PlaybackSeekHost(app: app))
         .overlay(alignment: .bottom) {
             if let playback = app.playback, playback.hasDisplay {
@@ -265,13 +269,13 @@ public struct PodListWindow: SwiftUI.View {
                     else { window.collapsedSidebarSections.insert(section.id) }
                 })) {
                     if section.name == "Views" {
-                        sidebarCommand("New View…", help: "Create a View") { newView() }
+                        sidebarCommand("New View…", help: "Create a view") { newView() }
                     }
                     if section.name == "Playlists" {
-                        sidebarCommand("New Playlist…", help: "Create a Playlist") { playlistPresentation.present(.newPlaylist, from: editOrigin(in: library)) }
+                        sidebarCommand("New Playlist…", help: "Create a playlist") { playlistPresentation.present(.newPlaylist, from: editOrigin(in: library)) }
                     }
                     if section.name == "Library" {
-                        sidebarCommand("Add Podcasts…", help: "Find and add Podcasts") { openWindow(id: "add-podcasts") }
+                        sidebarCommand("Add Podcasts…", help: "Find and add podcasts") { openWindow(id: "add-podcasts") }
                     }
                     if section.items.isEmpty {
                         Text("No \(section.name)").foregroundStyle(MacReadableSecondaryStyle())
@@ -285,7 +289,7 @@ public struct PodListWindow: SwiftUI.View {
                             Spacer(minLength: 4)
                             if item.active {
                                 Image(systemName: "speaker.wave.2.fill")
-                                    .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist").help("Active Playlist")
+                                    .foregroundStyle(MacRowAccentStyle()).accessibilityLabel("Active Playlist").help("Active playlist")
                             }
                             if item.destination != .search {
                                 Text(item.count, format: .number).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.sidebarSelection == item.destination)).monospacedDigit()
@@ -317,8 +321,10 @@ public struct PodListWindow: SwiftUI.View {
         // Observe AppKit's divider from the background, without wrapping the column
         // root or feeding live measurements into its ideal width.
         .background(MacSidebarWidth { window.paneWidths.sidebar = $0 })
-        .navigationSplitViewColumnWidth(min: PaneWidths.sidebarMinimum, ideal: window.initialPaneWidths.sidebar, max: 320)
         .navigationTitle("PodList")
+        .toolbar(removing: .sidebarToggle)
+        // Keep the column width outside the toolbar modifier so the split view observes it.
+        .navigationSplitViewColumnWidth(min: PaneWidths.sidebarMinimum, ideal: window.initialPaneWidths.sidebar, max: 320)
     }
 
     private func libraryDetail(_ library: LibraryModel, rows: [EpisodeRow], selectedRows: [EpisodeRow],
@@ -377,6 +383,13 @@ public struct PodListWindow: SwiftUI.View {
         .navigationSubtitle(subtitle)
         .toolbar {
             ToolbarItem(placement: .navigation) {
+                Button(sidebarContext.title, systemImage: "sidebar.left", action: sidebarContext.toggle)
+                    .labelStyle(.iconOnly)
+                    .help(sidebarContext.title)
+                    .accessibilityLabel(sidebarContext.title)
+                    .accessibilityIdentifier("library.sidebar")
+            }
+            ToolbarItem(placement: .navigation) {
                 if isPodcastPage {
                     Button("Back to Library", systemImage: "chevron.left", action: backToLibrary)
                         .help("Back to the Library (⌘[)")
@@ -389,11 +402,12 @@ public struct PodListWindow: SwiftUI.View {
                 ToolbarItem(placement: .primaryAction) {
                     playlistSections(isTrashed: deletedPlaylist != nil)
                 }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
             }
             if let editing = app.editing, showsEpisodeInspector {
-                // Retain disabled selection controls to keep the three groups,
+                // Retain disabled selection controls to keep the action group,
                 // Inspector and Search in the same positions as selection changes.
-                    EpisodeActionButtons(ids: deletedPlaylist == nil ? selectedIDs : [], library: library, editing: editing, presentation: playlistPresentation, app: app, origin: origin,
+                EpisodeActionButtons(ids: deletedPlaylist == nil ? selectedIDs : [], library: library, editing: editing, presentation: playlistPresentation, app: app, origin: origin,
                     playlist: playlist, editView: toolbarView(library).map { view in { editView(view) } })
             }
             ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -418,11 +432,7 @@ public struct PodListWindow: SwiftUI.View {
             // Publisher rows not yet imported still count toward the selection summary.
             let inspectorIDs = selectedIDs + selection.subtracting(Set(selectedIDs)).sorted()
             let preview = isPodcastPage && selection.count == 1 ? selection.first.flatMap { podcastPreviews[$0] } : nil
-            EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation,
-                             selectedIDs: inspectorIDs, podcastPreview: preview)
-                #if DEBUG || PODLIST_UI_TOUR
-                .tourResponse(row != nil && inspectorIDs.count == 1 && tourIsNewThisWeek(library) ? .inspector : nil, key: row?.id)
-                #endif
+            episodeInspector(row: row, library: library, selectedIDs: inspectorIDs, preview: preview)
                 .inspectorColumnWidth(min: PaneWidths.inspectorMinimum,
                                       ideal: window.initialPaneWidths.inspector, max: PaneWidths.inspectorMaximum)
                 .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
@@ -432,6 +442,18 @@ public struct PodListWindow: SwiftUI.View {
                     }
                 }
         }
+    }
+
+    private func episodeInspector(row: EpisodeRow?, library: LibraryModel, selectedIDs: [String],
+                                  preview: PodcastEpisodePreview?) -> EpisodeInspector {
+        var inspector = EpisodeInspector(row: row, library: library, app: app, playlistPresentation: playlistPresentation,
+                                        selectedIDs: selectedIDs, podcastPreview: preview)
+        #if PODLIST_UI_TOUR
+        if selectedIDs.count == 1 && TourResponseTiming.isActive && tourIsNewThisWeek(library) {
+            inspector.timingKey = row?.id
+        }
+        #endif
+        return inspector
     }
 
     private func playlistSections(isTrashed: Bool) -> some SwiftUI.View {
@@ -790,6 +812,7 @@ public struct PodListWindow: SwiftUI.View {
                                 }
                             }
                             .tableStyle(.inset)
+                            .scrollEdgeEffectHidden(for: .top)
                             // The native Table ignores scroll-content margins when computing its scroll range.
                             .playbackBarScrollClearance(usesNativeInsets: true)
                         }
@@ -852,7 +875,7 @@ public struct PodListWindow: SwiftUI.View {
                     MacIconLabel(title: "Add to a Playlist", systemImage: "text.line.last.and.arrowtriangle.forward")
                 }
                     .buttonStyle(.borderless).foregroundStyle(MacRowActionStyle()).accessibilityLabel("Add \(row.title) to a Playlist")
-                    .help("Add to a Playlist")
+                    .help("Add to a playlist")
                 Button { EditOrigin.start(editOrigin(in: library)) { await editing.add([row.id], placement: .now) } } label: {
                     MacIconLabel(title: "Play Now", systemImage: "play.fill")
                 }
@@ -1013,9 +1036,10 @@ private struct SidebarCommandButton: SwiftUI.View {
     @State private var hovered = false
 
     var body: some SwiftUI.View {
-        Button(title, systemImage: "plus", action: action)
+        Button(action: action) {
+            Label(title, systemImage: "plus").foregroundStyle(MacReadableSecondaryStyle())
+        }
             .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
             .modifier(MacButtonShape(cornerRadius: 5, outset: 3))
             .background {
                 if hovered {
@@ -1044,7 +1068,7 @@ struct LibraryToolbarSearch: SwiftUI.View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             Text(scope.caption)
-                .font(.caption).foregroundStyle(.secondary).fixedSize()
+                .font(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize()
                 .padding(.trailing, 5)
                 .overlay(alignment: .trailing) { Divider().frame(height: 12) }
                 .accessibilityHidden(true)
@@ -1056,11 +1080,17 @@ struct LibraryToolbarSearch: SwiftUI.View {
                 .accessibilityIdentifier("library.search")
                 .onExitCommand { text = "" }
             if !text.isEmpty {
-                Button("Clear Search", systemImage: "xmark.circle.fill") {
+                Button {
                     text = ""
                     focused = true
+                } label: {
+                    MacIconLabel(title: "Clear Search", systemImage: "xmark.circle.fill")
                 }
-                .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary).help("Clear Search")
+                .buttonStyle(.plain)
+                .foregroundStyle(MacReadableSecondaryStyle())
+                .help("Clear search")
+                .accessibilityLabel("Clear Search")
+                .accessibilityIdentifier("library.clearSearch")
             }
         }
         .frame(width: 168)
