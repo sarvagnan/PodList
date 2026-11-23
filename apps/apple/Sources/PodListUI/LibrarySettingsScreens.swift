@@ -109,9 +109,9 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
                             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
                         LabeledContent("Server Address") {
-                            TextField("Server Address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
+                            // LabeledContent names the field; a second title or label doubles it for VoiceOver.
+                            TextField("", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
                                 .labelsHidden()
-                                .accessibilityLabel("Server Address")
                                 .accessibilityIdentifier("settings.serverAddress")
                         }
                         VStack(alignment: .leading, spacing: 5) {

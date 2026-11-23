@@ -15,7 +15,7 @@ struct WelcomeView: SwiftUI.View {
                 Text("Enter your PodList server address. Your Library stays available on this Mac when the server is unreachable.")
                 Form {
                     LabeledContent("Server Address") {
-                        TextField("Server Address", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
+                        TextField("", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
                             .textFieldStyle(.roundedBorder).focused($addressFocused).disabled(app.connecting)
                             .labelsHidden()
                             .onSubmit { connect() }
