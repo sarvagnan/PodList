@@ -64,6 +64,9 @@ import Testing
             } detail: {
                 Text("Episodes").navigationTitle("Default").navigationSubtitle("4 Entries")
                     .toolbar {
+                        ToolbarItem(placement: .navigation) {
+                            Button("Hide Sidebar", systemImage: "sidebar.left") {}
+                        }
                         ToolbarItem(placement: .primaryAction) { PlaylistToolbar(selection: .constant(section)) }
                         EpisodeActionButtons(ids: selected ? [library.snapshot.episodes[0].id] : [], library: library,
                             editing: editing, presentation: presentation, app: app, playlist: library.state.playlists[0])
@@ -80,6 +83,7 @@ import Testing
                             .inspectorColumnWidth(min: 260, ideal: PaneWidths().inspector, max: 440)
                     }
             }
+            .toolbar(removing: .sidebarToggle)
         }
     }
     let controller = NSHostingController(rootView: ToolbarFixture(section: .entries, selected: false, library: library, editing: editing, app: app, presentation: presentation))
@@ -97,6 +101,8 @@ import Testing
             for _ in 0..<5 { await Task.yield(); window.contentView?.superview?.layoutSubtreeIfNeeded() }
             let toolbar = try #require(window.toolbar)
             #expect(!toolbar.items.isEmpty)
+            #expect(!toolbar.items.contains { $0.itemIdentifier == .toggleSidebar })
+            #expect(toolbar.items.filter { $0.label == "Hide Sidebar" }.count == 1)
             let inspector = try #require(toolbar.items.first(where: { $0.label == "Hide Inspector" })?.view)
             inspectorFrames.append(inspector.convert(inspector.bounds, to: nil))
             let root = try #require(window.contentView?.superview)
