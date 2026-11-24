@@ -77,7 +77,7 @@ struct EpisodeInspector: SwiftUI.View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .scrollPosition($scrollPosition)
-                    .onChange(of: row.id) { _, _ in scrollPosition.scrollTo(edge: .top) }
+                    .onChange(of: row.id, initial: true) { _, _ in scrollPosition.scrollTo(edge: .top) }
                     .playbackBarScrollClearance()
                 } else {
                     InspectorEpisodeDetail(row: row, library: library, app: app,
@@ -201,6 +201,8 @@ private struct InspectorEpisodeDetail: SwiftUI.View {
 
     @ViewBuilder private var content: some SwiftUI.View {
         InspectorArtwork(row: row, app: app, loadsArtwork: ready)
+            // Hold the shell's artwork footprint while this Episode's metadata arrives.
+            .id(row.id)
             .frame(maxWidth: .infinity)
         Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("inspector.episodeTitle")
@@ -275,10 +277,15 @@ private struct InspectorArtwork: SwiftUI.View {
     let row: EpisodeRow
     let app: ApplicationModel
     let loadsArtwork: Bool
-    private var size: CGFloat {
+    @State private var size: CGFloat
+
+    init(row: EpisodeRow, app: ApplicationModel, loadsArtwork: Bool) {
+        self.row = row
+        self.app = app
+        self.loadsArtwork = loadsArtwork
         let canLoad = row.artworkURL.map(ArtworkView.canLoad) == true ||
             row.episode?.chapters.contains(where: { $0.artwork != nil }) == true
-        return canLoad ? 180 : 88
+        _size = State(initialValue: canLoad ? 180 : 88)
     }
 
     var body: some SwiftUI.View {
