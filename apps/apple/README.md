@@ -576,9 +576,7 @@ and pressing Escape all preserve the draft after Trash Restore. Editable Cancel 
 Screen 32 shows the Getting Started window, reached from Settings › General or
 Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, and
 43 shows the Inspector explicitly opened at minimum width. The tour asserts that
-the Length column and rows fit the new viewport. In both main appearances the
-tour quits and relaunches the large-sidebar fixture at the bottom of the list
-and checks that the window restores its sidebar position before folding sections.
+the Length column and rows fit the new viewport.
 Screens 06–09 check the Playlist toolbar and which panes are visible. The test
 log records the toolbar shifts and selected Entry width on the first selection.
 It checks that the original click still lies in the selected row and that a

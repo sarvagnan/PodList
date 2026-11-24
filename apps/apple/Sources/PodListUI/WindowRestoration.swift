@@ -47,10 +47,6 @@ struct PodcastOrigin: Codable, Equatable {
     var playlistTab: PlaylistTab?
 }
 
-enum SidebarScrollRow: Codable, Equatable, Hashable {
-    case section(String), command(String), item(Destination)
-}
-
 /// Only browsing state: applying this value cannot edit the Library or start playback.
 /// SwiftUI owns each scene's lifetime; a new WindowGroup scene has no saved value.
 struct WindowContext: Codable, Equatable {
@@ -73,7 +69,6 @@ struct WindowContext: Codable, Equatable {
     var subscriptionSelection = Set<String>()
 
     var scrollAnchor: RowAnchor?
-    var sidebarScrollRow: SidebarScrollRow?
     var paneWidths: PaneWidths?
     var collapsedSidebarSections: Set<SidebarSection.ID>?
 
@@ -166,8 +161,7 @@ extension WindowModel {
                       playlistTab: playlistTab, timelineSelection: timelineSelection, columns: columns, inspectorVisible: inspectorVisible,
                       inspectorExplicitlyOpened: inspectorExplicitlyOpened,
                       podcastFeed: podcastFeed, podcastOrigin: podcastOrigin, subscriptionSelection: subscriptionSelection,
-                      scrollAnchor: scrollAnchor, sidebarScrollRow: sidebarScrollRow,
-                      paneWidths: paneWidths, collapsedSidebarSections: collapsedSidebarSections)
+                      scrollAnchor: scrollAnchor, paneWidths: paneWidths, collapsedSidebarSections: collapsedSidebarSections)
     }
 
     func restore(_ context: WindowContext) {
@@ -177,9 +171,7 @@ extension WindowModel {
         subscriptionSelection = context.subscriptionSelection
         sortOrder = context.sort.map(\.comparator); podcastSort = context.podcastSort
         timelineSelection = context.timelineSelection
-        scrollAnchor = context.scrollAnchor
-        sidebarScrollRow = context.sidebarScrollRow
-        paneWidths = (context.paneWidths ?? PaneWidths()).reconciled
+        scrollAnchor = context.scrollAnchor; paneWidths = (context.paneWidths ?? PaneWidths()).reconciled
         collapsedSidebarSections = context.collapsedSidebarSections ?? []
         if !hasRestoredPaneWidths {
             initialPaneWidths = paneWidths

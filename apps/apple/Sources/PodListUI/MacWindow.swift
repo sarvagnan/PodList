@@ -23,8 +23,6 @@ public struct PodListWindow: SwiftUI.View {
     @State private var inspectorExplicitlyOpened = false
     @SceneStorage("PodList.windowContext.v1") private var savedContext: Data?
     @State private var contextLoaded = false
-    @State private var sidebarScroll = MacSidebarScroll()
-    @State private var pendingSidebarScrollRow: SidebarScrollRow?
     @State private var contextLibraryID: String?
     @AppStorage("PodList.inspectorVisible") private var defaultInspectorVisible = true
     @Environment(\.macTextScale) private var textScale
@@ -255,34 +253,6 @@ public struct PodListWindow: SwiftUI.View {
     }
 
     private func librarySidebar(_ library: LibraryModel, playbackInset: CGFloat) -> some SwiftUI.View {
-        ScrollViewReader { scrollProxy in
-            sidebarList(library)
-                .listStyle(.sidebar)
-                .safeAreaPadding(.bottom, playbackInset)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-                    sidebarScroll.measureViewport($0, update: rememberSidebarRow)
-                }
-                .task(id: sidebarVisible && library.snapshot.isReady) {
-                    guard sidebarVisible, library.snapshot.isReady, let row = pendingSidebarScrollRow else { return }
-                    // The List needs its expanded sections and column width before it can scroll.
-                    await Task.yield()
-                    guard !Task.isCancelled else { return }
-                    scrollProxy.scrollTo(row, anchor: .top)
-                    pendingSidebarScrollRow = nil
-                }
-        }
-        // Sidebar metrics belong to macOS; app Text Size scales content only.
-        .environment(\.macTextScale, 1)
-        // Observe AppKit's divider from the background, without wrapping the column
-        // root or feeding live measurements into its ideal width.
-        .background(MacSidebarWidth { window.paneWidths.sidebar = $0 })
-        .navigationTitle("PodList")
-        .toolbar(removing: .sidebarToggle)
-        // Keep the column width outside the toolbar modifier so the split view observes it.
-        .navigationSplitViewColumnWidth(min: PaneWidths.sidebarMinimum, ideal: window.initialPaneWidths.sidebar, max: 320)
-    }
-
-    private func sidebarList(_ library: LibraryModel) -> some SwiftUI.View {
         let sidebar = library.sidebar
         return List(selection: Binding(get: { podcastFeed == nil ? window.sidebarSelection : .subscriptions }, set: {
             if $0 == nil {
@@ -304,15 +274,12 @@ public struct PodListWindow: SwiftUI.View {
                 })) {
                     if section.name == "Views" {
                         sidebarCommand("New View…", help: "Create a view") { newView() }
-                            .trackSidebarRow(.command(section.id), using: sidebarScroll, update: rememberSidebarRow)
                     }
                     if section.name == "Playlists" {
                         sidebarCommand("New Playlist…", help: "Create a playlist") { playlistPresentation.present(.newPlaylist, from: editOrigin(in: library)) }
-                            .trackSidebarRow(.command(section.id), using: sidebarScroll, update: rememberSidebarRow)
                     }
                     if section.name == "Library" {
                         sidebarCommand("Add Podcasts…", help: "Find and add podcasts") { openWindow(id: "add-podcasts") }
-                            .trackSidebarRow(.command(section.id), using: sidebarScroll, update: rememberSidebarRow)
                     }
                     if section.items.isEmpty {
                         Text("No \(section.name)").foregroundStyle(MacReadableSecondaryStyle())
@@ -346,19 +313,22 @@ public struct PodListWindow: SwiftUI.View {
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("sidebar.\(item.name)")
                         .accessibilityLabel("\(item.name)\(item.destination == .search ? "" : ", \(item.count)")\(item.active ? ", Active Playlist" : "")\(item.clearOnPlayed.map { $0 ? ", Clear on Played on" : ", Clear on Played off" } ?? "")")
-                        .trackSidebarRow(.item(item.destination), using: sidebarScroll, update: rememberSidebarRow)
                     }
-                } header: {
-                    MacSidebarSectionHeader(section.name)
-                        .trackSidebarRow(.section(section.id), using: sidebarScroll, update: rememberSidebarRow)
-                }
+                } header: { MacSidebarSectionHeader(section.name) }
             }
         }
-    }
-
-    private func rememberSidebarRow(_ row: SidebarScrollRow) {
-        guard sidebarVisible, pendingSidebarScrollRow == nil, window.sidebarScrollRow != row else { return }
-        window.sidebarScrollRow = row
+        // Sidebar metrics belong to macOS; app Text Size scales content only.
+        .environment(\.macTextScale, 1)
+        .listStyle(.sidebar)
+        // The native sidebar outline takes its scroll content inset from the safe area.
+        .safeAreaPadding(.bottom, playbackInset)
+        // Observe AppKit's divider from the background, without wrapping the column
+        // root or feeding live measurements into its ideal width.
+        .background(MacSidebarWidth { window.paneWidths.sidebar = $0 })
+        .navigationTitle("PodList")
+        .toolbar(removing: .sidebarToggle)
+        // Keep the column width outside the toolbar modifier so the split view observes it.
+        .navigationSplitViewColumnWidth(min: PaneWidths.sidebarMinimum, ideal: window.initialPaneWidths.sidebar, max: 320)
     }
 
     private func libraryDetail(_ library: LibraryModel, rows: [EpisodeRow], selectedRows: [EpisodeRow],
@@ -982,7 +952,6 @@ public struct PodListWindow: SwiftUI.View {
         let context = (saved.flatMap { $0.libraryID == libraryID ? $0 : nil } ?? WindowContext(libraryID: libraryID, destination: initialDestination ?? .subscriptions))
             .reconciled(in: library)
         window.restore(context)
-        pendingSidebarScrollRow = context.sidebarScrollRow
         columns = context.columns.visibility
         sceneInspectorEnabled = context.inspectorVisible ?? defaultInspectorVisible
         // Older archives only recorded one flag. A hidden sidebar is the

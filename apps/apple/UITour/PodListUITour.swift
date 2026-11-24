@@ -70,8 +70,7 @@ final class PodListUITour: XCTestCase {
     }
 
     private func launch(from root: URL, copy: String, style: String, origin: String, timings: URL? = nil,
-                        delayEntryUndo: Bool = false, delayOperations: Bool = false,
-                        restoreWindows: Bool = false) throws {
+                        delayEntryUndo: Bool = false, delayOperations: Bool = false) throws {
         let bundleURL = root.appendingPathComponent(copy + "/PodList.app")
         let info = try NSDictionary(contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist"), error: ())
         let identifier = try XCTUnwrap(info["CFBundleIdentifier"] as? String)
@@ -102,8 +101,7 @@ final class PodListUITour: XCTestCase {
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
                                "-PodList.mcpEnabled", "NO",
                                "-AppleKeyboardUIMode", "3",
-                               "-ApplePersistenceIgnoreState", restoreWindows ? "NO" : "YES"]
-        if restoreWindows { app.launchArguments += ["-NSQuitAlwaysKeepsWindows", "YES"] }
+                               "-ApplePersistenceIgnoreState", "YES"]
         app.launch()
     }
 
@@ -1259,7 +1257,7 @@ final class PodListUITour: XCTestCase {
 
     private func captureLargeSidebar(from root: URL, style: String) throws {
         let origin = try String(contentsOf: root.appendingPathComponent("sidebar-origin"), encoding: .utf8)
-        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin, restoreWindows: true)
+        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin)
         let sidebar = library.outlines["Sidebar"]
         try ready(sidebarItem("Tour View 04"), timeout: 60)
         try ready(library.buttons["Open Now Playing"])
@@ -1286,25 +1284,7 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(reachedBottom, "The last sidebar row must scroll above the player")
         try ready(sidebarItem("Tour Playlist 30"))
         try capture("41-large-sidebar-bottom")
-        let offset = last.frame.minY - sidebar.frame.minY
-        app.typeKey("q", modifierFlags: .command)
-        XCTAssertTrue(app.wait(for: .notRunning, timeout: 15), "Quit normally to save the window scene")
-        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin, restoreWindows: true)
-        let restoredSidebar = library.outlines["Sidebar"]
-        let restoredSearch = sidebarItem("Search")
-        try ready(restoredSidebar)
-        let restorationDeadline = Date().addingTimeInterval(20)
-        var restored = false
-        while Date() < restorationDeadline {
-            if restoredSearch.exists, !restoredSearch.frame.isEmpty, restoredSidebar.frame.contains(restoredSearch.frame),
-               abs(restoredSearch.frame.minY - restoredSidebar.frame.minY - offset) < 65 {
-                restored = true
-                break
-            }
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        XCTAssertTrue(restored, "Relaunch must show the bottom of the sidebar without a scroll gesture")
-        try captureSidebarFolding(in: restoredSidebar)
+        try captureSidebarFolding(in: sidebar)
     }
 
     private func captureSidebarFolding(in sidebar: XCUIElement) throws {
