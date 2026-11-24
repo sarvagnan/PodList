@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import PodListData
 import PodListDomain
+import struct PodListDomain.Operation
 @testable import PodListUI
 
 func subscription(_ id: String = "s", title: String = "Science", removed: Bool = false) -> Subscription {
@@ -34,6 +35,15 @@ func fixtureDatabase() async throws -> LocalDatabase {
     try await db.upsertLibrary(subscriptions: [subscription(), subscription("t", title: "Talk"), subscription("u", title: "Universe"), subscription("removed", removed: true)],
         episodes: [episode(), episode("b", title: "Beta", published: 200, duration: nil), episode("orphan", subscriptionID: "removed"), episode("t1", subscriptionID: "t")])
     return db
+}
+func pullPeerChanges(_ changes: [Change], into db: LocalDatabase) async throws {
+    let sent = try await db.outbox()
+    let at = Int64(Date().timeIntervalSince1970 * 1000)
+    let peer = changes.enumerated().map { index, change in
+        Operation(id: "peer-\(index)", deviceId: "peer", sequence: Int64(index), recordedAt: at, change: change)
+    }
+    let operations = sent + peer
+    try await db.commitPull(PullPage(cursor: Int64(operations.count), snapshot: fixtureState(), operations: operations), sent: sent)
 }
 func fixtureModel() async throws -> LibraryModel {
     LibraryModel(snapshot: try await fixtureDatabase().readLibrary(), deviceID: "this", now: 1_000)

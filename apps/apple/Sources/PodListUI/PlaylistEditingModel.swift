@@ -220,30 +220,35 @@ public final class PlaylistEditingModel {
                 // Compare the committed states, including external Undo steps and
                 // Clear on Played side effects. Failed reversals never reveal content.
                 let before = restored == nil ? nil : try? await self.database.loadState()
+                let feedback = "\(redo ? "Redone" : "Undone"): \(step.name)"
+                var alreadyRestoredIDs = Set<String>()
                 let action: @MainActor () async throws -> Void = {
                     if let external = step.action, let inverse = step.inverseAction {
                         try await external()
                         self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: [], reload: true, action: inverse, inverseAction: external, sessionID: step.sessionID, origin: step.origin), redo: redo)
-                        self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
+                        self.status = feedback
                         return
                     }
-                    let inverse = try await self.database.reversibleEdit(at: Self.now) { _ in step.changes }
-                    self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: inverse, reload: step.reload, origin: step.origin), redo: redo)
-                    self.status = "\(redo ? "Redone" : "Undone"): \(step.name)"
-                    let restoredIDs = step.changes.compactMap { change -> String? in
-                        if case let .restorePlaylist(id) = change { return id }; return nil
+                    let result = try await self.database.reverseEdit(step.changes, at: Self.now)
+                    self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: result.inverse, reload: step.reload, origin: step.origin), redo: redo)
+                    alreadyRestoredIDs = Set(result.alreadyRestoredPlaylists.map(\.id))
+                    var messages = [feedback]
+                    if !result.restoredPlaylistNames.isEmpty {
+                        let names = result.restoredPlaylistNames.map { "“\($0)”" }.joined(separator: ", ")
+                        messages.append("Restored Playlist \(names)")
                     }
-                    if !restoredIDs.isEmpty, let state = try? await self.database.loadState() {
-                        let names = state.playlists.filter { restoredIDs.contains($0.id) }.map { "“\($0.name)”" }.joined(separator: ", ")
-                        self.status = "\(self.status ?? "") · Restored Playlist \(names)"
-                    }
+                    messages += result.alreadyRestoredPlaylists.map { "“\($0.name)” is already restored." }
+                    self.status = messages.joined(separator: " · ")
                 }
                 if step.action != nil { try await action(); player()?.refresh() }
                 else if let player = player() { try await player.performUserEdit(reload: step.reload, action: action) }
                 else { try await action() }
                 let after = before == nil ? nil : try? await self.database.loadState()
                 await changed()
-                if !self.ended, let before, let after { restored?(RestoredEntries.between(before, and: after)) }
+                if !self.ended, let before, let after {
+                    // Sync may have restored the Playlist after the first snapshot.
+                    restored?(RestoredEntries.between(before, and: after).filter { !alreadyRestoredIDs.contains($0.playlistID) })
+                }
                 #if PODLIST_UI_TOUR
                 TourEditHistoryTrace.record("\(trace) result=success changes=\(step.changes.count)")
                 #endif

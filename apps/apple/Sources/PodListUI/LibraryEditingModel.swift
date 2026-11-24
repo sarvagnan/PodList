@@ -175,9 +175,9 @@ public final class LibraryEditingModel {
             let clean = PodListDomain.View(id: view.id, name: view.name.trimmingCharacters(in: .whitespacesAndNewlines), filter: view.filter, sort: view.sort, limit: view.limit)
             let db = self.db
             return NamedEdit(name: "Edit View", changes: [], reload: false, action: {
-                if let previous { _ = try await db.saveUniqueView(previous, at: Self.now) }
+                if let previous { _ = try await db.saveUniqueView(previous, at: Self.now, skipUnchanged: true) }
                 else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
-            }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now) }, sessionID: sessionID)
+            }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now, skipUnchanged: true) }, sessionID: sessionID)
         }
         await changed()
     }
@@ -206,7 +206,7 @@ public final class LibraryEditingModel {
             try await self.db.record(.deleteView(viewId: view.id), at: Self.now)
             let db = self.db
             return NamedEdit(name: "Delete View", changes: [], reload: false,
-                action: { _ = try await db.saveUniqueView(view, at: Self.now) },
+                action: { _ = try await db.saveUniqueView(view, at: Self.now, skipUnchanged: true) },
                 inverseAction: { try await db.record(.deleteView(viewId: view.id), at: Self.now) })
         }
         notice = "Deleted View “\(view.name)”"; await changed()
@@ -396,12 +396,14 @@ public final class LibraryEditingModel {
 
 extension LocalDatabase {
     /// Validation and write run without suspension, so two windows cannot create duplicate names.
-    public func saveUniqueView(_ view: PodListDomain.View, at: Int64) throws -> PodListDomain.View? {
+    public func saveUniqueView(_ view: PodListDomain.View, at: Int64, skipUnchanged: Bool = false) throws -> PodListDomain.View? {
         let state = try loadState()
-        if let problem = ViewEdits.problem(view) { throw FormFailure(message: problem) }
-        if let problem = ViewNames.problem(view.name, views: state.views, excluding: view.id) { throw FormFailure(message: problem) }
         var clean = view; clean.name = view.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let previous = state.views.first { $0.id == view.id }
+        // An identical synced View can already exist alongside a conflicting name.
+        if skipUnchanged, previous == clean { return previous }
+        if let problem = ViewEdits.problem(view) { throw FormFailure(message: problem) }
+        if let problem = ViewNames.problem(view.name, views: state.views, excluding: view.id) { throw FormFailure(message: problem) }
         try record(.saveView(view: clean), at: at)
         return previous
     }

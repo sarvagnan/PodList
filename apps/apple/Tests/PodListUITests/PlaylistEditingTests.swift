@@ -208,24 +208,92 @@ import PodListDomain
     #expect(try await db.loadState().playlists.contains { $0.id == "default" })
 }
 
+@MainActor @Test func undoPlaylistDeleteAfterSyncedRestoreConsumesUndoAndRetainsRedo() async throws {
+    let (db, model) = try await editingFixture()
+    let id = try #require(await model.create(name: "Commute"))
+    #expect(await model.add(["a"], to: id, placement: .last) == id)
+    let playlist = try #require(try await db.loadState().playlists.first { $0.id == id })
+    #expect(await model.delete(playlist))
+    try await pullPeerChanges([.restorePlaylist(playlistId: id)], into: db)
+    let restoredByPeer = try await db.loadState()
+    #expect(restoredByPeer.playlists.filter { $0.id == id } == [playlist])
+
+    #expect(await model.restore(id) == false)
+    #expect(model.error == "This Playlist is no longer in Trash. Refresh the Library.")
+    var announcements: [String] = []
+    model.announcements.post = { message, _ in announcements.append(message) }
+    var revealed: [RestoredEntries]?
+    await model.reverse { revealed = $0 }
+    let feedback = "Undone: Delete Playlist · “Commute” is already restored."
+    #expect(model.error == nil && model.status == feedback)
+    #expect(announcements == [feedback])
+    #expect(revealed?.isEmpty == true)
+    #expect(model.undoTitle != "Undo Delete Playlist" && model.redoTitle == "Redo Delete Playlist")
+    #expect(try await db.loadState() == restoredByPeer)
+    #expect(try await db.outbox().isEmpty)
+
+    await model.reverse(redo: true)
+    #expect(model.error == nil && model.undoTitle == "Undo Delete Playlist")
+    let redone = try await db.loadState()
+    #expect(!redone.playlists.contains { $0.id == id })
+    #expect(redone.trash?.filter { $0.playlist.id == id }.map(\.playlist) == [playlist])
+    #expect(try await db.outbox().map(\.change) == [.deletePlaylist(playlistId: id)])
+}
+
+@MainActor @Test func undoPlaylistDeleteRestoresFromTrashAndReportsThePlaylistName() async throws {
+    let (db, model) = try await editingFixture()
+    let id = try #require(await model.create(name: "Commute"))
+    let playlist = try #require(try await db.loadState().playlists.first { $0.id == id })
+    #expect(await model.delete(playlist))
+    await model.reverse()
+    #expect(model.error == nil && model.status == "Undone: Delete Playlist · Restored Playlist “Commute”")
+    #expect(try await db.loadState().playlists.filter { $0.id == id } == [playlist])
+    #expect(try await db.outbox().last?.change == .restorePlaylist(playlistId: id))
+}
+
 @MainActor @Test func failedUndoKeepsStepAndAtomicWritesRollBack() async throws {
     let (db, model) = try await editingFixture()
     let id = try #require(await model.create(name: "Gone"))
     let playlist = try #require(try await db.loadState().playlists.first { $0.id == id })
     #expect(await model.delete(playlist))
-    var state = try await db.loadState(); state.trash = []
-    try await db.saveState(state)
+    try await pullPeerChanges([.purgePlaylist(playlistId: id)], into: db)
     var revealed = false
     await model.reverse { _ in revealed = true }
     #expect(!revealed)
-    #expect(model.error != nil && model.undoTitle == "Undo Delete Playlist" && model.history.redo == nil)
+    #expect(model.error == "This Playlist is no longer in Trash.")
+    #expect(model.undoTitle == "Undo Delete Playlist" && model.history.redo == nil)
     let count = try await db.outbox().count
+    #expect(count == 0)
     do {
         _ = try await db.reversibleEdit(at: 100) { _ in [.setStar(episodeId: "pending", starred: true), .createPlaylist(playlistId: "bad", name: "Default", clearOnPlayed: false)] }
         Issue.record("Duplicate name should fail")
     } catch {}
     #expect(try await db.outbox().count == count)
     #expect(try await db.loadState().episodeStates["pending"]?.starred != true)
+}
+
+@MainActor @Test func undoEntryRemovalAfterSyncedAddKeepsOneEntry() async throws {
+    let (db, model) = try await editingFixture()
+    await model.remove(["a"], playlistID: "default")
+    try await pullPeerChanges([.addEntry(playlistId: "default", episodeId: "a", placement: .last)], into: db)
+    await model.reverse()
+    #expect(model.error == nil && model.status == "Undone: Remove from Playlist")
+    #expect(try await db.loadState().playlists[0].entries.map(\.episodeId) == ["b", "a", "pending"])
+}
+
+@MainActor @Test func undoPlaylistRenameAcceptsAnAlreadyRestoredNameDespiteASyncedDuplicate() async throws {
+    let (db, model) = try await editingFixture()
+    let id = try #require(await model.create(name: "Commute"))
+    #expect(await model.rename(id, name: "Morning"))
+    try await pullPeerChanges([
+        .renamePlaylist(playlistId: id, name: "Commute"),
+        .createPlaylist(playlistId: "peer-playlist", name: "Commute", clearOnPlayed: false)
+    ], into: db)
+    let alreadyRenamed = try await db.loadState()
+    await model.reverse()
+    #expect(model.error == nil && model.status == "Undone: Rename Playlist")
+    #expect(try await db.loadState() == alreadyRenamed)
+    #expect(try await db.outbox().isEmpty)
 }
 
 @MainActor @Test func rewindCanUndoRedoWithoutReplacingTheListeningLog() async throws {

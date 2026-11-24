@@ -48,6 +48,7 @@ extension LibraryMessages {
     static func failure(_ error: any Error, operation: FailureOperation) -> String {
         log(error, operation: String(describing: operation))
         if let compatibility = error as? SyncCompatibilityFailure { return compatibility.message }
+        if case LocalDatabase.RestoreFailure.noLongerInTrash = error { return "This Playlist is no longer in Trash." }
         // Preserve actionable form validation and explicit compatibility guidance.
         if operation == .playlistEdit || operation == .action, let message = validation(error) { return message }
         return operation.message

@@ -215,11 +215,50 @@ public actor LocalDatabase {
     /// The builder sees current State, including edits arriving while UI work was queued.
     public func reversibleEdit(at: Int64, validateNames: Bool = true,
                                build: @Sendable (State) throws -> [Change]) throws -> [Change] {
+        try applyReversibleEdit(at: at, validateNames: validateNames, reversing: false, build: build).inverse
+    }
+
+    public struct ReversedEdit: Sendable {
+        public let inverse: [Change]
+        public let restoredPlaylistNames: [String]
+        public let alreadyRestoredPlaylists: [Playlist]
+    }
+
+    public enum RestoreFailure: Error { case noLongerInTrash }
+
+    /// Apply a history step against current State and capture its opposite step.
+    public func reverseEdit(_ changes: [Change], at: Int64) throws -> ReversedEdit {
+        try applyReversibleEdit(at: at, validateNames: true, reversing: true) { _ in changes }
+    }
+
+    private func applyReversibleEdit(at: Int64, validateNames: Bool, reversing: Bool,
+                                     build: @Sendable (State) throws -> [Change]) throws -> ReversedEdit {
         try storage.transaction {
             let changes = try build(loadState())
             var inverse: [Change] = []
+            var restoredIDs = Set<String>()
+            var alreadyRestored: [Playlist] = []
             for (index, requested) in changes.enumerated() {
                 let before = try loadState()
+                let expanded: [Change]
+                if case let .restorePlaylist(id) = requested {
+                    if reversing, let playlist = before.playlists.first(where: { $0.id == id }) {
+                        // The requested restoration is already reflected in State. The
+                        // opposite history step still needs to be able to delete it.
+                        inverse.insert(.deletePlaylist(playlistId: id), at: 0)
+                        alreadyRestored.append(playlist)
+                        continue
+                    }
+                    guard PlaylistRules.availableTrash(before, at: at).contains(where: { $0.playlist.id == id }) else {
+                        if reversing { throw RestoreFailure.noLongerInTrash }
+                        throw DatabaseFailure(description: "This Playlist is no longer in Trash.")
+                    }
+                    expanded = PlaylistNames.restoreChanges(before, id: id, at: at)
+                    if reversing { restoredIDs.insert(id) }
+                } else if case let .reportPosition(id, episode, position, _, listening) = requested {
+                    expanded = [.reportPosition(playlistId: id, episodeId: episode, position: position, listenedAt: at, listening: listening)]
+                } else { expanded = [requested] }
+
                 let deletedLater: Bool
                 if case let .renamePlaylist(id, _) = requested {
                     deletedLater = changes.dropFirst(index + 1).contains(.deletePlaylist(playlistId: id))
@@ -232,6 +271,11 @@ public actor LocalDatabase {
                         guard let playlist = before.playlists.first(where: { $0.id == id }), !playlist.isDefault else {
                             throw DatabaseFailure(description: "This Playlist cannot be renamed.")
                         }
+                        if reversing, playlist.name == name {
+                            // A synced name collision does not prevent keeping the current name.
+                            inverse.insert(requested, at: 0)
+                            continue
+                        }
                         if let problem = PlaylistNames.problem(name, playlists: before.playlists, excluding: id) { throw DatabaseFailure(description: problem) }
                     default: break
                     }
@@ -240,18 +284,10 @@ public actor LocalDatabase {
                    let sub = try readLibrary().subscriptions.first(where: { $0.id == id }) {
                     inverse.insert(.setSubscriptionOverrides(subscriptionId: id, playbackSettings: sub.playbackSettings, playedThreshold: sub.playedThreshold), at: 0)
                 } else if !deletedLater { inverse = EditUndo.inverse(before, change: requested, at: at) + inverse }
-                let expanded: [Change]
-                if case let .restorePlaylist(id) = requested {
-                    expanded = PlaylistNames.restoreChanges(before, id: id, at: at)
-                    guard PlaylistRules.availableTrash(before, at: at).contains(where: { $0.playlist.id == id }) else {
-                        throw DatabaseFailure(description: "This Playlist is no longer in Trash.")
-                    }
-                } else if case let .reportPosition(id, episode, position, _, listening) = requested {
-                    expanded = [.reportPosition(playlistId: id, episodeId: episode, position: position, listenedAt: at, listening: listening)]
-                } else { expanded = [requested] }
                 try recordAll(expanded, at: at)
             }
-            return inverse
+            let restoredNames = restoredIDs.isEmpty ? [] : try loadState().playlists.filter { restoredIDs.contains($0.id) }.map(\.name)
+            return ReversedEdit(inverse: inverse, restoredPlaylistNames: restoredNames, alreadyRestoredPlaylists: alreadyRestored)
         }
     }
 
