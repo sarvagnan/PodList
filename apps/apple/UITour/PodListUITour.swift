@@ -2385,6 +2385,10 @@ extension PodListUITour {
             app.terminate()
         }
         try ready(library, timeout: 60)
+        // XCUITest quits the app when the phase ends; edit phases first wait for the server
+        // to accept the Mac's edits (cursor rises, then holds) so none are left queued.
+        let deliveryStart = ["mac-edit", "offline-flush", "delete-undo"].contains(phase) ? syncServerCursor(origin) : nil
+        defer { if let deliveryStart { syncAwaitDelivery(origin, after: deliveryStart) } }
         switch phase {
         case "connect":
             try syncNavigate("Subscriptions")
@@ -2455,6 +2459,40 @@ extension PodListUITour {
         default:
             XCTFail("Unknown Mac cross-client phase: \(phase)")
         }
+    }
+
+    private func syncServerCursor(_ origin: String) -> Int? {
+        guard let url = URL(string: "\(origin)/api/sync/pull?since=0") else { return nil }
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("7", forHTTPHeaderField: "x-podlist-protocol-version")
+        let done = DispatchSemaphore(value: 0)
+        var cursor: Int?
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data, let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                cursor = (body["cursor"] as? NSNumber)?.intValue
+            }
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + 12)
+        return cursor
+    }
+
+    private func syncAwaitDelivery(_ origin: String, after start: Int) {
+        let deadline = Date().addingTimeInterval(120)
+        var last: Int?
+        var steadySince = Date()
+        while Date() < deadline {
+            if let cursor = syncServerCursor(origin), cursor > start {
+                if cursor == last {
+                    if Date().timeIntervalSince(steadySince) >= 5 { return }
+                } else {
+                    last = cursor
+                    steadySince = Date()
+                }
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        XCTFail("The server did not receive this phase's Mac edits within 120 s")
     }
 
     private func syncWait(_ label: String, timeout: TimeInterval = 30, until: @escaping () -> Bool) {
