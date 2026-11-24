@@ -101,7 +101,20 @@ const tart = (label, ...args) => command("tart", args, label).result
 const guest = (label, args, options) =>
   command("tart", ["exec", vm, "/bin/bash", guestScript, ...args], label, options)
 const boat = (label, ...args) => command("boat", args, label).result
-const remote = (label, ...args) => boat(label, "exec", sandbox, "--", ...args)
+// boat exec reports a JSON envelope (stdout, stderr, exitCode). Unwrap it so callers get
+// the command's own output, and fail on a non-zero exit or Boat's timeout (600 s is the
+// longest single-result timeout; longer ones stream instead).
+const remote = async (label, ...args) => {
+  const raw = await boat(label, "exec", "--json", "--timeout", "600", sandbox, "--", ...args)
+  const line = raw.trim().split("\n").filter((entry) => entry.startsWith("{")).at(-1)
+  const envelope = JSON.parse(line ?? "{}")
+  if (envelope.exitCode !== 0 || envelope.timedOut) {
+    throw new Error(
+      `${label}: exit ${envelope.exitCode}${envelope.timedOut ? " (timed out)" : ""}: ${String(envelope.stderr ?? "").slice(-500)}`
+    )
+  }
+  return String(envelope.stdout ?? "")
+}
 const adb = (label, ...args) => remote(label, adbPath, "-s", serial, ...args)
 const mac = (phase) => guest(`mac-${phase}`, ["test", phase]).result
 
