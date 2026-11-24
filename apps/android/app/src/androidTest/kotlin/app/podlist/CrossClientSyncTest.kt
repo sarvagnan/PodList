@@ -290,7 +290,8 @@ class CrossClientSyncTest {
         await("playable Notebook Entry") { entries.fetchSemanticsNodes().any { entryTitle(it) == NOTEBOOK } }
         val index = entries.fetchSemanticsNodes().indexOfFirst { entryTitle(it) == NOTEBOOK }
         entries[index].performClick()
-        click(flowControl("Now Playing: $NOTEBOOK", substring = true))
+        // The mini player's label is "Now Playing: <Podcast> · <Episode>".
+        click(flowControl("Now Playing:", substring = true) and hasContentDescription(NOTEBOOK, substring = true))
         shown(flowControl("Pause"))
 
         fun seconds() = compose.onAllNodes(hasContentDescription("Position")).fetchSemanticsNodes()
