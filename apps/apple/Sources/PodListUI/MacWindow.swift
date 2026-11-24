@@ -252,7 +252,7 @@ public struct PodListWindow: SwiftUI.View {
         let sidebar = library.sidebar
         return List(selection: Binding(get: { podcastFeed == nil ? window.sidebarSelection : .subscriptions }, set: {
             if $0 == nil {
-                if !sidebarVisible || window.destination == .views || deletedPlaylistBehindSettings(in: library) != nil { return }
+                if !sidebarVisible || deletedPlaylistBehindSettings(in: library) != nil { return }
                 // The outline can deselect a hidden row while its detail remains open.
                 if let selected = podcastFeed == nil ? window.sidebarSelection : .subscriptions,
                    sidebar.contains(where: { section in
@@ -780,7 +780,7 @@ public struct PodListWindow: SwiftUI.View {
                                 ForEach(rows) { row in
                                     MacReadingRow(isSelected: window.selection.contains(row.id)) { episodeTitle(row, rows: rows, library: library) } metadata: {
                                         "Published \(row.episode == nil ? "—" : row.publishedDate.formatted(date: .abbreviated, time: .omitted)) · Length \(row.durationText) · \(row.stateText)"
-                                    }.tag(row.id).draggable(episodeDragPayload(row.id, rows: rows, library: library))
+                                    }.episodeDragSource(row.id).tag(row.id)
                                 }
                             } header: { MacReadingSortControl(sort: Binding(get: { window.sortOrder.compactMap(WindowSort.init) }, set: { window.sortOrder = $0.map(\.comparator) })) }
                         }
@@ -791,25 +791,28 @@ public struct PodListWindow: SwiftUI.View {
                             Table(of: EpisodeRow.self, selection: selection, sortOrder: window.listBinding(\.sortOrder)) {
                                 TableColumn("Episode", value: \.title) { row in
                                     episodeTitle(row, rows: rows, library: library, state: layout.playbackMark(for: row.stateText))
+                                        .episodeDragSource(row.id)
                                 }.width(min: EpisodeTableLayout.minimumTitleWidth)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { row in
-                                        if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
-                                        else { Text("—") }
+                                        Group {
+                                            if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
+                                            else { Text("—") }
+                                        }.episodeDragSource(row.id)
                                     }.width(min: 95, ideal: 110, max: 150)
                                 }
                                 if layout.showsLength {
-                                    TableColumn("Length", value: \.length) { row in Text(row.durationText).monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                                    TableColumn("Length", value: \.length) { row in
+                                        Text(row.durationText).monospacedDigit().episodeDragSource(row.id)
+                                    }.width(min: 60, ideal: 70, max: 100)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { row in
-                                        Text(row.stateText).fixedSize(horizontal: false, vertical: true)
+                                        Text(row.stateText).fixedSize(horizontal: false, vertical: true).episodeDragSource(row.id)
                                     }.width(min: 140, ideal: 150, max: 200)
                                 }
                             } rows: {
-                                ForEach(rows) { row in
-                                    TableRow(row).draggable(episodeDragPayload(row.id, rows: rows, library: library))
-                                }
+                                ForEach(rows) { TableRow($0) }
                             }
                             .tableStyle(.inset)
                             .scrollEdgeEffectHidden(for: .top)
@@ -818,6 +821,11 @@ public struct PodListWindow: SwiftUI.View {
                         }
                     }
                 }
+                .dragContainer(for: EpisodeTransfer.self, itemID: \.dragID) { (ids: [String]) in
+                    let dragged = Set(ids)
+                    return rows.filter { dragged.contains($0.id) }.map { EpisodeTransfer.local($0.id, library: library) }
+                }
+                .dragContainerSelection(rows.map(\.id).filter { selection.wrappedValue.contains($0) })
                 .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) },
                     physicalIDs: (textScale > 1 ? [nil] : []) + rows.map { Optional($0.id) },
                     selection: selection, anchor: window.listBinding(\.scrollAnchor),
@@ -853,10 +861,6 @@ public struct PodListWindow: SwiftUI.View {
         return window.search == "rice" && count == 1 ? .filter : nil
     }
     #endif
-
-    private func episodeDragPayload(_ id: String, rows: [EpisodeRow], library: LibraryModel) -> EpisodeTransfer {
-        EpisodeTransfer.local(id, selection: rows.map(\.id).filter { window.selection.contains($0) }, library: library)
-    }
 
     private func episodeTitle(_ row: EpisodeRow, rows: [EpisodeRow], library: LibraryModel,
                               state: EpisodePlaybackMark? = nil) -> some SwiftUI.View {

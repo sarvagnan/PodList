@@ -17,7 +17,7 @@ struct NewPlaylistSheet: SwiftUI.View {
                      cancel: { dismiss() }, action: submit) {
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Name") {
-                    TextField("Playlist name", text: name).labelsHidden().disabled(editing.busy).focused($focused).onSubmit { submit() }
+                    TextField("Playlist Name", text: name).labelsHidden().disabled(editing.busy).focused($focused).onSubmit { submit() }
                 }
                 if let problem = nameValidation.message(problem) { Text(problem).foregroundStyle(Color.podListError).macContentFont(.caption) }
             }
@@ -91,7 +91,7 @@ struct AddPlaylistSheet: SwiftUI.View {
                     .fixedSize(horizontal: false, vertical: true)
                 if target == "new" {
                     LabeledContent("Name") {
-                        TextField("Playlist name", text: name).labelsHidden().disabled(editing.busy).onSubmit { submit(.last) }
+                        TextField("Playlist Name", text: name).labelsHidden().disabled(editing.busy).onSubmit { submit(.last) }
                     }
                     if let problem = nameValidation.message(problem) { Text(problem).macContentFont(.caption).foregroundStyle(Color.podListError) }
                 }
@@ -206,7 +206,7 @@ struct PlaylistSettingsSheet: SwiftUI.View {
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Name") {
                     VStack(alignment: .leading, spacing: 10) {
-                        TextField("Playlist name", text: name).labelsHidden().disabled(playlist.isDefault)
+                        TextField("Playlist Name", text: name).labelsHidden().disabled(playlist.isDefault)
                             .focused($focused).onSubmit { apply() }
                         if let stagedNameProblem { Text(stagedNameProblem).macContentFont(.caption).foregroundStyle(Color.podListError) }
                         if playlist.isDefault {

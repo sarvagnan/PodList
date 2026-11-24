@@ -82,7 +82,8 @@ func fixtureModel() async throws -> LibraryModel {
 @Test func sidebarCountsAndDeviceDownloadRuleGroups() async throws {
     let model = try await fixtureModel()
     #expect(model.sidebar.map(\.name) == ["Views", "Playlists", "Library"])
-    #expect(model.sidebar[0].items.map(\.count) == [3, 1])
+    #expect(model.sidebar[0].items.first?.destination == .views)
+    #expect(model.sidebar[0].items.map(\.count) == [2, 3, 1])
     #expect(model.sidebar[1].items.map(\.name) == ["Default", "Trash"])
     #expect(model.sidebar[1].items[0].active)
     #expect(model.sidebar[1].items[0].count == 3)
@@ -221,9 +222,9 @@ func fixtureModel() async throws -> LibraryModel {
         (.subscription("s"), all.filter { $0.subscriptionId == "s" }.map(\.id)),
         (.playlist("default"), snapshot.state.playlists[0].entries.map(\.episodeId)),
     ]
-    for (index, view) in snapshot.state.views.enumerated() {
+    for view in snapshot.state.views {
         let expected = evaluate(view)
-        #expect(library.sidebar[0].items[index].count == expected.count)
+        #expect(library.sidebar[0].items.first { $0.destination == .view(view.id) }?.count == expected.count)
         #expect(copy.viewEpisodes(view) == expected)
         destinations.append((.view(view.id), expected.map(\.id)))
     }
@@ -266,7 +267,7 @@ func fixtureModel() async throws -> LibraryModel {
     var state = fixtureState()
     state.views = [recent]
     let old = LibraryModel(snapshot: .init(state: state, subscriptions: [subscription()], episodes: [episode()]), deviceID: "this", now: 1_000)
-    #expect(old.sidebar[0].items.map(\.count) == [1])
+    #expect(old.sidebar[0].items.map(\.count) == [1, 1])
     #expect(old.rows(for: .view(recent.id), search: "alpha").map(\.id) == ["a"])
     #expect(old.libraryEpisodes.map(\.id) == ["a"])
     #expect(old.row("a").position == 65)
@@ -279,7 +280,7 @@ func fixtureModel() async throws -> LibraryModel {
     state.playlists[0].entries.removeAll { $0.episodeId == "a" }
     let fresh = LibraryModel(snapshot: .init(state: state, subscriptions: [subscription()], episodes: [episode(title: "Gamma"), episode("new", title: "Delta", published: 200)]),
                              deviceID: "this", now: 86_401_000)
-    #expect(fresh.sidebar[0].items.map(\.count) == [0])
+    #expect(fresh.sidebar[0].items.map(\.count) == [1, 0])
     #expect(fresh.rows(for: .view(recent.id)).isEmpty)
     #expect(fresh.libraryEpisodes.map(\.id) == ["new", "a"])
     #expect(fresh.rows(for: .search, search: "alpha").isEmpty)

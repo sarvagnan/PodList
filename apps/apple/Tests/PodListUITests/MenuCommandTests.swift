@@ -19,7 +19,7 @@ import UniformTypeIdentifiers
     #expect(MenuActionMenu.edit.items == [.clearSearch, .retry])
     #expect(Set(MenuActionMenu.podcast.items) == [.refresh, .retryFeedRefresh, .backToLibrary, .searchPodcasts])
     #expect(MenuActionMenu.views.items == [.createViewFromSearch, .openCreatedView])
-    #expect(MenuActionMenu.episode.items == [.retryEpisodeDrop, .removeEpisodeDrop])
+    #expect(MenuActionMenu.episode.items == [.retrySelectedEpisodeDrop, .retryAllEpisodeDrops, .removeEpisodeDrop])
     #expect(MenuActionMenu.connection.items == [.connect, .standalone, .disconnect, .offerBringOver, .retryBringOver])
     #expect(MenuActionMenu.controls.items == [.backToNowPlaying, .retryPlayback])
     #expect(MenuActionMenu.automation.items == [.copyConfiguration, .retryAutomation])
@@ -63,8 +63,8 @@ import UniformTypeIdentifiers
     let db = try await fixtureDatabase()
     let defaults = UserDefaults(suiteName: "PodListDropMenu-" + UUID().uuidString)!
     let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "menu", defaults: defaults)
-    #expect(PersistentMenuActions.owns(.retryEpisodeDrop))
-    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+    #expect(PersistentMenuActions.owns(.retryAllEpisodeDrops))
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] == nil)
 
     var retried = 0
     var complete: (() -> Void)?
@@ -72,26 +72,65 @@ import UniformTypeIdentifiers
         retried += 1
         complete?()
     }
-    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] != nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] != nil)
     #expect(PersistentMenuActions.episodeDrops(editor)[.retry] == nil)
     editor.busy = true
-    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] == nil)
     editor.busy = false
     try await editor.edits.performExternal {
-        #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+        #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] == nil)
         return nil
     }
     editor.episodeDrop = EpisodeDropProgress(playlistID: "default", total: 1)
-    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] == nil)
     editor.episodeDrop = nil
-    let command = try #require(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop])
+    let command = try #require(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops])
     await withCheckedContinuation { continuation in
         complete = { continuation.resume() }
         command()
     }
     #expect(retried == 1)
     editor.failedEpisodeDrop = nil
-    #expect(PersistentMenuActions.episodeDrops(editor)[.retryEpisodeDrop] == nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] == nil)
+}
+
+@MainActor @Test func retrySelectedDropOnlyRetriesOneFailedSlotInTheSelectedPlaylist() async throws {
+    let db = try await fixtureDatabase()
+    try await db.record(.createPlaylist(playlistId: "other", name: "Other", clearOnPlayed: false), at: 1000)
+    let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "selected-retry-menu")
+    let first = EpisodeDropSlot(reference: .init(episodeID: "a"), title: "Alpha", failure: "Failed")
+    let second = EpisodeDropSlot(reference: .init(episodeID: "b"), title: "Beta", failure: "Failed")
+    let third = EpisodeDropSlot(reference: .init(episodeID: "pending"), title: "Pending", failure: "Failed")
+    var retried: [String] = []
+    editor.pendingEpisodeDrops = [
+        PendingEpisodeDrop(playlistID: "other", beforeID: nil, slots: [first, second], selected: { retried += $0 }),
+        PendingEpisodeDrop(playlistID: "default", beforeID: nil, slots: [third], selected: { retried += $0 })
+    ]
+
+    #expect(!PersistentMenuActions.owns(.retrySelectedEpisodeDrop))
+    #expect(EpisodeDrop.selectedRetry(selection: [], playlistID: "other", editor: editor) == nil)
+    #expect(EpisodeDrop.selectedRetry(selection: ["a"], playlistID: "other", editor: editor) == nil)
+    #expect(EpisodeDrop.selectedRetry(selection: [first.id, second.id], playlistID: "other", editor: editor) == nil)
+    #expect(EpisodeDrop.selectedRetry(selection: [third.id], playlistID: "other", editor: editor) == nil)
+    editor.busy = true
+    #expect(EpisodeDrop.selectedRetry(selection: [first.id], playlistID: "other", editor: editor) == nil)
+    editor.busy = false
+    try await editor.edits.performExternal {
+        #expect(EpisodeDrop.selectedRetry(selection: [first.id], playlistID: "other", editor: editor) == nil)
+        return nil
+    }
+    editor.episodeDrop = EpisodeDropProgress(playlistID: "default", total: 1)
+    #expect(EpisodeDrop.selectedRetry(selection: [first.id], playlistID: "other", editor: editor) == nil)
+    editor.episodeDrop = nil
+    let retry = try #require(EpisodeDrop.selectedRetry(selection: [first.id], playlistID: "other", editor: editor))
+    await retry()
+
+    #expect(retried == ["a"])
+    #expect(EpisodeDrop.failedIDs(editor: editor) == [second.id, third.id])
+    #expect(EpisodeDrop.selectedRetry(selection: [first.id], playlistID: "other", editor: editor) == nil)
+    #expect(PersistentMenuActions.episodeDrops(editor)[.retryAllEpisodeDrops] != nil)
+    let state = try await db.loadState()
+    #expect(state.playlists.first { $0.id == "other" }?.entries.map(\.episodeId) == ["a"])
 }
 
 @MainActor @Test func failedDropRemovalMenuUsesRowOperationAndKeepsSuccessfulEntries() async throws {

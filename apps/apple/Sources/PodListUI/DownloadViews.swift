@@ -132,8 +132,8 @@ struct DownloadRuleFields: SwiftUI.View {
     var compact = false
     var body: some SwiftUI.View {
         VStack(alignment: .leading) {
-            field(compact ? "Download Rule" : "Downloads on this Mac") {
-                Picker(compact ? "Downloads on this Mac" : "", selection: $mode) {
+            field(compact ? "Download Rule" : "Downloads on This Mac") {
+                Picker(compact ? "Downloads on This Mac" : "", selection: $mode) {
                     Text("Stream").tag(DownloadMode.never)
                     Text("When Episodes become an Entry").tag(DownloadMode.onEntry)
                     Text("As Episodes are published").tag(DownloadMode.allNew)

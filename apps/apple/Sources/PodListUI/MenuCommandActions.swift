@@ -20,7 +20,8 @@ enum MenuAction: String, CaseIterable {
     case createViewFromSearch = "Create View from Search…", openCreatedView = "Open Created View", searchPodcasts = "Search Podcasts"
     case retry = "Retry Failed Operation", copyConfiguration = "Copy Configuration", retryAutomation = "Retry MCP Server"
     case backToNowPlaying = "Back to Now Playing", retryPlayback = "Retry Playback"
-    case retryEpisodeDrop = "Retry Failed Episode Drop"
+    case retrySelectedEpisodeDrop = "Retry Selected Episode Drop"
+    case retryAllEpisodeDrops = "Retry All Failed Episode Drops"
     case removeEpisodeDrop = "Remove Failed Episode Drops"
 
     var menu: MenuActionMenu? {
@@ -28,7 +29,7 @@ enum MenuAction: String, CaseIterable {
         case .showImport, .cancelImport, .retryImport: .file
         case .showRestoredEntries, .showAddedEntries: .editHistory
         case .clearSearch, .retry: .edit
-        case .retryEpisodeDrop, .removeEpisodeDrop: .episode
+        case .retrySelectedEpisodeDrop, .retryAllEpisodeDrops, .removeEpisodeDrop: .episode
         case .refresh, .retryFeedRefresh, .backToLibrary, .searchPodcasts: .podcast
         case .createViewFromSearch, .openCreatedView: .views
         case .connect, .standalone, .disconnect, .offerBringOver, .retryBringOver: .connection
@@ -85,6 +86,7 @@ private struct RecoveryActionsKey: FocusedValueKey { typealias Value = MenuActio
 private struct SettingsActionsKey: FocusedValueKey { typealias Value = MenuActionContext }
 private struct TutorialActionsKey: FocusedValueKey { typealias Value = MenuActionContext }
 private struct PlayerActionsKey: FocusedValueKey { typealias Value = MenuActionContext }
+private struct SelectedDropRetryKey: FocusedValueKey { typealias Value = () -> Void }
 private struct SortActionsKey: FocusedValueKey { typealias Value = Binding<[WindowSort]> }
 private struct DailyTableKey: FocusedValueKey { typealias Value = Binding<Bool> }
 extension FocusedValues {
@@ -97,6 +99,7 @@ extension FocusedValues {
     var podListSettingsActions: MenuActionContext? { get { self[SettingsActionsKey.self] } set { self[SettingsActionsKey.self] = newValue } }
     var podListTutorialActions: MenuActionContext? { get { self[TutorialActionsKey.self] } set { self[TutorialActionsKey.self] = newValue } }
     var podListPlayerActions: MenuActionContext? { get { self[PlayerActionsKey.self] } set { self[PlayerActionsKey.self] = newValue } }
+    var podListSelectedDropRetry: (() -> Void)? { get { self[SelectedDropRetryKey.self] } set { self[SelectedDropRetryKey.self] = newValue } }
     var podListSort: Binding<[WindowSort]>? { get { self[SortActionsKey.self] } set { self[SortActionsKey.self] = newValue } }
     var podListDailyTable: Binding<Bool>? { get { self[DailyTableKey.self] } set { self[DailyTableKey.self] = newValue } }
 }
@@ -112,6 +115,7 @@ struct MenuActionItems: SwiftUI.View {
     @FocusedValue(\.podListSettingsActions) private var settings
     @FocusedValue(\.podListPlayerActions) private var player
     @FocusedValue(\.podListRecoveryActions) private var recovery
+    @FocusedValue(\.podListSelectedDropRetry) private var selectedDropRetry
     var body: some SwiftUI.View {
         ForEach(menu.items, id: \.self) { item in
             Button(item == .retry ? retryTitle : item.rawValue) { action(item)?() }
@@ -124,6 +128,7 @@ struct MenuActionItems: SwiftUI.View {
             .compactMap { $0 }.first { $0[.retry] != nil }?.retryTitle ?? MenuAction.retry.rawValue
     }
     private func action(_ item: MenuAction) -> (() -> Void)? {
+        if item == .retrySelectedEpisodeDrop { return selectedDropRetry }
         if let app, PersistentMenuActions.owns(item) { return PersistentMenuActions.context(app)[item] }
         return recovery?[item] ?? discovery?[item] ?? searchView?[item] ?? imports?[item] ?? settings?[item] ?? player?[item] ?? window?[item]
     }
@@ -134,13 +139,13 @@ struct MenuActionItems: SwiftUI.View {
 @MainActor enum PersistentMenuActions {
     static func owns(_ action: MenuAction) -> Bool {
         [.refresh, .retryFeedRefresh, .showImport, .cancelImport, .retryImport, .retryBringOver,
-         .retryPlayback, .retryEpisodeDrop, .removeEpisodeDrop, .copyConfiguration, .retryAutomation].contains(action)
+         .retryPlayback, .retryAllEpisodeDrops, .removeEpisodeDrop, .copyConfiguration, .retryAutomation].contains(action)
     }
     static func episodeDrops(_ editor: LibraryEditingModel) -> MenuActionContext {
         guard editor.episodeDrop == nil, !editor.busy, !editor.edits.busy else { return MenuActionContext() }
         var actions: [MenuAction: () -> Void] = [:]
         if let failure = editor.failedEpisodeDrop {
-            actions[.retryEpisodeDrop] = {
+            actions[.retryAllEpisodeDrops] = {
                 editor.edits.announcements.error(nil)
                 Task { await failure.retry() }
             }

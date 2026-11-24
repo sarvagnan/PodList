@@ -76,7 +76,7 @@ existing Episode audio endpoint on failure or a ten-second loading timeout. Each
 tried once per load, preserving Position and Speed. Failed playback offers Retry. Streaming
 from a reachable publisher works while the server is offline. Speed preserves pitch using
 AVFoundation's spectral algorithm; player Speed changes apply only to the loaded Episode.
-Saved global settings and Subscription overrides supply Speed, Skip intro/outro and Volume
+Saved global settings and Subscription overrides supply Speed, Skip Intro, Skip Outro and Volume
 boost (+6 dB with peak limiting via a native audio processing tap).
 
 The Played threshold updates State, History, Clear on Played and Cursor immediately while
@@ -571,6 +571,22 @@ the retained Search and selected Entry, and Show Restored Entries are visible.
 The tour uses Edit › Show Restored Entries to reveal and select the restored Entry.
 It also checks that Space inserts a space in toolbar Search, the inline View name,
 Playlist Settings and Add Podcasts. Empty History and Stats expose the next action.
+Screen 05 checks that Saved Views › Show All Views selects the All Views row in
+the Views section. Screens 18–19 compare the Podcast Episode column widths and
+positions before and after description expansion, and screen 18 requires six
+Episodes to fit. The native table tests check that all visible columns are
+user-resizable and that the Podcast table scrolls without a vertical scrollbar.
+This keeps the column positions fixed when the available height changes,
+including with macOS set to use legacy scrollbars. The menu inventory checks
+that both Episode drop retry commands are visible and disabled with no
+failures. Unit tests cover the selected and
+batch retry scopes and the ordered per-Episode drag representations. The
+cross-app drag itself is a manual check from the multi-selection state in
+screen 33. Each dragged Episode offers its own title and, when available, URL.
+The Light follow-ups exercise clock input in Go to Time while paused, then
+check that the disconnected Settings form keeps its Server Address label while
+the field contains typed text. Form labels use consistent title case per
+[Apple’s Human Interface Guidelines for writing](https://developer.apple.com/design/human-interface-guidelines/writing).
 Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
 attachments` produces `light/NN-name.png` and `.txt`, `dark/NN-name.png` and
@@ -608,10 +624,14 @@ tour build with a disposable `app.podlist.uitour.*`
 bundle ID and the tour's `PODLIST_UI_TIMINGS_FILE` launch environment value,
 an absolute file path inside temporary storage.
 
+Before either the full tour or the timings-only pass, the guest waits for its
+one-minute load average to fall below 0.8. The runner logs the load every ten
+seconds and proceeds after at most 12 minutes. A freshly booted clone can
+roughly triple the measured times.
+
 For quick performance checks, `PODLIST_UI_VM=podlist-ui scripts/ui-tour.sh --timings <empty-outdir>`
-runs only the Light timing runs and prints `timings.txt` (about 15–20 minutes). The guest first
-waits for its load average to settle, because a freshly booted clone roughly triples these
-figures, and then does three unrecorded warm-up rounds. Use
+runs only the Light timing runs and prints `timings.txt` (about 15–20 minutes).
+This pass does three unrecorded warm-up rounds. Use
 `PODLIST_BUILD_CONFIGURATION=release` to measure the optimized build. Add
 `PODLIST_UI_PROFILE=1` to record a trace in `guest-diagnostics/timings-profile-N.trace`
 and its table of contents in `timings-profile-N-toc.xml`. The default

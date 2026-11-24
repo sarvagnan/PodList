@@ -60,7 +60,7 @@ struct PlaylistContentView: SwiftUI.View {
                                 MacReadingRow(isSelected: window.selection.contains(row.id)) { entryTitle(row) } metadata: {
                                     "Position \(Presentation.time(row.position ?? 0)) · Length \(row.durationText) · \(row.stateText)"
                                 }
-                                .tag(item.id).draggable(dragPayload(row.id))
+                                .episodeDragSource(row.id).tag(item.id)
                             } else if let slot = item.placeholder {
                                 placeholder(slot).tag(item.id).selectionDisabled(slot.failure == nil)
                             }
@@ -75,25 +75,29 @@ struct PlaylistContentView: SwiftUI.View {
                         let layout = EpisodeTableLayout(width: geometry.size.width)
                         Table(of: PlaylistDropRow.self, selection: selection) {
                             TableColumn("Entry") { (item: PlaylistDropRow) in
-                                if let row = item.entry { entryTitle(row, state: layout.playbackMark(for: row.stateText)) }
+                                if let row = item.entry {
+                                    entryTitle(row, state: layout.playbackMark(for: row.stateText)).episodeDragSource(row.id)
+                                }
                                 else if let slot = item.placeholder { placeholder(slot) }
                             }.width(min: EpisodeTableLayout.minimumTitleWidth)
                             if layout.showsDateOrPosition {
-                                TableColumn("Position") { item in Text(item.entry.map { Presentation.time($0.position ?? 0) } ?? "—").monospacedDigit() }.width(min: 70, ideal: 90, max: 110)
+                                TableColumn("Position") { item in
+                                    Text(item.entry.map { Presentation.time($0.position ?? 0) } ?? "—")
+                                        .monospacedDigit().episodeDragSource(item.entry?.id)
+                                }.width(min: 70, ideal: 90, max: 110)
                             }
                             if layout.showsLength {
-                                TableColumn("Length") { item in Text(item.entry?.durationText ?? "—").monospacedDigit() }.width(min: 60, ideal: 70, max: 100)
+                                TableColumn("Length") { item in
+                                    Text(item.entry?.durationText ?? "—").monospacedDigit().episodeDragSource(item.entry?.id)
+                                }.width(min: 60, ideal: 70, max: 100)
                             }
                             if layout.showsState {
                                 TableColumn("State") { item in
-                                    Text(item.entry?.stateText ?? "").fixedSize(horizontal: false, vertical: true)
+                                    Text(item.entry?.stateText ?? "").fixedSize(horizontal: false, vertical: true).episodeDragSource(item.entry?.id)
                                 }.width(min: 140, ideal: 150, max: 200)
                             }
                         } rows: {
-                            ForEach(displayedRows) { item in
-                                if let row = item.entry { TableRow(item).draggable(dragPayload(row.id)) }
-                                else { TableRow(item) }
-                            }
+                            ForEach(displayedRows) { TableRow($0) }
                                 .dropDestination(for: EpisodeTransfer.self) { index, values in
                                     _ = drop(values, at: index)
                                 }
@@ -103,6 +107,10 @@ struct PlaylistContentView: SwiftUI.View {
                     }
                 }
             }
+            .dragContainer(for: EpisodeTransfer.self, itemID: \.dragID) { (ids: [String]) in
+                ordered(Set(ids)).map { EpisodeTransfer.local($0, sourcePlaylistID: playlist.id, library: library) }
+            }
+            .dragContainerSelection(ordered(selection.wrappedValue))
             .overlay {
                 if displayedRows.isEmpty {
                     PodListEmptyState("No Entries", systemImage: "music.note.list",
@@ -141,12 +149,18 @@ struct PlaylistContentView: SwiftUI.View {
             })
             .onDeleteCommand(perform: removeSelection)
             .focusedSceneValue(\.podListRemovePlaylistSelection, removeSelection)
+            .focusedValue(\.podListSelectedDropRetry, retrySelection)
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 
         }
     }
     private var failedDropIDs: [String] {
         app.libraryEditing.map { EpisodeDrop.failedIDs(editor: $0, playlistID: playlist.id) } ?? []
+    }
+    private var retrySelection: (() -> Void)? {
+        guard !isTrashed, let editor = app.libraryEditing,
+              let retry = EpisodeDrop.selectedRetry(selection: entrySelection.wrappedValue, playlistID: playlist.id, editor: editor) else { return nil }
+        return { EditOrigin.start(origin) { await retry() } }
     }
     private var removeSelection: (() -> Void)? {
         let entries = ordered(window.selection)
@@ -204,9 +218,6 @@ struct PlaylistContentView: SwiftUI.View {
         }
     }
     private func ordered(_ selection: Set<String>) -> [String] { rows.map(\.id).filter { selection.contains($0) } }
-    private func dragPayload(_ id: String) -> EpisodeTransfer {
-        EpisodeTransfer.local(id, selection: ordered(window.selection), sourcePlaylistID: playlist.id, library: library)
-    }
     private func drop(_ values: [EpisodeTransfer], at index: Int) -> Bool {
         drop(values, before: displayedRows.dropFirst(min(max(0, index), displayedRows.count)).compactMap { $0.entry?.id }.first)
     }

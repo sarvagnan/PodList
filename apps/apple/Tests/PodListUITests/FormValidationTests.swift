@@ -240,15 +240,17 @@ func lastDaysDraftsRequireAnEditableWholeNumberWithinRange(_ identifier: String)
     let locale = Locale(identifier: "de_DE"), duration = 1748.0
     var visibility = FormValidationVisibility()
     #expect(visibility.message(FormNumbers.seekProblem("", duration: duration, locale: locale)) == nil)
+    #expect(FormNumbers.seekHint(duration: duration) == "Use m:ss, h:mm:ss, or seconds. Enter a time from 0:00 to 29:08.")
     visibility.edited(from: "", to: "-")
-    for raw in ["", "-", "-1", "NaN", "∞", "word", "1748,1"] {
+    for raw in ["", "-", "-1", "NaN", "∞", "word", "1748,1", "0:60", "0:00:60", "1:72:00", "1::00", "1:2", "29:09", "-1:00"] {
         #expect(FormNumbers.seekPosition(raw, duration: duration, locale: locale) == nil)
-        #expect(visibility.message(FormNumbers.seekProblem(raw, duration: duration, locale: locale)) == "Enter a time from 0:00 to 29:08 (in seconds).")
+        #expect(visibility.message(FormNumbers.seekProblem(raw, duration: duration, locale: locale)) == "Enter a valid time within the range shown.")
     }
-    for (raw, expected) in [("0", 0.0), ("1,5", 1.5), ("1748", duration)] {
+    for (raw, expected) in [("0", 0.0), ("1,5", 1.5), ("1748", duration), ("0:00", 0), ("29:08", duration), ("0:29:08", duration)] {
         #expect(FormNumbers.seekPosition(raw, duration: duration, locale: locale) == expected)
         #expect(visibility.message(FormNumbers.seekProblem(raw, duration: duration, locale: locale)) == nil)
     }
+    #expect(FormNumbers.seekPosition(" 1:30:08 ", duration: 6000, locale: locale) == 5408)
     #expect(FormNumbers.seekProblem("1", duration: nil, locale: locale) == "The Episode duration is unavailable.")
 }
 

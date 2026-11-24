@@ -25,7 +25,7 @@ struct AutomationSettingsScreen: SwiftUI.View {
                         }
                     }
                     if settings.isEnabled {
-                        LabeledContent("Bridge path") { Text(settings.bridgePath).textSelection(.enabled) }
+                        LabeledContent("Bridge Path") { Text(settings.bridgePath).textSelection(.enabled) }
                         Text("MCP client configuration").macContentFont(.headline)
                         Text(settings.clientConfiguration).macContentFont(.system(.caption, design: .monospaced, weight: nil)).textSelection(.enabled)
                         Button("Copy Configuration", action: copyConfiguration)
@@ -94,7 +94,7 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                 }
                 Section("Server Connection") {
                     if let origin = app.origin {
-                        LabeledContent("Server address") {
+                        LabeledContent("Server Address") {
                             Text(origin).foregroundStyle(.primary).textSelection(.enabled)
                         }
                         if app.bringOverAvailable { Button("Bring Library from This Mac…") { Task { await app.offerBringOver() } }.disabled(app.syncing) }
@@ -108,8 +108,14 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                     } else {
                         Text(app.isStandalone ? "Standalone Device — your Library is on this Mac." : "Connect to a server from Welcome.")
                             .macContentFont(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize(horizontal: false, vertical: true)
-                        TextField("Server address", text: $app.serverInput)
-                            .accessibilityLabel("Server address")
+                        LabeledContent("Server Address") {
+                            // One name only: a title plus an accessibility label read as
+                            // "Server Address, Server Address"; LabeledContent adds none.
+                            TextField("", text: $app.serverInput, prompt: Text("https://podlist.example.ts.net"))
+                                .labelsHidden()
+                                .accessibilityLabel("Server Address")
+                                .accessibilityIdentifier("settings.serverAddress")
+                        }
                         VStack(alignment: .leading, spacing: 5) {
                             Button("Check and Connect") { Task { await app.connect() } }.disabled(app.connecting || app.serverInput.isEmpty)
                             if app.isStandalone {
@@ -184,11 +190,11 @@ private struct GeneralLibrarySettingsFields: SwiftUI.View {
                     if ![0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].contains(draft.playback.speed) { Text("\(draft.playback.speed.formatted())×").tag(draft.playback.speed) }
                 }.accessibilityLabel("Speed")
                 playbackFailure("Speed")
-                PersistentNumberField(label: "Skip intro", field: "settings.skipIntro", value: draft.playback.skipIntro, editor: editor) {
+                PersistentNumberField(label: "Skip Intro", field: "settings.skipIntro", value: draft.playback.skipIntro, editor: editor) {
                     draft.playback.skipIntro = $0; savePlayback("Skip Intro")
                 }
                 playbackFailure("Skip Intro")
-                PersistentNumberField(label: "Skip outro", field: "settings.skipOutro", value: draft.playback.skipOutro, editor: editor) {
+                PersistentNumberField(label: "Skip Outro", field: "settings.skipOutro", value: draft.playback.skipOutro, editor: editor) {
                     draft.playback.skipOutro = $0; savePlayback("Skip Outro")
                 }
                 playbackFailure("Skip Outro")

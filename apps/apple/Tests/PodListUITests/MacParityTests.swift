@@ -6,8 +6,10 @@ import PodListData
 
 @MainActor @Test func sidebarSelectionTracksAllViewsAndPodcastParentWithoutChangingContent() {
     let window = WindowModel()
+    window.collapsedSidebarSections = ["Views", "Playlists"]
     window.navigate(to: .views)
-    #expect(window.sidebarSelection == nil)
+    #expect(window.sidebarSelection == .views)
+    #expect(window.collapsedSidebarSections == ["Playlists"])
     window.navigate(to: .subscription("podcast"))
     window.selection = ["episode"]
     window.search = "query"

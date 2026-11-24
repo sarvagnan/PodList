@@ -123,39 +123,60 @@ func expandedPodcastHeaderLeavesControlsAndEpisodeSpaceAbovePlayer(scale: CGFloa
     #expect(clearance >= inset - 1)
 }
 
-@MainActor @Test(arguments: [400.0, 480.0, 640.0, 735.0, 955.0], [100.0, 393.0])
-func podcastColumnsFitTheNativeViewport(width: CGFloat, height: CGFloat) throws {
+@MainActor @Test(arguments: [400.0, 480.0, 640.0, 735.0, 955.0])
+func podcastColumnsFitAndStayStableWhenTheViewportHeightChanges(width: CGFloat) throws {
     struct Row: Identifiable { let id: Int }
     let layout = EpisodeTableLayout(width: width)
     let rows = (0..<6).map { Row(id: $0) }
     let root = Table(rows) {
-        TableColumn("Episode") { row in Text("Episode \(row.id)") }.width(layout.podcastTitleWidth)
+        TableColumn("Episode") { row in Text("Episode \(row.id)") }.width(min: EpisodeTableLayout.minimumTitleWidth, ideal: layout.podcastTitleWidth)
         if layout.showsDateOrPosition {
-            TableColumn("Published") { _ in Text("Nov 23, 2026") }.width(EpisodeTableLayout.podcastPublishedWidth)
+            TableColumn("Published") { _ in Text("Nov 23, 2026") }.width(min: 95, ideal: EpisodeTableLayout.podcastPublishedWidth, max: 150)
         }
         if layout.showsLength {
-            TableColumn("Length") { _ in Text("25:34") }.width(EpisodeTableLayout.podcastLengthWidth)
+            TableColumn("Length") { _ in Text("25:34") }.width(min: 60, ideal: EpisodeTableLayout.podcastLengthWidth, max: 100)
         }
         if layout.showsState {
-            TableColumn("State") { _ in Text("In progress") }.width(EpisodeTableLayout.podcastStateWidth)
+            TableColumn("State") { _ in Text("In progress") }.width(min: 120, ideal: EpisodeTableLayout.podcastStateWidth, max: 200)
         }
     }.tableStyle(.inset)
+        .scrollIndicators(.never, axes: .vertical)
     let host = NSHostingView(rootView: root)
-    host.frame = CGRect(x: 0, y: 0, width: width, height: height)
+    host.frame = CGRect(x: 0, y: 0, width: width, height: 393)
     host.layoutSubtreeIfNeeded()
     let table = try #require(descendants(host).compactMap { $0 as? NSTableView }.first)
     let scroll = try #require(table.enclosingScrollView)
     scroll.scrollerStyle = .legacy
-    scroll.tile()
-    let requiredWidth = table.rect(ofColumn: table.numberOfColumns - 1).maxX
-    let visibleWidth = scroll.documentVisibleRect.width
-    #expect(requiredWidth <= visibleWidth + 1,
-            "The final column ends at \(requiredWidth) pt in a \(visibleWidth) pt viewport")
+    #expect(table.tableColumns.allSatisfy { $0.resizingMask.contains(.userResizingMask) })
+    let columns = 0..<table.numberOfColumns
+    var initialFrames: [CGRect]?
+    for height: CGFloat in [393, 100, 393] {
+        host.frame.size.height = height
+        host.layoutSubtreeIfNeeded()
+        scroll.tile()
+        let frames = columns.map { table.rect(ofColumn: $0) }
+        let requiredWidth = try #require(frames.last).maxX
+        let visibleWidth = scroll.documentVisibleRect.width
+        #expect(requiredWidth <= visibleWidth + 1,
+                "The final column ends at \(requiredWidth) pt in a \(visibleWidth) pt viewport")
+        let clip = scroll.contentView
+        var proposed = clip.bounds
+        proposed.origin.x = width
+        #expect(clip.constrainBoundsRect(proposed).minX <= clip.bounds.minX + 1,
+                "Podcast columns must fit without horizontal scrolling")
+        if let initialFrames {
+            for (before, after) in zip(initialFrames, frames) {
+                #expect(abs(before.minX - after.minX) <= 1 && abs(before.width - after.width) <= 1)
+            }
+        } else {
+            initialFrames = frames
+        }
+    }
+    host.frame.size.height = 100
+    host.layoutSubtreeIfNeeded()
     let clip = scroll.contentView
-    var proposed = clip.bounds
-    proposed.origin.x = width
-    #expect(clip.constrainBoundsRect(proposed).minX <= clip.bounds.minX + 1,
-            "Podcast columns must fit without horizontal scrolling")
+    clip.scroll(to: CGPoint(x: 0, y: table.rect(ofRow: rows.count - 1).maxY))
+    #expect(scroll.documentVisibleRect.minY > 0, "The table must still scroll when the rows overflow")
 }
 
 @MainActor private func descendants(_ view: NSView) -> [NSView] {
