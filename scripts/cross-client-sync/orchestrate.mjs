@@ -421,21 +421,28 @@ try {
     const { cursor: before } = await pull()
     writeFileSync(macOffline, "")
     writeFileSync(androidOffline, "")
-    const guestHealth = command(
-      "tart",
-      [
-        "exec",
-        vm,
-        "/usr/bin/curl",
-        "-fsS",
-        "--max-time",
-        "3",
-        `http://127.0.0.1:${port}/api/health`
-      ],
-      "mac-offline-probe"
-    ).result
-    await assert.rejects(guestHealth)
-    await assert.rejects(fetch(`${webServer}/api/health`, { signal: AbortSignal.timeout(3_000) }))
+    // The gate files reach the guest through the shared folder, which can lag; wait
+    // until each relay actually refuses rather than probing once.
+    await until("Mac relay offline", async () => {
+      try {
+        await command(
+          "tart",
+          ["exec", vm, "/usr/bin/curl", "-fsS", "--max-time", "3", `http://127.0.0.1:${port}/api/health`],
+          "mac-offline-probe"
+        ).result
+        return false
+      } catch {
+        return true
+      }
+    }, 30_000)
+    await until("host relay offline", async () => {
+      try {
+        await fetch(`${webServer}/api/health`, { signal: AbortSignal.timeout(3_000) })
+        return false
+      } catch {
+        return true
+      }
+    }, 30_000)
     await mac("offline-edit")
     await android("offline-edit")
     const disconnected = await pull(before)
