@@ -2431,7 +2431,10 @@ extension PodListUITour {
             try syncWorkshop("Workshop Offline Mac", [syncNotebook, syncJoinery, syncChair])
         case "offline-flush":
             try ready(sidebarItem("Workshop Offline Mac"), timeout: 60)
-            try ready(text("Up to date"), timeout: 90)
+            // A sync that failed before the relay reopened waits for the 60 s timer; retry it.
+            let retry = library.buttons["Retry"].firstMatch
+            if retry.waitForExistence(timeout: 10) { retry.click() }
+            try ready(text("Up to date"), timeout: 120)
         case "offline-check":
             try syncWorkshop("Workshop Offline Mac", [syncJoinery, syncNotebook, syncChair])
             let expected = try String(contentsOf: syncControl.appendingPathComponent("offline-position"), encoding: .utf8)

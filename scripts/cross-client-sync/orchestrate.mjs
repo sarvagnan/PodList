@@ -480,6 +480,19 @@ try {
     const androidCursor = (await pull()).cursor
 
     rmSync(macOffline)
+    // The gate file's removal also reaches the guest through the lagging shared folder.
+    await until("Mac relay back online", async () => {
+      try {
+        await command(
+          "tart",
+          ["exec", vm, "/usr/bin/curl", "-fsS", "--max-time", "3", `http://127.0.0.1:${port}/api/health`],
+          "mac-online-probe"
+        ).result
+        return true
+      } catch {
+        return false
+      }
+    }, 30_000)
     await mac("offline-flush")
     const macChanges = (await pull(androidCursor)).operations
     const macListen = mostRecent(macChanges)
