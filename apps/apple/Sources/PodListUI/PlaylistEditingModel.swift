@@ -399,7 +399,8 @@ public final class PlaylistEditingModel {
     }
     public func move(_ ids: Set<String>, playlistID: String, down: Bool) async {
         _ = await edit(name: down ? "Move Down" : "Move Up") { state in
-            guard let playlist = state.playlists.first(where: { $0.id == playlistID }) else { return [] }
+            guard let playlist = state.playlists.first(where: { $0.id == playlistID }),
+                  EpisodeActions.canMove(ids, in: playlist, down: down) else { return [] }
             var order = playlist.entries.map(\.episodeId)
             if down {
                 for index in order.indices.reversed() where index + 1 < order.count && ids.contains(order[index]) && !ids.contains(order[index + 1]) { order.swapAt(index, index + 1) }

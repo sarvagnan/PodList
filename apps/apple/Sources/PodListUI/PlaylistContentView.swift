@@ -213,7 +213,9 @@ struct PlaylistContentView: SwiftUI.View {
             Divider()
             Button("Play from Here") { EditOrigin.start(origin) { await editing.playFromHere(playlistID: playlist.id, episodeID: ids.first) } }
             Button("Move Up") { EditOrigin.start(origin) { await editing.move(Set(ids), playlistID: playlist.id, down: false) } }
+                .disabled(editing.busy || !EpisodeActions.canMove(Set(ids), in: playlist, down: false))
             Button("Move Down") { EditOrigin.start(origin) { await editing.move(Set(ids), playlistID: playlist.id, down: true) } }
+                .disabled(editing.busy || !EpisodeActions.canMove(Set(ids), in: playlist, down: true))
             Button("Remove from Playlist") { EditOrigin.start(origin) { await editing.remove(ids, playlistID: playlist.id) } }
         }
     }
