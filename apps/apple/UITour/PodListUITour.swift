@@ -2602,7 +2602,7 @@ extension PodListUITour {
         try ready(library.buttons["Restore Playlist \(name)"])
         // The runner can't write into the shared folder (NSCocoaError 513); the host polls the
         // guest's own disk for this checkpoint with tart exec.
-        try Data().write(to: URL(fileURLWithPath: "/private/tmp/podlist-uitour-run/cross-sync/mac-deleted"), options: .atomic)
+        try Data().write(to: URL(fileURLWithPath: "/private/tmp/podlist-cross-sync-mac-deleted"), options: .atomic)
 
         let proceed = syncControl.appendingPathComponent("mac-undo").path
         let abort = syncControl.appendingPathComponent("mac-abort").path
