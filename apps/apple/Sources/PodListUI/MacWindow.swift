@@ -48,7 +48,7 @@ public struct PodListWindow: SwiftUI.View {
         }
         .frame(minWidth: 760, minHeight: 500)
         .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
-            guard width > 0 else { return }
+            guard width.isFinite, width > 0 else { return }
             windowWidth = width
             if contextLoaded { updatePanes(.layoutChanged) }
         }
@@ -176,7 +176,9 @@ public struct PodListWindow: SwiftUI.View {
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
                           openNowPlaying: { openWindow(id: "now-playing") }, announcements: app.announcements)
                     .environment(\.podListRecoveryIndexed, true)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { playbackBarHeight = $0 }
+                    .onGeometryChange(for: CGFloat.self) {
+                        EpisodeTableLayout.viewportDimension($0.size.height)
+                    } action: { playbackBarHeight = $0 }
             }
         }
         .environment(\.libraryPlaybackBarInset, playbackInset)
@@ -372,13 +374,14 @@ public struct PodListWindow: SwiftUI.View {
             }
             // Lists and AppKit tables must fit the space left by window feedback.
             GeometryReader { viewport in
+                let size = EpisodeTableLayout.viewportSize(viewport.size)
                 Group {
                     if let podcastFeed, let editor = app.libraryEditing {
                         podcastPage(feed: podcastFeed, editor: editor, library: library)
                     } else { content(library, rows: rows, deletedPlaylist: deletedPlaylist) }
                 }
                 .id(window.destination).id(podcastFeed)
-                .frame(width: viewport.size.width, height: viewport.size.height)
+                .frame(width: size.width, height: size.height)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -797,30 +800,29 @@ public struct PodListWindow: SwiftUI.View {
                         }
                         .playbackBarScrollClearance()
                     } else {
-                        GeometryReader { geometry in
-                            let layout = EpisodeTableLayout(width: geometry.size.width)
+                        EpisodeTableViewport { layout in
                             Table(of: EpisodeRow.self, selection: selection, sortOrder: window.listBinding(\.sortOrder)) {
                                 TableColumn("Episode", value: \.title) { row in
                                     episodeTitle(row, rows: rows, library: library, state: layout.playbackMark(for: row.stateText))
                                         .episodeDragSource(row.id)
-                                }.width(min: EpisodeTableLayout.minimumTitleWidth, ideal: layout.libraryTitleMaximum, max: layout.libraryTitleMaximum)
+                                }.width(layout.libraryTitle)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { row in
                                         Group {
                                             if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
                                             else { Text("—") }
                                         }.episodeDragSource(row.id)
-                                    }.width(min: 95, ideal: 110, max: layout.libraryPublishedMaximum)
+                                    }.width(layout.libraryPublished)
                                 }
                                 if layout.showsLength {
                                     TableColumn("Length", value: \.length) { row in
                                         Text(row.durationText).monospacedDigit().episodeDragSource(row.id)
-                                    }.width(min: 60, ideal: 70, max: layout.libraryLengthMaximum)
+                                    }.width(layout.libraryLength)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { row in
                                         Text(row.stateText).fixedSize(horizontal: false, vertical: true).episodeDragSource(row.id)
-                                    }.width(min: 140, ideal: 150, max: layout.libraryStateMaximum)
+                                    }.width(layout.libraryState)
                                 }
                             } rows: {
                                 ForEach(rows) { TableRow($0) }

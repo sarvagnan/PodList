@@ -7,7 +7,9 @@ import Testing
 func episodeTablesReserveTitleAndVisibleMetadataSpace(width: CGFloat) {
     let layout = EpisodeTableLayout(width: width)
     let columns = 1 + (layout.showsDateOrPosition ? 1 : 0) + (layout.showsLength ? 1 : 0) + (layout.showsState ? 1 : 0)
-    let metadata: CGFloat = (layout.showsDateOrPosition ? 95 : 0) + (layout.showsLength ? 60 : 0) + (layout.showsState ? 140 : 0)
+    let metadata = (layout.showsDateOrPosition ? EpisodeTableLayout.published.minimum : 0)
+        + (layout.showsLength ? EpisodeTableLayout.length.minimum : 0)
+        + (layout.showsState ? EpisodeTableLayout.state.minimum : 0)
     // The same conservative budget covers Episodes, Podcast Episodes and Entries
     // (whose Position column needs less space than Published).
     #expect(EpisodeTableLayout.minimumTitleWidth + metadata + CGFloat(columns * 17 + 34) <= width)
@@ -24,12 +26,37 @@ func episodeTablesReserveTitleAndVisibleMetadataSpace(width: CGFloat) {
 @Test(arguments: [CGFloat(267), 400, 480, 490, 639, 640, 687, 900])
 func resizedLibraryColumnsFitTheirCurrentViewport(width: CGFloat) {
     let layout = EpisodeTableLayout(width: width)
-    let maxima = [layout.libraryTitleMaximum]
-        + (layout.showsDateOrPosition ? [layout.libraryPublishedMaximum] : [])
-        + (layout.showsLength ? [layout.libraryLengthMaximum] : [])
-        + (layout.showsState ? [layout.libraryStateMaximum] : [])
+    let maxima = [layout.libraryTitle.maximum]
+        + (layout.showsDateOrPosition ? [layout.libraryPublished.maximum] : [])
+        + (layout.showsLength ? [layout.libraryLength.maximum] : [])
+        + (layout.showsState ? [layout.libraryState.maximum] : [])
     let tableChrome = CGFloat(17 * maxima.count + 36)
     #expect(maxima.reduce(0, +) + tableChrome <= width + 0.001)
+}
+
+@Test(arguments: [
+    CGFloat(0), 1, -1, 267, 490, 760, 50_000, .greatestFiniteMagnitude, .infinity, -.infinity, .nan
+])
+func episodeColumnWidthsAreFiniteAndOrderedForTransitionalViewports(width: CGFloat) {
+    let layout = EpisodeTableLayout(width: width)
+    let columns = [
+        layout.libraryTitle, layout.libraryPublished, layout.libraryLength, layout.libraryState,
+        layout.playlistTitle, EpisodeTableLayout.position, EpisodeTableLayout.length, EpisodeTableLayout.state,
+        layout.podcastTitle, EpisodeTableLayout.published, EpisodeTableLayout.length, EpisodeTableLayout.podcastState,
+    ]
+    for column in columns {
+        #expect(column.minimum.isFinite && column.ideal.isFinite && column.maximum.isFinite)
+        #expect(column.minimum > 0 && column.minimum <= column.ideal && column.ideal <= column.maximum)
+    }
+    #expect(layout.width.isFinite && layout.width >= 0)
+    if width.isFinite && width > 0 {
+        #expect(layout.width == width)
+    } else {
+        #expect(layout.width == 0)
+        #expect(!layout.showsDateOrPosition && !layout.showsLength && !layout.showsState)
+    }
+    #expect(EpisodeTableLayout.viewportSize(CGSize(width: width, height: width))
+        == CGSize(width: layout.width, height: layout.width))
 }
 
 @Test func compactEpisodeStateMarksReplaceTheHiddenStateColumn() {

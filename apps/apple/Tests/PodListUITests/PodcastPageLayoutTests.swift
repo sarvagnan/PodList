@@ -129,15 +129,15 @@ func podcastColumnsFitAndStayStableWhenTheViewportHeightChanges(width: CGFloat) 
     let layout = EpisodeTableLayout(width: width)
     let rows = (0..<6).map { Row(id: $0) }
     let root = Table(rows) {
-        TableColumn("Episode") { row in Text("Episode \(row.id)") }.width(min: EpisodeTableLayout.minimumTitleWidth, ideal: layout.podcastTitleWidth)
+        TableColumn("Episode") { row in Text("Episode \(row.id)") }.width(layout.podcastTitle)
         if layout.showsDateOrPosition {
-            TableColumn("Published") { _ in Text("Nov 23, 2026") }.width(min: 95, ideal: EpisodeTableLayout.podcastPublishedWidth, max: 150)
+            TableColumn("Published") { _ in Text("Nov 23, 2026") }.width(EpisodeTableLayout.published)
         }
         if layout.showsLength {
-            TableColumn("Length") { _ in Text("25:34") }.width(min: 60, ideal: EpisodeTableLayout.podcastLengthWidth, max: 100)
+            TableColumn("Length") { _ in Text("25:34") }.width(EpisodeTableLayout.length)
         }
         if layout.showsState {
-            TableColumn("State") { _ in Text("In progress") }.width(min: 120, ideal: EpisodeTableLayout.podcastStateWidth, max: 200)
+            TableColumn("State") { _ in Text("In progress") }.width(EpisodeTableLayout.podcastState)
         }
     }.tableStyle(.inset)
         .scrollIndicators(.never, axes: .vertical)

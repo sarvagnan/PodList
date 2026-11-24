@@ -20,6 +20,7 @@ struct PlaylistContentView: SwiftUI.View {
     var body: some SwiftUI.View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
+                let size = EpisodeTableLayout.viewportSize(geometry.size)
                 Group {
                     switch window.playlistTab {
                     case .entries: entries
@@ -27,7 +28,7 @@ struct PlaylistContentView: SwiftUI.View {
                     case .timeline: timeline
                     }
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(width: size.width, height: size.height)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -47,6 +48,28 @@ struct PlaylistContentView: SwiftUI.View {
         window.episodeSelection(episodeIDs: rows.map(\.id), otherIDs: failedDropIDs)
     }
     private var entries: some SwiftUI.View {
+        let rows = displayedRows
+        return Group {
+            if rows.isEmpty {
+                // Removing the last Entry can also remove the player inset. Let the
+                // empty state own the viewport while the native outline is removed.
+                PodListEmptyState("No Entries", systemImage: "music.note.list",
+                                  description: "Add Episodes to build this Playlist.") {
+                    Button("Find Episodes") { window.navigate(to: .search) }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                entryTable(rows)
+            }
+        }
+        .onChange(of: failedDropIDs) { previous, current in
+            window.selection.subtract(Set(previous).subtracting(current))
+        }
+        .modifier(PlaylistEpisodeDropTarget(destination: .playlist(playlist.id), app: app, window: window, allowsReorder: true))
+        .focusedSceneValue(\.podListRemovePlaylistSelection, removeSelection)
+    }
+
+    private func entryTable(_ displayedRows: [PlaylistDropRow]) -> some SwiftUI.View {
         let selection = entrySelection
         let activate: (Set<String>) -> Void = { selected in
             EpisodeRowActivation(orderedIDs: rows.map(\.id), selection: selected, entriesPlaylistID: playlist.id)?.start(using: editing, origin: origin)
@@ -71,30 +94,29 @@ struct PlaylistContentView: SwiftUI.View {
                     }
                     .playbackBarScrollClearance()
                 } else {
-                    GeometryReader { geometry in
-                        let layout = EpisodeTableLayout(width: geometry.size.width)
+                    EpisodeTableViewport { layout in
                         Table(of: PlaylistDropRow.self, selection: selection) {
                             TableColumn("Entry") { (item: PlaylistDropRow) in
                                 if let row = item.entry {
                                     entryTitle(row, state: layout.playbackMark(for: row.stateText)).episodeDragSource(row.id)
                                 }
                                 else if let slot = item.placeholder { placeholder(slot) }
-                            }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                            }.width(layout.playlistTitle)
                             if layout.showsDateOrPosition {
                                 TableColumn("Position") { item in
                                     Text(item.entry.map { Presentation.time($0.position ?? 0) } ?? "—")
                                         .monospacedDigit().episodeDragSource(item.entry?.id)
-                                }.width(min: 70, ideal: 90, max: 110)
+                                }.width(EpisodeTableLayout.position)
                             }
                             if layout.showsLength {
                                 TableColumn("Length") { item in
                                     Text(item.entry?.durationText ?? "—").monospacedDigit().episodeDragSource(item.entry?.id)
-                                }.width(min: 60, ideal: 70, max: 100)
+                                }.width(EpisodeTableLayout.length)
                             }
                             if layout.showsState {
                                 TableColumn("State") { item in
                                     Text(item.entry?.stateText ?? "").fixedSize(horizontal: false, vertical: true).episodeDragSource(item.entry?.id)
-                                }.width(min: 140, ideal: 150, max: 200)
+                                }.width(EpisodeTableLayout.state)
                             }
                         } rows: {
                             ForEach(displayedRows) { TableRow($0) }
@@ -111,17 +133,6 @@ struct PlaylistContentView: SwiftUI.View {
                 ordered(Set(ids)).map { EpisodeTransfer.local($0, sourcePlaylistID: playlist.id, library: library) }
             }
             .dragContainerSelection(ordered(selection.wrappedValue))
-            .overlay {
-                if displayedRows.isEmpty {
-                    PodListEmptyState("No Entries", systemImage: "music.note.list",
-                                      description: "Add Episodes to build this Playlist.") {
-                        Button("Find Episodes") { window.navigate(to: .search) }
-                    }
-                }
-            }
-            .onChange(of: failedDropIDs) { previous, current in
-                window.selection.subtract(Set(previous).subtracting(current))
-            }
             .typeSelectingRows(rows.map { TypeSelectionRow(id: $0.id, title: $0.title) }, physicalIDs: displayedRows.map { $0.entry?.id },
                 selection: selection, anchor: window.listBinding(\.scrollAnchor),
                 reselect: { selection.wrappedValue = [$0] }, activate: activate)
@@ -139,7 +150,6 @@ struct PlaylistContentView: SwiftUI.View {
                     optionCopy = NSEvent.modifierFlags.contains(.option)
                 }
             }
-            .modifier(PlaylistEpisodeDropTarget(destination: .playlist(playlist.id), app: app, window: window, allowsReorder: true))
             .alternatingRowBackgrounds(.disabled)
             .contextMenu(forSelectionType: String.self) { selection in
                 entryActions(ordered(selection))
@@ -148,7 +158,6 @@ struct PlaylistContentView: SwiftUI.View {
                 SelectionCopyContent.episodeProviders(ids: ordered(window.selection), library: library)
             })
             .onDeleteCommand(perform: removeSelection)
-            .focusedSceneValue(\.podListRemovePlaylistSelection, removeSelection)
             .focusedValue(\.podListSelectedDropRetry, retrySelection)
             .accessibilityLabel("Playlist Entries in order; drag to reorder or use Move Up and Move Down in the Episode menu")
 
