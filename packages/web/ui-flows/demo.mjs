@@ -212,12 +212,13 @@ export const startDemo = async ({
   empty = false,
   large = false,
   largeSidebar = false,
+  host,
   port: requestedPort
 } = {}) => {
   const fixtures = await startFixtures()
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = requestedPort ?? (await freePort())
-  const base = `http://127.0.0.1:${port}`
+  const base = `http://${host ?? "127.0.0.1"}:${port}`
   const server = spawn(process.execPath, [join(repo, "packages/web/ui-flows/demo-server.mjs")], {
     env: {
       // No Podcast Index keys: search goes to the fixture host below.
@@ -225,6 +226,7 @@ export const startDemo = async ({
         Object.entries(process.env).filter(([name]) => !name.startsWith("PODCASTINDEX_"))
       ),
       NODE_COMPILE_CACHE: join(tmpdir(), "podlist-demo-compile-cache"),
+      ...(host === undefined ? {} : { HOST: host }),
       PORT: String(port),
       DATABASE_PATH: join(dir, "podlist.db"),
       BACKUP_DIR: join(dir, "backups"),

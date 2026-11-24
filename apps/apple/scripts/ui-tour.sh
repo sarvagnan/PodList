@@ -7,7 +7,8 @@ set -euo pipefail
 mode=tour
 if [ "${1:-}" = --system-checks ]; then mode=system; shift; fi
 if [ "${1:-}" = --timings ]; then mode=timings; shift; fi
-if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks | --timings] <outdir>" >&2; exit 2; fi
+if [ "${1:-}" = --cross-client-sync ]; then mode=cross-sync; shift; fi
+if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks | --timings | --cross-client-sync] <outdir>" >&2; exit 2; fi
 if [ -z "${PODLIST_UI_VM:-}" ]; then
     echo "All UI tours require PODLIST_UI_VM (never run on the owner's desktop)" >&2
     exit 2
@@ -15,6 +16,7 @@ fi
 styles="light dark borders-light borders-dark sidebar-light sidebar-dark"
 if [ "$mode" = system ]; then styles=system; fi
 if [ "$mode" = timings ]; then styles=light; fi
+if [ "$mode" = cross-sync ]; then styles=cross-sync; fi
 mkdir -p "$1"
 out="$(cd "$1" && pwd)"
 if [ -n "$(ls -A "$out")" ]; then echo "Output directory must be empty: $out" >&2; exit 2; fi
@@ -30,10 +32,29 @@ vm_clone=""
 vm_pid=""
 cleanup() {
     # No process-name matching: these PIDs belong to this invocation only.
+    local cleanup_status=0
+    if [ "$mode" = cross-sync ] && [ -n "$test_pid" ]; then
+        kill -TERM "$test_pid" 2>/dev/null || true
+        wait "$test_pid" 2>/dev/null || true
+    fi
     if [ -n "$vm_clone" ]; then
-        tart stop "$vm_clone" >/dev/null 2>&1 || true
+        if ! tart stop "$vm_clone" >> "$out/vm.log" 2>&1 && [ -n "$vm_pid" ]; then
+            kill -TERM "$vm_pid" 2>/dev/null || true
+        fi
         if [ -n "$vm_pid" ]; then wait "$vm_pid" 2>/dev/null || true; fi
-        tart delete "$vm_clone" >/dev/null 2>&1 || true
+        tart delete "$vm_clone" >> "$out/vm.log" 2>&1 || cleanup_status=$?
+    fi
+    if [ "$mode" = cross-sync ]; then
+        if [ -d "$run/cross-sync-results" ]; then
+            mkdir -p "$out/mac"
+            ditto "$run/cross-sync-results" "$out/mac" || true
+        fi
+        rm -rf "$run"
+        if [ "$cleanup_status" -ne 0 ]; then
+            echo "Tart could not delete $vm_clone; see $out/vm.log" >&2
+            exit 1
+        fi
+        return
     fi
     # The app writes these directly to the share. Keep them on interruption
     # even if the guest never reached its normal result export.
@@ -81,7 +102,9 @@ trap 'exit 143' TERM
 PODLIST_UI_TOUR_BUILD=1 PODLIST_SYSTEM_INTEGRATION=0 "$apple/scripts/build-mac-app.sh" > "$out/build.log" 2>&1
 # Stage only the executable on the host. The guest embeds it after setting the
 # final bundle ID of each copy, so the extension always inherits that prefix.
-cp -f "$apple/.build/${PODLIST_BUILD_CONFIGURATION:-debug}/PodListShare" "$run/PodListShare"
+if [ "$mode" != cross-sync ]; then
+    cp -f "$apple/.build/${PODLIST_BUILD_CONFIGURATION:-debug}/PodListShare" "$run/PodListShare"
+fi
 for style in $styles; do
     mkdir -p "$run/$style/data"
     cp -Rf "$apple/.build/PodList.app" "$run/$style/PodList.app"
@@ -149,13 +172,16 @@ if [ -n "$vm" ]; then
     cp -R "$apple/.build/ui-tour-derived/Build/Products/." "$run/products/"
     # One macOS VM at a time on this Mac (owner, 19 Nov 2026): wait while any Tart VM
     # runs, including other projects' tours such as FinderTools.
-    while running="$(tart list --format json 2>/dev/null | python3 -c 'import json, sys
-print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))')" && [ -n "$running" ]; do
+    while :; do
+        running="$(tart list --format json | python3 -c 'import json, sys
+print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))')"
+        [ -n "$running" ] || break
         echo "Waiting for running VM(s) to finish: $running" >&2
         sleep 60
     done
-    vm_clone="podlist-ui-run-$run_id"
-    tart clone "$vm" "$vm_clone"
+    clone_name="podlist-ui-run-$run_id"
+    tart clone "$vm" "$clone_name"
+    vm_clone="$clone_name"
     developer="$(xcode-select -p)"
     tart run --no-graphics --no-audio --dir="run:$run" --dir="repo:$repo:ro" --dir="xcode:${developer%/Contents/Developer}:ro" "$vm_clone" > "$out/vm.log" 2>&1 &
     vm_pid=$!
@@ -165,6 +191,14 @@ print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))'
         sleep 1
     done
     tart exec "$vm_clone" true
+    if [ "$mode" = cross-sync ]; then
+        node "$repo/scripts/cross-client-sync/orchestrate.mjs" "$vm_clone" "$run" "$out" &
+        test_pid=$!
+        status=0
+        wait "$test_pid" || status=$?
+        test_pid=""
+        exit "$status"
+    fi
     # Opt-in: profile PodList during the response-timing runs (timings are then perturbed).
     if [ "${PODLIST_UI_PROFILE:-}" = 1 ]; then
         printf '%s\n' "${PODLIST_UI_PROFILE_TEMPLATE:-SwiftUI}" > "$run/profile"

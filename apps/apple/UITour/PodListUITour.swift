@@ -2351,3 +2351,274 @@ final class PodListUITour: XCTestCase {
         }
     }
 }
+
+// The cross-client phases run one at a time with the same disposable Library.
+// Reuse the tour's native table, sidebar, sheet, player and app launch drivers.
+extension PodListUITour {
+    private var syncNotebook: String { "The workshop as a notebook" }
+    private var syncChair: String { "Repairing a chair, twice" }
+    private var syncJoinery: String { "Joinery without screws" }
+    private var syncRice: String { "Who sets the price of rice?" }
+    private var syncCurrency: String { "When a currency disappears" }
+    private var syncLighthouses: String { "Lighthouses and public goods" }
+    private var syncControl: URL {
+        URL(fileURLWithPath: "/Volumes/My Shared Files/run/cross-sync-control", isDirectory: true)
+    }
+
+    func testCrossClientSync() throws {
+        let root = URL(fileURLWithPath: try XCTUnwrap(ProcessInfo.processInfo.environment["PODLIST_UI_RUN_DIRECTORY"]))
+        let fixture = root.appendingPathComponent("cross-sync")
+        let phasePath = fixture.appendingPathComponent("phase")
+        guard FileManager.default.fileExists(atPath: phasePath.path) else {
+            throw XCTSkip("This test is selected by scripts/cross-client-sync/run.sh.")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("uitour-vm").path))
+        continueAfterFailure = false
+        let phase = try String(contentsOf: phasePath, encoding: .utf8)
+        let origin = try String(contentsOf: fixture.appendingPathComponent("origin"), encoding: .utf8)
+        // Read the server cursor before launch: a relaunched app sends queued edits at once.
+        let deliveryStart = ["mac-edit", "offline-flush", "delete-undo"].contains(phase) ? syncServerCursor(origin) : nil
+        try launch(from: root, copy: "cross-sync", style: "Light", origin: origin)
+        defer {
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "cross-sync-\(phase)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            app.terminate()
+        }
+        try ready(library, timeout: 60)
+        // XCUITest quits the app when the phase ends; edit phases first wait for the server
+        // to accept the Mac's edits (cursor rises, then holds) so none are left queued.
+        defer { if let deliveryStart { syncAwaitDelivery(origin, after: deliveryStart) } }
+        switch phase {
+        case "connect":
+            try syncNavigate("Subscriptions")
+            for name in ["Deep Field", "Market Hours", "Slow Build"] {
+                try ready(library.buttons["Open \(name), Subscription"], timeout: 60)
+            }
+            for name in ["Default", "Commute", "Workshop"] {
+                try ready(sidebarItem(name), timeout: 60)
+            }
+        case "web-check":
+            try ready(sidebarItem("Commute Web"), timeout: 60)
+            try syncNavigate("Starred")
+            try ready(syncEpisodeRow(syncRice), timeout: 60)
+            try syncSelectEpisode(syncCurrency)
+            try ready(button("Mark Unplayed", in: episodeInspector), timeout: 60)
+            try syncWorkshop("Workshop", [syncNotebook, syncChair, syncJoinery])
+        case "mac-edit":
+            try syncRename("Workshop", to: "Workshop Mac")
+            try syncSelectEpisode(syncJoinery)
+            try click(button("Star, Not starred", in: episodeInspector))
+            try ready(button("Unstar, Starred", in: episodeInspector))
+        case "android-check":
+            try ready(sidebarItem("Commute Android"), timeout: 60)
+            try syncNavigate("Starred")
+            try ready(syncEpisodeRow(syncLighthouses), timeout: 60)
+        case "offline-edit":
+            // The app only notices it's offline when it next syncs; an edit triggers that.
+            try syncRename("Workshop Mac", to: "Workshop Offline Mac")
+            // FailureFeedback's visible button is "Retry"; "Retry Sync" is only its menu command.
+            try ready(library.buttons["Retry"].firstMatch, timeout: 90)
+            try syncPlayAndReport()
+            try syncSelectEpisode(syncChair)
+            try click(button("Add to a Playlist", in: episodeInspector))
+            try sheet("to a Playlist")
+            // Play from Here made Workshop active, the default target of this fresh chooser.
+            let picker = library.sheets.popUpButtons.firstMatch
+            try ready(picker)
+            XCTAssertTrue(String(describing: picker.value ?? "").contains("Workshop Offline Mac"))
+            try dismissSheet("Add")
+            try syncWorkshop("Workshop Offline Mac", [syncNotebook, syncJoinery, syncChair])
+        case "offline-flush":
+            try ready(sidebarItem("Workshop Offline Mac"), timeout: 60)
+            // A sync that failed before the relay reopened waits for the 60 s timer; retry it.
+            let retry = library.buttons["Retry"].firstMatch
+            if retry.waitForExistence(timeout: 10) { retry.click() }
+            try ready(text("Up to date"), timeout: 120)
+        case "offline-check":
+            try syncWorkshop("Workshop Offline Mac", [syncJoinery, syncNotebook, syncChair])
+            let expected = try String(contentsOf: syncControl.appendingPathComponent("offline-position"), encoding: .utf8)
+            let seconds = Int(try XCTUnwrap(Double(expected)))
+            let clock = String(format: "%d:%02d", seconds / 60, seconds % 60)
+            try ready(syncEpisodeRow(syncNotebook).staticTexts[clock], timeout: 60)
+        case "handoff-check":
+            let player = try syncOpenPlayer()
+            try ready(text(syncNotebook, in: player), timeout: 60)
+            let position = player.sliders["Position"]
+            syncWait("Android's listening position from 2:30 to 3:30", timeout: 60) {
+                self.syncSeconds(position).map { (150..<210).contains($0) } ?? false
+            }
+        case "delete-undo":
+            try syncDeleteAndUndo()
+        case "subscription-check":
+            try syncNavigate("Subscriptions")
+            try ready(library.buttons["Open Long listening, Subscription"], timeout: 90)
+            for title in ["Long Episode 001", "Long Episode 500"] { try syncSearch(title) }
+        case "unsubscribe-check":
+            try syncNavigate("Subscriptions")
+            try ready(library.buttons["Open Market Hours, Subscription"], timeout: 60)
+            XCTAssertTrue(library.buttons["Open Long listening, Subscription"].waitForNonExistence(timeout: 90))
+        case "version-check":
+            try ready(sidebarItem("Commute Protocol"), timeout: 60)
+            try ready(sidebarItem("Workshop Offline Mac"), timeout: 60)
+        default:
+            XCTFail("Unknown Mac cross-client phase: \(phase)")
+        }
+    }
+
+    private func syncServerCursor(_ origin: String) -> Int? {
+        guard let url = URL(string: "\(origin)/api/sync/pull?since=0") else { return nil }
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("7", forHTTPHeaderField: "x-podlist-protocol-version")
+        let done = DispatchSemaphore(value: 0)
+        var cursor: Int?
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data, let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                cursor = (body["cursor"] as? NSNumber)?.intValue
+            }
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + 12)
+        return cursor
+    }
+
+    private func syncAwaitDelivery(_ origin: String, after start: Int) {
+        let deadline = Date().addingTimeInterval(120)
+        var last: Int?
+        var steadySince = Date()
+        while Date() < deadline {
+            if let cursor = syncServerCursor(origin), cursor > start {
+                if cursor == last {
+                    if Date().timeIntervalSince(steadySince) >= 5 { return }
+                } else {
+                    last = cursor
+                    steadySince = Date()
+                }
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        XCTFail("The server did not receive this phase's Mac edits within 120 s")
+    }
+
+    private func syncWait(_ label: String, timeout: TimeInterval = 30, until: @escaping () -> Bool) {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in until() }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: timeout), .completed, label)
+    }
+
+    private func syncNavigate(_ name: String) throws {
+        try ready(sidebarItem(name), timeout: 60)
+        try navigate(name)
+    }
+
+    private func syncEpisodeRow(_ title: String) -> XCUIElement {
+        episodeRows.containing(.staticText, identifier: title).firstMatch
+    }
+
+    private func syncSearch(_ title: String) throws {
+        try syncNavigate("Search")
+        try focusListSearch()
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText(title)
+        try ready(syncEpisodeRow(title), timeout: 90)
+    }
+
+    private func syncSelectEpisode(_ title: String) throws {
+        try syncSearch(title)
+        let row = syncEpisodeRow(title)
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)).click()
+        // Wide windows open the Inspector on selection; toggling before it appears would close it.
+        if !episodeInspector.waitForExistence(timeout: 5) { try click(inspectorButton) }
+        try ready(text(title, in: episodeInspector))
+    }
+
+    private func syncSettings(_ name: String) throws -> XCUIElement {
+        try syncNavigate(name)
+        try click(library.descendants(matching: .any).matching(identifier: "playlist.settings").firstMatch)
+        try sheet("Playlist Settings")
+        return library.sheets.firstMatch
+    }
+
+    private func syncRename(_ old: String, to name: String) throws {
+        let panel = try syncSettings(old)
+        let field = panel.textFields["Playlist Name"]
+        try click(field)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText(name)
+        try dismissSheet("Save")
+        try ready(sidebarItem(name), timeout: 60)
+        XCTAssertTrue(sidebarItem(old).waitForNonExistence(timeout: 60))
+    }
+
+    private func syncWorkshop(_ name: String, _ titles: [String]) throws {
+        try syncNavigate(name)
+        syncWait("Workshop has exactly \(titles.joined(separator: ", "))", timeout: 60) {
+            let rows = self.episodeRows.allElementsBoundByIndex
+            return rows.count == titles.count && zip(rows, titles).allSatisfy { row, title in
+                row.staticTexts[title].exists
+            }
+        }
+    }
+
+    private func syncOpenPlayer() throws -> XCUIElement {
+        try click(library.buttons["Open Now Playing"])
+        let player = app.windows["Now Playing"]
+        try ready(player)
+        return player
+    }
+
+    private func syncSeconds(_ slider: XCUIElement) -> Double? {
+        guard slider.exists, let value = slider.value else { return nil }
+        let string = String(describing: value)
+        if let seconds = Double(string) { return seconds }
+        let parts = string.split(separator: ":")
+        guard parts.count == 2, let minutes = Double(parts[0]), let seconds = Double(parts[1]) else { return nil }
+        return minutes * 60 + seconds
+    }
+
+    private func syncPlayAndReport() throws {
+        try syncNavigate("Workshop Offline Mac")
+        try click(library.buttons["Play from Here: \(syncNotebook)"])
+        let player = try syncOpenPlayer()
+        try ready(text(syncNotebook, in: player))
+        let position = player.sliders["Position"]
+        syncWait("Fixture audio advanced", timeout: 60) { (self.syncSeconds(position) ?? 0) >= 1 }
+        try click(player.buttons["Forward 30 Seconds"])
+        syncWait("Mac recorded a position after 30 seconds") { (self.syncSeconds(position) ?? 0) >= 30 }
+        try menuCommand("Controls", "Pause", until: player.buttons["Play"],
+                        retryFocus: text(syncNotebook, in: player), waitForEnabled: true)
+        player.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(player.waitForNonExistence(timeout: 15))
+    }
+
+    private func syncDeleteAndUndo() throws {
+        let name = "Commute Android"
+        let panel = try syncSettings(name)
+        try click(panel.buttons["Delete Playlist"])
+        try ready(text("“\(name)” is in the Trash.", in: panel))
+        try dismissSheet("Close")
+        XCTAssertTrue(sidebarItem(name).waitForNonExistence(timeout: 60))
+        try syncNavigate("Trash")
+        try ready(library.buttons["Restore Playlist \(name)"])
+        // The sandboxed runner can't write a checkpoint file; the host waits for the server
+        // to show this Delete in the Trash instead.
+
+        let proceed = syncControl.appendingPathComponent("mac-undo").path
+        let abort = syncControl.appendingPathComponent("mac-abort").path
+        syncWait("Host signalled a peer Restore", timeout: 300) {
+            FileManager.default.fileExists(atPath: proceed) || FileManager.default.fileExists(atPath: abort)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: proceed), "A peer failed before Restore")
+        try ready(sidebarItem(name), timeout: 90)
+        XCTAssertTrue(library.buttons["Restore Playlist \(name)"].waitForNonExistence(timeout: 90))
+
+        // Exercise Undo from an actual deletion. The peer Restore already applied
+        // the inverse of the first deletion and cleared that Trash item.
+        let reopened = try syncSettings(name)
+        try click(reopened.buttons["Delete Playlist"])
+        try ready(reopened.buttons["Restore Playlist"])
+        app.typeKey("z", modifierFlags: .command)
+        XCTAssertTrue(reopened.buttons["Save"].wait(for: \.isEnabled, toEqual: true, timeout: 60))
+        try ready(sidebarItem(name))
+    }
+}
