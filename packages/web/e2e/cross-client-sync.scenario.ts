@@ -137,8 +137,11 @@ async function runPhase(phase: string, page: Page) {
     case "restore-check":
       await open(page, "/playlists")
       await expect(listLink(page, "Commute Android")).toBeVisible()
-      await listLink(page, "Trash").click()
-      await expect(action(page, "Restore Commute Android")).toHaveCount(0)
+      // The sidebar lists Trash only while it holds something; no link means it's empty.
+      if (await listLink(page, "Trash").count()) {
+        await listLink(page, "Trash").click()
+        await expect(action(page, "Restore Commute Android")).toHaveCount(0)
+      }
       break
     case "subscribe": {
       const feed = process.env.PODLIST_CROSS_SYNC_FEED ?? ""
