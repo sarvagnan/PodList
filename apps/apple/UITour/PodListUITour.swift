@@ -4,7 +4,7 @@ import QuartzCore
 import XCTest
 import XCUIAutomation
 
-/// A foreground tour using public UI routes. A tour-only hook delays one Undo.
+/// A foreground tour using public UI routes and tour-only operation delays.
 @MainActor
 final class PodListUITour: XCTestCase {
     private var app: XCUIApplication!
@@ -49,7 +49,8 @@ final class PodListUITour: XCTestCase {
         let data = fixture.appendingPathComponent("data", isDirectory: true)
         let timings = data.appendingPathComponent("response-timings-\(UUID()).tsv")
         try launch(from: root, copy: appearance, style: style, origin: origin, timings: showBorders ? nil : timings,
-                   delayEntryUndo: !showBorders && !timingsOnly)
+                   delayEntryUndo: !showBorders && !timingsOnly,
+                   delayOperations: style == "Light" && !showBorders && !timingsOnly)
         defer { app.terminate() }
         try ready(library)
         try ready(library.buttons["Open Market Hours, Subscription"])
@@ -63,13 +64,14 @@ final class PodListUITour: XCTestCase {
             try captureShowBorders()
             return
         }
-        try captureLibrary(timings: timings, style: style)
+        try captureLibrary(timings: timings, style: style, origin: origin)
         app.terminate()
         try captureLargeSidebar(from: root, style: style)
     }
 
     private func launch(from root: URL, copy: String, style: String, origin: String, timings: URL? = nil,
-                        delayEntryUndo: Bool = false) throws {
+                        delayEntryUndo: Bool = false, delayOperations: Bool = false,
+                        restoreWindows: Bool = false) throws {
         let bundleURL = root.appendingPathComponent(copy + "/PodList.app")
         let info = try NSDictionary(contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist"), error: ())
         let identifier = try XCTUnwrap(info["CFBundleIdentifier"] as? String)
@@ -96,14 +98,16 @@ final class PodListUITour: XCTestCase {
         app.launchEnvironment["PODLIST_UI_WATCHDOG"] = "1"
         if let timings { app.launchEnvironment["PODLIST_UI_TIMINGS_FILE"] = timings.path }
         if delayEntryUndo { app.launchEnvironment["PODLIST_UI_DELAY_ENTRY_UNDO"] = "1" }
+        if delayOperations { app.launchEnvironment["PODLIST_UI_DELAY_OPERATIONS"] = "1" }
         app.launchArguments = ["-PodList.serverOrigin", origin, "-PodList.appearance", style,
                                "-PodList.mcpEnabled", "NO",
                                "-AppleKeyboardUIMode", "3",
-                               "-ApplePersistenceIgnoreState", "YES"]
+                               "-ApplePersistenceIgnoreState", restoreWindows ? "NO" : "YES"]
+        if restoreWindows { app.launchArguments += ["-NSQuitAlwaysKeepsWindows", "YES"] }
         app.launch()
     }
 
-    private func captureLibrary(timings: URL, style: String) throws {
+    private func captureLibrary(timings: URL, style: String, origin: String) throws {
         let sidebar = library.outlines["Sidebar"]
         try ready(sidebar)
         XCTAssertGreaterThanOrEqual(sidebar.frame.width, 180, "The first-launch sidebar must respect its minimum width")
@@ -187,6 +191,15 @@ final class PodListUITour: XCTestCase {
         try menuCommand("Saved Views", "Show All Views", until: overview)
         XCTAssertTrue(overviewRow.wait(for: \.isSelected, toEqual: true, timeout: 5))
         try capture("05-all-views")
+        try focusListSearch()
+        app.typeText("starred")
+        try ready(text("Starred", in: overview))
+        XCTAssertFalse(text("New this week", in: overview).exists)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("view name that does not exist")
+        try ready(text("No Matching Views"))
+        app.typeKey(.escape, modifierFlags: [])
+        try ready(text("New this week", in: overview))
         try navigate("Starred")
         try navigate("All Views")
         try ready(overview)
@@ -220,17 +233,37 @@ final class PodListUITour: XCTestCase {
         XCTContext.runActivity(named: "Inspector open: Playlist section dx \(openHeader.section.minX - closedHeader.section.minX) pt, Play dx \(openHeader.play.minX - closedHeader.play.minX) pt, Inspector toggle dx \(openHeader.inspector.minX - closedHeader.inspector.minX) pt, clicked Entry width \(firstEntryBefore.width) to \(firstEntry.frame.width) pt") { _ in }
         try assertInspectorActionTargets()
         try capture("07-entry-inspector")
+        if style == "Light" { try assertMoveMenus(up: false, down: true) }
+        let firstInspectorTitle = episodeInspector.staticTexts.matching(identifier: "inspector.episodeTitle").firstMatch
+        let firstInspectorValue = firstInspectorTitle.value as? String
+        try reveal(text("Show Notes", in: episodeInspector), in: episodeInspector)
 
         let secondEntry = episodeRows.element(boundBy: 1)
         try ready(secondEntry)
         secondEntry.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
         XCTAssertTrue(secondEntry.isSelected)
         assertLibraryPanes(sidebar: true, inspector: true, after: "selecting another Entry")
+        let titleReset = Date().addingTimeInterval(10)
+        while Date() < titleReset {
+            if firstInspectorTitle.exists, firstInspectorTitle.value as? String != firstInspectorValue,
+               episodeInspector.frame.contains(firstInspectorTitle.frame) { break }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        XCTAssertNotEqual(firstInspectorTitle.value as? String, firstInspectorValue)
+        XCTAssertTrue(episodeInspector.frame.contains(firstInspectorTitle.frame), "A new selection must reset the Inspector to its title")
         assertPlaylistHeader(openHeader)
+        if style == "Light" {
+            let lastEntry = episodeRows.allElementsBoundByIndex.last
+            let row = try XCTUnwrap(lastEntry)
+            row.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).click()
+            XCTAssertTrue(row.wait(for: \.isSelected, toEqual: true, timeout: 5))
+            try assertMoveMenus(up: true, down: false)
+        }
 
         try segment("History")
         assertLibraryPanes(sidebar: true, inspector: false, after: "opening History without a selection")
-        assertPlaylistHeader(closedHeader)
+        XCTAssertTrue(searchField.waitForNonExistence(timeout: 5), "History has no This list filter")
+        let historyHeader = playlistHeaderFrames
         try capture("08-history")
         let historyDescription = text("Manual Played marks do not create History")
         try ready(historyDescription)
@@ -240,7 +273,8 @@ final class PodListUITour: XCTestCase {
         try segment("Listening Timeline")
         try ready(library.descendants(matching: .any).matching(identifier: "Listening Timeline").firstMatch)
         assertLibraryPanes(sidebar: true, inspector: false, after: "opening Listening Timeline")
-        assertPlaylistHeader(closedHeader)
+        XCTAssertTrue(searchField.waitForNonExistence(timeout: 5), "Listening Timeline has no This list filter")
+        assertPlaylistHeader(historyHeader)
         try capture("09-listening-timeline")
         let rewindButtons = library.buttons.matching(identifier: "timeline.rewind")
         let rewind = rewindButtons.firstMatch
@@ -365,9 +399,8 @@ final class PodListUITour: XCTestCase {
         try capture("15-search-rice")
         app.typeKey(.space, modifierFlags: [])
         assertSearchValue(searchField, "rice ", "Space must insert a character in toolbar Search")
-        try click(library.buttons["Create View…"])
         let inlineName = library.textFields["search.view-name"]
-        try click(inlineName)
+        try menuCommand("Saved Views", "Create View from Search…", until: inlineName, requiringFocus: true)
         app.typeKey("a", modifierFlags: .command)
         app.typeText("Tour")
         app.typeKey(.space, modifierFlags: [])
@@ -388,6 +421,22 @@ final class PodListUITour: XCTestCase {
                        "Returning from Search and Playlist Settings must preserve the first row's alignment")
         assertPopUpNames(["Published", "Podcasts", "Played", "Starred", "In a Playlist", "Sort"])
         try capture("16-edit-view", expectsSheet: true)
+        let editSheet = library.sheets.firstMatch
+        let days = editSheet.textFields["Last Days"]
+        try click(days)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeText("007")
+        assertSearchValue(days, "007", "Edit View must display the number as typed")
+        let mentions = editSheet.textFields["Mentions (optional)"]
+        try click(mentions)
+        app.typeText("unmatched tour draft text")
+        try ready(text("0 matching Episodes", in: editSheet))
+        try dismissSheet("Cancel")
+        try ready(text(firstEpisodeTitle, in: episodeList))
+        try click(button("Edit View"))
+        try sheet("Edit View")
+        XCTAssertEqual(days.value as? String, "7", "Cancel must discard the numeric draft")
+        XCTAssertEqual(mentions.value as? String ?? "", "", "Cancel must discard the condition draft")
         let viewName = library.sheets.textFields["View Name"]
         try click(viewName)
         app.typeKey("a", modifierFlags: .command)
@@ -792,7 +841,8 @@ final class PodListUITour: XCTestCase {
         try captureHalfDisplay()
         if style == "Light" {
             try checkNowPlayingFollowUps()
-            try checkDisconnectedSettingsAddress()
+            try checkFeedRefreshProgress()
+            try checkDisconnectedSettingsAddress(reconnectTo: origin)
         }
     }
 
@@ -881,7 +931,39 @@ final class PodListUITour: XCTestCase {
         try ready(text("No Entries"))
     }
 
-    private func checkDisconnectedSettingsAddress() throws {
+    private func checkFeedRefreshProgress() throws {
+        let cancel = library.buttons["Cancel Feed Refresh"]
+        try menuCommand("Podcast", "Refresh All Feeds", until: cancel, waitForEnabled: true)
+        try ready(text("Refreshing 2 of", in: library))
+        let menu = app.menuBars.menuBarItems["Podcast"]
+        menu.click()
+        let count = menu.menuItems.matching(NSPredicate(
+            format: "title BEGINSWITH %@ OR label BEGINSWITH %@", "Refreshing 2 of", "Refreshing 2 of")).firstMatch
+        try ready(count, timeout: 5)
+        XCTAssertFalse(count.isEnabled)
+        let cancelItem = menu.menuItems["Cancel Feed Refresh"].firstMatch
+        XCTAssertTrue(cancelItem.wait(for: \.isEnabled, toEqual: true, timeout: 5))
+        app.typeKey(.escape, modifierFlags: [])
+        try menuCommand("Podcast", "Cancel Feed Refresh", waitForEnabled: true)
+        try ready(text("Feed refresh cancelled.", in: library))
+        XCTAssertTrue(cancel.waitForNonExistence(timeout: 5))
+    }
+
+    private func assertMoveMenus(up: Bool, down: Bool) throws {
+        for name in ["Episode", "Playlist"] {
+            let menu = app.menuBars.menuBarItems[name]
+            menu.click()
+            for (title, enabled) in [("Move Up", up), ("Move Down", down)] {
+                let command = menu.menuItems[title].firstMatch
+                try ready(command)
+                XCTAssertTrue(command.wait(for: \.isEnabled, toEqual: enabled, timeout: 5),
+                              "\(name) menu should show \(title) as \(enabled ? "available" : "dimmed")")
+            }
+            app.typeKey(.escape, modifierFlags: [])
+        }
+    }
+
+    private func checkDisconnectedSettingsAddress(reconnectTo origin: String) throws {
         // Run after all steps that need this pass's demo connection.
         let settings = try openGeneralSettings()
         let disconnect = button("Disconnect", in: settings)
@@ -899,6 +981,16 @@ final class PodListUITour: XCTestCase {
         try ready(label)
         XCTAssertTrue(settings.frame.intersects(label.frame), "Server Address must stay visible while typing")
         XCTAssertLessThanOrEqual(label.frame.maxX, address.frame.minX)
+
+        address.typeKey("a", modifierFlags: .command)
+        address.typeText(origin)
+        let connect = settings.buttons["Check and Connect"]
+        if form.exists { try reveal(connect, in: form) }
+        try click(connect)
+        let progress = settings.descendants(matching: .any).matching(identifier: "settings.connectionProgress").firstMatch
+        try ready(progress, timeout: 5)
+        try ready(disconnect, timeout: 25)
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 15), "Checking Connection must finish after reconnect")
     }
 
     private func checkDelayedEntryUndo() throws {
@@ -966,6 +1058,14 @@ final class PodListUITour: XCTestCase {
         try click(inspectorButton)
         assertLibraryPanes(sidebar: false, inspector: true, after: "clicking the Inspector button")
         XCTAssertEqual(library.frame.width, 760, accuracy: 1, "Screen 43 must capture the minimum-width Library")
+        let length = episodeList.buttons["Length"].firstMatch
+        try ready(length)
+        let layoutDeadline = Date().addingTimeInterval(5)
+        while length.frame.maxX > episodeList.frame.maxX + 2 && Date() < layoutDeadline {
+            Thread.sleep(forTimeInterval: 0.15)
+        }
+        XCTAssertLessThanOrEqual(length.frame.maxX, episodeList.frame.maxX + 2, "The Length column must fit in the Inspector-width viewport")
+        XCTAssertLessThanOrEqual(episodeRows.firstMatch.frame.maxX, episodeList.frame.maxX + 2, "The table must not retain its pre-Inspector width")
         try capture("43-narrow-inspector-no-sidebar")
 
         try click(sidebarButton)
@@ -1159,7 +1259,7 @@ final class PodListUITour: XCTestCase {
 
     private func captureLargeSidebar(from root: URL, style: String) throws {
         let origin = try String(contentsOf: root.appendingPathComponent("sidebar-origin"), encoding: .utf8)
-        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin)
+        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin, restoreWindows: true)
         let sidebar = library.outlines["Sidebar"]
         try ready(sidebarItem("Tour View 04"), timeout: 60)
         try ready(library.buttons["Open Now Playing"])
@@ -1186,7 +1286,25 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(reachedBottom, "The last sidebar row must scroll above the player")
         try ready(sidebarItem("Tour Playlist 30"))
         try capture("41-large-sidebar-bottom")
-        try captureSidebarFolding(in: sidebar)
+        let offset = last.frame.minY - sidebar.frame.minY
+        app.typeKey("q", modifierFlags: .command)
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 15), "Quit normally to save the window scene")
+        try launch(from: root, copy: "sidebar-" + appearance, style: style, origin: origin, restoreWindows: true)
+        let restoredSidebar = library.outlines["Sidebar"]
+        let restoredSearch = sidebarItem("Search")
+        try ready(restoredSidebar)
+        let restorationDeadline = Date().addingTimeInterval(20)
+        var restored = false
+        while Date() < restorationDeadline {
+            if restoredSearch.exists, !restoredSearch.frame.isEmpty, restoredSidebar.frame.contains(restoredSearch.frame),
+               abs(restoredSearch.frame.minY - restoredSidebar.frame.minY - offset) < 65 {
+                restored = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertTrue(restored, "Relaunch must show the bottom of the sidebar without a scroll gesture")
+        try captureSidebarFolding(in: restoredSidebar)
     }
 
     private func captureSidebarFolding(in sidebar: XCUIElement) throws {
@@ -2299,10 +2417,10 @@ final class PodListUITour: XCTestCase {
             "File": ["New Window", "New View…", "New Playlist…", "Open in New Window", "Add Podcasts…", "Import OPML…", "Export OPML…", "Cancel Import", "Retry Failed Imports", "Show Import Results"],
             "Edit": ["Show Restored Entries", "Show Added Entries", "Search Library", "Clear Search", "Retry Failed Operation"],
             "View": ["Sort By", "Default Order", "Descending", "Listening Stats", "Show Daily Table"],
-            "Podcast": ["Show Subscriptions", "Open Subscription", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
+            "Podcast": ["Show Subscriptions", "Open Subscription", "Refresh All Feeds", "Refresh Podcast", "Retry Feed Refresh", "Cancel Feed Refresh", "Back to Library", "Search Podcasts", "Mark All Played", "Subscription Settings…", "Edit Download Rules…"],
             "Saved Views": ["Open View", "Show All Views", "Create View from Search…", "Open Created View", "Edit View…", "Rename View…", "Delete View"],
             "Episode": ["Show Episode Details", "Play Now", "Play Now In", "Play Next In", "Play Last In", "Add to a Playlist…", "Download", "Cancel Download", "Retry Download", "Remove Download", "Move Up", "Move Down", "Remove from Playlist", "Retry Selected Episode Drop", "Retry All Failed Episode Drops", "Remove Failed Episode Drops"],
-            "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
+            "Playlist": ["Show Trash", "Open Playlist", "Entries", "History", "Listening Timeline", "Move Up", "Move Down", "Clear on Played", "Restore", "Delete Permanently…", "Rewind to Here…", "Rename Playlist…", "Delete Playlist"],
             "Controls": ["Go to Time…", "Back to Now Playing", "Playback Speed", "Sleep Timer", "Go to Chapter", "Open Active Playlist", "Retry Playback"],
             "Window": ["Now Playing", "Listening Stats"],
             "Help": ["PodList Help", "Getting Started"]
@@ -2340,7 +2458,7 @@ final class PodListUITour: XCTestCase {
         if name == "View" {
             XCTAssertTrue(!items.isDisjoint(with: ["Show Description", "Hide Description"]))
         }
-        let owners = ["Connection": "PodList", "Refresh All Feeds": "Podcast", "Refresh Podcast": "Podcast", "Retry Feed Refresh": "Podcast", "Add Podcasts…": "File",
+        let owners = ["Connection": "PodList", "Refresh All Feeds": "Podcast", "Refresh Podcast": "Podcast", "Retry Feed Refresh": "Podcast", "Cancel Feed Refresh": "Podcast", "Add Podcasts…": "File",
                       "Back to Library": "Podcast", "Clear Search": "Edit", "Show Import Results": "File",
                       "Show Restored Entries": "Edit", "Show Added Entries": "Edit", "Open Created View": "Saved Views",
                       "Cancel Import": "File", "Retry Failed Imports": "File", "Retry Failed Operation": "Edit", "Retry Selected Episode Drop": "Episode", "Retry All Failed Episode Drops": "Episode",
