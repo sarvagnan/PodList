@@ -15,6 +15,7 @@ dist-desktop/
 coverage/
 test-results/
 playwright-report/
+podlist-grading/cross-client-sync/
 *.tsbuildinfo
 .DS_Store
 
