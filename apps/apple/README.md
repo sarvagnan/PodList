@@ -579,9 +579,9 @@ Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, an
 the Length column and rows fit the new viewport.
 Screens 06–09 check the Playlist toolbar and which panes are visible. The test
 log records the toolbar shifts and selected Entry width on the first selection.
-It checks that the original click still lies in the selected row and that a
-second selection leaves the open Inspector's toolbar positions fixed and scrolls
-the Inspector back to its new title. The Light pass checks both menus at the
+It checks that the original click still lies in the selected row. The tour
+scrolls Show Notes into the Inspector viewport, then checks that selecting the
+next Entry reveals its title and leaves the toolbar positions fixed. The Light pass checks both menus at the
 first and last Entry. History and Listening Timeline have no local search field.
 Screen 44 captures a delayed Undo of Remove from Playlist. The named result,
 the retained Search and selected Entry, and Show Restored Entries are visible.
@@ -633,9 +633,9 @@ selection handling to shell body evaluation, and shell body evaluation to the
 first frame. Each phase has its own sample count, p75 and maximum. The final
 phase includes layout and the display-link interval. Actions, artwork loading,
 playlist memberships, chapters and Show Notes follow the title. Changing Episode
-keeps the scroll view and its layout mounted. The artwork slot retains its size as details arrive.
-The expected improvement is in shell-body-to-first-frame time on reselection. Input-to-selection handling and
-initial pane opening still include native window layout.
+keeps the scroll view mounted and scrolls to its top anchor once. Details load
+after a single cancellable delay, and the artwork slot keeps its size as they arrive.
+Input-to-selection handling and initial pane opening include native window layout.
 
 The report includes the VM hardware and macOS version, nearest-rank p75 and max
 in milliseconds, and sample counts. Steps with fewer than five samples are marked

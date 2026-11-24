@@ -234,7 +234,13 @@ final class PodListUITour: XCTestCase {
         if style == "Light" { try assertMoveMenus(up: false, down: true) }
         let firstInspectorTitle = episodeInspector.staticTexts.matching(identifier: "inspector.episodeTitle").firstMatch
         let firstInspectorValue = firstInspectorTitle.value as? String
-        try reveal(text("Show Notes", in: episodeInspector), in: episodeInspector)
+        let inspector = episodeInspector
+        let inspectorScroll = inspector.elementType == .scrollView ? inspector : inspector.scrollViews.firstMatch
+        let notes = inspectorScroll.staticTexts.matching(NSPredicate(
+            format: "value == %@ OR label == %@", "Show Notes", "Show Notes")).firstMatch
+        try ready(inspectorScroll)
+        inspectorScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).hover()
+        try reveal(notes, in: inspectorScroll, requireVisibleFrame: true)
 
         let secondEntry = episodeRows.element(boundBy: 1)
         try ready(secondEntry)
@@ -2047,13 +2053,17 @@ final class PodListUITour: XCTestCase {
         XCTAssertTrue(library.sheets.firstMatch.waitForNonExistence(timeout: 10))
     }
 
-    private func reveal(_ element: XCUIElement, in scroll: XCUIElement, scrollDelta: Double = -180) throws {
-        for _ in 0..<8 {
-            // Glass action strips can report isHittable == false although the control is
-            // visible; accept a control whose centre lies inside the scroll view.
-            if element.exists, !element.frame.isEmpty, element.isHittable
-                || scroll.frame.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) { return }
-            scroll.scroll(byDeltaX: 0, deltaY: scrollDelta)
+    private func reveal(_ element: XCUIElement, in scroll: XCUIElement, scrollDelta: Double = -180,
+                        requireVisibleFrame: Bool = false) throws {
+        for attempt in 0...8 {
+            if element.exists {
+                let frame = element.frame
+                // Glass action strips can report isHittable == false although the control is
+                // visible. The Inspector regression specifically needs the notes in the viewport.
+                if !frame.isEmpty && ((!requireVisibleFrame && element.isHittable)
+                    || scroll.frame.contains(CGPoint(x: frame.midX, y: frame.midY))) { return }
+            }
+            if attempt < 8 { scroll.scroll(byDeltaX: 0, deltaY: scrollDelta) }
         }
         XCTFail("Could not reveal \(element)")
     }

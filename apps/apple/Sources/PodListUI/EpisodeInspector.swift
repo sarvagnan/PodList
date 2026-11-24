@@ -48,9 +48,28 @@ enum InspectorLayout {
     static let notesFont = Font.body.width(.condensed)
 }
 
+struct InspectorScrollView<Content: SwiftUI.View>: SwiftUI.View {
+    let episodeID: String
+    @ViewBuilder let content: () -> Content
+
+    private enum Anchor: Hashable { case top }
+
+    var body: some SwiftUI.View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                content().id(Anchor.top)
+            }
+            .playbackBarScrollClearance()
+            .onChange(of: episodeID) { _, _ in
+                // A one-time request leaves later scrolling and layout to SwiftUI.
+                proxy.scrollTo(Anchor.top, anchor: .top)
+            }
+        }
+    }
+}
+
 struct EpisodeInspector: SwiftUI.View {
     @Environment(\.libraryEditOrigin) private var origin
-    @State private var scrollPosition = ScrollPosition()
     let row: EpisodeRow?
     let library: LibraryModel
     @Bindable var app: ApplicationModel
@@ -69,16 +88,13 @@ struct EpisodeInspector: SwiftUI.View {
         } else if let row {
             Group {
                 if scrolls {
-                    ScrollView {
+                    InspectorScrollView(episodeID: row.id) {
                         InspectorEpisodeDetail(row: row, library: library, app: app,
                             playlistPresentation: playlistPresentation, startedPlayback: startedPlayback,
                             deferDetails: true, timingKey: inspectorTimingKey)
                             .padding(.vertical, 20).padding(.horizontal, InspectorLayout.horizontalInset)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .scrollPosition($scrollPosition)
-                    .onChange(of: row.id, initial: true) { _, _ in scrollPosition.scrollTo(edge: .top) }
-                    .playbackBarScrollClearance()
                 } else {
                     InspectorEpisodeDetail(row: row, library: library, app: app,
                         playlistPresentation: playlistPresentation, startedPlayback: startedPlayback,
@@ -184,18 +200,17 @@ private struct InspectorEpisodeDetail: SwiftUI.View {
                 VStack(alignment: .leading, spacing: 16) { content }
             }
         }
-        .background {
-            if deferDetails && !ready {
-                // Leave one SwiftUI animation tick after the shell's initial layout.
-                // Removing this schedule after the tick keeps the inspector idle.
-                TimelineView(.animation(minimumInterval: 1.0 / 60)) { tick in
-                    Color.clear.onChange(of: tick.date) { _, _ in readyEpisodeID = row.id }
-                }.allowsHitTesting(false).accessibilityHidden(true)
+        .task(id: row.id) {
+            let episodeID = row.id
+            if !ready {
+                // Give the shell a frame to lay out before adding the heavier sections.
+                // The task ends or cancels once for each selection.
+                do { try await Task.sleep(for: .milliseconds(17)) }
+                catch { return }
+                guard !Task.isCancelled else { return }
+                readyEpisodeID = episodeID
             }
-        }
-        .task(id: ready ? row.id : nil) {
-            guard ready else { return }
-            await app.resolveEpisodeDetails(row.id)
+            await app.resolveEpisodeDetails(episodeID)
         }
     }
 
