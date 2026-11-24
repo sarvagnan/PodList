@@ -10,10 +10,11 @@ import {
   rmSync,
   writeFileSync
 } from "node:fs"
+import { createServer as createNetServer } from "node:net"
 import { dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
-import { relay } from "./relay.mjs"
+import { relay, tartExec } from "./relay.mjs"
 
 const [vm, staging, tartOutput] = process.argv.slice(2)
 const initializeReport = vm === "--initialize-report"
@@ -259,17 +260,25 @@ async function scenario(name, action) {
 }
 
 let hostRelay
+let apiRelay
+const apiPort = await new Promise((resolve) => {
+  const probe = createNetServer()
+  probe.listen(0, "127.0.0.1", () => {
+    const { port: free } = probe.address()
+    probe.close(() => resolve(free))
+  })
+})
 let demo
 let remoteStaged = false
 try {
   await scenario(scenarioNames[0], async () => {
     assert.ok(/^emulator-\d+$/.test(serial), "Use a disposable Android emulator")
-    const address = await until("Tart guest IPv4 address", async () => {
-      const output = (await tart("tart-ip", "ip", vm)).trim()
-      return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(output) && output
-    })
-    apiOrigin = `http://${address}:${port}`
-    demo = guest("demo", ["start", address, String(port)], { timeout: 0 })
+    // The host never opens TCP to the guest IP (macOS Local Network privacy blocks it).
+    // An ungated relay serves the harness's own API checks; the gated one serves web and Android.
+    apiRelay = relay(apiPort, tartExec(vm, port + 1), join(control, "never-offline"))
+    await apiRelay.ready
+    apiOrigin = `http://127.0.0.1:${apiPort}`
+    demo = guest("demo", ["start", "127.0.0.1", String(port)], { timeout: 0 })
     const readyFile = join(control, "ready.json")
     const startup = new AbortController()
     demo.result.then(
@@ -286,7 +295,7 @@ try {
     const health = await json("/health")
     assert.equal(health.status, "ok")
     versionHeaders = { "x-podlist-protocol-version": String(health.protocolVersion) }
-    hostRelay = relay(port, address, androidOffline)
+    hostRelay = relay(port, tartExec(vm, port + 1), androidOffline)
     await hostRelay.ready
     await until(
       "host relay",
@@ -634,6 +643,7 @@ try {
   writeFileSync(join(out, "failure.log"), `${error.stack}\n${error.cause?.stack ?? ""}\n`)
 } finally {
   hostRelay?.stop()
+  apiRelay?.stop()
   demo?.process.kill("SIGTERM")
   if (remoteStaged)
     await command("boat", ["exec", sandbox, "--", "rm", "-rf", remoteDir], "boat-cleanup", {

@@ -1,8 +1,23 @@
-// The two instances expose the guest server to Mac loopback and host loopback.
+// Relays expose the guest server to Mac loopback (TCP) and host loopback (tartExec).
 // A gate file cuts existing streams as well as new ones. The demo stays alive.
+import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import { connect, createServer } from "node:net"
+import { Duplex } from "node:stream"
 import { pathToFileURL } from "node:url"
+
+// macOS Local Network privacy blocks host processes from opening TCP connections to
+// the Tart guest's IP. Tunnel each connection over the guest agent instead.
+export const tartExec = (vm, guestPort) => () => {
+  const child = spawn("tart", ["exec", "-i", vm, "/usr/bin/nc", "127.0.0.1", String(guestPort)], {
+    stdio: ["pipe", "pipe", "ignore"]
+  })
+  const stream = Duplex.from({ readable: child.stdout, writable: child.stdin })
+  const kill = () => child.kill()
+  stream.on("close", kill)
+  child.on("exit", () => stream.destroy())
+  return stream
+}
 
 export function relay(port, destination, offlineFile) {
   const pairs = new Set()
@@ -11,7 +26,7 @@ export function relay(port, destination, offlineFile) {
       local.destroy()
       return
     }
-    const remote = connect(port, destination)
+    const remote = typeof destination === "function" ? destination() : connect(port, destination)
     const disconnect = () => {
       local.destroy()
       remote.destroy()
