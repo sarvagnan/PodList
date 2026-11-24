@@ -216,17 +216,20 @@ class CrossClientSyncTest {
         shown(flowControl(marker))
     }
 
+    // The Search field holds the same text as the result row; match only the row.
+    private fun searchResult(title: String) = flowControl(title) and !hasSetTextAction()
+
     private fun search(title: String) {
         root("Library")
         click("Search the Library")
         enter("Search the Library", title)
         dismissKeyboard()
-        await("exact Search result $title") { present(flowControl(title)) && present(hasText("1 Episode")) }
+        await("exact Search result $title") { present(searchResult(title)) && present(hasText("1 Episode")) }
     }
 
     private fun openEpisode(title: String) {
         search(title)
-        click(title)
+        click(searchResult(title))
         shown(hasText("Show notes"))
         shown(flowControl("Add to a Playlist"))
     }
