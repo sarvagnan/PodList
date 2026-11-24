@@ -59,6 +59,7 @@ class CrossClientSyncTest {
                     openEpisode(LIGHTHOUSE)
                     click("Star")
                     shown(flowControl("Unstar"))
+                    delivered()
                 }
                 "download" -> {
                     openEpisode(NOTEBOOK)
@@ -84,6 +85,7 @@ class CrossClientSyncTest {
                     root("Playlists")
                     shown(flowControl("Workshop Offline Android"))
                     hidden(hasText(OFFLINE))
+                    delivered()
                 }
                 "offline-check" -> {
                     workshop("Workshop Offline Mac", listOf(JOINERY, NOTEBOOK, CHAIR))
@@ -99,8 +101,10 @@ class CrossClientSyncTest {
                         }
                     }
                 }
-                "handoff-edit" ->
+                "handoff-edit" -> {
                     playAndSkip("Workshop Offline Mac", skips = 2, minimum = 150)
+                    delivered()
+                }
                 "trash-check" -> {
                     root("Playlists")
                     hidden(flowControl("Commute Android"))
@@ -156,6 +160,13 @@ class CrossClientSyncTest {
 
     private fun present(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+
+    // Instrumentation ends by killing the app process; wait until queued edits reach the
+    // server so they aren't left in the outbox until the next launch.
+    private fun delivered() {
+        val app = instrumentation.targetContext.applicationContext as PodListApplication
+        await("Android edits delivered to the server") { app.model.session.value?.db?.outbox()?.isEmpty() == true }
+    }
 
     private fun await(label: String, predicate: () -> Boolean) {
         try {
