@@ -547,7 +547,6 @@ try {
   await scenario(scenarioNames[7], async () => {
     // A live Mac invocation retains its originating Undo stack across the web Restore.
     const macDelete = mac("delete-undo")
-    const deleted = join(control, "mac-deleted")
     const undo = join(control, "mac-undo")
     const checkpoint = new AbortController()
     macDelete.then(
@@ -557,7 +556,14 @@ try {
     try {
       await until(
         "Mac's Delete UI checkpoint",
-        () => existsSync(deleted),
+        async () => {
+          try {
+            await command("tart", ["exec", vm, "/bin/test", "-f", "/private/tmp/podlist-uitour-run/cross-sync/mac-deleted"], "mac-deleted-probe").result
+            return true
+          } catch {
+            return false
+          }
+        },
         120_000,
         AbortSignal.any([checkpoint.signal, interrupt.signal])
       )
