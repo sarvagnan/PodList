@@ -206,6 +206,11 @@ public struct LibraryModel: Sendable {
         case nil: "PodList"
         }
     }
+    func savedViews(search: String) -> [PodListDomain.View] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? state.views : state.views.filter { $0.name.localizedStandardContains(query) }
+    }
+
     public func viewEpisodes(_ view: PodListDomain.View) -> [Episode] {
         // An editor draft can share the saved View's ID while its rules change.
         guard viewsByID[view.id] == view else { return evaluate(view) }
@@ -590,6 +595,6 @@ public final class WindowModel {
         if case let .view(id) = destination, !library.state.views.contains(where: { $0.id == id }) { navigate(to: .views) }
         if case let .playlist(id) = destination, !library.state.playlists.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
         if case let .subscription(id) = destination, !library.subscriptions.contains(where: { $0.id == id }) { navigate(to: .subscriptions) }
-        selection.formIntersection(Set(destination == .views ? library.state.views.map(\.id) : rows(in: library).map(\.id)))
+        selection.formIntersection(Set(destination == .views ? library.savedViews(search: search).map(\.id) : rows(in: library).map(\.id)))
     }
 }

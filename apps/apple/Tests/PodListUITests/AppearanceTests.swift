@@ -478,6 +478,14 @@ private var multicolorSelectionColors: [NSColor] {
     }
 }
 
+@Test @MainActor func toolbarScopeCaptionMeetsContrastOnAuditedDarkGlass() {
+    let gray = LibraryToolbarSearch.darkScopeGray
+    let foreground = RGB(NSColor(srgbRed: gray, green: gray, blue: gray, alpha: 1), over: RGB(0))
+    for background in [RGB(0x474646), RGB(0x494746)] {
+        #expect(foreground.contrast(background) >= 4.5)
+    }
+}
+
 @Test @MainActor func roundTwoErrorsAndSecondaryTextMeetContrastInBothAppearances() {
     for (name, surfaces) in [(NSAppearance.Name.aqua, [0xFFFFFF, 0xF6F6F6, 0xFFF5F5, 0xF5FCF7]),
                              (.darkAqua, [0x222222, 0x2F2D2B, 0x292726, 0x2F2424, 0x252B25, 0x464646])] {

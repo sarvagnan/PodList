@@ -173,7 +173,7 @@ if [ -n "$vm" ]; then
     # One macOS VM at a time on this Mac (owner, 19 Nov 2026): wait while any Tart VM
     # runs, including other projects' tours such as FinderTools.
     while :; do
-        running="$(tart list --format json | python3 -c 'import json, sys
+        running="$(tart list --source local --format json | python3 -c 'import json, sys
 print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))')"
         [ -n "$running" ] || break
         echo "Waiting for running VM(s) to finish: $running" >&2

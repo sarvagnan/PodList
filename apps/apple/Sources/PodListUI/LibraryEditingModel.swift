@@ -169,31 +169,25 @@ public final class LibraryEditingModel {
         }
     }
     public func savedView(_ id: String) async throws -> PodListDomain.View? { try await db.loadState().views.first { $0.id == id } }
-    public func saveView(_ view: PodListDomain.View, sessionID: UUID? = nil) async throws {
+    public func saveView(_ view: PodListDomain.View) async throws {
+        try await commitView { try await $0.saveUniqueView(view, at: Self.now) }
+    }
+
+    func saveViewDraft(_ draft: ViewEditorDraft, creating: Bool) async throws {
+        if !creating, draft.touched.isEmpty { return }
+        try await commitView { try await $0.saveViewDraft(draft, creating: creating, at: Self.now) }
+    }
+
+    private func commitView(_ write: (LocalDatabase) async throws -> (previous: PodListDomain.View?, saved: PodListDomain.View)?) async throws {
         try await edits.performExternal {
-            let previous = try await self.db.saveUniqueView(view, at: Self.now)
-            let clean = PodListDomain.View(id: view.id, name: view.name.trimmingCharacters(in: .whitespacesAndNewlines), filter: view.filter, sort: view.sort, limit: view.limit)
             let db = self.db
+            guard let (previous, saved) = try await write(db) else { return nil }
             return NamedEdit(name: "Edit View", changes: [], reload: false, action: {
-                if let previous { _ = try await db.saveUniqueView(previous, at: Self.now, skipUnchanged: true) }
-                else { try await db.record(.deleteView(viewId: clean.id), at: Self.now) }
-            }, inverseAction: { _ = try await db.saveUniqueView(clean, at: Self.now, skipUnchanged: true) }, sessionID: sessionID)
+                if let previous { _ = try await db.saveUniqueView(previous, at: Self.now) }
+                else { try await db.record(.deleteView(viewId: saved.id), at: Self.now) }
+            }, inverseAction: { _ = try await db.saveUniqueView(saved, at: Self.now) })
         }
         await changed()
-    }
-    /// The sheet waits for its queued live writes before cancelling. A failed restore keeps
-    /// both the sheet and its drafts available for retry.
-    public func cancelViewEdits(initial: PodListDomain.View, creating: Bool, sessionID: UUID) async throws {
-        if !creating, edits.history.contains(where: { $0.sessionID == sessionID }) {
-            try await edits.performExternal(recordHistory: false) {
-                _ = try await self.db.saveUniqueView(initial, at: Self.now)
-                return NamedEdit(name: "Cancel View Edits", changes: [], reload: false)
-            }
-            await changed()
-        }
-        edits.discardViewSession(sessionID)
-        clearViewDrafts(initial.id, creating: creating)
-        error = nil
     }
     public func clearViewDrafts(_ id: String, creating: Bool) {
         for field in ["view.\(id)", "rename.\(id)", "limit.\(id)", "days.\(id)", "\(id).Minimum length (minutes)", "\(id).Maximum length (minutes)"] {
@@ -206,7 +200,7 @@ public final class LibraryEditingModel {
             try await self.db.record(.deleteView(viewId: view.id), at: Self.now)
             let db = self.db
             return NamedEdit(name: "Delete View", changes: [], reload: false,
-                action: { _ = try await db.saveUniqueView(view, at: Self.now, skipUnchanged: true) },
+                action: { _ = try await db.saveUniqueView(view, at: Self.now) },
                 inverseAction: { try await db.record(.deleteView(viewId: view.id), at: Self.now) })
         }
         notice = "Deleted View “\(view.name)”"; await changed()
@@ -396,16 +390,30 @@ public final class LibraryEditingModel {
 
 extension LocalDatabase {
     /// Validation and write run without suspension, so two windows cannot create duplicate names.
-    public func saveUniqueView(_ view: PodListDomain.View, at: Int64, skipUnchanged: Bool = false) throws -> PodListDomain.View? {
+    @discardableResult
+    public func saveUniqueView(_ view: PodListDomain.View, at: Int64) throws -> (previous: PodListDomain.View?, saved: PodListDomain.View)? {
         let state = try loadState()
-        var clean = view; clean.name = view.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try saveUniqueView(view, in: state, at: at)
+    }
+
+    func saveViewDraft(_ draft: ViewEditorDraft, creating: Bool, at: Int64) throws -> (previous: PodListDomain.View?, saved: PodListDomain.View)? {
+        let state = try loadState()
+        if creating { return try saveUniqueView(draft.value, in: state, at: at) }
+        guard let current = state.views.first(where: { $0.id == draft.value.id }) else {
+            throw FormFailure(message: "This View was deleted.")
+        }
+        return try saveUniqueView(draft.merging(into: current), in: state, at: at)
+    }
+
+    private func saveUniqueView(_ view: PodListDomain.View, in state: State, at: Int64) throws -> (previous: PodListDomain.View?, saved: PodListDomain.View)? {
+        var clean = view
+        clean.name = view.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let previous = state.views.first { $0.id == view.id }
-        // An identical synced View can already exist alongside a conflicting name.
-        if skipUnchanged, previous == clean { return previous }
+        if previous == clean { return nil }
         if let problem = ViewEdits.problem(view) { throw FormFailure(message: problem) }
         if let problem = ViewNames.problem(view.name, views: state.views, excluding: view.id) { throw FormFailure(message: problem) }
         try record(.saveView(view: clean), at: at)
-        return previous
+        return (previous, clean)
     }
 }
 

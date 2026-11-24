@@ -105,6 +105,16 @@ public enum EpisodeActions {
         }
         return changes
     }
+    /// A selected Entry can move one step if its neighbor in that direction
+    /// is unselected. Check the Playlist order, even when a search hides rows.
+    public static func canMove(_ ids: Set<String>, in playlist: Playlist, down: Bool) -> Bool {
+        zip(playlist.entries, playlist.entries.dropFirst()).contains { first, second in
+            let firstSelected = ids.contains(first.episodeId)
+            let secondSelected = ids.contains(second.episodeId)
+            return down ? firstSelected && !secondSelected : !firstSelected && secondSelected
+        }
+    }
+
     /// Native drag/drop and discrete moves share this ordered block operation.
     public static func move(_ ids: Set<String>, in playlist: Playlist, to boundary: Int) -> [Change] {
         let selected = playlist.entries.map(\.episodeId).filter { ids.contains($0) }

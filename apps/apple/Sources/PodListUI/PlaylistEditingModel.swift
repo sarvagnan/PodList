@@ -38,7 +38,6 @@ public struct NamedEdit: Sendable {
     public let reload: Bool
     public var action: (@MainActor @Sendable () async throws -> Void)? = nil
     public var inverseAction: (@MainActor @Sendable () async throws -> Void)? = nil
-    public var sessionID: UUID? = nil
     public var message: String? = nil
     var origin: EditOrigin? = nil
 }
@@ -92,10 +91,6 @@ public final class PlaylistEditingModel {
         self.checkPurgeSupport = checkPurgeSupport
     }
     public func endSession() { ended = true; history.clear(); retryAction = nil; retryKind = nil }
-    func discardViewSession(_ id: UUID) {
-        history.removeAll { $0.sessionID == id }
-        status = "Cancelled View edits"; error = nil
-    }
     /// Share the same serialization and history for metadata requests and State edits.
     /// Return nil when a batch has no successful changes to undo.
     public func performExternal(recordHistory: Bool = true, _ apply: @MainActor () async throws -> NamedEdit?) async throws {
@@ -225,7 +220,7 @@ public final class PlaylistEditingModel {
                 let action: @MainActor () async throws -> Void = {
                     if let external = step.action, let inverse = step.inverseAction {
                         try await external()
-                        self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: [], reload: true, action: inverse, inverseAction: external, sessionID: step.sessionID, origin: step.origin), redo: redo)
+                        self.history.completeReverse(with: NamedEdit(id: step.id, name: step.name, changes: [], reload: true, action: inverse, inverseAction: external, origin: step.origin), redo: redo)
                         self.status = feedback
                         return
                     }
@@ -404,7 +399,8 @@ public final class PlaylistEditingModel {
     }
     public func move(_ ids: Set<String>, playlistID: String, down: Bool) async {
         _ = await edit(name: down ? "Move Down" : "Move Up") { state in
-            guard let playlist = state.playlists.first(where: { $0.id == playlistID }) else { return [] }
+            guard let playlist = state.playlists.first(where: { $0.id == playlistID }),
+                  EpisodeActions.canMove(ids, in: playlist, down: down) else { return [] }
             var order = playlist.entries.map(\.episodeId)
             if down {
                 for index in order.indices.reversed() where index + 1 < order.count && ids.contains(order[index]) && !ids.contains(order[index + 1]) { order.swapAt(index, index + 1) }

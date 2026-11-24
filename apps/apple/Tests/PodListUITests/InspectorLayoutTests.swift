@@ -3,6 +3,7 @@ import AppKit
 import CoreText
 import PodListData
 import PodListDomain
+import SwiftUI
 import Testing
 @testable import PodListUI
 
@@ -59,5 +60,67 @@ import Testing
         report("scene context JSON") { _ = context.encoded }
         report("12 KB notes normalization") { _ = Presentation.plainShowNotes(description) }
     }
+}
+
+@Observable private final class InspectorScrollFixture {
+    var episodeID = "first"
+    var notesHeight: CGFloat = 800
+}
+
+@MainActor @Test func inspectorResetsOnlyWhenTheSelectedEpisodeChanges() async throws {
+    struct Content: SwiftUI.View {
+        let fixture: InspectorScrollFixture
+
+        var body: some SwiftUI.View {
+            InspectorScrollView(episodeID: fixture.episodeID) {
+                LazyVStack {
+                    Text(fixture.episodeID)
+                    Color.clear.frame(height: fixture.notesHeight)
+                }
+                .frame(width: 220)
+            }
+        }
+    }
+
+    let fixture = InspectorScrollFixture()
+    let window = NSWindow(contentViewController: NSHostingController(rootView: Content(fixture: fixture)))
+    window.isReleasedWhenClosed = false
+    window.setContentSize(NSSize(width: 270, height: 250))
+    defer { window.close() }
+    let root = try #require(window.contentView)
+    func settle() async throws {
+        for _ in 0..<5 {
+            root.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(15))
+        }
+    }
+    func descendants(_ view: NSView) -> [NSView] {
+        view.subviews.flatMap { [$0] + descendants($0) }
+    }
+
+    try await settle()
+    let scrollView = try #require(descendants(root).compactMap { $0 as? NSScrollView }.first)
+    let clip = scrollView.contentView
+    func scrollDown() {
+        clip.scroll(to: CGPoint(x: clip.bounds.minX, y: 280))
+        scrollView.reflectScrolledClipView(clip)
+    }
+    scrollDown()
+    try await settle()
+    try #require(scrollView.documentVisibleRect.minY > 250)
+
+    fixture.episodeID = "second"
+    try await settle()
+    #expect(descendants(root).contains { $0 === scrollView }, "Keep the Inspector scroll view mounted")
+    #expect(abs(scrollView.documentVisibleRect.minY) < 1)
+
+    scrollDown()
+    let readingOffset = scrollView.documentVisibleRect.minY
+    try #require(readingOffset > 250)
+    // The new details can arrive in the same layout pass as a scroll.
+    fixture.notesHeight += 300
+    try await settle()
+    #expect(abs(scrollView.documentVisibleRect.minY - readingOffset) < 1, "New details must preserve the reading position")
+    #expect(!window.isVisible)
 }
 #endif

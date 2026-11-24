@@ -8,7 +8,9 @@ public struct PodListWindow: SwiftUI.View {
     @State private var linkError: String?
     @State private var playlistPresentation = PlaylistPresentation()
     @FocusState private var viewsFocused: Bool
-    @State private var editingView: PodListDomain.View?
+    @State private var editingView: ViewEditorDraft?
+    @State private var focusViewName = false
+    @SceneStorage("PodList.viewDraftWindowID") private var viewDraftWindowID = ""
     @State private var creatingView = false
     @State private var showBulkRules = false
     @State private var showSubscriptionSettings = false
@@ -24,6 +26,7 @@ public struct PodListWindow: SwiftUI.View {
     @State private var contextLibraryID: String?
     @AppStorage("PodList.inspectorVisible") private var defaultInspectorVisible = true
     @Environment(\.macTextScale) private var textScale
+    @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appearsActive) private var appearsActive
     @Environment(\.openWindow) private var openWindow
@@ -45,7 +48,7 @@ public struct PodListWindow: SwiftUI.View {
         }
         .frame(minWidth: 760, minHeight: 500)
         .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
-            guard width > 0 else { return }
+            guard width.isFinite, width > 0 else { return }
             windowWidth = width
             if contextLoaded { updatePanes(.layoutChanged) }
         }
@@ -60,7 +63,7 @@ public struct PodListWindow: SwiftUI.View {
         .onChange(of: app.origin) { _, _ in
             guard contextLoaded, contextLibraryID != (app.origin ?? "standalone") else { return }
             contextLoaded = false
-            window.clearListMemory(); playlistPresentation.sheet = nil
+            window.clearListMemory(); playlistPresentation.sheet = nil; editingView = nil
             if let library = app.library { restoreContext(in: library) }
         }
     }
@@ -173,7 +176,9 @@ public struct PodListWindow: SwiftUI.View {
                           openPlaylist: { window.navigate(to: .playlist(library.state.activePlaylistId)) },
                           openNowPlaying: { openWindow(id: "now-playing") }, announcements: app.announcements)
                     .environment(\.podListRecoveryIndexed, true)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { playbackBarHeight = $0 }
+                    .onGeometryChange(for: CGFloat.self) {
+                        EpisodeTableLayout.viewportDimension($0.size.height)
+                    } action: { playbackBarHeight = $0 }
             }
         }
         .environment(\.libraryPlaybackBarInset, playbackInset)
@@ -217,7 +222,8 @@ public struct PodListWindow: SwiftUI.View {
         }
         .sheet(isPresented: Binding(get: { editingView != nil }, set: { if !$0 { editingView = nil } })) {
             if let view = editingView, let editor = app.libraryEditing {
-                ViewEditorScreen(editor: editor, library: library, view: view, creating: creatingView) { id in
+                ViewEditorScreen(editor: editor, app: app, library: library, draft: view, creating: creatingView,
+                                 windowID: viewDraftWindowID, focusName: focusViewName) { id in
                     editingView = nil
                     if let id { window.navigate(to: .view(id)) }
                 }
@@ -368,13 +374,14 @@ public struct PodListWindow: SwiftUI.View {
             }
             // Lists and AppKit tables must fit the space left by window feedback.
             GeometryReader { viewport in
+                let size = EpisodeTableLayout.viewportSize(viewport.size)
                 Group {
                     if let podcastFeed, let editor = app.libraryEditing {
                         podcastPage(feed: podcastFeed, editor: editor, library: library)
                     } else { content(library, rows: rows, deletedPlaylist: deletedPlaylist) }
                 }
                 .id(window.destination).id(podcastFeed)
-                .frame(width: viewport.size.width, height: viewport.size.height)
+                .frame(width: size.width, height: size.height)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -423,8 +430,7 @@ public struct PodListWindow: SwiftUI.View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                LibraryToolbarSearch(text: $window.search,
-                                     scope: isPodcastPage ? .episodes : window.destination == .search ? .library : .list)
+                if let scope = toolbarSearchScope { LibraryToolbarSearch(text: $window.search, scope: scope) }
             }
         }
         .inspector(isPresented: inspector) {
@@ -506,44 +512,52 @@ public struct PodListWindow: SwiftUI.View {
     @ViewBuilder private func content(_ library: LibraryModel, rows: [EpisodeRow], deletedPlaylist: Playlist?) -> some SwiftUI.View {
         switch window.destination {
         case .views:
-            if library.state.views.isEmpty {
-                PodListEmptyState("No Views", systemImage: "line.3.horizontal.decrease",
-                                  description: "Create a View to find Episodes.") { Button("New View…") { newView() } }
-            } else {
-                let ids = window.listBinding(\.selection)
-                let selection = Binding<String?>(get: {
-                    ids.wrappedValue.count == 1 ? ids.wrappedValue.first : nil
-                }, set: { ids.wrappedValue = $0.map { [$0] } ?? [] })
-                List(library.state.views, id: \.id, selection: selection) { view in
-                    HStack(spacing: 10) {
-                        Label(view.name, systemImage: "line.3.horizontal.decrease")
-                        Spacer()
-                        Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(view.id)))
-                    }.frame(minHeight: 44).padding(.vertical, 4)
-                        .accessibilityElement(children: .combine)
-                        .tag(view.id)
-                }
-                .playbackBarScrollClearance()
-                .accessibilityIdentifier("views.list")
-                .focused($viewsFocused)
-                .onAppear { viewsFocused = true }
-                .contextMenu(forSelectionType: String.self) { ids in
-                    if let id = ids.first {
-                        Button("Open") { window.navigate(to: .view(id)) }
-                        sidebarActions(.view(id), library: library)
+            let views = library.savedViews(search: window.search)
+            VStack(spacing: 0) {
+                if library.state.views.isEmpty {
+                    PodListEmptyState("No Views", systemImage: "line.3.horizontal.decrease",
+                                      description: "Create a View to find Episodes.") { Button("New View…") { newView() } }
+                } else if views.isEmpty {
+                    PodListEmptyState("No Matching Views", systemImage: "magnifyingglass",
+                                      description: "Try a different View name.") {
+                        Button("Clear Search") { window.search = "" }
                     }
-                } primaryAction: { ids in
-                    if let id = ids.first { window.navigate(to: .view(id)) }
-                }
-                .onCopyCommand(perform: selection.wrappedValue.map { id in
-                    {
-                        let url = PodListLink.view(id).url
-                        return [SelectionCopyContent(text: url.absoluteString, url: url).itemProvider()]
+                } else {
+                    let ids = window.listBinding(\.selection)
+                    let selection = Binding<String?>(get: {
+                        ids.wrappedValue.count == 1 ? ids.wrappedValue.first : nil
+                    }, set: { ids.wrappedValue = $0.map { [$0] } ?? [] })
+                    List(views, id: \.id, selection: selection) { view in
+                        HStack(spacing: 10) {
+                            Label(view.name, systemImage: "line.3.horizontal.decrease")
+                            Spacer()
+                            Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(view.id)))
+                        }.frame(minHeight: 44).padding(.vertical, 4)
+                            .accessibilityElement(children: .combine)
+                            .tag(view.id)
                     }
-                })
-                .typeSelectingRows(library.state.views.map { TypeSelectionRow(id: $0.id, title: $0.name) },
-                    selection: selection, anchor: window.listBinding(\.scrollAnchor))
+                    .playbackBarScrollClearance()
+                    .accessibilityIdentifier("views.list")
+                    .focused($viewsFocused)
+                    .contextMenu(forSelectionType: String.self) { ids in
+                        if let id = ids.first {
+                            Button("Open") { window.navigate(to: .view(id)) }
+                            sidebarActions(.view(id), library: library)
+                        }
+                    } primaryAction: { ids in
+                        if let id = ids.first { window.navigate(to: .view(id)) }
+                    }
+                    .onCopyCommand(perform: selection.wrappedValue.map { id in
+                        {
+                            let url = PodListLink.view(id).url
+                            return [SelectionCopyContent(text: url.absoluteString, url: url).itemProvider()]
+                        }
+                    })
+                    .typeSelectingRows(views.map { TypeSelectionRow(id: $0.id, title: $0.name) },
+                        selection: selection, anchor: window.listBinding(\.scrollAnchor))
+                }
             }
+            .onAppear { if window.search.isEmpty { viewsFocused = true } }
         case .subscriptions:
             subscriptions(library)
         case .trash:
@@ -786,30 +800,29 @@ public struct PodListWindow: SwiftUI.View {
                         }
                         .playbackBarScrollClearance()
                     } else {
-                        GeometryReader { geometry in
-                            let layout = EpisodeTableLayout(width: geometry.size.width)
+                        EpisodeTableViewport { layout in
                             Table(of: EpisodeRow.self, selection: selection, sortOrder: window.listBinding(\.sortOrder)) {
                                 TableColumn("Episode", value: \.title) { row in
                                     episodeTitle(row, rows: rows, library: library, state: layout.playbackMark(for: row.stateText))
                                         .episodeDragSource(row.id)
-                                }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                                }.width(layout.libraryTitle)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { row in
                                         Group {
                                             if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
                                             else { Text("—") }
                                         }.episodeDragSource(row.id)
-                                    }.width(min: 95, ideal: 110, max: 150)
+                                    }.width(layout.libraryPublished)
                                 }
                                 if layout.showsLength {
                                     TableColumn("Length", value: \.length) { row in
                                         Text(row.durationText).monospacedDigit().episodeDragSource(row.id)
-                                    }.width(min: 60, ideal: 70, max: 100)
+                                    }.width(layout.libraryLength)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { row in
                                         Text(row.stateText).fixedSize(horizontal: false, vertical: true).episodeDragSource(row.id)
-                                    }.width(min: 140, ideal: 150, max: 200)
+                                    }.width(layout.libraryState)
                                 }
                             } rows: {
                                 ForEach(rows) { TableRow($0) }
@@ -953,6 +966,13 @@ public struct PodListWindow: SwiftUI.View {
         savedContext = currentContext.encoded
     }
 
+    private var toolbarSearchScope: LibraryToolbarSearch.Scope? {
+        if isPodcastPage { return .episodes }
+        if window.destination == .search { return .library }
+        if case .playlist = window.destination, window.playlistTab != .entries { return nil }
+        return .list
+    }
+
     private var isPodcastPage: Bool { window.isPodcastPage }
     private func editCurrentView(_ library: LibraryModel) {
         guard let view = selectedView(library) else { return }
@@ -974,19 +994,28 @@ public struct PodListWindow: SwiftUI.View {
         return { renameView(view) }
     }
     private func renameView(_ view: PodListDomain.View) {
-        guard let editor = app.libraryEditing, app.editing?.busy == false,
-              ViewRenameAction.prepare(view, editor: editor) else { return }
-        editView(view)
+        guard app.libraryEditing?.busy == false, app.editing?.busy == false else { return }
+        editView(view, focusName: true)
     }
-    private func editView(_ view: PodListDomain.View) {
-        creatingView = false; editingView = view
+    private func editView(_ view: PodListDomain.View, focusName: Bool = false) {
+        guard let editor = app.libraryEditing else { return }
+        if viewDraftWindowID.isEmpty { viewDraftWindowID = UUID().uuidString }
+        creatingView = false
+        focusViewName = focusName
+        editingView = editor.viewDraft(for: view, in: viewDraftWindowID, creating: false, locale: locale)
     }
     private func newView(text: String? = nil) {
         guard let editor = app.libraryEditing else { return }
-        var id = editor.draft("newViewID")
-        if id.isEmpty { id = UUID().uuidString; editor.setDraft(id, field: "newViewID") }
+        if viewDraftWindowID.isEmpty { viewDraftWindowID = UUID().uuidString }
+        let field = "newViewID.\(viewDraftWindowID)"
+        let existing = editor.draft(field)
+        let legacy = editor.draft("newViewID")
+        let id = !existing.isEmpty ? existing : !legacy.isEmpty ? legacy : UUID().uuidString
+        editor.setDraft(id, field: field)
         creatingView = true
-        editingView = PodListDomain.View(id: id, name: "", filter: .init(text: text), sort: .publishedDesc, limit: nil)
+        focusViewName = true
+        let view = PodListDomain.View(id: id, name: "", filter: .init(text: text), sort: .publishedDesc, limit: nil)
+        editingView = editor.viewDraft(for: view, in: viewDraftWindowID, creating: true, locale: locale)
     }
     private func toolbarPlaylist(_ library: LibraryModel) -> Playlist? {
         guard !isPodcastPage, case let .playlist(id) = window.destination else { return nil }
@@ -1066,13 +1095,23 @@ struct LibraryToolbarSearch: SwiftUI.View {
 
     @Binding var text: String
     let scope: Scope
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focused: Bool
+
+    static let darkScopeGray = 196.0 / 255
+
+    private var scopeInk: AnyShapeStyle {
+        let gray = Self.darkScopeGray
+        return colorScheme == .dark
+            ? AnyShapeStyle(Color(red: gray, green: gray, blue: gray))
+            : AnyShapeStyle(MacReadableSecondaryStyle())
+    }
 
     var body: some SwiftUI.View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             Text(scope.caption)
-                .font(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize()
+                .font(.caption).foregroundStyle(scopeInk).fixedSize()
                 .padding(.trailing, 5)
                 .overlay(alignment: .trailing) { Divider().frame(height: 12) }
                 .accessibilityHidden(true)

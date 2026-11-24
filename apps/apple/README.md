@@ -220,20 +220,32 @@ author, description, Search Episodes and Add/Play actions before subscribing. Re
 alone does not add metadata to the Library; adding/playing one Episode retains only that
 Episode, using the same feed/guid identity when subscribing later. Cached Podcast pages remain
 usable without networking. Subscribe leaves Add podcasts open and preserves the field.
+Podcast › Refresh All Feeds and Settings › General › Refresh Now show which feed
+is being checked out of the current Library's total. Cancel Feed Refresh is
+available in the status row and Podcast menu. A connected server may still finish
+the feed it already received. Settings shows progress while checking a connection.
+
 The green Subscribed control arms Unsubscribe for four seconds on its first click and
 unsubscribes on its second, with Undo/Redo and no dialog, staying on the page. Settings opens
 Played threshold, inherited Playback Settings overrides and this Device's Download Rule.
 
 Views have New View… (⌘N), Edit View, every condition in one form, Sort, Show, a live count,
-explicit Rename/Cancel/Save and Delete with Undo. Condition edits are recorded as made;
-invalid numeric drafts remain visible across reopening and restart. Names are checked in the
-database actor, ignoring case and surrounding whitespace, including races between windows.
-Search Library (⌘F) opens Library-wide Search, which reports its count and offers
-inline Create View with a name. If the name, query or destination changes during a save,
-the Library preserves current input and offers Open Created View in the status row and
+explicit Rename/Cancel/Save and Delete with Undo. Each window keeps its own draft,
+including numeric text as entered. The live count reflects that draft. Synced changes
+update untouched fields, Save merges only the fields edited in that window, and Cancel
+discards the draft without writing to the Library. Drafts survive reopening the sheet
+and restoring its window. Names are checked in the database actor, ignoring case and
+surrounding whitespace, including races between windows.
+
+Search Library (⌘F) opens Library-wide Search. Click the named toolbar field to
+type. Search reports its count and offers inline Create View, which focuses its Name
+field. If the name, query or destination changes during a save, the Library preserves
+current input and offers Open Created View in the status row and
 Saved Views menu. The toolbar search field shows its scope while you type.
-At narrow widths, Playlist sections move below the toolbar to leave room for Search.
-Add Podcasts, Search, New View, Rename and numeric-setting drafts are saved per Library.
+In All Views, This list matches View names. History and Listening Timeline omit
+This list and still offer Search Library through ⌘F. At narrow widths, Playlist
+sections move below the toolbar to leave room for Search.
+Add Podcasts, Search and numeric-setting drafts are saved per Library.
 View and subscription changes register with the key window's native Undo manager; inline
 Undo/Redo also expose retry after a failed network action. Part 4a's editing integration can
 use `LibraryEditingModel` alongside its Episode/Playlist undo history.
@@ -278,7 +290,9 @@ Rename with empty text. Delete immediately moves the Playlist to Trash; status n
 Edit > Undo Move to Trash restores it. Trash shows retention and offers Restore.
 
 Playlists have Entries, History and Listening Timeline sections. Drag rows to insertion
-boundaries to move one or the selected block; Episode > Move Up/Down (⌘⌥↑/↓) and Remove from
+boundaries to move one or the selected block. The Entry context menu and the Episode
+and Playlist menus dim Move Up and Move Down when the selection cannot move in that
+direction. Episode > Move Up/Down (⌘⌥↑/↓) and Remove from
 Playlist (⌘⌫) are keyboard alternatives. Play from here changes the Cursor and Active Playlist.
 An empty Playlist can become Active without playing. Timeline stretches, finishes and edits
 offer Rewind with a summary sheet listing the target, Unplayed Episodes, restored Entries and
@@ -561,18 +575,24 @@ with Restore Playlist and Close. The tour verifies that clicking Close, pressing
 and pressing Escape all preserve the draft after Trash Restore. Editable Cancel discards it.
 Screen 32 shows the Getting Started window, reached from Settings › General or
 Help › Getting Started. Screen 34a shows Rewind on a selected Timeline row, and
-43 shows the Inspector explicitly opened at minimum width.
+43 shows the Inspector explicitly opened at minimum width. The tour asserts that
+the Length column and rows fit the new viewport.
 Screens 06–09 check the Playlist toolbar and which panes are visible. The test
 log records the toolbar shifts and selected Entry width on the first selection.
-It checks that the original click still lies in the selected row and that a
-second selection leaves the open Inspector's toolbar positions fixed.
+It checks that the original click still lies in the selected row. The tour
+scrolls Show Notes into the Inspector viewport, then checks that selecting the
+next Entry reveals its title and leaves the toolbar positions fixed. The Light pass checks both menus at the
+first and last Entry. History and Listening Timeline have no local search field.
 Screen 44 captures a delayed Undo of Remove from Playlist. The named result,
 the retained Search and selected Entry, and Show Restored Entries are visible.
 The tour uses Edit › Show Restored Entries to reveal and select the restored Entry.
-It also checks that Space inserts a space in toolbar Search, the inline View name,
-Playlist Settings and Add Podcasts. Empty History and Stats expose the next action.
-Screen 05 checks that Saved Views › Show All Views selects the All Views row in
-the Views section. Screens 18–19 compare the Podcast Episode column widths and
+It also checks that Space inserts a space in toolbar Search, the focused inline
+View Name, Playlist Settings and Add Podcasts. Edit View checks the raw numeric
+draft, the draft match count and that Cancel discards both edits. Empty History
+and Stats expose the next action. Screen 05 checks that Saved Views › Show All
+Views selects the sidebar row and that This list filters View names and shows a
+no-match state. The dark scope caption uses #C4C4C4. The contrast test covers
+the two glass colors sampled in round 23. Screens 18–19 compare the Podcast Episode column widths and
 positions before and after description expansion, and screen 18 requires six
 Episodes to fit. The native table tests check that all visible columns are
 user-resizable and that the Podcast table scrolls without a vertical scrollbar.
@@ -583,9 +603,11 @@ failures. Unit tests cover the selected and
 batch retry scopes and the ordered per-Episode drag representations. The
 cross-app drag itself is a manual check from the multi-selection state in
 screen 33. Each dragged Episode offers its own title and, when available, URL.
-The Light follow-ups exercise clock input in Go to Time while paused, then
-check that the disconnected Settings form keeps its Server Address label while
-the field contains typed text. Form labels use consistent title case per
+The Light follow-ups exercise clock input in Go to Time while paused, observe
+the refresh count in the Library and Podcast menu, then cancel from that menu.
+They check the disconnected Settings address label while typing and observe the
+connection indicator while reconnecting to the fixture. Only the tour build
+delays manual Refresh All Feeds and Check and Connect for these assertions. Form labels use consistent title case per
 [Apple’s Human Interface Guidelines for writing](https://developer.apple.com/design/human-interface-guidelines/writing).
 Every state has a window screenshot (including native
 sheets) and a text tree, attached with `.keepAlways`. `xcresulttool export
@@ -610,8 +632,10 @@ For each Inspector path, `timings.txt` also reports input to selection handling,
 selection handling to shell body evaluation, and shell body evaluation to the
 first frame. Each phase has its own sample count, p75 and maximum. The final
 phase includes layout and the display-link interval. Actions, artwork loading,
-playlist memberships, chapters and Show Notes follow the title. The artwork
-slot retains its size as details arrive.
+playlist memberships, chapters and Show Notes follow the title. Changing Episode
+keeps the scroll view mounted and scrolls to its top anchor once. Details load
+after a single cancellable delay, and the artwork slot keeps its size as they arrive.
+Input-to-selection handling and initial pane opening include native window layout.
 
 The report includes the VM hardware and macOS version, nearest-rank p75 and max
 in milliseconds, and sample counts. Steps with fewer than five samples are marked

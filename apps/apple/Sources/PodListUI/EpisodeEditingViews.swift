@@ -420,9 +420,9 @@ public struct PlaylistEditingCommands: Commands {
                 EditOrigin.start(context?.editOrigin) { await app.editing?.playFromHere(playlistID: id, episodeID: context?.ids.first) }
             }.disabled(entriesPlaylistID == nil || selectionUnavailable)
             Button("Move Up") { move(down: false) }
-                .keyboardShortcut(.upArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option]).disabled(!canMoveEntries(down: false))
             Button("Move Down") { move(down: true) }
-                .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(entriesPlaylistID == nil || selectionUnavailable)
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(!canMoveEntries(down: true))
             Button(context?.ids.isEmpty == true && removePlaylistSelection != nil ? "Remove Selected Failed Episode Drops" : "Remove from Playlist") {
                 removePlaylistSelection?()
             }.keyboardShortcut(.delete, modifiers: .command).disabled(removePlaylistSelection == nil || text != nil)
@@ -437,6 +437,8 @@ public struct PlaylistEditingCommands: Commands {
                 ForEach(PlaylistTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.inline).disabled(playlistContext == nil)
             Divider()
+            Button("Move Up") { move(down: false) }.disabled(!canMoveEntries(down: false))
+            Button("Move Down") { move(down: true) }.disabled(!canMoveEntries(down: true))
             Toggle("Clear on Played", isOn: Binding(get: { playlistContext?.playlist.clearOnPlayed ?? false }, set: { value in
                 guard let playlistContext else { return }
                 EditOrigin.start(context?.editOrigin) {
@@ -483,8 +485,13 @@ public struct PlaylistEditingCommands: Commands {
         guard playlistContext?.window.playlistTab == .entries else { return nil }
         return playlistContext?.playlist.id
     }
+    private func canMoveEntries(down: Bool) -> Bool {
+        guard entriesPlaylistID != nil, let playlist = playlistContext?.playlist, let ids = context?.ids,
+              nowPlayingEpisode == nil, app.editing?.busy == false else { return false }
+        return EpisodeActions.canMove(Set(ids), in: playlist, down: down)
+    }
     private func move(down: Bool) {
-        guard let id = entriesPlaylistID else { return }
+        guard let id = entriesPlaylistID, canMoveEntries(down: down) else { return }
         EditOrigin.start(context?.editOrigin) { await app.editing?.move(Set(context?.ids ?? []), playlistID: id, down: down) }
     }
 }

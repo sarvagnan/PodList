@@ -93,6 +93,11 @@ public struct LibrarySettingsScreen: SwiftUI.View {
                         .accessibilityLabel("Appearance")
                 }
                 Section("Server Connection") {
+                    if app.connecting {
+                        ProgressView("Checking Connection…")
+                            .controlSize(.small)
+                            .accessibilityIdentifier("settings.connectionProgress")
+                    }
                     if let origin = app.origin {
                         LabeledContent("Server Address") {
                             Text(origin).foregroundStyle(.primary).textSelection(.enabled)

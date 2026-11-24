@@ -34,9 +34,18 @@ struct FeedRefreshFeedback: SwiftUI.View {
     var body: some SwiftUI.View {
         if let progress = app.feedRefreshProgress {
             HStack(spacing: 8) {
-                ProgressView().controlSize(.mini).accessibilityHidden(true)
+                if let count = app.feedRefreshCount, count.total > 0, app.canCancelFeedRefresh {
+                    ProgressView(value: Double(count.completed), total: Double(count.total))
+                        .frame(width: 42)
+                        .accessibilityHidden(true)
+                } else {
+                    ProgressView().controlSize(.mini).accessibilityHidden(true)
+                }
                 Text(progress)
-            }.help(Presentation.tooltip(progress)).foregroundStyle(MacReadableSecondaryStyle())
+                if app.canCancelFeedRefresh {
+                    Button("Cancel Feed Refresh") { app.cancelFeedRefresh() }
+                }
+            }.foregroundStyle(MacReadableSecondaryStyle())
         } else if let issue = app.feedRefreshIssue {
             let retry = app.feedRefreshAction(issue.target)
             FailureFeedback(message: issue.message, indexedElsewhere: true) { retry?() }
@@ -53,7 +62,8 @@ struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.
     @ViewBuilder let episodes: () -> Episodes
     var body: some SwiftUI.View {
         GeometryReader { viewport in
-            let unobstructedHeight = max(0, viewport.size.height - (playbackInset ?? 0))
+            let size = EpisodeTableLayout.viewportSize(viewport.size)
+            let unobstructedHeight = max(0, size.height - (playbackInset ?? 0))
             let compact = unobstructedHeight < 356
             let padding: CGFloat = compact ? 6 : 18
             let visibleHeight = max(0, unobstructedHeight - 2 * padding)
@@ -65,11 +75,12 @@ struct PodcastPageLayout<Header: SwiftUI.View, Episodes: SwiftUI.View>: SwiftUI.
                     .controlSize(compact ? .small : .regular)
                     .padding(.horizontal, 18)
                 GeometryReader { table in
-                    episodes().frame(width: table.size.width, height: table.size.height)
+                    let size = EpisodeTableLayout.viewportSize(table.size)
+                    episodes().frame(width: size.width, height: size.height)
                 }
             }
             .padding(.vertical, padding)
-            .frame(width: viewport.size.width, height: viewport.size.height, alignment: .topLeading)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
     }
 }
@@ -253,28 +264,27 @@ struct PodcastPageScreen: SwiftUI.View {
                         }
                         .playbackBarScrollClearance()
                     } else {
-                        GeometryReader { geometry in
-                            let layout = EpisodeTableLayout(width: geometry.size.width)
+                        EpisodeTableViewport { layout in
                             Table(of: PageEpisode.self, selection: userSelection, sortOrder: Binding(get: { sortOrder }, set: { sortOrder = $0 })) {
                                 TableColumn("Episode", value: \.title) { episode in
                                     podcastEpisodeTitle(episode, state: layout.playbackMark(for: episode.stateText))
                                         .episodeDragSource(episode.id)
-                                }.width(min: EpisodeTableLayout.minimumTitleWidth, ideal: layout.podcastTitleWidth)
+                                }.width(layout.podcastTitle)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { episode in
                                         Text(Date(timeIntervalSince1970: Double(episode.published) / 1000), format: .dateTime.day().month(.abbreviated).year())
                                             .episodeDragSource(episode.id)
-                                    }.width(min: 95, ideal: EpisodeTableLayout.podcastPublishedWidth, max: 150)
+                                    }.width(EpisodeTableLayout.published)
                                 }
                                 if layout.showsLength {
                                     TableColumn("Length", value: \.length) { episode in
                                         Text(episode.duration.map(Presentation.time) ?? "—").monospacedDigit().episodeDragSource(episode.id)
-                                    }.width(min: 60, ideal: EpisodeTableLayout.podcastLengthWidth, max: 100)
+                                    }.width(EpisodeTableLayout.length)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { episode in
                                         Text(episode.stateText).fixedSize(horizontal: false, vertical: true).episodeDragSource(episode.id)
-                                    }.width(min: 120, ideal: EpisodeTableLayout.podcastStateWidth, max: 200)
+                                    }.width(EpisodeTableLayout.podcastState)
                                 }
                             } rows: {
                                 ForEach(episodes) { TableRow($0) }

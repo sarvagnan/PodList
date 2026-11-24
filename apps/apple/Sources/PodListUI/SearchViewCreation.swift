@@ -8,6 +8,8 @@ struct SearchViewCreation: SwiftUI.View {
     let window: WindowModel
     let count: Int
     let editorIsCurrent: () -> Bool
+    private enum Field: Hashable { case create, name }
+    @FocusState private var focus: Field?
     @State private var naming = false
     @State private var name = ""
     @State private var draftRevision = 0
@@ -27,13 +29,19 @@ struct SearchViewCreation: SwiftUI.View {
             HStack {
                 Text(CountText.format(count, .result))
                 Spacer()
-                if !naming { Button("Create View…", action: beginNaming).disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                if !naming {
+                    Button("Create View…", action: beginNaming)
+                        .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .focused($focus, equals: .create)
+                }
             }
             if naming {
                 HStack {
                     Text("Name").accessibilityHidden(true)
                     TextField("View Name", text: nameInput)
                         .onSubmit(save)
+                        .focused($focus, equals: .name)
+                        .onAppear { focus = .name }
                         .accessibilityIdentifier("search.view-name")
                     Button("Cancel", action: cancelNaming)
                     Button("Create View") { save() }.disabled(saving)
@@ -41,6 +49,9 @@ struct SearchViewCreation: SwiftUI.View {
                 if let error { Text(error).foregroundStyle(Color.podListError) }
             }
         }.onChange(of: error) { _, message in editor.edits.announcements.error(message) }
+        .onChange(of: naming) { _, naming in
+            if !naming { focus = .create }
+        }
         .focusedSceneValue(\.podListSearchViewActions, MenuActionContext(actions: [
             .createViewFromSearch: !naming && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? { beginNaming() } : nil,
             .createView: naming && !saving ? { save() } : nil

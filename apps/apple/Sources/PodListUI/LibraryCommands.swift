@@ -88,6 +88,10 @@ public struct LibraryCommands: Commands {
         CommandMenu("Podcast") {
             Button(LibraryNavigationCommand.subscriptions.title) { context?.window.navigate(to: LibraryNavigationCommand.subscriptions.destination) }.disabled(context == nil)
             MenuActionItems(menu: .podcast, app: app)
+            if let progress = app.feedRefreshProgress {
+                Button(progress) {}.disabled(true)
+            }
+            Button("Cancel Feed Refresh") { app.cancelFeedRefresh() }.disabled(!app.canCancelFeedRefresh)
             Button(podcast?.openTitle ?? "Open Subscription") { podcast?.open?() }.disabled(podcast?.open == nil)
             Divider()
             Button(podcast?.subscribed == true ? "Unsubscribe" : "Subscribe") { podcast?.subscriptionAction?() }

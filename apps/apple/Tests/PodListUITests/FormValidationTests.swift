@@ -254,16 +254,18 @@ func lastDaysDraftsRequireAnEditableWholeNumberWithinRange(_ identifier: String)
     #expect(FormNumbers.seekProblem("1", duration: nil, locale: locale) == "The Episode duration is unavailable.")
 }
 
-@MainActor @Test func invalidLastDaysDraftSurvivesReopeningAndClearsWithTheViewSession() async throws {
+@MainActor @Test func legacyLastDaysDraftMigratesAndSurvivesReopeningInItsWindow() async throws {
     let suite = UUID().uuidString
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let db = try await fixtureDatabase()
     let editor = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "days", defaults: defaults)
+    let view = PodListDomain.View(id: "all", name: "All", filter: .init(published: .lastDays(days: 7)), sort: .publishedDesc, limit: nil)
     editor.setDraft("3651", field: "days.all")
+    let draft = editor.viewDraft(for: view, in: "window", creating: false)
+    #expect(draft.numbers[.published] == "3651")
+    #expect(!editor.hasDraft("days.all"))
     let reopened = LibraryEditingModel(database: db, source: PodcastLibrary(database: db), scope: "days", defaults: defaults)
-    #expect(reopened.draft("days.all") == "3651")
-    #expect(FormNumbers.lastDaysProblem(reopened.draft("days.all"), locale: Locale(identifier: "en_US")) != nil)
-    reopened.clearViewDrafts("all", creating: false)
-    #expect(!reopened.hasDraft("days.all"))
+    #expect(reopened.viewDraft(for: view, in: "window", creating: false) == draft)
+    #expect(reopened.viewDraft(for: view, in: "another window", creating: false).numbers.isEmpty)
 }

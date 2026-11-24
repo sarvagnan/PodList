@@ -46,4 +46,53 @@ import Testing
     #expect(clearance() >= playerHeight - 1)
     #expect(!window.isVisible)
 }
+
+@MainActor @Test func emptyingThePlaylistReplacesTheNativeEntriesTable() async throws {
+    struct Fixture: SwiftUI.View {
+        let app: ApplicationModel
+        let window: WindowModel
+        let playlistID: String
+
+        var body: some SwiftUI.View {
+            if let library = app.library, let editing = app.editing,
+               let playlist = library.state.playlists.first(where: { $0.id == playlistID }) {
+                let rows = window.rows(in: library)
+                PlaylistContentView(playlist: playlist, library: library, rows: rows, isTrashed: false,
+                                    window: window, app: app, editing: editing, presentation: PlaylistPresentation())
+                    .environment(\.libraryPlaybackBarInset, rows.isEmpty ? 0 : 108)
+            }
+        }
+    }
+
+    let db = try await fixtureDatabase()
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false, databaseFactory: { _ in db })
+    await app.startStandalone()
+    let editing = try #require(app.editing)
+    let library = try #require(app.library)
+    let playlist = try #require(library.state.playlists.first)
+    let window = WindowModel()
+    window.navigate(to: .playlist(playlist.id))
+    let ids = playlist.entries.map(\.episodeId)
+    window.selection = Set(ids)
+
+    let host = NSHostingView(rootView: Fixture(app: app, window: window, playlistID: playlist.id))
+    host.frame = CGRect(x: 0, y: 0, width: 735, height: 552)
+    func nativeTable(in view: NSView) -> NSTableView? {
+        (view as? NSTableView) ?? view.subviews.lazy.compactMap { nativeTable(in: $0) }.first
+    }
+    func settle() async {
+        for _ in 0..<5 { host.layoutSubtreeIfNeeded(); await Task.yield() }
+    }
+
+    await settle()
+    try #require(nativeTable(in: host)?.numberOfRows == ids.count)
+    await editing.remove(ids, playlistID: playlist.id)
+    await settle()
+    #expect(window.rows(in: try #require(app.library)).isEmpty)
+    #expect(nativeTable(in: host) == nil, "Remove the native table before laying out the empty state")
+
+    await editing.reverse()
+    await settle()
+    #expect(nativeTable(in: host)?.numberOfRows == ids.count, "Undo must bring back the Entries table")
+}
 #endif
