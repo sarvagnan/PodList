@@ -15,7 +15,13 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "app.podlist.PodListTestRunner"
+        // The regular runner clears storage at every launch. Cross-client phases
+        // share one disposable install, which run.sh clears once before Connect.
+        testInstrumentationRunner = if (providers.gradleProperty("podlistCrossClientSync").orNull == "true") {
+            "androidx.test.runner.AndroidJUnitRunner"
+        } else {
+            "app.podlist.PodListTestRunner"
+        }
     }
     sourceSets.getByName("androidTest").kotlin.directories.add("src/flowRun/kotlin")
     buildFeatures { compose = true; buildConfig = true }

@@ -59,12 +59,10 @@ class FlowRunSmokeTest {
     private fun nodes() = compose.onAllNodes(isRoot(), useUnmergedTree = true)
         .fetchSemanticsNodes().flatMap { root -> root.flatten() }
     private fun present(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
-    private fun label(text: String, substring: Boolean = false) = hasText(text, substring = substring) or hasContentDescription(text, substring = substring)
-    private fun control(text: String, substring: Boolean = false) = label(text, substring) and hasClickAction() and isEnabled()
-    private fun field(text: String) = hasSetTextAction() and hasText(text)
-    private fun nav(text: String) = label(text) and hasClickAction() and SemanticsMatcher("navigation item") {
-        it.config.getOrNull(SemanticsProperties.Selected) != null && it.config.getOrNull(SemanticsProperties.Role) == Role.Tab
-    }
+    private fun label(text: String, substring: Boolean = false) = flowLabel(text, substring)
+    private fun control(text: String, substring: Boolean = false) = flowControl(text, substring)
+    private fun field(text: String) = flowField(text)
+    private fun nav(text: String) = flowNavigation(text)
     private fun selectedTab(tab: String) = present(nav(tab) and isSelected())
     private fun waitFor(why: String, condition: () -> Boolean) {
         try { compose.waitUntil(90_000, condition) }
