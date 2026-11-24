@@ -68,8 +68,9 @@ class CrossClientSyncTest {
                 }
                 "offline-edit" -> {
                     root("Playlists")
-                    shown(hasText(OFFLINE))
+                    // The app only notices it's offline when it next syncs; the rename triggers that.
                     rename("Workshop Mac", "Workshop Offline Android")
+                    shown(hasText(OFFLINE))
                     playAndSkip("Workshop Offline Android", skips = 3, minimum = 90)
                     openEpisode(NOTEBOOK)
                     click("Add to a Playlist")

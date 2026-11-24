@@ -2415,8 +2415,9 @@ extension PodListUITour {
             try syncNavigate("Starred")
             try ready(syncEpisodeRow(syncLighthouses), timeout: 60)
         case "offline-edit":
-            try ready(button("Retry Sync"), timeout: 60)
+            // The app only notices it's offline when it next syncs; an edit triggers that.
             try syncRename("Workshop Mac", to: "Workshop Offline Mac")
+            try ready(button("Retry Sync"), timeout: 90)
             try syncPlayAndReport()
             try syncSelectEpisode(syncChair)
             try click(button("Add to a Playlist", in: episodeInspector))
