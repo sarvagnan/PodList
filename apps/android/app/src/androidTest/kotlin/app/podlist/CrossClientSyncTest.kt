@@ -117,7 +117,8 @@ class CrossClientSyncTest {
                     root("Playlists")
                     shown(flowControl("Commute Android"))
                     click("Trash")
-                    shown(hasText("No deleted Playlists"))
+                    // The empty-Trash text continues with how to delete and restore Playlists.
+                    shown(hasText("No deleted Playlists", substring = true))
                 }
                 "subscription-check" -> {
                     root("Library")
