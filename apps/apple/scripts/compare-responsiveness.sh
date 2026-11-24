@@ -1,0 +1,78 @@
+#!/bin/bash
+# Run the two timing modes in alternating fresh clones of the same base VM.
+set -euo pipefail
+if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
+    echo "Usage: $0 <run-name>" >&2
+    exit 2
+fi
+scripts="$(cd "$(dirname "$0")" && pwd)"
+repo="$(cd "$scripts/../../.." && pwd)"
+root="$repo/podlist-grading/responsiveness"
+out="$root/$1"
+mkdir -p "$root"
+mkdir "$out"
+export PODLIST_UI_VM="${PODLIST_UI_VM:-podlist-ui}"
+export PODLIST_BUILD_CONFIGURATION="${PODLIST_BUILD_CONFIGURATION:-release}"
+export PODLIST_UI_PROFILE=0
+
+for iteration in 1 2; do
+    "$scripts/ui-tour.sh" --timings "$out/native-$iteration"
+    "$scripts/ui-tour.sh" --electron-timings "$out/electron-$iteration"
+done
+
+python3 - "$out" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+runs = ('native-1', 'electron-1', 'native-2', 'electron-2')
+reports = {
+    run: {
+        label: (coverage, p75)
+        for label, coverage, p75 in re.findall(
+            r'^(.+): samples=(\d+/\d+), (?:p75=(\d+\.\d+) ms, max=\d+\.\d+ ms|unobserved \(short sample count\))$',
+            (out / run / 'timings.txt').read_text(),
+            re.MULTILINE,
+        )
+    }
+    for run in runs
+}
+actions = (
+    ('Open New this week', 'Sidebar → New this week Episode list', 'Sidebar → New this week Episode list'),
+    ('Select Episode (pane opens)', 'Select Episode → Episode Inspector (pane opens)', None),
+    ('Select Episode (pane stays open)', 'Select Episode → Episode Inspector (pane stays open)', 'Select Episode → Episode Inspector (pane stays open)'),
+    ('Open New Playlist', 'Shift-Cmd-N → New Playlist sheet', 'New Playlist button → dialog'),
+    ('Open Settings', 'Cmd-, → Settings window', 'Settings sidebar link → Settings page'),
+    ('Filter Episodes with the final e in rice', 'Final e in rice → filtered Episode list', 'Final e in rice → filtered Episode list'),
+)
+
+def cell(run, action):
+    if action is None:
+        return '—'
+    if action not in reports[run]:
+        raise SystemExit(f'{out / run / "timings.txt"} is missing {action}')
+    coverage, p75 = reports[run][action]
+    return p75 or f'unobserved ({coverage})'
+
+headings = [f'[{run.replace("-", " ").title()}]({run}/timings.txt)' for run in runs]
+lines = [
+    '# PodList responsiveness in the Tart VM',
+    '',
+    'Each value is p75 in milliseconds, from five samples after three warm-ups.',
+    '',
+    '| Action | ' + ' | '.join(headings) + ' |',
+    '| --- | ---: | ---: | ---: | ---: |',
+]
+for title, native, electron in actions:
+    values = [cell(run, native if run.startswith('native') else electron) for run in runs]
+    lines.append('| ' + ' | '.join([title, *values]) + ' |')
+lines += [
+    '',
+    'Electron uses the existing detail column, Enter on the New Playlist and Settings sidebar controls, and the separate Library Search page with its query debounce.',
+    'The native endpoint is the display-link target time. The Electron endpoint is a pre-paint animation frame timestamp after the committed result becomes visible.',
+    '',
+]
+(out / 'comparison.md').write_text('\n'.join(lines))
+PY
+printf 'Comparison written to %s/comparison.md\n' "$out"

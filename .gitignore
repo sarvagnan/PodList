@@ -16,6 +16,7 @@ coverage/
 test-results/
 playwright-report/
 podlist-grading/cross-client-sync/
+podlist-grading/responsiveness/
 *.tsbuildinfo
 .DS_Store
 
