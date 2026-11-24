@@ -242,6 +242,9 @@ class CrossClientSyncTest {
     private fun openEpisode(title: String) {
         search(title)
         click(searchResult(title))
+        // With the keyboard still up, the first tap can be spent dismissing it; tap again.
+        val opened = runCatching { compose.waitUntil(10_000) { present(hasText("Show notes")) } }.isSuccess
+        if (!opened) click(searchResult(title))
         shown(hasText("Show notes"))
         shown(flowControl("Add to a Playlist"))
     }
