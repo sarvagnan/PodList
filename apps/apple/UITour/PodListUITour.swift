@@ -2376,6 +2376,8 @@ extension PodListUITour {
         continueAfterFailure = false
         let phase = try String(contentsOf: phasePath, encoding: .utf8)
         let origin = try String(contentsOf: fixture.appendingPathComponent("origin"), encoding: .utf8)
+        // Read the server cursor before launch: a relaunched app sends queued edits at once.
+        let deliveryStart = ["mac-edit", "offline-flush", "delete-undo"].contains(phase) ? syncServerCursor(origin) : nil
         try launch(from: root, copy: "cross-sync", style: "Light", origin: origin)
         defer {
             let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -2387,7 +2389,6 @@ extension PodListUITour {
         try ready(library, timeout: 60)
         // XCUITest quits the app when the phase ends; edit phases first wait for the server
         // to accept the Mac's edits (cursor rises, then holds) so none are left queued.
-        let deliveryStart = ["mac-edit", "offline-flush", "delete-undo"].contains(phase) ? syncServerCursor(origin) : nil
         defer { if let deliveryStart { syncAwaitDelivery(origin, after: deliveryStart) } }
         switch phase {
         case "connect":
