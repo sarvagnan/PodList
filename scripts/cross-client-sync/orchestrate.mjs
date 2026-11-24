@@ -27,7 +27,9 @@ const webServer = `http://localhost:${port}`
 const serial = process.env.PODLIST_SYNC_ANDROID_SERIAL ?? "emulator-5554"
 let adbPath = process.env.PODLIST_SYNC_BOAT_ADB
 const control = join(staging, "cross-sync-control")
-const macOffline = join(control, "mac-offline")
+const macGate = "/private/tmp/podlist-cross-sync-mac-offline"
+const macOffline = (offline) =>
+  command("tart", ["exec", vm, offline ? "/usr/bin/touch" : "/bin/rm", ...(offline ? [] : ["-f"]), macGate], `mac-gate-${offline ? "on" : "off"}`).result
 const androidOffline = join(control, "android-offline")
 const remoteDir = `/tmp/podlist-sync-${randomUUID()}`
 const guestScript = "/Volumes/My Shared Files/repo/scripts/cross-client-sync/guest.sh"
@@ -419,7 +421,7 @@ try {
   await scenario(scenarioNames[5], async () => {
     await android("download")
     const { cursor: before } = await pull()
-    writeFileSync(macOffline, "")
+    await macOffline(true)
     writeFileSync(androidOffline, "")
     // The gate files reach the guest through the shared folder, which can lag; wait
     // until each relay actually refuses rather than probing once.
@@ -479,7 +481,7 @@ try {
     )
     const androidCursor = (await pull()).cursor
 
-    rmSync(macOffline)
+    await macOffline(false)
     // The gate file's removal also reaches the guest through the lagging shared folder.
     await until("Mac relay back online", async () => {
       try {

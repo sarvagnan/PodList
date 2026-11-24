@@ -19,7 +19,9 @@ try {
   // reaches it with tart exec (see relay.mjs), never over the network.
   demo = await startDemo({ host: "127.0.0.1", port: Number(port) + 1 })
   if (!stopping) {
-    listener = relay(Number(port), () => connect(Number(port) + 1, "127.0.0.1"), `${control}/mac-offline`)
+    // The Mac gate lives on the guest's own disk: the shared folder kept showing a
+    // deleted gate file for over 30 s, so the host toggles it with tart exec.
+    listener = relay(Number(port), () => connect(Number(port) + 1, "127.0.0.1"), "/private/tmp/podlist-cross-sync-mac-offline")
     await listener.ready
     if (!stopping) {
       const ready = { fixtureFeed: `${demo.fixtures}/feeds/long-list.xml` }
