@@ -57,6 +57,23 @@ private actor PublisherFixture: PublisherReader {
     #expect(try await db.loadState().views.first?.name == "Fresh")
 }
 
+@MainActor @Test func undoViewDeleteAfterSyncedRestoreAcceptsTheExistingViewDespiteANameConflict() async throws {
+    let db = try await fixtureDatabase()
+    let actions = editing(db)
+    let original = try #require(try await db.loadState().views.first)
+    let duplicate = PodListDomain.View(id: "peer-view", name: original.name, filter: .init(played: .unplayed), sort: .publishedDesc, limit: nil)
+    try await actions.deleteView(original)
+    try await pullPeerChanges([.saveView(view: original), .saveView(view: duplicate)], into: db)
+    let restored = try await db.loadState().views
+    await actions.undo()
+    #expect(actions.error == nil && actions.notice == "Undone: Delete View")
+    #expect(try await db.loadState().views == restored)
+    #expect(try await db.outbox().isEmpty)
+    await actions.redo()
+    let redone = try await db.loadState().views
+    #expect(!redone.contains { $0.id == original.id } && redone.contains(duplicate))
+}
+
 @MainActor @Test func conditionEditsApplyImmediatelyAndMatchCountsUseAllConditions() async throws {
     let db = try await fixtureDatabase()
     let model = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this", now: 1000)
