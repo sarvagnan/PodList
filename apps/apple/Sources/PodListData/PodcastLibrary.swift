@@ -182,24 +182,54 @@ public actor PodcastLibrary {
         return try await pollFeeds(respectBackoff: false)
     }
 
+    public func refreshAllFeeds(progress: @escaping @Sendable (Int, Int) async -> Void) async throws -> RefreshSummary {
+        if let transport {
+            // Each request checks one publisher, so progress comes from completed
+            // requests and cancellation can stop before the next publisher.
+            let subscriptions = try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }
+            await progress(0, subscriptions.count)
+            var updated = 0, notModified = 0, failed = 0
+            for (index, subscription) in subscriptions.enumerated() {
+                try Task.checkCancellation()
+                do {
+                    switch try await refreshSubscription(subscription.id, using: transport) {
+                    case .updated: updated += 1
+                    case .notModified: notModified += 1
+                    }
+                } catch FeedRefreshFailure.publisherFailed, FeedRefreshFailure.subscriptionNotFound {
+                    failed += 1
+                }
+                try Task.checkCancellation()
+                await progress(index + 1, subscriptions.count)
+            }
+            return RefreshSummary(checked: subscriptions.count, updated: updated, notModified: notModified, failed: failed)
+        }
+        return try await pollFeeds(respectBackoff: false, progress: progress)
+    }
+
+    private func refreshSubscription(_ id: String, using transport: any SyncTransport) async throws -> RefreshResult {
+        struct Response: Decodable {
+            let _tag: RefreshResult
+            let added: Int?
+            let changed: Int?
+        }
+        do {
+            let result: Response = try ProtocolJSON.decode(from: await transport.request(
+                method: "POST", path: "/api/subscriptions/" + escaped(id) + "/refresh", body: nil))
+            if result._tag == .updated, result.added == nil || result.changed == nil { throw SyncResponseFailure() }
+            return result._tag
+        } catch let error as HttpFailure {
+            switch error.status {
+            case 404: throw FeedRefreshFailure.subscriptionNotFound
+            case 502: throw FeedRefreshFailure.publisherFailed
+            default: throw error
+            }
+        }
+    }
+
     public func refreshSubscription(_ id: String) async throws {
         if let transport {
-            struct Response: Decodable {
-                let _tag: RefreshResult
-                let added: Int?
-                let changed: Int?
-            }
-            do {
-                let result: Response = try ProtocolJSON.decode(from: await transport.request(
-                    method: "POST", path: "/api/subscriptions/" + escaped(id) + "/refresh", body: nil))
-                if result._tag == .updated, result.added == nil || result.changed == nil { throw SyncResponseFailure() }
-            } catch let error as HttpFailure {
-                switch error.status {
-                case 404: throw FeedRefreshFailure.subscriptionNotFound
-                case 502: throw FeedRefreshFailure.publisherFailed
-                default: throw error
-                }
-            }
+            _ = try await refreshSubscription(id, using: transport)
             return
         }
         guard !refreshing else { throw FeedRefreshFailure.inProgress }
@@ -212,12 +242,14 @@ public actor PodcastLibrary {
         _ = try await poll(sub, state: state)
     }
 
-    private func pollFeeds(respectBackoff: Bool) async throws -> RefreshSummary {
+    private func pollFeeds(respectBackoff: Bool, progress: (@Sendable (Int, Int) async -> Void)? = nil) async throws -> RefreshSummary {
         guard !refreshing else { throw FeedRefreshFailure.inProgress }
         refreshing = true
         defer { refreshing = false }
         var updated = 0, notModified = 0, failed = 0
-        for sub in try await db.readLibrary().subscriptions where sub.unsubscribedAt == nil {
+        let subscriptions = try await db.readLibrary().subscriptions.filter { $0.unsubscribedAt == nil }
+        await progress?(0, subscriptions.count)
+        for sub in subscriptions {
             try Task.checkCancellation()
             let state = try await db.feedPollState(sub.id)
             if respectBackoff, let checked = state.checkedAt,
@@ -230,6 +262,7 @@ public actor PodcastLibrary {
             } catch FeedRefreshFailure.publisherFailed {
                 failed += 1
             }
+            await progress?(updated + notModified + failed, subscriptions.count)
         }
         return RefreshSummary(checked: updated + notModified + failed, updated: updated, notModified: notModified, failed: failed)
     }

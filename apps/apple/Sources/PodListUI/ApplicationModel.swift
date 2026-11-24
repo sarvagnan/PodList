@@ -54,6 +54,13 @@ enum FeedRefreshTarget: Equatable {
     case all, subscription(String)
 }
 
+struct FeedRefreshCount: Equatable {
+    let completed: Int
+    let total: Int
+
+    var title: String { "Refreshing \(min(completed + 1, total)) of \(total)…" }
+}
+
 struct FeedRefreshIssue {
     let target: FeedRefreshTarget
     let message: String
@@ -80,6 +87,10 @@ public final class ApplicationModel {
     public private(set) var syncError: String? { didSet { announcements.error(syncError) } }
     public private(set) var syncing = false
     private(set) var refreshingFeeds: FeedRefreshTarget?
+    private(set) var feedRefreshCount: FeedRefreshCount?
+    private(set) var feedRefreshFinishing = false
+    private(set) var feedRefreshCancelling = false
+    @ObservationIgnored private var feedRefreshTask: Task<RefreshSummary?, any Error>?
     private(set) var feedRefreshIssue: FeedRefreshIssue? { didSet { announcements.error(feedRefreshIssue?.message) } }
     @ObservationIgnored public var libraryChanged: (@MainActor (LibraryModel?, String?) -> Void)?
     public private(set) var library: LibraryModel? {
@@ -195,12 +206,15 @@ public final class ApplicationModel {
             catch { connectionError = "Enter an HTTPS server address, or http://127.0.0.1:PORT for the local demo. Use only the address, without a path or sign-in details."; return }
             let db = try databaseFactory(store.databaseID(for: address.origin.absoluteString))
             let client = SyncClient(db: db, transport: transportFactory(address))
+            #if PODLIST_UI_TOUR
+            if Self.tourDelaysOperations { try await Task.sleep(for: .seconds(8)) }
+            #endif
             _ = try await client.health()
             guard generation == token else { return }
             if library != nil {
                 generation = UUID(); token = generation
                 libraryEditing?.endSession(); syncing = false; syncError = nil; lastSync = nil
-                refreshingFeeds = nil; feedRefreshIssue = nil
+                resetFeedRefresh(); feedRefreshIssue = nil
                 await playback?.shutdown(); await downloads?.suspend()
                 if let database {
                     bringOverSnapshot = try await database.bringOverSnapshot(downloads: downloads?.bringOverDownloads() ?? [])
@@ -290,11 +304,32 @@ public final class ApplicationModel {
     var canRefreshFeeds: Bool { libraryEditing != nil && !connecting && !syncing && refreshingFeeds == nil }
 
     var feedRefreshProgress: String? {
-        switch refreshingFeeds {
-        case .all: "Refreshing All Feeds…"
+        if feedRefreshCancelling { return "Cancelling Feed Refresh…" }
+        if feedRefreshFinishing { return "Syncing refreshed feeds…" }
+        return switch refreshingFeeds {
+        case .all: feedRefreshCount?.title ?? "Refreshing All Feeds…"
         case let .subscription(id): "Refreshing \(refreshPodcastTitle(id) ?? "Podcast")…"
         case nil: nil
         }
+    }
+
+    var canCancelFeedRefresh: Bool {
+        refreshingFeeds == .all && !feedRefreshCancelling && !feedRefreshFinishing
+    }
+
+    func cancelFeedRefresh() {
+        guard canCancelFeedRefresh else { return }
+        feedRefreshCancelling = true
+        feedRefreshTask?.cancel()
+    }
+
+    private func resetFeedRefresh() {
+        feedRefreshTask?.cancel()
+        feedRefreshTask = nil
+        refreshingFeeds = nil
+        feedRefreshCount = nil
+        feedRefreshFinishing = false
+        feedRefreshCancelling = false
     }
 
     private func refreshPodcastTitle(_ id: String) -> String? {
@@ -328,43 +363,72 @@ public final class ApplicationModel {
         refreshingFeeds = target
         feedRefreshIssue = nil
         announcements.status(feedRefreshProgress)
+        let request = Task<RefreshSummary?, any Error> {
+            switch target {
+            case .all:
+                return try await source.refreshAllFeeds { [weak self] completed, total in
+                    await self?.reportFeedRefresh(completed: completed, total: total, token: token)
+                    #if PODLIST_UI_TOUR
+                    if completed == 1, Self.tourDelaysOperations { try? await Task.sleep(for: .seconds(20)) }
+                    #endif
+                }
+            case let .subscription(id):
+                try await source.refreshSubscription(id)
+                return nil
+            }
+        }
+        feedRefreshTask = request
         await runSyncPass {
             var message: String?
             var requestCompleted = false
             do {
-                switch target {
-                case .all:
-                    let summary = try await source.refreshAllFeeds()
-                    if summary.failed > 0 {
-                        let feeds = summary.checked == 1 ? "feed" : "feeds"
-                        message = "Could not refresh \(summary.failed) of \(summary.checked) \(feeds). Try again."
-                    }
-                case let .subscription(id):
-                    try await source.refreshSubscription(id)
+                let summary = try await withTaskCancellationHandler { try await request.value } onCancel: { request.cancel() }
+                if let summary, summary.failed > 0 {
+                    let feeds = summary.checked == 1 ? "feed" : "feeds"
+                    message = "Could not refresh \(summary.failed) of \(summary.checked) \(feeds). Try again."
                 }
                 requestCompleted = true
-            } catch is CancellationError {
-                // A cancelled pass has no refresh result to report.
             } catch {
-                message = LibraryMessages.feedRefreshFailure(error, podcastTitle: podcastTitle)
+                if !feedRefreshCancelling && !Task.isCancelled && !(error is CancellationError) {
+                    message = LibraryMessages.feedRefreshFailure(error, podcastTitle: podcastTitle)
+                }
             }
             guard generation == token else { return }
+            feedRefreshTask = nil
+            let cancelled = feedRefreshCancelling
+            feedRefreshFinishing = target == .all
             if standalone {
                 if target == .all { syncError = nil }
                 await reloadLocal()
                 guard generation == token else { return }
                 playback?.refresh()
-                if target == .all && requestCompleted && message == nil && syncError == nil { lastSync = Date() }
-            } else if requestCompleted {
+                if target == .all && requestCompleted && !cancelled && message == nil && syncError == nil { lastSync = Date() }
+            } else if requestCompleted || target == .all {
+                // Earlier publishers may already have changed the catalogue.
                 await syncLibrary(forceRefresh: true)
                 guard generation == token else { return }
             }
-            refreshingFeeds = nil
-            if let message { feedRefreshIssue = FeedRefreshIssue(target: target, message: message) }
+            resetFeedRefresh()
+            if cancelled {
+                let message = standalone ? "Feed refresh cancelled." : "Feed refresh cancelled. The server may finish the current feed."
+                libraryEditing?.notice = message
+                announcements.status(message)
+            } else if let message { feedRefreshIssue = FeedRefreshIssue(target: target, message: message) }
             else if requestCompleted && syncError == nil {
                 announcements.status(target == .all ? "Feeds refreshed." : "Podcast refreshed.")
             }
         }
+    }
+
+    #if PODLIST_UI_TOUR
+    private nonisolated static var tourDelaysOperations: Bool {
+        ProcessInfo.processInfo.environment["PODLIST_UI_DELAY_OPERATIONS"] == "1"
+    }
+    #endif
+
+    private func reportFeedRefresh(completed: Int, total: Int, token: UUID) {
+        guard generation == token, !feedRefreshCancelling else { return }
+        feedRefreshCount = FeedRefreshCount(completed: completed, total: total)
     }
 
     private func runSyncPass(_ operation: () async -> Void) async {
@@ -652,6 +716,6 @@ public final class ApplicationModel {
         database = nil; client = nil; library = nil; libraryEditing = nil; origin = nil
         bringOver = nil; bringOverSnapshot = nil; bringOverPreview = nil; bringOverJob = nil; bringOverError = nil; bringOverAvailable = false
         connecting = false; syncing = false; connectionError = nil; syncError = nil; compatibilityFailure = nil; lastSync = nil
-        refreshingFeeds = nil; feedRefreshIssue = nil
+        resetFeedRefresh(); feedRefreshIssue = nil
     }
 }

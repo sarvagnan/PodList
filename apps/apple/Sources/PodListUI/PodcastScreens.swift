@@ -34,9 +34,18 @@ struct FeedRefreshFeedback: SwiftUI.View {
     var body: some SwiftUI.View {
         if let progress = app.feedRefreshProgress {
             HStack(spacing: 8) {
-                ProgressView().controlSize(.mini).accessibilityHidden(true)
+                if let count = app.feedRefreshCount, count.total > 0, app.canCancelFeedRefresh {
+                    ProgressView(value: Double(count.completed), total: Double(count.total))
+                        .frame(width: 42)
+                        .accessibilityHidden(true)
+                } else {
+                    ProgressView().controlSize(.mini).accessibilityHidden(true)
+                }
                 Text(progress)
-            }.help(Presentation.tooltip(progress)).foregroundStyle(MacReadableSecondaryStyle())
+                if app.canCancelFeedRefresh {
+                    Button("Cancel Feed Refresh") { app.cancelFeedRefresh() }
+                }
+            }.foregroundStyle(MacReadableSecondaryStyle())
         } else if let issue = app.feedRefreshIssue {
             let retry = app.feedRefreshAction(issue.target)
             FailureFeedback(message: issue.message, indexedElsewhere: true) { retry?() }

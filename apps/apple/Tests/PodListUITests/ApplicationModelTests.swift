@@ -22,11 +22,20 @@ private actor FakeTransport: SyncTransport {
     var snapshot: State
     init(snapshot: State = fixtureState()) { self.snapshot = snapshot }
     var paths: [String] = []
-    private var failedFeedCount = 0
     private var podcastRefreshFails = false
-    func setRefreshFailures(all count: Int = 0, podcast: Bool = false) {
-        failedFeedCount = count; podcastRefreshFails = podcast
+    private var otherPodcastRefreshFails = false
+    func setRefreshFailures(otherPodcast: Bool = false, podcast: Bool = false) {
+        otherPodcastRefreshFails = otherPodcast; podcastRefreshFails = podcast
     }
+    private var pauseNextRefresh = false
+    private var pausedRefresh: CheckedContinuation<Void, Never>?
+    private var refreshWaiter: CheckedContinuation<Void, Never>?
+    func holdNextRefresh() { pauseNextRefresh = true }
+    func waitForPausedRefresh() async {
+        if pausedRefresh != nil { return }
+        await withCheckedContinuation { refreshWaiter = $0 }
+    }
+    func releaseRefresh() { pausedRefresh?.resume(); pausedRefresh = nil }
     var seen = Set<String>()
     private var pauseNextPull = false
     private var pausedPull: CheckedContinuation<Void, Never>?
@@ -45,11 +54,20 @@ private actor FakeTransport: SyncTransport {
         switch path {
         case "/api/health": return healthResponse
         case "/api/devices": return body!
-        case "/api/library/refresh":
-            return #"{"checked":2,"updated":\#(2 - failedFeedCount),"notModified":0,"failed":\#(failedFeedCount)}"#
         case "/api/subscriptions/s/refresh":
+            if pauseNextRefresh {
+                pauseNextRefresh = false
+                await withCheckedContinuation { continuation in
+                    pausedRefresh = continuation
+                    refreshWaiter?.resume(); refreshWaiter = nil
+                }
+                try Task.checkCancellation()
+            }
             if podcastRefreshFails { throw FeedRefreshFailure.publisherFailed }
             return #"{"_tag":"Updated","added":1,"changed":0}"#
+        case "/api/subscriptions/t/refresh":
+            if otherPodcastRefreshFails { throw FeedRefreshFailure.publisherFailed }
+            return #"{"_tag":"NotModified"}"#
         case "/api/subscriptions/bring-over": return ""
         case "/api/sync/push":
             struct Push: Decodable { let operations: [PodListDomain.Operation] }
@@ -68,7 +86,7 @@ private actor FakeTransport: SyncTransport {
             }
             return try ProtocolJSON.encode(PullPage(cursor: 8, snapshot: snapshot, operations: []))
         case let p where p.hasPrefix("/api/library/changes"):
-            return try ProtocolJSON.encode(LibraryPage(cursor: 9, subscriptions: [subscription()], episodes: [episode(), episode("b")], more: false))
+            return try ProtocolJSON.encode(LibraryPage(cursor: 9, subscriptions: [subscription(), subscription("t", title: "Talk")], episodes: [episode(), episode("b")], more: false))
         default: throw SyncResponseFailure("Unexpected request \(method) \(path)")
         }
     }
@@ -150,20 +168,21 @@ private actor FakeTransport: SyncTransport {
     #expect(app.feedRefreshAction(.subscription("s")) != nil)
     #expect(app.feedRefreshAction(.subscription("missing")) == nil)
     let initialRequestCount = await transport.paths.count
-    await transport.setRefreshFailures(all: 1)
+    await transport.setRefreshFailures(otherPodcast: true)
     await transport.holdNextPull()
     let refresh = Task { await app.refreshFeeds(.all) }
     await transport.waitForPausedPull()
-    #expect(app.feedRefreshProgress == "Refreshing All Feeds…")
+    #expect(app.feedRefreshProgress == "Syncing refreshed feeds…")
+    #expect(app.feedRefreshCount == FeedRefreshCount(completed: 2, total: 2))
+    #expect(!app.canCancelFeedRefresh)
     #expect(PersistentMenuActions.context(app)[.refresh] == nil)
     #expect(app.feedRefreshAction(.subscription("s")) == nil)
     await app.refreshFeeds(.subscription("s"))
     await transport.releasePull()
     await refresh.value
     let allPaths = await transport.paths.dropFirst(initialRequestCount)
-    #expect(allPaths.first == "/api/library/refresh")
+    #expect(Array(allPaths.prefix(2)) == ["/api/subscriptions/s/refresh", "/api/subscriptions/t/refresh"])
     #expect(allPaths.contains { $0.hasPrefix("/api/library/changes?") })
-    #expect(!allPaths.contains("/api/subscriptions/s/refresh"))
     #expect(app.feedRefreshProgress == nil && app.syncError == nil)
     #expect(app.feedRefreshIssue?.target == .all)
     #expect(announcements == ["Refreshing All Feeds…", "Could not refresh 1 of 2 feeds. Try again."])
@@ -399,4 +418,27 @@ private actor FakeTransport: SyncTransport {
     #expect(try await db.outbox().isEmpty)
     #expect(try await db.loadState().episodeStates["a"]?.starred == true)
     app.disconnect()
+}
+
+@MainActor @Test func cancelledFeedRefreshStopsBeforeCheckingAnotherPublisher() async throws {
+    let db = try LocalDatabase(path: ":memory:")
+    let transport = FakeTransport()
+    let app = ApplicationModel(store: MemoryConnectionStore(), automaticSync: false,
+                               databaseFactory: { _ in db }, transportFactory: { _ in transport })
+    app.serverInput = "https://example.com"
+    await app.connect()
+    await transport.holdNextRefresh()
+    let refresh = Task { await app.refreshFeeds(.all) }
+    await transport.waitForPausedRefresh()
+    #expect(app.feedRefreshProgress == "Refreshing 1 of 2…")
+    #expect(app.canCancelFeedRefresh)
+    app.cancelFeedRefresh()
+    #expect(app.feedRefreshProgress == "Cancelling Feed Refresh…")
+    #expect(!app.canCancelFeedRefresh)
+    await transport.releaseRefresh()
+    await refresh.value
+    #expect(!(await transport.paths.contains("/api/subscriptions/t/refresh")))
+    #expect(app.feedRefreshProgress == nil && app.feedRefreshIssue == nil)
+    #expect(app.canRefreshFeeds)
+    #expect(app.libraryEditing?.notice == "Feed refresh cancelled. The server may finish the current feed.")
 }
