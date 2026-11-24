@@ -8,7 +8,9 @@ public struct PodListWindow: SwiftUI.View {
     @State private var linkError: String?
     @State private var playlistPresentation = PlaylistPresentation()
     @FocusState private var viewsFocused: Bool
-    @State private var editingView: PodListDomain.View?
+    @State private var editingView: ViewEditorDraft?
+    @State private var focusViewName = false
+    @SceneStorage("PodList.viewDraftWindowID") private var viewDraftWindowID = ""
     @State private var creatingView = false
     @State private var showBulkRules = false
     @State private var showSubscriptionSettings = false
@@ -24,6 +26,7 @@ public struct PodListWindow: SwiftUI.View {
     @State private var contextLibraryID: String?
     @AppStorage("PodList.inspectorVisible") private var defaultInspectorVisible = true
     @Environment(\.macTextScale) private var textScale
+    @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appearsActive) private var appearsActive
     @Environment(\.openWindow) private var openWindow
@@ -60,7 +63,7 @@ public struct PodListWindow: SwiftUI.View {
         .onChange(of: app.origin) { _, _ in
             guard contextLoaded, contextLibraryID != (app.origin ?? "standalone") else { return }
             contextLoaded = false
-            window.clearListMemory(); playlistPresentation.sheet = nil
+            window.clearListMemory(); playlistPresentation.sheet = nil; editingView = nil
             if let library = app.library { restoreContext(in: library) }
         }
     }
@@ -217,7 +220,8 @@ public struct PodListWindow: SwiftUI.View {
         }
         .sheet(isPresented: Binding(get: { editingView != nil }, set: { if !$0 { editingView = nil } })) {
             if let view = editingView, let editor = app.libraryEditing {
-                ViewEditorScreen(editor: editor, library: library, view: view, creating: creatingView) { id in
+                ViewEditorScreen(editor: editor, app: app, library: library, draft: view, creating: creatingView,
+                                 windowID: viewDraftWindowID, focusName: focusViewName) { id in
                     editingView = nil
                     if let id { window.navigate(to: .view(id)) }
                 }
@@ -974,19 +978,28 @@ public struct PodListWindow: SwiftUI.View {
         return { renameView(view) }
     }
     private func renameView(_ view: PodListDomain.View) {
-        guard let editor = app.libraryEditing, app.editing?.busy == false,
-              ViewRenameAction.prepare(view, editor: editor) else { return }
-        editView(view)
+        guard app.libraryEditing?.busy == false, app.editing?.busy == false else { return }
+        editView(view, focusName: true)
     }
-    private func editView(_ view: PodListDomain.View) {
-        creatingView = false; editingView = view
+    private func editView(_ view: PodListDomain.View, focusName: Bool = false) {
+        guard let editor = app.libraryEditing else { return }
+        if viewDraftWindowID.isEmpty { viewDraftWindowID = UUID().uuidString }
+        creatingView = false
+        focusViewName = focusName
+        editingView = editor.viewDraft(for: view, in: viewDraftWindowID, creating: false, locale: locale)
     }
     private func newView(text: String? = nil) {
         guard let editor = app.libraryEditing else { return }
-        var id = editor.draft("newViewID")
-        if id.isEmpty { id = UUID().uuidString; editor.setDraft(id, field: "newViewID") }
+        if viewDraftWindowID.isEmpty { viewDraftWindowID = UUID().uuidString }
+        let field = "newViewID.\(viewDraftWindowID)"
+        let existing = editor.draft(field)
+        let legacy = editor.draft("newViewID")
+        let id = !existing.isEmpty ? existing : !legacy.isEmpty ? legacy : UUID().uuidString
+        editor.setDraft(id, field: field)
         creatingView = true
-        editingView = PodListDomain.View(id: id, name: "", filter: .init(text: text), sort: .publishedDesc, limit: nil)
+        focusViewName = true
+        let view = PodListDomain.View(id: id, name: "", filter: .init(text: text), sort: .publishedDesc, limit: nil)
+        editingView = editor.viewDraft(for: view, in: viewDraftWindowID, creating: true, locale: locale)
     }
     private func toolbarPlaylist(_ library: LibraryModel) -> Playlist? {
         guard !isPodcastPage, case let .playlist(id) = window.destination else { return nil }

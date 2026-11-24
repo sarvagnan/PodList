@@ -74,7 +74,7 @@ private actor PublisherFixture: PublisherReader {
     #expect(!redone.contains { $0.id == original.id } && redone.contains(duplicate))
 }
 
-@MainActor @Test func conditionEditsApplyImmediatelyAndMatchCountsUseAllConditions() async throws {
+@MainActor @Test func viewMatchingUsesAllConditionsAndSaveValidatesThem() async throws {
     let db = try await fixtureDatabase()
     let model = LibraryModel(snapshot: try await db.readLibrary(), deviceID: "this", now: 1000)
     var view = PodListDomain.View(id: "edit", name: "Edited", filter: .init(), sort: .publishedDesc, limit: nil)
@@ -294,74 +294,72 @@ private actor SubscriptionTransport: SyncTransport {
     #expect(history.undoTitle == "Undo New Playlist")
 }
 
-@MainActor @Test func cancellingViewSessionRestoresLiveFiltersAndSavedRenameAndDropsItsHistory() async throws {
+@MainActor @Test func cancellingEditViewDiscardsOnlyThisWindowsDraftAfterAPeerSave() async throws {
     let db = try await fixtureDatabase(), editor = editing(db)
-    let original = PodListDomain.View(id: "session", name: "Original", filter: .init(), sort: .publishedDesc, limit: nil)
-    try await editor.saveView(original)
-    let session = UUID()
-    var changed = original; changed.filter.text = "science"; changed.limit = 4
-    try await editor.saveView(changed, sessionID: session)
-    #expect(try await editor.savedView(original.id) == changed) // Filters still apply live.
-    changed.name = "Renamed"
-    try await editor.saveView(changed, sessionID: session)
-    for field in ["view.session", "rename.session", "limit.session", "session.Minimum length (minutes)", "session.Maximum length (minutes)"] {
-        editor.setDraft("unfinished", field: field)
-    }
-    _ = await editor.edits.setStar(["a"], starred: true) // An unrelated window's edit survives.
-    try await editor.cancelViewEdits(initial: original, creating: false, sessionID: session)
+    let original = try #require(try await db.loadState().views.first)
+    var first = editor.viewDraft(for: original, in: "first", creating: false)
+    first.edit(.mentions) { $0.filter.text = "science" }
+    editor.stageViewDraft(first, in: "first")
     #expect(try await editor.savedView(original.id) == original)
-    #expect(editor.undoName == "Star")
-    #expect(!editor.edits.history.contains { $0.sessionID == session })
-    #expect(!editor.hasDraft("view.session") && !editor.hasDraft("rename.session") && !editor.hasDraft("limit.session"))
-    #expect(!editor.hasDraft("session.Minimum length (minutes)") && !editor.hasDraft("session.Maximum length (minutes)"))
-    await editor.undo()
-    #expect(editor.undoName == "Edit View") // The edit before this session remains available.
-    #expect(try await db.loadState().episodeStates["a"]?.starred != true)
+
+    var second = editor.viewDraft(for: original, in: "second", creating: false)
+    second.edit(.name) { $0.name = "Saved in another window" }
+    try await editor.saveViewDraft(second, creating: false)
+    let written = try await db.outbox()
+    var secondDraft = second
+    secondDraft.edit(.sort) { $0.sort = .durationDesc }
+    editor.stageViewDraft(secondDraft, in: "second")
+    editor.discardViewDraft(original.id, in: "first", creating: false)
+
+    #expect(try await editor.savedView(original.id) == second.value)
+    #expect(try await db.outbox() == written)
+    #expect(editor.undoName == "Edit View")
+    #expect(editor.viewDraft(for: second.value, in: "first", creating: false).touched.isEmpty)
+    #expect(editor.viewDraft(for: second.value, in: "second", creating: false) == secondDraft)
 }
 
-@MainActor @Test func cancellingUndoneViewSessionRemovesRedoWithoutDroppingUnrelatedHistory() async throws {
+@MainActor @Test func editViewKeepsRawNumbersAndMergesUntouchedFieldsAcrossSync() async throws {
     let db = try await fixtureDatabase(), editor = editing(db)
-    let original = PodListDomain.View(id: "session", name: "Original", filter: .init(), sort: .publishedDesc, limit: nil)
-    try await editor.saveView(original)
-    let session = UUID()
-    var changed = original; changed.filter.starred = true
-    try await editor.saveView(changed, sessionID: session)
-    await editor.undo()
-    #expect(editor.redoName == "Edit View")
-    try await editor.cancelViewEdits(initial: original, creating: false, sessionID: session)
-    #expect(editor.redoName == nil && editor.undoName == "Edit View")
-    #expect(try await editor.savedView(original.id) == original)
-}
+    let original = PodListDomain.View(id: "editing", name: "Original", filter: .init(published: .lastDays(days: 7)), sort: .publishedDesc, limit: nil)
+    try await pullPeerChanges([.saveView(view: original)], into: db)
+    var draft = editor.viewDraft(for: original, in: "window", creating: false)
+    let locale = Locale(identifier: "en_US")
+    draft.setNumber("007", for: .published, locale: locale)
+    draft.setNumber("-", for: .minimumLength, locale: locale)
+    var peer = original
+    peer.name = "Renamed by peer"
+    peer.filter.published = nil
+    peer.limit = 12
+    try await pullPeerChanges([.saveView(view: peer)], into: db)
+    draft.receive(peer)
+    #expect(draft.numbers == [.published: "007", .minimumLength: "-"])
+    #expect(draft.value.filter.published == .lastDays(days: 7))
+    #expect(draft.value.name == peer.name && draft.value.limit == 12)
 
-@MainActor @Test func failedViewCancellationKeepsDraftsAndHistoryForRetry() async throws {
-    let db = try await fixtureDatabase(), editor = editing(db)
-    let original = PodListDomain.View(id: "session", name: "Original", filter: .init(), sort: .publishedDesc, limit: nil)
-    try await editor.saveView(original)
-    let session = UUID()
-    var changed = original; changed.name = "Renamed"
-    try await editor.saveView(changed, sessionID: session)
-    editor.setDraft("unfinished", field: "rename.session")
-    try await db.execute("CREATE TRIGGER fail_view_cancel BEFORE INSERT ON outbox BEGIN SELECT RAISE(ABORT, 'disk unavailable'); END")
-    await #expect(throws: (any Error).self) {
-        try await editor.cancelViewEdits(initial: original, creating: false, sessionID: session)
-    }
-    #expect(try await editor.savedView(original.id) == changed)
-    #expect(editor.hasDraft("rename.session") && editor.edits.history.undo?.sessionID == session)
-    try await db.execute("DROP TRIGGER fail_view_cancel")
-    try await editor.cancelViewEdits(initial: original, creating: false, sessionID: session)
-    #expect(try await editor.savedView(original.id) == original)
-    #expect(!editor.hasDraft("rename.session"))
+    draft.setNumber("2.5", for: .minimumLength, locale: locale)
+    peer.sort = .durationAsc
+    try await pullPeerChanges([.saveView(view: peer)], into: db)
+    try await editor.saveViewDraft(draft, creating: false)
+    var expected = peer
+    expected.filter.published = .lastDays(days: 7)
+    expected.filter.minDuration = 150
+    #expect(try await editor.savedView(original.id) == expected)
+    await editor.undo()
+    #expect(try await editor.savedView(original.id) == peer)
 }
 
 @MainActor @Test func cancellingNewViewClearsDraftWithoutCreatingOrDeletingOtherViews() async throws {
     let db = try await fixtureDatabase(), editor = editing(db)
     let before = try await db.loadState().views
-    let draft = PodListDomain.View(id: "new-session", name: "Unfinished", filter: .init(), sort: .publishedDesc, limit: nil)
-    editor.setDraft(draft.id, field: "newViewID")
-    editor.setDraft("draft", field: "view.\(draft.id)")
-    try await editor.cancelViewEdits(initial: draft, creating: true, sessionID: UUID())
+    let new = PodListDomain.View(id: "new-session", name: "", filter: .init(), sort: .publishedDesc, limit: nil)
+    editor.setDraft(new.id, field: "newViewID.window")
+    var draft = editor.viewDraft(for: new, in: "window", creating: true)
+    draft.edit(.name) { $0.name = "Unfinished" }
+    editor.stageViewDraft(draft, in: "window")
+    editor.discardViewDraft(new.id, in: "window", creating: true)
     #expect(try await db.loadState().views == before)
-    #expect(!editor.hasDraft("newViewID") && !editor.hasDraft("view.\(draft.id)"))
+    #expect(!editor.hasDraft("newViewID.window"))
+    #expect(editor.viewDraft(for: new, in: "window", creating: true).value == new)
 }
 
 @MainActor @Test func gettingStartedWaitsForLoadedLibraryThenHidesAfterSubscription() async throws {

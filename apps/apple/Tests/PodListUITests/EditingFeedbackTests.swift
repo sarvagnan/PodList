@@ -73,14 +73,14 @@ import PodListData
     #expect(height(surface: .secondary) == 100)
 }
 
-@MainActor @Test func editFeedbackCancelNoticeExpiresAndDoesNotFollowNavigationOrNewSheets() async throws {
+@MainActor @Test func editFeedbackNoticeExpiresAndDoesNotFollowNavigationOrNewSheets() async throws {
     let db = try await fixtureDatabase()
     let editing = PlaylistEditingModel(database: db, drafts: PlaylistDrafts(scope: UUID().uuidString))
     let window = EditingFeedbackLifetime(currentNotice: editing.feedbackNotice)
-    editing.discardViewSession(UUID())
+    editing.showNotice("Feed refresh cancelled.")
     let notice = try #require(editing.feedbackNotice)
     let beforeExpiry = notice.expiresAt.addingTimeInterval(-0.001)
-    #expect(window.message(for: notice, at: beforeExpiry) == "Cancelled View edits")
+    #expect(window.message(for: notice, at: beforeExpiry) == "Feed refresh cancelled.")
     #expect(window.message(for: notice, at: notice.expiresAt) == nil)
     #expect(window.message(for: notice, at: notice.expiresAt.addingTimeInterval(60)) == nil)
 

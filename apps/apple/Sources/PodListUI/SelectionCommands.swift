@@ -47,14 +47,6 @@ enum PlaylistRenameAction {
         return true
     }
 }
-enum ViewRenameAction {
-    @MainActor @discardableResult static func prepare(_ view: PodListDomain.View, editor: LibraryEditingModel) -> Bool {
-        guard !editor.busy else { return false }
-        if !editor.hasDraft("rename.\(view.id)") { editor.setDraft(view.name, field: "rename.\(view.id)") }
-        return true
-    }
-}
-
 enum TrashSelectionAction {
     static func playlist(in library: LibraryModel, selection: String?, search: String, busy: Bool) -> Playlist? {
         guard !busy else { return nil }
