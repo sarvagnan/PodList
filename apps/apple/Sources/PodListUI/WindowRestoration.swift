@@ -122,7 +122,7 @@ struct WindowContext: Codable, Equatable {
             let events = TimelinePresentation.events(playlist, now: library.now)
             if !events.contains(where: { $0.id == result.timelineSelection }) { result.timelineSelection = nil }
         } else if result.destination == .views {
-            ids = Set(library.state.views.map(\.id))
+            ids = Set(library.savedViews(search: result.search).map(\.id))
             result.timelineSelection = nil
         } else if result.destination == .trash {
             ids = Set(library.trash.filter {
@@ -137,7 +137,7 @@ struct WindowContext: Codable, Equatable {
         let scrollIDs: [String]
         switch result.destination {
         case .subscriptions: scrollIDs = library.subscriptionGroups(search: result.search).flatMap { $0.subscriptions.map(\.id) }
-        case .views: scrollIDs = library.state.views.map(\.id)
+        case .views: scrollIDs = library.savedViews(search: result.search).map(\.id)
         case .trash: scrollIDs = library.trash.filter { result.search.isEmpty || $0.playlist.name.localizedStandardContains(result.search) }.map { $0.playlist.id }
         case let .playlist(id) where result.playlistTab == .timeline:
             scrollIDs = library.state.playlists.first { $0.id == id }.map { TimelinePresentation.events($0, now: library.now).map(\.id) } ?? []

@@ -427,8 +427,7 @@ public struct PodListWindow: SwiftUI.View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                LibraryToolbarSearch(text: $window.search,
-                                     scope: isPodcastPage ? .episodes : window.destination == .search ? .library : .list)
+                if let scope = toolbarSearchScope { LibraryToolbarSearch(text: $window.search, scope: scope) }
             }
         }
         .inspector(isPresented: inspector) {
@@ -510,44 +509,52 @@ public struct PodListWindow: SwiftUI.View {
     @ViewBuilder private func content(_ library: LibraryModel, rows: [EpisodeRow], deletedPlaylist: Playlist?) -> some SwiftUI.View {
         switch window.destination {
         case .views:
-            if library.state.views.isEmpty {
-                PodListEmptyState("No Views", systemImage: "line.3.horizontal.decrease",
-                                  description: "Create a View to find Episodes.") { Button("New View…") { newView() } }
-            } else {
-                let ids = window.listBinding(\.selection)
-                let selection = Binding<String?>(get: {
-                    ids.wrappedValue.count == 1 ? ids.wrappedValue.first : nil
-                }, set: { ids.wrappedValue = $0.map { [$0] } ?? [] })
-                List(library.state.views, id: \.id, selection: selection) { view in
-                    HStack(spacing: 10) {
-                        Label(view.name, systemImage: "line.3.horizontal.decrease")
-                        Spacer()
-                        Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(view.id)))
-                    }.frame(minHeight: 44).padding(.vertical, 4)
-                        .accessibilityElement(children: .combine)
-                        .tag(view.id)
-                }
-                .playbackBarScrollClearance()
-                .accessibilityIdentifier("views.list")
-                .focused($viewsFocused)
-                .onAppear { viewsFocused = true }
-                .contextMenu(forSelectionType: String.self) { ids in
-                    if let id = ids.first {
-                        Button("Open") { window.navigate(to: .view(id)) }
-                        sidebarActions(.view(id), library: library)
+            let views = library.savedViews(search: window.search)
+            VStack(spacing: 0) {
+                if library.state.views.isEmpty {
+                    PodListEmptyState("No Views", systemImage: "line.3.horizontal.decrease",
+                                      description: "Create a View to find Episodes.") { Button("New View…") { newView() } }
+                } else if views.isEmpty {
+                    PodListEmptyState("No Matching Views", systemImage: "magnifyingglass",
+                                      description: "Try a different View name.") {
+                        Button("Clear Search") { window.search = "" }
                     }
-                } primaryAction: { ids in
-                    if let id = ids.first { window.navigate(to: .view(id)) }
-                }
-                .onCopyCommand(perform: selection.wrappedValue.map { id in
-                    {
-                        let url = PodListLink.view(id).url
-                        return [SelectionCopyContent(text: url.absoluteString, url: url).itemProvider()]
+                } else {
+                    let ids = window.listBinding(\.selection)
+                    let selection = Binding<String?>(get: {
+                        ids.wrappedValue.count == 1 ? ids.wrappedValue.first : nil
+                    }, set: { ids.wrappedValue = $0.map { [$0] } ?? [] })
+                    List(views, id: \.id, selection: selection) { view in
+                        HStack(spacing: 10) {
+                            Label(view.name, systemImage: "line.3.horizontal.decrease")
+                            Spacer()
+                            Text(CountText.format(library.viewEpisodes(view).count, .episode)).foregroundStyle(MacReadableSecondaryStyle(isSelected: window.selection.contains(view.id)))
+                        }.frame(minHeight: 44).padding(.vertical, 4)
+                            .accessibilityElement(children: .combine)
+                            .tag(view.id)
                     }
-                })
-                .typeSelectingRows(library.state.views.map { TypeSelectionRow(id: $0.id, title: $0.name) },
-                    selection: selection, anchor: window.listBinding(\.scrollAnchor))
+                    .playbackBarScrollClearance()
+                    .accessibilityIdentifier("views.list")
+                    .focused($viewsFocused)
+                    .contextMenu(forSelectionType: String.self) { ids in
+                        if let id = ids.first {
+                            Button("Open") { window.navigate(to: .view(id)) }
+                            sidebarActions(.view(id), library: library)
+                        }
+                    } primaryAction: { ids in
+                        if let id = ids.first { window.navigate(to: .view(id)) }
+                    }
+                    .onCopyCommand(perform: selection.wrappedValue.map { id in
+                        {
+                            let url = PodListLink.view(id).url
+                            return [SelectionCopyContent(text: url.absoluteString, url: url).itemProvider()]
+                        }
+                    })
+                    .typeSelectingRows(views.map { TypeSelectionRow(id: $0.id, title: $0.name) },
+                        selection: selection, anchor: window.listBinding(\.scrollAnchor))
+                }
             }
+            .onAppear { if window.search.isEmpty { viewsFocused = true } }
         case .subscriptions:
             subscriptions(library)
         case .trash:
@@ -957,6 +964,13 @@ public struct PodListWindow: SwiftUI.View {
         savedContext = currentContext.encoded
     }
 
+    private var toolbarSearchScope: LibraryToolbarSearch.Scope? {
+        if isPodcastPage { return .episodes }
+        if window.destination == .search { return .library }
+        if case .playlist = window.destination, window.playlistTab != .entries { return nil }
+        return .list
+    }
+
     private var isPodcastPage: Bool { window.isPodcastPage }
     private func editCurrentView(_ library: LibraryModel) {
         guard let view = selectedView(library) else { return }
@@ -1079,13 +1093,23 @@ struct LibraryToolbarSearch: SwiftUI.View {
 
     @Binding var text: String
     let scope: Scope
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focused: Bool
+
+    static let darkScopeGray = 196.0 / 255
+
+    private var scopeInk: AnyShapeStyle {
+        let gray = Self.darkScopeGray
+        return colorScheme == .dark
+            ? AnyShapeStyle(Color(red: gray, green: gray, blue: gray))
+            : AnyShapeStyle(MacReadableSecondaryStyle())
+    }
 
     var body: some SwiftUI.View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             Text(scope.caption)
-                .font(.caption).foregroundStyle(MacReadableSecondaryStyle()).fixedSize()
+                .font(.caption).foregroundStyle(scopeInk).fixedSize()
                 .padding(.trailing, 5)
                 .overlay(alignment: .trailing) { Divider().frame(height: 12) }
                 .accessibilityHidden(true)
