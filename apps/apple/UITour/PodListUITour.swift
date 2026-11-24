@@ -2600,9 +2600,8 @@ extension PodListUITour {
         XCTAssertTrue(sidebarItem(name).waitForNonExistence(timeout: 60))
         try syncNavigate("Trash")
         try ready(library.buttons["Restore Playlist \(name)"])
-        // The runner can't write into the shared folder (NSCocoaError 513); the host polls the
-        // guest's own disk for this checkpoint with tart exec.
-        try Data().write(to: URL(fileURLWithPath: "/private/tmp/podlist-cross-sync-mac-deleted"), options: .atomic)
+        // The sandboxed runner can't write a checkpoint file; the host waits for the server
+        // to show this Delete in the Trash instead.
 
         let proceed = syncControl.appendingPathComponent("mac-undo").path
         let abort = syncControl.appendingPathComponent("mac-abort").path

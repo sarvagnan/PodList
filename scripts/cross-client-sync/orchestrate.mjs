@@ -554,19 +554,6 @@ try {
       (error) => checkpoint.abort(error)
     )
     try {
-      await until(
-        "Mac's Delete UI checkpoint",
-        async () => {
-          try {
-            await command("tart", ["exec", vm, "/bin/test", "-f", "/private/tmp/podlist-cross-sync-mac-deleted"], "mac-deleted-probe").result
-            return true
-          } catch {
-            return false
-          }
-        },
-        120_000,
-        AbortSignal.any([checkpoint.signal, interrupt.signal])
-      )
       await stateHas(
         "Commute in server Trash",
         (state) =>
