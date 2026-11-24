@@ -796,24 +796,24 @@ public struct PodListWindow: SwiftUI.View {
                                 TableColumn("Episode", value: \.title) { row in
                                     episodeTitle(row, rows: rows, library: library, state: layout.playbackMark(for: row.stateText))
                                         .episodeDragSource(row.id)
-                                }.width(min: EpisodeTableLayout.minimumTitleWidth)
+                                }.width(min: EpisodeTableLayout.minimumTitleWidth, ideal: layout.libraryTitleMaximum, max: layout.libraryTitleMaximum)
                                 if layout.showsDateOrPosition {
                                     TableColumn("Published", value: \.published) { row in
                                         Group {
                                             if row.episode != nil { Text(row.publishedDate, format: .dateTime.day().month(.abbreviated).year()) }
                                             else { Text("—") }
                                         }.episodeDragSource(row.id)
-                                    }.width(min: 95, ideal: 110, max: 150)
+                                    }.width(min: 95, ideal: 110, max: layout.libraryPublishedMaximum)
                                 }
                                 if layout.showsLength {
                                     TableColumn("Length", value: \.length) { row in
                                         Text(row.durationText).monospacedDigit().episodeDragSource(row.id)
-                                    }.width(min: 60, ideal: 70, max: 100)
+                                    }.width(min: 60, ideal: 70, max: layout.libraryLengthMaximum)
                                 }
                                 if layout.showsState {
                                     TableColumn("State", value: \.stateText) { row in
                                         Text(row.stateText).fixedSize(horizontal: false, vertical: true).episodeDragSource(row.id)
-                                    }.width(min: 140, ideal: 150, max: 200)
+                                    }.width(min: 140, ideal: 150, max: layout.libraryStateMaximum)
                                 }
                             } rows: {
                                 ForEach(rows) { TableRow($0) }

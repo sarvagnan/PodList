@@ -12,15 +12,27 @@ struct EpisodeTableLayout {
     var showsDateOrPosition: Bool { width >= 400 }
     var showsLength: Bool { width >= 480 }
     var showsState: Bool { width >= 640 }
+    /// A native Table can carry resized columns across pane changes. Cap
+    /// their combined widths to the current viewport, including its insets.
+    var libraryPublishedMaximum: CGFloat { min(150, Self.podcastPublishedWidth + libraryMetadataResizeRoom) }
+    var libraryLengthMaximum: CGFloat { min(100, Self.podcastLengthWidth + libraryMetadataResizeRoom) }
+    var libraryStateMaximum: CGFloat { min(200, Self.podcastStateWidth + libraryMetadataResizeRoom) }
+    var libraryTitleMaximum: CGFloat {
+        let metadata = (showsDateOrPosition ? libraryPublishedMaximum : 0)
+            + (showsLength ? libraryLengthMaximum : 0) + (showsState ? libraryStateMaximum : 0)
+        return max(Self.minimumTitleWidth, width - metadata - tableChrome)
+    }
+
+    // Keep most additional room in the Episode title as the viewport grows.
+    private var libraryMetadataResizeRoom: CGFloat { (podcastTitleWidth - Self.minimumTitleWidth) / 8 }
+    private var tableChrome: CGFloat {
+        let count: CGFloat = 1 + (showsDateOrPosition ? 1 : 0) + (showsLength ? 1 : 0) + (showsState ? 1 : 0)
+        return 17 * count + 2 * 10 + 16
+    }
+
     var podcastTitleWidth: CGFloat {
         let metadataWidth = (showsDateOrPosition ? Self.podcastPublishedWidth : 0)
             + (showsLength ? Self.podcastLengthWidth : 0) + (showsState ? Self.podcastStateWidth : 0)
-        let columnCount: CGFloat = 1 + (showsDateOrPosition ? 1 : 0)
-            + (showsLength ? 1 : 0) + (showsState ? 1 : 0)
-        // SwiftUI's ideal widths describe the cells. The inset table adds horizontal
-        // padding to each column and margins at the edges. Leave a little
-        // room for SwiftUI to distribute among the resizable metadata columns.
-        let tableChrome = 17 * columnCount + 2 * 10 + 16
         return max(Self.minimumTitleWidth, width - metadataWidth - tableChrome)
     }
     func playbackMark(for stateText: String) -> EpisodePlaybackMark? {

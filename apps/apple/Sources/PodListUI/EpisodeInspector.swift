@@ -50,6 +50,7 @@ enum InspectorLayout {
 
 struct EpisodeInspector: SwiftUI.View {
     @Environment(\.libraryEditOrigin) private var origin
+    @State private var scrollPosition = ScrollPosition()
     let row: EpisodeRow?
     let library: LibraryModel
     @Bindable var app: ApplicationModel
@@ -75,13 +76,14 @@ struct EpisodeInspector: SwiftUI.View {
                             .padding(.vertical, 20).padding(.horizontal, InspectorLayout.horizontalInset)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .id(row.id)
+                    .scrollPosition($scrollPosition)
+                    .onChange(of: row.id) { _, _ in scrollPosition.scrollTo(edge: .top) }
                     .playbackBarScrollClearance()
                 } else {
                     InspectorEpisodeDetail(row: row, library: library, app: app,
                         playlistPresentation: playlistPresentation, startedPlayback: startedPlayback,
                         deferDetails: false)
-                        .id(row.id).padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .macContentFont(.body)
@@ -102,7 +104,7 @@ struct EpisodeInspector: SwiftUI.View {
                         LabeledContent("Length", value: podcastPreview.duration.map(Presentation.time) ?? "—")
                     }.macContentFont(.subheadline).labeledContentStyle(InspectorLabeledContentStyle())
                     Divider()
-                    InspectorShowNotes(description: podcastPreview.notes).id(podcastPreview.title)
+                    InspectorShowNotes(description: podcastPreview.notes)
                 }
                 .padding(.vertical, 20).padding(.horizontal, InspectorLayout.horizontalInset).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -166,7 +168,8 @@ private struct InspectorEpisodeDetail: SwiftUI.View {
     let startedPlayback: () -> Void
     let deferDetails: Bool
     var timingKey: String? = nil
-    @State private var ready = false
+    @State private var readyEpisodeID: String?
+    private var ready: Bool { !deferDetails || readyEpisodeID == row.id }
 
     var body: some SwiftUI.View {
         #if PODLIST_UI_TOUR
@@ -186,18 +189,18 @@ private struct InspectorEpisodeDetail: SwiftUI.View {
                 // Leave one SwiftUI animation tick after the shell's initial layout.
                 // Removing this schedule after the tick keeps the inspector idle.
                 TimelineView(.animation(minimumInterval: 1.0 / 60)) { tick in
-                    Color.clear.onChange(of: tick.date) { _, _ in ready = true }
+                    Color.clear.onChange(of: tick.date) { _, _ in readyEpisodeID = row.id }
                 }.allowsHitTesting(false).accessibilityHidden(true)
             }
         }
-        .task(id: ready) {
-            guard !deferDetails || ready else { return }
+        .task(id: ready ? row.id : nil) {
+            guard ready else { return }
             await app.resolveEpisodeDetails(row.id)
         }
     }
 
     @ViewBuilder private var content: some SwiftUI.View {
-        InspectorArtwork(row: row, app: app, loadsArtwork: !deferDetails || ready)
+        InspectorArtwork(row: row, app: app, loadsArtwork: ready)
             .frame(maxWidth: .infinity)
         Text(row.title).macContentFont(.title2).bold().fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("inspector.episodeTitle")
@@ -205,7 +208,7 @@ private struct InspectorEpisodeDetail: SwiftUI.View {
             .tourInspectorResponse(key: timingKey)
             #endif
         Text(row.podcast).macContentFont(.headline).foregroundStyle(MacReadableSecondaryStyle())
-        if !deferDetails || ready { details }
+        if ready { details }
     }
 
     @ViewBuilder private var details: some SwiftUI.View {
@@ -272,15 +275,10 @@ private struct InspectorArtwork: SwiftUI.View {
     let row: EpisodeRow
     let app: ApplicationModel
     let loadsArtwork: Bool
-    @State private var size: CGFloat
-
-    init(row: EpisodeRow, app: ApplicationModel, loadsArtwork: Bool) {
-        self.row = row
-        self.app = app
-        self.loadsArtwork = loadsArtwork
+    private var size: CGFloat {
         let canLoad = row.artworkURL.map(ArtworkView.canLoad) == true ||
             row.episode?.chapters.contains(where: { $0.artwork != nil }) == true
-        _size = State(initialValue: canLoad ? 180 : 88)
+        return canLoad ? 180 : 88
     }
 
     var body: some SwiftUI.View {

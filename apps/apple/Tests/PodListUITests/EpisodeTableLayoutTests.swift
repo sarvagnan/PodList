@@ -21,6 +21,17 @@ func episodeTablesReserveTitleAndVisibleMetadataSpace(width: CGFloat) {
     }
 }
 
+@Test(arguments: [CGFloat(267), 400, 480, 490, 639, 640, 687, 900])
+func resizedLibraryColumnsFitTheirCurrentViewport(width: CGFloat) {
+    let layout = EpisodeTableLayout(width: width)
+    let maxima = [layout.libraryTitleMaximum]
+        + (layout.showsDateOrPosition ? [layout.libraryPublishedMaximum] : [])
+        + (layout.showsLength ? [layout.libraryLengthMaximum] : [])
+        + (layout.showsState ? [layout.libraryStateMaximum] : [])
+    let tableChrome = CGFloat(17 * maxima.count + 36)
+    #expect(maxima.reduce(0, +) + tableChrome <= width + 0.001)
+}
+
 @Test func compactEpisodeStateMarksReplaceTheHiddenStateColumn() {
     let compact = EpisodeTableLayout(width: 639)
     let regular = EpisodeTableLayout(width: 640)
