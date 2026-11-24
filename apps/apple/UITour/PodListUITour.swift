@@ -2483,7 +2483,8 @@ extension PodListUITour {
         try syncSearch(title)
         let row = syncEpisodeRow(title)
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)).click()
-        if !episodeInspector.exists { try click(inspectorButton) }
+        // Wide windows open the Inspector on selection; toggling before it appears would close it.
+        if !episodeInspector.waitForExistence(timeout: 5) { try click(inspectorButton) }
         try ready(text(title, in: episodeInspector))
     }
 
