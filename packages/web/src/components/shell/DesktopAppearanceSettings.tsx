@@ -18,7 +18,10 @@ export function DesktopAppearanceSettings({ heading }: { readonly heading: strin
         }
       },
       () => {
-        if (active) setError(true)
+        if (active) {
+          setError(true)
+          setPending(false)
+        }
       }
     )
     return () => {
