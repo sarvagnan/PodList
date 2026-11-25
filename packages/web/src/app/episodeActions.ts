@@ -179,3 +179,45 @@ export const createAndAddAtom = runtime.fn(
     }),
   { concurrent: true }
 )
+
+const episodeDrops = Semaphore.makeUnsafe(1)
+
+export const addDroppedEpisodesAtom = runtime.fn(
+  ({
+    playlistId,
+    episodeIds
+  }: {
+    readonly playlistId: string
+    readonly episodeIds: ReadonlyArray<string>
+  }) =>
+    Effect.gen(function* () {
+      const data = yield* DataLayer
+      const initial = (yield* SubscriptionRef.get(data.state)).playlists.find(
+        (p) => p.id === playlistId
+      )
+      if (!initial)
+        return { message: "This Playlist is no longer available.", undo: [] } satisfies Outcome
+      const undo: Operation.Change[] = []
+      for (const episodeId of new Set(episodeIds)) {
+        const before = yield* SubscriptionRef.get(data.state)
+        const playlist = before.playlists.find((p) => p.id === playlistId)
+        if (!playlist || playlist.entries.some((e) => e.episodeId === episodeId)) continue
+        const action = { _tag: "Add", episodeId, playlistId, placement: "last" } as const
+        for (const change of changesFor(action, before)) yield* data.record(change)
+        const after = yield* SubscriptionRef.get(data.state)
+        if (
+          after.playlists.some(
+            (p) => p.id === playlistId && p.entries.some((e) => e.episodeId === episodeId)
+          )
+        )
+          undo.unshift(...undoFor(action, before, after, Date.now()))
+      }
+      return {
+        message: undo.length
+          ? `Added ${undo.length === 1 ? "1 Episode" : `${undo.length} Episodes`} to ${initial.name}`
+          : `Already in ${initial.name}`,
+        undo
+      } satisfies Outcome
+    }).pipe(episodeDrops.withPermits(1)),
+  { concurrent: true }
+)

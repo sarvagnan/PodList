@@ -134,6 +134,13 @@ export function EpisodeList({
             >
               <EpisodeRow
                 episode={episode}
+                dragEpisodes={() =>
+                  checked.has(episode.id)
+                    ? episodes
+                        .filter((episode) => checked.has(episode.id))
+                        .map((episode) => episode.id)
+                    : [episode.id]
+                }
                 checked={checked.has(episode.id)}
                 onCheck={(on, range) => tick(item.index, on, range)}
                 selected={episode.id === selected}

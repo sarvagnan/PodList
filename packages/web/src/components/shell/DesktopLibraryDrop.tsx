@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { useCanEdit } from "../../app/hooks.ts"
 import { opmlCommandAtom } from "../../app/library.ts"
+import { episodeDragType } from "../../lib/episodeDrag.ts"
 import { droppedFeedAddress } from "../../lib/podListLink.ts"
 import { opmlImport } from "../../library/OpmlImport.ts"
 
@@ -15,7 +16,7 @@ export function DesktopLibraryDrop() {
   useEffect(() => {
     const handle = (event: DragEvent) => {
       const data = event.dataTransfer
-      if (!data || event.defaultPrevented) return
+      if (!data || event.defaultPrevented || data.types.includes(episodeDragType)) return
       const target = event.target instanceof Element ? event.target : null
       if (target?.closest('[data-file-drop], input[type="file"]')) return
       const files = data.types.includes("Files")

@@ -5,12 +5,13 @@ import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { GripVertical, Pause, Play, Settings, X } from "lucide-react"
 import type * as React from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { localClient } from "#client"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { restoredSelectionAtom } from "../../app/restoredEntries.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
+import { AddToPlaylist } from "../../components/episodes/AddToPlaylist.tsx"
 import { DesktopEpisodeInspector } from "../../components/episodes/DesktopEpisodeInspector.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../../components/episodes/useEpisodeActions.ts"
@@ -31,6 +32,7 @@ import { Artwork } from "../../components/shell/Artwork.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
+import { episodeDragSource } from "../../lib/episodeDrag.ts"
 import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { useRowGrid } from "../../lib/rowGrid.ts"
 import { useScrollMemory } from "../../lib/scrollMemory.ts"
@@ -60,6 +62,7 @@ function PlaylistDetail() {
   const control = useAtomSet(playbackAtom)
   const playing = useNowPlaying()
   const act = useEpisodeActions()
+  const [adding, setAdding] = useState<{ id: string; title: string } | null>(null)
   const confirm = useConfirm()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   const { episode: requestedSelection, tab } = Route.useSearch()
@@ -513,6 +516,14 @@ function PlaylistDetail() {
                         )
                     }
                   },
+                  ...(desktopBuild && title
+                    ? [
+                        {
+                          label: "Add to a Playlist…",
+                          run: () => setAdding({ id: entry.episodeId, title })
+                        }
+                      ]
+                    : []),
                   {
                     label: `Remove from ${playlist.name}`,
                     run: () => {
@@ -633,6 +644,9 @@ function PlaylistDetail() {
                             <Link
                               to="/episodes/$episodeId"
                               params={{ episodeId: entry.episodeId }}
+                              {...(desktopBuild
+                                ? episodeDragSource(() => [entry.episodeId], playlist.id)
+                                : {})}
                               data-cell="title"
                               data-episode-title={entry.episodeId}
                               onClick={(event) => {
@@ -754,6 +768,9 @@ function PlaylistDetail() {
           </div>
           {panel}
         </div>
+      )}
+      {adding && (
+        <AddToPlaylist open episode={adding} onOpenChange={(open) => !open && setAdding(null)} />
       )}
       {desktopBuild && (
         <DesktopEpisodeInspector

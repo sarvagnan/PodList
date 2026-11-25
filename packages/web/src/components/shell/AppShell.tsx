@@ -45,6 +45,7 @@ import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
 import { usePlaybackProblem } from "../player/usePlaybackProblem.ts"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
+import { useEpisodeDrop } from "../playlists/useEpisodeDrop.ts"
 import { DesktopCreatedView } from "../views/DesktopCreatedView.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
@@ -394,6 +395,7 @@ function SidebarSkeleton() {
 
 function Sidebar() {
   const canEdit = useCanEdit()
+  const episodeDrop = useEpisodeDrop(desktopBuild && canEdit)
   const now = useNowPlaying()
   const state = useAppState()
   const { create: createView } = useViewActions()
@@ -495,7 +497,8 @@ function Sidebar() {
             key={p.id}
             to="/playlists/$playlistId"
             params={{ playlistId: p.id }}
-            className={`${link}${held(`/playlists/${p.id}`)}`}
+            {...episodeDrop(p.id)}
+            className={`${link}${held(`/playlists/${p.id}`)} data-[episode-drop=over]:bg-accent data-[episode-drop=over]:outline-2 data-[episode-drop=over]:outline-primary`}
           >
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate">{p.name}</span>
