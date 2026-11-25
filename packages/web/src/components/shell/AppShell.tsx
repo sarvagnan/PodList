@@ -32,6 +32,7 @@ import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
 import { Tip } from "../feedback/Tip.tsx"
 import { Toasts } from "../feedback/Toasts.tsx"
 import { UndoShortcut } from "../feedback/UndoShortcut.tsx"
+import { DesktopFeedRefreshStatus } from "../library/DesktopFeedRefresh.tsx"
 import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { PlayerMenus } from "../player/PlayerMenus.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
@@ -914,6 +915,7 @@ function Shell() {
         <VersionNotice />
         <FirstRun />
         {desktopBuild && <DesktopRestoredEntries />}
+        {desktopBuild && <DesktopFeedRefreshStatus />}
         <EditRegion />
       </main>
       {!panes && (

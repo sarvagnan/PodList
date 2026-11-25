@@ -24,6 +24,7 @@ export class LibraryClient extends Context.Service<
     readonly readPodcast: (
       feedUrl: string
     ) => Effect.Effect<Subscriptions.PodcastFeed, LibraryError>
+    readonly refreshSubscription: (id: string) => Effect.Effect<void, LibraryError>
     readonly bringEpisode: (feedUrl: string, guid: string) => Effect.Effect<string, LibraryError>
   }
 >()("@podlist/web/LibraryClient") {
@@ -53,6 +54,10 @@ export class LibraryClient extends Context.Service<
             client.subscriptions
               .unsubscribe({ params: { id }, headers })
               .pipe(Effect.asVoid, Effect.mapError(fail(offline))),
+          refreshSubscription: (id) =>
+            client.library
+              .refreshSubscription({ params: { id } })
+              .pipe(Effect.asVoid, Effect.mapError(fail("Could not refresh the feed. Try again."))),
           readPodcast: (feedUrl) =>
             client.subscriptions
               .readPodcast({ payload: new Subscriptions.SubscribeRequest({ feedUrl }), headers })

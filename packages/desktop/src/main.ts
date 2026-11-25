@@ -423,6 +423,7 @@ const contextMenu = (
   return items
 }
 
+let refreshingFeeds = false
 let canShowRestoredEntries = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
@@ -673,6 +674,21 @@ const menu = (): MenuItemConstructorOptions[] => [
     ]
   },
   {
+    label: "Podcast",
+    submenu: [
+      {
+        label: "Refresh All Feeds",
+        enabled: !refreshingFeeds,
+        click: () => sendCommand("refreshFeeds")
+      },
+      {
+        label: "Cancel Feed Refresh",
+        enabled: refreshingFeeds,
+        click: () => sendCommand("cancelFeedRefresh")
+      }
+    ]
+  },
+  {
     label: "Controls",
     submenu: [
       // Space is the web app's own key; shown here, not taken from text fields.
@@ -833,6 +849,12 @@ if (!app.requestSingleInstanceLock()) {
       const { serverUrl: previous, ...config } = readConfig()
       writeConfig({ ...config, ...(previous ? { lastServer: previous } : {}) })
       reopen()
+    })
+    ipcMain.on("podlist:feed-refresh", (event, running: unknown) => {
+      if (!trustedAutomation(event) || typeof running !== "boolean" || running === refreshingFeeds)
+        return
+      refreshingFeeds = running
+      updateMenu()
     })
     ipcMain.on("podlist:restored-entries", (event, available: unknown) => {
       if (

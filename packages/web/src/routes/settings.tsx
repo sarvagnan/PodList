@@ -6,6 +6,7 @@ import { useId, useState } from "react"
 import { useAppState } from "../app/hooks.ts"
 import { recordAtom } from "../app/runtime.ts"
 import { AutomationSettings } from "../automation/AutomationSettings.tsx"
+import { DesktopFeedRefreshSettings } from "../components/library/DesktopFeedRefresh.tsx"
 import { ExportOpml } from "../components/library/ExportOpml.tsx"
 import { OpmlFlow } from "../components/library/OpmlFlow.tsx"
 import { LoadingRows } from "../components/lists/ListRow.tsx"
@@ -188,6 +189,7 @@ function SettingsScreen() {
           <OpmlFlow />
           <ExportOpml />
         </section>
+        {desktopBuild && <DesktopFeedRefreshSettings heading={heading} />}
         {desktopBuild && <DesktopConnectionSettings heading={heading} />}
         <AutomationSettings />
         <section aria-labelledby={`${id}-help`}>
