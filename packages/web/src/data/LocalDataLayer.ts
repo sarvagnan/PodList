@@ -162,6 +162,7 @@ export const LocalDataLayer = Layer.effect(
             author: string | null
             description: string | null
             artwork_url: string | null
+            website_url?: string | null
             unsubscribed_at: number | null
             played_threshold: number | null
             playback_settings: string
@@ -188,6 +189,7 @@ export const LocalDataLayer = Layer.effect(
             author: row.author,
             description: row.description,
             artworkUrl: row.artwork_url,
+            ...(row.website_url ? { websiteUrl: row.website_url } : {}),
             subscribed: row.unsubscribed_at === null,
             playedThreshold: row.played_threshold,
             playbackSettings,
@@ -219,18 +221,25 @@ export const LocalDataLayer = Layer.effect(
         Effect.gen(function* () {
           const [row] = yield* sql<
             Omit<EpisodeDetail, "chapters" | "artworkUrl"> & {
+              website_url: string | null
               artwork_url: string | null
               podcast_artwork_url: string | null
             }
           >`
           SELECT e.id, e.title, s.title AS podcast, e.published, e.duration, e.description,
-            e.artwork_url, s.artwork_url AS podcast_artwork_url
+            e.artwork_url, s.artwork_url AS podcast_artwork_url,
+            ${sql.literal(desktopStandalone ? "e.website_url" : "NULL")} AS website_url
           FROM episode e JOIN subscription s ON s.id = e.subscription_id
           WHERE e.id = ${episodeId}`
           if (row === undefined) return null
           const chapters = (yield* chaptersFor(episodeId)).map(toPlayerChapter)
-          const { artwork_url, podcast_artwork_url, ...rest } = row
-          return { ...rest, artworkUrl: artwork_url ?? podcast_artwork_url, chapters }
+          const { artwork_url, podcast_artwork_url, website_url, ...rest } = row
+          return {
+            ...rest,
+            artworkUrl: artwork_url ?? podcast_artwork_url,
+            ...(website_url ? { websiteUrl: website_url } : {}),
+            chapters
+          }
         }),
       statsCatalogue: Effect.gen(function* () {
         const subscriptions = yield* sql<{

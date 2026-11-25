@@ -8,6 +8,7 @@ import { episodeDetailAtom, type ViewEpisode } from "../../app/data.ts"
 import { useAppState, useCanEdit, useNextLastTarget, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
 import { chapterAt } from "../../lib/chapters.ts"
+import { feedAddress } from "../../lib/podListLink.ts"
 import { episodeLink } from "../../lib/share.ts"
 import { showNotes } from "../../lib/showNotes.ts"
 import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
@@ -160,6 +161,7 @@ export function EpisodeDetail({
       const entry = p.entries.find((e) => e.episodeId === episodeId)
       return entry ? [{ playlist: p, entry }] : []
     }) ?? []
+  const website = fetched?.websiteUrl ? feedAddress(fetched.websiteUrl) : null
   const notes = showNotes(fetched?.description ?? "")
   const chapters = fetched?.chapters ?? []
   const playingChapter = loaded ? chapterAt(chapters, now.position) : -1
@@ -201,6 +203,11 @@ export function EpisodeDetail({
             <Share aria-hidden="true" className="size-4" />
             Share
           </button>
+          {website && (
+            <a href={website} className="ml-2 text-small font-medium underline underline-offset-2">
+              Episode Website
+            </a>
+          )}
         </div>
       </div>
 

@@ -28,6 +28,7 @@ export interface SubscriptionSummary {
 }
 
 export interface SubscriptionDetail {
+  readonly websiteUrl?: string
   readonly id: string
   readonly feedUrl: string
   readonly title: string
@@ -54,6 +55,7 @@ export interface ViewEpisode {
 }
 
 export interface EpisodeDetail {
+  readonly websiteUrl?: string
   readonly id: string
   readonly title: string
   readonly podcast: string

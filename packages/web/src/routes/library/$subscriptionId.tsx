@@ -26,6 +26,7 @@ import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
 import { serverUnavailable } from "../../lib/connectionMessage.ts"
 import { ruleNames } from "../../lib/downloadRules.ts"
+import { feedAddress } from "../../lib/podListLink.ts"
 import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
 import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -156,6 +157,7 @@ function SubscriptionScreen() {
     )
   }
   const overrides = subscription.playbackSettings
+  const website = subscription.websiteUrl ? feedAddress(subscription.websiteUrl) : null
   const rule = state?.downloadRules.find(
     (r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId
   ) ?? { mode: "never" as const, keepAtMost: null }
@@ -217,11 +219,21 @@ function SubscriptionScreen() {
         >
           <div className="flex items-center gap-4">
             <Artwork url={subscription.artworkUrl} name={subscription.title} size={72} />
-            {subscription.description && (
-              <p className="line-clamp-4 text-small text-muted-foreground">
-                {subscription.description}
-              </p>
-            )}
+            <div className="min-w-0 space-y-2">
+              {subscription.description && (
+                <p className="line-clamp-4 text-small text-muted-foreground">
+                  {subscription.description}
+                </p>
+              )}
+              {website && (
+                <a
+                  href={website}
+                  className="text-small font-medium text-primary underline underline-offset-2"
+                >
+                  Podcast Website
+                </a>
+              )}
+            </div>
           </div>
           {wide ? (
             <h2
