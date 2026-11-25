@@ -33,7 +33,7 @@ export interface RowGrid {
   /** Delete/Backspace removes an Entry with the same Undo as its row action (EDIT-02). */
   readonly onRemove?: (index: number) => void
   /** The keyboard moved to another row (an open Episode follows it, as in Mail). */
-  readonly onRowMove?: (index: number) => void
+  readonly onRowMove?: (index: number, extending: boolean) => void
 }
 
 export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGrid) {
@@ -84,7 +84,7 @@ export function useRowGrid(container: RefObject<HTMLElement | null>, grid: RowGr
     const index = Math.max(0, Math.min(grid.count - 1, row))
     const moved = index !== active.current.row
     active.current = { row: index, cell }
-    if (moved) grid.onRowMove?.(index)
+    if (moved) grid.onRowMove?.(index, then !== undefined)
     let frames = 10
     const land = () => {
       const cells = visibleCells(rowAt(index))

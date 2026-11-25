@@ -507,3 +507,100 @@ test("row backgrounds offer row commands while fields, selected text and links k
     demo.stop()
   }
 })
+
+test("matches the Mac Inspector and Sidebar at wide and narrow widths", async () => {
+  const demo = await startDemo()
+  const profile = mkdtempSync(join(tmpdir(), "podlist-pane-test-"))
+  const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
+  try {
+    const page = await app.firstWindow()
+    const window = await app.browserWindow(page)
+    const resize = async (width: number) => {
+      await window.evaluate((win, width) => win.setContentSize(width, 820), width)
+      await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width)
+    }
+    const inspector = page.getByRole("complementary", { name: "Episode Inspector" })
+    const sidebar = page.getByRole("navigation", { name: "Library and lists" })
+    const show = page.getByRole("button", { name: "Show Inspector", exact: true })
+    const hide = page.getByRole("button", { name: "Hide Inspector", exact: true })
+    const list = page.getByRole("grid", { name: "New this week Episodes" })
+    const first = list.locator("[data-episode-title]").first()
+    const second = list.locator("[data-episode-title]").nth(1)
+    const menuState = () =>
+      app.evaluate(({ Menu }) => {
+        const item = Menu.getApplicationMenu()?.getMenuItemById("toggle-inspector")
+        return { label: item?.label, enabled: item?.enabled }
+      })
+
+    await resize(950)
+    await expect(first).toBeVisible()
+    await expect(inspector).toBeHidden()
+    await expect(show).toBeDisabled()
+    await expect.poll(menuState).toEqual({ label: "Show Inspector", enabled: false })
+    await first.click()
+    await expect(first).toBeFocused()
+    const firstTitle = (await first.textContent())?.trim()
+    expect(firstTitle).toBeTruthy()
+    await expect(
+      inspector.getByRole("heading", { name: firstTitle ?? "", exact: true })
+    ).toBeVisible()
+    await expect.poll(menuState).toEqual({ label: "Hide Inspector", enabled: true })
+    await first.press("ArrowDown")
+    await expect(second).toBeFocused()
+    const secondTitle = (await second.textContent())?.trim()
+    expect(secondTitle).toBeTruthy()
+    await expect(
+      inspector.getByRole("heading", { name: secondTitle ?? "", exact: true })
+    ).toBeVisible()
+    await second.press("Escape")
+    await expect(inspector).toBeHidden()
+    await expect(second).toBeFocused()
+    await second.click()
+
+    await resize(949)
+    await expect(inspector).toBeHidden()
+    await expect(sidebar).toBeVisible()
+    await first.click()
+    await expect(inspector).toBeHidden()
+    await first.press("Alt+Meta+i")
+    await expect(sidebar).toBeHidden()
+    await expect(inspector).toBeVisible()
+
+    const content = inspector.getByRole("region", { name: "Inspector content" })
+    await content.focus()
+    await content.press("Escape")
+    await expect(first).toBeFocused()
+    await expect(sidebar).toBeHidden()
+    await expect(inspector).toBeHidden()
+    await first.press("Escape")
+    await show.click()
+    await expect(inspector.getByRole("heading", { name: "Select an Episode" })).toBeVisible()
+    await page.getByRole("button", { name: "Show Sidebar", exact: true }).click()
+    await expect(sidebar).toBeVisible()
+    await expect(inspector).toBeHidden()
+
+    await resize(1180)
+    await first.click()
+    await expect(inspector).toBeHidden()
+    await expect.poll(menuState).toEqual({ label: "Show Inspector", enabled: true })
+    await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu()?.getMenuItemById("toggle-inspector")?.click()
+    )
+    await expect(inspector).toBeVisible()
+    const width = page.getByRole("separator", { name: "Inspector width" })
+    await width.press("ArrowLeft")
+    await expect(width).toHaveAttribute("aria-valuenow", "280")
+    await hide.click()
+    await expect(inspector).toBeHidden()
+    await page.reload()
+    await expect(first).toBeVisible()
+    await expect(inspector).toBeHidden()
+    await expect(show).toBeEnabled()
+    await show.click()
+    await expect(width).toHaveAttribute("aria-valuenow", "280")
+  } finally {
+    await app.close()
+    demo.stop()
+    await demo.stopped
+  }
+})

@@ -40,7 +40,7 @@ reports = {
 }
 actions = (
     ('Open New this week', 'Sidebar → New this week Episode list', 'Sidebar → New this week Episode list'),
-    ('Select Episode (pane opens)', 'Select Episode → Episode Inspector (pane opens)', None),
+    ('Select Episode (pane opens)', 'Select Episode → Episode Inspector (pane opens)', 'Select Episode → Episode Inspector (pane opens)'),
     ('Select Episode (pane stays open)', 'Select Episode → Episode Inspector (pane stays open)', 'Select Episode → Episode Inspector (pane stays open)'),
     ('Open New Playlist', 'Shift-Cmd-N → New Playlist sheet', 'New Playlist button → dialog'),
     ('Open Settings', 'Cmd-, → Settings window', 'Settings sidebar link → Settings page'),
@@ -69,7 +69,7 @@ for title, native, electron in actions:
     lines.append('| ' + ' | '.join([title, *values]) + ' |')
 lines += [
     '',
-    'Electron uses the existing detail column, Enter on the New Playlist and Settings sidebar controls, and the separate Library Search page with its query debounce.',
+    'Both apps measure the first selection with the Inspector hidden, then a different selection while it is open. Electron uses Enter on the New Playlist and Settings sidebar controls and the separate Library Search page with its query debounce.',
     'The native endpoint is the display-link target time. The Electron endpoint is a pre-paint animation frame timestamp after the committed result becomes visible.',
     '',
 ]

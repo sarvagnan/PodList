@@ -36,6 +36,8 @@ if (location.protocol === "file:") {
         }
       }
     },
+    setPaneMenu: (sidebar, inspector, canToggle) =>
+      ipcRenderer.send("podlist:pane-menu", sidebar, inspector, canToggle),
     setUndoRedo: (undo, redo, editing) => ipcRenderer.send("podlist:undo-redo", undo, redo, editing)
   })
 }

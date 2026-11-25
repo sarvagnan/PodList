@@ -76,7 +76,15 @@ function ByDay<T>({
   )
 }
 
-export function PlaylistHistory({ playlist }: { readonly playlist: Playlist.Playlist }) {
+export function PlaylistHistory({
+  playlist,
+  onSelect,
+  selected
+}: {
+  readonly playlist: Playlist.Playlist
+  readonly onSelect?: ((episodeId: string) => void) | undefined
+  readonly selected?: string | undefined
+}) {
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   if (playlist.history.length === 0) {
     return (
@@ -98,7 +106,25 @@ export function PlaylistHistory({ playlist }: { readonly playlist: Playlist.Play
           <Link
             to="/episodes/$episodeId"
             params={{ episodeId: h.episodeId }}
-            className="min-w-0 flex-1 truncate text-row font-medium hover:underline"
+            data-episode-title={onSelect ? h.episodeId : undefined}
+            aria-current={selected === h.episodeId ? "true" : undefined}
+            onClick={
+              onSelect
+                ? (event) => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    )
+                      return
+                    event.preventDefault()
+                    onSelect(h.episodeId)
+                  }
+                : undefined
+            }
+            className={`min-w-0 flex-1 truncate text-row font-medium hover:underline ${selected === h.episodeId ? "text-primary" : ""}`}
           >
             {episodes.get(h.episodeId)?.title ?? "Episode unavailable"}
           </Link>

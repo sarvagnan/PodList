@@ -12,6 +12,7 @@ const timeout = 30_000
 const episodeTitle = "Who sets the price of rice?"
 const labels = {
   sidebar: "Sidebar → New this week Episode list",
+  inspectorOpens: "Select Episode → Episode Inspector (pane opens)",
   inspector: "Select Episode → Episode Inspector (pane stays open)",
   playlist: "New Playlist button → dialog",
   settings: "Settings sidebar link → Settings page",
@@ -148,6 +149,7 @@ assert.match(
 
 const samples: Record<Step, number[]> = {
   sidebar: [],
+  inspectorOpens: [],
   inspector: [],
   playlist: [],
   settings: [],
@@ -164,7 +166,7 @@ const report = () => {
     `VM hardware model: ${model} (${cpus().length} CPUs, ${Math.floor(totalmem() / 2 ** 30)} GiB RAM)`,
     `macOS: Version ${version} (Build ${build})`,
     "Method: renderer input event to the first eligible animation frame in the VM. Ends at the first requestAnimationFrame timestamp after the committed result is detected by a MutationObserver or frame check, with the result visible. The callback is pre-paint.",
-    "Episode selection updates the existing detail column. Its selected title is the result marker.",
+    "The first Episode click opens the hidden Inspector. The second click changes its selection with the Inspector already open. Each selected title is the result marker.",
     "New Playlist and Settings use Enter on their sidebar controls. Search uses the separate Library Search page, including its query debounce.",
     "Default window size, local demo Library, p75 by nearest rank. RESP-01 target: p75 ≤ 200 ms over at least five samples.",
     "",
@@ -210,7 +212,7 @@ try {
   const newThisWeek = sidebar.getByRole("link", { name: "New this week", exact: true })
   const weekList = page.getByRole("grid", { name: "New this week Episodes", exact: true })
   const riceEpisode = weekList.getByRole("link", { name: episodeTitle, exact: true })
-  const inspector = page.getByRole("complementary", { name: "Episode", exact: true })
+  const inspector = page.getByRole("complementary", { name: "Episode Inspector", exact: true })
   const playlist = sidebar.getByRole("button", { name: "New Playlist", exact: true })
   const dialog = page.getByRole("dialog", { name: "New Playlist", exact: true })
   const settings = sidebar.getByRole("link", { name: "Settings", exact: true })
@@ -227,7 +229,7 @@ try {
     .poll(() => window.evaluate((win) => win.isVisible() && win.isFocused()), assertion)
     .toBe(true)
   assert(
-    await page.evaluate(() => matchMedia("(min-width: 64rem)").matches),
+    await page.evaluate(() => matchMedia("(min-width: 950px)").matches),
     "Electron timings require the default wide layout"
   )
 
@@ -259,7 +261,11 @@ try {
       selector: '[role="grid"][aria-label="New this week Episodes"] [data-episode-title]',
       text: episodeTitle
     })
-    await riceEpisode.click()
+    await expect(inspector).toBeHidden(assertion)
+    await perform("inspectorOpens", riceEpisode, mouse, {
+      selector: "#episode-inspector article h2",
+      text: episodeTitle
+    })
     await expect(inspector.getByRole("heading", { name: episodeTitle, exact: true })).toBeVisible(
       assertion
     )
@@ -267,9 +273,11 @@ try {
     const title = (await second.textContent())?.trim()
     assert(title && title !== episodeTitle, "The second Episode must have a different title")
     await perform("inspector", second, mouse, {
-      selector: 'main aside[aria-label="Episode"] article h2',
+      selector: "#episode-inspector article h2",
       text: title
     })
+    await second.press("Escape")
+    await expect(inspector).toBeHidden(assertion)
 
     await sidebar.locator('a[href="/search"]').click()
     await expect(search).toHaveValue("", assertion)

@@ -16,6 +16,7 @@ declare global {
         ) => () => void
       }
       readonly server: () => Promise<string | null>
+      readonly setPaneMenu?: (sidebar: boolean, inspector: boolean, canToggle: boolean) => void
       /** Names the steps Edit › Undo and Redo will act on, in the Mac app's menu. */
       readonly setUndoRedo?: (undo: string | null, redo: string | null, editing: boolean) => void
     }

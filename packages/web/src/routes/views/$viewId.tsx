@@ -7,13 +7,16 @@ import { subscriptionsAtom, viewEpisodesAtom } from "../../app/data.ts"
 import { useLibraryReady } from "../../app/hooks.ts"
 import { stateAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
+import { DesktopEpisodeInspector } from "../../components/episodes/DesktopEpisodeInspector.tsx"
 import { DetailColumn } from "../../components/episodes/DetailColumn.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { TargetPanel } from "../../components/episodes/TargetPanel.tsx"
 import { EmptyState } from "../../components/lists/ListRow.tsx"
+import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
 import { untouched, useViewActions } from "../../components/views/useViewActions.ts"
 import { ViewForm } from "../../components/views/ViewForm.tsx"
 import { firstRunDone } from "../../lib/remembered.ts"
@@ -33,9 +36,10 @@ export const Route = createFileRoute("/views/$viewId")({
 
 function ViewDetail() {
   const { viewId } = Route.useParams()
-  const { episode: selected, edit: editing = false } = Route.useSearch()
+  const { episode: requestedSelection, edit: editing = false } = Route.useSearch()
   const navigate = Route.useNavigate()
   const wide = useMinWidth("64rem")
+  const editorInColumn = wide && !desktopBuild
   const opensFirstView = useMinWidth("44rem")
   const { remove, discard } = useViewActions()
   // Desktop bulk selection, kept per View: another View starts with none. Escape clears it.
@@ -46,6 +50,22 @@ function ViewDetail() {
   const result = useAtomValue(viewEpisodesAtom(viewId))
   const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
   const episodes = paging.items
+  const {
+    selected,
+    invalid: invalidSelection,
+    forget
+  } = useDesktopListSelection(
+    `view:${viewId}`,
+    requestedSelection,
+    (episode) =>
+      AsyncResult.isSuccess(result) &&
+      !AsyncResult.isWaiting(result) &&
+      !paging.more &&
+      !episodes.some((item) => item.id === episode)
+  )
+  useEffect(() => {
+    if (invalidSelection) void navigate({ search: {}, replace: true })
+  }, [invalidSelection, navigate])
   // Only rows still in the View count: Mark Played can take them out (the bar's count).
   const checked: ReadonlySet<string> =
     selection.viewId === viewId
@@ -84,8 +104,15 @@ function ViewDetail() {
     !AsyncResult.isWaiting(subscriptionsResult) &&
     AsyncResult.getOrElse(subscriptionsResult, () => null)?.length === 0
 
-  const open = (episodeId: string, how?: { readonly replace: boolean }) =>
-    navigate({ search: { episode: episodeId }, replace: how?.replace ?? false })
+  const open = (episodeId: string, how?: { readonly replace: boolean }) => {
+    if (desktopBuild) setSelection({ viewId, ids: new Set() })
+    return navigate({ search: { episode: episodeId }, replace: how?.replace ?? desktopBuild })
+  }
+  const clearSelection = () => {
+    forget()
+    if (checked.size > 0) setSelection({ viewId, ids: new Set() })
+    if (selected) void navigate({ search: {}, replace: true })
+  }
   // Closing the panel puts focus back on the row it showed (WKEY-03).
   const closePanel = () => {
     const shown = selected
@@ -94,14 +121,16 @@ function ViewDetail() {
     )
   }
   // The button goes away as the editor opens, so focus goes to the editor's heading.
-  const startEditing = () =>
+  const startEditing = () => {
+    if (desktopBuild) forget()
     void navigate({ search: { edit: true } }).then(() =>
       requestAnimationFrame(() =>
         document
-          .querySelector<HTMLElement>(wide ? "[data-edit-heading]" : "main h1")
+          .querySelector<HTMLElement>(editorInColumn ? "[data-edit-heading]" : "main h1")
           ?.focus({ preventScroll: true })
       )
     )
+  }
   const doneEditing = () =>
     void navigate({ search: {} }).then(() =>
       document.querySelector<HTMLElement>("[data-edit-view]")?.focus()
@@ -109,6 +138,10 @@ function ViewDetail() {
   // Esc, wherever focus is in the View: clears the ticks, then closes the panel or editor.
   const onEscape = useRef(() => {})
   onEscape.current = () => {
+    if (desktopBuild) {
+      if (editing) doneEditing()
+      return
+    }
     if (checked.size > 0) setSelection({ viewId, ids: new Set() })
     else if (editing) doneEditing()
     else if (selected) closePanel()
@@ -145,7 +178,7 @@ function ViewDetail() {
   const form = <ViewForm key={view.id} view={view} onDelete={() => void remove(view)} />
 
   // Phone and narrow windows: the editor is a screen of its own, with a live count.
-  if (editing && !wide) {
+  if (editing && !editorInColumn) {
     return (
       <>
         <PageHeader
@@ -167,7 +200,7 @@ function ViewDetail() {
   }
 
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+    <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
       <div className="min-w-0">
         <PageHeader
           title={view.name}
@@ -239,49 +272,61 @@ function ViewDetail() {
         )}
       </div>
       {/* Beside the list: the editor, the open Episode, or where Next and Last go. */}
-      <DetailColumn
-        label={editing ? "Edit View" : selected ? "Episode" : "Up next"}
-        openOnNarrow={!!selected}
-        onClose={closePanel}
-      >
-        {editing ? (
-          <div className="px-4 pt-2">
-            <div className="flex items-center justify-between pb-3">
-              <h2
-                tabIndex={-1}
-                data-edit-heading=""
-                className="font-heading text-xl font-semibold outline-none"
-              >
-                Edit View
-              </h2>
-              <button
-                type="button"
-                onClick={doneEditing}
-                className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
-              >
-                Done
-              </button>
+      {desktopBuild ? (
+        <DesktopEpisodeInspector
+          selected={selected}
+          episodes={episodes}
+          checked={checked}
+          clearSelection={clearSelection}
+        />
+      ) : (
+        <DetailColumn
+          label={editing ? "Edit View" : selected ? "Episode" : "Up next"}
+          openOnNarrow={!!selected}
+          onClose={closePanel}
+        >
+          {editing ? (
+            <div className="px-4 pt-2">
+              <div className="flex items-center justify-between pb-3">
+                <h2
+                  tabIndex={-1}
+                  data-edit-heading=""
+                  className="font-heading text-xl font-semibold outline-none"
+                >
+                  Edit View
+                </h2>
+                <button
+                  type="button"
+                  onClick={doneEditing}
+                  className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-row font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+                >
+                  Done
+                </button>
+              </div>
+              {form}
             </div>
-            {form}
-          </div>
-        ) : selected ? (
-          <>
-            <div className="flex justify-end px-3">
-              <button
-                type="button"
-                aria-label="Close Episode"
-                onClick={closePanel}
-                className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-              >
-                <X aria-hidden="true" className="size-5" />
-              </button>
-            </div>
-            <EpisodeDetail episodeId={selected} summary={episodes.find((e) => e.id === selected)} />
-          </>
-        ) : (
-          <TargetPanel onOpen={open} />
-        )}
-      </DetailColumn>
+          ) : selected ? (
+            <>
+              <div className="flex justify-end px-3">
+                <button
+                  type="button"
+                  aria-label="Close Episode"
+                  onClick={closePanel}
+                  className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+                >
+                  <X aria-hidden="true" className="size-5" />
+                </button>
+              </div>
+              <EpisodeDetail
+                episodeId={selected}
+                summary={episodes.find((e) => e.id === selected)}
+              />
+            </>
+          ) : (
+            <TargetPanel onOpen={open} />
+          )}
+        </DetailColumn>
+      )}
     </div>
   )
 }

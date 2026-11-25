@@ -5,7 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight } from "lucide-react"
-import { useId, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { localClient } from "#client"
 import { filterEpisodesAtom, subscriptionAtom } from "../../app/data.ts"
 import { bulkActionAtom } from "../../app/episodeActions.ts"
@@ -13,13 +13,16 @@ import { useAppState } from "../../app/hooks.ts"
 import { subscribeAtom, unsubscribeAtom } from "../../app/library.ts"
 import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { BulkBar } from "../../components/episodes/BulkBar.tsx"
+import { DesktopEpisodeInspector } from "../../components/episodes/DesktopEpisodeInspector.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { SubscriptionButton } from "../../components/library/SubscriptionButton.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
 import { serverUnavailable } from "../../lib/connectionMessage.ts"
 import { ruleNames } from "../../lib/downloadRules.ts"
 import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
@@ -30,7 +33,11 @@ import { useMinWidth } from "../../lib/useWide.ts"
 // the Played threshold in seconds and Playback Settings overrides, each "Default" until
 // changed — Mark all Played, Unsubscribe, and its Episodes.
 
-export const Route = createFileRoute("/library/$subscriptionId")({ component: SubscriptionScreen })
+export const Route = createFileRoute("/library/$subscriptionId")({
+  component: SubscriptionScreen,
+  validateSearch: (search: Record<string, unknown>): { episode?: string } =>
+    desktopBuild && typeof search.episode === "string" ? { episode: search.episode } : {}
+})
 
 const decodeChange = Schema.decodeUnknownSync(Operation.Change)
 const speeds = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
@@ -40,6 +47,7 @@ const thresholds = [0, 10, 30, 60, 120, 300]
 function SubscriptionScreen() {
   const { subscriptionId } = Route.useParams()
   const navigate = Route.useNavigate()
+  const { episode: requestedSelection } = Route.useSearch()
   const id = useId()
   const result = useAtomValue(subscriptionAtom(subscriptionId))
   const subscription = AsyncResult.getOrElse(result, () => null)
@@ -54,6 +62,22 @@ function SubscriptionScreen() {
   )
   const paging = usePagedItems(AsyncResult.getOrElse(episodesResult, () => []))
   const episodes = paging.items
+  const {
+    selected,
+    invalid: invalidSelection,
+    forget
+  } = useDesktopListSelection(
+    `subscription:${subscriptionId}`,
+    requestedSelection,
+    (episode) =>
+      AsyncResult.isSuccess(episodesResult) &&
+      !AsyncResult.isWaiting(episodesResult) &&
+      !paging.more &&
+      !episodes.some((item) => item.id === episode)
+  )
+  useEffect(() => {
+    if (invalidSelection) void navigate({ search: {}, replace: true })
+  }, [invalidSelection, navigate])
   // One step with Undo, like other reversible edits: Undo also returns the Entries that
   // Playlists with Clear on Played let go (the bulk action works that out).
   const runBulk = useAtomSet(bulkActionAtom, { mode: "promise" })
@@ -91,7 +115,7 @@ function SubscriptionScreen() {
   const subscribe = useAtomSet(subscribeAtom, { mode: "promise" })
   const [changingSubscription, setChangingSubscription] = useState(false)
   const [subscriptionProblem, setSubscriptionProblem] = useState<string | null>(null)
-  const wide = useMinWidth("64rem")
+  const wide = useMinWidth("64rem") && !desktopBuild
   // Remembered on this Device, so a reload or the next podcast keeps it as left.
   const [showSettings, setShowSettingsState] = useState(subscriptionSettingsOpen.get)
   const setShowSettings = (open: boolean) => {
@@ -99,6 +123,14 @@ function SubscriptionScreen() {
     setShowSettingsState(open)
   }
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
+  const checkedEpisodes = desktopBuild
+    ? new Set(episodes.filter((episode) => checked.has(episode.id)).map((episode) => episode.id))
+    : checked
+  const clearSelection = () => {
+    forget()
+    setChecked(new Set())
+    if (selected) void navigate({ search: {}, replace: true })
+  }
 
   if (AsyncResult.isInitial(result)) return <LoadingRows label="Loading Subscription" />
   if (subscription === null) {
@@ -166,13 +198,18 @@ function SubscriptionScreen() {
           .filter(Boolean)
           .join(" · ")}
         actions={
-          checked.size > 0 ? (
-            <BulkBar selected={[...checked]} onClear={() => setChecked(new Set())} />
+          checkedEpisodes.size > 0 ? (
+            <BulkBar selected={[...checkedEpisodes]} onClear={() => setChecked(new Set())} />
           ) : undefined
         }
       />
-      <div className="grid max-w-[960px] gap-6 px-5 pb-8 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section aria-labelledby={`${id}-settings`} className="lg:order-2">
+      <div
+        className={`grid max-w-[960px] gap-6 px-5 pb-8 md:px-8 ${desktopBuild ? "" : "lg:grid-cols-[minmax(0,1fr)_360px]"}`}
+      >
+        <section
+          aria-labelledby={`${id}-settings`}
+          className={desktopBuild ? undefined : "lg:order-2"}
+        >
           <div className="flex items-center gap-4">
             <Artwork url={subscription.artworkUrl} name={subscription.title} size={72} />
             {subscription.description && (
@@ -438,7 +475,7 @@ function SubscriptionScreen() {
             </p>
           )}
         </section>
-        <section aria-label="Episodes" className="min-w-0 lg:order-1">
+        <section aria-label="Episodes" className={desktopBuild ? "min-w-0" : "min-w-0 lg:order-1"}>
           {!AsyncResult.isInitial(episodesResult) && episodes.length === 0 ? (
             <EmptyState title="No Episodes yet">
               New Episodes appear when the podcast publishes.
@@ -450,10 +487,14 @@ function SubscriptionScreen() {
                 episodes={episodes}
                 label={`${subscription.title} Episodes`}
                 ready={!AsyncResult.isInitial(episodesResult)}
-                onOpen={(episodeId) =>
-                  void navigate({ to: "/episodes/$episodeId", params: { episodeId } })
-                }
-                checked={checked}
+                selected={selected}
+                onOpen={(episodeId) => {
+                  if (!desktopBuild)
+                    return void navigate({ to: "/episodes/$episodeId", params: { episodeId } })
+                  setChecked(new Set())
+                  return navigate({ search: { episode: episodeId }, replace: true })
+                }}
+                checked={checkedEpisodes}
                 setChecked={(update) => setChecked((previous) => update(previous))}
                 showPodcast={false}
               />
@@ -461,6 +502,14 @@ function SubscriptionScreen() {
           )}
         </section>
       </div>
+      {desktopBuild && (
+        <DesktopEpisodeInspector
+          selected={selected}
+          episodes={episodes}
+          checked={checkedEpisodes}
+          clearSelection={clearSelection}
+        />
+      )}
     </>
   )
 }

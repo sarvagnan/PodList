@@ -246,7 +246,7 @@ const sendControl = (command: string) =>
     `document.dispatchEvent(new CustomEvent("podlist:control", { detail: ${JSON.stringify(command)} }))`
   )
 
-/** File menu commands the web app carries out ("podlist:command"). */
+/** Menu commands the web app carries out ("podlist:command"). */
 const sendCommand = (command: string) =>
   void window?.webContents.executeJavaScript(
     `document.dispatchEvent(new CustomEvent("podlist:command", { detail: ${JSON.stringify(command)} }))`
@@ -416,6 +416,7 @@ const contextMenu = (
   return items
 }
 
+const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
 
 const createWindow = () => {
@@ -423,9 +424,8 @@ const createWindow = () => {
   const { bounds } = readConfig()
   const win = new BrowserWindow({
     ...(window?.getBounds() ?? bounds ?? { width: 1280, height: 820 }),
-    // The zoomed-desktop layout is the narrowest the app is designed for.
-    minWidth: 720,
-    minHeight: 450,
+    minWidth: 760,
+    minHeight: 500,
     title: "PodList",
     backgroundColor: "#f6f5f2",
     show: false,
@@ -622,6 +622,20 @@ const menu = (): MenuItemConstructorOptions[] => [
   {
     label: "View",
     submenu: [
+      {
+        id: "toggle-sidebar",
+        label: paneMenu.sidebar ? "Hide Sidebar" : "Show Sidebar",
+        accelerator: process.platform === "darwin" ? "Control+Command+S" : "Control+Shift+S",
+        click: () => sendCommand("toggleSidebar")
+      },
+      {
+        id: "toggle-inspector",
+        label: paneMenu.inspector ? "Hide Inspector" : "Show Inspector",
+        accelerator: "Alt+CmdOrCtrl+I",
+        enabled: paneMenu.canToggle,
+        click: () => sendCommand("toggleInspector")
+      },
+      { type: "separator" },
       { label: "Listening Stats", click: () => goTo("/listening-stats") },
       { type: "separator" },
       { role: "resetZoom" },
@@ -635,7 +649,7 @@ const menu = (): MenuItemConstructorOptions[] => [
         : [
             { type: "separator" } as const,
             { role: "reload" } as const,
-            { role: "toggleDevTools" } as const
+            { role: "toggleDevTools", accelerator: "CmdOrCtrl+Shift+I" } as const
           ])
     ]
   },
@@ -773,6 +787,26 @@ if (!app.requestSingleInstanceLock()) {
       undoLabels.editing = editing === true
       updateMenu()
     })
+    ipcMain.on(
+      "podlist:pane-menu",
+      (event, sidebar: unknown, inspector: unknown, canToggle: unknown) => {
+        if (!trustedAutomation(event)) return
+        if (
+          typeof sidebar !== "boolean" ||
+          typeof inspector !== "boolean" ||
+          typeof canToggle !== "boolean"
+        )
+          return
+        if (
+          paneMenu.sidebar === sidebar &&
+          paneMenu.inspector === inspector &&
+          paneMenu.canToggle === canToggle
+        )
+          return
+        Object.assign(paneMenu, { sidebar, inspector, canToggle })
+        updateMenu()
+      }
+    )
     createWindow()
     app.on("activate", () => {
       if (hiddenWindow) return

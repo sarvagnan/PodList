@@ -43,10 +43,12 @@ function BulkButton({
  */
 export function BulkBar({
   selected,
-  onClear
+  onClear,
+  inInspector = false
 }: {
   readonly selected: ReadonlyArray<string>
   readonly onClear: () => void
+  readonly inInspector?: boolean
 }) {
   const [adding, setAdding] = useState(false)
   const state = useAppState()
@@ -89,39 +91,49 @@ export function BulkBar({
   return (
     <div
       role="toolbar"
-      aria-label={`${episodes(n)} selected`}
-      className="flex w-max shrink-0 items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
+      aria-label={inInspector ? "Selection actions" : `${episodes(n)} selected`}
+      className={
+        inInspector
+          ? "flex flex-col items-start gap-1"
+          : "flex w-max shrink-0 items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-4 shadow-sm"
+      }
     >
       {adding && (
         <AddToPlaylist
           episode={{ id: selected[0] ?? "", title: episodes(n) }}
           episodeIds={selected}
-          startNew
+          startNew={!inInspector}
           open={adding}
           onOpenChange={setAdding}
         />
       )}
       {/* Count first; creation has its own glyph (APPEAR-09). */}
-      <span className="mr-2 text-row font-semibold">{n} selected</span>
+      {!inInspector && <span className="mr-2 text-row font-semibold">{n} selected</span>}
       <BulkButton
         onClick={() => setAdding(true)}
         icon={<ListPlus aria-hidden="true" className="size-4" />}
       >
-        New Playlist…
+        {inInspector ? "Add to a Playlist…" : "New Playlist…"}
       </BulkButton>
-      <BulkButton
-        onClick={() => add("next")}
-        icon={<ListStart aria-hidden="true" className="size-4" />}
-      >
-        {/* Which Playlist: the toolbar's picker is gone while rows are ticked. */}
-        Play Next <span className="max-w-[8rem] truncate">in {target?.name ?? "a Playlist"}</span>
-      </BulkButton>
-      <BulkButton
-        onClick={() => add("last")}
-        icon={<ListEnd aria-hidden="true" className="size-4" />}
-      >
-        Play Last <span className="max-w-[8rem] truncate">in {target?.name ?? "a Playlist"}</span>
-      </BulkButton>
+      {!inInspector && (
+        <>
+          <BulkButton
+            onClick={() => add("next")}
+            icon={<ListStart aria-hidden="true" className="size-4" />}
+          >
+            {/* Which Playlist: the toolbar's picker is gone while rows are ticked. */}
+            Play Next{" "}
+            <span className="max-w-[8rem] truncate">in {target?.name ?? "a Playlist"}</span>
+          </BulkButton>
+          <BulkButton
+            onClick={() => add("last")}
+            icon={<ListEnd aria-hidden="true" className="size-4" />}
+          >
+            Play Last{" "}
+            <span className="max-w-[8rem] truncate">in {target?.name ?? "a Playlist"}</span>
+          </BulkButton>
+        </>
+      )}
       <BulkButton
         onClick={() =>
           void act(
@@ -144,7 +156,7 @@ export function BulkBar({
       >
         {allStarred ? "Unstar" : "Star"}
       </BulkButton>
-      {localClient && (
+      {localClient && !inInspector && (
         <BulkButton
           onClick={() => {
             const missing = selected.filter((id) => downloads.get(id)?._tag !== "Stored")
@@ -156,16 +168,18 @@ export function BulkBar({
           Download
         </BulkButton>
       )}
-      <Tip label={"Clear selection"}>
-        <button
-          type="button"
-          aria-label="Clear selection"
-          onClick={onClear}
-          className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-        >
-          <X aria-hidden="true" className="size-4" />
-        </button>
-      </Tip>
+      {!inInspector && (
+        <Tip label={"Clear selection"}>
+          <button
+            type="button"
+            aria-label="Clear selection"
+            onClick={onClear}
+            className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+          >
+            <X aria-hidden="true" className="size-4" />
+          </button>
+        </Tip>
+      )}
     </div>
   )
 }

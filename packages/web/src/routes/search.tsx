@@ -6,11 +6,14 @@ import { useEffect, useId, useRef, useState } from "react"
 import { filterEpisodesAtom } from "../app/data.ts"
 import { useCanEdit } from "../app/hooks.ts"
 import { BulkBar } from "../components/episodes/BulkBar.tsx"
+import { DesktopEpisodeInspector } from "../components/episodes/DesktopEpisodeInspector.tsx"
 import { DetailColumn } from "../components/episodes/DetailColumn.tsx"
 import { EpisodeDetail } from "../components/episodes/EpisodeDetail.tsx"
 import { EpisodeList } from "../components/episodes/EpisodeList.tsx"
 import { EmptyState } from "../components/lists/ListRow.tsx"
+import { desktopBuild } from "../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../components/shell/PageHeader.tsx"
+import { useDesktopListSelection } from "../components/shell/useDesktopListSelection.ts"
 import { SaveSearchDialog } from "../components/views/SaveSearchDialog.tsx"
 import { ViewFormFields } from "../components/views/ViewForm.tsx"
 import { searchRefineOpen } from "../lib/remembered.ts"
@@ -184,7 +187,7 @@ export const Route = createFileRoute("/search")({
 function SearchPage() {
   const canEdit = useCanEdit()
   const search = Route.useSearch()
-  const { q = "", episode: selected } = search
+  const { q = "", episode: requestedSelection } = search
   const navigate = Route.useNavigate()
   const router = useRouter()
   const id = useId()
@@ -222,6 +225,32 @@ function SearchPage() {
   )
   const paging = usePagedItems(active ? AsyncResult.getOrElse(result, () => []) : [])
   const episodes = paging.items
+  const {
+    selected,
+    invalid: invalidSelection,
+    forget
+  } = useDesktopListSelection(
+    "search",
+    requestedSelection,
+    (episode) =>
+      !active ||
+      (AsyncResult.isSuccess(result) &&
+        !AsyncResult.isWaiting(result) &&
+        !paging.more &&
+        !episodes.some((item) => item.id === episode))
+  )
+  const checkedEpisodes = desktopBuild
+    ? new Set(episodes.filter((episode) => checked.has(episode.id)).map((episode) => episode.id))
+    : checked
+  useEffect(() => {
+    if (invalidSelection)
+      void navigate({ search: ({ episode: _, ...rest }) => rest, replace: true })
+  }, [invalidSelection, navigate])
+  const clearSelection = () => {
+    forget()
+    setCheckedState(new Set())
+    if (selected) void navigate({ search: ({ episode: _, ...rest }) => rest, replace: true })
+  }
 
   // The address follows the words a moment after typing stops, so Back and reload keep them.
   useEffect(() => {
@@ -259,7 +288,7 @@ function SearchPage() {
   const count = `${paging.total} ${paging.total === 1 ? "Episode" : "Episodes"}`
   return (
     <>
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
         <div className="min-w-0">
           <PageHeader
             title="Search"
@@ -268,8 +297,11 @@ function SearchPage() {
               // Keep the title and toolbar in one row without moving results on selection (APPEAR-11).
               <div className="min-w-0 flex-1 overflow-x-auto">
                 <div className="flex min-h-[max(48px,2.75rem)] min-w-full w-max items-center justify-end">
-                  {checked.size > 0 ? (
-                    <BulkBar selected={[...checked]} onClear={() => setCheckedState(new Set())} />
+                  {checkedEpisodes.size > 0 ? (
+                    <BulkBar
+                      selected={[...checkedEpisodes]}
+                      onClear={() => setCheckedState(new Set())}
+                    />
                   ) : (
                     <button
                       type="button"
@@ -311,7 +343,7 @@ function SearchPage() {
               Every word must appear in the title, the show notes or the podcast’s name.
             </p>
             {/* Narrow screens: the rest of the View form, folded under the field. */}
-            {!wide && (
+            {(!wide || desktopBuild) && (
               <div className="mt-2">
                 <button
                   type="button"
@@ -352,46 +384,56 @@ function SearchPage() {
               label="Search results"
               ready={!AsyncResult.isInitial(result)}
               selected={selected}
-              onOpen={(episodeId, how) =>
-                navigate({
+              onOpen={(episodeId, how) => {
+                if (desktopBuild) setCheckedState(new Set())
+                return navigate({
                   search: (previous) => ({ ...previous, episode: episodeId }),
-                  replace: how?.replace ?? false
+                  replace: how?.replace ?? desktopBuild
                 })
-              }
-              checked={checked}
+              }}
+              checked={checkedEpisodes}
               setChecked={(update) => setCheckedState((previous) => update(previous))}
             />
           )}
         </div>
-        <DetailColumn
-          label={selected ? "Episode" : "Refine"}
-          openOnNarrow={!!selected}
-          onClose={() => void navigate({ search: ({ episode: _, ...rest }) => rest })}
-        >
-          {selected ? (
-            <>
-              <div className="flex justify-end px-3">
-                <button
-                  type="button"
-                  aria-label="Close Episode"
-                  onClick={() => void navigate({ search: ({ episode: _, ...rest }) => rest })}
-                  className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
-                >
-                  <X aria-hidden="true" className="size-5" />
-                </button>
+        {desktopBuild ? (
+          <DesktopEpisodeInspector
+            selected={selected}
+            episodes={episodes}
+            checked={checkedEpisodes}
+            clearSelection={clearSelection}
+          />
+        ) : (
+          <DetailColumn
+            label={selected ? "Episode" : "Refine"}
+            openOnNarrow={!!selected}
+            onClose={() => void navigate({ search: ({ episode: _, ...rest }) => rest })}
+          >
+            {selected ? (
+              <>
+                <div className="flex justify-end px-3">
+                  <button
+                    type="button"
+                    aria-label="Close Episode"
+                    onClick={() => void navigate({ search: ({ episode: _, ...rest }) => rest })}
+                    className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-secondary active:bg-input"
+                  >
+                    <X aria-hidden="true" className="size-5" />
+                  </button>
+                </div>
+                <EpisodeDetail
+                  episodeId={selected}
+                  summary={episodes.find((e) => e.id === selected)}
+                />
+              </>
+            ) : (
+              <div className="px-4 pt-2">
+                <h2 className="pb-3 font-heading text-xl font-semibold">Refine</h2>
+                {form}
               </div>
-              <EpisodeDetail
-                episodeId={selected}
-                summary={episodes.find((e) => e.id === selected)}
-              />
-            </>
-          ) : (
-            <div className="px-4 pt-2">
-              <h2 className="pb-3 font-heading text-xl font-semibold">Refine</h2>
-              {form}
-            </div>
-          )}
-        </DetailColumn>
+            )}
+          </DetailColumn>
+        )}
       </div>
       {saving && <SaveSearchDialog view={draft} open={saving} onOpenChange={setSaving} />}
     </>
