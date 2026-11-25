@@ -7,7 +7,7 @@ import * as LocalDb from "../platform/LocalDb.ts"
 import { makeStandaloneLibrary } from "./StandaloneLibrary.ts"
 
 const feedUrl = "https://example.com/feed"
-const memory = LocalDb.layerMemory.pipe(Layer.provideMerge(Reactivity.layer))
+const memory = LocalDb.layerMemoryStandalone.pipe(Layer.provideMerge(Reactivity.layer))
 const episode = (guid: string) => ({
   guid,
   title: guid,

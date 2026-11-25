@@ -160,7 +160,9 @@ describe("SyncEngine", () => {
     () =>
       Effect.gen(function* () {
         const server = makeServer()
-        const db = yield* newDatabase
+        const db = yield* Layer.build(
+          LocalDb.layerMemoryStandalone.pipe(Layer.provideMerge(Reactivity.layer))
+        )
         const firstPage = yield* server.transport.catalogue(0)
         yield* Effect.gen(function* () {
           yield* upsertSubscriptions(firstPage.referencedSubscriptions ?? [])
