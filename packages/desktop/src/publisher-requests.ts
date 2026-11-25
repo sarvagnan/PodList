@@ -11,6 +11,8 @@ export const publisherRequest = async (request: Request, url: URL) => {
   try {
     if (url.pathname === "/publisher/search")
       return Response.json(await publisher.search(value, request.signal))
+    if (url.pathname === "/publisher/chapters")
+      return Response.json(await publisher.chapters(value, request.signal))
     if (url.pathname === "/publisher/read") {
       const etag = url.searchParams.get("etag")
       const lastModified = url.searchParams.get("lastModified")

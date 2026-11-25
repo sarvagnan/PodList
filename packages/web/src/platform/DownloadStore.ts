@@ -1,4 +1,5 @@
 import { Context, Data, Effect, Layer } from "effect"
+import { publisherAudioUrl } from "../lib/desktopSession.ts"
 
 // The DownloadStore seam (ADR 0007): offline audio, per Device. The web implementation
 // keeps one file per Episode in OPFS (the app's private storage); a native shell uses
@@ -66,9 +67,7 @@ export class DownloadStore extends Context.Service<
         Effect.tryPromise({
           try: async (signal) => {
             const source =
-              location.protocol === "app:" && /^https?:/.test(url)
-                ? `app://podlist/audio-download?url=${encodeURIComponent(url)}`
-                : url
+              location.protocol === "app:" && /^https?:/.test(url) ? publisherAudioUrl(url) : url
             const response = await fetch(source, { signal, credentials: "omit" })
             if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status}`)
             const total = Number(response.headers.get("content-length")) || null

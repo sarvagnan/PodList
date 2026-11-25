@@ -22,7 +22,9 @@ export const localClientLayer = (options: {
     DownloadRulesLive,
     desktopStandalone ? standaloneLibraryLayer : LibraryClient.layerHttp(options.origin)
   ).pipe(
-    Layer.provideMerge(downloadsLayer({ audioUrl: options.audioUrl })),
+    Layer.provideMerge(
+      downloadsLayer({ audioUrl: options.audioUrl, publisherOnly: desktopStandalone })
+    ),
     Layer.provide(
       SyncEngine.layer({
         ...options,

@@ -5,7 +5,7 @@ import { clientLayer, playerLayer } from "#client"
 import { DataLayer } from "../data/DataLayer.ts"
 import { Downloads } from "../downloads/DownloadService.ts"
 import { artworkSrc } from "../lib/artwork.ts"
-import { desktopStandalone } from "../lib/desktopSession.ts"
+import { desktopStandalone, publisherAudioUrl } from "../lib/desktopSession.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
 import { Playback, type SleepRequest } from "../playback/Playback.ts"
 import { Transport } from "../sync/Transport.ts"
@@ -37,6 +37,7 @@ const PlaybackLive = Layer.unwrap(
     const downloads = yield* Downloads
     return Playback.layer({
       audioUrl,
+      ...(desktopStandalone ? { publisherAudioUrl } : {}),
       localAudio: downloads.playableUrl,
       artworkUrl: (url) => new URL(artworkSrc(url, 256), location.origin).href
     })

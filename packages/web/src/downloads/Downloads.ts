@@ -6,7 +6,10 @@ import { DownloadStatus, Downloads } from "./DownloadService.ts"
 
 export { DownloadStatus, Downloads } from "./DownloadService.ts"
 
-export const downloadsLayer = (options: { readonly audioUrl: (episodeId: string) => string }) =>
+export const downloadsLayer = (options: {
+  readonly audioUrl: (episodeId: string) => string
+  readonly publisherOnly?: boolean
+}) =>
   Layer.effect(
     Downloads,
     Effect.gen(function* () {
@@ -59,14 +62,22 @@ export const downloadsLayer = (options: { readonly audioUrl: (episodeId: string)
           const [episode] = yield* sql<{
             audio_url: string
           }>`SELECT audio_url FROM episode WHERE id = ${episodeId}`.pipe(Effect.orDie)
-          const host = episode?.audio_url ?? options.audioUrl(episodeId)
+          const fallback = options.publisherOnly ? undefined : options.audioUrl(episodeId)
+          const host = episode?.audio_url ?? fallback
+          if (!host) {
+            yield* set(
+              episodeId,
+              DownloadStatus.Failed({ message: "The Episode has no audio address." })
+            )
+            return
+          }
           const transfer = store
             .save(episodeId, host, progress)
             .pipe(
               Effect.catch((error) =>
-                host === options.audioUrl(episodeId)
+                !fallback || host === fallback
                   ? Effect.fail(error)
-                  : store.save(episodeId, options.audioUrl(episodeId), progress)
+                  : store.save(episodeId, fallback, progress)
               )
             )
           const fiber = yield* transfer.pipe(

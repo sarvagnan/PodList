@@ -20,6 +20,7 @@ import {
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
 import { hiddenMenu } from "./hidden-window.ts"
+import { publisherMedia } from "./publisher-media.ts"
 import { publisherRequest } from "./publisher-requests.ts"
 import { checkServer, serverOrigin } from "./server-connection.ts"
 
@@ -216,35 +217,9 @@ const profileFor = (server: string | null) => {
     profile.protocol.handle(scheme, async (request) => {
       const url = new URL(request.url)
       if (`${url.protocol}//${url.host}` !== appOrigin) return new Response(null, { status: 403 })
-      // Only the bundled app can read this same-origin stream. Fetching in main avoids
-      // host CORS without relaxing the renderer’s web security (pod-13u).
-      if (url.pathname === "/audio-download") {
-        try {
-          const source = new URL(url.searchParams.get("url") ?? "", appOrigin)
-          if (!["http:", "https:"].includes(source.protocol) || source.username || source.password)
-            return new Response(null, { status: 400 })
-          const upstream = await net.fetch(source.href, {
-            credentials: "omit",
-            signal: request.signal
-          })
-          // Audio only: this fetches from the main process, past CORS and the browser's
-          // private-network checks, so it must not hand the page any other kind of body
-          // (a local service's HTML or JSON).
-          const type = upstream.headers.get("content-type") ?? ""
-          const audioLike =
-            type === "" ||
-            /^(audio\/|video\/|(application|binary)\/octet-stream|application\/(mp4|ogg))/i.test(
-              type
-            )
-          if (upstream.ok && !audioLike) {
-            await upstream.body?.cancel()
-            return new Response(null, { status: 415 })
-          }
-          return decodedResponse(upstream)
-        } catch {
-          return Response.error()
-        }
-      }
+      if (url.pathname === "/audio-download") return publisherMedia(request, url, "audio")
+      if (url.pathname === "/publisher/artwork" && server === null)
+        return publisherMedia(request, url, "artwork")
       if (url.pathname.startsWith("/publisher/"))
         return server === null
           ? publisherRequest(request, url)

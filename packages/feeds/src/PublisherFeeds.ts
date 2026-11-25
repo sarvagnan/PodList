@@ -90,35 +90,37 @@ const directoryResults = (body: unknown): ReadonlyArray<DirectoryPodcast> => {
   return [...results.values()]
 }
 
-export const publisherFeeds = (fetch: PublisherFetch) => {
-  const request = async (
-    address: string,
-    headers: Record<string, string>,
-    cancel: AbortSignal | undefined
-  ) => {
-    const timeout = AbortSignal.timeout(30_000)
-    const signal = cancel ? AbortSignal.any([cancel, timeout]) : timeout
-    let url = publisherUrl(address)
-    for (let redirects = 0; ; redirects++) {
-      const response = await fetch(url.href, {
-        cache: "no-store",
-        credentials: "omit",
-        headers: { ...headers, "user-agent": "PodList/1.0" },
-        redirect: "manual",
-        signal
-      })
-      if (!redirectStatuses.has(response.status)) return response
-      const location = response.headers.get("location")
-      await response.body?.cancel()
-      if (!location || redirects >= maxRedirects)
-        throw new Error("The publisher redirected too many times.")
-      const next = publisherUrl(new URL(location, url).href)
-      // Feed validators describe the previous resource. Keep them on same-origin redirects.
-      if (next.origin !== url.origin) headers = {}
-      url = next
-    }
+export const requestPublisher = async (
+  fetch: PublisherFetch,
+  address: string,
+  headers: Record<string, string>,
+  cancel?: AbortSignal,
+  timeoutMillis: number | null = 30_000
+) => {
+  const timeout = timeoutMillis === null ? undefined : AbortSignal.timeout(timeoutMillis)
+  const signal = cancel && timeout ? AbortSignal.any([cancel, timeout]) : (cancel ?? timeout)
+  let url = publisherUrl(address)
+  for (let redirects = 0; ; redirects++) {
+    const response = await fetch(url.href, {
+      cache: "no-store",
+      credentials: "omit",
+      headers: { ...headers, "user-agent": "PodList/1.0" },
+      redirect: "manual",
+      ...(signal ? { signal } : {})
+    })
+    if (!redirectStatuses.has(response.status)) return response
+    const location = response.headers.get("location")
+    await response.body?.cancel()
+    if (!location || redirects >= maxRedirects)
+      throw new Error("The publisher redirected too many times.")
+    const next = publisherUrl(new URL(location, url).href)
+    // Feed validators describe the previous resource. Keep them on same-origin redirects.
+    if (next.origin !== url.origin) headers = {}
+    url = next
   }
+}
 
+export const publisherFeeds = (fetch: PublisherFetch) => {
   const read = async (
     feedUrl: string,
     validators?: FeedValidators,
@@ -127,7 +129,7 @@ export const publisherFeeds = (fetch: PublisherFetch) => {
     const headers: Record<string, string> = {}
     if (validators?.etag) headers["if-none-match"] = validators.etag
     if (validators?.lastModified) headers["if-modified-since"] = validators.lastModified
-    const response = await request(feedUrl, headers, signal)
+    const response = await requestPublisher(fetch, feedUrl, headers, signal)
     if (response.status === 304 && (validators?.etag || validators?.lastModified))
       return { kind: "notModified" }
     if (!response.ok) {
@@ -163,7 +165,7 @@ export const publisherFeeds = (fetch: PublisherFetch) => {
       limit: "30",
       term: text
     }).toString()
-    const response = await request(url.href, {}, signal)
+    const response = await requestPublisher(fetch, url.href, {}, signal)
     if (!response.ok) {
       await response.body?.cancel()
       throw new Error("Could not reach the podcast directory. Try again.")
@@ -171,5 +173,37 @@ export const publisherFeeds = (fetch: PublisherFetch) => {
     return directoryResults(JSON.parse(await boundedText(response, directorySizeLimit)))
   }
 
-  return { read, search }
+  const chapters = async (address: string, signal?: AbortSignal) => {
+    const response = await requestPublisher(fetch, address, {}, signal)
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw new Error("Could not read Chapters. Try again.")
+    }
+    const body: unknown = JSON.parse(await boundedText(response, directorySizeLimit))
+    if (!body || typeof body !== "object" || !("chapters" in body) || !Array.isArray(body.chapters))
+      throw new Error("The publisher returned invalid Chapters.")
+    return (body.chapters as ReadonlyArray<unknown>)
+      .flatMap((row) => {
+        if (!row || typeof row !== "object") return []
+        const chapter = row as Record<string, unknown>
+        if (
+          chapter.toc === false ||
+          typeof chapter.startTime !== "number" ||
+          !Number.isFinite(chapter.startTime)
+        )
+          return []
+        const artwork = nonEmpty(chapter.img)
+        return [
+          {
+            start: Math.max(0, chapter.startTime),
+            title: nonEmpty(chapter.title) ?? "",
+            artwork: artwork ? { url: artwork } : null,
+            url: nonEmpty(chapter.url)
+          }
+        ]
+      })
+      .sort((left, right) => left.start - right.start)
+  }
+
+  return { read, search, chapters }
 }

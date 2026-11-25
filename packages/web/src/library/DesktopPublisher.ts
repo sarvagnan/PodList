@@ -25,6 +25,12 @@ const request = async <A>(path: string, parameters: URLSearchParams, signal?: Ab
 }
 
 export const desktopPublisher: ReturnType<typeof publisherFeeds> = {
+  chapters: (url, signal) =>
+    request<Awaited<ReturnType<ReturnType<typeof publisherFeeds>["chapters"]>>>(
+      "chapters",
+      new URLSearchParams({ value: url }),
+      signal
+    ),
   read: (feedUrl: string, validators?: FeedValidators, signal?: AbortSignal) => {
     const parameters = new URLSearchParams({ value: feedUrl })
     if (validators?.etag) parameters.set("etag", validators.etag)

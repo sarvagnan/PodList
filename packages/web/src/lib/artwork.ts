@@ -1,3 +1,5 @@
+import { desktopStandalone } from "./desktopSession.ts"
+
 /** Sizes the server's artwork route serves (packages/server/src/Artwork.ts). */
 const sizes = [64, 128, 256, 512]
 
@@ -6,6 +8,7 @@ const sizes = [64, 128, 256, 512]
  * (at 2× for sharp screens), same-origin and cacheable offline.
  */
 export const artworkSrc = (url: string, drawnAt: number) => {
+  if (desktopStandalone) return `/publisher/artwork?url=${encodeURIComponent(url)}`
   const wanted = drawnAt * 2
   const size = sizes.find((s) => s >= wanted) ?? 512
   return `/api/artwork?size=${size}&url=${encodeURIComponent(url)}`

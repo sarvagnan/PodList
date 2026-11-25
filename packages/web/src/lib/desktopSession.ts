@@ -3,3 +3,6 @@ export const desktopStandalone =
   import.meta.env.MODE === "desktop" &&
   typeof window !== "undefined" &&
   window.podlistApp?.standalone === true
+
+export const publisherAudioUrl = (url: string) =>
+  `app://podlist/audio-download?url=${encodeURIComponent(url)}`

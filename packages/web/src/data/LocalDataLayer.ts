@@ -2,7 +2,9 @@ import { type PlaybackSettings, type State, Units, ViewQuery } from "@podlist/do
 import { Effect, Layer, SubscriptionRef } from "effect"
 import { SqlClient } from "effect/sql"
 import { fromStoredChapters, toPlayerChapter } from "../lib/chapters.ts"
+import { desktopStandalone } from "../lib/desktopSession.ts"
 import { storedOverride } from "../lib/playbackSettings.ts"
+import { makeStandaloneChapters } from "../library/StandaloneChapters.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
 import {
@@ -57,6 +59,7 @@ export const LocalDataLayer = Layer.effect(
     const engine = yield* SyncEngine
     const sql = yield* SqlClient.SqlClient
     const transport = yield* Transport
+    const fetchChapters = desktopStandalone ? yield* makeStandaloneChapters : transport.chapters
     const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
       Effect.provideService(effect, SqlClient.SqlClient, sql)
 
@@ -202,7 +205,7 @@ export const LocalDataLayer = Layer.effect(
           WHERE e.id = ${episodeId}`
           if (row === undefined) return null
           // The server finds Chapters the first time anyone asks; offline, the local copy.
-          const chapters = yield* transport.chapters(episodeId).pipe(
+          const chapters = yield* fetchChapters(episodeId).pipe(
             Effect.map((cs) => cs.map(toPlayerChapter)),
             Effect.filterOrElse(
               (cs) => cs.length > 0,
@@ -258,7 +261,7 @@ export const LocalDataLayer = Layer.effect(
             chapters: row ? fromStoredChapters(row.chapters) : []
           }
         }),
-      chapters: transport.chapters
+      chapters: fetchChapters
     })
   })
 )
