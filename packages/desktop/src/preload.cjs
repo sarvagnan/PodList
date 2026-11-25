@@ -13,6 +13,14 @@ if (location.protocol === "file:") {
 } else if (location.protocol === "app:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
+    links: {
+      take: () => ipcRenderer.invoke("podlist:take-links"),
+      onAvailable: (listener) => {
+        const handle = () => listener()
+        ipcRenderer.on("podlist:links-available", handle)
+        return () => ipcRenderer.removeListener("podlist:links-available", handle)
+      }
+    },
     standalone: process.argv.includes("--podlist-standalone"),
     bringOverSource: process.argv.includes("--podlist-bring-over-source"),
     bringOver: {

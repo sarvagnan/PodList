@@ -86,6 +86,7 @@ const [appDir] = await packager({
   name: "PodList",
   appBundleId: "app.podlist.desktop",
   appCategoryType: "public.app-category.music",
+  protocols: [{ name: "PodList Link", schemes: ["podlist"] }],
   platform: process.platform as "darwin" | "linux" | "win32",
   arch: process.arch === "arm64" ? "arm64" : "x64",
   electronVersion,

@@ -17,6 +17,11 @@ import {
   session,
   shell
 } from "electron"
+import {
+  type PodListLink,
+  parsePodListLink,
+  podListLinkForPath
+} from "../../web/src/lib/podListLink.ts"
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
 import { BringOverSource } from "./bring-over-source.ts"
@@ -341,6 +346,7 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
       `document.dispatchEvent(new CustomEvent("podlist:row-menu", { detail: ${JSON.stringify({ id: row.id, label })} }))`
     )
   const server = serverUrl()
+  const appLink = row.link === undefined ? null : podListLinkForPath(row.link)
   const shared =
     row.link === undefined || server === undefined ? undefined : new URL(row.link, server).href
   return [
@@ -357,6 +363,12 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
                 click: send(item.label)
               }
     ),
+    ...(appLink
+      ? [
+          { type: "separator" as const },
+          { label: "Copy PodList Link", click: () => clipboard.writeText(appLink) }
+        ]
+      : []),
     ...(shared === undefined
       ? []
       : ([
@@ -442,6 +454,26 @@ let canShowRestoredEntries = false
 let canOpenCreatedView = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
+const pendingLinks: PodListLink[] = []
+
+const receiveLink = (input: string) => {
+  const link = parsePodListLink(input)
+  if (!link) return
+  if (pendingLinks.length === 64) pendingLinks.shift()
+  pendingLinks.push(link)
+  if (window && !window.isDestroyed()) window.webContents.send("podlist:links-available")
+}
+
+const showLibrary = () => {
+  if (hiddenWindow || !app.isReady()) return
+  if (!window || window.isDestroyed()) {
+    createWindow()
+    return
+  }
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+}
 
 const flushPlayback = async (target = window) => {
   if (!target || target.isDestroyed() || !target.webContents.getURL().startsWith(`${appOrigin}/`))
@@ -871,13 +903,21 @@ const menu = (): MenuItemConstructorOptions[] => [
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on("second-instance", () => {
-    if (hiddenWindow) return
-    if (window?.isMinimized()) window.restore()
-    window?.show()
-    window?.focus()
+  for (const arg of process.argv.slice(1)) receiveLink(arg)
+  app.on("open-url", (event, url) => {
+    event.preventDefault()
+    receiveLink(url)
+    showLibrary()
+  })
+  app.on("second-instance", (_event, argv) => {
+    for (const arg of argv.slice(1)) receiveLink(arg)
+    showLibrary()
   })
   app.whenReady().then(async () => {
+    if (app.isPackaged && process.platform === "win32") app.setAsDefaultProtocolClient("podlist")
+    ipcMain.handle("podlist:take-links", (event) =>
+      trustedAutomation(event) ? pendingLinks.splice(0) : []
+    )
     ipcMain.handle("podlist:automation-status", (event) => {
       if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
       return automationStatus()

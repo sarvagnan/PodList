@@ -29,6 +29,7 @@ import { Artwork } from "../../components/shell/Artwork.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
+import { podListLink } from "../../lib/podListLink.ts"
 import { librarySort } from "../../lib/remembered.ts"
 import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
@@ -171,6 +172,15 @@ function LibraryScreen() {
       run: () => setRules([s.id], ruleMode)
     })),
     { separator: true },
+    ...(desktopBuild
+      ? [
+          {
+            label: "Copy PodList Link",
+            run: () =>
+              void copy(() => podListLink({ kind: "podcast", value: s.feedUrl }), "PodList link")
+          }
+        ]
+      : []),
     { label: "Copy feed address", run: () => void copy(() => s.feedUrl, "Feed address") }
   ]
   const groups = (

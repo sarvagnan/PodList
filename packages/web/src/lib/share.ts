@@ -1,6 +1,8 @@
 // Links to share: the page on the PodList server. In the Mac app the page's own
 // address is app://podlist, which opens nowhere else, so it asks the shell for the server.
 
+import { type PodListLink, podListLinkForPath } from "./podListLink.ts"
+
 export type DesktopAppearance = "system" | "light" | "dark"
 
 declare global {
@@ -12,6 +14,10 @@ declare global {
     }
     podlistFlushPlayback?: () => Promise<void>
     readonly podlistApp?: {
+      readonly links?: {
+        readonly take: () => Promise<ReadonlyArray<PodListLink>>
+        readonly onAvailable: (listener: () => void) => () => void
+      }
       readonly standalone?: boolean
       readonly bringOverSource?: boolean
       readonly bringOver?: {
@@ -63,6 +69,9 @@ export const inMacApp = typeof navigator !== "undefined" && navigator.userAgent.
 const origin = async () => (await window.podlistApp?.server()) ?? window.location.origin
 
 /** A page of the app as a link that opens anywhere: on the PodList server. */
-export const shareLink = async (path: string) => new URL(path, await origin()).href
+export const shareLink = async (path: string) =>
+  (import.meta.env.MODE === "desktop" ? podListLinkForPath(path) : null) ??
+  new URL(path, await origin()).href
 
-export const episodeLink = (episodeId: string) => shareLink(`/episodes/${episodeId}`)
+export const episodeLink = (episodeId: string) =>
+  shareLink(`/episodes/${encodeURIComponent(episodeId)}`)

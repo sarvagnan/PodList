@@ -227,6 +227,13 @@ export const LocalDataLayer = Layer.effect(
           episodes: new Set(episodes.map((e) => e.id))
         }
       }),
+      hasLibraryEpisode: (id) =>
+        sql`SELECT e.id FROM episode e JOIN subscription s ON s.id = e.subscription_id
+          WHERE e.id = ${id} AND (s.unsubscribed_at IS NULL
+            OR EXISTS (SELECT 1 FROM episode_state WHERE episode_id = e.id AND starred = 1)
+            OR EXISTS (SELECT 1 FROM entry_index WHERE episode_id = e.id))`.pipe(
+          Effect.map((rows) => rows.length > 0)
+        ),
       episodeTitle: (episodeId) =>
         sql<{ title: string }>`SELECT title FROM episode WHERE id = ${episodeId}`.pipe(
           Effect.map((rows) => rows[0]?.title)

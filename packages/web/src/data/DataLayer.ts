@@ -115,6 +115,7 @@ export class DataLayer extends Context.Service<
     readonly viewCounts: Effect.Effect<Map<string, number>, unknown>
     readonly episodeDetail: (id: string) => Effect.Effect<EpisodeDetail | null, unknown>
     readonly statsCatalogue: Effect.Effect<StatsCatalogue, unknown>
+    readonly hasLibraryEpisode?: (id: string) => Effect.Effect<boolean, unknown>
     readonly episodeTitle: (id: string) => Effect.Effect<string | undefined, unknown>
     readonly playbackEpisode: (id: string) => Effect.Effect<PlaybackEpisode>
     /** Resolve Chapters without delaying the initial player load. */

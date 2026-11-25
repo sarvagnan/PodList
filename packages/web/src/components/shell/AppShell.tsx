@@ -48,6 +48,7 @@ import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { DesktopCreatedView } from "../views/DesktopCreatedView.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
+import { DesktopOpenLinks } from "./DesktopOpenLinks.tsx"
 import {
   DesktopPanes,
   DesktopPaneToolbar,
@@ -974,6 +975,7 @@ function Shell() {
       <Shortcuts />
       <RestoreDialog />
       {desktopBuild && <BringOverPrompt />}
+      {desktopBuild && <DesktopOpenLinks />}
     </div>
   )
 }
