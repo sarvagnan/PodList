@@ -1,0 +1,16 @@
+{
+  "name": "@podlist/feeds",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/FeedParser.ts",
+    "./publisher": "./src/PublisherFeeds.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.12.0"
+  }
+}

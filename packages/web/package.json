@@ -25,6 +25,7 @@
     "@fontsource-variable/space-grotesk": "5.3.0",
     "@podlist/api": "workspace:*",
     "@podlist/domain": "workspace:*",
+    "@podlist/feeds": "workspace:*",
     "@tanstack/react-router": "1.170.46",
     "@tanstack/react-virtual": "3.14.22",
     "class-variance-authority": "0.7.1",
