@@ -674,8 +674,9 @@ apps/apple/scripts/compare-responsiveness.sh my-run
 
 The runner alternates native, Electron, native, Electron. It defaults to the
 optimized native tour build and starts every pass in a fresh clone of
-`podlist-ui` with a fresh demo Library. The four `timings.txt` reports and
-`comparison.md` are under `podlist-grading/responsiveness/my-run/`.
+`podlist-ui` with a fresh demo Library. Each pass exports `timings.txt` and
+`memory.txt` under `podlist-grading/responsiveness/my-run/`, alongside the
+combined `comparison.md`.
 
 For one Electron pass, run
 `PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --electron-timings <empty-outdir>`.
@@ -687,9 +688,8 @@ size in Light appearance.
 
 Electron follows the native timing loop with three warm-ups and five measured
 iterations. Its Library page is the starting point for the sidebar transition
-to New this week. It selects the second Episode with the detail column already
-open. The column occupies the same space before the first selection, so the
-comparison has one Electron Inspector row. Enter on the New Playlist sidebar
+to New this week. Selecting the first Episode opens the Inspector. Selecting
+the second changes its contents while it is open. Enter on the New Playlist sidebar
 button opens its dialog and Enter on the Settings sidebar link opens its page.
 These controls deliver renderer keydown events, while the global shortcuts go
 through Electron's application menu. Typing the final `e` uses the separate
@@ -705,6 +705,28 @@ Chromium calls it before paint, so it estimates the first eligible frame.
 Native uses the first display link's target timestamp after the result appears.
 Both clocks are inside the app in the guest. Playwright drives the actions and
 collects the finished samples.
+
+#### Run the desktop Playwright suite
+
+From the repository root, with the same prepared arm64 Tart VM and checkout
+dependencies:
+
+```sh
+PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --electron-tests podlist-grading/electron-tests
+```
+
+Choose a fresh, empty output directory. The host builds the desktop Vite
+bundle and MCP helper. A fresh clone settles and runs the
+`packages/desktop/test/*.spec.ts` suite from the read-only checkout with
+`ELECTRON_RUN_AS_NODE` unset. The tests use the checkout's Electron binary,
+guest loopback fixture servers, and fresh writable profiles and caches. They
+use the guest audio device for the playback test. Separate Playwright browser
+downloads are unnecessary for this suite.
+
+The script exports the HTML report at `playwright-report/index.html` and
+preserves failure screenshots and traces in `test-results/` when the app
+produces them. `electron-tests.log` contains the guest output. A failing or
+incomplete run returns a nonzero exit status.
 
 The generated README lists every screen and reports any missing required
 attachments out of 207.

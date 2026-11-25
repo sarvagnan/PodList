@@ -8,12 +8,15 @@ mode=tour
 if [ "${1:-}" = --system-checks ]; then mode=system; shift; fi
 if [ "${1:-}" = --timings ]; then mode=timings; shift; fi
 if [ "${1:-}" = --electron-timings ]; then mode=electron-timings; shift; fi
+if [ "${1:-}" = --electron-tests ]; then mode=electron-tests; shift; fi
 if [ "${1:-}" = --cross-client-sync ]; then mode=cross-sync; shift; fi
-if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks | --timings | --electron-timings | --cross-client-sync] <outdir>" >&2; exit 2; fi
+if [ "$#" -ne 1 ]; then echo "Usage: $0 [--system-checks | --timings | --electron-timings | --electron-tests | --cross-client-sync] <outdir>" >&2; exit 2; fi
 if [ -z "${PODLIST_UI_VM:-}" ]; then
     echo "All UI tours require PODLIST_UI_VM (never run on the owner's desktop)" >&2
     exit 2
 fi
+electron_mode=false
+case "$mode" in electron-timings|electron-tests) electron_mode=true;; esac
 styles="light dark borders-light borders-dark sidebar-light sidebar-dark"
 if [ "$mode" = system ]; then styles=system; fi
 if [ "$mode" = timings ]; then styles=light; fi
@@ -45,7 +48,7 @@ cleanup() {
         if [ -n "$vm_pid" ]; then wait "$vm_pid" 2>/dev/null || true; fi
         tart delete "$vm_clone" >> "$out/vm.log" 2>&1 || cleanup_status=$?
     fi
-    if [ "$mode" = cross-sync ] || [ "$mode" = electron-timings ]; then
+    if [ "$mode" = cross-sync ] || [ "$electron_mode" = true ]; then
         if [ "$mode" = cross-sync ] && [ -d "$run/cross-sync-results" ]; then
             mkdir -p "$out/mac"
             ditto "$run/cross-sync-results" "$out/mac" || true
@@ -100,9 +103,9 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if [ "$mode" = electron-timings ]; then
+if [ "$electron_mode" = true ]; then
     if [ ! -x "$repo/packages/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" ]; then
-        echo 'Install this checkout’s macOS arm64 dependencies with pnpm install --frozen-lockfile before running Electron timings.' >&2
+        echo 'Install this checkout’s macOS arm64 dependencies with pnpm install --frozen-lockfile before running Electron in the guest.' >&2
         exit 2
     fi
     (
@@ -176,8 +179,8 @@ if [ -n "$vm" ]; then
     command -v tart >/dev/null || { echo "PODLIST_UI_VM needs tart" >&2; exit 2; }
     guest_run=/private/tmp/podlist-uitour-run
     guest_log="$out/xcodebuild.log"
-    if [ "$mode" = electron-timings ]; then
-        guest_log="$out/electron-timings.log"
+    if [ "$electron_mode" = true ]; then
+        guest_log="$out/$mode.log"
     else
         # The guest's demo origin is only known once it starts; it replaces this placeholder.
         xcodebuild build-for-testing -project "$apple/PodListUITour.xcodeproj" -scheme PodListUITour \
@@ -201,7 +204,10 @@ print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))'
     tart clone "$vm" "$clone_name"
     vm_clone="$clone_name"
     developer="$(xcode-select -p)"
-    tart run --no-graphics --no-audio --dir="run:$run" --dir="repo:$repo:ro" --dir="xcode:${developer%/Contents/Developer}:ro" "$vm_clone" > "$out/vm.log" 2>&1 &
+    vm_options=(--no-graphics)
+    # The Playwright suite checks that audio playback advances.
+    if [ "$mode" != electron-tests ]; then vm_options+=(--no-audio); fi
+    tart run "${vm_options[@]}" --dir="run:$run" --dir="repo:$repo:ro" --dir="xcode:${developer%/Contents/Developer}:ro" "$vm_clone" > "$out/vm.log" 2>&1 &
     vm_pid=$!
     for ((attempt = 0; attempt < 300; attempt++)); do
         if tart exec "$vm_clone" true >/dev/null 2>&1; then break; fi
@@ -218,12 +224,27 @@ print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))'
         exit "$status"
     fi
     # Opt-in: profile PodList during the response-timing runs (timings are then perturbed).
-    if [ "$mode" != electron-timings ] && [ "${PODLIST_UI_PROFILE:-}" = 1 ]; then
+    if [ "$electron_mode" = false ] && [ "${PODLIST_UI_PROFILE:-}" = 1 ]; then
         printf '%s\n' "${PODLIST_UI_PROFILE_TEMPLATE:-SwiftUI}" > "$run/profile"
     fi
     status=0
     tart exec "$vm_clone" /bin/bash "/Volumes/My Shared Files/repo/apps/apple/scripts/ui-tour-guest.sh" \
         "$guest_run" "$mode" >> "$guest_log" 2>&1 || status=$?
+    if [ "$mode" = electron-tests ]; then
+        if [ -d "$run/electron-tests" ]; then ditto "$run/electron-tests" "$out"; fi
+        if [ "$status" -ne 0 ]; then
+            echo "Electron Playwright run failed (exit $status); see $guest_log" >&2
+            exit "$status"
+        fi
+        if [ ! -f "$run/electron-tests.status" ] ||
+           [ "$(cat "$run/electron-tests.status")" != 0 ] ||
+           [ ! -s "$out/playwright-report/index.html" ]; then
+            echo "Electron Playwright run incomplete; see $guest_log" >&2
+            exit 1
+        fi
+        printf 'Playwright report exported to %s/playwright-report/index.html\n' "$out"
+        exit 0
+    fi
     if [ -f "$run/memory.txt" ]; then cp -f "$run/memory.txt" "$out/memory.txt"; fi
     if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
     if [ "$mode" = electron-timings ]; then

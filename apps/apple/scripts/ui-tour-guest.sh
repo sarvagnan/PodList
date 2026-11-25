@@ -1,5 +1,5 @@
 #!/bin/bash
-# Internal entry point for native tours, system checks and Electron timings in a fresh Tart clone.
+# Internal entry point for native tours and Electron runs in a fresh Tart clone.
 set -euo pipefail
 [ "$#" -eq 2 ] || exit 2
 run="$1"
@@ -8,7 +8,7 @@ shared='/Volumes/My Shared Files'
 [ "$run" = /private/tmp/podlist-uitour-run ] && [ -d "$shared/run" ] || {
     echo 'Guest runner requires the disposable Tart staging directory and share' >&2; exit 2;
 }
-case "$mode" in tour|system|timings|electron-timings) ;; *) exit 2;; esac
+case "$mode" in tour|system|timings|electron-timings|electron-tests) ;; *) exit 2;; esac
 rm -rf "$run"
 mkdir -p "$run"
 touch "$run/uitour-vm"
@@ -118,6 +118,13 @@ stop_demos() {
 }
 finish() {
     local status=$?
+    if [ "$mode" = electron-tests ]; then
+        if [ -d "$run/electron-tests" ]; then
+            ditto "$run/electron-tests" "$shared/run/electron-tests" || status=$?
+        fi
+        printf '%s\n' "$status" > "$shared/run/electron-tests.status" || status=$?
+        exit "$status"
+    fi
     stop_memory || status=$?
     if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
     if [ -n "$profiler" ]; then
@@ -210,16 +217,29 @@ settle_guest() {
         if [ "$remaining" -lt 10 ]; then sleep "$remaining"; else sleep 10; fi
     done
 }
-if [ "$mode" = electron-timings ]; then
-    # Use the host-built desktop assets from the same read-only checkout as the demo.
-    export PODLIST_TEST_WEB_ROOT="$shared/repo/packages/web/dist-desktop"
-    sleep 30
-    settle_guest
-    start_demo "$run/origin"
-    start_memory
-    env -u ELECTRON_RUN_AS_NODE node "$shared/repo/packages/desktop/test/response-timings.ts" "$run"
-    exit 0
-fi
+case "$mode" in
+    electron-timings|electron-tests)
+        # Use the host-built desktop assets from the same read-only checkout as the demo.
+        export PODLIST_TEST_WEB_ROOT="$shared/repo/packages/web/dist-desktop"
+        sleep 30
+        settle_guest
+        if [ "$mode" = electron-tests ]; then
+            # The MCP socket is inside a test profile, so keep its Unix socket path short.
+            export TMPDIR="$run/tmp"
+            export PODLIST_ELECTRON_TEST_OUTPUT="$run/electron-tests"
+            mkdir -p "$TMPDIR" "$PODLIST_ELECTRON_TEST_OUTPUT"
+            cd "$shared/repo/packages/desktop"
+            env -u ELECTRON_RUN_AS_NODE -u PODLIST_URL -u PWDEBUG \
+                PODLIST_HIDDEN_WINDOW=0 PODLIST_WEB_ROOT="$PODLIST_TEST_WEB_ROOT" \
+                node node_modules/playwright/cli.js test --config playwright.config.ts
+        else
+            start_demo "$run/origin"
+            start_memory
+            env -u ELECTRON_RUN_AS_NODE node "$shared/repo/packages/desktop/test/response-timings.ts" "$run"
+        fi
+        exit 0
+        ;;
+esac
 if [ "$mode" = tour ]; then
     # The apps have separate local stores, but a shared demo server would sync
     # a failed pass's saved edits into the next appearance.

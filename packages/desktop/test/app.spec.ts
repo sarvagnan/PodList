@@ -1,26 +1,18 @@
 import { spawn } from "node:child_process"
 import { once } from "node:events"
 import { existsSync, mkdtempSync } from "node:fs"
-import { createRequire } from "node:module"
 import { connect } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createInterface } from "node:readline"
-import { _electron as electron, expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 // @ts-expect-error: a plain .mjs helper shared with the web flow runs
 import { startDemo } from "../../web/ui-flows/demo.mjs"
+import { appDir, electronBinary, environment, test } from "./electron-fixture.ts"
 
-const appDir = join(import.meta.dirname, "..")
-/** Outside Electron, the electron package exports the path to its binary. */
-const electronBinary = createRequire(import.meta.url)("electron") as string
-const environment = (env: Record<string, string>) => ({
-  ...(process.env as Record<string, string>),
-  ...env
-})
-const launch = (env: Record<string, string>) =>
-  electron.launch({ args: ["."], cwd: appDir, env: environment(env) })
-
-test("runs its own copy of the web app, with a local database, and opens offline", async () => {
+test("runs its own copy of the web app, with a local database, and opens offline", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
@@ -115,7 +107,7 @@ test("runs its own copy of the web app, with a local database, and opens offline
     await expect
       .poll(() => slider.getAttribute("aria-valuetext"), { timeout: 5000 })
       .not.toBe(start)
-    await app.close()
+    await close(app)
 
     // With the server gone, the app still opens, on the screen it was left on.
     demo.stop()
@@ -131,13 +123,13 @@ test("runs its own copy of the web app, with a local database, and opens offline
     await expect(
       again.getByRole("status").filter({ hasText: "Can’t reach your PodList server" })
     ).toBeVisible()
-    await offline.close()
+    await close(offline)
   } finally {
     demo.stop()
   }
 })
 
-test("each server gets its own local database", async () => {
+test("each server gets its own local database", async ({ desktop: { launch, close } }) => {
   const first = await startDemo()
   const second = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
@@ -148,7 +140,7 @@ test("each server gets its own local database", async () => {
   try {
     const app = await launch({ PODLIST_URL: first.base, PODLIST_USER_DATA: profile })
     await expect(commuteLink(await app.firstWindow())).toBeVisible()
-    await app.close()
+    await close(app)
     // A different server starts from an empty local database, then syncs its own.
     second.stop()
     const other = await launch({ PODLIST_URL: second.base, PODLIST_USER_DATA: profile })
@@ -157,14 +149,16 @@ test("each server gets its own local database", async () => {
       page.getByRole("status").filter({ hasText: "Can’t reach your PodList server" })
     ).toBeVisible()
     await expect(commuteLink(page)).toHaveCount(0)
-    await other.close()
+    await close(other)
   } finally {
     first.stop()
     second.stop()
   }
 })
 
-test("asks for the server address on first launch and checks it answers", async () => {
+test("asks for the server address on first launch and checks it answers", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
@@ -186,13 +180,13 @@ test("asks for the server address on first launch and checks it answers", async 
     const appPage = await opened
     await expect(appPage.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
     expect(app.windows()).toHaveLength(1)
-    await app.close()
+    await close(app)
   } finally {
     demo.stop()
   }
 })
 
-test("a second launch hands over to the open window", async () => {
+test("a second launch hands over to the open window", async ({ desktop: { launch, close } }) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
@@ -207,13 +201,15 @@ test("a second launch hands over to the open window", async () => {
     const code = await new Promise<number | null>((resolve) => second.once("exit", resolve))
     expect(code).toBe(0)
     expect(first.windows()).toHaveLength(1)
-    await first.close()
+    await close(first)
   } finally {
     demo.stop()
   }
 })
 
-test("the File menu makes a Playlist or a View and adds podcasts", async () => {
+test("the File menu makes a Playlist or a View and adds podcasts", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
@@ -240,13 +236,15 @@ test("the File menu makes a Playlist or a View and adds podcasts", async () => {
     // Again, from the Library itself.
     await choose("Add Podcasts…")
     await expect(page.getByRole("dialog", { name: "Add podcasts" })).toBeVisible()
-    await app.close()
+    await close(app)
   } finally {
     demo.stop()
   }
 })
 
-test("right-click on a row shows its commands as a native menu", async () => {
+test("right-click on a row shows its commands as a native menu", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
@@ -282,13 +280,15 @@ test("right-click on a row shows its commands as a native menu", async () => {
         ?.click()
     )
     await expect.poll(titles).toEqual([...before.slice(1), before[0]])
-    await app.close()
+    await close(app)
   } finally {
     demo.stop()
   }
 })
 
-test("downloads host audio without CORS while the server is unreachable", async () => {
+test("downloads host audio without CORS while the server is unreachable", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-direct-download-"))
   const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
@@ -317,12 +317,14 @@ test("downloads host audio without CORS while the server is unreachable", async 
       )
     ).toBe(400)
   } finally {
-    await app.close()
+    await close(app)
     demo.stop()
   }
 })
 
-test("the View menu opens Listening stats at its own address", async () => {
+test("the View menu opens Listening stats at its own address", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-desktop-"))
   try {
@@ -342,14 +344,16 @@ test("the View menu opens Listening stats at its own address", async () => {
       await page.getByRole("link", { name: "Listening stats", exact: true }).click()
       await expect(page).toHaveURL(/\/listening-stats$/)
     } finally {
-      await app.close()
+      await close(app)
     }
   } finally {
     demo.stop()
   }
 })
 
-test("misspelled text offers dictionary suggestions, replacement and learning (BROWSER-07)", async () => {
+test("misspelled text offers dictionary suggestions, replacement and learning (BROWSER-07)", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-spelling-"))
   const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
@@ -438,12 +442,14 @@ test("misspelled text offers dictionary suggestions, replacement and learning (B
     await expect.poll(shown).toContain("Paste")
     expect(await shown()).not.toContain("Add to Dictionary")
   } finally {
-    await app.close()
+    await close(app)
     demo.stop()
   }
 })
 
-test("row backgrounds offer row commands while fields, selected text and links keep native menus (BROWSER-06)", async () => {
+test("row backgrounds offer row commands while fields, selected text and links keep native menus (BROWSER-06)", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-row-menu-"))
   const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
@@ -503,12 +509,14 @@ test("row backgrounds offer row commands while fields, selected text and links k
       if (scenario.expected !== "Play Now") expect(await labels()).not.toContain("Play Now")
     }
   } finally {
-    await app.close()
+    await close(app)
     demo.stop()
   }
 })
 
-test("matches the Mac Inspector and Sidebar at wide and narrow widths", async () => {
+test("matches the Mac Inspector and Sidebar at wide and narrow widths", async ({
+  desktop: { launch, close }
+}) => {
   const demo = await startDemo()
   const profile = mkdtempSync(join(tmpdir(), "podlist-pane-test-"))
   const app = await launch({ PODLIST_URL: demo.base, PODLIST_USER_DATA: profile })
@@ -599,7 +607,7 @@ test("matches the Mac Inspector and Sidebar at wide and narrow widths", async ()
     await show.click()
     await expect(width).toHaveAttribute("aria-valuenow", "280")
   } finally {
-    await app.close()
+    await close(app)
     demo.stop()
     await demo.stopped
   }
