@@ -1,6 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog"
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import type { Directory } from "@podlist/api"
+import { Link } from "@tanstack/react-router"
 import { Cause, Exit } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { Check, X } from "lucide-react"
@@ -14,6 +15,7 @@ import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
+import { desktopBuild } from "../shell/DesktopPanes.tsx"
 
 // Add podcasts (docs/design/ui-layout.md › Library): Search through Podcast Index, a feed
 // address resolved directly. OPML import and export live in Settings.
@@ -26,7 +28,8 @@ const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
     ? (Cause.squash(exit.cause) as Error | undefined)?.message || serverNeeded
     : null
 
-const looksLikeFeed = (text: string) => /^https?:\/\/\S+\.\S+/.test(text.trim())
+const looksLikeFeed = (text: string) =>
+  (desktopBuild ? /^https?:\/\/\S+$/i : /^https?:\/\/\S+\.\S+/).test(text.trim())
 
 function SubscribeButton({
   feedUrl,
@@ -140,7 +143,7 @@ function SearchTab({
   return (
     <div>
       <label htmlFor={`${id}-q`} className="text-row font-medium">
-        Podcast name
+        {desktopBuild ? "Podcast Name or Feed Address" : "Podcast name"}
       </label>
       <input
         id={`${id}-q`}
@@ -204,7 +207,17 @@ function Result({
       <div className="flex min-h-14 items-center gap-3">
         <Artwork url={artworkUrl} name={title} size={44} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-row font-medium">{title}</span>
+          {desktopBuild ? (
+            <Link
+              to="/library"
+              search={{ podcast: feedUrl }}
+              className="block truncate text-row font-medium hover:underline"
+            >
+              {title}
+            </Link>
+          ) : (
+            <span className="block truncate text-row font-medium">{title}</span>
+          )}
           {detail && (
             <span className="block truncate text-small text-muted-foreground">{detail}</span>
           )}
@@ -348,16 +361,19 @@ export function AddPodcastSheet({
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
-  const { draft, update, clear, unsaved, retry } = useDialogDraft({
-    kind: "podcasts",
-    tab: "search",
-    search: "",
-    address: ""
-  })
+  const { draft, update, clear, unsaved, retry } = useDialogDraft(
+    {
+      kind: "podcasts",
+      tab: "search",
+      search: "",
+      address: ""
+    },
+    desktopBuild ? "podlist:add-podcasts" : undefined
+  )
   // Older saved Add drafts may still name the retired OPML tab. Keep their typed fields.
   const tab = draft.tab === "opml" ? "search" : draft.tab
   const close = (next: boolean) => {
-    if (!next) clear()
+    if (!next && !desktopBuild) clear()
     onOpenChange(next)
   }
   useBackLayers(open ? 1 : 0, () => close(false))
@@ -370,7 +386,7 @@ export function AddPodcastSheet({
     ["address", "Feed address"]
   ]
   return (
-    <DraftSaved value={clear}>
+    <DraftSaved value={desktopBuild ? () => {} : clear}>
       <Dialog.Root open={open} onOpenChange={close}>
         <Dialog.Portal>
           <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
@@ -400,22 +416,24 @@ export function AddPodcastSheet({
                 <X aria-hidden="true" className="size-5" />
               </Dialog.Close>
             </div>
-            <fieldset className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-secondary p-1">
-              <legend className="sr-only">How to add</legend>
-              {tabs.map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={tab === value}
-                  onClick={() => update({ tab: value })}
-                  className="h-9 rounded-full text-small font-medium text-muted-foreground aria-pressed:bg-card aria-pressed:font-semibold aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:ring-1 aria-pressed:ring-field/40"
-                >
-                  {label}
-                </button>
-              ))}
-            </fieldset>
+            {!desktopBuild && (
+              <fieldset className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-secondary p-1">
+                <legend className="sr-only">How to add</legend>
+                {tabs.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={tab === value}
+                    onClick={() => update({ tab: value })}
+                    className="h-9 rounded-full text-small font-medium text-muted-foreground aria-pressed:bg-card aria-pressed:font-semibold aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:ring-1 aria-pressed:ring-field/40"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </fieldset>
+            )}
             <div className="mt-4">
-              {tab === "search" ? (
+              {desktopBuild || tab === "search" ? (
                 <SearchTab text={draft.search} setText={(search) => update({ search })} />
               ) : (
                 <AddressTab text={draft.address} setText={(address) => update({ address })} />

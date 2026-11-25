@@ -50,6 +50,7 @@ test("a Subscription's settings save, and Unsubscribe then Add by feed address",
   const sheet = page.getByRole("dialog", { name: "Add podcasts" })
   await sheet.getByRole("button", { name: "Feed address" }).click()
   await sheet.getByRole("textbox", { name: "Feed address" }).fill(slow?.feedUrl ?? "")
+  await expect(sheet.getByRole("link", { name: "Slow Build", exact: true })).toHaveCount(0)
   await sheet.getByRole("button", { name: /^Subscribe to/ }).click()
   await expect(sheet.getByText("Subscribed")).toBeVisible()
   await sheet.getByRole("button", { name: "Close" }).click()

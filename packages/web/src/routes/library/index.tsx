@@ -13,6 +13,7 @@ import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { useCopyText } from "../../components/feedback/useCopyLink.ts"
 import { AddPodcastSheet } from "../../components/library/AddPodcastSheet.tsx"
+import { DesktopPodcastPage } from "../../components/library/DesktopPodcastPage.tsx"
 import {
   LibraryBulkBar,
   LibraryTable,
@@ -25,6 +26,7 @@ import { ListContinuation } from "../../components/lists/ListContinuation.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
 import { librarySort } from "../../lib/remembered.ts"
@@ -49,11 +51,16 @@ const plainClick = (event: React.MouseEvent) =>
 export const Route = createFileRoute("/library/")({
   component: LibraryScreen,
   // ?add=true opens Add podcasts (the Mac app's File › Add Podcasts).
-  validateSearch: (search: Record<string, unknown>): { add?: boolean; sort?: string } => {
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { add?: boolean; sort?: string; podcast?: string } => {
     const sort = sortParam.parse(search.sort)
     return {
       ...(search.add === true || search.add === "true" ? { add: true } : {}),
-      ...(sort ? { sort: sortParam.format(sort) } : {})
+      ...(sort ? { sort: sortParam.format(sort) } : {}),
+      ...(desktopBuild && typeof search.podcast === "string" && /^https?:\/\//i.test(search.podcast)
+        ? { podcast: search.podcast }
+        : {})
     }
   }
 })
@@ -66,7 +73,7 @@ function LibraryScreen() {
   const [adding, setAdding] = useState(false)
   // ?add=true (File › Add Podcasts in the Mac app) opens the sheet once, then leaves the
   // URL so a reload doesn't open it again.
-  const { add: addFromUrl, sort: sortFromUrl } = Route.useSearch()
+  const { add: addFromUrl, sort: sortFromUrl, podcast } = Route.useSearch()
   const sort = sortParam.parse(sortFromUrl) ?? { key: "title" as const, ascending: true }
   const navigate = Route.useNavigate()
   // The sort is remembered on this Device (DATA-06): coming back without one in the address
@@ -191,6 +198,7 @@ function LibraryScreen() {
       Add podcasts
     </button>
   )
+  if (desktopBuild && podcast) return <DesktopPodcastPage key={podcast} feedUrl={podcast} />
   return (
     // Measured for the table-or-list choice (and the table's extra columns).
     <div ref={contentRef} className="max-w-[960px]">

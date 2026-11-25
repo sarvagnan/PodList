@@ -21,6 +21,10 @@ export class LibraryClient extends Context.Service<
     readonly subscribe: (feedUrl: string) => Effect.Effect<Library.Subscription, LibraryError>
     readonly unsubscribe: (subscriptionId: string) => Effect.Effect<void, LibraryError>
     readonly importOpml: (opml: string) => Effect.Effect<Subscriptions.ImportSummary, LibraryError>
+    readonly readPodcast: (
+      feedUrl: string
+    ) => Effect.Effect<Subscriptions.PodcastFeed, LibraryError>
+    readonly bringEpisode: (feedUrl: string, guid: string) => Effect.Effect<string, LibraryError>
   }
 >()("@podlist/web/LibraryClient") {
   static readonly layerHttp = (baseUrl: string) =>
@@ -49,6 +53,17 @@ export class LibraryClient extends Context.Service<
             client.subscriptions
               .unsubscribe({ params: { id }, headers })
               .pipe(Effect.asVoid, Effect.mapError(fail(offline))),
+          readPodcast: (feedUrl) =>
+            client.subscriptions
+              .readPodcast({ payload: new Subscriptions.SubscribeRequest({ feedUrl }), headers })
+              .pipe(Effect.mapError(fail(offline))),
+          bringEpisode: (feedUrl, guid) =>
+            client.subscriptions
+              .bringEpisode({ payload: new Subscriptions.BringEpisodeRequest({ feedUrl, guid }) })
+              .pipe(
+                Effect.map((episode) => episode.episodeId),
+                Effect.mapError(fail(offline))
+              ),
           importOpml: (opml) =>
             client.subscriptions
               .importOpml({ payload: new Subscriptions.ImportRequest({ opml }) })

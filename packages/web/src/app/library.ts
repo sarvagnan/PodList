@@ -2,7 +2,7 @@ import { Effect } from "effect"
 import { Atom } from "effect/reactivity"
 import { DataLayer } from "../data/DataLayer.ts"
 import { pageControls } from "../data/PagedRead.ts"
-import { LibraryClient } from "../library/LibraryClient.ts"
+import { LibraryClient, LibraryError } from "../library/LibraryClient.ts"
 import { opmlImport } from "../library/OpmlImport.ts"
 import { runtime } from "./runtime.ts"
 
@@ -22,6 +22,26 @@ export const directorySearchAtom = runtime.fn((query: string) =>
     const client = yield* LibraryClient
     return yield* client.search(query)
   })
+)
+
+export const readPodcastAtom = runtime.fn((feedUrl: string) =>
+  Effect.flatMap(LibraryClient, (client) => client.readPodcast(feedUrl))
+)
+
+const episodeLoading = () => new LibraryError("Episode details are still loading. Try again.")
+
+export const bringEpisodeAtom = runtime.fn(
+  ({ feedUrl, guid }: { readonly feedUrl: string; readonly guid: string }) =>
+    Effect.gen(function* () {
+      const library = yield* LibraryClient
+      const data = yield* DataLayer
+      const id = yield* library.bringEpisode(feedUrl, guid)
+      yield* data.sync.pipe(Effect.mapError(episodeLoading))
+      const title = yield* data.episodeTitle(id).pipe(Effect.mapError(episodeLoading))
+      if (title === undefined) return yield* Effect.fail(episodeLoading())
+      return id
+    }),
+  { concurrent: true }
 )
 
 const subscribeFeed = (feedUrl: string) =>
