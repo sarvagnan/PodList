@@ -1,5 +1,5 @@
-import { Library as Domain } from "@podlist/domain"
-import type { ParsedEpisode, ParsedFeed } from "@podlist/feeds"
+import { Library as Domain, EpisodeIdentity } from "@podlist/domain"
+import type { ParsedFeed } from "@podlist/feeds"
 import { feedPollDecision, pollIntervalMillis } from "@podlist/feeds/polling"
 import type { publisherFeeds } from "@podlist/feeds/publisher"
 import { Duration, Effect, Queue, Schema, Semaphore } from "effect"
@@ -59,7 +59,7 @@ type EpisodeRow = {
   readonly title: string
   readonly published: number
   readonly duration: number | null
-  readonly audio_url: string
+  readonly audioUrl: string
   readonly chapters_url: string | null
   readonly chapters: string
   readonly chapters_fetched_at: number | null
@@ -116,37 +116,24 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
         yield* withSql(upsertSubscriptions([sub]))
         yield* sql`UPDATE subscription SET website_url = ${feed.link} WHERE id = ${sub.id}`
         const current =
-          yield* sql<EpisodeRow>`SELECT id, guid, title, published, duration, audio_url,
+          yield* sql<EpisodeRow>`SELECT id, guid, title, published, duration, audio_url AS audioUrl,
           chapters_url, chapters, chapters_fetched_at, audio_updated_at
           FROM episode WHERE subscription_id = ${sub.id}`
-        const byGuid = new Map(current.map((episode) => [episode.guid, episode]))
         const published = new Map(feed.episodes.map((episode) => [episode.guid, episode]))
-        const replacedGuids = current.filter((episode) => !published.has(episode.guid))
-        const byAudio = Map.groupBy(replacedGuids, (episode) => episode.audio_url)
-        const episodeKey = (title: string, at: number) => JSON.stringify([title, at])
-        const byTitleDate = Map.groupBy(replacedGuids, (episode) =>
-          episodeKey(episode.title, episode.published)
-        )
+        const guidsInFeed = new Set(published.keys())
         const reused = new Set<string>()
-
-        const previousEpisode = (episode: ParsedEpisode) => {
-          const exact = byGuid.get(episode.guid)
-          if (exact || guid !== undefined) return exact
-          const matches = new Set([
-            ...(byAudio.get(episode.audioUrl) ?? []),
-            ...(byTitleDate.get(episodeKey(episode.title, episode.published)) ?? [])
-          ])
-          if (matches.size !== 1) return undefined
-          const [previous] = matches
-          return previous && !reused.has(previous.id) ? previous : undefined
-        }
 
         const selected = guid === undefined ? [...published.values()] : [published.get(guid)]
         let episodeId: string | undefined
         for (const episode of selected) {
           if (!episode)
             return yield* Effect.fail(new LibraryError("Episode is no longer in the feed."))
-          const previous = previousEpisode(episode)
+          const matched = EpisodeIdentity.matchEpisode(
+            episode,
+            current,
+            guid === undefined ? guidsInFeed : undefined
+          )
+          const previous = matched && !reused.has(matched.id) ? matched : undefined
           if (previous) reused.add(previous.id)
           const replaced =
             previous?.duration != null &&
