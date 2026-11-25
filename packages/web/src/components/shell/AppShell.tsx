@@ -47,6 +47,7 @@ import {
   desktopBuild,
   useDesktopPanes
 } from "./DesktopPanes.tsx"
+import { DesktopRestoredEntries } from "./DesktopRestoredEntries.tsx"
 import { FirstRun, showGettingStarted } from "./FirstRun.tsx"
 import { RestoreDialog } from "./RestoreDialog.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
@@ -912,6 +913,7 @@ function Shell() {
         {panes && <DesktopPaneToolbar />}
         <VersionNotice />
         <FirstRun />
+        {desktopBuild && <DesktopRestoredEntries />}
         <EditRegion />
       </main>
       {!panes && (

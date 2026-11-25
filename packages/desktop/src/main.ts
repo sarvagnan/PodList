@@ -423,6 +423,7 @@ const contextMenu = (
   return items
 }
 
+let canShowRestoredEntries = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
 
@@ -620,6 +621,12 @@ const menu = (): MenuItemConstructorOptions[] => [
         click: () => {
           if (window) void undo(window, true)
         }
+      },
+      { type: "separator" },
+      {
+        label: "Show Restored Entries",
+        enabled: canShowRestoredEntries,
+        click: () => sendCommand("showRestoredEntries")
       },
       { type: "separator" },
       { role: "cut" },
@@ -826,6 +833,16 @@ if (!app.requestSingleInstanceLock()) {
       const { serverUrl: previous, ...config } = readConfig()
       writeConfig({ ...config, ...(previous ? { lastServer: previous } : {}) })
       reopen()
+    })
+    ipcMain.on("podlist:restored-entries", (event, available: unknown) => {
+      if (
+        !trustedAutomation(event) ||
+        typeof available !== "boolean" ||
+        available === canShowRestoredEntries
+      )
+        return
+      canShowRestoredEntries = available
+      updateMenu()
     })
     ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown, editing) => {
       undoLabels.undo = typeof undoStep === "string" ? undoStep : null

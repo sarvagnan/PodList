@@ -1,6 +1,7 @@
 import { Operation } from "@podlist/domain"
 import { Effect, Schema, Semaphore, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
+import { desktopBuild } from "../components/shell/DesktopPanes.tsx"
 import { DataLayer } from "../data/DataLayer.ts"
 import {
   changesFor,
@@ -11,6 +12,7 @@ import {
 } from "../lib/episodeActions.ts"
 import { nextLastTarget } from "../lib/remembered.ts"
 import { Playback } from "../playback/Playback.ts"
+import { restoredBetween } from "./restoredEntries.ts"
 import { runtime } from "./runtime.ts"
 
 /** Runs an action from an Episode row; answers with its confirmation and undo. */
@@ -112,7 +114,9 @@ export const undoAtom = runtime.fn(
   (changes: ReadonlyArray<Operation.Change>) =>
     Effect.gen(function* () {
       const engine = yield* DataLayer
+      const before = desktopBuild ? yield* SubscriptionRef.get(engine.state) : null
       for (const c of changes) yield* engine.record(c)
+      return before ? restoredBetween(before, yield* SubscriptionRef.get(engine.state)) : []
     }),
   // Two undos in quick succession both happen.
   { concurrent: true }

@@ -14,6 +14,7 @@ import {
 import { type ReactNode, useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState } from "../../app/hooks.ts"
+import { restoredEntriesAtom } from "../../app/restoredEntries.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { formatTime } from "../../lib/time.ts"
 import {
@@ -27,6 +28,7 @@ import {
 import { ConfirmDialog } from "../feedback/ConfirmDialog.tsx"
 import { useConfirm } from "../feedback/useConfirm.ts"
 import { EmptyState } from "../lists/ListRow.tsx"
+import { desktopBuild } from "../shell/DesktopPanes.tsx"
 
 // A Playlist's History (Entries it finished) and Listening Timeline (what it was playing
 // and when), under date headings, newest first. Each Timeline moment can be rewound to
@@ -153,6 +155,7 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   const record = useAtomSet(recordAtom, { mode: "promise" })
   const confirm = useConfirm()
+  const offerRestored = useAtomSet(restoredEntriesAtom)
   const [asking, setAsking] = useState<TimelineEvent | null>(null)
   const events = timelineEvents(playlist)
   const title = (id: string) => episodes.get(id)?.title ?? "Episode unavailable"
@@ -170,10 +173,17 @@ export function PlaylistTimeline({ playlist }: { readonly playlist: Playlist.Pla
     const before = state
     const done = previewRewind(before, playlist.id, to, Date.now())
     if (done === null) return
+    const origin = location.pathname + location.search + location.hash
     await record(rewindChange(playlist.id, to))
+    const restored =
+      desktopBuild && done.restored.length
+        ? [{ playlistId: playlist.id, episodeIds: done.restored }]
+        : undefined
+    if (restored) offerRestored({ entries: restored, origin })
     const step = {
       message: `Rewound ${playlist.name} to ${clock(to)}`,
-      undo: undoRewind(before, done.after, playlist.id, Date.now())
+      undo: undoRewind(before, done.after, playlist.id, Date.now()),
+      ...(restored ? { restored } : {})
     }
     confirm(step, async () => {
       await record(rewindChange(playlist.id, to))

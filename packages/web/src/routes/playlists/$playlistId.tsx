@@ -1,4 +1,4 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
@@ -9,6 +9,7 @@ import { useEffect, useRef } from "react"
 import { localClient } from "#client"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
+import { restoredSelectionAtom } from "../../app/restoredEntries.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
 import { DesktopEpisodeInspector } from "../../components/episodes/DesktopEpisodeInspector.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
@@ -96,6 +97,31 @@ function PlaylistDetail() {
   const listRef = useRef<HTMLDivElement>(null)
   const entries = playlist?.entries ?? []
   const scroller = useRef<EntryScroller>(null)
+  const [restored, setRestored] = useAtom(restoredSelectionAtom)
+  const restoredIndex =
+    desktopBuild && tab === undefined && restored?.playlistId === playlistId
+      ? entries.findIndex((entry) => entry.episodeId === restored.episodeId)
+      : -1
+  useEffect(() => {
+    if (!restored || restoredIndex < 0) return
+    const id = restored.episodeId
+    let frame = 0
+    let remaining = 30
+    const focus = () => {
+      const target = listRef.current?.querySelector<HTMLElement>(
+        `[data-episode-title="${CSS.escape(id)}"]`
+      )
+      if (target) {
+        target.focus()
+        setRestored(null)
+      } else if (--remaining > 0) {
+        scroller.current?.scrollToIndex(restoredIndex)
+        frame = requestAnimationFrame(focus)
+      } else setRestored(null)
+    }
+    frame = requestAnimationFrame(focus)
+    return () => cancelAnimationFrame(frame)
+  }, [restored, restoredIndex, setRestored])
   const copyLink = useCopyEpisodeLink()
   const grid = useRowGrid(listRef, {
     count: entries.length,

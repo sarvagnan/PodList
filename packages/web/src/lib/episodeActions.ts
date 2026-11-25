@@ -1,5 +1,6 @@
 import { Operation, type State } from "@podlist/domain"
 import { Schema } from "effect"
+import type { RestoredEntries } from "../app/restoredEntries.ts"
 
 // What can be done to an Episode from a list, and how to take it back. Each action
 // records its operations and answers with a confirmation and the operations that undo
@@ -22,6 +23,7 @@ export interface Outcome {
   readonly undo: ReadonlyArray<Operation.Change>
   /** Server work runs before local restoration; a failure leaves the step available. */
   readonly undoAsync?: () => Promise<void>
+  readonly restored?: ReadonlyArray<RestoredEntries>
 }
 
 const change = Schema.decodeUnknownSync(Operation.Change)

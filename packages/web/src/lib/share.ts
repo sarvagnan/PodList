@@ -24,6 +24,7 @@ declare global {
         readonly changeServer: () => Promise<void>
         readonly disconnect: () => Promise<void>
       }
+      readonly setRestoredEntries?: (available: boolean) => void
       readonly setPaneMenu?: (sidebar: boolean, inspector: boolean, canToggle: boolean) => void
       /** Names the steps Edit › Undo and Redo will act on, in the Mac app's menu. */
       readonly setUndoRedo?: (undo: string | null, redo: string | null, editing: boolean) => void
