@@ -30,6 +30,8 @@ export class DownloadStore extends Context.Service<
     readonly has: (episodeId: string) => Effect.Effect<boolean>
     readonly remove: (episodeId: string) => Effect.Effect<void>
     readonly list: Effect.Effect<ReadonlyArray<StoredDownload>>
+    /** Reads only the requested prefix of a completed download. */
+    readonly readPrefix: (episodeId: string, bytes: number) => Effect.Effect<Uint8Array | null>
     /** A URL the Player can use for a stored download, or null if it isn't stored. */
     readonly playableUrl: (episodeId: string) => Effect.Effect<string | null>
   }
@@ -54,10 +56,9 @@ export class DownloadStore extends Context.Service<
       const objectUrls = new Map<string, string>()
 
       const fileFor = (episodeId: string) =>
-        Effect.tryPromise(() => directory.getFileHandle(fileName(episodeId))).pipe(
-          Effect.flatMap((handle) => Effect.promise(() => handle.getFile())),
-          Effect.option
-        )
+        Effect.tryPromise(async () =>
+          (await directory.getFileHandle(fileName(episodeId))).getFile()
+        ).pipe(Effect.option)
 
       const save = (
         episodeId: string,
@@ -135,6 +136,14 @@ export class DownloadStore extends Context.Service<
         has: (episodeId) => fileFor(episodeId).pipe(Effect.map((file) => file._tag === "Some")),
         remove,
         list,
+        readPrefix: (episodeId, bytes) =>
+          Effect.gen(function* () {
+            const file = yield* fileFor(episodeId)
+            if (file._tag === "None") return null
+            return yield* Effect.tryPromise(
+              async () => new Uint8Array(await file.value.slice(0, bytes).arrayBuffer())
+            ).pipe(Effect.orElseSucceed(() => null))
+          }),
         playableUrl: (episodeId) =>
           Effect.gen(function* () {
             const file = yield* fileFor(episodeId)

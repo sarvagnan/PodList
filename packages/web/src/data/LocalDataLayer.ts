@@ -1,10 +1,12 @@
-import { type PlaybackSettings, type State, Units, ViewQuery } from "@podlist/domain"
-import { Effect, Layer, SubscriptionRef } from "effect"
+import { Library, type PlaybackSettings, type State, Units, ViewQuery } from "@podlist/domain"
+import { Effect, Layer, Schema, SubscriptionRef } from "effect"
 import { SqlClient } from "effect/sql"
 import { fromStoredChapters, toPlayerChapter } from "../lib/chapters.ts"
 import { desktopStandalone } from "../lib/desktopSession.ts"
 import { storedOverride } from "../lib/playbackSettings.ts"
+import { resolveLocalChapters } from "../library/DownloadedChapters.ts"
 import { makeStandaloneChapters } from "../library/StandaloneChapters.ts"
+import { DownloadStore } from "../platform/DownloadStore.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
 import {
@@ -59,7 +61,25 @@ export const LocalDataLayer = Layer.effect(
     const engine = yield* SyncEngine
     const sql = yield* SqlClient.SqlClient
     const transport = yield* Transport
+    const downloads = yield* DownloadStore
     const fetchChapters = desktopStandalone ? yield* makeStandaloneChapters : transport.chapters
+    const decodeChapters = Schema.decodeUnknownSync(Schema.Array(Library.Chapter))
+    const chaptersFor = (id: string) =>
+      Effect.gen(function* () {
+        const [row] = yield* sql<{ chapters: string; chapters_url: string | null }>`
+          SELECT chapters, chapters_url FROM episode WHERE id = ${id}
+        `.pipe(Effect.orDie)
+        if (!row) return []
+        const cached = yield* Effect.try(() => decodeChapters(JSON.parse(row.chapters))).pipe(
+          Effect.orElseSucceed(() => [])
+        )
+        return yield* resolveLocalChapters({
+          cached,
+          preferDownload: row.chapters_url === null,
+          readPrefix: (bytes) => downloads.readPrefix(id, bytes),
+          remote: fetchChapters(id)
+        })
+      })
     const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
       Effect.provideService(effect, SqlClient.SqlClient, sql)
 
@@ -194,26 +214,17 @@ export const LocalDataLayer = Layer.effect(
         Effect.gen(function* () {
           const [row] = yield* sql<
             Omit<EpisodeDetail, "chapters" | "artworkUrl"> & {
-              chapters: string
               artwork_url: string | null
               podcast_artwork_url: string | null
             }
           >`
           SELECT e.id, e.title, s.title AS podcast, e.published, e.duration, e.description,
-            e.chapters, e.artwork_url, s.artwork_url AS podcast_artwork_url
+            e.artwork_url, s.artwork_url AS podcast_artwork_url
           FROM episode e JOIN subscription s ON s.id = e.subscription_id
           WHERE e.id = ${episodeId}`
           if (row === undefined) return null
-          // The server finds Chapters the first time anyone asks; offline, the local copy.
-          const chapters = yield* fetchChapters(episodeId).pipe(
-            Effect.map((cs) => cs.map(toPlayerChapter)),
-            Effect.filterOrElse(
-              (cs) => cs.length > 0,
-              () => Effect.succeed(fromStoredChapters(row.chapters))
-            ),
-            Effect.orElseSucceed(() => fromStoredChapters(row.chapters))
-          )
-          const { chapters: _stored, artwork_url, podcast_artwork_url, ...rest } = row
+          const chapters = (yield* chaptersFor(episodeId)).map(toPlayerChapter)
+          const { artwork_url, podcast_artwork_url, ...rest } = row
           return { ...rest, artworkUrl: artwork_url ?? podcast_artwork_url, chapters }
         }),
       statsCatalogue: Effect.gen(function* () {
@@ -268,7 +279,7 @@ export const LocalDataLayer = Layer.effect(
             chapters: row ? fromStoredChapters(row.chapters) : []
           }
         }),
-      chapters: fetchChapters
+      chapters: chaptersFor
     })
   })
 )

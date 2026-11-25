@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/FeedParser.ts",
-    "./publisher": "./src/PublisherFeeds.ts"
+    "./publisher": "./src/PublisherFeeds.ts",
+    "./id3": "./src/Id3Chapters.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
