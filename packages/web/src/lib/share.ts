@@ -31,6 +31,7 @@ declare global {
         readonly disconnect: () => Promise<void>
       }
       readonly setFeedRefreshMenu?: (running: boolean) => void
+      readonly setCreatedView?: (available: boolean) => void
       readonly setRestoredEntries?: (available: boolean) => void
       readonly setPaneMenu?: (sidebar: boolean, inspector: boolean, canToggle: boolean) => void
       /** Names the steps Edit › Undo and Redo will act on, in the Mac app's menu. */

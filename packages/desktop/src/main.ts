@@ -429,6 +429,7 @@ const contextMenu = (
 
 let refreshingFeeds = false
 let canShowRestoredEntries = false
+let canOpenCreatedView = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
 
@@ -678,6 +679,17 @@ const menu = (): MenuItemConstructorOptions[] => [
     ]
   },
   {
+    label: "Saved Views",
+    submenu: [
+      { label: "New View…", click: () => sendCommand("newView") },
+      {
+        label: "Open Created View",
+        enabled: canOpenCreatedView,
+        click: () => sendCommand("openCreatedView")
+      }
+    ]
+  },
+  {
     label: "Podcast",
     submenu: [
       {
@@ -896,6 +908,16 @@ if (!app.requestSingleInstanceLock()) {
       if (!trustedAutomation(event) || typeof running !== "boolean" || running === refreshingFeeds)
         return
       refreshingFeeds = running
+      updateMenu()
+    })
+    ipcMain.on("podlist:created-view", (event, available: unknown) => {
+      if (
+        !trustedAutomation(event) ||
+        typeof available !== "boolean" ||
+        available === canOpenCreatedView
+      )
+        return
+      canOpenCreatedView = available
       updateMenu()
     })
     ipcMain.on("podlist:restored-entries", (event, available: unknown) => {

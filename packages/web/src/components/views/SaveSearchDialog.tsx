@@ -1,8 +1,8 @@
 import { Dialog } from "@base-ui/react/dialog"
 import { useAtomSet } from "@effect/atom-react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import { X } from "lucide-react"
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { useCanEdit } from "../../app/hooks.ts"
 import { recordAtom } from "../../app/runtime.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
@@ -10,6 +10,8 @@ import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { saveViewChange, type ViewData } from "../../lib/viewEdit.ts"
 import { DraftNotice } from "../feedback/DraftNotice.tsx"
+import { desktopBuild } from "../shell/DesktopPanes.tsx"
+import { createdSearchViewAtom } from "./DesktopCreatedView.tsx"
 
 /** Saves a Search, its words and any conditions, as a View, which needs a name
  * (CONTEXT.md › Search). */
@@ -32,24 +34,62 @@ export function SaveSearchDialog({
     retry
   } = useDialogDraft({ kind: "view", name: "", view: draft })
   const { name } = saved
+  const generation = useRef(0)
+  const draftKey = desktopBuild ? JSON.stringify(draft) : ""
+  const latestDraft = useRef(draftKey)
+  latestDraft.current = draftKey
+  useEffect(
+    () => () => {
+      generation.current++
+    },
+    []
+  )
   const close = (next: boolean) => {
-    if (!next) clear()
+    if (!next) {
+      generation.current++
+      clear()
+    }
     onOpenChange(next)
   }
   const nameField = useRef<HTMLInputElement>(null)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const record = useAtomSet(recordAtom, { mode: "promise" })
   const navigate = useNavigate()
+  const router = useRouter()
+  const offerCreated = useAtomSet(createdSearchViewAtom)
   useBackLayers(open ? 1 : 0, () => close(false))
   const save = async () => {
-    if (!canEdit) return
+    if (!canEdit || (desktopBuild && saving)) return
     const trimmed = name.trim()
     if (trimmed === "") {
-      setError(true)
+      setError("A View needs a name.")
       return
     }
     const view: ViewData = { ...draft, id: crypto.randomUUID(), name: trimmed }
-    await record(saveViewChange(view))
+    if (desktopBuild) {
+      const revision = generation.current
+      const origin = router.state.location.href
+      setSaving(true)
+      try {
+        await record(saveViewChange(view))
+      } catch {
+        setError("Could not save the View. Try again.")
+        return
+      } finally {
+        setSaving(false)
+      }
+      if (
+        generation.current !== revision ||
+        origin !== router.state.location.href ||
+        latestDraft.current !== draftKey
+      ) {
+        offerCreated(view.id)
+        return
+      }
+    } else {
+      await record(saveViewChange(view))
+    }
     close(false)
     await navigate({ to: "/views/$viewId", params: { viewId: view.id } })
   }
@@ -87,11 +127,12 @@ export function SaveSearchDialog({
             type="text"
             value={name}
             required
-            aria-invalid={error}
+            aria-invalid={error !== null}
             aria-describedby={error ? `${id}-error` : undefined}
             onChange={(event) => {
+              generation.current++
               update({ name: event.target.value })
-              setError(false)
+              setError(null)
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") void save()
@@ -100,7 +141,7 @@ export function SaveSearchDialog({
           />
           {error && (
             <p id={`${id}-error`} className="mt-1 text-small text-destructive">
-              A View needs a name.
+              {error}
             </p>
           )}
           <DraftNotice unsaved={unsaved} retry={retry} />
@@ -110,11 +151,11 @@ export function SaveSearchDialog({
             </Dialog.Close>
             <button
               type="button"
-              disabled={!canEdit}
+              disabled={!canEdit || (desktopBuild && saving)}
               onClick={() => void save()}
               className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
             >
-              Save View
+              {desktopBuild && saving ? "Saving…" : "Save View"}
             </button>
           </div>
         </Dialog.Popup>

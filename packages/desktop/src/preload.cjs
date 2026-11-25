@@ -46,6 +46,7 @@ if (location.protocol === "file:") {
       }
     },
     setFeedRefreshMenu: (running) => ipcRenderer.send("podlist:feed-refresh", running),
+    setCreatedView: (available) => ipcRenderer.send("podlist:created-view", available),
     setRestoredEntries: (available) => ipcRenderer.send("podlist:restored-entries", available),
     setPaneMenu: (sidebar, inspector, canToggle) =>
       ipcRenderer.send("podlist:pane-menu", sidebar, inspector, canToggle),

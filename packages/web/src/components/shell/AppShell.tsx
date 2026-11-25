@@ -39,6 +39,7 @@ import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
 import { usePlaybackProblem } from "../player/usePlaybackProblem.ts"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
+import { DesktopCreatedView } from "../views/DesktopCreatedView.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
 import {
@@ -712,6 +713,7 @@ function useMenuControls() {
   const current = useRef<ReturnType<typeof useNowPlaying>>(null)
   current.current = useNowPlaying()
   useEffect(() => {
+    if (!desktopBuild) return
     const onControl = (event: Event) => {
       if (!(event instanceof CustomEvent) || typeof event.detail !== "string") return
       const command: string = event.detail
@@ -939,6 +941,7 @@ function Shell() {
         <VersionNotice />
         <FirstRun />
         {desktopBuild && <DesktopRestoredEntries />}
+        {desktopBuild && <DesktopCreatedView />}
         {desktopBuild && <DesktopFeedRefreshStatus />}
         <EditRegion />
       </main>
