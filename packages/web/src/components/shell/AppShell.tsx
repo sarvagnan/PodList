@@ -19,7 +19,12 @@ import { type CSSProperties, useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useCanEdit, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { useReplayJournal } from "../../app/journal.ts"
-import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
+import {
+  backgroundSyncAtom,
+  flushPlaybackAtom,
+  nowPlayingAtom,
+  playbackAtom
+} from "../../app/runtime.ts"
 import { Automation } from "../../automation/Automation.tsx"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { cameFrom, sectionOf } from "../../lib/cameFrom.ts"
@@ -895,6 +900,14 @@ function Shell() {
       : `${panes.panes.sidebarWidth}px`
     : "0px"
   useAtomMount(backgroundSyncAtom)
+  const flushPlayback = useAtomSet(flushPlaybackAtom, { mode: "promise" })
+  useEffect(() => {
+    if (!desktopBuild) return
+    window.podlistFlushPlayback = () => flushPlayback()
+    return () => {
+      delete window.podlistFlushPlayback
+    }
+  }, [flushPlayback])
   useFocusOnNavigation()
   useReplayJournal()
   useStrayDropGuard()

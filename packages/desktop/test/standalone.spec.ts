@@ -46,6 +46,15 @@ test("keeps and plays a Standalone Library across app restarts", async ({
     await expect.poll(() => publisherRequests.has("/publisher/chapters")).toBe(true)
     await expect.poll(() => publisherRequests.has("/publisher/artwork")).toBe(true)
     expect(serverRequests).toEqual([])
+    const afterClose = await app.evaluate(({ BrowserWindow }) => {
+      const library = BrowserWindow.getAllWindows().find((window) =>
+        window.webContents.getURL().startsWith("app://podlist/")
+      )
+      library?.close()
+      return library ? { destroyed: library.isDestroyed(), visible: library.isVisible() } : null
+    })
+    expect(afterClose).toEqual({ destroyed: false, visible: false })
+    expect(page.isClosed()).toBe(false)
     await close(app)
 
     demo.stop()

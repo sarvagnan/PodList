@@ -5,6 +5,7 @@ export type DesktopAppearance = "system" | "light" | "dark"
 
 declare global {
   interface Window {
+    podlistFlushPlayback?: () => Promise<void>
     readonly podlistApp?: {
       readonly standalone?: boolean
       readonly automation?: {

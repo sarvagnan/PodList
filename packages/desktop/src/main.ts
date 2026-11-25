@@ -98,6 +98,7 @@ const bridgeBinary = app.isPackaged
 let automationReady = false
 let nextCall = 0
 let quitting = false
+let canQuit = false
 const calls = new Map<
   number,
   { contents: Electron.WebContents; resolve: (value: unknown) => void; reject: (e: Error) => void }
@@ -421,6 +422,29 @@ let canOpenCreatedView = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
 
+const flushPlayback = async (target = window) => {
+  if (!target || target.isDestroyed() || !target.webContents.getURL().startsWith(`${appOrigin}/`))
+    return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      target.webContents.executeJavaScript("globalThis.podlistFlushPlayback?.()"),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 3000)
+      })
+    ])
+  } catch {
+    // Shutdown and connection changes still work if the renderer has exited.
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const showSetup = async (target = window) => {
+  await flushPlayback(target)
+  if (target && target === window && !target.isDestroyed()) await target.loadFile(setupPage)
+}
+
 const createWindow = () => {
   const server = serverUrl()
   const standalone = standaloneSelected()
@@ -434,7 +458,10 @@ const createWindow = () => {
     show: false,
     ...(hiddenWindow ? { focusable: false } : {}),
     webPreferences: {
-      ...(hiddenWindow ? { backgroundThrottling: false } : {}),
+      // A closed Library is hidden so polling, media sessions and transfers keep running.
+      ...(standalone || server !== undefined || hiddenWindow
+        ? { backgroundThrottling: false }
+        : {}),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -463,7 +490,7 @@ const createWindow = () => {
     win.setTitle(title.replace(/ · PodList$/, "") || "PodList")
   })
   win.on("close", (event) => {
-    if (!quitting && readConfig().mcpEnabled === true) {
+    if (!quitting && hasLibrary()) {
       event.preventDefault()
       win.hide()
     }
@@ -603,7 +630,10 @@ const menu = (): MenuItemConstructorOptions[] => [
         click: () => goTo("/library?add=true")
       },
       { type: "separator" },
-      { role: "close", label: "Close Window" }
+      { role: "close", label: "Close Window" },
+      ...(process.platform !== "darwin"
+        ? [{ type: "separator" } as const, { role: "quit", label: "Exit" } as const]
+        : [])
     ]
   },
   {
@@ -906,10 +936,13 @@ if (!app.requestSingleInstanceLock()) {
     })
     ipcMain.handle("podlist:change-server", async (event) => {
       if (!trustedAutomation(event) || process.env.PODLIST_URL !== undefined) return
-      await window?.loadFile(setupPage)
+      await showSetup()
     })
-    ipcMain.handle("podlist:disconnect", (event) => {
+    ipcMain.handle("podlist:disconnect", async (event) => {
       if (!trustedAutomation(event) || process.env.PODLIST_URL !== undefined) return
+      const source = window
+      await flushPlayback(source)
+      if (source !== window || source?.isDestroyed()) return
       const { serverUrl: previous, ...config } = readConfig()
       writeConfig({ ...config, ...(previous ? { lastServer: previous } : {}) })
       reopen()
@@ -979,10 +1012,14 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on("before-quit", (event) => {
-  if (quitting) return
+  if (canQuit) return
   event.preventDefault()
+  if (quitting) return
   quitting = true
   for (const call of calls.values()) call.reject(new Error("PodList is quitting."))
   calls.clear()
-  void automation.stop().finally(() => app.quit())
+  void Promise.allSettled([flushPlayback(), automation.stop()]).then(() => {
+    canQuit = true
+    app.quit()
+  })
 })

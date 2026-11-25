@@ -121,6 +121,10 @@ type Command =
   | { readonly _tag: "setSpeed"; readonly speed: number }
   | { readonly _tag: "setSleep"; readonly sleep: SleepRequest | null }
 
+export const flushPlaybackAtom = runtime.fn(() =>
+  Effect.flatMap(Playback, (playback) => playback.flush ?? playback.pause)
+)
+
 /** Player controls: play/pause, skip, seek and Play from here. */
 export const playbackAtom = runtime.fn((command: Command) =>
   Effect.gen(function* () {

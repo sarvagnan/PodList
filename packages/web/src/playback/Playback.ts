@@ -73,6 +73,8 @@ export class Playback extends Context.Service<
     readonly now: SubscriptionRef.SubscriptionRef<NowPlaying | null>
     readonly play: Effect.Effect<void>
     readonly pause: Effect.Effect<void>
+    /** Pause and durably report the Position and any accrued listening. */
+    readonly flush?: Effect.Effect<void>
     readonly toggle: Effect.Effect<void>
     /** After a playback error: loads the Entry again where it was and plays. */
     readonly retry: Effect.Effect<void>
@@ -311,6 +313,12 @@ export class Playback extends Context.Service<
         })
 
         const pause = player.pause
+        const flush = Effect.gen(function* () {
+          const current = yield* SubscriptionRef.get(now)
+          if (!current) return
+          yield* pause
+          yield* report(current.position)
+        })
         const seek = (seconds: number) =>
           Effect.gen(function* () {
             const current = yield* SubscriptionRef.get(now)
@@ -632,6 +640,7 @@ export class Playback extends Context.Service<
           now,
           play,
           pause,
+          flush,
           toggle,
           retry,
           seek,
