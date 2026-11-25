@@ -81,7 +81,10 @@ test("Search finds by words and saves as a named View", async ({ page }) => {
   const field = page.getByRole("searchbox", { name: "Search the Library" })
   await expect(field).toBeFocused()
   await field.fill("market")
+  await expect.poll(() => rows(page).count()).toBeGreaterThan(0)
   await expect(page).toHaveURL(/q=market/)
+  await page.reload()
+  await expect(field).toHaveValue("market")
   await expect.poll(() => rows(page).count()).toBeGreaterThan(0)
   await page.getByRole("button", { name: "Save as View" }).click()
   const dialog = page.getByRole("dialog", { name: "Save as a View" })
@@ -110,6 +113,7 @@ test("Back to Search returns focus to the Episode that was opened", async ({ pag
   await page.keyboard.press("Enter")
   await expect(page).toHaveURL(/\/episodes\//)
   await page.goBack()
+  await expect(page.getByRole("searchbox", { name: "Search the Library" })).toHaveValue("market")
   await expect(title).toBeFocused()
 })
 

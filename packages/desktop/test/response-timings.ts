@@ -21,7 +21,7 @@ const labels = {
 }
 type Step = keyof typeof labels
 type Result = { ms: number } | { error: string }
-type ExpectedResult = { selector: string; text: string; query?: string }
+type ExpectedResult = { selector: string; text: string }
 type Input = { type: "pointerdown" } | { type: "keydown"; key: string }
 
 declare global {
@@ -34,13 +34,10 @@ async function measure(target: Locator, input: Input, expected: ExpectedResult):
   // Arm before driving the input. The renderer owns both clocks and the result check.
   await target.evaluate(
     (element, { input, expected, timeout }) => {
-      const resultElement = () => {
-        if (expected.query && new URLSearchParams(location.search).get("q") !== expected.query)
-          return undefined
-        return [...document.querySelectorAll<HTMLElement>(expected.selector)].find(
+      const resultElement = () =>
+        [...document.querySelectorAll<HTMLElement>(expected.selector)].find(
           (node) => node.textContent?.trim() === expected.text
         )
-      }
       if (resultElement()) throw new Error(`Result present before input: ${expected.text}`)
       window.podlistResponseTiming = new Promise((resolve) => {
         const listener = new AbortController()
@@ -59,7 +56,6 @@ async function measure(target: Locator, input: Input, expected: ExpectedResult):
           const result = resultElement()
           if (!result) {
             appeared = undefined
-            if (expected.query) frameRequest = requestAnimationFrame(onFrame)
             return
           }
           appeared ??= performance.now()
@@ -111,8 +107,6 @@ async function measure(target: Locator, input: Input, expected: ExpectedResult):
               childList: true,
               subtree: true
             })
-            // A new Search URL can reuse an identical set of rows without mutating the DOM.
-            if (expected.query) frameRequest = requestAnimationFrame(onFrame)
           },
           { capture: true, signal: listener.signal }
         )
@@ -168,7 +162,7 @@ const report = () => {
     `macOS: Version ${version} (Build ${build})`,
     "Method: renderer input event to the first eligible animation frame in the VM. Ends at the first requestAnimationFrame timestamp after the committed result is detected by a MutationObserver or frame check, with the result visible. The callback is pre-paint.",
     "The first Episode click opens the hidden Inspector. The second click changes its selection with the Inspector already open. Each selected title is the result marker.",
-    "New Playlist and Settings use Enter on their sidebar controls. Search uses the separate Library Search page, including its query debounce.",
+    "New Playlist and Settings use Enter on their sidebar controls. Search measures the first eligible frame with the rendered results for the typed query.",
     "Default window size, local demo Library, p75 by nearest rank. RESP-01 target: p75 ≤ 200 ms over at least five samples.",
     "",
     ...Object.entries(samples).map(([step, values]) => {
@@ -294,20 +288,19 @@ try {
     await sidebar.locator('a[href="/search"]').click()
     await expect(search).toHaveValue("", assertion)
     await search.pressSequentially("ric")
-    await expect(search).toHaveValue("ric", assertion)
+    await expect(page.locator('[data-search-results-query="ric"]')).toBeVisible(assertion)
     await perform(
       "filter",
       search,
       { type: "keydown", key: "e" },
       {
         selector:
-          '[role="grid"][aria-label="Search results"][aria-rowcount="1"] [data-episode-title]',
-        text: episodeTitle,
-        query: "rice"
+          '[data-search-results-query="rice"] [role="grid"][aria-label="Search results"][aria-rowcount="1"] [data-episode-title]',
+        text: episodeTitle
       }
     )
     await search.fill("")
-    await expect(page).toHaveURL(/\/search$/, assertion)
+    await expect(page.getByText("Search your Library", { exact: true })).toBeVisible(assertion)
   }
 } finally {
   writeFileSync(join(run, "memory-electron-done"), "")
