@@ -48,6 +48,7 @@ import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { DesktopCreatedView } from "../views/DesktopCreatedView.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
+import { DesktopLibraryDrop } from "./DesktopLibraryDrop.tsx"
 import { DesktopOpenLinks } from "./DesktopOpenLinks.tsx"
 import { DesktopOpenOpml } from "./DesktopOpenOpml.tsx"
 import {
@@ -623,6 +624,7 @@ function useMenuBackLayer() {
 /** A file dropped anywhere but a drop area must not open in place of the app (DRAG-01). */
 function useStrayDropGuard() {
   useEffect(() => {
+    if (desktopBuild) return
     const guard = (event: DragEvent) => {
       if (!event.dataTransfer?.types.includes("Files")) return
       const target = event.target instanceof Element ? event.target : null
@@ -978,6 +980,7 @@ function Shell() {
       {desktopBuild && <BringOverPrompt />}
       {desktopBuild && (
         <>
+          <DesktopLibraryDrop />
           <DesktopOpenLinks />
           <DesktopOpenOpml />
         </>

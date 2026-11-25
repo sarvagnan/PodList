@@ -50,3 +50,10 @@ export function podListLinkForPath(path: string) {
   const parsed = parsePodListLink(candidate)
   return parsed && podListLink(parsed)
 }
+
+/** A browser link drag can carry a URI list with comments, or only plain text. */
+export function droppedFeedAddress(data: Pick<DataTransfer, "getData">): string | null {
+  const links = data.getData("text/uri-list").split(/\r?\n/)
+  const first = links.find((line) => line.trim() && !line.trimStart().startsWith("#"))
+  return feedAddress(first ?? data.getData("text/plain"))
+}

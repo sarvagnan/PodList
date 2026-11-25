@@ -14,6 +14,7 @@ import { serverNeeded } from "../../lib/connectionMessage.ts"
 import { desktopStandalone } from "../../lib/desktopSession.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
+import { feedAddress } from "../../lib/podListLink.ts"
 import { DraftNotice } from "../feedback/DraftNotice.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
 import { desktopBuild } from "../shell/DesktopPanes.tsx"
@@ -30,7 +31,7 @@ const messageOf = (exit: Exit.Exit<unknown, unknown>) =>
     : null
 
 const looksLikeFeed = (text: string) =>
-  (desktopBuild ? /^https?:\/\/\S+$/i : /^https?:\/\/\S+\.\S+/).test(text.trim())
+  desktopBuild ? feedAddress(text) !== null : /^https?:\/\/\S+\.\S+/.test(text.trim())
 
 function SubscribeButton({
   feedUrl,
@@ -149,6 +150,13 @@ function SearchTab({
       <input
         id={`${id}-q`}
         data-add-field=""
+        onPaste={(event) => {
+          if (!desktopBuild) return
+          const address = feedAddress(event.clipboardData.getData("text/plain"))
+          if (!address) return
+          event.preventDefault()
+          setText(address)
+        }}
         type="search"
         value={text}
         aria-invalid={error !== null}
@@ -162,6 +170,8 @@ function SearchTab({
       >
         {error ? (
           <span role="alert">{error}</span>
+        ) : desktopBuild ? (
+          "Search the podcast directory, or paste or drop a feed address."
         ) : (
           "Finds it in the podcast directory. A feed address works here too."
         )}
@@ -359,8 +369,10 @@ function AddressTab({
 
 export function AddPodcastSheet({
   open,
-  onOpenChange
+  onOpenChange,
+  incomingFeed
 }: {
+  readonly incomingFeed?: { readonly address: string } | undefined
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }) {
@@ -373,6 +385,11 @@ export function AddPodcastSheet({
     },
     desktopBuild ? "podlist:add-podcasts" : undefined
   )
+  const staged = useRef<typeof incomingFeed>(undefined)
+  useEffect(() => {
+    if (incomingFeed && staged.current !== incomingFeed) update({ search: incomingFeed.address })
+    staged.current = incomingFeed
+  }, [incomingFeed, update])
   // Older saved Add drafts may still name the retired OPML tab. Keep their typed fields.
   const tab = draft.tab === "opml" ? "search" : draft.tab
   const close = (next: boolean) => {

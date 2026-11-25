@@ -29,7 +29,7 @@ import { Artwork } from "../../components/shell/Artwork.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
-import { podListLink } from "../../lib/podListLink.ts"
+import { feedAddress, podListLink } from "../../lib/podListLink.ts"
 import { librarySort } from "../../lib/remembered.ts"
 import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
@@ -54,10 +54,12 @@ export const Route = createFileRoute("/library/")({
   // ?add=true opens Add podcasts (the Mac app's File › Add Podcasts).
   validateSearch: (
     search: Record<string, unknown>
-  ): { add?: boolean; sort?: string; podcast?: string } => {
+  ): { add?: boolean; sort?: string; podcast?: string; feed?: string } => {
     const sort = sortParam.parse(search.sort)
+    const feed = desktopBuild && typeof search.feed === "string" ? feedAddress(search.feed) : null
     return {
       ...(search.add === true || search.add === "true" ? { add: true } : {}),
+      ...(feed ? { feed } : {}),
       ...(sort ? { sort: sortParam.format(sort) } : {}),
       ...(desktopBuild && typeof search.podcast === "string" && /^https?:\/\//i.test(search.podcast)
         ? { podcast: search.podcast }
@@ -72,9 +74,14 @@ function LibraryScreen() {
   const subscriptions = paging.items
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
+  const [incomingFeed, setIncomingFeed] = useState<{ address: string }>()
+  const changeAdding = (next: boolean) => {
+    if (!next) setIncomingFeed(undefined)
+    setAdding(next)
+  }
   // ?add=true (File › Add Podcasts in the Mac app) opens the sheet once, then leaves the
   // URL so a reload doesn't open it again.
-  const { add: addFromUrl, sort: sortFromUrl, podcast } = Route.useSearch()
+  const { add: addFromUrl, sort: sortFromUrl, podcast, feed } = Route.useSearch()
   const sort = sortParam.parse(sortFromUrl) ?? { key: "title" as const, ascending: true }
   const navigate = Route.useNavigate()
   // The sort is remembered on this Device (DATA-06): coming back without one in the address
@@ -92,13 +99,16 @@ function LibraryScreen() {
       })
   }, [sortFromUrl, navigate])
   useEffect(() => {
-    if (!addFromUrl) return
+    if (!addFromUrl && !feed) return
     // Clean the URL first: the sheet's Back step must not lead back to ?add=true.
     void navigate({
-      search: ({ add: _, ...rest }) => rest,
+      search: ({ add: _add, feed: _feed, ...rest }) => rest,
       replace: true
-    }).then(() => setAdding(true))
-  }, [addFromUrl, navigate])
+    }).then(() => {
+      if (feed) setIncomingFeed({ address: feed })
+      setAdding(true)
+    })
+  }, [addFromUrl, feed, navigate])
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const ruleOf = (subscriptionId: string) => {
@@ -347,7 +357,9 @@ function LibraryScreen() {
         </p>
       )}
       <ListContinuation {...paging} />
-      {adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />}
+      {adding && (
+        <AddPodcastSheet open={adding} onOpenChange={changeAdding} incomingFeed={incomingFeed} />
+      )}
     </div>
   )
 }

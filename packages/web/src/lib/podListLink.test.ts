@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { parsePodListLink, podListLink, podListLinkForPath } from "./podListLink.ts"
+import {
+  droppedFeedAddress,
+  parsePodListLink,
+  podListLink,
+  podListLinkForPath
+} from "./podListLink.ts"
 
 describe("PodList links", () => {
   it("preserves the full feed address, including escaped characters and query parameters", () => {
@@ -23,4 +28,32 @@ describe("PodList links", () => {
   ])("rejects invalid targets (%s)", (link) => {
     expect(parsePodListLink(link)).toBeNull()
   })
+})
+
+describe("dropped feed addresses", () => {
+  const transfer = (types: Record<string, string>) => ({
+    getData: (type: string) => types[type] ?? ""
+  })
+
+  it("prefers a link URL over the text label", () => {
+    expect(
+      droppedFeedAddress(
+        transfer({
+          "text/uri-list": "# Browser link\r\nhttps://publisher.test/feed.xml\r\n",
+          "text/plain": "The Podcast"
+        })
+      )
+    ).toBe("https://publisher.test/feed.xml")
+  })
+
+  it("accepts whitespace around a single pasted address", () => {
+    expect(
+      droppedFeedAddress(transfer({ "text/plain": "  https://publisher.test/feed.xml\n" }))
+    ).toBe("https://publisher.test/feed.xml")
+  })
+
+  it.each(["file:///tmp/subscribe.opml", "https://user:secret@host.test/feed", "some podcast"])(
+    "does not stage %s",
+    (text) => expect(droppedFeedAddress(transfer({ "text/plain": text }))).toBeNull()
+  )
 })
