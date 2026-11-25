@@ -19,6 +19,7 @@ import {
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
 import { hiddenMenu } from "./hidden-window.ts"
+import { checkServer, serverOrigin } from "./server-connection.ts"
 
 // The Mac app carries its own copy of the web app (ADR 0005), served from
 // app://podlist so it opens without the server. Requests for /api/… are passed on to
@@ -62,6 +63,7 @@ const configFile = () => join(app.getPath("userData"), "config.json")
 interface Config {
   readonly mcpEnabled?: boolean
   readonly serverUrl?: string
+  readonly lastServer?: string
   readonly bounds?: { x: number; y: number; width: number; height: number }
 }
 
@@ -239,6 +241,11 @@ const profileFor = (server: string) => {
 }
 
 const setupPage = join(import.meta.dirname, "setup.html")
+const setupUrl = pathToFileURL(setupPage).href
+const trustedSetup = (event: Electron.IpcMainInvokeEvent) =>
+  event.sender === window?.webContents &&
+  event.senderFrame === event.sender.mainFrame &&
+  event.sender.getURL() === setupUrl
 
 /** The Controls menu: the web app plays, skips and moves between Chapters. */
 const sendControl = (command: string) =>
@@ -469,8 +476,7 @@ const createWindow = () => {
   // Links away from the app open in the default browser.
   // Of files, only the setup page: a file dropped on the window must not replace the app
   // (DRAG-01).
-  const inApp = (url: string) =>
-    url.startsWith(`${appOrigin}/`) || url.split("#")[0] === pathToFileURL(setupPage).href
+  const inApp = (url: string) => url.startsWith(`${appOrigin}/`) || url === setupUrl
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void openExternal(url)
     return { action: "deny" }
@@ -518,29 +524,35 @@ const reopen = () => {
   previous?.destroy()
 }
 
-/** Saves a server address from the setup page after checking it answers. */
+let checkingServer = false
+
+/** Keep the current Library available until the new address is confirmed. */
 const connect = async (address: string): Promise<string | null> => {
-  let url: URL
+  let origin: string
   try {
-    url = new URL(/^https?:\/\//.test(address) ? address : `https://${address}`)
-  } catch {
-    return "That doesn’t look like a web address."
+    origin = serverOrigin(address)
+  } catch (error) {
+    return error instanceof Error ? error.message : "Enter a server address."
   }
+  if (checkingServer) return "Checking connection…"
+  const source = window
+  checkingServer = true
   try {
-    const response = await net.fetch(new URL("/api/health", url).href, {
-      signal: AbortSignal.timeout(8000)
-    })
-    if (!response.ok) return `The server answered ${response.status}. Is this your PodList server?`
-  } catch {
-    return `Couldn’t reach ${url.host}. Check the address, and that Tailscale is connected.`
+    const problem = await checkServer(origin, net.fetch)
+    if (problem) return problem
+    if (source !== window || source?.isDestroyed() || source?.webContents.getURL() !== setupUrl)
+      return "Connection cancelled."
+    writeConfig({ ...readConfig(), serverUrl: origin, lastServer: origin })
+    reopen()
+    return null
+  } finally {
+    checkingServer = false
   }
-  writeConfig({ ...readConfig(), serverUrl: url.origin })
-  reopen()
-  return null
 }
 
 const changeServer = async () => {
-  if (!window || hiddenWindow) return
+  if (!window || hiddenWindow || !serverUrl() || process.env.PODLIST_URL !== undefined) return
+  const source = window
   const { response } = await dialog.showMessageBox(window, {
     type: "question",
     message: "Connect to a different PodList server?",
@@ -550,7 +562,7 @@ const changeServer = async () => {
     defaultId: 0,
     cancelId: 1
   })
-  if (response === 0) await window.loadFile(setupPage)
+  if (response === 0 && source === window && !source.isDestroyed()) await source.loadFile(setupPage)
 }
 
 const menu = (): MenuItemConstructorOptions[] => [
@@ -778,9 +790,43 @@ if (!app.requestSingleInstanceLock()) {
     const updateMenu = () =>
       Menu.setApplicationMenu(Menu.buildFromTemplate(hiddenWindow ? hiddenMenu(menu()) : menu()))
     updateMenu()
-    ipcMain.handle("podlist:connect", (_event, address: string) => connect(address))
-    ipcMain.handle("podlist:server", () => serverUrl() ?? null)
-    ipcMain.handle("podlist:cancel", () => window?.loadURL(`${appOrigin}/`))
+    ipcMain.handle("podlist:connect", (event, address: unknown) => {
+      if (
+        !trustedSetup(event) ||
+        typeof address !== "string" ||
+        process.env.PODLIST_URL !== undefined
+      )
+        throw new Error("Connection is unavailable here.")
+      return connect(address)
+    })
+    ipcMain.handle("podlist:server", (event) => {
+      if (!trustedSetup(event) && !trustedAutomation(event))
+        throw new Error("Unavailable outside PodList.")
+      return serverUrl() ?? null
+    })
+    ipcMain.handle("podlist:setup", (event) => {
+      if (!trustedSetup(event)) throw new Error("Connection is unavailable here.")
+      const config = readConfig()
+      return { current: serverUrl() ?? null, last: config.lastServer ?? null }
+    })
+    ipcMain.handle("podlist:cancel", async (event) => {
+      if (!trustedSetup(event) || !serverUrl() || checkingServer) return
+      await window?.loadURL(`${appOrigin}/`)
+    })
+    ipcMain.handle("podlist:connection-settings", (event) => {
+      if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
+      return { address: serverUrl() ?? null, managed: process.env.PODLIST_URL !== undefined }
+    })
+    ipcMain.handle("podlist:change-server", async (event) => {
+      if (!trustedAutomation(event) || process.env.PODLIST_URL !== undefined) return
+      await window?.loadFile(setupPage)
+    })
+    ipcMain.handle("podlist:disconnect", (event) => {
+      if (!trustedAutomation(event) || process.env.PODLIST_URL !== undefined) return
+      const { serverUrl: previous, ...config } = readConfig()
+      writeConfig({ ...config, ...(previous ? { lastServer: previous } : {}) })
+      reopen()
+    })
     ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown, editing) => {
       undoLabels.undo = typeof undoStep === "string" ? undoStep : null
       undoLabels.redo = typeof redoStep === "string" ? redoStep : null

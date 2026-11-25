@@ -6,12 +6,17 @@ const { contextBridge, ipcRenderer } = require("electron")
 if (location.protocol === "file:") {
   contextBridge.exposeInMainWorld("podlist", {
     connect: (address) => ipcRenderer.invoke("podlist:connect", address),
-    server: () => ipcRenderer.invoke("podlist:server"),
+    setup: () => ipcRenderer.invoke("podlist:setup"),
     cancel: () => ipcRenderer.invoke("podlist:cancel")
   })
 } else if (location.protocol === "app:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
+    connection: {
+      settings: () => ipcRenderer.invoke("podlist:connection-settings"),
+      changeServer: () => ipcRenderer.invoke("podlist:change-server"),
+      disconnect: () => ipcRenderer.invoke("podlist:disconnect")
+    },
     automation: {
       status: () => ipcRenderer.invoke("podlist:automation-status"),
       setEnabled: (enabled) => ipcRenderer.invoke("podlist:automation-enabled", enabled),

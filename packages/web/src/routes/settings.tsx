@@ -10,6 +10,8 @@ import { ExportOpml } from "../components/library/ExportOpml.tsx"
 import { OpmlFlow } from "../components/library/OpmlFlow.tsx"
 import { LoadingRows } from "../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../components/lists/SettingsRow.tsx"
+import { DesktopConnectionSettings } from "../components/shell/DesktopConnectionSettings.tsx"
+import { desktopBuild } from "../components/shell/DesktopPanes.tsx"
 import { showGettingStarted } from "../components/shell/FirstRun.tsx"
 import { PageHeader } from "../components/shell/PageHeader.tsx"
 import { singleKeyShortcuts } from "../lib/remembered.ts"
@@ -186,6 +188,7 @@ function SettingsScreen() {
           <OpmlFlow />
           <ExportOpml />
         </section>
+        {desktopBuild && <DesktopConnectionSettings heading={heading} />}
         <AutomationSettings />
         <section aria-labelledby={`${id}-help`}>
           <h2 id={`${id}-help`} className={heading}>
