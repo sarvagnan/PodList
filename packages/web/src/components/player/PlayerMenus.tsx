@@ -3,9 +3,12 @@ import { useAtomSet } from "@effect/atom-react"
 import { Check, Gauge, Moon } from "lucide-react"
 import { playbackAtom } from "../../app/runtime.ts"
 import type { NowPlaying, SleepRequest } from "../../playback/Playback.ts"
+import { desktopBuild } from "../shell/DesktopPanes.tsx"
 
-const speeds = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
-const sleepMinutes = [5, 15, 30, 45, 60]
+const speeds = desktopBuild
+  ? [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+  : [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
+const sleepMinutes = desktopBuild ? [5, 10, 15, 30, 45, 60, 90, 120] : [5, 15, 30, 45, 60]
 
 const trigger =
   "inline-flex h-11 items-center gap-2 rounded-full px-4 text-row font-medium text-player-foreground hover:bg-player-track active:bg-player-track/70 data-[popup-open]:bg-player-track"
@@ -33,6 +36,10 @@ export const sleepLabel = (sleep: NowPlaying["sleep"], at = Date.now()) => {
 /** Speed and sleep timer, for the Now Playing drawer and the desktop player bar. */
 export function PlayerMenus({ current }: { readonly current: NowPlaying }) {
   const control = useAtomSet(playbackAtom)
+  const availableSpeeds =
+    desktopBuild && !speeds.includes(current.speed)
+      ? [...speeds, current.speed].sort((a, b) => a - b)
+      : speeds
   const sleep = (request: SleepRequest | null) => control({ _tag: "setSleep", sleep: request })
   return (
     <div className="flex items-center justify-center gap-2">
@@ -60,7 +67,7 @@ export function PlayerMenus({ current }: { readonly current: NowPlaying }) {
                 value={current.speed}
                 onValueChange={(speed: number) => control({ _tag: "setSpeed", speed })}
               >
-                {speeds.map((s) => (
+                {availableSpeeds.map((s) => (
                   <Menu.RadioItem key={s} value={s} className={item}>
                     <span className="w-4">
                       <Menu.RadioItemIndicator>

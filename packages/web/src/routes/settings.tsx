@@ -26,7 +26,9 @@ import { desktopSettingsPane, singleKeyShortcuts } from "../lib/remembered.ts"
 export const Route = createFileRoute("/settings")({ component: SettingsScreen })
 
 const change = Schema.decodeUnknownSync(Operation.Change)
-const speeds = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
+const speeds = desktopBuild
+  ? [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+  : [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
 const skips = [0, 15, 30, 45, 60, 90, 120]
 const trashDays = [7, 14, 30, 60, 90]
 
@@ -38,6 +40,10 @@ function SettingsScreen() {
   const [singleKeys, setSingleKeys] = useState(singleKeyShortcuts.get)
   if (state === null) return <LoadingRows label="Loading settings" />
   const settings = state.playbackSettings
+  const availableSpeeds =
+    desktopBuild && !speeds.includes(settings.speed)
+      ? [...speeds, settings.speed].sort((a, b) => a - b)
+      : speeds
   const set = (patch: Partial<PlaybackSettings.PlaybackSettings>) =>
     record(
       change({
@@ -72,7 +78,7 @@ function SettingsScreen() {
               onChange={(event) => set({ speed: Number(event.target.value) })}
               className={fieldControl}
             >
-              {speeds.map((s) => (
+              {availableSpeeds.map((s) => (
                 <option key={s} value={s}>
                   {s}×
                 </option>

@@ -595,10 +595,10 @@ const menu = (): MenuItemConstructorOptions[] => [
     submenu: [
       {
         label: "New Playlist…",
-        accelerator: "CmdOrCtrl+N",
+        accelerator: "Shift+CmdOrCtrl+N",
         click: () => sendCommand("newPlaylist")
       },
-      { label: "New View", accelerator: "Shift+CmdOrCtrl+N", click: () => sendCommand("newView") },
+      { label: "New View", accelerator: "CmdOrCtrl+N", click: () => sendCommand("newView") },
       {
         label: "Add Podcasts…",
         accelerator: "Shift+CmdOrCtrl+A",
@@ -729,7 +729,29 @@ const menu = (): MenuItemConstructorOptions[] => [
         accelerator: "Alt+CmdOrCtrl+Right",
         registerAccelerator: false,
         click: () => sendControl("nextChapter")
-      }
+      },
+      { type: "separator" },
+      {
+        label: "Playback Speed",
+        submenu: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((speed) => ({
+          label: `${speed}×`,
+          click: () => sendControl(`speed:${speed}`)
+        }))
+      },
+      {
+        label: "Sleep Timer",
+        submenu: [
+          ...[5, 10, 15, 30, 45, 60, 90, 120].map((minutes) => ({
+            label: `In ${minutes} Minutes`,
+            click: () => sendControl(`sleep:${minutes}`)
+          })),
+          { type: "separator" },
+          { label: "End of Episode", click: () => sendControl("sleep:episode") },
+          { label: "End of Chapter", click: () => sendControl("sleep:chapter") },
+          { label: "Turn Off", click: () => sendControl("sleep:off") }
+        ]
+      },
+      { label: "Now Playing", click: () => sendControl("nowPlaying") }
     ]
   },
   {

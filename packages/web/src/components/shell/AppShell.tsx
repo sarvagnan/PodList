@@ -708,17 +708,38 @@ function useFocusOnNavigation() {
 /** The Mac app's Controls menu: play/pause, skips and Chapters, sent as an event. */
 function useMenuControls() {
   const control = useAtomSet(playbackAtom)
+  const setDrawer = useAtomSet(drawerAtom)
   const current = useRef<ReturnType<typeof useNowPlaying>>(null)
   current.current = useNowPlaying()
   useEffect(() => {
     const onControl = (event: Event) => {
+      if (!(event instanceof CustomEvent) || typeof event.detail !== "string") return
+      const command: string = event.detail
+      if (command === "toggle") return control({ _tag: "toggle" })
       const playing = current.current
       if (playing === null) return
+      if (command === "nowPlaying") return setDrawer({ open: true, stack: [] })
+      if (command.startsWith("speed:")) {
+        const speed = Number(command.slice(6))
+        if (Number.isFinite(speed) && speed >= 0.5 && speed <= 3)
+          control({ _tag: "setSpeed", speed })
+        return
+      }
+      if (command.startsWith("sleep:")) {
+        const when = command.slice(6)
+        if (when === "off") return control({ _tag: "setSleep", sleep: null })
+        if (when === "episode")
+          return control({ _tag: "setSleep", sleep: { _tag: "EndOfEpisode" } })
+        if (when === "chapter")
+          return control({ _tag: "setSleep", sleep: { _tag: "EndOfChapter" } })
+        const minutes = Number(when)
+        if (Number.isSafeInteger(minutes) && minutes >= 5 && minutes <= 120)
+          control({ _tag: "setSleep", sleep: { _tag: "Minutes", minutes } })
+        return
+      }
       const seek = (seconds: number | null) =>
         seconds !== null && control({ _tag: "seek", seconds })
-      switch ((event as CustomEvent<string>).detail) {
-        case "toggle":
-          return control({ _tag: "toggle" })
+      switch (command) {
         case "back":
           return control({ _tag: "skip", seconds: -backSeconds })
         case "forward":
@@ -733,7 +754,10 @@ function useMenuControls() {
     // The Mac app's ⌘← ⌘→ (skips) and ⌥⌘← ⌥⌘→ (Chapters), which its menu shows but
     // leaves to the page, so text fields keep them for the caret (BROWSER-07).
     const onKey = (event: KeyboardEvent) => {
-      if (!inMacApp || !event.metaKey || event.ctrlKey || event.shiftKey) return
+      const commandKey = /Mac/.test(navigator.platform)
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey
+      if (!inMacApp || !commandKey || event.shiftKey) return
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
       const target = event.target as HTMLElement
       if (target.closest("input, textarea, select, [contenteditable]")) return
@@ -753,7 +777,7 @@ function useMenuControls() {
       document.removeEventListener("podlist:control", onControl)
       document.removeEventListener("keydown", onKey)
     }
-  }, [control])
+  }, [control, setDrawer])
 }
 
 /** Cmd/Ctrl-K: Search, from anywhere. Also the Mac app's Go menu ("podlist:go"). */

@@ -234,6 +234,12 @@ test("the File menu makes a Playlist or a View and adds podcasts", async ({
         file?.submenu?.items.find((item) => item.label === label)?.click()
       }, label)
 
+    const shortcuts = await app.evaluate(({ Menu }) => {
+      const file = Menu.getApplicationMenu()?.items.find(({ label }) => label === "File")
+      return file?.submenu?.items.slice(0, 2).map(({ accelerator }) => accelerator)
+    })
+    expect(shortcuts).toEqual(["Shift+CmdOrCtrl+N", "CmdOrCtrl+N"])
+
     await choose("New Playlist…")
     await expect(page.getByRole("dialog", { name: "New Playlist" })).toBeVisible()
     await page.keyboard.press("Escape")
