@@ -36,3 +36,55 @@ jobs:
           name: playwright-results
           path: /tmp/podlist-playwright/results
           retention-days: 7
+
+  kotlin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      # apps/android/gradle/gradle-daemon-jvm.properties and both JVM modules pin JDK 25;
+      # gradle.properties discovers it via PODLIST_JAVA_HOME. :domain and :data are pure
+      # Kotlin/JVM modules (and ubuntu-latest already ships the Android SDK for :app
+      # configuration), so no Android SDK setup step is needed.
+      - name: Set up JDK 25
+        id: java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Android domain and data unit tests
+        working-directory: apps/android
+        env:
+          PODLIST_JAVA_HOME: ${{ steps.java.outputs.path }}
+        run: ./gradlew :domain:test :data:test
+
+  swift:
+    # Standard GitHub-hosted arm64 runner (free for public repos; not xcode-27-xlarge).
+    # apps/apple/Package.swift requires swift-tools-version 6.4 and macOS 26+ deployment.
+    # macos-latest / macos-26 ships Xcode 26.6 (Swift 6.3), whereas xcode-27 ships
+    # Xcode 27.1 (default) and 27.2 (Swift 6.4 / macOS 27 SDK).
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select Xcode
+        run: |
+          if [ -d /Applications/Xcode_27.2.app ]; then
+            sudo xcode-select -s /Applications/Xcode_27.2.app/Contents/Developer
+          fi
+          xcodebuild -version
+          swift --version
+      # Run PodListDomainTests and PodListDataTests (domain, data and protocol-conformance
+      # targets). PodListUITests is excluded on hosted macOS runners because it includes
+      # tests that require a window server, drag-and-drop, or local Unix sockets (such as
+      # AutomationTests, EpisodeDropTests and NSWindow/NSHostingView layout tests).
+      - name: Apple domain, data and protocol-conformance tests
+        working-directory: apps/apple
+        run: |
+          export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
+          export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
+          swift test --scratch-path .build --disable-sandbox --filter '^(PodListDomainTests|PodListDataTests)\.'
