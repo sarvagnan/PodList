@@ -15,13 +15,35 @@ export function serverOrigin(input: string) {
     url.username ||
     url.password ||
     url.port === "0" ||
-    !/^https?:\/\/[^/?#\\]+\/?$/i.test(address)
+    !/^https?:\/\/[^/?#@\\\s]+\/?$/i.test(address)
   )
     throw new Error(badAddress)
   return url.origin
 }
 
 type WebFetch = (url: string, init: RequestInit) => Promise<Response>
+
+const readHealth = async (response: Response): Promise<unknown> => {
+  const reader = response.body?.getReader()
+  if (!reader) return null
+  const decoder = new TextDecoder()
+  let size = 0
+  let text = ""
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return JSON.parse(text + decoder.decode()) as unknown
+      size += value.byteLength
+      if (size > 16 * 1024) return null
+      text += decoder.decode(value, { stream: true })
+    }
+  } catch {
+    return null
+  } finally {
+    await reader.cancel().catch(() => undefined)
+    reader.releaseLock()
+  }
+}
 
 export async function checkServer(origin: string, request: WebFetch) {
   let response: Response
@@ -39,7 +61,7 @@ export async function checkServer(origin: string, request: WebFetch) {
     await response.body?.cancel().catch(() => undefined)
     return `The server returned HTTP ${response.status}. Try again.`
   }
-  const health: unknown = await response.json().catch(() => null)
+  const health = await readHealth(response)
   if (
     !health ||
     typeof health !== "object" ||

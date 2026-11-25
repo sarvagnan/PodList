@@ -545,7 +545,7 @@ const connect = async (address: string): Promise<string | null> => {
   const source = window
   checkingServer = true
   try {
-    const problem = await checkServer(origin, net.fetch)
+    const problem = await checkServer(origin, (url, init) => net.fetch(url, init))
     if (problem) return problem
     if (source !== window || source?.isDestroyed() || source?.webContents.getURL() !== setupUrl)
       return "Connection cancelled."

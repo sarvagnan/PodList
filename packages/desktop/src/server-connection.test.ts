@@ -13,6 +13,8 @@ describe("desktop server connection", () => {
   it.each([
     "http://podlist.example",
     "https://user:password@podlist.example",
+    "https://@podlist.example",
+    "https://podlist\t.example",
     "https://podlist.example/a",
     "https://podlist.example/ignored/..",
     "https://podlist.example/?",
@@ -30,6 +32,10 @@ describe("desktop server connection", () => {
       expect.objectContaining({ credentials: "omit", redirect: "error" })
     )
     request.mockResolvedValueOnce(new Response("<html>Not a PodList server</html>"))
+    expect(await checkServer("https://podlist.example", request)).toContain("unreadable response")
+    request.mockResolvedValueOnce(
+      Response.json({ status: "ok", protocolVersion: 7, release: "x".repeat(20_000) })
+    )
     expect(await checkServer("https://podlist.example", request)).toContain("unreadable response")
     request.mockResolvedValueOnce(new Response(null, { status: 503 }))
     expect(await checkServer("https://podlist.example", request)).toContain("HTTP 503")
