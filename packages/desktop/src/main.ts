@@ -473,8 +473,9 @@ const pendingLinks: PodListLink[] = []
 const pendingOpml: string[] = []
 
 const receiveOpml = (path: string) => {
+  if (pendingOpml.includes(path)) return
   if (pendingOpml.length === 64) pendingOpml.shift()
-  if (!pendingOpml.includes(path)) pendingOpml.push(path)
+  pendingOpml.push(path)
   if (window && !window.isDestroyed()) window.webContents.send("podlist:opml-available")
 }
 

@@ -316,7 +316,9 @@ test("right-click on a row shows its commands as a native menu", async ({
         }
       )
     })
-    await expect.poll(shown).toContain("Copy PodList Link")
+    await expect
+      .poll(shown)
+      .toEqual(expect.arrayContaining(["Move to Bottom", "Copy PodList Link"]))
     await close(app)
   } finally {
     demo.stop()

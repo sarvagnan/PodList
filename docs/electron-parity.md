@@ -68,3 +68,15 @@ Keep the browser client online-only. Leave the existing server protocol unchange
 - **Storage layout.** Recommend one persistent Chromium partition for Standalone and the existing versioned SQLite worker/OPFS schema, keeping the existing hashed partitions for servers. Store only the active Library selection in shell configuration. Keep Bring Over progress durable and target-scoped.
 - **Platform integrations.** Recommend `podlist://` and OPML associations across Electron platforms, an Add Podcasts paste/drop flow everywhere, OS share targets where supported, MCP for automation, and a later decision on Windows Search or desktop-environment indexing. Keep Apple-specific Services, Spotlight and App Intents in the native app.
 - **Background lifetime and extra windows.** Recommend preserving playback and transfers when closing the Library window and limiting publisher polling to the running application. Decide whether Windows/Linux should offer a tray and whether additional windows should share one renderer-owned Library session before building those features.
+
+## Desktop integration checkpoint
+
+The baseline table above records the original audit. This checkpoint adds:
+
+- App links for Episodes, Playlists, Views and Subscriptions in the active Library. A missing target leaves the current screen in place.
+- Native OPML opening, File › Import OPML and Library file drops feed the existing import preview. Windows offers PodList in Open With. Linux registers a per-user desktop entry and OPML MIME association. Packaged Windows and Linux apps register on first launch.
+- The Add Podcasts field accepts pasted feed addresses. Dropping a feed address on the Library also opens Add Podcasts for review.
+- Episode Details and playback can use ID3 Chapters from completed downloads. When a feed declares publisher JSON Chapters, the resolver still prefers those.
+- Native keyboard context menus use the focused row and expose the same enabled states as the corresponding web controls. Opening OPML from the OS moves keyboard focus to the import region.
+
+Cross-Playlist drag, direct ID3 probing of undownloaded Standalone audio and contextual Search remain open. Share targets, desktop search indexing, the tray and additional windows remain deferred. Run the packaged associations on each target OS and verify the workflows with VoiceOver, NVDA and Orca.

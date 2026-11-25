@@ -31,7 +31,10 @@ export function DesktopLibraryDrop() {
       }
       if (files) {
         const opml = Array.from(data.files).filter((file) => /\.opml$/i.test(file.name))
-        if (!opml.length) return
+        if (!opml.length) {
+          toast.add({ description: "Drop an OPML file to import podcasts.", timeout: 5000 })
+          return
+        }
         if (!canEdit || opmlImport.getSnapshot().phase === "running") {
           toast.add({
             description: canEdit

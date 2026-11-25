@@ -26,7 +26,12 @@ export async function readOpmlFile(path: string, limit = opmlByteLimit): Promise
       if (!stat.isFile()) return { name, error: "Choose a regular OPML file." }
       if (stat.size > limit) return { name, error: "Choose OPML files totalling at most 8 MiB." }
       const buffer = Buffer.alloc(Math.min(stat.size + 1, limit + 1))
-      const { bytesRead } = await handle.read(buffer)
+      let bytesRead = 0
+      while (bytesRead < buffer.length) {
+        const part = await handle.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead)
+        if (!part.bytesRead) break
+        bytesRead += part.bytesRead
+      }
       if (bytesRead !== stat.size || (await handle.stat()).mtimeMs !== stat.mtimeMs)
         return { name, error: "This file changed while PodList was reading it. Try again." }
       return {

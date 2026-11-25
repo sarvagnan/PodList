@@ -61,7 +61,8 @@ export const LocalDataLayer = Layer.effect(
     const engine = yield* SyncEngine
     const sql = yield* SqlClient.SqlClient
     const transport = yield* Transport
-    const downloads = yield* DownloadStore
+    // Some local readers only compose SQLite and sync. Desktop also supplies OPFS.
+    const downloads = yield* Effect.serviceOption(DownloadStore)
     const fetchChapters = desktopStandalone ? yield* makeStandaloneChapters : transport.chapters
     const decodeChapters = Schema.decodeUnknownSync(Schema.Array(Library.Chapter))
     const chaptersFor = (id: string) =>
@@ -76,7 +77,10 @@ export const LocalDataLayer = Layer.effect(
         return yield* resolveLocalChapters({
           cached,
           preferDownload: row.chapters_url === null,
-          readPrefix: (bytes) => downloads.readPrefix(id, bytes),
+          readPrefix: (bytes) =>
+            downloads._tag === "Some"
+              ? downloads.value.readPrefix(id, bytes)
+              : Effect.succeed(null),
           remote: fetchChapters(id)
         })
       })
