@@ -1,6 +1,6 @@
 import { renameSync, writeFileSync } from "node:fs"
-import { startDemo } from "../../packages/web/ui-flows/demo.mjs"
 import { connect } from "node:net"
+import { startDemo } from "../../packages/web/ui-flows/demo.mjs"
 import { relay } from "./relay.mjs"
 
 const [host, port, control] = process.argv.slice(2)
@@ -21,7 +21,11 @@ try {
   if (!stopping) {
     // The Mac gate lives on the guest's own disk: the shared folder kept showing a
     // deleted gate file for over 30 s, so the host toggles it with tart exec.
-    listener = relay(Number(port), () => connect(Number(port) + 1, "127.0.0.1"), "/private/tmp/podlist-cross-sync-mac-offline")
+    listener = relay(
+      Number(port),
+      () => connect(Number(port) + 1, "127.0.0.1"),
+      "/private/tmp/podlist-cross-sync-mac-offline"
+    )
     await listener.ready
     if (!stopping) {
       const ready = { fixtureFeed: `${demo.fixtures}/feeds/long-list.xml` }

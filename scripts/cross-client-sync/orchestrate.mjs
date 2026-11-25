@@ -29,7 +29,11 @@ let adbPath = process.env.PODLIST_SYNC_BOAT_ADB
 const control = join(staging, "cross-sync-control")
 const macGate = "/private/tmp/podlist-cross-sync-mac-offline"
 const macOffline = (offline) =>
-  command("tart", ["exec", vm, offline ? "/usr/bin/touch" : "/bin/rm", ...(offline ? [] : ["-f"]), macGate], `mac-gate-${offline ? "on" : "off"}`).result
+  command(
+    "tart",
+    ["exec", vm, offline ? "/usr/bin/touch" : "/bin/rm", ...(offline ? [] : ["-f"]), macGate],
+    `mac-gate-${offline ? "on" : "off"}`
+  ).result
 const androidOffline = join(control, "android-offline")
 const remoteDir = `/tmp/podlist-sync-${randomUUID()}`
 const guestScript = "/Volumes/My Shared Files/repo/scripts/cross-client-sync/guest.sh"
@@ -108,7 +112,11 @@ const boat = (label, ...args) => command("boat", args, label).result
 // longest single-result timeout; longer ones stream instead).
 const remote = async (label, ...args) => {
   const raw = await boat(label, "exec", "--json", "--timeout", "600", sandbox, "--", ...args)
-  const line = raw.trim().split("\n").filter((entry) => entry.startsWith("{")).at(-1)
+  const line = raw
+    .trim()
+    .split("\n")
+    .filter((entry) => entry.startsWith("{"))
+    .at(-1)
   const envelope = JSON.parse(line ?? "{}")
   if (envelope.exitCode !== 0 || envelope.timedOut) {
     throw new Error(
@@ -425,26 +433,42 @@ try {
     writeFileSync(androidOffline, "")
     // The gate files reach the guest through the shared folder, which can lag; wait
     // until each relay actually refuses rather than probing once.
-    await until("Mac relay offline", async () => {
-      try {
-        await command(
-          "tart",
-          ["exec", vm, "/usr/bin/curl", "-fsS", "--max-time", "3", `http://127.0.0.1:${port}/api/health`],
-          "mac-offline-probe"
-        ).result
-        return false
-      } catch {
-        return true
-      }
-    }, 30_000)
-    await until("host relay offline", async () => {
-      try {
-        await fetch(`${webServer}/api/health`, { signal: AbortSignal.timeout(3_000) })
-        return false
-      } catch {
-        return true
-      }
-    }, 30_000)
+    await until(
+      "Mac relay offline",
+      async () => {
+        try {
+          await command(
+            "tart",
+            [
+              "exec",
+              vm,
+              "/usr/bin/curl",
+              "-fsS",
+              "--max-time",
+              "3",
+              `http://127.0.0.1:${port}/api/health`
+            ],
+            "mac-offline-probe"
+          ).result
+          return false
+        } catch {
+          return true
+        }
+      },
+      30_000
+    )
+    await until(
+      "host relay offline",
+      async () => {
+        try {
+          await fetch(`${webServer}/api/health`, { signal: AbortSignal.timeout(3_000) })
+          return false
+        } catch {
+          return true
+        }
+      },
+      30_000
+    )
     await mac("offline-edit")
     await android("offline-edit")
     const disconnected = await pull(before)
@@ -483,18 +507,30 @@ try {
 
     await macOffline(false)
     // The gate file's removal also reaches the guest through the lagging shared folder.
-    await until("Mac relay back online", async () => {
-      try {
-        await command(
-          "tart",
-          ["exec", vm, "/usr/bin/curl", "-fsS", "--max-time", "3", `http://127.0.0.1:${port}/api/health`],
-          "mac-online-probe"
-        ).result
-        return true
-      } catch {
-        return false
-      }
-    }, 30_000)
+    await until(
+      "Mac relay back online",
+      async () => {
+        try {
+          await command(
+            "tart",
+            [
+              "exec",
+              vm,
+              "/usr/bin/curl",
+              "-fsS",
+              "--max-time",
+              "3",
+              `http://127.0.0.1:${port}/api/health`
+            ],
+            "mac-online-probe"
+          ).result
+          return true
+        } catch {
+          return false
+        }
+      },
+      30_000
+    )
     await mac("offline-flush")
     const macChanges = (await pull(androidCursor)).operations
     const macListen = mostRecent(macChanges)
