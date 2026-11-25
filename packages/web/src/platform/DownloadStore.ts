@@ -114,6 +114,7 @@ export class DownloadStore extends Context.Service<
           objectUrls.delete(episodeId)
           await directory.removeEntry(fileName(episodeId)).catch(() => undefined)
           await directory.removeEntry(typeName(episodeId)).catch(() => undefined)
+          await directory.removeEntry(`${fileName(episodeId)}.part`).catch(() => undefined)
         })
 
       const list = Effect.promise(async () => {

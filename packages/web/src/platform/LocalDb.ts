@@ -28,6 +28,14 @@ export const clientMigrations = Migrator.fromRecord({
       bytes INTEGER NOT NULL,
       saved_at INTEGER NOT NULL
     )`
+  }),
+  "0003_download_requests": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE download_request (
+      episode_id TEXT PRIMARY KEY,
+      manual INTEGER NOT NULL,
+      failure TEXT
+    )`
   })
 })
 
