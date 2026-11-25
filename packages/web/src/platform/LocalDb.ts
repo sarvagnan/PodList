@@ -28,6 +28,25 @@ export const clientMigrations = Migrator.fromRecord({
       bytes INTEGER NOT NULL,
       saved_at INTEGER NOT NULL
     )`
+  }),
+  "0003_standalone_operations": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE local_operation (
+      seq INTEGER PRIMARY KEY,
+      operation TEXT NOT NULL
+    )`
+  }),
+  "0004_publisher_feeds": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE subscription ADD COLUMN website_url TEXT`
+    yield* sql`ALTER TABLE episode ADD COLUMN website_url TEXT`
+    yield* sql`CREATE TABLE feed_state (
+      subscription_id TEXT PRIMARY KEY REFERENCES subscription (id),
+      etag TEXT,
+      last_modified TEXT,
+      checked_at INTEGER NOT NULL,
+      failures INTEGER NOT NULL DEFAULT 0
+    )`
   })
 })
 

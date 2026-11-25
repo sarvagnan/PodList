@@ -5,6 +5,7 @@ import { type Context, Effect, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import * as LocalDb from "../platform/LocalDb.ts"
+import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
 import { catalogueKey, SyncEngine } from "./SyncEngine.ts"
 import { Offline, Transport } from "./Transport.ts"
 
@@ -111,7 +112,7 @@ const newDatabase = Layer.build(LocalDb.layerMemory.pipe(Layer.provideMerge(Reac
 const device = (
   server: ReturnType<typeof makeServer>,
   db: Context.Context<SqlClient.SqlClient | Reactivity.Reactivity>,
-  options: Pick<Parameters<typeof SyncEngine.layer>[0], "deviceKind"> = {}
+  options: Pick<Parameters<typeof SyncEngine.layer>[0], "deviceKind" | "standalone"> = {}
 ) =>
   SyncEngine.layer({ defaults, deviceName: "test", ...options }).pipe(
     Layer.provideMerge(Layer.succeedContext(db)),
@@ -152,6 +153,64 @@ describe("SyncEngine", () => {
         { id, kind: "desktop" }
       ])
     })
+  )
+
+  it.effect(
+    "keeps Standalone State and catalogue edits without registering or queuing a push",
+    () =>
+      Effect.gen(function* () {
+        const server = makeServer()
+        const db = yield* newDatabase
+        const firstPage = yield* server.transport.catalogue(0)
+        yield* Effect.gen(function* () {
+          yield* upsertSubscriptions(firstPage.referencedSubscriptions ?? [])
+          yield* upsertEpisodes(firstPage.episodes)
+        }).pipe(Effect.provide(db))
+        server.setOnline(false)
+        const layer = device(server, db, { deviceKind: "desktop", standalone: true })
+        const id = yield* Effect.gen(function* () {
+          const engine = yield* SyncEngine
+          yield* engine.record(add("e1"))
+          yield* engine.record(change({ _tag: "MarkSubscriptionPlayed", subscriptionId: "s" }))
+          yield* engine.record(
+            change({
+              _tag: "SetSubscriptionOverrides",
+              subscriptionId: "s",
+              playbackSettings: { speed: 1.5 },
+              playedThreshold: 15
+            })
+          )
+          yield* engine.sync
+          expect(yield* SubscriptionRef.get(engine.status)).toMatchObject({
+            pending: 0,
+            ready: true
+          })
+          return engine.deviceId
+        }).pipe(Effect.provide(layer))
+
+        yield* Effect.gen(function* () {
+          const engine = yield* SyncEngine
+          const sql = yield* SqlClient.SqlClient
+          expect(engine.deviceId).toBe(id)
+          expect(
+            (yield* SubscriptionRef.get(engine.state)).episodeStates.e1?.played?.source._tag
+          ).toBe("User")
+          expect(yield* sql`SELECT played_threshold, playback_settings FROM subscription`).toEqual([
+            { played_threshold: 15, playback_settings: '{"speed":1.5}' }
+          ])
+          expect(yield* sql`SELECT * FROM outbox`).toEqual([])
+          const logged = yield* sql<{
+            operation: string
+          }>`SELECT operation FROM local_operation ORDER BY seq`
+          expect(logged.map(({ operation }) => JSON.parse(operation).change._tag)).toEqual([
+            "AddEntry",
+            "MarkPlayed",
+            "MarkPlayed",
+            "SetSubscriptionOverrides"
+          ])
+        }).pipe(Effect.provide(layer))
+        expect(server.registrations).toEqual([])
+      })
   )
 
   it.effect("applies edits immediately offline and keeps them across restarts", () =>
