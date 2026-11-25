@@ -123,10 +123,15 @@ export class Library extends Context.Service<
           const guidsInFeed = new Set(feed.episodes.map((e) => e.guid))
           for (const e of feed.episodes) {
             // SQLite narrows the candidates. The shared matcher resolves GUID priority and ambiguity.
-            const candidates = yield* sql<StoredEpisode>`
-              SELECT *, audio_url AS audioUrl FROM episode WHERE subscription_id = ${subscriptionId}
-                AND (guid = ${e.guid} OR audio_url = ${e.audioUrl}
-                  OR (title = ${e.title} AND published = ${e.published}))`
+            const exact = yield* sql<StoredEpisode>`
+              SELECT *, audio_url AS audioUrl FROM episode
+              WHERE subscription_id = ${subscriptionId} AND guid = ${e.guid}`
+            const candidates = exact.length
+              ? exact
+              : yield* sql<StoredEpisode>`
+                  SELECT *, audio_url AS audioUrl FROM episode
+                  WHERE subscription_id = ${subscriptionId}
+                    AND (audio_url = ${e.audioUrl} OR (title = ${e.title} AND published = ${e.published}))`
             const existing = EpisodeIdentity.matchEpisode(e, candidates, guidsInFeed)
             if (existing === undefined) {
               added++

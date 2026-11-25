@@ -26,3 +26,22 @@ export function matchEpisode<Stored extends EpisodeIdentity>(
   }
   return ambiguous ? undefined : fallback
 }
+
+/** Index the current catalogue once when reconciling a complete feed. */
+export function indexEpisodeCandidates<Stored extends EpisodeIdentity>(
+  episodes: ReadonlyArray<Stored>
+) {
+  const byGuid = new Map(episodes.map((episode) => [episode.guid, episode]))
+  const byAudio = Map.groupBy(episodes, (episode) => episode.audioUrl)
+  const titleDate = (episode: EpisodeIdentity) => JSON.stringify([episode.title, episode.published])
+  const byTitleDate = Map.groupBy(episodes, titleDate)
+  return (episode: EpisodeIdentity): Iterable<Stored> => {
+    const exact = byGuid.get(episode.guid)
+    return exact
+      ? [exact]
+      : new Set([
+          ...(byAudio.get(episode.audioUrl) ?? []),
+          ...(byTitleDate.get(titleDate(episode)) ?? [])
+        ])
+  }
+}

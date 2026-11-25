@@ -121,6 +121,7 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
           FROM episode WHERE subscription_id = ${sub.id}`
         const published = new Map(feed.episodes.map((episode) => [episode.guid, episode]))
         const guidsInFeed = new Set(published.keys())
+        const candidatesFor = EpisodeIdentity.indexEpisodeCandidates(current)
         const reused = new Set<string>()
 
         const selected = guid === undefined ? [...published.values()] : [published.get(guid)]
@@ -130,7 +131,7 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
             return yield* Effect.fail(new LibraryError("Episode is no longer in the feed."))
           const matched = EpisodeIdentity.matchEpisode(
             episode,
-            current,
+            candidatesFor(episode),
             guid === undefined ? guidsInFeed : undefined
           )
           const previous = matched && !reused.has(matched.id) ? matched : undefined
