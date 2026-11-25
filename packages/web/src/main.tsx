@@ -10,6 +10,7 @@ import { routeTree } from "./routeTree.gen.ts"
 import "./index.css"
 
 // A new screen starts at the top; lists restore their own position (lib/scrollMemory.ts).
+if (import.meta.env.MODE === "desktop") document.documentElement.dataset.podlistDesktop = ""
 const router = createRouter({ routeTree })
 preserveOverlayScroll(router)
 router.subscribe("onResolved", ({ toLocation }) =>

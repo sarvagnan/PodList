@@ -11,6 +11,7 @@ import {
   ipcMain,
   Menu,
   type MenuItemConstructorOptions,
+  nativeTheme,
   net,
   protocol,
   session,
@@ -60,7 +61,10 @@ const webRoot = normalize(
 
 const configFile = () => join(app.getPath("userData"), "config.json")
 
+type Appearance = "system" | "light" | "dark"
+
 interface Config {
+  readonly appearance?: Appearance
   readonly mcpEnabled?: boolean
   readonly serverUrl?: string
   readonly lastServer?: string
@@ -436,7 +440,7 @@ const createWindow = () => {
     minWidth: 760,
     minHeight: 500,
     title: "PodList",
-    backgroundColor: "#f6f5f2",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#202124" : "#f6f5f2",
     show: false,
     ...(hiddenWindow ? { focusable: false } : {}),
     webPreferences: {
@@ -810,6 +814,22 @@ if (!app.requestSingleInstanceLock()) {
     } catch (e) {
       automation.error = e instanceof Error ? e.message : String(e)
     }
+    const savedAppearance = readConfig().appearance
+    if (savedAppearance === "dark" || savedAppearance === "light")
+      nativeTheme.themeSource = savedAppearance
+    ipcMain.handle("podlist:appearance", (event) => {
+      if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
+      return nativeTheme.themeSource
+    })
+    ipcMain.handle("podlist:set-appearance", (event, appearance: unknown) => {
+      if (
+        !trustedAutomation(event) ||
+        (appearance !== "system" && appearance !== "dark" && appearance !== "light")
+      )
+        throw new Error("Invalid Appearance setting.")
+      writeConfig({ ...readConfig(), appearance })
+      nativeTheme.themeSource = appearance
+    })
     const updateMenu = () =>
       Menu.setApplicationMenu(Menu.buildFromTemplate(hiddenWindow ? hiddenMenu(menu()) : menu()))
     updateMenu()

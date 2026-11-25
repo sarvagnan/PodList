@@ -12,6 +12,10 @@ if (location.protocol === "file:") {
 } else if (location.protocol === "app:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
+    appearance: {
+      get: () => ipcRenderer.invoke("podlist:appearance"),
+      set: (appearance) => ipcRenderer.invoke("podlist:set-appearance", appearance)
+    },
     connection: {
       settings: () => ipcRenderer.invoke("podlist:connection-settings"),
       changeServer: () => ipcRenderer.invoke("podlist:change-server"),

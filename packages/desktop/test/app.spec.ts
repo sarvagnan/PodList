@@ -27,6 +27,18 @@ test("runs its own copy of the web app, with a local database, and opens offline
     // Exercise MCP in this existing launch; no extra Electron windows.
     expect(existsSync(join(profile, "mcp.sock"))).toBe(false)
     await sidebar.getByRole("link", { name: "Settings", exact: true }).click()
+    const appearance = page.getByRole("combobox", { name: "Appearance" })
+    await expect(appearance).toHaveValue("system")
+    await appearance.selectOption("dark")
+    await expect
+      .poll(() => page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches))
+      .toBe(true)
+    await appearance.selectOption("light")
+    await expect
+      .poll(() => page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches))
+      .toBe(false)
+    await appearance.selectOption("system")
+    await page.getByRole("tab", { name: "Automation" }).click()
     const toggle = page.getByRole("checkbox", { name: "Enable MCP server" })
     await expect(toggle).not.toBeChecked()
     await expect(

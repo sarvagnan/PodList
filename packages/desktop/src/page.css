@@ -3,10 +3,25 @@
   color-scheme: light;
   --background: #f6f5f2;
   --foreground: #17181c;
+  --card: #ffffff;
+  --primary-foreground: #ffffff;
   --muted-foreground: #5c6070;
   --primary: #2b50c8;
   --input: #d6d3cc;
   --destructive: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #202124;
+    --foreground: #f3f3f4;
+    --card: #2a2b30;
+    --muted-foreground: #bcbec9;
+    --primary: #9db1ff;
+    --primary-foreground: #111b36;
+    --input: #8a8d9c;
+    --destructive: #ff9fa1;
+  }
 }
 * {
   box-sizing: border-box;
@@ -50,7 +65,7 @@ input {
   padding: 0 12px;
   border: 1px solid var(--input);
   border-radius: 10px;
-  background: #fff;
+  background: var(--card);
   font: inherit;
   color: inherit;
 }
@@ -66,7 +81,7 @@ button {
   border: 0;
   border-radius: 999px;
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-foreground);
   font: inherit;
   font-weight: 600;
 }

@@ -1,6 +1,8 @@
 // Links to share: the page on the PodList server. In the Mac app the page's own
 // address is app://podlist, which opens nowhere else, so it asks the shell for the server.
 
+export type DesktopAppearance = "system" | "light" | "dark"
+
 declare global {
   interface Window {
     readonly podlistApp?: {
@@ -16,6 +18,10 @@ declare global {
         ) => () => void
       }
       readonly server: () => Promise<string | null>
+      readonly appearance?: {
+        readonly get: () => Promise<DesktopAppearance>
+        readonly set: (appearance: DesktopAppearance) => Promise<void>
+      }
       readonly connection?: {
         readonly settings: () => Promise<{
           readonly address: string | null
