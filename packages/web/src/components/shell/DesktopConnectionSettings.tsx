@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { desktopStandalone } from "../../lib/desktopSession.ts"
 
 const buttonClass =
   "rounded-full bg-secondary px-4 py-2 text-row font-medium hover:bg-input disabled:opacity-60"
@@ -45,6 +46,19 @@ export function DesktopConnectionSettings({ heading }: { readonly heading: strin
             <dt className="font-medium">Server Address</dt>
             <dd className="break-all">{details.address}</dd>
           </dl>
+        )}
+        {desktopStandalone && (
+          <div className="space-y-2">
+            <p className="text-row">Standalone Device. Your Library is on this computer.</p>
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={working}
+              onClick={() => change("changeServer")}
+            >
+              Connect to a Server…
+            </button>
+          </div>
         )}
         {details && !details.managed && details.address && (
           <div className="flex flex-wrap gap-2">

@@ -39,6 +39,17 @@ export class Transport extends Context.Service<
     readonly chapters: (episodeId: string) => Effect.Effect<ReadonlyArray<Library.Chapter>, Offline>
   }
 >()("@podlist/web/Transport") {
+  static readonly layerStandalone = Layer.succeed(
+    Transport,
+    Transport.of({
+      registerDevice: () => Effect.fail(new Offline("This is a Standalone Device.")),
+      push: () => Effect.fail(new Offline("This is a Standalone Device.")),
+      pull: () => Effect.fail(new Offline("This is a Standalone Device.")),
+      catalogue: () => Effect.fail(new Offline("This is a Standalone Device.")),
+      chapters: () => Effect.succeed([])
+    })
+  )
+
   static readonly layerHttp = (baseUrl: string) =>
     Layer.effect(
       Transport,

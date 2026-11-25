@@ -14,11 +14,15 @@
     "build:app": "node scripts/build-app.ts",
     "install:app": "node scripts/build-app.ts --install"
   },
+  "dependencies": {
+    "@podlist/feeds": "workspace:*"
+  },
   "devDependencies": {
     "@electron/packager": "20.3.0",
     "@playwright/test": "1.65.0",
     "electron": "44.9.3",
     "playwright": "1.65.0",
+    "rolldown": "1.2.16",
     "sharp": "0.35.5"
   }
 }

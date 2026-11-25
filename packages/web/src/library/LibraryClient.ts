@@ -15,6 +15,7 @@ export class LibraryError extends Error {
 export class LibraryClient extends Context.Service<
   LibraryClient,
   {
+    readonly runInBackground?: Effect.Effect<never>
     readonly search: (
       query: string
     ) => Effect.Effect<ReadonlyArray<Directory.DirectoryResult>, LibraryError>

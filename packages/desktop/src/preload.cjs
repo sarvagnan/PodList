@@ -7,11 +7,13 @@ if (location.protocol === "file:") {
   contextBridge.exposeInMainWorld("podlist", {
     connect: (address) => ipcRenderer.invoke("podlist:connect", address),
     setup: () => ipcRenderer.invoke("podlist:setup"),
+    startStandalone: () => ipcRenderer.invoke("podlist:start-standalone"),
     cancel: () => ipcRenderer.invoke("podlist:cancel")
   })
 } else if (location.protocol === "app:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
+    standalone: process.argv.includes("--podlist-standalone"),
     appearance: {
       get: () => ipcRenderer.invoke("podlist:appearance"),
       set: (appearance) => ipcRenderer.invoke("podlist:set-appearance", appearance)

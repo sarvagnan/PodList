@@ -6,6 +6,7 @@ export type DesktopAppearance = "system" | "light" | "dark"
 declare global {
   interface Window {
     readonly podlistApp?: {
+      readonly standalone?: boolean
       readonly automation?: {
         readonly status: () => Promise<
           import("../automation/AutomationSettings.tsx").AutomationStatus

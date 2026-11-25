@@ -5,6 +5,7 @@ import { clientLayer, playerLayer } from "#client"
 import { DataLayer } from "../data/DataLayer.ts"
 import { Downloads } from "../downloads/DownloadService.ts"
 import { artworkSrc } from "../lib/artwork.ts"
+import { desktopStandalone } from "../lib/desktopSession.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
 import { Playback, type SleepRequest } from "../playback/Playback.ts"
 import { Transport } from "../sync/Transport.ts"
@@ -48,8 +49,9 @@ export const AppLayer = PlaybackLive.pipe(
     clientLayer({ defaults, deviceName: deviceName(), audioUrl, origin: location.origin })
   ),
   Layer.provide(playerLayer),
-  Layer.provide(Transport.layerHttp(location.origin)),
-  Layer.provideMerge(LibraryClient.layerHttp(location.origin))
+  Layer.provide(
+    desktopStandalone ? Transport.layerStandalone : Transport.layerHttp(location.origin)
+  )
 )
 
 export const runtime = Atom.runtime(AppLayer)
@@ -79,7 +81,9 @@ export const syncStatusAtom = runtime.atom(
 export const backgroundSyncAtom = runtime.atom(
   Effect.gen(function* () {
     const engine = yield* DataLayer
+    const library = yield* LibraryClient
     yield* Effect.forkScoped(engine.runInBackground)
+    if (library.runInBackground) yield* Effect.forkScoped(library.runInBackground)
   })
 )
 

@@ -17,6 +17,7 @@ type PollState = {
 }
 
 type RefreshOptions = {
+  readonly subscriptionId?: string
   readonly automatic?: boolean
   readonly progress?: (completed: number, total: number) => void
 }
@@ -217,8 +218,10 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
 
     const refresh = (options: RefreshOptions = {}) =>
       Effect.gen(function* () {
+        const id = options.subscriptionId ?? null
         const rows = yield* sql<SubscriptionRow>`
-          SELECT * FROM subscription WHERE unsubscribed_at IS NULL ORDER BY title, id`
+          SELECT * FROM subscription WHERE unsubscribed_at IS NULL
+          AND (${id} IS NULL OR id = ${id}) ORDER BY title, id`
         let updated = 0
         let notModified = 0
         let failed = 0
@@ -237,6 +240,11 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
       }).pipe(poll.withPermits(1), Effect.mapError(libraryError))
 
     return {
+      isSubscribed: (feedUrl: string) =>
+        subscription(feedUrl).pipe(
+          Effect.map((sub) => sub?.unsubscribedAt === null),
+          Effect.mapError(libraryError)
+        ),
       readPodcast: (feedUrl: string) => read(feedUrl).pipe(Effect.map((result) => result.feed)),
       search: (query: string) =>
         Effect.tryPromise({

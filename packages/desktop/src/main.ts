@@ -20,6 +20,7 @@ import {
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
 import { hiddenMenu } from "./hidden-window.ts"
+import { publisherRequest } from "./publisher-requests.ts"
 import { checkServer, serverOrigin } from "./server-connection.ts"
 
 // The Mac app carries its own copy of the web app (ADR 0005), served from
@@ -66,6 +67,7 @@ type Appearance = "system" | "light" | "dark"
 interface Config {
   readonly appearance?: Appearance
   readonly mcpEnabled?: boolean
+  readonly standalone?: boolean
   readonly serverUrl?: string
   readonly lastServer?: string
   readonly bounds?: { x: number; y: number; width: number; height: number }
@@ -82,6 +84,8 @@ const writeConfig = (config: Config) => writeFileSync(configFile(), JSON.stringi
 
 /** PODLIST_URL wins (development and tests), then the saved address. */
 const serverUrl = () => process.env.PODLIST_URL ?? readConfig().serverUrl
+const standaloneSelected = () => serverUrl() === undefined && readConfig().standalone === true
+const hasLibrary = () => serverUrl() !== undefined || standaloneSelected()
 
 const bridgeBinary = app.isPackaged
   ? join(process.resourcesPath, process.platform === "win32" ? "podlist-mcp.exe" : "podlist-mcp")
@@ -201,9 +205,12 @@ const forward = async (request: Request, server: string) => {
   return decodedResponse(upstream)
 }
 
-/** One browser profile per server, so each server's Library has its own local database. */
-const profileFor = (server: string) => {
-  const partition = `persist:${createHash("sha256").update(new URL(server).origin).digest("hex").slice(0, 16)}`
+/** Standalone and each server own a separate SQLite and OPFS profile. */
+const profileFor = (server: string | null) => {
+  const partition =
+    server === null
+      ? "persist:standalone"
+      : `persist:${createHash("sha256").update(new URL(server).origin).digest("hex").slice(0, 16)}`
   const profile = session.fromPartition(partition)
   if (!profile.protocol.isProtocolHandled(scheme)) {
     profile.protocol.handle(scheme, async (request) => {
@@ -238,7 +245,13 @@ const profileFor = (server: string) => {
           return Response.error()
         }
       }
-      return url.pathname.startsWith("/api/") ? forward(request, server) : serveFile(url.pathname)
+      if (url.pathname.startsWith("/publisher/"))
+        return server === null
+          ? publisherRequest(request, url)
+          : new Response(null, { status: 404 })
+      if (url.pathname.startsWith("/api/"))
+        return server === null ? new Response(null, { status: 404 }) : forward(request, server)
+      return serveFile(url.pathname)
     })
   }
   return partition
@@ -435,6 +448,7 @@ let window: BrowserWindow | undefined
 
 const createWindow = () => {
   const server = serverUrl()
+  const standalone = standaloneSelected()
   const { bounds } = readConfig()
   const win = new BrowserWindow({
     ...(window?.getBounds() ?? bounds ?? { width: 1280, height: 820 }),
@@ -450,7 +464,8 @@ const createWindow = () => {
       sandbox: true,
       nodeIntegration: false,
       preload: join(import.meta.dirname, "preload.cjs"),
-      ...(server === undefined ? {} : { partition: profileFor(server) })
+      ...(standalone || server !== undefined ? { partition: profileFor(server ?? null) } : {}),
+      ...(standalone ? { additionalArguments: ["--podlist-standalone"] } : {})
     }
   })
   window = win
@@ -483,7 +498,14 @@ const createWindow = () => {
   // Links away from the app open in the default browser.
   // Of files, only the setup page: a file dropped on the window must not replace the app
   // (DRAG-01).
-  const inApp = (url: string) => url.startsWith(`${appOrigin}/`) || url === setupUrl
+  const inApp = (url: string) => {
+    if (url === setupUrl) return true
+    if (!url.startsWith(`${appOrigin}/`)) return false
+    const path = new URL(url).pathname
+    return (
+      path !== "/audio-download" && !path.startsWith("/publisher/") && !path.startsWith("/api/")
+    )
+  }
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void openExternal(url)
     return { action: "deny" }
@@ -520,7 +542,7 @@ const createWindow = () => {
     if (command === "browser-forward") goForward(win)
   })
 
-  void (server === undefined ? win.loadFile(setupPage) : win.loadURL(`${appOrigin}/`))
+  void (standalone || server !== undefined ? win.loadURL(`${appOrigin}/`) : win.loadFile(setupPage))
   return win
 }
 
@@ -549,7 +571,7 @@ const connect = async (address: string): Promise<string | null> => {
     if (problem) return problem
     if (source !== window || source?.isDestroyed() || source?.webContents.getURL() !== setupUrl)
       return "Connection cancelled."
-    writeConfig({ ...readConfig(), serverUrl: origin, lastServer: origin })
+    writeConfig({ ...readConfig(), standalone: false, serverUrl: origin, lastServer: origin })
     reopen()
     return null
   } finally {
@@ -884,11 +906,24 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("podlist:setup", (event) => {
       if (!trustedSetup(event)) throw new Error("Connection is unavailable here.")
       const config = readConfig()
-      return { current: serverUrl() ?? null, last: config.lastServer ?? null }
+      return {
+        current: serverUrl() ?? null,
+        last: config.lastServer ?? null,
+        active: hasLibrary(),
+        mac: process.platform === "darwin"
+      }
     })
     ipcMain.handle("podlist:cancel", async (event) => {
-      if (!trustedSetup(event) || !serverUrl() || checkingServer) return
+      if (!trustedSetup(event) || !hasLibrary() || checkingServer) return
       await window?.loadURL(`${appOrigin}/`)
+    })
+    ipcMain.handle("podlist:start-standalone", (event) => {
+      if (!trustedSetup(event) || checkingServer || process.env.PODLIST_URL !== undefined)
+        throw new Error("Could not open the Standalone Library.")
+      if (standaloneSelected()) return window?.loadURL(`${appOrigin}/`)
+      const { serverUrl: previous, ...config } = readConfig()
+      writeConfig({ ...config, standalone: true, ...(previous ? { lastServer: previous } : {}) })
+      reopen()
     })
     ipcMain.handle("podlist:connection-settings", (event) => {
       if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")

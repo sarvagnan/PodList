@@ -2,6 +2,7 @@ import { Effect, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { DataLayer } from "../data/DataLayer.ts"
 import { pageControls } from "../data/PagedRead.ts"
+import { desktopStandalone } from "../lib/desktopSession.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
 import { runtime } from "./runtime.ts"
 
@@ -19,7 +20,9 @@ export const refreshFeedsAtom = runtime
       if (command === "cancel") {
         context.set(feedRefreshAtom, {
           kind: "finished",
-          message: "Feed refresh cancelled. The server may finish the current feed.",
+          message: desktopStandalone
+            ? "Feed refresh cancelled."
+            : "Feed refresh cancelled. The server may finish the current feed.",
           error: false
         })
         yield* data.sync.pipe(Effect.ignore)

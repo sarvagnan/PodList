@@ -1,5 +1,6 @@
 import { Effect, Layer, SubscriptionRef } from "effect"
 import { type DownloadStatus, Downloads } from "../downloads/DownloadService.ts"
+import { LibraryClient } from "../library/LibraryClient.ts"
 import { serverDataLayer } from "./ServerDataLayer.ts"
 
 export { webPlayerLayer as playerLayer } from "./WebPlayer.ts"
@@ -8,6 +9,7 @@ export const clientLayer = (
   options: Parameters<typeof serverDataLayer>[0] & { readonly audioUrl: (id: string) => string }
 ) =>
   serverDataLayer(options).pipe(
+    Layer.provideMerge(LibraryClient.layerHttp(options.origin)),
     Layer.merge(
       Layer.effect(
         Downloads,
