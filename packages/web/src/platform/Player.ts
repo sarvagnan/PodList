@@ -220,7 +220,9 @@ export class Player extends Context.Service<
               session?.setActionHandler(action, () => Queue.offerUnsafe(remote, command))
             }
             session?.setActionHandler("seekto", (details) => {
-              if (details.seekTime !== undefined) audio.currentTime = details.seekTime
+              if (details.seekTime === undefined) return
+              if (stoppedAt === null) audio.currentTime = details.seekTime
+              else stoppedAt = details.seekTime
             })
           }),
           () =>

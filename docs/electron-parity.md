@@ -79,4 +79,12 @@ The baseline table above records the original audit. This checkpoint adds:
 - Episode Details and playback can use ID3 Chapters from completed downloads. When a feed declares publisher JSON Chapters, the resolver still prefers those.
 - Native keyboard context menus use the focused row and expose the same enabled states as the corresponding web controls. Opening OPML from the OS moves keyboard focus to the import region.
 
-Cross-Playlist drag, direct ID3 probing of undownloaded Standalone audio and contextual Search remain open. Share targets, desktop search indexing, the tray and additional windows remain deferred. Run the packaged associations on each target OS and verify the workflows with VoiceOver, NVDA and Orca.
+## Shared rules and desktop workflow checkpoint
+
+- The server and Electron use the same TypeScript rules for feed polling, Episode identity and Apple directory results. Bring Over mapping lives in the domain package. The server retains its scheduled sweep cadence and directory responses. Cross-client fixtures are tracked in pod-9w8.
+- Drag an Entry title or checked Episode rows onto a Playlist in the sidebar to copy them in order. The drop preserves existing destination Entries and offers one Undo. An Entry’s native menu also offers Add to a Playlist.
+- Find focuses the current list’s search field. Global Search remains available from the sidebar and Go menu. Scoped results preserve list order and View limits.
+- Standalone can discover Chapters before a download by reading a bounded prefix of the publisher audio. Episode and Subscription details can show their publisher website links.
+- Stop releases the audio stream and saves the Position. Downloads queued when the app quits start again when the Library reopens. Failed downloads keep their Retry state.
+
+Packaged associations, Media Session controls and assistive technology still need live verification on each platform. OS share targets, desktop search indexing, the tray and extra windows remain deferred. Dragging pre-subscription search results and dragging between windows remain outside the current Playlist drop workflow.
