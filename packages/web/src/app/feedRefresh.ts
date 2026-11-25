@@ -1,4 +1,4 @@
-import { Effect } from "effect"
+import { Effect, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { DataLayer } from "../data/DataLayer.ts"
 import { pageControls } from "../data/PagedRead.ts"
@@ -27,6 +27,7 @@ export const refreshFeedsAtom = runtime
       }
       const library = yield* LibraryClient
       context.set(feedRefreshAtom, { kind: "running", checked: 0, total: 0 })
+      if (!(yield* SubscriptionRef.get(data.status)).ready) yield* data.sync
       let subscriptions = yield* data.subscriptions
       for (;;) {
         const more = pageControls(subscriptions)?.more
