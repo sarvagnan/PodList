@@ -731,6 +731,11 @@ function useMenuControls() {
       if (!(event instanceof CustomEvent) || typeof event.detail !== "string") return
       const command: string = event.detail
       if (command === "toggle") return control({ _tag: "toggle" })
+      if (command === "stop") {
+        if (!document.querySelector('[data-sheet="dialog"], [role="alertdialog"]'))
+          control({ _tag: "stop" })
+        return
+      }
       const playing = current.current
       if (playing === null) return
       if (command === "nowPlaying") return setDrawer({ open: true, stack: [] })
@@ -773,6 +778,13 @@ function useMenuControls() {
         ? event.metaKey && !event.ctrlKey
         : event.ctrlKey && !event.metaKey
       if (!inMacApp || !commandKey || event.shiftKey) return
+      if (event.key === "." && !event.altKey) {
+        if (!document.querySelector('[data-sheet="dialog"], [role="alertdialog"]')) {
+          event.preventDefault()
+          control({ _tag: "stop" })
+        }
+        return
+      }
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
       const target = event.target as HTMLElement
       if (target.closest("input, textarea, select, [contenteditable]")) return

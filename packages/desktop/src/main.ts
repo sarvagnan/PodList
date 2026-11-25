@@ -855,6 +855,12 @@ const menu = (): MenuItemConstructorOptions[] => [
         registerAccelerator: false,
         click: () => sendControl("toggle")
       },
+      {
+        label: "Stop",
+        accelerator: "CmdOrCtrl+.",
+        registerAccelerator: false,
+        click: () => sendControl("stop")
+      },
       { type: "separator" },
       // ⌘← ⌘→ (and with ⌥) move the caret in text fields, so the page takes them only
       // outside fields (BROWSER-07); the menu shows them without claiming the keys.

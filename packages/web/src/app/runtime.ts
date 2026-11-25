@@ -114,6 +114,7 @@ export const nowPlayingAtom = runtime.atom(
 
 type Command =
   | { readonly _tag: "toggle" }
+  | { readonly _tag: "stop" }
   | { readonly _tag: "retry" }
   | { readonly _tag: "skip"; readonly seconds: number }
   | { readonly _tag: "seek"; readonly seconds: number }
@@ -132,6 +133,8 @@ export const playbackAtom = runtime.fn((command: Command) =>
     switch (command._tag) {
       case "toggle":
         return yield* playback.toggle
+      case "stop":
+        return yield* playback.stop ?? playback.pause
       case "retry":
         return yield* playback.retry
       case "skip":
