@@ -663,6 +663,71 @@ and its table of contents in `timings-profile-N-toc.xml`. The default
 `os_signpost` instrument records `app.podlist` / `ResponseTiming` intervals,
 with `response_ms` on measured results. The profiler perturbs that run's timings.
 
+#### Compare with Electron in the same VM
+
+From the repository root on the arm64 Mac that hosts `podlist-ui`:
+
+```sh
+pnpm install --frozen-lockfile
+apps/apple/scripts/compare-responsiveness.sh my-run
+```
+
+The runner alternates native, Electron, native, Electron. It defaults to the
+optimized native tour build and starts every pass in a fresh clone of
+`podlist-ui` with a fresh demo Library. Each pass exports `timings.txt` and
+`memory.txt` under `podlist-grading/responsiveness/my-run/`, alongside the
+combined `comparison.md`.
+
+For one Electron pass, run
+`PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --electron-timings <empty-outdir>`.
+The host builds the desktop Vite bundle and MCP helper. The guest runs the
+checkout's installed arm64 Electron and Playwright through the read-only repo
+share. The checkout's pnpm links and Electron.app bundle must resolve inside
+that share. Electron uses a fresh writable guest profile at its default window
+size in Light appearance.
+
+Electron follows the native timing loop with three warm-ups and five measured
+iterations. Its Library page is the starting point for the sidebar transition
+to New this week. Selecting the first Episode opens the Inspector. Selecting
+the second changes its contents while it is open. Enter on the New Playlist sidebar
+button opens its dialog and Enter on the Settings sidebar link opens its page.
+These controls deliver renderer keydown events, while the global shortcuts go
+through Electron's application menu. Typing the final `e` uses the separate
+Library Search page and includes its 300 ms query debounce. The result marker
+requires the committed `rice` query, one result and the fixture Episode title.
+
+The harness injects a capture-phase listener in the renderer to read the
+`pointerdown` or `keydown` event's timestamp. A MutationObserver detects when
+the result is in the DOM. Search also checks on animation frames in case a new
+query returns identical rows. The endpoint is the first `requestAnimationFrame`
+timestamp strictly after that observation with the result still visible.
+Chromium calls it before paint, so it estimates the first eligible frame.
+Native uses the first display link's target timestamp after the result appears.
+Both clocks are inside the app in the guest. Playwright drives the actions and
+collects the finished samples.
+
+#### Run the desktop Playwright suite
+
+From the repository root, with the same prepared arm64 Tart VM and checkout
+dependencies:
+
+```sh
+PODLIST_UI_VM=podlist-ui apps/apple/scripts/ui-tour.sh --electron-tests podlist-grading/electron-tests
+```
+
+Choose a fresh, empty output directory. The host builds the desktop Vite
+bundle and MCP helper. A fresh clone settles and runs the
+`packages/desktop/test/*.spec.ts` suite from the read-only checkout with
+`ELECTRON_RUN_AS_NODE` unset. The tests use the checkout's Electron binary,
+guest loopback fixture servers, and fresh writable profiles and caches. They
+use the guest audio device for the playback test. Separate Playwright browser
+downloads are unnecessary for this suite.
+
+The script exports the HTML report at `playwright-report/index.html` and
+preserves failure screenshots and traces in `test-results/` when the app
+produces them. `electron-tests.log` contains the guest output. A failing or
+incomplete run returns a nonzero exit status.
+
 The generated README lists every screen and reports any missing required
 attachments out of 207.
 `Tour.xcresult`, `ShowBorders.xcresult`, raw attachments and build/demo/test logs

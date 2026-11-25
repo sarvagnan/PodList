@@ -138,19 +138,29 @@ const desktopScreens = async (rec: Recorder) => {
   await rec.step("Playlist settings", (p) => goto(p, "/playlists/default/settings"))
   await rec.step("Trash", (p) => goto(p, "/playlists/trash"))
   await rec.step("Search", (p) => goto(p, "/search"))
-  await rec.step("Search results and Refine", (p) => goto(p, "/search?q=rice"))
+  await rec.step("Search results and Refine", async (p) => {
+    await goto(p, "/search?q=rice")
+    const refine = p.getByRole("button", { name: "Refine", exact: true })
+    if ((await refine.getAttribute("aria-expanded")) === "false") await refine.click()
+  })
   await rec.step("View editor", (p) => goto(p, "/views/new-this-week?edit=true"))
   await rec.step("Library", (p) => goto(p, "/library"))
   await rec.step("Podcast and its settings", async (p) => {
     await p.getByRole("main").getByRole("link", { name: "Deep Field", exact: true }).click()
     await p.getByRole("heading", { name: "Deep Field", level: 1 }).waitFor()
+    const settings = p.getByRole("button", { name: /^Settings for this podcast/ })
+    if ((await settings.getAttribute("aria-expanded")) === "false") await settings.click()
   })
   await rec.step("Episode details", async (p) => {
+    await p.getByRole("button", { name: /^Settings for this podcast/ }).click()
     await p
       .getByRole("link", { name: "The quiet edge of the solar system", exact: true })
       .first()
       .click()
-    await p.getByRole("heading", { name: "The quiet edge of the solar system" }).waitFor()
+    await p
+      .getByRole("complementary", { name: "Episode Inspector" })
+      .getByRole("heading", { name: "The quiet edge of the solar system" })
+      .waitFor()
   })
   await rec.step("Add podcasts", (p) => goto(p, "/library?add=true"))
   const add = page.getByRole("dialog", { name: "Add podcasts" })

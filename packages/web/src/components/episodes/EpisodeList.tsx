@@ -6,6 +6,7 @@ import { useScrollMemory } from "../../lib/scrollMemory.ts"
 import type { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { ListContinuation } from "../lists/ListContinuation.tsx"
+import { desktopBuild } from "../shell/DesktopPanes.tsx"
 import { EpisodeRow } from "./EpisodeRow.tsx"
 
 /** A row's height at the default font size; rows are measured as they render. */
@@ -71,9 +72,10 @@ export function EpisodeList({
       else if (id !== undefined) void copyLink(id)
     },
     // With an Episode open beside the list, the arrows carry it along (LIST-07).
-    onRowMove: (index) => {
+    onRowMove: (index, extending) => {
+      if (desktopBuild && extending) return
       const id = episodes[index]?.id
-      if (selected !== undefined && id !== undefined && id !== selected)
+      if ((desktopBuild || selected !== undefined) && id !== undefined && id !== selected)
         onOpen(id, { replace: true })
     }
   })
@@ -120,7 +122,10 @@ export function EpisodeList({
               data-index={item.index}
               data-row={item.index}
               aria-rowindex={item.index + 1}
-              aria-selected={checked.has(episode.id)}
+              aria-selected={
+                checked.has(episode.id) ||
+                (desktopBuild && checked.size === 0 && episode.id === selected)
+              }
               aria-current={episode.id === selected ? "true" : undefined}
               className="absolute inset-x-0 top-0"
               style={{

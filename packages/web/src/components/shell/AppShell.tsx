@@ -15,7 +15,7 @@ import {
   SkipForward,
   Trash2
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { type CSSProperties, useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useCanEdit, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { useReplayJournal } from "../../app/journal.ts"
@@ -40,6 +40,13 @@ import { usePlaybackProblem } from "../player/usePlaybackProblem.ts"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
+import {
+  DesktopPanes,
+  DesktopPaneToolbar,
+  DesktopSidebar,
+  desktopBuild,
+  useDesktopPanes
+} from "./DesktopPanes.tsx"
 import { FirstRun, showGettingStarted } from "./FirstRun.tsx"
 import { RestoreDialog } from "./RestoreDialog.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
@@ -283,7 +290,7 @@ function NowPlaying({ variant }: { readonly variant: "phone" | "desktop" }) {
     <section
       aria-label="Now playing"
       ref={desktopBar}
-      className="surface-dark fixed inset-x-0 bottom-0 z-10 hidden grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground short:py-1.5 md:grid forced-colors:border-t forced-colors:border-[CanvasText]"
+      className={`surface-dark fixed inset-x-0 bottom-0 z-10 grid-cols-[minmax(160px,1fr)_minmax(260px,608px)_minmax(0,1fr)] items-center gap-6 bg-player px-5 py-2.5 text-player-foreground short:py-1.5 forced-colors:border-t forced-colors:border-[CanvasText] ${desktopBuild ? "grid" : "hidden md:grid"}`}
     >
       <div className="flex min-w-0 flex-col">
         <button
@@ -409,7 +416,7 @@ function Sidebar() {
   return (
     <nav
       aria-label="Library and lists"
-      className="sticky top-0 hidden h-dvh w-56 shrink-0 scroll-pb-[max(112px,var(--desktop-player,0px))] flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-[max(96px,var(--desktop-player,0px))] md:flex [&>*]:shrink-0"
+      className={`sticky top-0 h-dvh shrink-0 scroll-pb-[max(112px,var(--desktop-player,0px))] flex-col gap-0.5 overflow-y-auto border-r px-3 pt-5 pb-[max(96px,var(--desktop-player,0px))] [&>*]:shrink-0 ${desktopBuild ? "flex w-full" : "hidden w-56 md:flex"}`}
     >
       <p className="px-2.5 pb-2 font-heading text-lg font-semibold">PodList</p>
       <Link
@@ -640,7 +647,7 @@ function useFocusOnNavigation() {
       if (event.fromLocation === undefined || event.pathChanged) return
       const before = event.fromLocation.search as { episode?: unknown; edit?: unknown }
       const after = event.toLocation.search as { episode?: unknown; edit?: unknown }
-      if (before.episode === after.episode && before.edit === after.edit) return
+      if ((desktopBuild || before.episode === after.episode) && before.edit === after.edit) return
       let tries = 30
       const settle = () => {
         const active = document.activeElement
@@ -818,14 +825,47 @@ function usePlayPauseKey() {
 
 function EditRegion() {
   const canEdit = useCanEdit()
+  const panes = useDesktopPanes()
   return (
     <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0 m-0">
-      <Outlet />
+      {panes ? (
+        <div
+          className="grid items-start"
+          style={{
+            gridTemplateColumns: panes.visible
+              ? `minmax(0, 1fr) min(${panes.panes.inspectorWidth}px, calc(100vw - var(--desktop-sidebar-width) - 452px))`
+              : "minmax(0, 1fr)"
+          }}
+        >
+          <div className="min-w-0">
+            <Outlet />
+          </div>
+          <div ref={panes.setHost} className="contents" />
+        </div>
+      ) : (
+        <Outlet />
+      )}
     </fieldset>
   )
 }
 
 export function AppShell() {
+  return desktopBuild ? (
+    <DesktopPanes>
+      <Shell />
+    </DesktopPanes>
+  ) : (
+    <Shell />
+  )
+}
+
+function Shell() {
+  const panes = useDesktopPanes()
+  const sidebarWidth = panes?.panes.sidebar
+    ? panes.visible
+      ? `min(${panes.panes.sidebarWidth}px, calc(100vw - 715px))`
+      : `${panes.panes.sidebarWidth}px`
+    : "0px"
   useAtomMount(backgroundSyncAtom)
   useFocusOnNavigation()
   useReplayJournal()
@@ -847,28 +887,40 @@ export function AppShell() {
     return () => observer.disconnect()
   }, [])
   return (
-    <div className="flex min-h-dvh">
+    <div
+      className="flex min-h-dvh"
+      style={panes ? ({ "--desktop-sidebar-width": sidebarWidth } as CSSProperties) : undefined}
+    >
       <a
         href="#main"
         className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-card px-4 py-2.5 text-row font-semibold shadow focus:translate-y-0"
       >
         Skip to content
       </a>
-      <Sidebar />
+      {panes ? (
+        <DesktopSidebar>
+          <Sidebar />
+        </DesktopSidebar>
+      ) : (
+        <Sidebar />
+      )}
       <main
         id="main"
         tabIndex={-1}
-        className="min-w-0 flex-1 pb-44 outline-none md:pb-[max(112px,var(--desktop-player,0px))]"
+        className={`min-w-0 flex-1 outline-none ${panes ? "pb-[max(112px,var(--desktop-player,0px))]" : "pb-44 md:pb-[max(112px,var(--desktop-player,0px))]"}`}
       >
+        {panes && <DesktopPaneToolbar />}
         <VersionNotice />
         <FirstRun />
         <EditRegion />
       </main>
-      <div ref={bottomStack} className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">
-        <SyncIndicator variant="phone" />
-        <NowPlaying variant="phone" />
-        <BottomTabs />
-      </div>
+      {!panes && (
+        <div ref={bottomStack} className="fixed inset-x-0 bottom-0 z-10 bg-background md:hidden">
+          <SyncIndicator variant="phone" />
+          <NowPlaying variant="phone" />
+          <BottomTabs />
+        </div>
+      )}
       <NowPlaying variant="desktop" />
       <NowPlayingDrawer />
       <Toasts />

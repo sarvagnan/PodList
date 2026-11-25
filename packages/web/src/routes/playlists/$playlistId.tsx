@@ -10,6 +10,7 @@ import { localClient } from "#client"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
+import { DesktopEpisodeInspector } from "../../components/episodes/DesktopEpisodeInspector.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../../components/episodes/useEpisodeActions.ts"
 import { Tip } from "../../components/feedback/Tip.tsx"
@@ -26,7 +27,9 @@ import {
 } from "../../components/lists/VirtualSortableList.tsx"
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
+import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
 import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { useRowGrid } from "../../lib/rowGrid.ts"
 import { useScrollMemory } from "../../lib/scrollMemory.ts"
@@ -58,8 +61,35 @@ function PlaylistDetail() {
   const act = useEpisodeActions()
   const confirm = useConfirm()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
-  const { episode: selected, tab } = Route.useSearch()
+  const { episode: requestedSelection, tab } = Route.useSearch()
   const navigate = Route.useNavigate()
+  const {
+    selected,
+    invalid: invalidSelection,
+    forget
+  } = useDesktopListSelection(
+    `playlist:${playlistId}:${tab ?? "entries"}`,
+    requestedSelection,
+    (episode) =>
+      ready &&
+      !(tab === "history"
+        ? playlist?.history.some((entry) => entry.episodeId === episode)
+        : tab !== "timeline" && playlist?.entries.some((entry) => entry.episodeId === episode))
+  )
+  const selectEpisode = (episodeId: string) =>
+    void navigate(
+      desktopBuild
+        ? { search: (previous) => ({ ...previous, episode: episodeId }), replace: true }
+        : { search: { episode: episodeId } }
+    )
+  const clearSelection = () => {
+    forget()
+    if (selected) void navigate({ search: ({ episode: _, ...rest }) => rest, replace: true })
+  }
+  useEffect(() => {
+    if (invalidSelection)
+      void navigate({ search: ({ episode: _, ...rest }) => rest, replace: true })
+  }, [invalidSelection, navigate])
   // Web emits State.initial before its first pull; it has no list height to restore yet.
   useScrollMemory(state !== null && playlist !== undefined && (localClient || ready))
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
@@ -71,6 +101,9 @@ function PlaylistDetail() {
     count: entries.length,
     scrollToIndex: (index) => scroller.current?.scrollToIndex(index),
     titleAt: (index) => episodes.get(entries[index]?.episodeId ?? "")?.title ?? "",
+    onRowMove: (index) => {
+      if (desktopBuild && entries[index]) selectEpisode(entries[index].episodeId)
+    },
     onRemove: (index) => {
       const entry = entries[index]
       if (entry && playlist)
@@ -93,7 +126,7 @@ function PlaylistDetail() {
   }
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (desktopBuild || event.key !== "Escape" || event.defaultPrevented) return
       if (document.querySelector('[data-sheet], [role="alertdialog"], [role="menu"]')) return
       onEscape.current()
     }
@@ -190,7 +223,7 @@ function PlaylistDetail() {
 
   const panelEpisode =
     selected ?? (entries.some((e) => e.episodeId === playlist.cursor) ? playlist.cursor : null)
-  const panel = (
+  const panel = desktopBuild ? null : (
     <aside
       aria-label="Episode"
       className="sticky top-0 hidden max-h-dvh self-start overflow-y-auto border-l pt-2 pr-4 pb-28 lg:block"
@@ -303,14 +336,18 @@ function PlaylistDetail() {
       </nav>
       {tab === "history" ? (
         <div className="max-w-[960px]">
-          <PlaylistHistory playlist={playlist} />
+          <PlaylistHistory
+            playlist={playlist}
+            onSelect={desktopBuild ? selectEpisode : undefined}
+            selected={desktopBuild ? selected : undefined}
+          />
         </div>
       ) : tab === "timeline" ? (
         <div className="max-w-[960px]">
           <PlaylistTimeline playlist={playlist} />
         </div>
       ) : playlist.entries.length === 0 ? (
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
           <EmptyState title="Nothing here yet">
             {/* A way on, as every empty state has (COPY-03). */}
             In a{" "}
@@ -322,7 +359,7 @@ function PlaylistDetail() {
           {panel}
         </div>
       ) : (
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
           {/* biome-ignore lint/a11y/useSemanticElements: a grid of flex rows (components/lists/Grid.tsx). */}
           <div
             ref={listRef}
@@ -435,14 +472,20 @@ function PlaylistDetail() {
                   },
                   { separator: true },
                   {
-                    label: "Open Episode",
-                    run: () =>
-                      window.matchMedia("(min-width: 64rem)").matches
-                        ? void navigate({ search: { episode: entry.episodeId } })
-                        : void navigate({
-                            to: "/episodes/$episodeId",
-                            params: { episodeId: entry.episodeId }
-                          })
+                    label: desktopBuild ? "Show Episode Inspector" : "Open Episode",
+                    run: () => {
+                      if (desktopBuild || window.matchMedia("(min-width: 64rem)").matches)
+                        selectEpisode(entry.episodeId)
+                      else
+                        void navigate({
+                          to: "/episodes/$episodeId",
+                          params: { episodeId: entry.episodeId }
+                        })
+                      if (desktopBuild)
+                        document.dispatchEvent(
+                          new CustomEvent("podlist:command", { detail: "showInspector" })
+                        )
+                    }
                   },
                   {
                     label: `Remove from ${playlist.name}`,
@@ -480,7 +523,7 @@ function PlaylistDetail() {
                             onClick={(event: React.MouseEvent) => {
                               if (
                                 !plainClick(event) ||
-                                !window.matchMedia("(min-width: 64rem)").matches
+                                (!desktopBuild && !window.matchMedia("(min-width: 64rem)").matches)
                               )
                                 return
                               if (
@@ -488,7 +531,11 @@ function PlaylistDetail() {
                               )
                                 return
                               if (window.getSelection()?.isCollapsed === false) return
-                              void navigate({ search: { episode: entry.episodeId } })
+                              selectEpisode(entry.episodeId)
+                              if (desktopBuild)
+                                event.currentTarget
+                                  .querySelector<HTMLElement>("[data-cell=title]")
+                                  ?.focus({ preventScroll: true })
                             }}
                             // Narrow for its text (a small phone, large text): the number column
                             // gives way, then the buttons stack beside the title (WTYPE-02).
@@ -565,15 +612,15 @@ function PlaylistDetail() {
                               onClick={(event) => {
                                 if (
                                   plainClick(event) &&
-                                  window.matchMedia("(min-width: 64rem)").matches
+                                  (desktopBuild || window.matchMedia("(min-width: 64rem)").matches)
                                 ) {
                                   event.preventDefault()
-                                  void navigate({ search: { episode: entry.episodeId } })
+                                  selectEpisode(entry.episodeId)
                                 }
                               }}
                               // The whole row on the phone; on desktop only the title is the link, so the
                               // rest of the row keeps the row's own menu (BROWSER-06).
-                              className={`line-clamp-3 text-row font-medium hover:underline max-lg:after:absolute max-lg:after:inset-0 max-lg:after:rounded-xl max-lg:after:content-[''] ${opened ? "text-primary" : ""}`}
+                              className={`line-clamp-3 text-row font-medium hover:underline ${desktopBuild ? "" : "max-lg:after:absolute max-lg:after:inset-0 max-lg:after:rounded-xl max-lg:after:content-['']"} ${opened ? "text-primary" : ""}`}
                             >
                               {title}
                             </Link>
@@ -681,6 +728,12 @@ function PlaylistDetail() {
           </div>
           {panel}
         </div>
+      )}
+      {desktopBuild && (
+        <DesktopEpisodeInspector
+          selected={tab === "timeline" ? undefined : selected}
+          clearSelection={clearSelection}
+        />
       )}
     </>
   )

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Internal entry point shared by the tour and system checks. Runs only in a fresh Tart clone.
+# Internal entry point for native tours and Electron runs in a fresh Tart clone.
 set -euo pipefail
 [ "$#" -eq 2 ] || exit 2
 run="$1"
@@ -8,7 +8,7 @@ shared='/Volumes/My Shared Files'
 [ "$run" = /private/tmp/podlist-uitour-run ] && [ -d "$shared/run" ] || {
     echo 'Guest runner requires the disposable Tart staging directory and share' >&2; exit 2;
 }
-case "$mode" in tour|system|timings) ;; *) exit 2;; esac
+case "$mode" in tour|system|timings|electron-timings|electron-tests) ;; *) exit 2;; esac
 rm -rf "$run"
 mkdir -p "$run"
 touch "$run/uitour-vm"
@@ -70,6 +70,17 @@ watch_for_hangs() {
         /usr/bin/sample PodListMac 10 -file "$shared/run/guest-diagnostics/hang-sample-$(date +%H%M%S).txt" > /dev/null 2>&1 || true
     done
 }
+memory_pid=""
+start_memory() {
+    /usr/bin/python3 "$scripts/response-memory.py" "$run" "$mode" &
+    memory_pid=$!
+}
+stop_memory() {
+    if [ -z "$memory_pid" ]; then return; fi
+    touch "$run/memory-stop"
+    wait "$memory_pid" || echo 'Guest memory sampling failed; see the guest log' >&2
+    if [ -f "$run/memory.txt" ]; then cp -f "$run/memory.txt" "$shared/run/memory.txt"; fi
+}
 profiler=""
 # Record an Instruments trace for each main pass's response-timing runs.
 # os_signpost captures the named ResponseTiming category.
@@ -107,6 +118,14 @@ stop_demos() {
 }
 finish() {
     local status=$?
+    if [ "$mode" = electron-tests ]; then
+        if [ -d "$run/electron-tests" ]; then
+            ditto "$run/electron-tests" "$shared/run/electron-tests" || status=$?
+        fi
+        printf '%s\n' "$status" > "$shared/run/electron-tests.status" || status=$?
+        exit "$status"
+    fi
+    stop_memory || status=$?
     if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
     if [ -n "$profiler" ]; then
         # Let an in-flight trace and its TOC reach the share before the host deletes the VM.
@@ -118,6 +137,10 @@ finish() {
     if [ -n "$warmup" ]; then kill "$warmup" 2>/dev/null || true; wait "$warmup" 2>/dev/null || true; fi
     stop_demos
     cp -f "$run/demo.log" "$shared/run/guest-demo.log" 2>/dev/null || true
+    if [ "$mode" = electron-timings ]; then
+        if [ -f "$run/timings.txt" ]; then cp -f "$run/timings.txt" "$shared/run/timings.txt" || status=$?; fi
+        exit "$status"
+    fi
     mkdir -p "$diagnostics"
     cp -f ~/Library/Logs/DiagnosticReports/*PodList* "$diagnostics/" 2>/dev/null || true
     log show --last 15m --style compact --predicate 'process CONTAINS "PodList" OR process == "Shortcuts" OR process == "appintentsd" OR process == "lsd" OR process == "testmanagerd" OR process == "corespotlightd" OR process == "mds" OR process == "mds_stores" OR process == "automationmodetool" OR subsystem == "com.apple.dt.xctest"' \
@@ -175,6 +198,48 @@ start_demo() {
     demo_pids="$demo_pids $pid"
     wait_for_demo "$origin" "$pid"
 }
+settle_guest() {
+    # Boot services and indexing roughly triple these figures until the guest settles.
+    local settle_start=$SECONDS elapsed load remaining
+    while :; do
+        load="$(sysctl -n vm.loadavg | awk '{print $2}')"
+        elapsed=$((SECONDS - settle_start))
+        echo "Guest load average before $mode: $load (${elapsed}s elapsed)"
+        if awk -v l="$load" 'BEGIN { exit !(l != "" && l < 0.8) }'; then
+            echo "Guest settled after ${elapsed}s"
+            break
+        fi
+        if [ "$elapsed" -ge 720 ]; then
+            echo "Guest settle wait reached 12 minutes; proceeding with $mode at load $load"
+            break
+        fi
+        remaining=$((720 - elapsed))
+        if [ "$remaining" -lt 10 ]; then sleep "$remaining"; else sleep 10; fi
+    done
+}
+case "$mode" in
+    electron-timings|electron-tests)
+        # Use the host-built desktop assets from the same read-only checkout as the demo.
+        export PODLIST_TEST_WEB_ROOT="$shared/repo/packages/web/dist-desktop"
+        sleep 30
+        settle_guest
+        if [ "$mode" = electron-tests ]; then
+            # The MCP socket is inside a test profile, so keep its Unix socket path short.
+            export TMPDIR="$run/tmp"
+            export PODLIST_ELECTRON_TEST_OUTPUT="$run/electron-tests"
+            mkdir -p "$TMPDIR" "$PODLIST_ELECTRON_TEST_OUTPUT"
+            cd "$shared/repo/packages/desktop"
+            env -u ELECTRON_RUN_AS_NODE -u PODLIST_URL -u PWDEBUG \
+                PODLIST_HIDDEN_WINDOW=0 PODLIST_WEB_ROOT="$PODLIST_TEST_WEB_ROOT" \
+                node node_modules/playwright/cli.js test --config playwright.config.ts
+        else
+            start_demo "$run/origin"
+            start_memory
+            env -u ELECTRON_RUN_AS_NODE node "$shared/repo/packages/desktop/test/response-timings.ts" "$run"
+        fi
+        exit 0
+        ;;
+esac
 if [ "$mode" = tour ]; then
     # The apps have separate local stores, but a shared demo server would sync
     # a failed pass's saved edits into the next appearance.
@@ -194,26 +259,10 @@ if [ "$mode" != tour ]; then
     /usr/libexec/PlistBuddy -c "Set :PodListUITour:EnvironmentVariables:PODLIST_UI_SERVER_ORIGIN $(cat "$run/origin")" "$xctestrun"
 fi
 if [ "$mode" = timings ] || [ "$mode" = tour ]; then
-    # A freshly booted clone indexes and launches services for several minutes, which
-    # roughly triples these figures. Wait (up to 12 min) for the 1-minute load to settle.
-    settle_start=$SECONDS
-    while :; do
-        load="$(sysctl -n vm.loadavg | awk '{print $2}')"
-        elapsed=$((SECONDS - settle_start))
-        echo "Guest load average before $mode: $load (${elapsed}s elapsed)"
-        if awk -v l="$load" 'BEGIN { exit !(l != "" && l < 0.8) }'; then
-            echo "Guest settled after ${elapsed}s"
-            break
-        fi
-        if [ "$elapsed" -ge 720 ]; then
-            echo "Guest settle wait reached 12 minutes; proceeding with $mode at load $load"
-            break
-        fi
-        remaining=$((720 - elapsed))
-        if [ "$remaining" -lt 10 ]; then sleep "$remaining"; else sleep 10; fi
-    done
+    settle_guest
 fi
 if [ "$mode" = timings ]; then
+    start_memory
     if [ -f "$shared/run/profile" ]; then profile_timings & profiler=$!; fi
     set_show_borders false
     run_tests -xctestrun "$xctestrun" \

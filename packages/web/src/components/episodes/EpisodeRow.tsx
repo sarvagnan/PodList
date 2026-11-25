@@ -25,6 +25,7 @@ import { Tip } from "../feedback/Tip.tsx"
 import { GridCell } from "../lists/Grid.tsx"
 import { type RowCommand, RowMenu, RowMenuItems } from "../lists/RowMenu.tsx"
 import { Artwork } from "../shell/Artwork.tsx"
+import { desktopBuild } from "../shell/DesktopPanes.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
 import { DownloadButton, useDownloadStatus } from "./DownloadButton.tsx"
 import { useEpisodeActions } from "./useEpisodeActions.ts"
@@ -171,7 +172,7 @@ export function EpisodeRow({
   const addTo = (placement: "next" | "last") =>
     target && void act({ _tag: "Add", episodeId: episode.id, playlistId: target.id, placement })
   const open = () =>
-    onOpen && window.matchMedia("(min-width: 64rem)").matches
+    onOpen && (desktopBuild || window.matchMedia("(min-width: 64rem)").matches)
       ? onOpen(episode.id)
       : void navigate({ to: "/episodes/$episodeId", params: { episodeId: episode.id } })
   // One list of commands for the right-click menu and the narrow row's More menu.
@@ -226,7 +227,14 @@ export function EpisodeRow({
         ]
       : []),
     { separator: true },
-    { label: "Open Episode", run: open }
+    {
+      label: desktopBuild && onOpen ? "Show Episode Inspector" : "Open Episode",
+      run: () => {
+        open()
+        if (desktopBuild && onOpen)
+          document.dispatchEvent(new CustomEvent("podlist:command", { detail: "showInspector" }))
+      }
+    }
   ]
   const link = `/episodes/${episode.id}`
   const rowClass = `episode-row group @container relative mx-1 flex min-h-[76px] items-center gap-3 rounded-lg border-b border-transparent py-2 pr-2 pl-4 lg:cursor-pointer ${
@@ -263,7 +271,11 @@ export function EpisodeRow({
           data-cell="title"
           data-episode-title={episode.id}
           onClick={(event) => {
-            if (onOpen && plainClick(event) && window.matchMedia("(min-width: 64rem)").matches) {
+            if (
+              onOpen &&
+              plainClick(event) &&
+              (desktopBuild || window.matchMedia("(min-width: 64rem)").matches)
+            ) {
               event.preventDefault()
               onOpen(episode.id)
             }
@@ -271,7 +283,7 @@ export function EpisodeRow({
           // Phone: stretched over the row, so the whole row opens the Episode (controls sit
           // above). Desktop: just the title, so it keeps the browser's link menu and text
           // can be selected; the row opens the Episode from its empty space instead.
-          className={`line-clamp-3 text-row leading-snug font-medium after:absolute after:inset-0 after:content-[''] hover:underline lg:after:hidden ${played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
+          className={`line-clamp-3 text-row leading-snug font-medium ${desktopBuild && onOpen ? "" : "after:absolute after:inset-0 after:content-[''] lg:after:hidden"} hover:underline ${played ? "text-muted-foreground" : ""} ${selected ? "text-primary" : ""}`}
         >
           {episode.title}
         </Link>
@@ -411,7 +423,7 @@ export function EpisodeRow({
   )
   // Desktop: a click in the row's empty space opens the Episode, as the title does.
   const onRowClick = (event: React.MouseEvent) => {
-    if (!wide || !plainClick(event)) return
+    if ((!wide && !desktopBuild) || !plainClick(event)) return
     if ((event.target as Element).closest("a, button, input, label, select")) return
     if (window.getSelection()?.isCollapsed === false) return
     open()

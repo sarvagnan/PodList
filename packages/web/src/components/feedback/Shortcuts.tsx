@@ -11,6 +11,7 @@ import { wrapTab } from "../../lib/focusTrap.ts"
 export const openShortcuts = () => document.dispatchEvent(new CustomEvent("podlist:shortcuts"))
 
 const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
+const desktopBuild = import.meta.env.MODE === "desktop"
 const macApp = typeof navigator !== "undefined" && navigator.userAgent.includes("Electron")
 const cmd = mac ? "⌘" : "Ctrl+"
 
@@ -75,6 +76,12 @@ const groups: ReadonlyArray<{
             ["⌘[ ⌘]", "Back or forward"],
             ["⌘← ⌘→", "Back 15 or forward 30 seconds"],
             ["⌥⌘← ⌥⌘→", "Previous or next Chapter"],
+            ...(desktopBuild
+              ? ([
+                  ["⌥⌘I", "Show or hide the Episode Inspector"],
+                  ["⌃⌘S", "Show or hide the Sidebar"]
+                ] as const)
+              : []),
             ["⌘W", "Close the window"]
           ] as const
         }
