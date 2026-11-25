@@ -224,6 +224,7 @@ print(" ".join(vm["Name"] for vm in json.load(sys.stdin) if vm.get("Running")))'
     status=0
     tart exec "$vm_clone" /bin/bash "/Volumes/My Shared Files/repo/apps/apple/scripts/ui-tour-guest.sh" \
         "$guest_run" "$mode" >> "$guest_log" 2>&1 || status=$?
+    if [ -f "$run/memory.txt" ]; then cp -f "$run/memory.txt" "$out/memory.txt"; fi
     if [ -f "$run/guest-demo.log" ]; then cp "$run/guest-demo.log" "$out/demo.log"; fi
     if [ "$mode" = electron-timings ]; then
         if [ -f "$run/timings.txt" ]; then

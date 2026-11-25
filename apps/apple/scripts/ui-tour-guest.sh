@@ -70,6 +70,17 @@ watch_for_hangs() {
         /usr/bin/sample PodListMac 10 -file "$shared/run/guest-diagnostics/hang-sample-$(date +%H%M%S).txt" > /dev/null 2>&1 || true
     done
 }
+memory_pid=""
+start_memory() {
+    /usr/bin/python3 "$scripts/response-memory.py" "$run" "$mode" &
+    memory_pid=$!
+}
+stop_memory() {
+    if [ -z "$memory_pid" ]; then return; fi
+    touch "$run/memory-stop"
+    wait "$memory_pid" || echo 'Guest memory sampling failed; see the guest log' >&2
+    if [ -f "$run/memory.txt" ]; then cp -f "$run/memory.txt" "$shared/run/memory.txt"; fi
+}
 profiler=""
 # Record an Instruments trace for each main pass's response-timing runs.
 # os_signpost captures the named ResponseTiming category.
@@ -107,6 +118,7 @@ stop_demos() {
 }
 finish() {
     local status=$?
+    stop_memory || status=$?
     if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true; fi
     if [ -n "$profiler" ]; then
         # Let an in-flight trace and its TOC reach the share before the host deletes the VM.
@@ -204,6 +216,7 @@ if [ "$mode" = electron-timings ]; then
     sleep 30
     settle_guest
     start_demo "$run/origin"
+    start_memory
     env -u ELECTRON_RUN_AS_NODE node "$shared/repo/packages/desktop/test/response-timings.ts" "$run"
     exit 0
 fi
@@ -229,6 +242,7 @@ if [ "$mode" = timings ] || [ "$mode" = tour ]; then
     settle_guest
 fi
 if [ "$mode" = timings ]; then
+    start_memory
     if [ -f "$shared/run/profile" ]; then profile_timings & profiler=$!; fi
     set_show_borders false
     run_tests -xctestrun "$xctestrun" \

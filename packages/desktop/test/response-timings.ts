@@ -1,9 +1,10 @@
 /// <reference lib="dom" />
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { cpus, totalmem } from "node:os"
 import { join } from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { _electron as electron, expect, type Locator } from "@playwright/test"
 
 const iterations = 5
@@ -233,6 +234,17 @@ try {
     "Electron timings require the default wide layout"
   )
 
+  const marker = join(run, "memory-electron-ready.json")
+  writeFileSync(
+    `${marker}.tmp`,
+    JSON.stringify({ bundle: join(executable, "../../.."), pid: app.process().pid })
+  )
+  renameSync(`${marker}.tmp`, marker)
+  const deadline = Date.now() + 10_000
+  while (!existsSync(join(run, "memory-electron-ack")) && Date.now() < deadline) {
+    await delay(50)
+  }
+
   for (let round = 0; round < warmups + iterations; round += 1) {
     const recording = round >= warmups
     console.log(recording ? `Measured iteration ${round - warmups + 1}` : `Warm-up ${round + 1}`)
@@ -298,6 +310,7 @@ try {
     await expect(page).toHaveURL(/\/search$/, assertion)
   }
 } finally {
+  writeFileSync(join(run, "memory-electron-done"), "")
   try {
     await app.close()
   } finally {

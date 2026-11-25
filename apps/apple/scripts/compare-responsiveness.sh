@@ -73,6 +73,39 @@ lines += [
     'The native endpoint is the display-link target time. The Electron endpoint is a pre-paint animation frame timestamp after the committed result becomes visible.',
     '',
 ]
+memory_headings = [f'[{run.replace("-", " ").title()}]({run}/memory.txt)'
+                   if (out / run / 'memory.txt').exists() else run for run in runs]
+memory = {}
+for run in runs:
+    report = out / run / 'memory.txt'
+    memory[run] = dict(re.findall(
+        r'^(Launch settled|Timing median|Timing peak|Complete timing samples): (.+)$',
+        report.read_text() if report.exists() else '',
+        re.MULTILINE,
+    ))
+lines += [
+    '## Memory',
+    '',
+    'Guest-side samples use macOS libproc physical footprint and RSS. The launch sample is taken once the app is ready after the guest settles. Median and peak use complete samples taken about every two seconds during the loop, including warm-ups.',
+    '',
+    '| Measurement | ' + ' | '.join(memory_headings) + ' |',
+    '| --- | ---: | ---: | ---: | ---: |',
+]
+for measure in ('Launch settled', 'Timing median', 'Timing peak', 'Complete timing samples'):
+    values = [memory[run].get(measure, 'unobserved') for run in runs]
+    lines.append('| ' + ' | '.join([measure, *values]) + ' |')
+lines += [
+    '',
+    'Each pass links to the per-process breakdown. Totals sum the app-owned processes. RSS can count shared pages more than once.',
+    'Native runs with accessibility active for XCUITest. Electron runs with a DevTools automation connection. Both may inflate memory. The sampler excludes the test and automation drivers.',
+    '',
+]
 (out / 'comparison.md').write_text('\n'.join(lines))
+incomplete = [run for run in runs if any(
+    memory[run].get(measure, 'unobserved') == 'unobserved'
+    for measure in ('Launch settled', 'Timing median', 'Timing peak')
+)]
+if incomplete:
+    raise SystemExit(f'Incomplete memory readings for {", ".join(incomplete)}. See {out / "comparison.md"} and the pass logs.')
 PY
 printf 'Comparison written to %s/comparison.md\n' "$out"
