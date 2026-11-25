@@ -1,7 +1,8 @@
 import { Library as Domain } from "@podlist/domain"
 import type { ParsedEpisode, ParsedFeed } from "@podlist/feeds"
+import { feedPollDecision, pollIntervalMillis } from "@podlist/feeds/polling"
 import type { publisherFeeds } from "@podlist/feeds/publisher"
-import { Effect, Queue, Schema, Semaphore } from "effect"
+import { Duration, Effect, Queue, Schema, Semaphore } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { catalogueKey } from "../data/DataLayer.ts"
@@ -21,10 +22,6 @@ type RefreshOptions = {
   readonly automatic?: boolean
   readonly progress?: (completed: number, total: number) => void
 }
-
-const feedInterval = 30 * 60_000
-const backoff = (failures: number) =>
-  Math.min(24 * 60 * 60_000, feedInterval * 2 ** Math.max(0, Math.min(failures - 1, 6)))
 
 const artwork = (url: string | null) => (url ? { url } : null)
 const subscriptionFromRow = (row: SubscriptionRow) =>
@@ -228,7 +225,14 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
         options.progress?.(0, rows.length)
         for (const row of rows) {
           const state = yield* pollState(row.id)
-          if (options.automatic && state && now() < state.checked_at + backoff(state.failures))
+          if (
+            !feedPollDecision({
+              checkedAt: state?.checked_at ?? null,
+              failures: state?.failures ?? 0,
+              now: now(),
+              automatic: options.automatic ?? false
+            }).due
+          )
             continue
           const result = yield* refreshOne(subscriptionFromRow(row), state).pipe(Effect.result)
           if (result._tag === "Failure") failed++
@@ -321,6 +325,9 @@ export const runPublisherChecks = (
     )
     for (;;) {
       yield* refresh({ automatic: true }).pipe(Effect.ignore)
-      yield* Queue.take(triggers).pipe(Effect.timeout("30 minutes"), Effect.ignore)
+      yield* Queue.take(triggers).pipe(
+        Effect.timeout(Duration.millis(pollIntervalMillis)),
+        Effect.ignore
+      )
     }
   }).pipe(Effect.scoped)

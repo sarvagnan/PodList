@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import { Mentions } from "@podlist/domain"
+import { conditionalFeedHeaders } from "@podlist/feeds/polling"
 import { Context, Data, Duration, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/http"
 import { SqlClient } from "effect/sql"
@@ -222,12 +223,10 @@ export class Library extends Context.Service<
             Effect.orDie
           )
 
-          let request = yield* feedRequest(subscription.feed_url, subscriptionId)
-          if (state?.etag)
-            request = HttpClientRequest.setHeader(request, "if-none-match", state.etag)
-          if (state?.last_modified) {
-            request = HttpClientRequest.setHeader(request, "if-modified-since", state.last_modified)
-          }
+          const request = HttpClientRequest.setHeaders(
+            yield* feedRequest(subscription.feed_url, subscriptionId),
+            conditionalFeedHeaders(state && { etag: state.etag, lastModified: state.last_modified })
+          )
 
           const response = yield* http.execute(request).pipe(
             Effect.timeout(feedTimeout),

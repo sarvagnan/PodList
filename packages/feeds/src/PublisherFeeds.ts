@@ -1,9 +1,8 @@
 import { feedSizeLimit, type ParsedFeed, parseFeed } from "./FeedParser.ts"
 
-export interface FeedValidators {
-  readonly etag: string | null
-  readonly lastModified: string | null
-}
+import { conditionalFeedHeaders, type FeedValidators } from "./FeedPolling.ts"
+
+export type { FeedValidators } from "./FeedPolling.ts"
 
 export type FeedRead =
   | { readonly kind: "notModified" }
@@ -126,12 +125,9 @@ export const publisherFeeds = (fetch: PublisherFetch) => {
     validators?: FeedValidators,
     signal?: AbortSignal
   ): Promise<FeedRead> => {
-    const headers: Record<string, string> = {}
-    if (validators?.etag) headers["if-none-match"] = validators.etag
-    if (validators?.lastModified) headers["if-modified-since"] = validators.lastModified
+    const headers = conditionalFeedHeaders(validators)
     const response = await requestPublisher(fetch, feedUrl, headers, signal)
-    if (response.status === 304 && (validators?.etag || validators?.lastModified))
-      return { kind: "notModified" }
+    if (response.status === 304 && Object.keys(headers).length > 0) return { kind: "notModified" }
     if (!response.ok) {
       await response.body?.cancel()
       throw new Error("Could not read the feed. Try again.")
