@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Library as LibraryApi, Sync } from "@podlist/api"
-import { Library, Operation, PlaybackSettings, State, Units } from "@podlist/domain"
+import { type Device, Library, Operation, PlaybackSettings, State, Units } from "@podlist/domain"
 import { type Context, Effect, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
@@ -18,6 +18,7 @@ const defaults = new PlaybackSettings.PlaybackSettings({
 /** An in-memory server with the same rules as the real one: an operation log and State. */
 const makeServer = () => {
   const log: Array<Operation.Operation> = []
+  const registrations: Array<Device.Device> = []
   let state = State.initial(defaults)
   let online = true
   let duringPush: (() => Promise<void>) | undefined
@@ -51,7 +52,10 @@ const makeServer = () => {
   const guard = <A>(f: () => A) =>
     online ? Effect.sync(f) : Effect.fail(new Offline("server unreachable"))
   const transport = Transport.of({
-    registerDevice: () => guard(() => undefined),
+    registerDevice: (device) =>
+      guard(() => {
+        registrations.push(device)
+      }),
     push: (operations) =>
       Effect.gen(function* () {
         if (duringPush) yield* Effect.promise(duringPush)
@@ -89,6 +93,7 @@ const makeServer = () => {
       })
   })
   return {
+    registrations,
     transport,
     setOnline: (value: boolean) => {
       online = value
@@ -105,9 +110,10 @@ const makeServer = () => {
 const newDatabase = Layer.build(LocalDb.layerMemory.pipe(Layer.provideMerge(Reactivity.layer)))
 const device = (
   server: ReturnType<typeof makeServer>,
-  db: Context.Context<SqlClient.SqlClient | Reactivity.Reactivity>
+  db: Context.Context<SqlClient.SqlClient | Reactivity.Reactivity>,
+  options: Pick<Parameters<typeof SyncEngine.layer>[0], "deviceKind"> = {}
 ) =>
-  SyncEngine.layer({ defaults, deviceName: "test" }).pipe(
+  SyncEngine.layer({ defaults, deviceName: "test", ...options }).pipe(
     Layer.provideMerge(Layer.succeedContext(db)),
     Layer.provide(Layer.succeed(Transport, server.transport))
   )
@@ -117,6 +123,37 @@ const add = (episodeId: string) =>
 const order = (s: State.State) => s.playlists[0]?.entries.map((e) => e.episodeId)
 
 describe("SyncEngine", () => {
+  it.effect("re-registers an existing desktop device with the same ID and the desktop kind", () =>
+    Effect.gen(function* () {
+      const server = makeServer()
+      const db = yield* newDatabase
+      const id = yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        yield* engine.sync
+        yield* engine.sync
+        return engine.deviceId
+      }).pipe(Effect.provide(device(server, db)))
+      expect(server.registrations).toMatchObject([{ id, kind: "pwa" }])
+
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        server.setOnline(false)
+        expect(yield* engine.sync.pipe(Effect.flip)).toBeInstanceOf(Offline)
+        server.setOnline(true)
+        yield* engine.sync
+      }).pipe(Effect.provide(device(server, db, { deviceKind: "desktop" })))
+
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        yield* engine.sync
+      }).pipe(Effect.provide(device(server, db, { deviceKind: "desktop" })))
+      expect(server.registrations).toMatchObject([
+        { id, kind: "pwa" },
+        { id, kind: "desktop" }
+      ])
+    })
+  )
+
   it.effect("applies edits immediately offline and keeps them across restarts", () =>
     Effect.gen(function* () {
       const server = makeServer()

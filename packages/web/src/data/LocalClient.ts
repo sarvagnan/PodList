@@ -15,7 +15,12 @@ export const localClientLayer = (options: {
 }) =>
   Layer.merge(LocalDataLayer, DownloadRulesLive).pipe(
     Layer.provideMerge(downloadsLayer({ audioUrl: options.audioUrl })),
-    Layer.provide(SyncEngine.layer(options)),
+    Layer.provide(
+      SyncEngine.layer({
+        ...options,
+        deviceKind: import.meta.env.MODE === "desktop" ? "desktop" : "pwa"
+      })
+    ),
     Layer.provide(LocalDb.layerWeb()),
     Layer.provide(DownloadStore.layerWeb)
   )

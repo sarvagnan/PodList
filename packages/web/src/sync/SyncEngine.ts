@@ -43,6 +43,7 @@ export class SyncEngine extends Context.Service<
   static readonly layer = (options: {
     readonly defaults: PlaybackSettings.PlaybackSettings
     readonly deviceName: string
+    readonly deviceKind?: "pwa" | "desktop"
   }) =>
     Layer.effect(
       SyncEngine,
@@ -67,6 +68,7 @@ export class SyncEngine extends Context.Service<
           yield* setMeta("deviceId", deviceId)
         }
         const myDevice = deviceId
+        const deviceKind = options.deviceKind ?? "pwa"
         const confirmedJson = yield* getMeta("confirmedState")
         let confirmed =
           confirmedJson === undefined
@@ -156,16 +158,20 @@ export class SyncEngine extends Context.Service<
 
         const sync = Effect.gen(function* () {
           if (blocked) return yield* Effect.fail(blocked)
-          if ((yield* getMeta("registered").pipe(Effect.orDie)) === undefined) {
+          const registered = yield* getMeta("registered").pipe(Effect.orDie)
+          // Older Electron builds saved "1" after registering this ID as a PWA.
+          if (registered === undefined || (deviceKind === "desktop" && registered !== "desktop")) {
             yield* transport.registerDevice(
               Schema.decodeUnknownSync(Device.Device)({
                 id: myDevice,
                 name: options.deviceName,
-                kind: "pwa",
+                kind: deviceKind,
                 registeredAt: Date.now()
               })
             )
-            yield* setMeta("registered", "1").pipe(Effect.orDie)
+            yield* setMeta("registered", deviceKind === "desktop" ? deviceKind : "1").pipe(
+              Effect.orDie
+            )
           }
           // Network first, outside the lock.
           const toSend = yield* outbox.pipe(Effect.orDie)
