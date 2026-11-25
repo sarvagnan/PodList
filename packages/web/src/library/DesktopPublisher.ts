@@ -25,6 +25,12 @@ const request = async <A>(path: string, parameters: URLSearchParams, signal?: Ab
 }
 
 export const desktopPublisher: ReturnType<typeof publisherFeeds> = {
+  audioChapters: (url, signal) =>
+    request<Awaited<ReturnType<ReturnType<typeof publisherFeeds>["audioChapters"]>>>(
+      "audio-chapters",
+      new URLSearchParams({ value: url }),
+      signal
+    ),
   chapters: (url, signal) =>
     request<Awaited<ReturnType<ReturnType<typeof publisherFeeds>["chapters"]>>>(
       "chapters",

@@ -8,6 +8,7 @@ export function resolveLocalChapters<E>(options: {
   readonly cached: ReadonlyArray<Library.Chapter>
   readonly preferDownload: boolean
   readonly readPrefix: (bytes: number) => Effect.Effect<Uint8Array | null>
+  readonly audioFallback?: Effect.Effect<ReadonlyArray<Library.Chapter>, E>
   readonly remote: Effect.Effect<ReadonlyArray<Library.Chapter>, E>
 }) {
   return Effect.gen(function* () {
@@ -24,6 +25,9 @@ export function resolveLocalChapters<E>(options: {
     // local copy can answer immediately, including for a device that has gone offline.
     const [first, fallback] = options.preferDownload ? [downloaded, remote] : [remote, downloaded]
     const found = yield* first
-    return found.length ? found : yield* fallback
+    if (found.length) return found
+    const alternative = yield* fallback
+    if (alternative.length || !options.audioFallback) return alternative
+    return yield* options.audioFallback.pipe(Effect.orElseSucceed(() => []))
   })
 }

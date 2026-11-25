@@ -63,27 +63,28 @@ export const LocalDataLayer = Layer.effect(
     const transport = yield* Transport
     // Some local readers only compose SQLite and sync. Desktop also supplies OPFS.
     const downloads = yield* Effect.serviceOption(DownloadStore)
-    const fetchChapters = desktopStandalone ? yield* makeStandaloneChapters : transport.chapters
+    const readPrefix = (id: string, bytes: number) =>
+      downloads._tag === "Some" ? downloads.value.readPrefix(id, bytes) : Effect.succeed(null)
+    const standaloneChapters = desktopStandalone ? yield* makeStandaloneChapters(readPrefix) : null
     const decodeChapters = Schema.decodeUnknownSync(Schema.Array(Library.Chapter))
-    const chaptersFor = (id: string) =>
-      Effect.gen(function* () {
-        const [row] = yield* sql<{ chapters: string; chapters_url: string | null }>`
+    const chaptersFor =
+      standaloneChapters ??
+      ((id: string) =>
+        Effect.gen(function* () {
+          const [row] = yield* sql<{ chapters: string; chapters_url: string | null }>`
           SELECT chapters, chapters_url FROM episode WHERE id = ${id}
         `.pipe(Effect.orDie)
-        if (!row) return []
-        const cached = yield* Effect.try(() => decodeChapters(JSON.parse(row.chapters))).pipe(
-          Effect.orElseSucceed(() => [])
-        )
-        return yield* resolveLocalChapters({
-          cached,
-          preferDownload: row.chapters_url === null,
-          readPrefix: (bytes) =>
-            downloads._tag === "Some"
-              ? downloads.value.readPrefix(id, bytes)
-              : Effect.succeed(null),
-          remote: fetchChapters(id)
-        })
-      })
+          if (!row) return []
+          const cached = yield* Effect.try(() => decodeChapters(JSON.parse(row.chapters))).pipe(
+            Effect.orElseSucceed(() => [])
+          )
+          return yield* resolveLocalChapters({
+            cached,
+            preferDownload: row.chapters_url === null,
+            readPrefix: (bytes) => readPrefix(id, bytes),
+            remote: transport.chapters(id)
+          })
+        }))
     const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
       Effect.provideService(effect, SqlClient.SqlClient, sql)
 

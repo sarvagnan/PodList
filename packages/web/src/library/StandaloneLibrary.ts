@@ -139,7 +139,10 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
             previous?.duration != null &&
             episode.duration !== null &&
             Math.abs(previous.duration - episode.duration) > 30
-          const resetChapters = replaced || previous?.chapters_url !== episode.chaptersUrl
+          const resetChapters =
+            replaced ||
+            previous?.audioUrl !== episode.audioUrl ||
+            previous?.chapters_url !== episode.chaptersUrl
           const row = Schema.decodeUnknownSync(Domain.Episode)({
             ...episode,
             id: previous?.id ?? crypto.randomUUID(),

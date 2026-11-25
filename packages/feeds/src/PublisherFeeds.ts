@@ -3,6 +3,8 @@ import { feedSizeLimit, type ParsedFeed, parseFeed } from "./FeedParser.ts"
 
 import { conditionalFeedHeaders, type FeedValidators } from "./FeedPolling.ts"
 
+import { fromId3, id3ProbeBytes } from "./Id3Chapters.ts"
+
 export type { FeedValidators } from "./FeedPolling.ts"
 
 export type FeedRead =
@@ -94,7 +96,7 @@ export const requestPublisher = async (
       throw new Error("The publisher redirected too many times.")
     const next = publisherUrl(new URL(location, url).href)
     // Feed validators describe the previous resource. Keep them on same-origin redirects.
-    if (next.origin !== url.origin) headers = {}
+    if (next.origin !== url.origin) headers = headers.range ? { range: headers.range } : {}
     url = next
   }
 }
@@ -181,5 +183,39 @@ export const publisherFeeds = (fetch: PublisherFetch) => {
       .sort((left, right) => left.start - right.start)
   }
 
-  return { read, search, chapters }
+  const audioChapters = async (address: string, signal?: AbortSignal) => {
+    const response = await requestPublisher(
+      fetch,
+      address,
+      { range: `bytes=0-${id3ProbeBytes - 1}` },
+      signal
+    )
+    if (!response.ok || !response.body) {
+      await response.body?.cancel()
+      throw new Error("Could not read Chapters from the audio. Try again.")
+    }
+    const prefix = new Uint8Array(id3ProbeBytes)
+    const reader = response.body.getReader()
+    let length = 0
+    try {
+      while (length < prefix.length) {
+        const { value, done } = await reader.read()
+        if (done) break
+        const chunk = value.subarray(0, prefix.length - length)
+        prefix.set(chunk, length)
+        length += chunk.length
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined)
+      reader.releaseLock()
+    }
+    return fromId3(prefix.subarray(0, length)).map(({ start, title }) => ({
+      start,
+      title,
+      artwork: null,
+      url: null
+    }))
+  }
+
+  return { read, search, chapters, audioChapters }
 }

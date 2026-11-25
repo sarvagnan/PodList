@@ -50,6 +50,11 @@ const standaloneMigrations = Migrator.fromRecord({
       checked_at INTEGER NOT NULL,
       failures INTEGER NOT NULL DEFAULT 0
     )`
+  }),
+  "0003_retry_empty_chapters": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    // An empty JSON response used to be final; allow the new audio fallback once.
+    yield* sql`UPDATE episode SET chapters_fetched_at = NULL WHERE chapters = '[]'`
   })
 })
 

@@ -65,3 +65,26 @@ describe("publisher feeds", () => {
     expect(fetch.mock.calls[1]?.[0]).toBe("https://example.com/feed")
   })
 })
+
+describe("publisher audio Chapters", () => {
+  it("requests a prefix and stops reading when a host ignores Range", async () => {
+    const cancelled = vi.fn()
+    const fetch = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.enqueue(new Uint8Array(64 * 1024))
+            },
+            cancel: cancelled
+          })
+        )
+    )
+    expect(await publisherFeeds(fetch).audioChapters("https://example.com/audio.mp3")).toEqual([])
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+      credentials: "omit",
+      headers: { range: "bytes=0-524287" }
+    })
+    expect(cancelled).toHaveBeenCalledOnce()
+  })
+})

@@ -11,6 +11,8 @@ export const publisherRequest = async (request: Request, url: URL) => {
   try {
     if (url.pathname === "/publisher/search")
       return Response.json(await publisher.search(value, request.signal))
+    if (url.pathname === "/publisher/audio-chapters")
+      return Response.json(await publisher.audioChapters(value, request.signal))
     if (url.pathname === "/publisher/chapters")
       return Response.json(await publisher.chapters(value, request.signal))
     if (url.pathname === "/publisher/read") {
@@ -25,7 +27,9 @@ export const publisherRequest = async (request: Request, url: URL) => {
         message:
           url.pathname === "/publisher/search" && !/^https?:\/\//i.test(value)
             ? "Could not reach the podcast directory. Try again."
-            : "Could not read the feed. Check the address and try again."
+            : url.pathname.endsWith("chapters")
+              ? "Could not read Chapters. Try again."
+              : "Could not read the feed. Check the address and try again."
       },
       { status: 502 }
     )
