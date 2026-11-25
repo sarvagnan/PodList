@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { subscriptionsAtom } from "../../app/data.ts"
-import { useAppState } from "../../app/hooks.ts"
+import { useAppState, useNextLastTarget } from "../../app/hooks.ts"
 import {
   bringEpisodeAtom,
   readPodcastAtom,
@@ -119,6 +119,7 @@ function LoadedPodcast({
   const subscription = subscriptions.find((sub) => sub.feedUrl === feedUrl)
   const state = useAppState()
   const active = state?.playlists.find((playlist) => playlist.id === state.activePlaylistId)
+  const target = useNextLastTarget()
   const subscribe = useAtomSet(subscribeAtom, { mode: "promise" })
   const unsubscribe = useAtomSet(unsubscribeAtom, { mode: "promise" })
   const bring = useAtomSet(bringEpisodeAtom, { mode: "promise" })
@@ -188,7 +189,7 @@ function LoadedPodcast({
   }
 
   const act = async (guid: string, action: "play" | "next" | "last") => {
-    if (pending || !active) return
+    if (pending || !active || !target) return
     setPending(guid)
     setEpisodeProblem(null)
     try {
@@ -196,7 +197,7 @@ function LoadedPodcast({
       await run(
         action === "play"
           ? { _tag: "PlayNow", episodeId }
-          : { _tag: "Add", episodeId, playlistId: active.id, placement: action }
+          : { _tag: "Add", episodeId, playlistId: target.id, placement: action }
       )
     } catch (cause) {
       setEpisodeProblem({ guid, message: failure(cause, "Could not add this Episode. Try again.") })
@@ -215,6 +216,7 @@ function LoadedPodcast({
             title={podcast.title}
             subscribed={subscription !== undefined}
             busy={busy}
+            armSeconds={4}
             onSubscribe={() => void changeSubscription(undefined)}
             onUnsubscribe={() => void changeSubscription(subscription?.id)}
           />

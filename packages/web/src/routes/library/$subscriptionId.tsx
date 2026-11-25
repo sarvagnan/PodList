@@ -425,6 +425,7 @@ function SubscriptionScreen() {
             </button>
             <SubscriptionButton
               key={subscriptionId}
+              {...(desktopBuild ? { armSeconds: 4 } : {})}
               title={subscription.title}
               subscribed={subscription.subscribed}
               busy={changingSubscription}
