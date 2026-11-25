@@ -16,6 +16,8 @@ describe("DownloadStore (OPFS)", () => {
       expect(yield* store.has("ep/1")).toBe(true)
       expect(yield* store.list).toContainEqual({ episodeId: "ep/1", bytes: 200_000 })
 
+      expect(yield* store.readPrefix("ep/1", 1024)).toEqual(bytes.slice(0, 1024))
+
       const url = yield* store.playableUrl("ep/1")
       const response = yield* Effect.promise(() => fetch(url ?? ""))
       // Typed, or Chrome's media player stalls on a file from OPFS.
@@ -26,6 +28,7 @@ describe("DownloadStore (OPFS)", () => {
       yield* store.remove("ep/1")
       expect(yield* store.has("ep/1")).toBe(false)
       expect(yield* store.playableUrl("ep/1")).toBeNull()
+      expect(yield* store.readPrefix("ep/1", 1024)).toBeNull()
     }).pipe(Effect.provide(DownloadStore.layerWeb))
   )
 

@@ -1,8 +1,9 @@
 import type { State, ViewQuery } from "@podlist/domain"
 import { Effect } from "effect"
 import { AsyncResult, Atom } from "effect/reactivity"
+import { localClient } from "#client"
 import { catalogueKey, DataLayer } from "../data/DataLayer.ts"
-import { runtime, stateAtom } from "./runtime.ts"
+import { downloadsAtom, runtime, stateAtom } from "./runtime.ts"
 
 // React bindings only. Storage, query compilation and sync live behind DataLayer.
 export type {
@@ -90,9 +91,20 @@ export const viewCountsAtom = runtime
   })
   .pipe(Atom.withReactivity([catalogueKey]))
 
+const episodeStoredAtom = Atom.family((episodeId: string) =>
+  Atom.make(
+    (get) =>
+      AsyncResult.getOrElse(get(downloadsAtom), () => undefined)?.get(episodeId)?._tag === "Stored"
+  )
+)
+
 export const episodeDetailAtom = Atom.family((episodeId: string) =>
   runtime
-    .atom(Effect.flatMap(DataLayer, (data) => data.episodeDetail(episodeId)))
+    .atom((get) => {
+      // Existing inspector results may predate the download. Progress alone is not a change.
+      if (localClient) get(episodeStoredAtom(episodeId))
+      return Effect.flatMap(DataLayer, (data) => data.episodeDetail(episodeId))
+    })
     // Hover/focus warms this same atom. Keep it briefly after leaving the row so the
     // panel reuses the pending request or result, without retaining the whole Library.
     .pipe(Atom.withReactivity([catalogueKey]), Atom.setIdleTTL("30 seconds"))
