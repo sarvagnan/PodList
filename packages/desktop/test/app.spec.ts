@@ -298,6 +298,25 @@ test("right-click on a row shows its commands as a native menu", async ({
         ?.click()
     )
     await expect.poll(titles).toEqual([...before.slice(1), before[0]])
+
+    // A platform keyboard context menu resolves the focused row, even over its title link.
+    await page.locator("main [role=row] [data-cell=title]").first().focus()
+    await app.evaluate(({ BrowserWindow }) => {
+      delete (globalThis as { shown?: Electron.Menu }).shown
+      BrowserWindow.getAllWindows()[0]?.webContents.emit(
+        "context-menu",
+        {},
+        {
+          x: 0,
+          y: 0,
+          menuSourceType: "keyboard",
+          isEditable: false,
+          linkURL: "app://podlist/episodes/entry",
+          selectionText: ""
+        }
+      )
+    })
+    await expect.poll(shown).toContain("Copy PodList Link")
     await close(app)
   } finally {
     demo.stop()

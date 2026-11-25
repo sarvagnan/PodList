@@ -36,9 +36,15 @@ export interface RowMenuProps {
 export interface NativeRowMenu {
   readonly id: string
   /** The commands, with null for a separator. */
-  readonly items: ReadonlyArray<{ readonly label: string; readonly checked?: boolean } | null>
+  readonly items: ReadonlyArray<{
+    readonly label: string
+    readonly checked?: boolean
+    readonly enabled?: boolean
+  } | null>
   readonly link?: string
 }
+
+const allowed = (canEdit: boolean, command: string) => canEdit || /^(Open|Copy)/.test(command)
 
 const itemClass =
   "flex min-h-10 cursor-default items-center rounded-lg px-3 outline-none data-[highlighted]:bg-secondary"
@@ -64,7 +70,7 @@ export function RowMenuItems({
     ) : command.checked === undefined ? (
       <ContextMenu.Item
         key={command.label}
-        disabled={!canEdit && !/^(Open|Copy)/.test(command.label)}
+        disabled={!allowed(canEdit, command.label)}
         onClick={command.run}
         className={itemClass}
       >
@@ -118,6 +124,7 @@ const keepBrowserMenus = (row: HTMLElement | null) => {
 }
 
 export function RowMenu({ commands, link, render, children }: RowMenuProps) {
+  const canEdit = useCanEdit()
   const wide = useMinWidth("64rem")
   const id = useId()
   // Closing the menu returns focus to the row (WKEY-03): to what had focus in it, or its
@@ -144,12 +151,17 @@ export function RowMenu({ commands, link, render, children }: RowMenuProps) {
       const chosen = (event as CustomEvent<{ id: string; label: string }>).detail
       if (chosen.id !== id) return
       for (const command of current.current) {
-        if ("label" in command && command.label === chosen.label) command.run()
+        if (
+          "label" in command &&
+          command.label === chosen.label &&
+          (command.checked === undefined ? allowed(canEdit, command.label) : canEdit)
+        )
+          command.run()
       }
     }
     document.addEventListener("podlist:row-menu", onChoose)
     return () => document.removeEventListener("podlist:row-menu", onChoose)
-  }, [id])
+  }, [id, canEdit])
 
   if (inMacApp) {
     const native: NativeRowMenu = {
@@ -157,7 +169,11 @@ export function RowMenu({ commands, link, render, children }: RowMenuProps) {
       items: commands.map((c) =>
         "separator" in c
           ? null
-          : { label: c.label, ...(c.checked === undefined ? {} : { checked: c.checked }) }
+          : {
+              label: c.label,
+              enabled: c.checked === undefined ? allowed(canEdit, c.label) : canEdit,
+              ...(c.checked === undefined ? {} : { checked: c.checked })
+            }
       ),
       ...(link === undefined ? {} : { link })
     }

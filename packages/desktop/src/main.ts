@@ -328,7 +328,11 @@ const undo = async (win: BrowserWindow, redo: boolean) => {
  * components/lists/RowMenu.tsx). */
 interface RowMenu {
   readonly id: string
-  readonly items: ReadonlyArray<{ readonly label: string; readonly checked?: boolean } | null>
+  readonly items: ReadonlyArray<{
+    readonly label: string
+    readonly checked?: boolean
+    readonly enabled?: boolean
+  } | null>
   /** The row's page in the app, offered as a link to the server. */
   readonly link?: string
 }
@@ -358,11 +362,16 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
         item === null
           ? { type: "separator" }
           : item.checked === undefined
-            ? { label: titleCase(item.label), click: send(item.label) }
+            ? {
+                label: titleCase(item.label),
+                enabled: item.enabled ?? true,
+                click: send(item.label)
+              }
             : {
                 label: titleCase(item.label),
                 type: "checkbox",
                 checked: item.checked,
+                enabled: item.enabled ?? true,
                 click: send(item.label)
               }
     ),
@@ -392,13 +401,16 @@ const contextMenu = (
   if (link) {
     if (/^https?:/.test(link))
       items.push({ label: "Open Link in Browser", click: () => openExternal(link) })
-    // An in-app link is copied as the same page on the server, which opens anywhere.
+    const inApp = link.startsWith(`${appOrigin}/`)
+    const path = inApp ? new URL(link).pathname : ""
+    const appLink = podListLinkForPath(path)
+    if (appLink)
+      items.push({ label: "Copy PodList Link", click: () => clipboard.writeText(appLink) })
     const server = serverUrl()
     const shared =
-      link.startsWith(`${appOrigin}/`) && server !== undefined
-        ? new URL(link.slice(appOrigin.length), server).href
-        : link
-    items.push({ label: "Copy Link", click: () => clipboard.writeText(shared) })
+      inApp && server !== undefined ? new URL(link.slice(appOrigin.length), server).href : link
+    if (!appLink || server)
+      items.push({ label: "Copy Link", click: () => clipboard.writeText(shared) })
   }
   if (params.isEditable) {
     items.push(
@@ -604,16 +616,25 @@ const createWindow = () => {
     void (async () => {
       // On a row (an Episode, an Entry, a Subscription), its commands as a native menu.
       // Native editing, selection and links take precedence over row commands (BROWSER-06).
-      const native = params.isEditable || params.selectionText !== "" || params.linkURL !== ""
+      const keyboard = params.menuSourceType === "keyboard"
+      const native =
+        params.isEditable || params.selectionText !== "" || (!keyboard && params.linkURL !== "")
+      const source = keyboard
+        ? "document.activeElement"
+        : `document.elementFromPoint(${params.x}, ${params.y})`
       const row = native
         ? null
         : ((await win.webContents
             .executeJavaScript(
-              `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
+              `(() => { const el = ${source}?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
             )
             .catch(() => null)) as RowMenu | null)
       const items = row ? rowMenu(win, row) : contextMenu(win, params)
-      Menu.buildFromTemplate(items).popup({ window: win })
+      if (items.length)
+        Menu.buildFromTemplate(items).popup({
+          window: win,
+          ...(params.menuSourceType ? { sourceType: params.menuSourceType } : {})
+        })
     })()
   })
   // Three-finger swipes and mouse back/forward buttons walk history (BROWSER-09).
