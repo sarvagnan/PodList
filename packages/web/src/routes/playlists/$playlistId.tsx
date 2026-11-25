@@ -29,6 +29,7 @@ import {
 } from "../../components/lists/VirtualSortableList.tsx"
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { ContextualSearch, useEpisodeListSearch } from "../../components/shell/ContextualSearch.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
@@ -98,7 +99,11 @@ function PlaylistDetail() {
   useScrollMemory(state !== null && playlist !== undefined && (localClient || ready))
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
   const listRef = useRef<HTMLDivElement>(null)
-  const entries = playlist?.entries ?? []
+  const search = useEpisodeListSearch(playlistId, tab === undefined)
+  const allEntries = playlist?.entries ?? []
+  const entries = search.query
+    ? allEntries.filter((e) => search.matches.has(e.episodeId))
+    : allEntries
   const scroller = useRef<EntryScroller>(null)
   const [restored, setRestored] = useAtom(restoredSelectionAtom)
   const restoredIndex =
@@ -197,6 +202,7 @@ function PlaylistDetail() {
 
   // One step that Undo takes back: the Entry returns after its old neighbour.
   const moveEntry = (episodeId: string, after: string | null, fromMenu = false) => {
+    if (search.query) return
     const index = entries.findIndex((e) => e.episodeId === episodeId)
     const before = index > 0 ? (entries[index - 1]?.episodeId ?? null) : null
     const move = (to: string | null) =>
@@ -288,6 +294,7 @@ function PlaylistDetail() {
       <PageHeader
         narrow={tab !== undefined}
         title={playlist.name}
+        search={tab === undefined && <ContextualSearch {...search} />}
         // Each section has its own address, so its own tab name too (BROWSER-03).
         tabTitle={
           tab === "history"
@@ -375,6 +382,12 @@ function PlaylistDetail() {
         <div className="max-w-[960px]">
           <PlaylistTimeline playlist={playlist} />
         </div>
+      ) : search.waiting ? (
+        <LoadingRows label="Searching this list" />
+      ) : search.query && entries.length === 0 ? (
+        <EmptyState title="No Episodes match your search.">
+          Try other words or clear Search.
+        </EmptyState>
       ) : playlist.entries.length === 0 ? (
         <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
           <EmptyState title="Nothing here yet">
@@ -417,7 +430,8 @@ function PlaylistDetail() {
                 entries[index - 2]?.episodeId,
                 entries[index - 1]?.episodeId,
                 entries[index + 1]?.episodeId,
-                entries.at(-1)?.episodeId
+                entries.at(-1)?.episodeId,
+                Boolean(search.query)
               ]}
               scroller={scroller}
               ids={entries.map((e) => e.episodeId)}
@@ -465,7 +479,7 @@ function PlaylistDetail() {
                           )
                       },
                   // Every move a drag makes, without a drag (AX-04).
-                  ...(index > 0
+                  ...(!search.query && index > 0
                     ? [
                         { label: "Move to top", run: () => moveEntry(entry.episodeId, null, true) },
                         {
@@ -475,7 +489,7 @@ function PlaylistDetail() {
                         }
                       ]
                     : []),
-                  ...(index < entries.length - 1
+                  ...(!search.query && index < entries.length - 1
                     ? [
                         {
                           label: "Move down",
@@ -586,6 +600,7 @@ function PlaylistDetail() {
                               type="button"
                               data-cell=""
                               {...sortable.handle}
+                              disabled={Boolean(search.query)}
                               aria-label={`Move ${title ?? "Entry"}`}
                               tabIndex={-1}
                               className="-mx-1 grid size-11 cursor-grab touch-none place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"

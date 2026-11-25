@@ -782,7 +782,7 @@ const menu = (): MenuItemConstructorOptions[] => [
       { role: "selectAll" },
       { type: "separator" },
       // A Mac app's Find: here it searches the Library.
-      { label: "Find…", accelerator: "CmdOrCtrl+F", click: () => goTo("/search") }
+      { label: "Find…", accelerator: "CmdOrCtrl+F", click: () => sendCommand("find") }
     ]
   },
   {

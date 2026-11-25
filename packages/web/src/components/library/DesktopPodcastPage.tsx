@@ -254,6 +254,7 @@ function LoadedPodcast({
           Search Episodes
           <input
             type="search"
+            data-context-search=""
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)

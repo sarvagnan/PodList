@@ -1,5 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
-import { Operation } from "@podlist/domain"
+import { Mentions, Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
@@ -26,6 +26,7 @@ import { ListContinuation } from "../../components/lists/ListContinuation.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { ContextualSearch, useListSearch } from "../../components/shell/ContextualSearch.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
@@ -71,7 +72,17 @@ export const Route = createFileRoute("/library/")({
 function LibraryScreen() {
   const result = useAtomValue(subscriptionsAtom)
   const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
-  const subscriptions = paging.items
+  const search = useListSearch("library")
+  const words = search.text.trim().split(/\s+/).filter(Boolean).map(Mentions.fold)
+  const subscriptions = words.length
+    ? paging.items.filter((subscription) => {
+        const fields = [subscription.title, subscription.author ?? "", subscription.feedUrl].map(
+          Mentions.fold
+        )
+        return words.every((word) => fields.some((field) => field.includes(word)))
+      })
+    : paging.items
+  const subscriptionCount = words.length ? subscriptions.length : paging.total
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
   const [incomingFeed, setIncomingFeed] = useState<{ address: string }>()
@@ -225,9 +236,10 @@ function LibraryScreen() {
       <PageHeader
         narrow
         title="Library"
+        search={<ContextualSearch {...search} />}
         {...(subscriptions.length > 0
           ? {
-              subtitle: `${paging.total} ${paging.total === 1 ? "Subscription" : "Subscriptions"}${wide && localClient ? " · downloads and settings for this Device" : ""}`
+              subtitle: `${subscriptionCount} ${subscriptionCount === 1 ? "Subscription" : "Subscriptions"}${wide && localClient ? " · downloads and settings for this Device" : ""}`
             }
           : {})}
         actions={
@@ -255,6 +267,10 @@ function LibraryScreen() {
       <OpmlStatus />
       {AsyncResult.isInitial(result) || (subscriptions.length === 0 && !ready) ? (
         <LoadingRows label="Loading your Library" />
+      ) : subscriptions.length === 0 && words.length ? (
+        <EmptyState title="No Matching Subscriptions">
+          Search by name or feed address, or clear Search.
+        </EmptyState>
       ) : subscriptions.length === 0 ? (
         <EmptyState title="No Subscriptions yet">
           Add podcasts by name or by feed address. Import another app’s OPML file in{" "}

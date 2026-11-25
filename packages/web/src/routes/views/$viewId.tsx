@@ -13,7 +13,8 @@ import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { EpisodeList } from "../../components/episodes/EpisodeList.tsx"
 import { NextLastTarget } from "../../components/episodes/EpisodeRow.tsx"
 import { TargetPanel } from "../../components/episodes/TargetPanel.tsx"
-import { EmptyState } from "../../components/lists/ListRow.tsx"
+import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
+import { ContextualSearch, useEpisodeListSearch } from "../../components/shell/ContextualSearch.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
@@ -49,7 +50,10 @@ function ViewDetail() {
   }>({ viewId, ids: new Set() })
   const result = useAtomValue(viewEpisodesAtom(viewId))
   const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
-  const episodes = paging.items
+  const search = useEpisodeListSearch(viewId, !editing)
+  const episodes = search.query
+    ? paging.items.filter((e) => search.matches.has(e.id))
+    : paging.items
   const {
     selected,
     invalid: invalidSelection,
@@ -61,7 +65,7 @@ function ViewDetail() {
       AsyncResult.isSuccess(result) &&
       !AsyncResult.isWaiting(result) &&
       !paging.more &&
-      !episodes.some((item) => item.id === episode)
+      !paging.items.some((item) => item.id === episode)
   )
   useEffect(() => {
     if (invalidSelection) void navigate({ search: {}, replace: true })
@@ -174,7 +178,8 @@ function ViewDetail() {
   }
   // Until the catalogue has arrived once, an empty list is still loading, not empty.
   const loading = AsyncResult.isInitial(result) || (!ready && episodes.length === 0)
-  const count = `${paging.total} ${paging.total === 1 ? "Episode" : "Episodes"}`
+  const total = search.query ? episodes.length : paging.total
+  const count = `${total} ${total === 1 ? "Episode" : "Episodes"}`
   const form = <ViewForm key={view.id} view={view} onDelete={() => void remove(view)} />
 
   // Phone and narrow windows: the editor is a screen of its own, with a live count.
@@ -204,6 +209,7 @@ function ViewDetail() {
       <div className="min-w-0">
         <PageHeader
           title={view.name}
+          search={!editing && <ContextualSearch {...search} />}
           stableActions
           back={{ to: "/views", label: "Views" }}
           subtitle={loading ? describeView(view) : `${count} · ${describeView(view)}`}
@@ -232,12 +238,18 @@ function ViewDetail() {
           }
         />
         <div data-page-notice="" />
-        {!loading &&
-        episodes.length === 0 &&
-        noPodcasts &&
-        !firstRunDone.get() &&
-        opensFirstView &&
-        state.views[0]?.id === viewId ? (
+        {search.waiting ? (
+          <LoadingRows label="Searching this list" />
+        ) : search.query && episodes.length === 0 ? (
+          <EmptyState title="No Episodes match your search.">
+            Try other words or clear Search.
+          </EmptyState>
+        ) : !loading &&
+          episodes.length === 0 &&
+          noPodcasts &&
+          !firstRunDone.get() &&
+          opensFirstView &&
+          state.views[0]?.id === viewId ? (
           // The welcome card above already offers Add podcasts: no second one here.
           <div />
         ) : !loading && episodes.length === 0 && noPodcasts ? (
@@ -260,7 +272,7 @@ function ViewDetail() {
           </EmptyState>
         ) : (
           <EpisodeList
-            paging={paging}
+            {...(search.query ? {} : { paging })}
             episodes={episodes}
             label={`${view.name} Episodes`}
             ready={!loading}

@@ -799,9 +799,29 @@ function useMenuControls() {
 function useSearchKey() {
   const router = useRouter()
   useEffect(() => {
-    const go = (event: Event) => void router.navigate({ to: (event as CustomEvent<string>).detail })
+    const focusSearch = (scoped: boolean) => {
+      const field = scoped
+        ? document.querySelector<HTMLInputElement>("main [data-context-search]")
+        : null
+      if (field) field.focus()
+      else if (router.state.location.pathname === "/search")
+        document.querySelector<HTMLInputElement>('main input[type="search"]')?.focus()
+      else void router.navigate({ to: "/search" })
+    }
+    const command = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === "find") focusSearch(true)
+    }
+    const go = (event: Event) => {
+      const to = (event as CustomEvent<string>).detail
+      if (to === "/search") focusSearch(false)
+      else void router.navigate({ to })
+    }
     document.addEventListener("podlist:go", go)
-    return () => document.removeEventListener("podlist:go", go)
+    document.addEventListener("podlist:command", command)
+    return () => {
+      document.removeEventListener("podlist:go", go)
+      document.removeEventListener("podlist:command", command)
+    }
   }, [router])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

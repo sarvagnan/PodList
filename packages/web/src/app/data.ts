@@ -114,3 +114,18 @@ export const episodeDetailAtom = Atom.family((episodeId: string) =>
 export const statsCatalogueAtom = runtime
   .atom(Effect.flatMap(DataLayer, (data) => data.statsCatalogue))
   .pipe(Atom.withReactivity([catalogueKey]))
+
+/** A contextual filter intersects its result with the list, retaining order and View limit. */
+export const contextualEpisodesAtom = Atom.family((text: string) =>
+  runtime
+    .atom(
+      text
+        ? Effect.flatMap(DataLayer, (data) =>
+            data
+              .filterEpisodes({ filter: { text }, limit: null, sort: "publishedDesc" })
+              .pipe(Effect.map((rows) => new Set(rows.map((row) => row.id))))
+          )
+        : Effect.succeed(new Set<string>())
+    )
+    .pipe(Atom.withReactivity([catalogueKey]), Atom.setIdleTTL("10 seconds"))
+)
