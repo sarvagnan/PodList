@@ -1,9 +1,19 @@
 import { useAtomValue } from "@effect/atom-react"
+import { Mentions } from "@podlist/domain"
 import { AsyncResult } from "effect/reactivity"
 import { Search, X } from "lucide-react"
 import { useRef, useState } from "react"
 import { contextualEpisodesAtom } from "../../app/data.ts"
 import { desktopBuild } from "./DesktopPanes.tsx"
+
+export function listTextMatcher(query: string) {
+  const words = query.trim().split(/\s+/).filter(Boolean).map(Mentions.fold)
+  return (fields: ReadonlyArray<string>) => {
+    if (!words.length) return true
+    const folded = fields.map(Mentions.fold)
+    return words.every((word) => folded.some((field) => field.includes(word)))
+  }
+}
 
 export function useListSearch(key: string, enabled = true) {
   const [saved, setSaved] = useState({ key, value: "" })

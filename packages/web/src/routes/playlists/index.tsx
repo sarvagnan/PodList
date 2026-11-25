@@ -6,9 +6,14 @@ import { Plus } from "lucide-react"
 import { useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useNowPlaying } from "../../app/hooks.ts"
-import { ListRow, LoadingRows, StatusBadge } from "../../components/lists/ListRow.tsx"
+import { EmptyState, ListRow, LoadingRows, StatusBadge } from "../../components/lists/ListRow.tsx"
 import { NewPlaylistDialog } from "../../components/playlists/NewPlaylistDialog.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import {
+  ContextualSearch,
+  listTextMatcher,
+  useListSearch
+} from "../../components/shell/ContextualSearch.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 
 export const Route = createFileRoute("/playlists/")({ component: PlaylistsList })
@@ -20,12 +25,16 @@ function PlaylistsList() {
   const now = useNowPlaying()
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   const [adding, setAdding] = useState(false)
+  const search = useListSearch("playlists")
+  const matches = listTextMatcher(search.text)
+  const playlists = state?.playlists.filter((playlist) => matches([playlist.name])) ?? []
   const trashed = state === null ? 0 : State.trashOf(state).length
   return (
     <>
       <PageHeader
         narrow
         title="Playlists"
+        search={<ContextualSearch {...search} />}
         actions={
           <button
             type="button"
@@ -41,7 +50,12 @@ function PlaylistsList() {
         <LoadingRows label="Loading Playlists" />
       ) : (
         <div className="max-w-[960px] px-3 md:px-6">
-          {state.playlists.map((p) => {
+          {!playlists.length && search.text.trim() && (
+            <EmptyState title="No Playlists match your search.">
+              Try another name or clear Search.
+            </EmptyState>
+          )}
+          {playlists.map((p) => {
             const active = p.id === state.activePlaylistId
             const current = p.cursor === null ? undefined : episodes.get(p.cursor)
             // "Resume" only where there's a Position to resume from (COPY-01).

@@ -198,12 +198,19 @@ export const addDroppedEpisodesAtom = runtime.fn(
       if (!initial)
         return { message: "This Playlist is no longer available.", undo: [] } satisfies Outcome
       const undo: Operation.Change[] = []
+      let failed = 0
       for (const episodeId of new Set(episodeIds)) {
         const before = yield* SubscriptionRef.get(data.state)
         const playlist = before.playlists.find((p) => p.id === playlistId)
         if (!playlist || playlist.entries.some((e) => e.episodeId === episodeId)) continue
         const action = { _tag: "Add", episodeId, playlistId, placement: "last" } as const
-        for (const change of changesFor(action, before)) yield* data.record(change)
+        const recorded = yield* Effect.forEach(changesFor(action, before), data.record).pipe(
+          Effect.result
+        )
+        if (recorded._tag === "Failure") {
+          failed++
+          continue
+        }
         const after = yield* SubscriptionRef.get(data.state)
         if (
           after.playlists.some(
@@ -212,10 +219,13 @@ export const addDroppedEpisodesAtom = runtime.fn(
         )
           undo.unshift(...undoFor(action, before, after, Date.now()))
       }
+      const message = undo.length
+        ? `Added ${undo.length === 1 ? "1 Episode" : `${undo.length} Episodes`} to ${initial.name}`
+        : failed
+          ? "Could not add Episodes"
+          : `Already in ${initial.name}`
       return {
-        message: undo.length
-          ? `Added ${undo.length === 1 ? "1 Episode" : `${undo.length} Episodes`} to ${initial.name}`
-          : `Already in ${initial.name}`,
+        message: failed ? `${message}. ${failed} to retry.` : message,
         undo
       } satisfies Outcome
     }).pipe(episodeDrops.withPermits(1)),

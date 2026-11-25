@@ -1,5 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
-import { Mentions, Operation } from "@podlist/domain"
+import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
@@ -26,7 +26,11 @@ import { ListContinuation } from "../../components/lists/ListContinuation.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
-import { ContextualSearch, useListSearch } from "../../components/shell/ContextualSearch.tsx"
+import {
+  ContextualSearch,
+  listTextMatcher,
+  useListSearch
+} from "../../components/shell/ContextualSearch.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
@@ -73,16 +77,12 @@ function LibraryScreen() {
   const result = useAtomValue(subscriptionsAtom)
   const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
   const search = useListSearch("library")
-  const words = search.text.trim().split(/\s+/).filter(Boolean).map(Mentions.fold)
-  const subscriptions = words.length
-    ? paging.items.filter((subscription) => {
-        const fields = [subscription.title, subscription.author ?? "", subscription.feedUrl].map(
-          Mentions.fold
-        )
-        return words.every((word) => fields.some((field) => field.includes(word)))
-      })
+  const filtering = Boolean(search.text.trim())
+  const matches = listTextMatcher(search.text)
+  const subscriptions = filtering
+    ? paging.items.filter((sub) => matches([sub.title, sub.author ?? "", sub.feedUrl]))
     : paging.items
-  const subscriptionCount = words.length ? subscriptions.length : paging.total
+  const subscriptionCount = filtering ? subscriptions.length : paging.total
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
   const [incomingFeed, setIncomingFeed] = useState<{ address: string }>()
@@ -267,7 +267,7 @@ function LibraryScreen() {
       <OpmlStatus />
       {AsyncResult.isInitial(result) || (subscriptions.length === 0 && !ready) ? (
         <LoadingRows label="Loading your Library" />
-      ) : subscriptions.length === 0 && words.length ? (
+      ) : subscriptions.length === 0 && filtering ? (
         <EmptyState title="No Matching Subscriptions">
           Search by name or feed address, or clear Search.
         </EmptyState>
