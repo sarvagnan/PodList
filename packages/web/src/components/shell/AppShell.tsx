@@ -49,6 +49,7 @@ import { DesktopCreatedView } from "../views/DesktopCreatedView.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
 import { DesktopOpenLinks } from "./DesktopOpenLinks.tsx"
+import { DesktopOpenOpml } from "./DesktopOpenOpml.tsx"
 import {
   DesktopPanes,
   DesktopPaneToolbar,
@@ -975,7 +976,12 @@ function Shell() {
       <Shortcuts />
       <RestoreDialog />
       {desktopBuild && <BringOverPrompt />}
-      {desktopBuild && <DesktopOpenLinks />}
+      {desktopBuild && (
+        <>
+          <DesktopOpenLinks />
+          <DesktopOpenOpml />
+        </>
+      )}
     </div>
   )
 }

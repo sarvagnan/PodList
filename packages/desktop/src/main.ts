@@ -25,7 +25,9 @@ import {
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
 import { BringOverSource } from "./bring-over-source.ts"
+import { desktopEntry, registerDesktopAssociations } from "./desktop-associations.ts"
 import { hiddenMenu } from "./hidden-window.ts"
+import { type OpenedOpml, opmlByteLimit, opmlPath, readOpmlFile } from "./native-opml.ts"
 import { publisherMedia } from "./publisher-media.ts"
 import { publisherRequest } from "./publisher-requests.ts"
 import { checkServer, serverOrigin } from "./server-connection.ts"
@@ -41,6 +43,7 @@ if (process.env.PODLIST_USER_DATA) app.setPath("userData", process.env.PODLIST_U
 // Test-only capture mode. Set the activation policy before creating any native UI.
 const hiddenWindow = process.env.PODLIST_HIDDEN_WINDOW === "1"
 if (hiddenWindow && process.platform === "darwin") app.setActivationPolicy("accessory")
+if (app.isPackaged && process.platform === "linux") app.setDesktopName(desktopEntry)
 const openExternal = (url: string) => {
   if (!hiddenWindow) return shell.openExternal(url)
 }
@@ -455,6 +458,29 @@ let canOpenCreatedView = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
 const pendingLinks: PodListLink[] = []
+const pendingOpml: string[] = []
+
+const receiveOpml = (path: string) => {
+  if (pendingOpml.length === 64) pendingOpml.shift()
+  if (!pendingOpml.includes(path)) pendingOpml.push(path)
+  if (window && !window.isDestroyed()) window.webContents.send("podlist:opml-available")
+}
+
+const receiveArgument = (argument: string) => {
+  const path = opmlPath(argument)
+  if (path) receiveOpml(path)
+  else receiveLink(argument)
+}
+
+const chooseNativeOpml = async () => {
+  if (!window || hiddenWindow) return
+  const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+    title: "Import OPML",
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: "OPML", extensions: ["opml", "xml"] }]
+  })
+  if (!canceled) for (const path of filePaths) receiveOpml(path)
+}
 
 const receiveLink = (input: string) => {
   const link = parsePodListLink(input)
@@ -694,6 +720,7 @@ const menu = (): MenuItemConstructorOptions[] => [
         accelerator: "Shift+CmdOrCtrl+A",
         click: () => goTo("/library?add=true")
       },
+      { label: "Import OPML…", enabled: !hiddenWindow, click: () => void chooseNativeOpml() },
       { type: "separator" },
       { role: "close", label: "Close Window" },
       ...(process.platform !== "darwin"
@@ -903,18 +930,44 @@ const menu = (): MenuItemConstructorOptions[] => [
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  for (const arg of process.argv.slice(1)) receiveLink(arg)
+  for (const arg of process.argv.slice(1)) receiveArgument(arg)
   app.on("open-url", (event, url) => {
     event.preventDefault()
     receiveLink(url)
     showLibrary()
   })
+  app.on("open-file", (event, file) => {
+    const path = opmlPath(file)
+    if (!path) return
+    event.preventDefault()
+    receiveOpml(path)
+    showLibrary()
+  })
   app.on("second-instance", (_event, argv) => {
-    for (const arg of argv.slice(1)) receiveLink(arg)
+    for (const arg of argv.slice(1)) receiveArgument(arg)
     showLibrary()
   })
   app.whenReady().then(async () => {
-    if (app.isPackaged && process.platform === "win32") app.setAsDefaultProtocolClient("podlist")
+    if (app.isPackaged && !hiddenWindow && !process.env.PODLIST_USER_DATA) {
+      if (process.platform === "win32") app.setAsDefaultProtocolClient("podlist")
+      void registerDesktopAssociations()
+        .then(() => {
+          if (process.platform === "linux" && !app.isDefaultProtocolClient("podlist"))
+            app.setAsDefaultProtocolClient("podlist")
+        })
+        .catch((error) => console.warn("Could not register PodList file associations.", error))
+    }
+    ipcMain.handle("podlist:take-opml", async (event) => {
+      if (!trustedAutomation(event)) return []
+      let budget = opmlByteLimit
+      const files: OpenedOpml[] = []
+      for (const path of pendingOpml.splice(0)) {
+        const file = await readOpmlFile(path, budget)
+        if ("contents" in file) budget -= Buffer.byteLength(file.contents)
+        files.push(file)
+      }
+      return files
+    })
     ipcMain.handle("podlist:take-links", (event) =>
       trustedAutomation(event) ? pendingLinks.splice(0) : []
     )

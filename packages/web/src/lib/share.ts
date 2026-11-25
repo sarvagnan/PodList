@@ -18,6 +18,12 @@ declare global {
         readonly take: () => Promise<ReadonlyArray<PodListLink>>
         readonly onAvailable: (listener: () => void) => () => void
       }
+      readonly opml?: {
+        readonly take: () => Promise<
+          ReadonlyArray<{ name: string; contents: string } | { name: string; error: string }>
+        >
+        readonly onAvailable: (listener: () => void) => () => void
+      }
       readonly standalone?: boolean
       readonly bringOverSource?: boolean
       readonly bringOver?: {

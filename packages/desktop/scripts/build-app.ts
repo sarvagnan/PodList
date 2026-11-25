@@ -87,6 +87,27 @@ const [appDir] = await packager({
   appBundleId: "app.podlist.desktop",
   appCategoryType: "public.app-category.music",
   protocols: [{ name: "PodList Link", schemes: ["podlist"] }],
+  extendInfo: {
+    CFBundleDocumentTypes: [
+      {
+        CFBundleTypeName: "OPML Podcast Subscriptions",
+        CFBundleTypeRole: "Viewer",
+        LSHandlerRank: "Alternate",
+        LSItemContentTypes: ["org.opml"]
+      }
+    ],
+    UTImportedTypeDeclarations: [
+      {
+        UTTypeIdentifier: "org.opml",
+        UTTypeDescription: "OPML Podcast Subscriptions",
+        UTTypeConformsTo: ["public.xml"],
+        UTTypeTagSpecification: {
+          "public.filename-extension": ["opml"],
+          "public.mime-type": "text/x-opml"
+        }
+      }
+    ]
+  },
   platform: process.platform as "darwin" | "linux" | "win32",
   arch: process.arch === "arm64" ? "arm64" : "x64",
   electronVersion,

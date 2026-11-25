@@ -21,6 +21,14 @@ if (location.protocol === "file:") {
         return () => ipcRenderer.removeListener("podlist:links-available", handle)
       }
     },
+    opml: {
+      take: () => ipcRenderer.invoke("podlist:take-opml"),
+      onAvailable: (listener) => {
+        const handle = () => listener()
+        ipcRenderer.on("podlist:opml-available", handle)
+        return () => ipcRenderer.removeListener("podlist:opml-available", handle)
+      }
+    },
     standalone: process.argv.includes("--podlist-standalone"),
     bringOverSource: process.argv.includes("--podlist-bring-over-source"),
     bringOver: {

@@ -60,7 +60,7 @@ export const importOpmlAtom = runtime.fn((opml: string) =>
 // Kept alive while navigating away from Settings. Uses the ordinary Subscribe path.
 export const opmlCommandAtom = runtime
   .fn(
-    (command: File | "import" | "retry") =>
+    (command: File | ReadonlyArray<File> | "import" | "retry") =>
       Effect.gen(function* () {
         const data = yield* DataLayer
         const services = yield* Effect.context<LibraryClient | DataLayer>()
@@ -73,7 +73,9 @@ export const opmlCommandAtom = runtime
           }
         }
         if (typeof command !== "string") {
-          yield* Effect.promise(() => opmlImport.select(command, known))
+          yield* Effect.promise(() =>
+            opmlImport.selectFiles(command instanceof File ? [command] : command, known)
+          )
           return
         }
         yield* Effect.promise(() =>

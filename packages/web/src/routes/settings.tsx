@@ -3,7 +3,7 @@ import { useAtomSet } from "@effect/atom-react"
 import { Operation, PlaybackSettings, State } from "@podlist/domain"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { Schema } from "effect"
-import { useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { useAppState } from "../app/hooks.ts"
 import { recordAtom } from "../app/runtime.ts"
 import { AutomationSettings } from "../automation/AutomationSettings.tsx"
@@ -23,7 +23,12 @@ import { desktopSettingsPane, singleKeyShortcuts } from "../lib/remembered.ts"
 // podcast's own settings can override, and how long the Trash keeps deleted Playlists.
 // Changing speed in the player affects only the Episode playing; this is where it sticks.
 
-export const Route = createFileRoute("/settings")({ component: SettingsScreen })
+export const Route = createFileRoute("/settings")({
+  component: SettingsScreen,
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(desktopBuild && search.opml === true ? { opml: true as const } : {})
+  })
+})
 
 const change = Schema.decodeUnknownSync(Operation.Change)
 const speeds = desktopBuild
@@ -37,6 +42,14 @@ function SettingsScreen() {
   const record = useAtomSet(recordAtom)
   const id = useId()
   const navigate = useNavigate()
+  const section = useRef<HTMLElement>(null)
+  const { opml } = Route.useSearch()
+  const [pane, setPane] = useState(desktopSettingsPane.get)
+  const activePane = opml ? "general" : pane
+  const loaded = state !== null
+  useEffect(() => {
+    if (opml && loaded) section.current?.focus()
+  }, [opml, loaded])
   const [singleKeys, setSingleKeys] = useState(singleKeyShortcuts.get)
   if (state === null) return <LoadingRows label="Loading settings" />
   const settings = state.playbackSettings
@@ -189,7 +202,11 @@ function SettingsScreen() {
           </label>
         </div>
       </section>
-      <section aria-label="OPML import and export">
+      <section
+        aria-label="OPML import and export"
+        ref={section}
+        tabIndex={desktopBuild ? -1 : undefined}
+      >
         <h2 className={heading}>Import and export (OPML)</h2>
         <OpmlFlow />
         <ExportOpml />
@@ -230,9 +247,12 @@ function SettingsScreen() {
       <div className="max-w-[704px] px-5 pb-10 md:px-8">
         {desktopBuild ? (
           <Tabs.Root
-            defaultValue={desktopSettingsPane.get()}
+            value={activePane}
             onValueChange={(value) => {
-              if (value === "general" || value === "automation") desktopSettingsPane.set(value)
+              if (value !== "general" && value !== "automation") return
+              desktopSettingsPane.set(value)
+              setPane(value)
+              if (opml) void navigate({ to: "/settings", search: {}, replace: true })
             }}
           >
             <Tabs.List aria-label="Settings panes" className="mb-5 flex gap-1 border-b pb-2">
