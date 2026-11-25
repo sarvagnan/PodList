@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/FeedParser.ts",
     "./publisher": "./src/PublisherFeeds.ts",
+    "./directory": "./src/DirectoryResults.ts",
     "./polling": "./src/FeedPolling.ts",
     "./id3": "./src/Id3Chapters.ts"
   },

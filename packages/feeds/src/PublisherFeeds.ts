@@ -1,3 +1,4 @@
+import { normalizeAppleDirectoryResults } from "./DirectoryResults.ts"
 import { feedSizeLimit, type ParsedFeed, parseFeed } from "./FeedParser.ts"
 
 import { conditionalFeedHeaders, type FeedValidators } from "./FeedPolling.ts"
@@ -65,28 +66,7 @@ const nonEmpty = (value: unknown) => (typeof value === "string" && value.trim() 
 const directoryResults = (body: unknown): ReadonlyArray<DirectoryPodcast> => {
   if (!body || typeof body !== "object" || !("results" in body) || !Array.isArray(body.results))
     throw new Error("The podcast directory returned an invalid response.")
-  const results = new Map<string, DirectoryPodcast>()
-  for (const row of body.results as ReadonlyArray<unknown>) {
-    if (!row || typeof row !== "object") continue
-    const item = row as Record<string, unknown>
-    const feedUrl = nonEmpty(item.feedUrl)
-    if (!feedUrl) continue
-    try {
-      publisherUrl(feedUrl)
-    } catch {
-      continue
-    }
-    if (!results.has(feedUrl)) {
-      results.set(feedUrl, {
-        feedUrl,
-        title: nonEmpty(item.collectionName) ?? feedUrl,
-        author: nonEmpty(item.artistName),
-        artworkUrl: nonEmpty(item.artworkUrl600) ?? nonEmpty(item.artworkUrl100),
-        source: "itunes"
-      })
-    }
-  }
-  return [...results.values()]
+  return normalizeAppleDirectoryResults(body.results)
 }
 
 export const requestPublisher = async (
