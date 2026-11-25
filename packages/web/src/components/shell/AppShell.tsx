@@ -37,6 +37,7 @@ import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
 import { Tip } from "../feedback/Tip.tsx"
 import { Toasts } from "../feedback/Toasts.tsx"
 import { UndoShortcut } from "../feedback/UndoShortcut.tsx"
+import { BringOverPrompt } from "../library/DesktopBringOver.tsx"
 import { DesktopFeedRefreshStatus } from "../library/DesktopFeedRefresh.tsx"
 import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { PlayerMenus } from "../player/PlayerMenus.tsx"
@@ -972,6 +973,7 @@ function Shell() {
       <Automation />
       <Shortcuts />
       <RestoreDialog />
+      {desktopBuild && <BringOverPrompt />}
     </div>
   )
 }

@@ -14,6 +14,13 @@ if (location.protocol === "file:") {
   contextBridge.exposeInMainWorld("podlistApp", {
     server: () => ipcRenderer.invoke("podlist:server"),
     standalone: process.argv.includes("--podlist-standalone"),
+    bringOverSource: process.argv.includes("--podlist-bring-over-source"),
+    bringOver: {
+      offer: () => ipcRenderer.invoke("podlist:bring-over-offer"),
+      dismissOffer: () => ipcRenderer.invoke("podlist:dismiss-bring-over-offer"),
+      snapshot: () => ipcRenderer.invoke("podlist:bring-over-snapshot"),
+      closeSource: () => ipcRenderer.invoke("podlist:close-bring-over-source")
+    },
     appearance: {
       get: () => ipcRenderer.invoke("podlist:appearance"),
       set: (appearance) => ipcRenderer.invoke("podlist:set-appearance", appearance)

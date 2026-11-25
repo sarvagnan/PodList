@@ -4,6 +4,7 @@ import { Context, Effect, Layer } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
 import { serverNeeded } from "../lib/connectionMessage.ts"
+import type { BringOverClient } from "./BringOverClient.ts"
 
 // The Library's server calls that aren't sync operations: finding podcasts, following
 // and unfollowing them, and OPML. Each needs the server, so each can fail offline.
@@ -15,6 +16,7 @@ export class LibraryError extends Error {
 export class LibraryClient extends Context.Service<
   LibraryClient,
   {
+    readonly bringOver?: BringOverClient
     readonly runInBackground?: Effect.Effect<never>
     readonly search: (
       query: string

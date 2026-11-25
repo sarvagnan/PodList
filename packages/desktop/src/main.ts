@@ -19,6 +19,7 @@ import {
 } from "electron"
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
+import { BringOverSource } from "./bring-over-source.ts"
 import { hiddenMenu } from "./hidden-window.ts"
 import { publisherMedia } from "./publisher-media.ts"
 import { publisherRequest } from "./publisher-requests.ts"
@@ -69,6 +70,8 @@ interface Config {
   readonly appearance?: Appearance
   readonly mcpEnabled?: boolean
   readonly standalone?: boolean
+  readonly standaloneCreated?: boolean
+  readonly bringOverOffer?: string | null
   readonly serverUrl?: string
   readonly lastServer?: string
   readonly bounds?: { x: number; y: number; width: number; height: number }
@@ -218,6 +221,22 @@ const profileFor = (server: string | null) => {
     profile.protocol.handle(scheme, async (request) => {
       const url = new URL(request.url)
       if (`${url.protocol}//${url.host}` !== appOrigin) return new Response(null, { status: 403 })
+      if (url.pathname === "/bring-over/audio") {
+        const id = url.searchParams.get("id")
+        if (
+          server === null ||
+          server !== serverUrl() ||
+          !id ||
+          id.length > 256 ||
+          request.method !== "GET"
+        )
+          return new Response(null, { status: 404 })
+        try {
+          return await bringOverSource.audio(id, request.signal)
+        } catch {
+          return new Response(null, { status: 404 })
+        }
+      }
       if (url.pathname === "/audio-download") return publisherMedia(request, url, "audio")
       if (url.pathname === "/publisher/artwork" && server === null)
         return publisherMedia(request, url, "artwork")
@@ -233,6 +252,8 @@ const profileFor = (server: string | null) => {
   return partition
 }
 
+const preload = join(import.meta.dirname, "preload.cjs")
+const bringOverSource = new BringOverSource(appOrigin, () => profileFor(null), preload)
 const setupPage = join(import.meta.dirname, "setup.html")
 const setupUrl = pathToFileURL(setupPage).href
 const trustedSetup = (event: Electron.IpcMainInvokeEvent) =>
@@ -465,7 +486,7 @@ const createWindow = () => {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
-      preload: join(import.meta.dirname, "preload.cjs"),
+      preload,
       ...(standalone || server !== undefined ? { partition: profileFor(server ?? null) } : {}),
       ...(standalone ? { additionalArguments: ["--podlist-standalone"] } : {})
     }
@@ -505,7 +526,10 @@ const createWindow = () => {
     if (!url.startsWith(`${appOrigin}/`)) return false
     const path = new URL(url).pathname
     return (
-      path !== "/audio-download" && !path.startsWith("/publisher/") && !path.startsWith("/api/")
+      path !== "/audio-download" &&
+      !path.startsWith("/bring-over/") &&
+      !path.startsWith("/publisher/") &&
+      !path.startsWith("/api/")
     )
   }
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -550,6 +574,7 @@ const createWindow = () => {
 
 /** Replaces the window, for a new server and so a new profile. */
 const reopen = () => {
+  bringOverSource.close()
   const previous = window
   createWindow()
   previous?.destroy()
@@ -573,7 +598,15 @@ const connect = async (address: string): Promise<string | null> => {
     if (problem) return problem
     if (source !== window || source?.isDestroyed() || source?.webContents.getURL() !== setupUrl)
       return "Connection cancelled."
-    writeConfig({ ...readConfig(), standalone: false, serverUrl: origin, lastServer: origin })
+    const config = readConfig()
+    writeConfig({
+      ...config,
+      standalone: false,
+      serverUrl: origin,
+      lastServer: origin,
+      standaloneCreated: standaloneSelected() || config.standaloneCreated === true,
+      bringOverOffer: standaloneSelected() ? origin : (config.bringOverOffer ?? null)
+    })
     reopen()
     return null
   } finally {
@@ -593,7 +626,7 @@ const changeServer = async () => {
     defaultId: 0,
     cancelId: 1
   })
-  if (response === 0 && source === window && !source.isDestroyed()) await source.loadFile(setupPage)
+  if (response === 0 && source === window && !source.isDestroyed()) await showSetup(source)
 }
 
 const menu = (): MenuItemConstructorOptions[] => [
@@ -922,12 +955,34 @@ if (!app.requestSingleInstanceLock()) {
       if (!trustedSetup(event) || !hasLibrary() || checkingServer) return
       await window?.loadURL(`${appOrigin}/`)
     })
+    ipcMain.handle("podlist:bring-over-offer", (event) => {
+      const address = serverUrl()
+      if (!trustedAutomation(event) || !address) return null
+      return { address, automatic: readConfig().bringOverOffer === address }
+    })
+    ipcMain.handle("podlist:dismiss-bring-over-offer", (event) => {
+      if (!trustedAutomation(event)) return
+      const config = readConfig()
+      if (config.bringOverOffer === serverUrl()) writeConfig({ ...config, bringOverOffer: null })
+    })
+    ipcMain.handle("podlist:bring-over-snapshot", (event) => {
+      if (!trustedAutomation(event) || !serverUrl() || !readConfig().standaloneCreated) return null
+      return bringOverSource.snapshot()
+    })
+    ipcMain.handle("podlist:close-bring-over-source", (event) => {
+      if (trustedAutomation(event)) bringOverSource.close()
+    })
     ipcMain.handle("podlist:start-standalone", (event) => {
       if (!trustedSetup(event) || checkingServer || process.env.PODLIST_URL !== undefined)
         throw new Error("Could not open the Standalone Library.")
       if (standaloneSelected()) return window?.loadURL(`${appOrigin}/`)
       const { serverUrl: previous, ...config } = readConfig()
-      writeConfig({ ...config, standalone: true, ...(previous ? { lastServer: previous } : {}) })
+      writeConfig({
+        ...config,
+        standalone: true,
+        standaloneCreated: true,
+        ...(previous ? { lastServer: previous } : {})
+      })
       reopen()
     })
     ipcMain.handle("podlist:connection-settings", (event) => {
@@ -1016,6 +1071,7 @@ app.on("before-quit", (event) => {
   event.preventDefault()
   if (quitting) return
   quitting = true
+  bringOverSource.close()
   for (const call of calls.values()) call.reject(new Error("PodList is quitting."))
   calls.clear()
   void Promise.allSettled([flushPlayback(), automation.stop()]).then(() => {

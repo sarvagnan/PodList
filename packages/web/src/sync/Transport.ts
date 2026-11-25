@@ -1,4 +1,4 @@
-import { type Library as LibraryApi, PodListApi, Sync } from "@podlist/api"
+import { type Library as LibraryApi, PodListApi, type Subscriptions, Sync } from "@podlist/api"
 import { type Device, type Library, Operation, Protocol } from "@podlist/domain"
 import { Context, Effect, Layer, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
@@ -29,6 +29,9 @@ export class Transport extends Context.Service<
   Transport,
   {
     readonly serverVersion?: Effect.Effect<number, Offline>
+    readonly bringOverCatalogue?: (
+      payload: Subscriptions.BringOverRequest
+    ) => Effect.Effect<void, Offline>
     readonly registerDevice: (device: Device.Device) => Effect.Effect<void, Offline>
     readonly push: (
       operations: ReadonlyArray<Operation.Operation>
@@ -98,6 +101,16 @@ export class Transport extends Context.Service<
         )
         return Transport.of({
           serverVersion,
+          bringOverCatalogue: (payload) =>
+            client.subscriptions.bringOver({ payload }).pipe(
+              Effect.asVoid,
+              Effect.mapError(
+                () =>
+                  new Offline(
+                    "Could not bring over the catalogue. Check that your PodList server is up to date and try again."
+                  )
+              )
+            ),
           registerDevice: (device) =>
             client.sync
               .registerDevice({ payload: device })

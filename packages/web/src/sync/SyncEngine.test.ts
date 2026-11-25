@@ -215,6 +215,42 @@ describe("SyncEngine", () => {
       })
   )
 
+  it.effect("queues imported Operations and their checkpoint together", () =>
+    Effect.gen(function* () {
+      const server = makeServer()
+      const db = yield* newDatabase
+      const original = Schema.decodeUnknownSync(Operation.Operation)({
+        id: "bring-over-op",
+        deviceId: "source-device",
+        sequence: 0,
+        recordedAt: 1,
+        change: Schema.encodeSync(Operation.Change)(add("e1"))
+      })
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const sql = yield* SqlClient.SqlClient
+        if (!engine.queueBringOver) throw new Error("Expected connected engine")
+        const checkpoint = { key: "bringOverJob", value: '{"queued":true}' }
+        yield* engine.queueBringOver([original], checkpoint)
+        yield* engine.queueBringOver([original], checkpoint)
+        expect(yield* sql`SELECT id FROM outbox`).toEqual([{ id: original.id }])
+        expect(yield* sql`SELECT value FROM sync_meta WHERE key = ${checkpoint.key}`).toEqual([
+          { value: checkpoint.value }
+        ])
+        expect(order(yield* SubscriptionRef.get(engine.state))).toEqual(["e1"])
+      }).pipe(Effect.provide(device(server, db)))
+
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        expect((yield* SubscriptionRef.get(engine.status)).pending).toBe(1)
+        yield* engine.sync
+        yield* engine.sync
+        expect(order(server.state())).toEqual(["e1"])
+        expect((yield* SubscriptionRef.get(engine.status)).pending).toBe(0)
+      }).pipe(Effect.provide(device(server, db)))
+    })
+  )
+
   it.effect("applies edits immediately offline and keeps them across restarts", () =>
     Effect.gen(function* () {
       const server = makeServer()

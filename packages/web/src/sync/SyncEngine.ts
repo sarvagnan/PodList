@@ -12,7 +12,7 @@ import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { catalogueKey, type DataStatus } from "../data/DataLayer.ts"
 import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
-import { type Offline, SyncBlocked, Transport } from "./Transport.ts"
+import { Offline, SyncBlocked, Transport } from "./Transport.ts"
 
 export type { DataStatus as SyncStatus } from "../data/DataLayer.ts"
 export { catalogueKey } from "../data/DataLayer.ts"
@@ -37,6 +37,11 @@ export class SyncEngine extends Context.Service<
     readonly record: (change: Operation.Change) => Effect.Effect<void>
     /** One full sync; fails with Offline when the server can't be reached. */
     readonly sync: Effect.Effect<void, Offline>
+    /** Queue mapped source operations and save a destination checkpoint in one transaction. */
+    readonly queueBringOver?: (
+      operations: ReadonlyArray<Operation.Operation>,
+      checkpoint: { readonly key: string; readonly value: string }
+    ) => Effect.Effect<void, Offline>
     /** Syncs now, after edits, every minute and when the browser comes back online. */
     readonly runInBackground: Effect.Effect<never>
   }
@@ -209,6 +214,40 @@ export class SyncEngine extends Context.Service<
             Effect.tap(() => Queue.offer(triggers, undefined))
           )
 
+        const queueBringOver = (
+          operations: ReadonlyArray<Operation.Operation>,
+          checkpoint: { readonly key: string; readonly value: string }
+        ) =>
+          Effect.gen(function* () {
+            const before = yield* SubscriptionRef.get(state)
+            const applied = yield* Effect.gen(function* () {
+              const fresh: Operation.Operation[] = []
+              for (const operation of operations) {
+                const rows = yield* sql<{ id: string }>`
+                  INSERT INTO outbox (id, operation)
+                  VALUES (${operation.id}, ${Schema.encodeSync(OperationJson)(operation)})
+                  ON CONFLICT (id) DO NOTHING RETURNING id`
+                if (rows.length) fresh.push(operation)
+              }
+              const after = State.applyOperations(before, fresh).state
+              yield* withSql(StateStore.save(before, after))
+              yield* setMeta(checkpoint.key, checkpoint.value)
+              return { after, pending: yield* countPending }
+            }).pipe(sql.withTransaction)
+            yield* SubscriptionRef.set(state, applied.after)
+            yield* SubscriptionRef.update(status, (previous) => ({
+              ...previous,
+              pending: applied.pending
+            }))
+            yield* Queue.offer(triggers, undefined)
+          }).pipe(
+            lock.withPermits(1),
+            Effect.uninterruptible,
+            Effect.mapError(
+              () => new Offline("Could not save the Bring Over checkpoint. Try again.")
+            )
+          )
+
         const syncCatalogue = Effect.gen(function* () {
           let since = Number((yield* getMeta("catalogueCursor").pipe(Effect.orDie)) ?? "0")
           for (;;) {
@@ -325,6 +364,7 @@ export class SyncEngine extends Context.Service<
           deviceId: myDevice,
           record,
           sync: sync(true),
+          queueBringOver,
           runInBackground
         })
       })

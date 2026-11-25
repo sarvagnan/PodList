@@ -23,17 +23,27 @@ declare module "@tanstack/react-router" {
   }
 }
 
-const root = document.getElementById("root")
-if (!root) throw new Error("Missing #root element")
+if (import.meta.env.MODE === "desktop" && window.podlistApp?.bringOverSource) {
+  const source = () => import("./library/BringOverSource.ts")
+  window.podlistBringOverSource = {
+    snapshot: () => source().then((module) => module.snapshot()),
+    audioInfo: (id) => source().then((module) => module.audioInfo(id)),
+    audioChunk: (id, offset, length) =>
+      source().then((module) => module.audioChunk(id, offset, length))
+  }
+} else {
+  const root = document.getElementById("root")
+  if (!root) throw new Error("Missing #root element")
 
-createRoot(root).render(
-  <StrictMode>
-    <ClientGate>
-      <RegistryProvider>
-        <Toast.Provider limit={1}>
-          <RouterProvider router={router} />
-        </Toast.Provider>
-      </RegistryProvider>
-    </ClientGate>
-  </StrictMode>
-)
+  createRoot(root).render(
+    <StrictMode>
+      <ClientGate>
+        <RegistryProvider>
+          <Toast.Provider limit={1}>
+            <RouterProvider router={router} />
+          </Toast.Provider>
+        </RegistryProvider>
+      </ClientGate>
+    </StrictMode>
+  )
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { desktopStandalone } from "../../lib/desktopSession.ts"
+import { BringOverSettings } from "../library/DesktopBringOver.tsx"
 
 const buttonClass =
   "rounded-full bg-secondary px-4 py-2 text-row font-medium hover:bg-input disabled:opacity-60"
@@ -80,6 +81,7 @@ export function DesktopConnectionSettings({ heading }: { readonly heading: strin
             </button>
           </div>
         )}
+        <BringOverSettings />
         {problem && (
           <p role="alert" className="text-destructive">
             {problem}

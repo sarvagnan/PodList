@@ -1,6 +1,6 @@
-import { Clock, Effect, Fiber, Layer, SubscriptionRef } from "effect"
+import { Clock, Effect, Fiber, Layer, Semaphore, SubscriptionRef } from "effect"
 import { SqlClient } from "effect/sql"
-import { DownloadStore } from "../platform/DownloadStore.ts"
+import { DownloadError, DownloadStore } from "../platform/DownloadStore.ts"
 import { keepStorage } from "../platform/persistentStorage.ts"
 import { DownloadStatus, Downloads } from "./DownloadService.ts"
 
@@ -34,6 +34,7 @@ export const downloadsLayer = (options: {
       }
       const status = yield* SubscriptionRef.make<ReadonlyMap<string, DownloadStatus>>(initial)
       const running = new Map<string, Fiber.Fiber<void>>()
+      const transfers = yield* Semaphore.make(1)
 
       const set = (episodeId: string, next: DownloadStatus | null) =>
         SubscriptionRef.update(status, (current) => {
@@ -101,7 +102,37 @@ export const downloadsLayer = (options: {
             Effect.forkIn(scope)
           )
           running.set(episodeId, fiber)
-        })
+        }).pipe(transfers.withPermits(1))
+
+      const importStored = (episodeId: string, sourceUrl: string, expectedBytes: number) =>
+        Effect.gen(function* () {
+          const inProgress = running.get(episodeId)
+          if (inProgress) yield* Fiber.await(inProgress)
+          const latest = (yield* SubscriptionRef.get(status)).get(episodeId)
+          const saved =
+            latest?._tag === "Stored"
+              ? { bytes: latest.bytes }
+              : yield* store.save(episodeId, sourceUrl)
+          if (latest?._tag !== "Stored" && saved.bytes !== expectedBytes) {
+            yield* store.remove(episodeId)
+            return yield* new DownloadError({
+              episodeId,
+              message: "The download could not be copied in full. Try again."
+            })
+          }
+          yield* sql`INSERT OR REPLACE INTO download ${sql.insert({
+            episode_id: episodeId,
+            manual: 1,
+            bytes: saved.bytes,
+            saved_at: yield* Clock.currentTimeMillis
+          })}`.pipe(
+            Effect.mapError(
+              () =>
+                new DownloadError({ episodeId, message: "Could not save the download. Try again." })
+            )
+          )
+          yield* set(episodeId, DownloadStatus.Stored({ bytes: saved.bytes, manual: true }))
+        }).pipe(transfers.withPermits(1))
 
       const cancel = (episodeId: string) =>
         Effect.gen(function* () {
@@ -124,6 +155,7 @@ export const downloadsLayer = (options: {
         download,
         cancel,
         remove,
+        importStored,
         playableUrl: store.playableUrl
       })
     })

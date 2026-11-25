@@ -5,9 +5,24 @@ export type DesktopAppearance = "system" | "light" | "dark"
 
 declare global {
   interface Window {
+    podlistBringOverSource?: {
+      readonly snapshot: () => Promise<unknown>
+      readonly audioInfo: (id: string) => Promise<{ bytes: number; type: string }>
+      readonly audioChunk: (id: string, offset: number, length: number) => Promise<ArrayBuffer>
+    }
     podlistFlushPlayback?: () => Promise<void>
     readonly podlistApp?: {
       readonly standalone?: boolean
+      readonly bringOverSource?: boolean
+      readonly bringOver?: {
+        readonly offer: () => Promise<{
+          readonly address: string
+          readonly automatic: boolean
+        } | null>
+        readonly dismissOffer: () => Promise<void>
+        readonly snapshot: () => Promise<unknown>
+        readonly closeSource: () => Promise<void>
+      }
       readonly automation?: {
         readonly status: () => Promise<
           import("../automation/AutomationSettings.tsx").AutomationStatus
