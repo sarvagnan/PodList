@@ -75,7 +75,7 @@ const shellBundle = await rolldown({
   external: ["electron"]
 })
 try {
-  await shellBundle.write({ file: join(src, "main.js"), format: "esm", inlineDynamicImports: true })
+  await shellBundle.write({ file: join(src, "main.js"), format: "esm", codeSplitting: false })
 } finally {
   await shellBundle.close()
 }

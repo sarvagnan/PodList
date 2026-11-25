@@ -11,6 +11,7 @@ import { useCanEdit } from "../../app/hooks.ts"
 import { directorySearchAtom, subscribeAtom } from "../../app/library.ts"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { serverNeeded } from "../../lib/connectionMessage.ts"
+import { desktopStandalone } from "../../lib/desktopSession.ts"
 import { useDialogDraft } from "../../lib/dialogDraft.ts"
 import { wrapTab } from "../../lib/focusTrap.ts"
 import { DraftNotice } from "../feedback/DraftNotice.tsx"
@@ -264,7 +265,9 @@ function FeedPreview({
   const current = found?.url === url ? found.result : undefined
   const problem =
     current === "offline"
-      ? serverNeeded
+      ? desktopStandalone
+        ? "Could not read the feed. Check the address and try again."
+        : serverNeeded
       : current === null
         ? "This address didn’t give a podcast feed. Check it, or find the podcast by name with Search."
         : null
