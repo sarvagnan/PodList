@@ -17,6 +17,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.podlist.domain.*
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
@@ -88,15 +91,16 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
         }
         if (completing || hasInvalidNumber || ViewEdits.problem(draft.filter) != null || hasInvalidName) return
         model.finishTyping()
-        drafts.flush()
         val accepted = ViewEdits.accepted(draft, saved, recorded)
         val completed = { if (creating) drafts.finishNewView(view.id) else drafts.clear(draftPrefix); done() }
         if (accepted == null) completed() else {
             completing = true
-            model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed, failed = { completing = false }) { error ->
-                completing = false
-                rejectedName = error?.let { draft.name to it }
-                if (error == null) completed()
+            model.afterDraftsSaved(drafts, failed = { completing = false }) {
+                model.saveNamedView(accepted.view, message = if (creating) R.string.view_created else R.string.view_changed, failed = { completing = false }) { error ->
+                    completing = false
+                    rejectedName = error?.let { draft.name to it }
+                    if (error == null) completed()
+                }
             }
         }
     }
@@ -140,12 +144,23 @@ internal fun ViewEditor(view: View, data: ScreenData, session: Session, done: ()
                 CommitActions(gap = 24.dp) {
                     if (creating || problem != null || hasInvalidNumber) TextButton(enabled = !completing, modifier = Modifier.heightIn(min = 48.dp), onClick = {
                         // Retain every raw field before navigating away; Undo reveals this exact editor.
-                        model.finishTyping()
-                        val prefixes = listOf(draftPrefix) + if (creating) listOf("new-view/") else emptyList()
-                        val snapshot = drafts.replaceDraft(prefixes, emptyMap(), view.id)
-                        val route = if (creating) "new-view:${view.id}" else "view-edit:${view.id}"
-                        model.recordHistory(session, AppMessage(R.string.draft_discarded), model.draftStep(drafts, prefixes, snapshot, view.id, restored = { model.requestReveal(Reveal(route)) }, discarded = { model.requestReveal(Reveal(if (creating) "views-root" else "view:${view.id}")) }))
-                        done()
+                        if (completing) return@TextButton
+                        completing = true
+                        model.viewModelScope.launch {
+                            try {
+                                model.editLock.withLock {
+                                    if (model.session.value !== session) return@withLock
+                                    model.finishTyping()
+                                    val prefixes = listOf(draftPrefix) + if (creating) listOf("new-view/") else emptyList()
+                                    val snapshot = drafts.replaceDraft(prefixes, emptyMap(), view.id)
+                                    val route = if (creating) "new-view:${view.id}" else "view-edit:${view.id}"
+                                    model.recordHistory(session, AppMessage(R.string.draft_discarded),
+                                        model.draftStep(drafts, prefixes, snapshot, view.id, restored = { model.requestReveal(Reveal(route)) },
+                                            discarded = { model.requestReveal(Reveal(if (creating) "views-root" else "view:${view.id}")) }))
+                                    done()
+                                }
+                            } finally { completing = false }
+                        }
                     }) { Text(stringResource(R.string.discard_draft)) }
                     CommitButton(enabled = !completing && problem == null && !hasInvalidNumber && !hasInvalidName, onClick = ::finish) { Text(stringResource(if (creating) R.string.create_view else R.string.m4_done)) }
                 }

@@ -6,42 +6,82 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 
 @Stable
-internal class FormDraftState(private val store: FormDraftStore, initial: Map<String, String>) {
+internal class FormDraftState(private val store: FormDraftStore, initial: Map<String, String>, revision: String?) {
     var restoreRevision by mutableIntStateOf(0)
         private set
-    private val writer = app.podlist.data.DraftWriteBuffer(write = store::putAll)
-    fun flush() = writer.flush()
-    fun close() = writer.close()
+    private val writer = app.podlist.data.DraftWriteBuffer(onFailure = {
+        android.util.Log.e("PodList", "Could not save form drafts", it)
+    }, baseline = revision, write = store::putCheckpoint)
     private val values = initial.toList().toMutableStateMap()
+    private val versions = mutableMapOf<String, Long>()
+    private var version = 0L
+
+    fun checkpoint() = writer.checkpoint()
+    fun requestFlush() = writer.requestFlush()
+    suspend fun flush() = writer.flush()
     fun get(key: String): String? = values[key]
     fun snapshot(prefix: String): Map<String, String> = values.filterKeys { it.startsWith(prefix) }
+
     fun clearIfUnchanged(prefix: String, submitted: Map<String, String>): Boolean {
-        flush()
-        if (snapshot(prefix) != submitted || !store.clearIfUnchanged(prefix, submitted)) return false
-        values.keys.filter { it.startsWith(prefix) }.forEach(values::remove)
+        if (snapshot(prefix) != submitted) return false
+        writer.enqueue { store.clearIfUnchanged(prefix, submitted) }
+        remove(prefix)
         return true
     }
-    fun reload() { flush(); values.clear(); values.putAll(store.load()) }
+
+    suspend fun reload() {
+        val started = version
+        val restored = writer.afterFlush(store::load)
+        (values.keys.toSet() + restored.keys).forEach { key ->
+            if ((versions[key] ?: 0) <= started) {
+                val value = restored[key]
+                if (value == null) values.remove(key) else values[key] = value
+            }
+        }
+    }
+
     fun put(key: String, text: String) {
         if (values[key] == text) return
         writer.put(key, text)
+        versions[key] = ++version
         values[key] = text
     }
-    fun pendingNewViewId(): String = store.pendingNewViewId().also { values["new-view/id"] = it }
-    fun replaceDraft(prefixes: List<String>, replacement: Map<String, String>, scope: String): Map<String, String> {
-        flush()
-        val before = store.replaceDraft(prefixes, replacement, scope)
-        prefixes.forEach { prefix -> values.keys.filter { it.startsWith(prefix) }.forEach(values::remove) }
-        values.putAll(replacement)
+
+    fun pendingNewViewId(): String = get("new-view/id")
+        ?: java.util.UUID.randomUUID().toString().also { put("new-view/id", it); requestFlush() }
+
+    suspend fun replaceDraft(prefixes: List<String>, replacement: Map<String, String>, scope: String): Map<String, String> {
+        val started = version
+        val before = writer.afterFlush { store.replaceDraft(prefixes, replacement, scope) }
+        (values.keys.filter { key -> prefixes.any(key::startsWith) } + replacement.keys).forEach { key ->
+            if ((versions[key] ?: 0) <= started) {
+                val value = replacement[key]
+                versions[key] = ++version
+                if (value == null) values.remove(key) else values[key] = value
+            }
+        }
         restoreRevision++
         return before
     }
-    fun finishNewView(id: String) { flush(); store.finishNewView(id); reload() }
+
+    fun finishNewView(id: String) {
+        writer.enqueue { store.finishNewView(id) }
+        remove("view:$id/")
+        if (get("new-view/id") == id) remove("new-view/")
+    }
+
     fun hasInvalid(prefix: String): Boolean = values.any { (key, value) -> key.startsWith(prefix + "invalid/") && value == "true" }
+
     fun clear(prefix: String) {
-        flush()
-        store.clear(prefix)
-        values.keys.filter { it.startsWith(prefix) }.forEach(values::remove)
+        writer.enqueue { store.clear(prefix) }
+        remove(prefix)
+    }
+
+    private fun remove(prefix: String) {
+        values.keys.filter { it.startsWith(prefix) }.forEach { key ->
+            versions[key] = ++version
+            values.remove(key)
+        }
     }
 }
 
@@ -53,7 +93,7 @@ internal val LocalFormDrafts = staticCompositionLocalOf<FormDraftState> { error(
 internal fun rememberDraftText(key: String, initial: String = ""): MutableState<String> {
     val drafts = LocalFormDrafts.current
     val fallback by rememberUpdatedState(initial)
-    DisposableEffect(drafts, key) { onDispose { drafts.flush() } }
+    DisposableEffect(drafts, key) { onDispose { drafts.requestFlush() } }
     return remember(drafts, key) {
         object : MutableState<String> {
             override var value: String

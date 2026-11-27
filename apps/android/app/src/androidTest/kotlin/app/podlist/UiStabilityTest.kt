@@ -31,6 +31,7 @@ import app.podlist.domain.SleepTimer
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -363,42 +364,46 @@ class UiStabilityTest {
             val store = FormDraftStore(db)
             store.put("view:test/name", "  Kept draft  ")
             store.put("view:test/number/Length", "3,")
-            val drafts = FormDraftState(store, store.load())
+            val drafts = FormDraftState(store, store.load(), store.draftRevision())
             var visible by mutableStateOf(true)
             var removed = emptyMap<String, String>()
             compose.setContent {
+                val scope = rememberCoroutineScope()
                 CompositionLocalProvider(LocalFormDrafts provides drafts) {
                     Column {
                         if (visible) {
                             var text by rememberDraftText("view:test/name")
                             var field by rememberDraftFieldValue("view:test/name", text)
                             OutlinedTextField(field, { field = it; text = it.text }, label = { Text("Draft name") })
-                            Button(onClick = {
+                            Button(onClick = { scope.launch {
                                 removed = drafts.replaceDraft(listOf("view:test/"), emptyMap(), "test")
                                 visible = false
-                            }) { Text("Discard draft") }
-                        } else Button(onClick = {
+                            } }) { Text("Discard draft") }
+                        } else Button(onClick = { scope.launch {
                             drafts.replaceDraft(listOf("view:test/"), removed, "test")
                             visible = true
-                        }) { Text("Undo") }
+                        } }) { Text("Undo") }
                     }
                 }
             }
             val field = compose.onNode(hasSetTextAction())
             field.performClick().performTextInputSelection(TextRange(2, 6))
             compose.onNodeWithText("Discard draft").performClick()
+            compose.waitUntil(5_000) { !visible }
             compose.onNode(hasSetTextAction()).assertDoesNotExist()
-            compose.runOnIdle {
-                assertEquals("  Kept draft  ", store.retainedDraft("test")!!.values["view:test/name"])
-                assertEquals("3,", store.retainedDraft("test")!!.values["view:test/number/Length"])
-            }
+            val retained = checkNotNull(store.retainedDraft("test"))
+            assertEquals("  Kept draft  ", retained.values["view:test/name"])
+            assertEquals("3,", retained.values["view:test/number/Length"])
             compose.onNodeWithText("Undo").performClick()
+            compose.waitUntil(5_000) { visible }
             compose.onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("  Kept draft  ")))
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(2, 6)))
             compose.runOnIdle { assertEquals("3,", drafts.get("view:test/number/Length")) }
             compose.runOnIdle { visible = false }
             compose.waitForIdle()
-            drafts.close()
+            val closed = java.util.concurrent.CountDownLatch(1)
+            drafts.close(closed::countDown)
+            assertTrue(closed.await(5, java.util.concurrent.TimeUnit.SECONDS))
         }
     }
 

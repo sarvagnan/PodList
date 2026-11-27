@@ -32,7 +32,8 @@ internal fun RenameableName(
     modifier: Modifier = Modifier,
 ) {
     val drafts = LocalFormDrafts.current
-    DisposableEffect(drafts, draftKey) { onDispose { drafts.flush() } }
+    val model = LocalAppModel.current
+    DisposableEffect(drafts, draftKey) { onDispose { drafts.requestFlush() } }
     val draft = drafts.get(draftKey)
     val renameFocus = remember(draftKey) { FocusRequester() }
     var returnFocus by remember(draftKey) { mutableStateOf(false) }
@@ -67,11 +68,13 @@ internal fun RenameableName(
                 if (!canSave || drafts.get(draftKey) == null) return
                 saving = true
                 saveFailed = false
-                drafts.put("$draftKey/submitted", value.text)
-                drafts.flush()
-                save(value.text.trim()) { accepted ->
-                    saving = false
-                    if (accepted) close() else { saveFailed = true; drafts.clear("$draftKey/submitted") }
+                val submitted = value.text
+                drafts.put("$draftKey/submitted", submitted)
+                fun failed() { saving = false; saveFailed = true; drafts.clear("$draftKey/submitted") }
+                model.afterDraftsSaved(drafts, ::failed) {
+                    save(submitted.trim()) { accepted ->
+                        if (accepted) { saving = false; close() } else failed()
+                    }
                 }
             }
             OutlinedTextField(value, { input ->

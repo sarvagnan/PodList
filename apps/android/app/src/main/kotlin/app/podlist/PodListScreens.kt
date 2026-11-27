@@ -36,7 +36,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.podlist.data.Row
-import app.podlist.data.FormDraftStore
 import app.podlist.data.loadBrowsingContext
 import app.podlist.data.saveBrowsingContext
 import androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem
@@ -82,15 +81,10 @@ internal fun ConnectedShell(model: AppModel, session: Session) {
         snapshotFlow { browsing.context }.collect { context -> withContext(Dispatchers.IO) { session.db.saveBrowsingContext(context) } }
     }
     val drafts by produceState<FormDraftState?>(null, session) {
-        value = withContext(Dispatchers.IO) { val store = FormDraftStore(session.db); FormDraftState(store, store.load()) }
+        value = model.formDrafts(session)
     }
     val readyDrafts = drafts ?: return
-    DisposableEffect(readyDrafts) {
-        model.flushFormDrafts = readyDrafts::flush
-        onDispose { model.flushFormDrafts = null; readyDrafts.close() }
-    }
-    val undoRevision by model.undoRevision.collectAsState()
-    LaunchedEffect(undoRevision) { readyDrafts.reload() }
+    DisposableEffect(readyDrafts) { onDispose { readyDrafts.requestFlush() } }
     CompositionLocalProvider(LocalBrowsingState provides browsing, LocalFormDrafts provides readyDrafts) { ConnectedNavigation(model, session, browsing) }
 }
 

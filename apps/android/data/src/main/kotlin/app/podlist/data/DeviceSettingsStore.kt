@@ -21,6 +21,9 @@ class DeviceSettingsStore(private val file: File) {
         @Synchronized get() = values.getProperty("serverAddressSelection")
         @Synchronized set(value) { put("serverAddressSelection", value) }
 
+    @Synchronized fun writeServerDraft(draft: ServerDraft) =
+        putAll(mapOf("serverAddressDraft" to draft.address, "serverAddressSelection" to draft.selection))
+
     @Synchronized fun serverDraft() = ServerDraft(serverAddressDraft, serverAddressSelection)
     @Synchronized fun retainedServerDraft(): ServerDraft? = values.getProperty("discardedServerDraft")?.let { ProtocolJson.decodeFromString<ServerDraft>(it) }
     @Synchronized fun replaceServerDraft(next: ServerDraft): ServerDraft {

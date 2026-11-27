@@ -93,7 +93,43 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val settingReveal = MutableStateFlow<SettingReveal?>(null)
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
     internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
-    internal var flushFormDrafts: (() -> Unit)? = null
+    private val formDraftStates = mutableMapOf<String, FormDraftState>()
+    private val restoredDrafts = mutableMapOf<String, DraftCheckpoint>()
+
+    internal fun restoreDraftCheckpoints(checkpoints: Map<String, DraftCheckpoint>) {
+        restoredDrafts.putAll(checkpoints.filterKeys { it !in formDraftStates })
+    }
+
+    internal fun draftCheckpoints(): Map<String, DraftCheckpoint> =
+        restoredDrafts + formDraftStates.mapNotNull { (origin, drafts) ->
+            drafts.checkpoint()?.let { origin to it }
+        }.toMap()
+    private val formDraftLock = Mutex()
+    internal suspend fun formDrafts(session: Session): FormDraftState = formDraftLock.withLock {
+        val origin = session.source.key
+        formDraftStates.getOrPut(origin) {
+            val store = FormDraftStore(session.db)
+            val recovery = restoredDrafts[origin]
+            val (values, version) = withContext(Dispatchers.IO) {
+                recovery?.let(store::restoreCheckpoint)
+                store.load() to store.draftRevision()
+            }
+            restoredDrafts.remove(origin)
+            FormDraftState(store, values, version)
+        }
+    }
+    internal fun loadedFormDrafts(session: Session): FormDraftState? = formDraftStates[session.source.key]
+
+    internal fun afterDraftsSaved(drafts: FormDraftState, failed: () -> Unit, action: () -> Unit) {
+        viewModelScope.launch {
+            try { drafts.flush() } catch (error: IllegalStateException) {
+                android.util.Log.e("PodList", "Could not save form drafts", error)
+                failed()
+                return@launch
+            }
+            action()
+        }
+    }
     internal val undoRevision = MutableStateFlow(0L)
     internal val undoDescription = MutableStateFlow<AppMessage?>(null)
     internal val redoDescription = MutableStateFlow<AppMessage?>(null)
@@ -152,18 +188,17 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     private val preferences = application.getSharedPreferences("connection", 0)
     private val deviceSettings = DeviceSettingsStore(File(application.filesDir, "device-settings.properties"))
-    private val serverDraftWriter = app.podlist.data.DraftWriteBuffer { batch ->
+    private val serverDraftWriter = app.podlist.data.DraftWriteBuffer { batch, _ ->
         batch["address"]?.let { deviceSettings.serverAddressDraft = it }
         batch["selection"]?.let { deviceSettings.serverAddressSelection = it }
     }
-    fun flushDrafts() { serverDraftWriter.flush(); flushFormDrafts?.invoke() }
+    fun flushDrafts() { serverDraftWriter.requestFlush(); formDraftStates.values.forEach { it.requestFlush() } }
     private val _serverAddressDraft = MutableStateFlow(deviceSettings.serverAddressDraft)
     val serverAddressDraft = _serverAddressDraft.asStateFlow()
     internal val serverAddressSelection = MutableStateFlow(deviceSettings.serverAddressSelection)
     fun setServerAddressSelection(value: String) { serverAddressSelection.value = value; serverDraftWriter.put("selection", value) }
-    private fun replaceServerDraft(next: app.podlist.data.ServerDraft): app.podlist.data.ServerDraft {
-        serverDraftWriter.flush()
-        val before = deviceSettings.replaceServerDraft(next)
+    private suspend fun replaceServerDraft(next: app.podlist.data.ServerDraft): app.podlist.data.ServerDraft {
+        val before = serverDraftWriter.afterFlush { deviceSettings.replaceServerDraft(next) }
         serverAddressSelection.value = next.selection
         _serverAddressDraft.value = next.address
         connectionError.value = null
@@ -175,7 +210,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         serverDraftStep(before)
     }
     /** Before first connection there is no Library history; the form owns that snackbar's Undo. */
-    fun discardServerDraft(): (() -> Unit)? {
+    internal suspend fun discardServerDraft(): (suspend () -> Unit)? {
         val before = replaceServerDraft(app.podlist.data.ServerDraft(null, null))
         val current = session.value
         if (current == null) return { replaceServerDraft(before) }
@@ -187,9 +222,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     fun setServerAddressDraft(value: String?) {
         if (value == null) {
-            serverDraftWriter.flush()
-            deviceSettings.serverAddressDraft = null
-            deviceSettings.serverAddressSelection = null
+            serverDraftWriter.enqueue { deviceSettings.writeServerDraft(ServerDraft(null, null)) }
             serverAddressSelection.value = null
         }
         else serverDraftWriter.put("address", value)
