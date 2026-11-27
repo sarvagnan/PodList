@@ -17,6 +17,7 @@ internal class FormDraftState(private val store: FormDraftStore, initial: Map<St
     private var version = 0L
 
     fun checkpoint() = writer.checkpoint()
+    fun close(onClosed: () -> Unit) = writer.closeAfterFlush(onClosed)
     fun requestFlush() = writer.requestFlush()
     suspend fun flush() = writer.flush()
     fun get(key: String): String? = values[key]

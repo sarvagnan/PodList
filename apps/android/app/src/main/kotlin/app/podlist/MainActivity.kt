@@ -35,10 +35,12 @@ class MainActivity : ComponentActivity() {
         val model = (application as PodListApplication).model
         savedInstanceState?.getBundle(DraftStateKey)?.let { saved ->
             if (saved.getString("process") != DraftProcess) {
-                val drafts = saved.getBundle("drafts")
-                model.restoreDraftCheckpoints(drafts?.keySet()?.associateWith { key ->
-                    drafts.getBundle(key)?.let(::readDraftCheckpoint)
-                }.orEmpty().mapNotNull { (key, checkpoint) -> checkpoint?.let { key to it } }.toMap())
+                saved.getBundle("server")?.let(::readDraftCheckpoint)?.let(model::restoreServerDraft)
+                saved.getBundle("drafts")?.let { drafts ->
+                    model.restoreDraftCheckpoints(drafts.keySet().mapNotNull { key ->
+                        drafts.getBundle(key)?.let(::readDraftCheckpoint)?.let { key to it }
+                    }.toMap())
+                }
             }
         }
         if (savedInstanceState == null) handleIncoming(intent)
@@ -96,6 +98,7 @@ class MainActivity : ComponentActivity() {
         outState.putBundle(DraftStateKey, Bundle().apply {
             putString("process", DraftProcess)
             putBundle("drafts", drafts)
+            model.serverDraftCheckpoint()?.let { putBundle("server", it.toBundle()) }
         })
         super.onSaveInstanceState(outState)
     }

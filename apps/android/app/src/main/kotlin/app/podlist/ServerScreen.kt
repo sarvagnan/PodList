@@ -32,7 +32,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
         var fieldValue by remember { mutableStateOf(TextFieldValue(input, draftSelection(selection, input.length))) }
         if (fieldValue.text != input) fieldValue = TextFieldValue(input, draftSelection(selection, input.length))
-        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerAddressDraft(it.text); model.setServerAddressSelection("${it.selection.start},${it.selection.end}"); model.connectionError.value = null },
+        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerDraft(it.text, "${it.selection.start},${it.selection.end}"); model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
             singleLine = true, enabled = !checking, isError = error != null,
             supportingText = { val problem = error; if (problem == null) Text(stringResource(R.string.server_example)) else InlineError(stringResource(when (problem) {

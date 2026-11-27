@@ -11,7 +11,7 @@ import kotlin.coroutines.suspendCoroutine
 class DraftWriteBuffer(
     private val delayMillis: Long = 250,
     private val onFailure: (Exception) -> Unit = {},
-    private val baseline: String? = null,
+    baseline: String? = null,
     private val write: (Map<String, String>, String) -> Unit,
 ) : AutoCloseable {
     private val worker = Executors.newSingleThreadScheduledExecutor { task ->
@@ -22,16 +22,21 @@ class DraftWriteBuffer(
     private val pending = linkedMapOf<String, Edit>()
     private val uncommitted = linkedMapOf<String, Edit>()
     private val retry = linkedMapOf<String, Edit>() // Worker only.
+    private var recoveryBaseline = baseline
     private var sequence = 0L
     private var scheduled: ScheduledFuture<*>? = null
     private var closed = false
     private var debounce = 0L
 
-    @Synchronized fun put(key: String, text: String) {
+    fun put(key: String, text: String) = putAll(mapOf(key to text))
+
+    @Synchronized fun putAll(values: Map<String, String>) {
         check(!closed)
-        val edit = Edit(++sequence, text)
-        pending[key] = edit
-        uncommitted[key] = edit
+        values.forEach { (key, text) ->
+            val edit = Edit(++sequence, text)
+            pending[key] = edit
+            uncommitted[key] = edit
+        }
         scheduled?.cancel(false)
         val generation = ++debounce
         scheduled = worker.schedule({
@@ -74,14 +79,18 @@ class DraftWriteBuffer(
 
     private fun revision(through: Long) = "$writerId:$through"
 
+    @Synchronized fun updateRecoveryBaseline(revision: String?) { recoveryBaseline = revision }
+
     /** Android can save edits whose disk commit has not finished when it saves the task. */
     @Synchronized fun checkpoint(): DraftCheckpoint? {
         if (uncommitted.isEmpty()) return null
-        return DraftCheckpoint(baseline, revision(sequence), uncommitted.mapValues { it.value.text })
+        return DraftCheckpoint(recoveryBaseline, revision(sequence), uncommitted.mapValues { it.value.text })
     }
 
     /** Expedite persistence from lifecycle callbacks. The worker can outlive the caller. */
-    fun requestFlush() { submit { batch -> reportFailure { persist(batch) } } }
+    @Synchronized fun requestFlush() {
+        if (uncommitted.isNotEmpty()) submit { batch -> reportFailure { persist(batch) } }
+    }
 
     /** Queue an ordered edit after all text submitted so far. */
     fun enqueue(action: () -> Unit) {
@@ -97,9 +106,12 @@ class DraftWriteBuffer(
 
     suspend fun flush() = afterFlush {}
 
-    @Synchronized override fun close() {
-        if (closed) return
-        requestFlush()
+    override fun close() = closeAfterFlush {}
+
+    @Synchronized fun closeAfterFlush(onClosed: () -> Unit) {
+        if (!submit { batch ->
+            try { reportFailure { persist(batch) } } finally { onClosed() }
+        }) return
         closed = true
         worker.shutdown()
     }

@@ -87,4 +87,19 @@ class DeviceSettingsStoreTest {
         assertEquals(Appearance.Dark, DeviceSettingsStore(file).appearance)
     }
 
+    @Test fun `task checkpoint restores an uncommitted address and caret but cannot undo a durable clear`() {
+        val draft = ServerDraft("  https://pod.example/unfinished  ", "10,18")
+        val checkpoint = DraftCheckpoint(null, "writer:2",
+            mapOf("serverAddressDraft" to checkNotNull(draft.address), "serverAddressSelection" to checkNotNull(draft.selection)))
+        val store = DeviceSettingsStore(file)
+        store.appearance = Appearance.Dark
+        store.restoreServerCheckpoint(checkpoint)
+        assertEquals(draft, DeviceSettingsStore(file).serverDraft())
+        store.writeServerDraft(ServerDraft(null, null))
+        val reopened = DeviceSettingsStore(file)
+        reopened.restoreServerCheckpoint(checkpoint)
+        assertEquals(ServerDraft(null, null), reopened.serverDraft())
+        assertEquals(Appearance.Dark, reopened.appearance)
+    }
+
 }

@@ -8,10 +8,6 @@ import kotlinx.coroutines.SupervisorJob
  * Databases outlive Activities so rotating or leaving the UI never stops playback.
  */
 class PodListApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        applyLaunchAppearance(app.podlist.data.DeviceSettingsStore(java.io.File(filesDir, "device-settings.properties")).appearance)
-    }
     internal val playbackWrites by lazy {
         PlaybackWrites(CoroutineScope(SupervisorJob())) { android.util.Log.e("PodList", "Could not save playback", it) }
     }
