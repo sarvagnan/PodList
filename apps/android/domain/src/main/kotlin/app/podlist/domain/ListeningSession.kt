@@ -3,7 +3,7 @@ package app.podlist.domain
 import kotlin.math.abs
 
 /** Pure accounting of a loaded Entry's measurement boundaries and reports; no audio or platform APIs.
- * The adapter durably records each returned batch before delivering the next event.
+ * The adapter durably records returned batches in event order.
  */
 class ListeningSession(
     private val playlistId: String,

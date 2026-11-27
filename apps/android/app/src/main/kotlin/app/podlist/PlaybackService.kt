@@ -20,7 +20,6 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import java.util.TimeZone
 
@@ -54,7 +53,9 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     private val model get() = (application as PodListApplication).model
     private val writes get() = (application as PodListApplication).playbackWrites
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val events = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    private val events = PlaybackEventQueue()
+    private var queueSummary = PlaybackQueueSummary()
+    private var lastAccountingWrite: CompletableDeferred<Unit>? = null
     private lateinit var audio: ExoPlayer
     private lateinit var library: MediaLibrarySession
     private var loadedSession: Session? = null
@@ -113,22 +114,22 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
                 val stoppedPosition = position()
                 enqueueAudio {
                     if (!isPlaying) {
-                        event(ListeningSession.Event.Position(stoppedPosition, knownDuration()))
-                        event(ListeningSession.Event.Flush)
+                        recordEvent(ListeningSession.Event.Position(stoppedPosition, knownDuration()))
+                        recordEvent(ListeningSession.Event.Flush)
                     }
-                    event(if (isPlaying) ListeningSession.Event.Play else if (audio.playWhenReady) ListeningSession.Event.Discontinuity else ListeningSession.Event.Pause)
+                    recordEvent(if (isPlaying) ListeningSession.Event.Play else if (audio.playWhenReady) ListeningSession.Event.Discontinuity else ListeningSession.Event.Pause)
                     publish()
                 }
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                if (!internalChange && !playWhenReady) enqueueAudio { event(ListeningSession.Event.Pause); publish(); follow() }
+                if (!internalChange && !playWhenReady) enqueueAudio { recordEvent(ListeningSession.Event.Pause); publish(); events.refresh() }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (internalChange) return
                 enqueueAudio {
                     when (playbackState) {
                         Player.STATE_ENDED -> boundary(true)
-                        Player.STATE_BUFFERING -> { event(ListeningSession.Event.Discontinuity); loadingAt = SystemClock.elapsedRealtime() }
+                        Player.STATE_BUFFERING -> { recordEvent(ListeningSession.Event.Discontinuity); loadingAt = SystemClock.elapsedRealtime() }
                         Player.STATE_READY -> loadingAt = 0
                     }
                     publish()
@@ -138,42 +139,70 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
                 if (internalChange) return
                 enqueueAudio {
                     if (reason == Player.DISCONTINUITY_REASON_SEEK) {
-                        event(ListeningSession.Event.Position(oldPosition.positionMs / 1000.0, knownDuration()))
-                        event(ListeningSession.Event.Seek(newPosition.positionMs / 1000.0))
+                        recordEvent(ListeningSession.Event.Position(oldPosition.positionMs / 1000.0, knownDuration()))
+                        recordEvent(ListeningSession.Event.Seek(newPosition.positionMs / 1000.0))
                     }
-                    event(ListeningSession.Event.Discontinuity)
+                    recordEvent(ListeningSession.Event.Discontinuity)
                     publish()
                 }
             }
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                if (!internalChange) enqueueAudio { event(ListeningSession.Event.Speed(playbackParameters.speed.toDouble())); publish() }
+                if (!internalChange) enqueueAudio { recordEvent(ListeningSession.Event.Speed(playbackParameters.speed.toDouble())); publish() }
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { boost() }
             override fun onPlayerError(error: PlaybackException) { enqueueAudio { fallback() } }
         })
         model.playbackHost = this
         scope.launch {
-            for (action in events) try { action() } catch (failure: Exception) {
-                if (failure is CancellationException) throw failure
-                error = true
-                audio.pause()
-                publish()
-            }
-        }
-        scope.launch { model.revision.collect { enqueue { refreshMetadata(); follow(); publish(); notifyBrowser() } } }
-        scope.launch {
             while (isActive) {
-                delay(500)
-                enqueue {
-                    if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
-                    if (info != null) boundary(false)
-                    if (audio.playWhenReady && loadingAt > 0 && SystemClock.elapsedRealtime() - loadingAt >= 10_000) fallback()
+                val action = events.next(refresh = ::refresh, tick = ::tick)
+                try { action() } catch (failure: Exception) {
+                    if (failure is CancellationException) throw failure
+                    error = true
+                    audio.pause()
                     publish()
                 }
             }
         }
+        scope.launch { model.revision.collect { events.refresh() } }
+        scope.launch {
+            while (isActive) {
+                delay(500)
+                if (audio.playWhenReady || timer is SleepTimer.Until) events.tick()
+            }
+        }
     }
-    private fun enqueue(action: suspend () -> Unit) { events.trySend(action) }
+
+    private suspend fun refresh() {
+        refreshMetadata()
+        follow()
+        refreshQueueSummary()
+        publish()
+        notifyBrowser()
+    }
+
+    private fun tick() {
+        if (!audio.playWhenReady && timer !is SleepTimer.Until) return
+        if (audio.isPlaying) recordEvent(ListeningSession.Event.Position(position(), knownDuration()))
+        val now = SystemClock.elapsedRealtime()
+        val atBoundary = info != null && !ended &&
+            PlaybackPolicy.boundary(position(), knownDuration(), settings.skipOutro, false, timer, now) != PlaybackBoundary.Continue
+        val timedOut = audio.playWhenReady && loadingAt > 0 && now - loadingAt >= 10_000
+        if (atBoundary || timedOut) {
+            val token = generation
+            // Only an actual sleep/end/timeout is serialized with playback changes.
+            // A queued transport command still wins selection over this transition.
+            events.transition {
+                if (generation != token) return@transition
+                if (atBoundary) boundary(false)
+                if (generation == token && timedOut && audio.playWhenReady && loadingAt > 0 &&
+                    SystemClock.elapsedRealtime() - loadingAt >= 10_000) fallback()
+            }
+        }
+        publish()
+    }
+
+    private fun enqueue(action: suspend () -> Unit) = events.command(action)
     private fun enqueueAudio(action: suspend () -> Unit) {
         val token = generation
         enqueue { if (generation == token) action() }
@@ -189,23 +218,28 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         writes.submit { session.db.recordAll(changes, at) }.await()
     }
     private suspend fun event(event: ListeningSession.Event) {
-        recordEvent(event)?.await()
+        recordEvent(event)
+        val write = lastAccountingWrite ?: return
+        try { write.await() } finally {
+            if (lastAccountingWrite === write) lastAccountingWrite = null
+        }
     }
 
-    private fun recordEvent(event: ListeningSession.Event): CompletableDeferred<Unit>? {
+    private fun recordEvent(event: ListeningSession.Event) {
         val at = System.currentTimeMillis()
         val offset = -TimeZone.getDefault().getOffset(at) / 60_000
         val changes = accounting?.accept(event, at, offset).orEmpty()
         changes.filterIsInstance<Change.ReportPosition>().lastOrNull()?.let { reportAt = it.listenedAt }
-        val session = loadedSession ?: return null
-        if (changes.isEmpty()) return null
-        return writes.submit { session.db.recordAll(changes, at) }
+        val session = loadedSession ?: return
+        if (changes.isNotEmpty()) lastAccountingWrite = writes.submit { session.db.recordAll(changes, at) }
     }
     private suspend fun follow(force: Boolean = false, play: Boolean = false) {
         if (!force && PlaybackPolicy.holdLoaded(audio.playWhenReady, accounting?.finished == true, ended)) return
         val session = model.session.value ?: return
-        val state = withContext(Dispatchers.IO) { session.db.loadState() }
-        val target = PlaybackPolicy.target(state)
+        val (state, target) = withContext(Dispatchers.IO) {
+            val state = session.db.loadState()
+            state to PlaybackPolicy.target(state)
+        }
         if (target == null) {
             if (info != null) event(ListeningSession.Event.Flush)
             internalChange = true
@@ -243,6 +277,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         loadSource(start, settings.speed.toFloat(), play)
         if (start != entry.position) event(ListeningSession.Event.Seek(start))
         resolveChapters(session, entry.episodeId)
+        refreshQueueSummary()
         publish()
     }
     private fun item(): MediaItem {
@@ -318,9 +353,9 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         // STATE_READY only clears the timer on a change, so a resume of ready audio must not arm it.
         if (audio.playbackState != Player.STATE_READY) loadingAt = SystemClock.elapsedRealtime()
     }
-    private suspend fun pauseAudio() {
-        if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
-        event(ListeningSession.Event.Pause)
+    private fun pauseAudio() {
+        if (audio.isPlaying) recordEvent(ListeningSession.Event.Position(position(), knownDuration()))
+        recordEvent(ListeningSession.Event.Pause)
         audio.pause()
         loadingAt = 0
         publish()
@@ -350,25 +385,25 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     override fun toggle() = enqueue { if (audio.playWhenReady) pauseAudio() else start() }
     override fun seek(seconds: Double) = enqueue {
         if (info == null) return@enqueue
-        if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
+        if (audio.isPlaying) recordEvent(ListeningSession.Event.Position(position(), knownDuration()))
         val target = seconds.coerceIn(0.0, knownDuration() ?: Double.MAX_VALUE)
-        event(ListeningSession.Event.Seek(target))
+        recordEvent(ListeningSession.Event.Seek(target))
         internalChange = true; audio.seekTo((target * 1000).toLong()); internalChange = false
-        event(ListeningSession.Event.Discontinuity)
+        recordEvent(ListeningSession.Event.Discontinuity)
         publish()
     }
     override fun speed(value: Float) = enqueue {
         if (!value.isFinite() || value !in 0.25f..4f) return@enqueue
-        if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
-        event(ListeningSession.Event.Speed(value.toDouble()))
+        if (audio.isPlaying) recordEvent(ListeningSession.Event.Position(position(), knownDuration()))
+        recordEvent(ListeningSession.Event.Speed(value.toDouble()))
         internalChange = true; audio.setPlaybackSpeed(value); internalChange = false
         publish()
     }
     override fun sleep(timer: SleepTimer?) = enqueue { this.timer = timer; publish() }
     override fun restore() = enqueue { if (info == null) follow() }
     override fun flush() = enqueue {
-        if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
-        event(ListeningSession.Event.Flush)
+        if (audio.isPlaying) recordEvent(ListeningSession.Event.Position(position(), knownDuration()))
+        recordEvent(ListeningSession.Event.Flush)
     }
     override fun playlistAction(affected: String?, action: suspend () -> Unit) = enqueue {
         val reload = affected == null || affected == playlistId
@@ -392,7 +427,10 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     private suspend fun refreshMetadata() {
         val metadata = info ?: return
         val session = loadedSession ?: return
-        val played = withContext(Dispatchers.IO) { session.db.loadState().episodeStates[metadata.episodeId]?.played }
+        val played = withContext(Dispatchers.IO) {
+            session.db.query("SELECT played_source FROM episode_state WHERE episode_id = ?", listOf(metadata.episodeId))
+                .firstOrNull()?.get("played_source")?.let { ProtocolJson.decodeFromString<Played>(it as String) }
+        }
         if (played != null && played != observedPlayed && accounting?.finished != true) event(ListeningSession.Event.ExternalPlayed)
         observedPlayed = played
         val fresh = withContext(Dispatchers.IO) { session.db.playbackMetadata(metadata.episodeId) }
@@ -413,29 +451,38 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     private fun resolveChapters(session: Session, episode: String) {
         scope.launch { withContext(Dispatchers.IO) { runCatching { session.source.chapters(episode) } } }
     }
-    private suspend fun publish() {
+    private suspend fun refreshQueueSummary() {
+        val session = loadedSession ?: return
+        val playlist = playlistId ?: return
+        val episode = info?.episodeId ?: return
+        queueSummary = withContext(Dispatchers.IO) { session.db.playbackQueueSummary(playlist, episode) }
+    }
+
+    private fun publish() {
         val metadata = info ?: return
-        val state = withContext(Dispatchers.IO) { loadedSession!!.db.loadState() }
-        val playlist = state.playlists.find { it.id == playlistId }
-        val index = playlist?.entries?.indexOfFirst { it.episodeId == metadata.episodeId } ?: -1
-        val count = if (index >= 0) playlist!!.entries.size - index - 1 else playlist?.cursor?.let { cursor -> playlist.entries.indexOfFirst { it.episodeId == cursor }.takeIf { it >= 0 }?.let { playlist.entries.size - it } } ?: 0
         val systemMetadata = item().mediaMetadata
         if (audio.mediaItemCount > 0 && audio.currentMediaItem?.mediaMetadata != systemMetadata) {
             internalChange = true
             audio.replaceMediaItem(0, audio.getMediaItemAt(0).buildUpon().setMediaMetadata(systemMetadata).build())
             internalChange = false
         }
-        val active = state.playlists.find { it.id == state.activePlaylistId }
-        val activeIndex = active?.entries?.indexOfFirst { it.episodeId == active.cursor } ?: -1
-        val activeNext = if (activeIndex >= 0) active!!.entries.size - activeIndex - 1 else 0
-        model.playback.value = PlaybackUi(playlistId!!, playlist?.name ?: getString(R.string.unavailable), metadata, position(), knownDuration(), audio.isPlaying, audio.playbackParameters.speed, count, timer, error, audio.playbackState == Player.STATE_BUFFERING, active?.name ?: getString(R.string.unavailable), activeNext)
+        val unavailable = getString(R.string.unavailable)
+        model.playback.value = PlaybackUi(playlistId!!, queueSummary.playlistName ?: unavailable, metadata,
+            position(), knownDuration(), audio.isPlaying, audio.playbackParameters.speed, queueSummary.nextCount,
+            timer, error, audio.playbackState == Player.STATE_BUFFERING, queueSummary.activePlaylistName ?: unavailable,
+            queueSummary.activeNextCount)
     }
 
     private suspend fun notifyBrowser() {
         val session = model.session.value ?: return
-        val state = withContext(Dispatchers.IO) { session.db.loadState() }
-        library.notifyChildrenChanged("root", state.playlists.size, null)
-        state.playlists.forEach { library.notifyChildrenChanged("playlist:${Uri.encode(it.id)}", it.entries.size, null) }
+        val playlists = withContext(Dispatchers.IO) {
+            session.db.query("""
+                SELECT p.id, (SELECT count(*) FROM entry_index WHERE playlist_id = p.id) AS entries
+                FROM playlist p ORDER BY p.ordinal
+            """.trimIndent()).map { Uri.encode(it["id"] as String) to (it["entries"] as Number).toInt() }
+        }
+        library.notifyChildrenChanged("root", playlists.size, null)
+        playlists.forEach { (id, count) -> library.notifyChildrenChanged("playlist:$id", count, null) }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = library
@@ -480,17 +527,20 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
             model.starting.first { !it }
             if (page < 0 || pageSize <= 0) return@result LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
             val local = model.session.value ?: return@result LibraryResult.ofItemList(emptyList(), params)
-            val children = withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val state = local.db.loadState()
-                if (parentId == "root") state.playlists.map { browseItem("playlist:${Uri.encode(it.id)}", it.name, true) }
+                val offset = (page.toLong() * pageSize).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                val children = if (parentId == "root") state.playlists.asSequence().drop(offset).take(pageSize).map {
+                    browseItem("playlist:${Uri.encode(it.id)}", it.name, true)
+                }.toList()
                 else state.playlists.find { "playlist:${Uri.encode(it.id)}" == parentId }?.let { playlist ->
-                    playlist.entries.map { entry ->
+                    playlist.entries.asSequence().drop(offset).take(pageSize).map { entry ->
                         val metadata = local.db.playbackMetadata(entry.episodeId)
                         browseItem("entry:${Uri.encode(playlist.id)}:${Uri.encode(entry.episodeId)}", metadata.title ?: getString(R.string.metadata_pending), false, metadata.podcast)
-                    }
+                    }.toList()
                 }.orEmpty()
+                LibraryResult.ofItemList(children, params)
             }
-            LibraryResult.ofItemList(children.drop((page.toLong() * pageSize).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()).take(pageSize), params)
         }
         override fun onGetItem(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String): ListenableFuture<LibraryResult<MediaItem>> = result {
             val local = model.session.value ?: return@result LibraryResult.ofError(SessionError.ERROR_SESSION_DISCONNECTED)
@@ -513,8 +563,10 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
                 // Perform the Operations before letting Media3 start the resolved source.
                 event(ListeningSession.Event.Flush)
                 loadedSession = model.session.value
-                val state = withContext(Dispatchers.IO) { loadedSession?.db?.loadState() }
-                require(state?.playlists?.any { p -> p.id == parts[1] && p.entries.any { it.episodeId == parts[2] } } == true)
+                val db = checkNotNull(loadedSession).db
+                require(withContext(Dispatchers.IO) {
+                    db.query("SELECT 1 FROM entry_index WHERE playlist_id = ? AND episode_id = ?", parts.drop(1)).isNotEmpty()
+                })
                 edits(listOf(Change.SetActivePlaylist(parts[1]), Change.SetCursor(parts[1], parts[2])))
                 follow(force = true)
             }
