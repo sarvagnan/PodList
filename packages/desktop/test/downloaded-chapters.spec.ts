@@ -65,7 +65,8 @@ test("reads undownloaded Standalone Chapters from the publisher audio prefix", a
       .getByRole("button", { name: "Open Now Playing: Joinery without screws", exact: true })
       .first()
       .click()
-    await expect(page.getByText("From downloaded audio", { exact: true })).toBeVisible()
+    const chapters = page.getByRole("list", { name: "Chapters", exact: true })
+    await expect(chapters.getByRole("button", { name: /From downloaded audio$/ })).toBeVisible()
   } finally {
     await close(app)
     demo.stop()
