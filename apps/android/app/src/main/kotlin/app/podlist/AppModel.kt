@@ -347,13 +347,20 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun subscriptionName(current: Session, feed: String): String = current.db.query("SELECT title FROM subscription WHERE feed_url = ?", listOf(feed)).firstOrNull()?.get("title") as? String ?: feed
+    fun offerUnsubscribe(current: Session, feed: String) = offerSubscriptionEdit(current, feed, subscribe = false)
 
-    fun offerUnsubscribe(current: Session, feed: String) {
-        offerSubscriptionHistory(current, listOf(feed), subscribe = false, AppMessage(R.string.subscribed_message, formatArgs = listOf(subscriptionName(current, feed))))
-    }
-    fun offerResubscribe(current: Session, feed: String) {
-        offerSubscriptionHistory(current, listOf(feed), subscribe = true, AppMessage(R.string.unsubscribed_message, formatArgs = listOf(subscriptionName(current, feed))))
+    fun offerResubscribe(current: Session, feed: String) = offerSubscriptionEdit(current, feed, subscribe = true)
+
+    private fun offerSubscriptionEdit(current: Session, feed: String, subscribe: Boolean) {
+        viewModelScope.launch { editLock.withLock {
+            if (session.value !== current) return@withLock
+            val title = withContext(Dispatchers.IO) {
+                current.db.query("SELECT title FROM subscription WHERE feed_url = ?", listOf(feed))
+                    .firstOrNull()?.get("title") as? String ?: feed
+            }
+            val message = if (subscribe) R.string.unsubscribed_message else R.string.subscribed_message
+            recordHistory(current, AppMessage(message, formatArgs = listOf(title)), subscriptionStep(current, listOf(feed), subscribe))
+        } }
     }
 
     fun startOnPhone() {
@@ -456,8 +463,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun transfer(next: Session): BringOver {
         val source = sessionFor(null)
-        return BringOver(source.db, next.db, flowRunTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000), audioFiles(source), audioFiles(next)) { job ->
-            _bringOver.update { current -> if (current?.origin == next.source.key) current.copy(job = job, counts = job.snapshot.counts, error = false) else current }
+        return withContext(Dispatchers.IO) {
+            BringOver(source.db, next.db, flowRunTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000),
+                audioFiles(source), audioFiles(next)) { job ->
+                _bringOver.update { current -> if (current?.origin == next.source.key) current.copy(job = job, counts = job.snapshot.counts, error = false) else current }
+            }
         }
     }
 

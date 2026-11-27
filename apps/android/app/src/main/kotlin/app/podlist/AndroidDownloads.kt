@@ -36,12 +36,20 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
     @Volatile internal var rulesSuspended = session.source.server == null && model.session.value?.source?.server != null
     private val scope = CoroutineScope(SupervisorJob(model.viewModelScope.coroutineContext[Job]) + Dispatchers.Main.immediate)
     private val manager = WorkManager.getInstance(context)
-    private val tag = "audio:${digest(session.source.key)}"
+    private val originDigest = digest(session.source.key)
+    private val tag = "audio:$originDigest"
     private val statuses = MutableStateFlow<Map<String, DownloadUi>>(emptyMap())
     internal val status = statuses.asStateFlow()
-    internal val files = AudioFiles(File(context.filesDir, "audio/${digest(session.source.key)}"))
+    private val files by lazy { AudioFiles(File(context.filesDir, "audio/$originDigest")) }
+
+    internal suspend fun storedUri(episode: String): String? = withContext(Dispatchers.IO) {
+        files.stored(episode)?.toURI()?.toString()
+    }
+
+    internal suspend fun audioFiles(): AudioFiles = withContext(Dispatchers.IO) { files }
     private val invalidations = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var work = emptyList<WorkInfo>()
+    private val refreshLock = Mutex()
 
     init {
         scope.launch { withContext(Dispatchers.IO) {
@@ -73,22 +81,32 @@ class AndroidDownloads(private val context: Context, private val model: AppModel
             }
         }
     }
-    private suspend fun refresh() {
-        val stored = withContext(Dispatchers.IO) { session.db.query("SELECT episode_id, bytes FROM download") }
-        val next = mutableMapOf<String, DownloadUi>()
-        // Latest WorkRequest for an Episode supersedes failed/cancelled attempts.
-        for (info in work.sortedBy { it.tags.firstOrNull { tag -> tag.startsWith("requested:") }?.substringAfter(':')?.toLongOrNull() ?: 0 }) {
-            val id = info.tags.firstOrNull { it.startsWith("episode:") }?.removePrefix("episode:") ?: continue
-            val phase = when (info.state) {
-                WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> DownloadPhase.Queued
-                WorkInfo.State.RUNNING -> DownloadPhase.Transferring
-                WorkInfo.State.FAILED -> DownloadPhase.Failed
-                else -> null
+    private suspend fun refresh() = refreshLock.withLock {
+        val snapshot = work
+        statuses.value = withContext(Dispatchers.IO) {
+            val stored = session.db.query("SELECT episode_id, bytes FROM download")
+            val next = mutableMapOf<String, DownloadUi>()
+            // Only the newest WorkRequest for each Episode determines its status.
+            val latest = mutableMapOf<String, Pair<Long, WorkInfo>>()
+            for (info in snapshot) {
+                val id = info.tags.firstOrNull { it.startsWith("episode:") }?.removePrefix("episode:") ?: continue
+                val requested = info.tags.firstOrNull { it.startsWith("requested:") }?.substringAfter(':')?.toLongOrNull() ?: 0L
+                if (requested >= (latest[id]?.first ?: Long.MIN_VALUE)) latest[id] = requested to info
             }
-            if (phase != null) next[id] = DownloadUi(phase, info.progress.getLong("received", 0), info.progress.getLong("total", 0), info.outputData.getBoolean("storageFull", false)) else next.remove(id)
+            for ((id, result) in latest) {
+                val info = result.second
+                val phase = when (info.state) {
+                    WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> DownloadPhase.Queued
+                    WorkInfo.State.RUNNING -> DownloadPhase.Transferring
+                    WorkInfo.State.FAILED -> DownloadPhase.Failed
+                    else -> null
+                }
+                if (phase != null) next[id] = DownloadUi(phase, info.progress.getLong("received", 0),
+                    info.progress.getLong("total", 0), info.outputData.getBoolean("storageFull", false))
+            }
+            for (row in stored) next[row["episode_id"] as String] = DownloadUi(DownloadPhase.Stored, (row["bytes"] as Number).toLong())
+            next
         }
-        for (row in stored) next[row["episode_id"] as String] = DownloadUi(DownloadPhase.Stored, (row["bytes"] as Number).toLong())
-        statuses.value = next
     }
     fun download(episode: String, manual: Boolean = true) {
         if (statuses.value[episode]?.phase in listOf(DownloadPhase.Stored, DownloadPhase.Transferring, DownloadPhase.Queued)) return
@@ -192,21 +210,22 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
             val session = withContext(Dispatchers.Main) { model.sessionFor(if (origin == "standalone") null else ServerAddress.parse(origin, BuildConfig.DEBUG)) }
             val downloads = withContext(Dispatchers.Main) { model.downloads(session) }
             try {
+                val files = downloads.audioFiles()
                 setForeground(foreground())
                 val sources = PlaybackPolicy.sources(null, session.db.playbackMetadata(episode).audioUrl, session.source.audioFallback(episode))
                 val transferContext = currentCoroutineContext()
-                downloads.files.withCommitLock(episode) {
+                files.withCommitLock(episode) {
                     // A pending server worker may race with bring-over. Keep its complete copied file
                     // and Manual ownership instead of overwriting it (or deleting it on cancellation).
                     val existing = session.db.query("SELECT bytes FROM download WHERE episode_id = ?", listOf(episode)).firstOrNull()
-                    val stored = downloads.files.stored(episode)
+                    val stored = files.stored(episode)
                     if (existing != null && stored != null && stored.length() == (existing["bytes"] as Number).toLong()) {
                         if (inputData.getBoolean("manual", true)) session.db.execute("UPDATE download SET manual = 1 WHERE episode_id = ?", listOf(episode))
                         return@withCommitLock
                     }
                     var committed = false
                     try {
-                        val bytes = downloads.files.save(episode, sources) { url, output ->
+                        val bytes = files.save(episode, sources) { url, output ->
                             val source = DefaultHttpDataSource.Factory().setUserAgent("PodList Android").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).createDataSource()
                             try {
                                 val total = source.open(DataSpec(Uri.parse(url)))
@@ -239,7 +258,7 @@ class AudioDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                         ensureActive()
                         session.db.execute("INSERT OR REPLACE INTO download (episode_id, manual, bytes, saved_at) VALUES (?, ?, ?, ?)", listOf(episode, if (inputData.getBoolean("manual", true)) 1 else 0, bytes, System.currentTimeMillis()))
                     } catch (error: CancellationException) {
-                        if (committed) downloads.files.remove(episode)
+                        if (committed) files.remove(episode)
                         throw error
                     }
                 }

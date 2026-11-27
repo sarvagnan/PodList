@@ -270,8 +270,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
         ended = false; error = false
         observedPlayed = state.episodeStates[entry.episodeId]?.played
         timer = timer.takeIf { it is SleepTimer.Until }
-        val files = model.downloads(session).files
-        val stored = withContext(Dispatchers.IO) { files.stored(entry.episodeId)?.toURI()?.toString() }
+        val stored = model.downloads(session).storedUri(entry.episodeId)
         candidates = PlaybackPolicy.sources(stored, info!!.audioUrl, session.source.audioFallback(entry.episodeId))
         candidate = 0
         loadSource(start, settings.speed.toFloat(), play)
@@ -441,8 +440,7 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
             if (audio.isPlaying) event(ListeningSession.Event.Position(position(), knownDuration()))
             event(ListeningSession.Event.Flush)
             event(ListeningSession.Event.Discontinuity)
-            val files = model.downloads(session).files
-            val local = withContext(Dispatchers.IO) { files.stored(fresh.episodeId)?.toURI()?.toString() }
+            val local = model.downloads(session).storedUri(fresh.episodeId)
             candidates = PlaybackPolicy.sources(local, fresh.audioUrl, session.source.audioFallback(fresh.episodeId))
             candidate = 0
             loadSource(position(), audio.playbackParameters.speed, audio.playWhenReady)
