@@ -9,13 +9,15 @@
   <body>
     <main>
       <h1>Welcome to PodList</h1>
+      <p id="welcome-description">Your Library, Views and Playlists, together on this computer.</p>
       <h2>Connect to a Server</h2>
-      <p>Enter your PodList server address. Your Library stays available on this computer when the server is unreachable.</p>
+      <p id="server-description">Enter your PodList server address. Your Library stays available on this computer when the server is unreachable.</p>
       <form id="form">
         <label for="address">Server Address</label>
         <input id="address" name="address" type="text" inputmode="url" autocomplete="url"
           spellcheck="false" placeholder="https://podlist.example.ts.net" required
-          aria-describedby="error" />
+          aria-describedby="server-hint error" />
+        <p id="server-hint">For the local demo, use http://127.0.0.1:PORT.</p>
         <p class="error" id="error" role="alert"></p>
         <div class="actions">
           <button type="submit">Check and Connect</button>

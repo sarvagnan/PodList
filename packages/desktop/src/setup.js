@@ -10,7 +10,13 @@ const standalone = document.getElementById("standalone")
 window.podlist.setup().then(({ current, last, active, mac }) => {
   if (!input.value) input.value = current ?? last ?? ""
   cancel.hidden = !active
-  if (mac) standalone.textContent = "Start on This Mac"
+  if (mac) {
+    standalone.textContent = "Start on This Mac"
+    document.getElementById("welcome-description").textContent =
+      "Your Library, Views and Playlists, together on this Mac."
+    document.getElementById("server-description").textContent =
+      "Enter your PodList server address. Your Library stays available on this Mac when the server is unreachable."
+  }
 })
 cancel.addEventListener("click", () => window.podlist.cancel())
 standalone.addEventListener("click", async () => {
