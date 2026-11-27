@@ -693,13 +693,15 @@ the second changes its contents while it is open. Enter on the New Playlist side
 button opens its dialog and Enter on the Settings sidebar link opens its page.
 These controls deliver renderer keydown events, while the global shortcuts go
 through Electron's application menu. Typing the final `e` uses the separate
-Library Search page and includes its 300 ms query debounce. The result marker
-requires the committed `rice` query, one result and the fixture Episode title.
+Library Search page. The result marker requires the rendered results for
+`rice`, a count of one and the fixture Episode title. The address updates
+separately after 300 ms.
 
 The harness injects a capture-phase listener in the renderer to read the
 `pointerdown` or `keydown` event's timestamp. A MutationObserver detects when
-the result is in the DOM. Search also checks on animation frames in case a new
-query returns identical rows. The endpoint is the first `requestAnimationFrame`
+the result is in the DOM. Search marks the completed query on the results
+container so the observer can detect a new result even when rows are identical.
+The endpoint is the first `requestAnimationFrame`
 timestamp strictly after that observation with the result still visible.
 Chromium calls it before paint, so it estimates the first eligible frame.
 Native uses the first display link's target timestamp after the result appears.

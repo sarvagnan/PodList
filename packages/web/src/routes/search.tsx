@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { ChevronRight, Search as SearchIcon, X } from "lucide-react"
-import { useEffect, useId, useRef, useState } from "react"
+import { useDeferredValue, useEffect, useId, useRef, useState } from "react"
 import { filterEpisodesAtom } from "../app/data.ts"
 import { useCanEdit } from "../app/hooks.ts"
 import { BulkBar } from "../components/episodes/BulkBar.tsx"
@@ -192,7 +192,11 @@ function SearchPage() {
   const router = useRouter()
   const id = useId()
   const wide = useMinWidth("64rem")
-  const [text, setText] = useState(q)
+  const [query, setQuery] = useState({ address: q, text: q, written: q })
+  // Restore a query from navigation. Acknowledging our own replace preserves whitespace
+  // and any typing since the write began.
+  const text = q === query.address || q === query.written ? query.text : q
+  if (q !== query.address) setQuery({ address: q, text, written: q })
   const [saving, setSaving] = useState(false)
   // Open when the search is already narrowed (a reload, a shared link).
   const [refining, setRefining] = useState(
@@ -202,28 +206,36 @@ function SearchPage() {
   )
   const [checked, setCheckedState] = useState<ReadonlySet<string>>(new Set())
   const input = useRef<HTMLInputElement>(null)
-  const words = q.trim()
+  const words = text.trim()
+  const resultWords = useDeferredValue(words)
   const refinement = fromParams(search as Record<string, unknown>)
   const narrowed = Object.keys(refinement.filter).length > 0
   // The draft View: Mentions from the field, the rest from the form.
   const draft: ViewData = {
     id: "search",
     name: "Search",
-    filter: { ...refinement.filter, ...(words ? { text: words } : {}) } as Filter,
+    filter: { ...refinement.filter, ...(words ? { text: words } : {}) },
     sort: refinement.sort,
     limit: refinement.limit
   }
   const active = words !== "" || narrowed
+  const resultsActive = resultWords !== "" || narrowed
   const result = useAtomValue(
     filterEpisodesAtom(
       JSON.stringify(
-        active
-          ? { filter: draft.filter, sort: draft.sort, limit: draft.limit }
+        resultsActive
+          ? {
+              filter: { ...refinement.filter, ...(resultWords ? { text: resultWords } : {}) },
+              sort: draft.sort,
+              limit: draft.limit
+            }
           : { filter: { text: "\u0000" }, sort: "publishedDesc", limit: null }
       )
     )
   )
-  const paging = usePagedItems(active ? AsyncResult.getOrElse(result, () => []) : [])
+  const ready = resultsActive && !AsyncResult.isInitial(result)
+  const settled = AsyncResult.isSuccess(result) && !AsyncResult.isWaiting(result)
+  const paging = usePagedItems(resultsActive ? AsyncResult.getOrElse(result, () => []) : [])
   const episodes = paging.items
   const {
     selected,
@@ -234,8 +246,8 @@ function SearchPage() {
     requestedSelection,
     (episode) =>
       !active ||
-      (AsyncResult.isSuccess(result) &&
-        !AsyncResult.isWaiting(result) &&
+      (words === resultWords &&
+        settled &&
         !paging.more &&
         !episodes.some((item) => item.id === episode))
   )
@@ -254,12 +266,14 @@ function SearchPage() {
 
   // The address follows the words a moment after typing stops, so Back and reload keep them.
   useEffect(() => {
+    const nextQuery = text.trim()
+    if (nextQuery === q) return
     const timer = setTimeout(() => {
-      if (text.trim() !== q)
-        void navigate({
-          search: ({ q: _, ...rest }) => (text.trim() ? { ...rest, q: text.trim() } : rest),
-          replace: true
-        })
+      setQuery((current) => ({ ...current, written: nextQuery }))
+      void navigate({
+        search: ({ q: _, ...rest }) => (nextQuery ? { ...rest, q: nextQuery } : rest),
+        replace: true
+      })
     }, 300)
     return () => clearTimeout(timer)
   }, [text, q, navigate])
@@ -289,7 +303,10 @@ function SearchPage() {
   return (
     <>
       <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
-        <div className="min-w-0">
+        <div
+          className="min-w-0"
+          data-search-results-query={resultsActive && settled ? resultWords : undefined}
+        >
           <PageHeader
             title="Search"
             back={{ to: "/views", label: "Views" }}
@@ -333,13 +350,16 @@ function SearchPage() {
                 value={text}
                 placeholder="Titles, show notes, podcasts"
                 aria-describedby={`${id}-count`}
-                onChange={(event) => setText(event.target.value)}
+                onChange={(event) => {
+                  const text = event.currentTarget.value
+                  setQuery((current) => ({ ...current, text }))
+                }}
                 className="min-h-12 w-full rounded-xl border border-field bg-card py-2 pr-3 pl-10 text-row"
               />
             </div>
             {/* What is searched stays in view; the count joins it once there are words. */}
             <p id={`${id}-count`} className="mt-2 text-small text-muted-foreground">
-              <span aria-live="polite">{active ? `${count} · ` : ""}</span>
+              <span aria-live="polite">{active && ready ? `${count} · ` : ""}</span>
               Every word must appear in the title, the show notes or the podcast’s name.
             </p>
             {/* Narrow screens: the rest of the View form, folded under the field. */}
@@ -373,7 +393,7 @@ function SearchPage() {
             <EmptyState title="Search your Library">
               Type words above, or narrow by Played, Podcasts, Length and more with Refine.
             </EmptyState>
-          ) : active && !AsyncResult.isInitial(result) && episodes.length === 0 ? (
+          ) : ready && episodes.length === 0 ? (
             <EmptyState title="Nothing matches">
               Try fewer or different words{narrowed ? ", or set a condition back to Any" : ""}.
             </EmptyState>
@@ -382,7 +402,7 @@ function SearchPage() {
               paging={paging}
               episodes={episodes}
               label="Search results"
-              ready={!AsyncResult.isInitial(result)}
+              ready={ready}
               selected={selected}
               onOpen={(episodeId, how) => {
                 if (desktopBuild) setCheckedState(new Set())

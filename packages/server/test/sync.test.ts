@@ -7,6 +7,7 @@ import { Device, Operation, State } from "@podlist/domain"
 import { Effect, Layer, Schema } from "effect"
 import { HttpServer } from "effect/http"
 import { HttpApiTest } from "effect/http-api"
+import { SqlClient } from "effect/sql"
 import * as Database from "../src/Database.ts"
 import { SyncHandlers } from "../src/Http.ts"
 import { SyncStore } from "../src/SyncStore.ts"
@@ -14,7 +15,7 @@ import { SyncStore } from "../src/SyncStore.ts"
 const serverAt = (filename: string) =>
   Layer.mergeAll(SyncHandlers, HttpServer.layerServices).pipe(
     Layer.provide(SyncStore.layer),
-    Layer.provide(Database.layer(filename))
+    Layer.provideMerge(Database.layer(filename))
   )
 const client = HttpApiTest.groups(PodListApi, ["sync"])
 
@@ -32,6 +33,21 @@ const add = (deviceId: string, episodeId: string) =>
 const order = (state: State.State) => state.playlists[0]?.entries.map((e) => e.episodeId)
 
 describe("sync API", () => {
+  it.effect("updates the kind when a Device registers again with the same ID", () =>
+    Effect.gen(function* () {
+      const api = yield* client
+      const decodeDevice = Schema.decodeUnknownSync(Device.Device)
+      const pwa = decodeDevice({ id: "electron", name: "PodList", kind: "pwa", registeredAt: 1 })
+      const desktop = decodeDevice({ ...pwa, kind: "desktop", registeredAt: 2 })
+      yield* api.sync.registerDevice({ payload: pwa })
+      assert.strictEqual((yield* api.sync.registerDevice({ payload: desktop })).kind, "desktop")
+
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql`SELECT id, kind, registered_at FROM device`
+      assert.deepStrictEqual(rows, [{ id: "electron", kind: "desktop", registered_at: 1 }])
+    }).pipe(Effect.provide(serverAt(":memory:")))
+  )
+
   it.effect("registers a Device and accepts each operation once", () =>
     Effect.gen(function* () {
       const api = yield* client
