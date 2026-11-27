@@ -1,8 +1,12 @@
-import { type PlaybackSettings, type State, Units, ViewQuery } from "@podlist/domain"
-import { Effect, Layer, SubscriptionRef } from "effect"
+import { Library, type PlaybackSettings, type State, Units, ViewQuery } from "@podlist/domain"
+import { Effect, Layer, Schema, SubscriptionRef } from "effect"
 import { SqlClient } from "effect/sql"
 import { fromStoredChapters, toPlayerChapter } from "../lib/chapters.ts"
+import { desktopStandalone } from "../lib/desktopSession.ts"
 import { storedOverride } from "../lib/playbackSettings.ts"
+import { resolveLocalChapters } from "../library/DownloadedChapters.ts"
+import { makeStandaloneChapters } from "../library/StandaloneChapters.ts"
+import { DownloadStore } from "../platform/DownloadStore.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
 import { Transport } from "../sync/Transport.ts"
 import {
@@ -57,6 +61,30 @@ export const LocalDataLayer = Layer.effect(
     const engine = yield* SyncEngine
     const sql = yield* SqlClient.SqlClient
     const transport = yield* Transport
+    // Some local readers only compose SQLite and sync. Desktop also supplies OPFS.
+    const downloads = yield* Effect.serviceOption(DownloadStore)
+    const readPrefix = (id: string, bytes: number) =>
+      downloads._tag === "Some" ? downloads.value.readPrefix(id, bytes) : Effect.succeed(null)
+    const standaloneChapters = desktopStandalone ? yield* makeStandaloneChapters(readPrefix) : null
+    const decodeChapters = Schema.decodeUnknownSync(Schema.Array(Library.Chapter))
+    const chaptersFor =
+      standaloneChapters ??
+      ((id: string) =>
+        Effect.gen(function* () {
+          const [row] = yield* sql<{ chapters: string; chapters_url: string | null }>`
+          SELECT chapters, chapters_url FROM episode WHERE id = ${id}
+        `.pipe(Effect.orDie)
+          if (!row) return []
+          const cached = yield* Effect.try(() => decodeChapters(JSON.parse(row.chapters))).pipe(
+            Effect.orElseSucceed(() => [])
+          )
+          return yield* resolveLocalChapters({
+            cached,
+            preferDownload: row.chapters_url === null,
+            readPrefix: (bytes) => readPrefix(id, bytes),
+            remote: transport.chapters(id)
+          })
+        }))
     const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
       Effect.provideService(effect, SqlClient.SqlClient, sql)
 
@@ -134,6 +162,7 @@ export const LocalDataLayer = Layer.effect(
             author: string | null
             description: string | null
             artwork_url: string | null
+            website_url?: string | null
             unsubscribed_at: number | null
             played_threshold: number | null
             playback_settings: string
@@ -160,6 +189,7 @@ export const LocalDataLayer = Layer.effect(
             author: row.author,
             description: row.description,
             artworkUrl: row.artwork_url,
+            ...(row.website_url ? { websiteUrl: row.website_url } : {}),
             subscribed: row.unsubscribed_at === null,
             playedThreshold: row.played_threshold,
             playbackSettings,
@@ -191,27 +221,25 @@ export const LocalDataLayer = Layer.effect(
         Effect.gen(function* () {
           const [row] = yield* sql<
             Omit<EpisodeDetail, "chapters" | "artworkUrl"> & {
-              chapters: string
+              website_url: string | null
               artwork_url: string | null
               podcast_artwork_url: string | null
             }
           >`
           SELECT e.id, e.title, s.title AS podcast, e.published, e.duration, e.description,
-            e.chapters, e.artwork_url, s.artwork_url AS podcast_artwork_url
+            e.artwork_url, s.artwork_url AS podcast_artwork_url,
+            ${sql.literal(desktopStandalone ? "e.website_url" : "NULL")} AS website_url
           FROM episode e JOIN subscription s ON s.id = e.subscription_id
           WHERE e.id = ${episodeId}`
           if (row === undefined) return null
-          // The server finds Chapters the first time anyone asks; offline, the local copy.
-          const chapters = yield* transport.chapters(episodeId).pipe(
-            Effect.map((cs) => cs.map(toPlayerChapter)),
-            Effect.filterOrElse(
-              (cs) => cs.length > 0,
-              () => Effect.succeed(fromStoredChapters(row.chapters))
-            ),
-            Effect.orElseSucceed(() => fromStoredChapters(row.chapters))
-          )
-          const { chapters: _stored, artwork_url, podcast_artwork_url, ...rest } = row
-          return { ...rest, artworkUrl: artwork_url ?? podcast_artwork_url, chapters }
+          const chapters = (yield* chaptersFor(episodeId)).map(toPlayerChapter)
+          const { artwork_url, podcast_artwork_url, website_url, ...rest } = row
+          return {
+            ...rest,
+            artworkUrl: artwork_url ?? podcast_artwork_url,
+            ...(website_url ? { websiteUrl: website_url } : {}),
+            chapters
+          }
         }),
       statsCatalogue: Effect.gen(function* () {
         const subscriptions = yield* sql<{
@@ -224,6 +252,13 @@ export const LocalDataLayer = Layer.effect(
           episodes: new Set(episodes.map((e) => e.id))
         }
       }),
+      hasLibraryEpisode: (id) =>
+        sql`SELECT e.id FROM episode e JOIN subscription s ON s.id = e.subscription_id
+          WHERE e.id = ${id} AND (s.unsubscribed_at IS NULL
+            OR EXISTS (SELECT 1 FROM episode_state WHERE episode_id = e.id AND starred = 1)
+            OR EXISTS (SELECT 1 FROM entry_index WHERE episode_id = e.id))`.pipe(
+          Effect.map((rows) => rows.length > 0)
+        ),
       episodeTitle: (episodeId) =>
         sql<{ title: string }>`SELECT title FROM episode WHERE id = ${episodeId}`.pipe(
           Effect.map((rows) => rows[0]?.title)
@@ -258,7 +293,7 @@ export const LocalDataLayer = Layer.effect(
             chapters: row ? fromStoredChapters(row.chapters) : []
           }
         }),
-      chapters: transport.chapters
+      chapters: chaptersFor
     })
   })
 )

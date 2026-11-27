@@ -18,6 +18,7 @@ import { localClient } from "#client"
 import { episodeDetailAtom, type ViewEpisode } from "../../app/data.ts"
 import { nextLastTargetAtom } from "../../app/episodeActions.ts"
 import { downloadAtom, stateAtom } from "../../app/runtime.ts"
+import { episodeDragSource } from "../../lib/episodeDrag.ts"
 import { nextLastTarget } from "../../lib/remembered.ts"
 import { formatLength, formatPublished } from "../../lib/time.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -80,9 +81,11 @@ export function EpisodeRow({
   selected = false,
   checked = false,
   onCheck,
-  showPodcast = true
+  showPodcast = true,
+  dragEpisodes
 }: {
   readonly episode: ViewEpisode
+  readonly dragEpisodes?: () => ReadonlyArray<string>
   /** Off on a podcast's own page, whose title already names it. */
   readonly showPodcast?: boolean
   /** Wide screens: show the Episode beside the list instead of navigating. */
@@ -268,6 +271,7 @@ export function EpisodeRow({
         <Link
           to="/episodes/$episodeId"
           params={{ episodeId: episode.id }}
+          {...(desktopBuild && dragEpisodes ? episodeDragSource(dragEpisodes) : {})}
           data-cell="title"
           data-episode-title={episode.id}
           onClick={(event) => {

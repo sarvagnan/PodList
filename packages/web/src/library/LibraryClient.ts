@@ -4,6 +4,7 @@ import { Context, Effect, Layer } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
 import { serverNeeded } from "../lib/connectionMessage.ts"
+import type { BringOverClient } from "./BringOverClient.ts"
 
 // The Library's server calls that aren't sync operations: finding podcasts, following
 // and unfollowing them, and OPML. Each needs the server, so each can fail offline.
@@ -15,12 +16,19 @@ export class LibraryError extends Error {
 export class LibraryClient extends Context.Service<
   LibraryClient,
   {
+    readonly bringOver?: BringOverClient
+    readonly runInBackground?: Effect.Effect<never>
     readonly search: (
       query: string
     ) => Effect.Effect<ReadonlyArray<Directory.DirectoryResult>, LibraryError>
     readonly subscribe: (feedUrl: string) => Effect.Effect<Library.Subscription, LibraryError>
     readonly unsubscribe: (subscriptionId: string) => Effect.Effect<void, LibraryError>
     readonly importOpml: (opml: string) => Effect.Effect<Subscriptions.ImportSummary, LibraryError>
+    readonly readPodcast: (
+      feedUrl: string
+    ) => Effect.Effect<Subscriptions.PodcastFeed, LibraryError>
+    readonly refreshSubscription: (id: string) => Effect.Effect<void, LibraryError>
+    readonly bringEpisode: (feedUrl: string, guid: string) => Effect.Effect<string, LibraryError>
   }
 >()("@podlist/web/LibraryClient") {
   static readonly layerHttp = (baseUrl: string) =>
@@ -49,6 +57,21 @@ export class LibraryClient extends Context.Service<
             client.subscriptions
               .unsubscribe({ params: { id }, headers })
               .pipe(Effect.asVoid, Effect.mapError(fail(offline))),
+          refreshSubscription: (id) =>
+            client.library
+              .refreshSubscription({ params: { id } })
+              .pipe(Effect.asVoid, Effect.mapError(fail("Could not refresh the feed. Try again."))),
+          readPodcast: (feedUrl) =>
+            client.subscriptions
+              .readPodcast({ payload: new Subscriptions.SubscribeRequest({ feedUrl }), headers })
+              .pipe(Effect.mapError(fail(offline))),
+          bringEpisode: (feedUrl, guid) =>
+            client.subscriptions
+              .bringEpisode({ payload: new Subscriptions.BringEpisodeRequest({ feedUrl, guid }) })
+              .pipe(
+                Effect.map((episode) => episode.episodeId),
+                Effect.mapError(fail(offline))
+              ),
           importOpml: (opml) =>
             client.subscriptions
               .importOpml({ payload: new Subscriptions.ImportRequest({ opml }) })

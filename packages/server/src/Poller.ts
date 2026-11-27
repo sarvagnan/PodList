@@ -1,18 +1,14 @@
+import { feedPollDecision, pollIntervalMillis } from "@podlist/feeds/polling"
 import { Context, Duration, Effect, Exit, Layer, Schedule } from "effect"
 import { SqlClient } from "effect/sql"
 import { Library, type RefreshResult } from "./Library.ts"
 
 /** Every active Subscription is checked this often (Q26). */
-export const pollInterval = Duration.minutes(30)
+export const pollInterval = Duration.millis(pollIntervalMillis)
 /** At most this many feeds are fetched at once. */
 export const concurrency = 5
 
-const halfHour = 30 * 60 * 1000
-const day = 24 * 60 * 60 * 1000
-
-/** How long a failing feed waits before the scheduler tries it again: 30 min, 1 h, 2 h … up to a day. */
-export const backoffMillis = (failures: number) =>
-  failures <= 0 ? 0 : Math.min(halfHour * 2 ** (failures - 1), day)
+export { backoffMillis } from "@podlist/feeds/polling"
 
 export interface RefreshSummary {
   readonly checked: number
@@ -49,10 +45,14 @@ export class Poller extends Context.Service<
             FROM subscription s LEFT JOIN feed_state f ON f.subscription_id = s.id
             WHERE s.unsubscribed_at IS NULL`.pipe(Effect.orDie)
           const due = rows.filter(
-            (r) =>
-              !respectBackoff ||
-              r.checked_at === null ||
-              now >= r.checked_at + backoffMillis(r.failures ?? 0)
+            (row) =>
+              feedPollDecision({
+                checkedAt: row.checked_at,
+                failures: row.failures ?? 0,
+                now,
+                automatic: respectBackoff,
+                successInterval: 0
+              }).due
           )
           const results = yield* Effect.forEach(due, (r) => Effect.exit(library.refresh(r.id)), {
             concurrency

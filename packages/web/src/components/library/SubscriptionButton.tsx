@@ -2,20 +2,22 @@ import { Check } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 // Matches Android's default two-tap window. No server action until the second activation.
-const armMillis = 5000
+const defaultArmSeconds = 5
 
 export function SubscriptionButton({
   title,
   subscribed,
   busy,
   onSubscribe,
-  onUnsubscribe
+  onUnsubscribe,
+  armSeconds = defaultArmSeconds
 }: {
   readonly title: string
   readonly subscribed: boolean
   readonly busy: boolean
   readonly onSubscribe: () => void
   readonly onUnsubscribe: () => void
+  readonly armSeconds?: number
 }) {
   const button = useRef<HTMLButtonElement>(null)
   const [expires, setExpires] = useState(0)
@@ -73,7 +75,7 @@ export function SubscriptionButton({
           if (busy) return
           if (!subscribed) return onSubscribe()
           if (!armed || Date.now() >= expires) {
-            setExpires(Date.now() + armMillis)
+            setExpires(Date.now() + armSeconds * 1000)
             return
           }
           setExpires(0)
@@ -96,7 +98,7 @@ export function SubscriptionButton({
       </button>
       <span role="status" className="sr-only">
         {armed
-          ? `Unsubscribe from ${title} armed. Activate again within five seconds to unsubscribe.`
+          ? `Unsubscribe from ${title} armed. Activate again within ${armSeconds === 4 ? "four" : "five"} seconds to unsubscribe.`
           : ""}
       </span>
     </>

@@ -8,19 +8,24 @@
   </head>
   <body>
     <main>
-      <h1>Connect to your PodList server</h1>
-      <p>Your Library, Playlists and listening sync through it. You can change it later from the PodList menu.</p>
+      <h1>Welcome to PodList</h1>
+      <p id="welcome-description">Your Library, Views and Playlists, together on this computer.</p>
+      <h2>Connect to a Server</h2>
+      <p id="server-description">Enter your PodList server address. Your Library stays available on this computer when the server is unreachable.</p>
       <form id="form">
-        <label for="address">Server address</label>
+        <label for="address">Server Address</label>
         <input id="address" name="address" type="text" inputmode="url" autocomplete="url"
-          spellcheck="false" placeholder="podlist.your-tailnet.ts.net" required
-          aria-describedby="error" />
+          spellcheck="false" placeholder="https://podlist.example.ts.net" required
+          aria-describedby="server-hint error" />
+        <p id="server-hint">For the local demo, use http://127.0.0.1:PORT.</p>
         <p class="error" id="error" role="alert"></p>
         <div class="actions">
-          <button type="submit">Connect</button>
+          <button type="submit">Check and Connect</button>
           <button type="button" id="cancel" class="secondary" hidden>Cancel</button>
         </div>
       </form>
+      <hr />
+      <button type="button" id="standalone" class="secondary">Start on This Computer</button>
     </main>
     <script src="setup.js"></script>
   </body>

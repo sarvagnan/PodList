@@ -32,7 +32,7 @@ export type PlayerEvent = Data.TaggedEnum<{
 export const PlayerEvent = Data.taggedEnum<PlayerEvent>()
 
 /** Commands from outside the app: lock screen, headset buttons, media keys. */
-export type RemoteCommand = "play" | "pause" | "back" | "forward" | "previous" | "next"
+export type RemoteCommand = "play" | "pause" | "back" | "forward" | "previous" | "next" | "stop"
 
 export class PlayError extends Data.TaggedError("PlayError")<{ readonly message: string }> {}
 
@@ -44,6 +44,8 @@ export class Player extends Context.Service<
     readonly describe: (info: TrackInfo) => Effect.Effect<void>
     readonly play: Effect.Effect<void, PlayError>
     readonly pause: Effect.Effect<void>
+    /** Releases the audio source. Play resumes from the supplied Position. */
+    readonly stop?: (position: number) => Effect.Effect<void>
     readonly seek: (seconds: number) => Effect.Effect<void>
     readonly setRate: (rate: number) => Effect.Effect<void>
     /** Louder, evened-out speech (compressor and gain), for quiet or uneven podcasts. */
@@ -67,6 +69,7 @@ export class Player extends Context.Service<
         let source = 0
         let wanted = false
         let rate = 1
+        let stoppedAt: number | null = null
         let timeout: ReturnType<typeof setTimeout> | undefined
         const clearTimer = () => clearTimeout(timeout)
         const dispose = () => {
@@ -176,6 +179,11 @@ export class Player extends Context.Service<
           )
         }
         const start = async (): Promise<void> => {
+          if (stoppedAt !== null) {
+            const position = stoppedAt
+            stoppedAt = null
+            select(position)
+          }
           wanted = true
           const element = audio
           armTimer()
@@ -205,13 +213,16 @@ export class Player extends Context.Service<
           ["previoustrack", "previous"],
           ["nexttrack", "next"]
         ]
+        if (import.meta.env.MODE === "desktop") actions.push(["stop", "stop"])
         yield* Effect.acquireRelease(
           Effect.sync(() => {
             for (const [action, command] of actions) {
               session?.setActionHandler(action, () => Queue.offerUnsafe(remote, command))
             }
             session?.setActionHandler("seekto", (details) => {
-              if (details.seekTime !== undefined) audio.currentTime = details.seekTime
+              if (details.seekTime === undefined) return
+              if (stoppedAt === null) audio.currentTime = details.seekTime
+              else stoppedAt = details.seekTime
             })
           }),
           () =>
@@ -233,30 +244,38 @@ export class Player extends Context.Service<
             }
           })
 
+        const prepare = (next: Track) => {
+          track = next
+          source = 0
+          const local = next.url.startsWith("blob:")
+          candidates =
+            local || !next.proxyUrl || next.proxyUrl === next.url
+              ? [{ url: next.url, boost: next.volumeBoost ?? false }]
+              : next.volumeBoost
+                ? [
+                    { url: next.proxyUrl, boost: true },
+                    { url: next.url, boost: false }
+                  ]
+                : [
+                    { url: next.url, boost: false },
+                    { url: next.proxyUrl, boost: false }
+                  ]
+        }
         const load = (next: Track) =>
           Effect.gen(function* () {
             wanted = false
-            track = next
-            source = 0
-            const local = next.url.startsWith("blob:")
-            candidates =
-              local || !next.proxyUrl || next.proxyUrl === next.url
-                ? [{ url: next.url, boost: next.volumeBoost ?? false }]
-                : next.volumeBoost
-                  ? [
-                      { url: next.proxyUrl, boost: true },
-                      { url: next.url, boost: false }
-                    ]
-                  : [
-                      { url: next.url, boost: false },
-                      { url: next.proxyUrl, boost: false }
-                    ]
+            stoppedAt = null
+            prepare(next)
             select(next.startAt)
             yield* showInfo(next)
           })
         const setVolumeBoost = (on: boolean) =>
           Effect.gen(function* () {
             if (!track || !!track.volumeBoost === on) return
+            if (stoppedAt !== null) {
+              prepare({ ...track, startAt: stoppedAt, volumeBoost: on })
+              return
+            }
             const resume = wanted
             yield* load({ ...track, startAt: audio.currentTime, volumeBoost: on })
             if (resume)
@@ -276,7 +295,18 @@ export class Player extends Context.Service<
             clearTimer()
             audio.pause()
           }),
-          seek: (seconds) => Effect.sync(() => (audio.currentTime = seconds)),
+          stop: (position) =>
+            Effect.sync(() => {
+              if (!track) return
+              wanted = false
+              stoppedAt = position
+              dispose()
+            }),
+          seek: (seconds) =>
+            Effect.sync(() => {
+              if (stoppedAt === null) audio.currentTime = seconds
+              else stoppedAt = seconds
+            }),
           setRate: (next) =>
             Effect.sync(() => {
               rate = next

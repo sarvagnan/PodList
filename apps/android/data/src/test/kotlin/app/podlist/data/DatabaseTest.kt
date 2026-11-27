@@ -101,8 +101,13 @@ class DatabaseTest {
         val identities = Regex("id: (\\d+),\\s+name: \"([^\"]+)\"").findAll(source).map { it.groupValues[1].toInt() to it.groupValues[2] }.toList()
         assertEquals(identities, SharedSchema.migrations.map { it.id to it.name })
         val web = Files.readString(repo.resolve("packages/web/src/platform/LocalDb.ts"))
-        val clientSql = Regex("sql`(CREATE TABLE[\\s\\S]*?)`").findAll(web).map { normalize(it.groupValues[1]) }.toList()
+        val clientRecord = Regex("""(?m)^const sharedClientMigrations = \{\r?\n([\s\S]*?)^\}""")
+            .findAll(web).single().groupValues[1]
+        val clientSql = Regex("sql`([^`]+)`").findAll(clientRecord).map { normalize(it.groupValues[1]) }.toList()
         assertEquals(clientSql, SharedSchema.clientMigrations.flatMap { it.statements }.map(::normalize))
+        val clientIdentities = Regex("\"(\\d+)_([^\"]+)\": Effect\\.gen\\(").findAll(clientRecord)
+            .map { it.groupValues[1].toInt() to it.groupValues[2] }.toList()
+        assertEquals(clientIdentities, SharedSchema.clientMigrations.map { it.id to it.name })
     }
 
     @Test

@@ -95,6 +95,20 @@ describe("Player source fallback", () => {
       expect(events.some((e) => e._tag === "Failed")).toBe(true)
     }).pipe(Effect.provide(fake.layer))
   })
+  it.live("releases the audio on Stop and prepares a fresh source at the saved Position", () => {
+    const fake = fixture(() => false)
+    return Effect.gen(function* () {
+      const player = yield* Player
+      yield* player.load(track)
+      yield* player.play
+      const before = fake.elements.at(-1)
+      yield* player.stop?.(45) ?? Effect.void
+      yield* player.play
+      expect(fake.elements.at(-1)).not.toBe(before)
+      expect(fake.elements.at(-1)?.src).toBe(track.url)
+      expect(fake.elements.at(-1)?.currentTime).toBe(45)
+    }).pipe(Effect.provide(fake.layer))
+  })
   it.live("keeps a stored download first even when boost is enabled", () => {
     const fake = fixture(() => false)
     return Effect.gen(function* () {

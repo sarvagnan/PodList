@@ -8,6 +8,7 @@ export function PageHeader({
   back,
   subtitle,
   actions,
+  search,
   narrow = false,
   backOnDesktop = false,
   tabTitle,
@@ -18,6 +19,7 @@ export function PageHeader({
   readonly back?: { readonly to: string; readonly label: string }
   readonly subtitle?: string
   readonly actions?: ReactNode
+  readonly search?: ReactNode
   /** The screen's content stops at 960 px: so do the header's actions, above its edge. */
   readonly narrow?: boolean
   /** A screen opened from another (settings, a Subscription, Trash) keeps its way back on
@@ -76,6 +78,7 @@ export function PageHeader({
             >
               {title}
             </h1>
+            {search}
           </div>
           {stableActions ? (
             <div className="min-w-0 md:flex md:h-[max(48px,2.75rem)] md:items-center md:overflow-x-auto">

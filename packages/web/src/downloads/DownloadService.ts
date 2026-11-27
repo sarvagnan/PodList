@@ -1,5 +1,7 @@
 import { Context, Data, type Effect, type SubscriptionRef } from "effect"
 
+import type { DownloadError } from "../platform/DownloadStore.ts"
+
 export type DownloadStatus = Data.TaggedEnum<{
   Downloading: { readonly received: number; readonly total: number | null }
   Stored: { readonly bytes: number; readonly manual: boolean }
@@ -25,6 +27,11 @@ export class Downloads extends Context.Service<
     /** Deletes a stored download. */
     readonly remove: (episodeId: string) => Effect.Effect<void>
     /** A URL to play the stored file, or null when it isn't stored here. */
+    readonly importStored?: (
+      episodeId: string,
+      sourceUrl: string,
+      expectedBytes: number
+    ) => Effect.Effect<void, DownloadError>
     readonly playableUrl: (episodeId: string) => Effect.Effect<string | null>
   }
 >()("@podlist/web/Downloads") {}

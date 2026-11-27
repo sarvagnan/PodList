@@ -11,7 +11,7 @@
 /*
  * PodList design tokens, from the chosen mockup (docs/design/ui-layout.md, variant A).
  * shadcn components read the semantic variables below, so they take PodList's look
- * rather than the template's. Light only: the dark theme is not designed yet.
+ * rather than the template's. The browser uses the light palette.
  */
 
 @theme inline {
@@ -101,6 +101,34 @@
   --positive: #1d6b45;
   --positive-tint: #ddf2e7;
   --star: #b5791a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-podlist-desktop] {
+    color-scheme: dark;
+    --background: #202124;
+    --foreground: #f3f3f4;
+    --card: #2a2b30;
+    --card-foreground: #f3f3f4;
+    --popover: #2a2b30;
+    --popover-foreground: #f3f3f4;
+    --primary: #9db1ff;
+    --primary-foreground: #111b36;
+    --secondary: #32343c;
+    --secondary-foreground: #f3f3f4;
+    --muted: #32343c;
+    --muted-foreground: #bcbec9;
+    --accent: #333b55;
+    --accent-foreground: #d5deff;
+    --destructive: #ff9fa1;
+    --border: #494b54;
+    --input: #535663;
+    --field: #8a8d9c;
+    --ring: #9db1ff;
+    --positive: #85d5b1;
+    --positive-tint: #244336;
+    --star: #f0bd68;
+  }
 }
 
 @layer base {

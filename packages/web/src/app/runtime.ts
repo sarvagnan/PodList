@@ -5,6 +5,7 @@ import { clientLayer, playerLayer } from "#client"
 import { DataLayer } from "../data/DataLayer.ts"
 import { Downloads } from "../downloads/DownloadService.ts"
 import { artworkSrc } from "../lib/artwork.ts"
+import { desktopStandalone, publisherAudioUrl } from "../lib/desktopSession.ts"
 import { LibraryClient } from "../library/LibraryClient.ts"
 import { Playback, type SleepRequest } from "../playback/Playback.ts"
 import { Transport } from "../sync/Transport.ts"
@@ -36,6 +37,7 @@ const PlaybackLive = Layer.unwrap(
     const downloads = yield* Downloads
     return Playback.layer({
       audioUrl,
+      ...(desktopStandalone ? { publisherAudioUrl } : {}),
       localAudio: downloads.playableUrl,
       artworkUrl: (url) => new URL(artworkSrc(url, 256), location.origin).href
     })
@@ -48,8 +50,9 @@ export const AppLayer = PlaybackLive.pipe(
     clientLayer({ defaults, deviceName: deviceName(), audioUrl, origin: location.origin })
   ),
   Layer.provide(playerLayer),
-  Layer.provide(Transport.layerHttp(location.origin)),
-  Layer.provideMerge(LibraryClient.layerHttp(location.origin))
+  Layer.provide(
+    desktopStandalone ? Transport.layerStandalone : Transport.layerHttp(location.origin)
+  )
 )
 
 export const runtime = Atom.runtime(AppLayer)
@@ -79,7 +82,9 @@ export const syncStatusAtom = runtime.atom(
 export const backgroundSyncAtom = runtime.atom(
   Effect.gen(function* () {
     const engine = yield* DataLayer
+    const library = yield* LibraryClient
     yield* Effect.forkScoped(engine.runInBackground)
+    if (library.runInBackground) yield* Effect.forkScoped(library.runInBackground)
   })
 )
 
@@ -109,12 +114,17 @@ export const nowPlayingAtom = runtime.atom(
 
 type Command =
   | { readonly _tag: "toggle" }
+  | { readonly _tag: "stop" }
   | { readonly _tag: "retry" }
   | { readonly _tag: "skip"; readonly seconds: number }
   | { readonly _tag: "seek"; readonly seconds: number }
   | { readonly _tag: "playEntry"; readonly playlistId: string; readonly episodeId: string }
   | { readonly _tag: "setSpeed"; readonly speed: number }
   | { readonly _tag: "setSleep"; readonly sleep: SleepRequest | null }
+
+export const flushPlaybackAtom = runtime.fn(() =>
+  Effect.flatMap(Playback, (playback) => playback.flush ?? playback.pause)
+)
 
 /** Player controls: play/pause, skip, seek and Play from here. */
 export const playbackAtom = runtime.fn((command: Command) =>
@@ -123,6 +133,8 @@ export const playbackAtom = runtime.fn((command: Command) =>
     switch (command._tag) {
       case "toggle":
         return yield* playback.toggle
+      case "stop":
+        return yield* playback.stop ?? playback.pause
       case "retry":
         return yield* playback.retry
       case "skip":

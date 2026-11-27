@@ -1,15 +1,17 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react"
+import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react"
 import { Operation } from "@podlist/domain"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Schema } from "effect"
 import { AsyncResult } from "effect/reactivity"
 import { GripVertical, Pause, Play, Settings, X } from "lucide-react"
 import type * as React from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { localClient } from "#client"
 import { entryEpisodesAtom } from "../../app/data.ts"
 import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
+import { restoredSelectionAtom } from "../../app/restoredEntries.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
+import { AddToPlaylist } from "../../components/episodes/AddToPlaylist.tsx"
 import { DesktopEpisodeInspector } from "../../components/episodes/DesktopEpisodeInspector.tsx"
 import { EpisodeDetail } from "../../components/episodes/EpisodeDetail.tsx"
 import { useEpisodeActions } from "../../components/episodes/useEpisodeActions.ts"
@@ -27,9 +29,11 @@ import {
 } from "../../components/lists/VirtualSortableList.tsx"
 import { PlaylistHistory, PlaylistTimeline } from "../../components/playlists/PlaylistHistory.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { ContextualSearch, useEpisodeListSearch } from "../../components/shell/ContextualSearch.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
+import { episodeDragSource } from "../../lib/episodeDrag.ts"
 import { focusAfterRemoval } from "../../lib/focusAfterRemoval.ts"
 import { useRowGrid } from "../../lib/rowGrid.ts"
 import { useScrollMemory } from "../../lib/scrollMemory.ts"
@@ -59,6 +63,7 @@ function PlaylistDetail() {
   const control = useAtomSet(playbackAtom)
   const playing = useNowPlaying()
   const act = useEpisodeActions()
+  const [adding, setAdding] = useState<{ id: string; title: string } | null>(null)
   const confirm = useConfirm()
   const playlist = state?.playlists.find((p) => p.id === playlistId)
   const { episode: requestedSelection, tab } = Route.useSearch()
@@ -94,8 +99,37 @@ function PlaylistDetail() {
   useScrollMemory(state !== null && playlist !== undefined && (localClient || ready))
   // The Entries: one Tab stop, arrows between Entries and their buttons (lib/rowGrid.ts).
   const listRef = useRef<HTMLDivElement>(null)
-  const entries = playlist?.entries ?? []
+  const search = useEpisodeListSearch(playlistId, tab === undefined)
+  const allEntries = playlist?.entries ?? []
+  const entries = search.query
+    ? allEntries.filter((e) => search.matches.has(e.episodeId))
+    : allEntries
   const scroller = useRef<EntryScroller>(null)
+  const [restored, setRestored] = useAtom(restoredSelectionAtom)
+  const restoredIndex =
+    desktopBuild && tab === undefined && restored?.playlistId === playlistId
+      ? entries.findIndex((entry) => entry.episodeId === restored.episodeId)
+      : -1
+  useEffect(() => {
+    if (!restored || restoredIndex < 0) return
+    const id = restored.episodeId
+    let frame = 0
+    let remaining = 30
+    const focus = () => {
+      const target = listRef.current?.querySelector<HTMLElement>(
+        `[data-episode-title="${CSS.escape(id)}"]`
+      )
+      if (target) {
+        target.focus()
+        setRestored(null)
+      } else if (--remaining > 0) {
+        scroller.current?.scrollToIndex(restoredIndex)
+        frame = requestAnimationFrame(focus)
+      } else setRestored(null)
+    }
+    frame = requestAnimationFrame(focus)
+    return () => cancelAnimationFrame(frame)
+  }, [restored, restoredIndex, setRestored])
   const copyLink = useCopyEpisodeLink()
   const grid = useRowGrid(listRef, {
     count: entries.length,
@@ -168,6 +202,7 @@ function PlaylistDetail() {
 
   // One step that Undo takes back: the Entry returns after its old neighbour.
   const moveEntry = (episodeId: string, after: string | null, fromMenu = false) => {
+    if (search.query) return
     const index = entries.findIndex((e) => e.episodeId === episodeId)
     const before = index > 0 ? (entries[index - 1]?.episodeId ?? null) : null
     const move = (to: string | null) =>
@@ -259,6 +294,7 @@ function PlaylistDetail() {
       <PageHeader
         narrow={tab !== undefined}
         title={playlist.name}
+        search={tab === undefined && <ContextualSearch {...search} />}
         // Each section has its own address, so its own tab name too (BROWSER-03).
         tabTitle={
           tab === "history"
@@ -346,6 +382,12 @@ function PlaylistDetail() {
         <div className="max-w-[960px]">
           <PlaylistTimeline playlist={playlist} />
         </div>
+      ) : search.waiting ? (
+        <LoadingRows label="Searching this list" />
+      ) : search.query && entries.length === 0 ? (
+        <EmptyState title="No Episodes match your search.">
+          Try other words or clear Search.
+        </EmptyState>
       ) : playlist.entries.length === 0 ? (
         <div className={desktopBuild ? undefined : "lg:grid lg:grid-cols-[minmax(0,1fr)_400px]"}>
           <EmptyState title="Nothing here yet">
@@ -388,7 +430,8 @@ function PlaylistDetail() {
                 entries[index - 2]?.episodeId,
                 entries[index - 1]?.episodeId,
                 entries[index + 1]?.episodeId,
-                entries.at(-1)?.episodeId
+                entries.at(-1)?.episodeId,
+                Boolean(search.query)
               ]}
               scroller={scroller}
               ids={entries.map((e) => e.episodeId)}
@@ -436,7 +479,7 @@ function PlaylistDetail() {
                           )
                       },
                   // Every move a drag makes, without a drag (AX-04).
-                  ...(index > 0
+                  ...(!search.query && index > 0
                     ? [
                         { label: "Move to top", run: () => moveEntry(entry.episodeId, null, true) },
                         {
@@ -446,7 +489,7 @@ function PlaylistDetail() {
                         }
                       ]
                     : []),
-                  ...(index < entries.length - 1
+                  ...(!search.query && index < entries.length - 1
                     ? [
                         {
                           label: "Move down",
@@ -487,6 +530,14 @@ function PlaylistDetail() {
                         )
                     }
                   },
+                  ...(desktopBuild && title
+                    ? [
+                        {
+                          label: "Add to a Playlist…",
+                          run: () => setAdding({ id: entry.episodeId, title })
+                        }
+                      ]
+                    : []),
                   {
                     label: `Remove from ${playlist.name}`,
                     run: () => {
@@ -549,6 +600,7 @@ function PlaylistDetail() {
                               type="button"
                               data-cell=""
                               {...sortable.handle}
+                              disabled={Boolean(search.query)}
                               aria-label={`Move ${title ?? "Entry"}`}
                               tabIndex={-1}
                               className="-mx-1 grid size-11 cursor-grab touch-none place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"
@@ -607,6 +659,9 @@ function PlaylistDetail() {
                             <Link
                               to="/episodes/$episodeId"
                               params={{ episodeId: entry.episodeId }}
+                              {...(desktopBuild
+                                ? episodeDragSource(() => [entry.episodeId], playlist.id)
+                                : {})}
                               data-cell="title"
                               data-episode-title={entry.episodeId}
                               onClick={(event) => {
@@ -728,6 +783,9 @@ function PlaylistDetail() {
           </div>
           {panel}
         </div>
+      )}
+      {adding && (
+        <AddToPlaylist open episode={adding} onOpenChange={(open) => !open && setAdding(null)} />
       )}
       {desktopBuild && (
         <DesktopEpisodeInspector

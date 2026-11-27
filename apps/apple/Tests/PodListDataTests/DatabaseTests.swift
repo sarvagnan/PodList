@@ -57,8 +57,13 @@ private func normalize(_ sql: String) -> String {
     let identities = try matches(#"id: (\d+),\s+name: "([^"]+)""#, in: source)
     #expect(identities.map { $0[1] + ":" + $0[2] } == SharedSchema.migrations.map { "\($0.id):\($0.name)" })
     let web = try String(contentsOf: repo.appendingPathComponent("packages/web/src/platform/LocalDb.ts"), encoding: .utf8)
-    let client = try matches(#"sql`(CREATE TABLE[\s\S]*?)`"#, in: web).map { normalize($0[1]) }
+    let clientRecords = try matches(#"(?m)^const sharedClientMigrations = \{\r?\n([\s\S]*?)^\}"#, in: web)
+    try #require(clientRecords.count == 1)
+    let clientRecord = clientRecords[0][1]
+    let client = try matches(#"sql`([^`]+)`"#, in: clientRecord).map { normalize($0[1]) }
     #expect(client == SharedSchema.clientMigrations.flatMap(\.statements).map(normalize))
+    let clientIdentities = try matches(#""(\d+)_([^"]+)": Effect\.gen\("#, in: clientRecord)
+    #expect(clientIdentities.map { "\(Int($0[1]) ?? -1):\($0[2])" } == SharedSchema.clientMigrations.map { "\($0.id):\($0.name)" })
     let android = try String(contentsOf: repo.appendingPathComponent("apps/android/data/src/main/kotlin/app/podlist/data/SharedSchema.kt"), encoding: .utf8)
     let androidSQL = try matches(#""""([\s\S]*?)"""|"([^"\n]*)""#, in: android)
         .map { $0[1].isEmpty ? $0[2] : $0[1] }.filter { $0.hasPrefix("CREATE ") || $0.hasPrefix("ALTER ") || $0.hasPrefix("UPDATE ") }

@@ -27,6 +27,22 @@ test("runs its own copy of the web app, with a local database, and opens offline
     // Exercise MCP in this existing launch; no extra Electron windows.
     expect(existsSync(join(profile, "mcp.sock"))).toBe(false)
     await sidebar.getByRole("link", { name: "Settings", exact: true }).click()
+    const appearance = page.getByRole("combobox", { name: "Appearance" })
+    const themeSource = () => app.evaluate(({ nativeTheme }) => nativeTheme.themeSource)
+    await expect(appearance).toHaveValue("system")
+    await appearance.selectOption("dark")
+    await expect.poll(themeSource).toBe("dark")
+    await expect
+      .poll(() => page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches))
+      .toBe(true)
+    await appearance.selectOption("light")
+    await expect.poll(themeSource).toBe("light")
+    await expect
+      .poll(() => page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches))
+      .toBe(false)
+    await appearance.selectOption("system")
+    await expect.poll(themeSource).toBe("system")
+    await page.getByRole("tab", { name: "Automation" }).click()
     const toggle = page.getByRole("checkbox", { name: "Enable MCP server" })
     await expect(toggle).not.toBeChecked()
     await expect(
@@ -165,18 +181,23 @@ test("asks for the server address on first launch and checks it answers", async 
     const app = await launch({ PODLIST_USER_DATA: profile })
     const page = await app.firstWindow()
     await expect(
-      page.getByRole("heading", { name: "Connect to your PodList server" })
+      page.getByRole("heading", { name: "Welcome to PodList", exact: true })
     ).toBeVisible()
-    const address = page.getByRole("textbox", { name: "Server address" })
+    await expect(
+      page.getByRole("heading", { name: "Connect to a Server", exact: true })
+    ).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Start on This (Mac|Computer)$/ })).toBeVisible()
+    const address = page.getByRole("textbox", { name: "Server Address", exact: true })
+    const connectButton = page.getByRole("button", { name: "Check and Connect", exact: true })
     await expect(address).toBeFocused()
-    await address.fill("127.0.0.1:1")
-    await page.getByRole("button", { name: "Connect" }).click()
-    await expect(page.getByRole("alert")).toContainText("Couldn’t reach 127.0.0.1:1")
+    await address.fill("http://127.0.0.1:1")
+    await connectButton.click()
+    await expect(page.getByRole("alert")).toContainText("Could not reach the server")
     await expect(page.getByRole("button", { name: "Cancel" })).toBeHidden()
     await address.fill(demo.base)
     // The server's own profile opens in a new window.
     const opened = app.waitForEvent("window")
-    await page.getByRole("button", { name: "Connect" }).click()
+    await connectButton.click()
     const appPage = await opened
     await expect(appPage.getByRole("heading", { name: "New this week", level: 1 })).toBeVisible()
     expect(app.windows()).toHaveLength(1)
@@ -221,6 +242,12 @@ test("the File menu makes a Playlist or a View and adds podcasts", async ({
         const file = Menu.getApplicationMenu()?.items.find((item) => item.label === "File")
         file?.submenu?.items.find((item) => item.label === label)?.click()
       }, label)
+
+    const shortcuts = await app.evaluate(({ Menu }) => {
+      const file = Menu.getApplicationMenu()?.items.find(({ label }) => label === "File")
+      return file?.submenu?.items.slice(0, 2).map(({ accelerator }) => accelerator)
+    })
+    expect(shortcuts).toEqual(["Shift+CmdOrCtrl+N", "CmdOrCtrl+N"])
 
     await choose("New Playlist…")
     await expect(page.getByRole("dialog", { name: "New Playlist" })).toBeVisible()
@@ -280,6 +307,27 @@ test("right-click on a row shows its commands as a native menu", async ({
         ?.click()
     )
     await expect.poll(titles).toEqual([...before.slice(1), before[0]])
+
+    // A platform keyboard context menu resolves the focused row, even over its title link.
+    await page.locator("main [role=row] [data-cell=title]").first().focus()
+    await app.evaluate(({ BrowserWindow }) => {
+      delete (globalThis as { shown?: Electron.Menu }).shown
+      BrowserWindow.getAllWindows()[0]?.webContents.emit(
+        "context-menu",
+        {},
+        {
+          x: 0,
+          y: 0,
+          menuSourceType: "keyboard",
+          isEditable: false,
+          linkURL: "app://podlist/episodes/entry",
+          selectionText: ""
+        }
+      )
+    })
+    await expect
+      .poll(shown)
+      .toEqual(expect.arrayContaining(["Move to Bottom", "Copy PodList Link"]))
     await close(app)
   } finally {
     demo.stop()

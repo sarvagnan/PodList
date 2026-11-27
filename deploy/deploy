@@ -27,7 +27,7 @@ pnpm --filter @podlist/web build
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 git archive HEAD package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json \
-  packages/domain packages/api packages/server packages/web/package.json | tar -x -C "$stage"
+  packages/domain packages/api packages/feeds packages/server packages/web/package.json | tar -x -C "$stage"
 cp -R packages/web/dist "$stage/packages/web/dist"
 printf 'PODLIST_RELEASE=%s\n' "$commit" > "$stage/release.env"
 

@@ -1,7 +1,9 @@
 import { Toast } from "@base-ui/react/toast"
 import { RegistryContext, useAtomSet } from "@effect/atom-react"
+import { useRouter } from "@tanstack/react-router"
 import { useCallback, useContext } from "react"
 import { redoStackAtom, type Undoable, undoAtom, undoStackAtom } from "../../app/episodeActions.ts"
+import { restoredEntriesAtom } from "../../app/restoredEntries.ts"
 import { redoUnavailable, undoUnavailable } from "../../lib/connectionMessage.ts"
 import type { Outcome } from "../../lib/episodeActions.ts"
 
@@ -40,6 +42,8 @@ export function useUndoRedo() {
   const toasts = Toast.useToastManager()
   const registry = useContext(RegistryContext)
   const undo = useAtomSet(undoAtom, { mode: "promise" })
+  const router = useRouter()
+  const offerRestored = useAtomSet(restoredEntriesAtom)
   const setStack = useAtomSet(undoStackAtom)
   const setRedo = useAtomSet(redoStackAtom)
   return useCallback(
@@ -53,14 +57,18 @@ export function useUndoRedo() {
         }
         // A toast double-click may have queued its already-consumed step.
         if (!stack.some((s) => s.id === step.id)) return
+        const originHref = router.state.location.href
         try {
           if (redo) {
             const outcome = await step.again()
+            if (outcome.restored?.length)
+              offerRestored({ entries: outcome.restored, origin: originHref })
             setRedo((stack) => stack.filter((s) => s.id !== step.id))
             setStack((stack) => [...stack, { id: step.id, again: step.again, ...outcome }])
           } else {
             await step.undoAsync?.()
-            await undo(step.undo)
+            const entries = await undo(step.undo)
+            if (entries.length) offerRestored({ entries, origin: originHref })
             setStack((stack) => stack.filter((s) => s.id !== step.id))
             setRedo((stack) => [...stack, step])
             burst = null
@@ -73,7 +81,7 @@ export function useUndoRedo() {
               active === document.body ||
               !active.isConnected
             )
-              refocus(find, origin)
+              refocus(entries.length === 0 ? find : undefined, origin)
           }
           const own = toastOfStep.get(step.id)
           if (own !== undefined) toasts.close(own)
@@ -98,7 +106,7 @@ export function useUndoRedo() {
       })
       return pending
     },
-    [registry, toasts, undo, setStack, setRedo]
+    [registry, toasts, undo, setStack, setRedo, router, offerRestored]
   )
 }
 

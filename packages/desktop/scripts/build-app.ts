@@ -3,9 +3,10 @@ import { buildMCP } from "./build-mcp.ts"
 // copies PodList.app to /Applications. It carries no quarantine flag (ADR 0005).
 
 import { execFileSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { packager } from "@electron/packager"
+import { rolldown } from "rolldown"
 import sharp from "sharp"
 
 const root = join(import.meta.dirname, "..")
@@ -49,12 +50,64 @@ const electronVersion = JSON.parse(
   readFileSync(join(root, "node_modules/electron/package.json"), "utf8")
 ).version as string
 
+// Electron runs source in development. Bundle the shell's JavaScript dependencies
+// into the release so its ASAR doesn't need a pnpm workspace or TS in node_modules.
+const stagedShell = join(build, "shell")
+const src = join(stagedShell, "src")
+mkdirSync(src, { recursive: true })
+for (const name of ["preload.cjs", "setup.html", "setup.js", "page.css"]) {
+  cpSync(join(root, "src", name), join(src, name))
+}
+const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+writeFileSync(
+  join(stagedShell, "package.json"),
+  JSON.stringify({
+    name: manifest.name,
+    productName: manifest.productName,
+    version: manifest.version,
+    type: "module",
+    main: "src/main.js"
+  })
+)
+const shellBundle = await rolldown({
+  input: join(root, "src/main.ts"),
+  platform: "node",
+  external: ["electron"]
+})
+try {
+  await shellBundle.write({ file: join(src, "main.js"), format: "esm", codeSplitting: false })
+} finally {
+  await shellBundle.close()
+}
+
 const [appDir] = await packager({
-  dir: root,
+  dir: stagedShell,
   out,
   name: "PodList",
   appBundleId: "app.podlist.desktop",
   appCategoryType: "public.app-category.music",
+  protocols: [{ name: "PodList Link", schemes: ["podlist"] }],
+  extendInfo: {
+    CFBundleDocumentTypes: [
+      {
+        CFBundleTypeName: "OPML Podcast Subscriptions",
+        CFBundleTypeRole: "Viewer",
+        LSHandlerRank: "Alternate",
+        LSItemContentTypes: ["org.opml"]
+      }
+    ],
+    UTImportedTypeDeclarations: [
+      {
+        UTTypeIdentifier: "org.opml",
+        UTTypeDescription: "OPML Podcast Subscriptions",
+        UTTypeConformsTo: ["public.xml"],
+        UTTypeTagSpecification: {
+          "public.filename-extension": ["opml"],
+          "public.mime-type": "text/x-opml"
+        }
+      }
+    ]
+  },
   platform: process.platform as "darwin" | "linux" | "win32",
   arch: process.arch === "arm64" ? "arm64" : "x64",
   electronVersion,
@@ -62,13 +115,6 @@ const [appDir] = await packager({
   asar: true,
   // Served by the app from Contents/Resources/web.
   extraResource: [web, bridge],
-  // The shell has no runtime dependencies: ship only its source.
-  ignore: [
-    /^\/(node_modules|out|build|native|scripts|test)(\/|$)/,
-    /^\/((playwright|vitest)\.config|tsconfig)/,
-    /\.test\.ts$/,
-    /__snapshots__/
-  ],
   prune: false,
   overwrite: true
 })

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
-import { Mentions } from "@podlist/domain"
+import { EpisodeIdentity, Mentions } from "@podlist/domain"
+import { conditionalFeedHeaders } from "@podlist/feeds/polling"
 import { Context, Data, Duration, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/http"
 import { SqlClient } from "effect/sql"
@@ -75,7 +76,7 @@ interface StoredEpisode {
   readonly description: string
   readonly published: number
   readonly duration: number | null
-  readonly audio_url: string
+  readonly audioUrl: string
   readonly artwork_url: string | null
   readonly website_url: string | null
   readonly audio_updated_at: number | null
@@ -121,21 +122,17 @@ export class Library extends Context.Service<
           let changed = 0
           const guidsInFeed = new Set(feed.episodes.map((e) => e.guid))
           for (const e of feed.episodes) {
-            const [byGuid] = yield* sql<StoredEpisode>`
-              SELECT * FROM episode WHERE subscription_id = ${subscriptionId} AND guid = ${e.guid}`
-            // A feed that changed an item's guid: merge into the one existing Episode
-            // with the same audio URL, or the same title and date, that the feed no
-            // longer lists under its old guid. Ambiguous matches stay separate (Q34).
-            const existing =
-              byGuid ??
-              (yield* sql<StoredEpisode>`
-                SELECT * FROM episode WHERE subscription_id = ${subscriptionId}
-                  AND (audio_url = ${e.audioUrl} OR (title = ${e.title} AND published = ${e.published}))`.pipe(
-                Effect.map((candidates) => {
-                  const orphaned = candidates.filter((c) => !guidsInFeed.has(c.guid))
-                  return orphaned.length === 1 ? orphaned[0] : undefined
-                })
-              ))
+            // SQLite narrows the candidates. The shared matcher resolves GUID priority and ambiguity.
+            const exact = yield* sql<StoredEpisode>`
+              SELECT *, audio_url AS audioUrl FROM episode
+              WHERE subscription_id = ${subscriptionId} AND guid = ${e.guid}`
+            const candidates = exact.length
+              ? exact
+              : yield* sql<StoredEpisode>`
+                  SELECT *, audio_url AS audioUrl FROM episode
+                  WHERE subscription_id = ${subscriptionId}
+                    AND (audio_url = ${e.audioUrl} OR (title = ${e.title} AND published = ${e.published}))`
+            const existing = EpisodeIdentity.matchEpisode(e, candidates, guidsInFeed)
             if (existing === undefined) {
               added++
               yield* sql`INSERT INTO episode ${sql.insert({
@@ -161,7 +158,7 @@ export class Library extends Context.Service<
               existing.description === e.description &&
               existing.published === e.published &&
               existing.duration === e.duration &&
-              existing.audio_url === e.audioUrl &&
+              existing.audioUrl === e.audioUrl &&
               existing.artwork_url === e.artworkUrl &&
               existing.website_url === e.link &&
               existing.chapters_url === e.chaptersUrl
@@ -222,12 +219,10 @@ export class Library extends Context.Service<
             Effect.orDie
           )
 
-          let request = yield* feedRequest(subscription.feed_url, subscriptionId)
-          if (state?.etag)
-            request = HttpClientRequest.setHeader(request, "if-none-match", state.etag)
-          if (state?.last_modified) {
-            request = HttpClientRequest.setHeader(request, "if-modified-since", state.last_modified)
-          }
+          const request = HttpClientRequest.setHeaders(
+            yield* feedRequest(subscription.feed_url, subscriptionId),
+            conditionalFeedHeaders(state && { etag: state.etag, lastModified: state.last_modified })
+          )
 
           const response = yield* http.execute(request).pipe(
             Effect.timeout(feedTimeout),

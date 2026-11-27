@@ -11,14 +11,26 @@ import {
   ipcMain,
   Menu,
   type MenuItemConstructorOptions,
+  nativeTheme,
   net,
   protocol,
   session,
   shell
 } from "electron"
+import {
+  type PodListLink,
+  parsePodListLink,
+  podListLinkForPath
+} from "../../web/src/lib/podListLink.ts"
 import type { ObjectValue } from "./automation/handler.ts"
 import { AutomationListener, endpoint } from "./automation/listener.ts"
+import { BringOverSource } from "./bring-over-source.ts"
+import { desktopEntry, registerDesktopAssociations } from "./desktop-associations.ts"
 import { hiddenMenu } from "./hidden-window.ts"
+import { type OpenedOpml, opmlByteLimit, opmlPath, readOpmlFile } from "./native-opml.ts"
+import { publisherMedia } from "./publisher-media.ts"
+import { publisherRequest } from "./publisher-requests.ts"
+import { checkServer, serverOrigin } from "./server-connection.ts"
 
 // The Mac app carries its own copy of the web app (ADR 0005), served from
 // app://podlist so it opens without the server. Requests for /api/… are passed on to
@@ -31,6 +43,7 @@ if (process.env.PODLIST_USER_DATA) app.setPath("userData", process.env.PODLIST_U
 // Test-only capture mode. Set the activation policy before creating any native UI.
 const hiddenWindow = process.env.PODLIST_HIDDEN_WINDOW === "1"
 if (hiddenWindow && process.platform === "darwin") app.setActivationPolicy("accessory")
+if (app.isPackaged && process.platform === "linux") app.setDesktopName(desktopEntry)
 const openExternal = (url: string) => {
   if (!hiddenWindow) return shell.openExternal(url)
 }
@@ -59,9 +72,16 @@ const webRoot = normalize(
 
 const configFile = () => join(app.getPath("userData"), "config.json")
 
+type Appearance = "system" | "light" | "dark"
+
 interface Config {
+  readonly appearance?: Appearance
   readonly mcpEnabled?: boolean
+  readonly standalone?: boolean
+  readonly standaloneCreated?: boolean
+  readonly bringOverOffer?: string | null
   readonly serverUrl?: string
+  readonly lastServer?: string
   readonly bounds?: { x: number; y: number; width: number; height: number }
 }
 
@@ -76,6 +96,8 @@ const writeConfig = (config: Config) => writeFileSync(configFile(), JSON.stringi
 
 /** PODLIST_URL wins (development and tests), then the saved address. */
 const serverUrl = () => process.env.PODLIST_URL ?? readConfig().serverUrl
+const standaloneSelected = () => serverUrl() === undefined && readConfig().standalone === true
+const hasLibrary = () => serverUrl() !== undefined || standaloneSelected()
 
 const bridgeBinary = app.isPackaged
   ? join(process.resourcesPath, process.platform === "win32" ? "podlist-mcp.exe" : "podlist-mcp")
@@ -87,6 +109,7 @@ const bridgeBinary = app.isPackaged
 let automationReady = false
 let nextCall = 0
 let quitting = false
+let canQuit = false
 const calls = new Map<
   number,
   { contents: Electron.WebContents; resolve: (value: unknown) => void; reject: (e: Error) => void }
@@ -195,50 +218,56 @@ const forward = async (request: Request, server: string) => {
   return decodedResponse(upstream)
 }
 
-/** One browser profile per server, so each server's Library has its own local database. */
-const profileFor = (server: string) => {
-  const partition = `persist:${createHash("sha256").update(new URL(server).origin).digest("hex").slice(0, 16)}`
+/** Standalone and each server own a separate SQLite and OPFS profile. */
+const profileFor = (server: string | null) => {
+  const partition =
+    server === null
+      ? "persist:standalone"
+      : `persist:${createHash("sha256").update(new URL(server).origin).digest("hex").slice(0, 16)}`
   const profile = session.fromPartition(partition)
   if (!profile.protocol.isProtocolHandled(scheme)) {
     profile.protocol.handle(scheme, async (request) => {
       const url = new URL(request.url)
       if (`${url.protocol}//${url.host}` !== appOrigin) return new Response(null, { status: 403 })
-      // Only the bundled app can read this same-origin stream. Fetching in main avoids
-      // host CORS without relaxing the renderer’s web security (pod-13u).
-      if (url.pathname === "/audio-download") {
+      if (url.pathname === "/bring-over/audio") {
+        const id = url.searchParams.get("id")
+        if (
+          server === null ||
+          server !== serverUrl() ||
+          !id ||
+          id.length > 256 ||
+          request.method !== "GET"
+        )
+          return new Response(null, { status: 404 })
         try {
-          const source = new URL(url.searchParams.get("url") ?? "", appOrigin)
-          if (!["http:", "https:"].includes(source.protocol) || source.username || source.password)
-            return new Response(null, { status: 400 })
-          const upstream = await net.fetch(source.href, {
-            credentials: "omit",
-            signal: request.signal
-          })
-          // Audio only: this fetches from the main process, past CORS and the browser's
-          // private-network checks, so it must not hand the page any other kind of body
-          // (a local service's HTML or JSON).
-          const type = upstream.headers.get("content-type") ?? ""
-          const audioLike =
-            type === "" ||
-            /^(audio\/|video\/|(application|binary)\/octet-stream|application\/(mp4|ogg))/i.test(
-              type
-            )
-          if (upstream.ok && !audioLike) {
-            await upstream.body?.cancel()
-            return new Response(null, { status: 415 })
-          }
-          return decodedResponse(upstream)
+          return await bringOverSource.audio(id, request.signal)
         } catch {
-          return Response.error()
+          return new Response(null, { status: 404 })
         }
       }
-      return url.pathname.startsWith("/api/") ? forward(request, server) : serveFile(url.pathname)
+      if (url.pathname === "/audio-download") return publisherMedia(request, url, "audio")
+      if (url.pathname === "/publisher/artwork" && server === null)
+        return publisherMedia(request, url, "artwork")
+      if (url.pathname.startsWith("/publisher/"))
+        return server === null
+          ? publisherRequest(request, url)
+          : new Response(null, { status: 404 })
+      if (url.pathname.startsWith("/api/"))
+        return server === null ? new Response(null, { status: 404 }) : forward(request, server)
+      return serveFile(url.pathname)
     })
   }
   return partition
 }
 
+const preload = join(import.meta.dirname, "preload.cjs")
+const bringOverSource = new BringOverSource(appOrigin, () => profileFor(null), preload)
 const setupPage = join(import.meta.dirname, "setup.html")
+const setupUrl = pathToFileURL(setupPage).href
+const trustedSetup = (event: Electron.IpcMainInvokeEvent) =>
+  event.sender === window?.webContents &&
+  event.senderFrame === event.sender.mainFrame &&
+  event.sender.getURL() === setupUrl
 
 /** The Controls menu: the web app plays, skips and moves between Chapters. */
 const sendControl = (command: string) =>
@@ -299,7 +328,11 @@ const undo = async (win: BrowserWindow, redo: boolean) => {
  * components/lists/RowMenu.tsx). */
 interface RowMenu {
   readonly id: string
-  readonly items: ReadonlyArray<{ readonly label: string; readonly checked?: boolean } | null>
+  readonly items: ReadonlyArray<{
+    readonly label: string
+    readonly checked?: boolean
+    readonly enabled?: boolean
+  } | null>
   /** The row's page in the app, offered as a link to the server. */
   readonly link?: string
 }
@@ -320,6 +353,7 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
       `document.dispatchEvent(new CustomEvent("podlist:row-menu", { detail: ${JSON.stringify({ id: row.id, label })} }))`
     )
   const server = serverUrl()
+  const appLink = row.link === undefined ? null : podListLinkForPath(row.link)
   const shared =
     row.link === undefined || server === undefined ? undefined : new URL(row.link, server).href
   return [
@@ -328,14 +362,25 @@ const rowMenu = (win: BrowserWindow, row: RowMenu): MenuItemConstructorOptions[]
         item === null
           ? { type: "separator" }
           : item.checked === undefined
-            ? { label: titleCase(item.label), click: send(item.label) }
+            ? {
+                label: titleCase(item.label),
+                enabled: item.enabled ?? true,
+                click: send(item.label)
+              }
             : {
                 label: titleCase(item.label),
                 type: "checkbox",
                 checked: item.checked,
+                enabled: item.enabled ?? true,
                 click: send(item.label)
               }
     ),
+    ...(appLink
+      ? [
+          { type: "separator" as const },
+          { label: "Copy PodList Link", click: () => clipboard.writeText(appLink) }
+        ]
+      : []),
     ...(shared === undefined
       ? []
       : ([
@@ -356,13 +401,16 @@ const contextMenu = (
   if (link) {
     if (/^https?:/.test(link))
       items.push({ label: "Open Link in Browser", click: () => openExternal(link) })
-    // An in-app link is copied as the same page on the server, which opens anywhere.
+    const inApp = link.startsWith(`${appOrigin}/`)
+    const path = inApp ? new URL(link).pathname : ""
+    const appLink = podListLinkForPath(path)
+    if (appLink)
+      items.push({ label: "Copy PodList Link", click: () => clipboard.writeText(appLink) })
     const server = serverUrl()
     const shared =
-      link.startsWith(`${appOrigin}/`) && server !== undefined
-        ? new URL(link.slice(appOrigin.length), server).href
-        : link
-    items.push({ label: "Copy Link", click: () => clipboard.writeText(shared) })
+      inApp && server !== undefined ? new URL(link.slice(appOrigin.length), server).href : link
+    if (!appLink || server)
+      items.push({ label: "Copy Link", click: () => clipboard.writeText(shared) })
   }
   if (params.isEditable) {
     items.push(
@@ -416,27 +464,102 @@ const contextMenu = (
   return items
 }
 
+let refreshingFeeds = false
+let canShowRestoredEntries = false
+let canOpenCreatedView = false
 const paneMenu = { sidebar: true, inspector: false, canToggle: false }
 let window: BrowserWindow | undefined
+const pendingLinks: PodListLink[] = []
+const pendingOpml: string[] = []
+
+const receiveOpml = (path: string) => {
+  if (pendingOpml.includes(path)) return
+  if (pendingOpml.length === 64) pendingOpml.shift()
+  pendingOpml.push(path)
+  if (window && !window.isDestroyed()) window.webContents.send("podlist:opml-available")
+}
+
+const receiveArgument = (argument: string) => {
+  const path = opmlPath(argument)
+  if (path) receiveOpml(path)
+  else receiveLink(argument)
+}
+
+const chooseNativeOpml = async () => {
+  if (!window || hiddenWindow) return
+  const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+    title: "Import OPML",
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: "OPML", extensions: ["opml", "xml"] }]
+  })
+  if (!canceled) for (const path of filePaths) receiveOpml(path)
+}
+
+const receiveLink = (input: string) => {
+  const link = parsePodListLink(input)
+  if (!link) return
+  if (pendingLinks.length === 64) pendingLinks.shift()
+  pendingLinks.push(link)
+  if (window && !window.isDestroyed()) window.webContents.send("podlist:links-available")
+}
+
+const showLibrary = () => {
+  if (hiddenWindow || !app.isReady()) return
+  if (!window || window.isDestroyed()) {
+    createWindow()
+    return
+  }
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+}
+
+const flushPlayback = async (target = window) => {
+  if (!target || target.isDestroyed() || !target.webContents.getURL().startsWith(`${appOrigin}/`))
+    return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      target.webContents.executeJavaScript("globalThis.podlistFlushPlayback?.()"),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 3000)
+      })
+    ])
+  } catch {
+    // Shutdown and connection changes still work if the renderer has exited.
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const showSetup = async (target = window) => {
+  await flushPlayback(target)
+  if (target && target === window && !target.isDestroyed()) await target.loadFile(setupPage)
+}
 
 const createWindow = () => {
   const server = serverUrl()
+  const standalone = standaloneSelected()
   const { bounds } = readConfig()
   const win = new BrowserWindow({
     ...(window?.getBounds() ?? bounds ?? { width: 1280, height: 820 }),
     minWidth: 760,
     minHeight: 500,
     title: "PodList",
-    backgroundColor: "#f6f5f2",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#202124" : "#f6f5f2",
     show: false,
     ...(hiddenWindow ? { focusable: false } : {}),
     webPreferences: {
-      ...(hiddenWindow ? { backgroundThrottling: false } : {}),
+      // A closed Library is hidden so polling, media sessions and transfers keep running.
+      ...(standalone || server !== undefined || hiddenWindow
+        ? { backgroundThrottling: false }
+        : {}),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
-      preload: join(import.meta.dirname, "preload.cjs"),
-      ...(server === undefined ? {} : { partition: profileFor(server) })
+      preload,
+      ...(standalone || server !== undefined ? { partition: profileFor(server ?? null) } : {}),
+      ...(standalone ? { additionalArguments: ["--podlist-standalone"] } : {})
     }
   })
   window = win
@@ -459,7 +582,7 @@ const createWindow = () => {
     win.setTitle(title.replace(/ · PodList$/, "") || "PodList")
   })
   win.on("close", (event) => {
-    if (!quitting && readConfig().mcpEnabled === true) {
+    if (!quitting && hasLibrary()) {
       event.preventDefault()
       win.hide()
     }
@@ -469,8 +592,17 @@ const createWindow = () => {
   // Links away from the app open in the default browser.
   // Of files, only the setup page: a file dropped on the window must not replace the app
   // (DRAG-01).
-  const inApp = (url: string) =>
-    url.startsWith(`${appOrigin}/`) || url.split("#")[0] === pathToFileURL(setupPage).href
+  const inApp = (url: string) => {
+    if (url === setupUrl) return true
+    if (!url.startsWith(`${appOrigin}/`)) return false
+    const path = new URL(url).pathname
+    return (
+      path !== "/audio-download" &&
+      !path.startsWith("/bring-over/") &&
+      !path.startsWith("/publisher/") &&
+      !path.startsWith("/api/")
+    )
+  }
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void openExternal(url)
     return { action: "deny" }
@@ -485,16 +617,25 @@ const createWindow = () => {
     void (async () => {
       // On a row (an Episode, an Entry, a Subscription), its commands as a native menu.
       // Native editing, selection and links take precedence over row commands (BROWSER-06).
-      const native = params.isEditable || params.selectionText !== "" || params.linkURL !== ""
+      const keyboard = params.menuSourceType === "keyboard"
+      const native =
+        params.isEditable || params.selectionText !== "" || (!keyboard && params.linkURL !== "")
+      const source = keyboard
+        ? "document.activeElement"
+        : `document.elementFromPoint(${params.x}, ${params.y})`
       const row = native
         ? null
         : ((await win.webContents
             .executeJavaScript(
-              `(() => { const el = document.elementFromPoint(${params.x}, ${params.y})?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
+              `(() => { const el = ${source}?.closest("[data-row-menu]"); return el ? JSON.parse(el.dataset.rowMenu) : null })()`
             )
             .catch(() => null)) as RowMenu | null)
       const items = row ? rowMenu(win, row) : contextMenu(win, params)
-      Menu.buildFromTemplate(items).popup({ window: win })
+      if (items.length)
+        Menu.buildFromTemplate(items).popup({
+          window: win,
+          ...(params.menuSourceType ? { sourceType: params.menuSourceType } : {})
+        })
     })()
   })
   // Three-finger swipes and mouse back/forward buttons walk history (BROWSER-09).
@@ -507,40 +648,55 @@ const createWindow = () => {
     if (command === "browser-forward") goForward(win)
   })
 
-  void (server === undefined ? win.loadFile(setupPage) : win.loadURL(`${appOrigin}/`))
+  void (standalone || server !== undefined ? win.loadURL(`${appOrigin}/`) : win.loadFile(setupPage))
   return win
 }
 
 /** Replaces the window, for a new server and so a new profile. */
 const reopen = () => {
+  bringOverSource.close()
   const previous = window
   createWindow()
   previous?.destroy()
 }
 
-/** Saves a server address from the setup page after checking it answers. */
+let checkingServer = false
+
+/** Keep the current Library available until the new address is confirmed. */
 const connect = async (address: string): Promise<string | null> => {
-  let url: URL
+  let origin: string
   try {
-    url = new URL(/^https?:\/\//.test(address) ? address : `https://${address}`)
-  } catch {
-    return "That doesn’t look like a web address."
+    origin = serverOrigin(address)
+  } catch (error) {
+    return error instanceof Error ? error.message : "Enter a server address."
   }
+  if (checkingServer) return "Checking connection…"
+  const source = window
+  checkingServer = true
   try {
-    const response = await net.fetch(new URL("/api/health", url).href, {
-      signal: AbortSignal.timeout(8000)
+    const problem = await checkServer(origin, (url, init) => net.fetch(url, init))
+    if (problem) return problem
+    if (source !== window || source?.isDestroyed() || source?.webContents.getURL() !== setupUrl)
+      return "Connection cancelled."
+    const config = readConfig()
+    writeConfig({
+      ...config,
+      standalone: false,
+      serverUrl: origin,
+      lastServer: origin,
+      standaloneCreated: standaloneSelected() || config.standaloneCreated === true,
+      bringOverOffer: standaloneSelected() ? origin : (config.bringOverOffer ?? null)
     })
-    if (!response.ok) return `The server answered ${response.status}. Is this your PodList server?`
-  } catch {
-    return `Couldn’t reach ${url.host}. Check the address, and that Tailscale is connected.`
+    reopen()
+    return null
+  } finally {
+    checkingServer = false
   }
-  writeConfig({ ...readConfig(), serverUrl: url.origin })
-  reopen()
-  return null
 }
 
 const changeServer = async () => {
-  if (!window || hiddenWindow) return
+  if (!window || hiddenWindow || !serverUrl() || process.env.PODLIST_URL !== undefined) return
+  const source = window
   const { response } = await dialog.showMessageBox(window, {
     type: "question",
     message: "Connect to a different PodList server?",
@@ -550,7 +706,7 @@ const changeServer = async () => {
     defaultId: 0,
     cancelId: 1
   })
-  if (response === 0) await window.loadFile(setupPage)
+  if (response === 0 && source === window && !source.isDestroyed()) await showSetup(source)
 }
 
 const menu = (): MenuItemConstructorOptions[] => [
@@ -577,17 +733,21 @@ const menu = (): MenuItemConstructorOptions[] => [
     submenu: [
       {
         label: "New Playlist…",
-        accelerator: "CmdOrCtrl+N",
+        accelerator: "Shift+CmdOrCtrl+N",
         click: () => sendCommand("newPlaylist")
       },
-      { label: "New View", accelerator: "Shift+CmdOrCtrl+N", click: () => sendCommand("newView") },
+      { label: "New View", accelerator: "CmdOrCtrl+N", click: () => sendCommand("newView") },
       {
         label: "Add Podcasts…",
         accelerator: "Shift+CmdOrCtrl+A",
         click: () => goTo("/library?add=true")
       },
+      { label: "Import OPML…", enabled: !hiddenWindow, click: () => void chooseNativeOpml() },
       { type: "separator" },
-      { role: "close", label: "Close Window" }
+      { role: "close", label: "Close Window" },
+      ...(process.platform !== "darwin"
+        ? [{ type: "separator" } as const, { role: "quit", label: "Exit" } as const]
+        : [])
     ]
   },
   {
@@ -610,13 +770,19 @@ const menu = (): MenuItemConstructorOptions[] => [
         }
       },
       { type: "separator" },
+      {
+        label: "Show Restored Entries",
+        enabled: canShowRestoredEntries,
+        click: () => sendCommand("showRestoredEntries")
+      },
+      { type: "separator" },
       { role: "cut" },
       { role: "copy" },
       { role: "paste" },
       { role: "selectAll" },
       { type: "separator" },
       // A Mac app's Find: here it searches the Library.
-      { label: "Find…", accelerator: "CmdOrCtrl+F", click: () => goTo("/search") }
+      { label: "Find…", accelerator: "CmdOrCtrl+F", click: () => sendCommand("find") }
     ]
   },
   {
@@ -654,6 +820,32 @@ const menu = (): MenuItemConstructorOptions[] => [
     ]
   },
   {
+    label: "Saved Views",
+    submenu: [
+      { label: "New View…", click: () => sendCommand("newView") },
+      {
+        label: "Open Created View",
+        enabled: canOpenCreatedView,
+        click: () => sendCommand("openCreatedView")
+      }
+    ]
+  },
+  {
+    label: "Podcast",
+    submenu: [
+      {
+        label: "Refresh All Feeds",
+        enabled: !refreshingFeeds,
+        click: () => sendCommand("refreshFeeds")
+      },
+      {
+        label: "Cancel Feed Refresh",
+        enabled: refreshingFeeds,
+        click: () => sendCommand("cancelFeedRefresh")
+      }
+    ]
+  },
+  {
     label: "Controls",
     submenu: [
       // Space is the web app's own key; shown here, not taken from text fields.
@@ -662,6 +854,12 @@ const menu = (): MenuItemConstructorOptions[] => [
         accelerator: "Space",
         registerAccelerator: false,
         click: () => sendControl("toggle")
+      },
+      {
+        label: "Stop",
+        accelerator: "CmdOrCtrl+.",
+        registerAccelerator: false,
+        click: () => sendControl("stop")
       },
       { type: "separator" },
       // ⌘← ⌘→ (and with ⌥) move the caret in text fields, so the page takes them only
@@ -690,7 +888,29 @@ const menu = (): MenuItemConstructorOptions[] => [
         accelerator: "Alt+CmdOrCtrl+Right",
         registerAccelerator: false,
         click: () => sendControl("nextChapter")
-      }
+      },
+      { type: "separator" },
+      {
+        label: "Playback Speed",
+        submenu: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((speed) => ({
+          label: `${speed}×`,
+          click: () => sendControl(`speed:${speed}`)
+        }))
+      },
+      {
+        label: "Sleep Timer",
+        submenu: [
+          ...[5, 10, 15, 30, 45, 60, 90, 120].map((minutes) => ({
+            label: `In ${minutes} Minutes`,
+            click: () => sendControl(`sleep:${minutes}`)
+          })),
+          { type: "separator" },
+          { label: "End of Episode", click: () => sendControl("sleep:episode") },
+          { label: "End of Chapter", click: () => sendControl("sleep:chapter") },
+          { label: "Turn Off", click: () => sendControl("sleep:off") }
+        ]
+      },
+      { label: "Now Playing", click: () => sendControl("nowPlaying") }
     ]
   },
   {
@@ -738,13 +958,47 @@ const menu = (): MenuItemConstructorOptions[] => [
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on("second-instance", () => {
-    if (hiddenWindow) return
-    if (window?.isMinimized()) window.restore()
-    window?.show()
-    window?.focus()
+  for (const arg of process.argv.slice(1)) receiveArgument(arg)
+  app.on("open-url", (event, url) => {
+    event.preventDefault()
+    receiveLink(url)
+    showLibrary()
+  })
+  app.on("open-file", (event, file) => {
+    const path = opmlPath(file)
+    if (!path) return
+    event.preventDefault()
+    receiveOpml(path)
+    showLibrary()
+  })
+  app.on("second-instance", (_event, argv) => {
+    for (const arg of argv.slice(1)) receiveArgument(arg)
+    showLibrary()
   })
   app.whenReady().then(async () => {
+    if (app.isPackaged && !hiddenWindow && !process.env.PODLIST_USER_DATA) {
+      if (process.platform === "win32") app.setAsDefaultProtocolClient("podlist")
+      void registerDesktopAssociations()
+        .then(() => {
+          if (process.platform === "linux" && !app.isDefaultProtocolClient("podlist"))
+            app.setAsDefaultProtocolClient("podlist")
+        })
+        .catch((error) => console.warn("Could not register PodList file associations.", error))
+    }
+    ipcMain.handle("podlist:take-opml", async (event) => {
+      if (!trustedAutomation(event)) return []
+      let budget = opmlByteLimit
+      const files: OpenedOpml[] = []
+      for (const path of pendingOpml.splice(0)) {
+        const file = await readOpmlFile(path, budget)
+        if ("contents" in file) budget -= Buffer.byteLength(file.contents)
+        files.push(file)
+      }
+      return files
+    })
+    ipcMain.handle("podlist:take-links", (event) =>
+      trustedAutomation(event) ? pendingLinks.splice(0) : []
+    )
     ipcMain.handle("podlist:automation-status", (event) => {
       if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
       return automationStatus()
@@ -775,12 +1029,126 @@ if (!app.requestSingleInstanceLock()) {
     } catch (e) {
       automation.error = e instanceof Error ? e.message : String(e)
     }
+    const savedAppearance = readConfig().appearance
+    if (savedAppearance === "dark" || savedAppearance === "light")
+      nativeTheme.themeSource = savedAppearance
+    ipcMain.handle("podlist:appearance", (event) => {
+      if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
+      return nativeTheme.themeSource
+    })
+    ipcMain.handle("podlist:set-appearance", (event, appearance: unknown) => {
+      if (
+        !trustedAutomation(event) ||
+        (appearance !== "system" && appearance !== "dark" && appearance !== "light")
+      )
+        throw new Error("Invalid Appearance setting.")
+      writeConfig({ ...readConfig(), appearance })
+      nativeTheme.themeSource = appearance
+    })
     const updateMenu = () =>
       Menu.setApplicationMenu(Menu.buildFromTemplate(hiddenWindow ? hiddenMenu(menu()) : menu()))
     updateMenu()
-    ipcMain.handle("podlist:connect", (_event, address: string) => connect(address))
-    ipcMain.handle("podlist:server", () => serverUrl() ?? null)
-    ipcMain.handle("podlist:cancel", () => window?.loadURL(`${appOrigin}/`))
+    ipcMain.handle("podlist:connect", (event, address: unknown) => {
+      if (
+        !trustedSetup(event) ||
+        typeof address !== "string" ||
+        process.env.PODLIST_URL !== undefined
+      )
+        throw new Error("Connection is unavailable here.")
+      return connect(address)
+    })
+    ipcMain.handle("podlist:server", (event) => {
+      if (!trustedSetup(event) && !trustedAutomation(event))
+        throw new Error("Unavailable outside PodList.")
+      return serverUrl() ?? null
+    })
+    ipcMain.handle("podlist:setup", (event) => {
+      if (!trustedSetup(event)) throw new Error("Connection is unavailable here.")
+      const config = readConfig()
+      return {
+        current: serverUrl() ?? null,
+        last: config.lastServer ?? null,
+        active: hasLibrary(),
+        mac: process.platform === "darwin"
+      }
+    })
+    ipcMain.handle("podlist:cancel", async (event) => {
+      if (!trustedSetup(event) || !hasLibrary() || checkingServer) return
+      await window?.loadURL(`${appOrigin}/`)
+    })
+    ipcMain.handle("podlist:bring-over-offer", (event) => {
+      const address = serverUrl()
+      if (!trustedAutomation(event) || !address) return null
+      return { address, automatic: readConfig().bringOverOffer === address }
+    })
+    ipcMain.handle("podlist:dismiss-bring-over-offer", (event) => {
+      if (!trustedAutomation(event)) return
+      const config = readConfig()
+      if (config.bringOverOffer === serverUrl()) writeConfig({ ...config, bringOverOffer: null })
+    })
+    ipcMain.handle("podlist:bring-over-snapshot", (event) => {
+      if (!trustedAutomation(event) || !serverUrl() || !readConfig().standaloneCreated) return null
+      return bringOverSource.snapshot()
+    })
+    ipcMain.handle("podlist:close-bring-over-source", (event) => {
+      if (trustedAutomation(event)) bringOverSource.close()
+    })
+    ipcMain.handle("podlist:start-standalone", (event) => {
+      if (!trustedSetup(event) || checkingServer || process.env.PODLIST_URL !== undefined)
+        throw new Error("Could not open the Standalone Library.")
+      if (standaloneSelected()) return window?.loadURL(`${appOrigin}/`)
+      const { serverUrl: previous, ...config } = readConfig()
+      writeConfig({
+        ...config,
+        standalone: true,
+        standaloneCreated: true,
+        ...(previous ? { lastServer: previous } : {})
+      })
+      reopen()
+    })
+    ipcMain.handle("podlist:connection-settings", (event) => {
+      if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
+      return { address: serverUrl() ?? null, managed: process.env.PODLIST_URL !== undefined }
+    })
+    ipcMain.handle("podlist:change-server", async (event) => {
+      if (!trustedAutomation(event) || process.env.PODLIST_URL !== undefined) return
+      await showSetup()
+    })
+    ipcMain.handle("podlist:disconnect", async (event) => {
+      if (!trustedAutomation(event) || process.env.PODLIST_URL !== undefined) return
+      const source = window
+      await flushPlayback(source)
+      if (source !== window || source?.isDestroyed()) return
+      const { serverUrl: previous, ...config } = readConfig()
+      writeConfig({ ...config, ...(previous ? { lastServer: previous } : {}) })
+      reopen()
+    })
+    ipcMain.on("podlist:feed-refresh", (event, running: unknown) => {
+      if (!trustedAutomation(event) || typeof running !== "boolean" || running === refreshingFeeds)
+        return
+      refreshingFeeds = running
+      updateMenu()
+    })
+    ipcMain.on("podlist:created-view", (event, available: unknown) => {
+      if (
+        !trustedAutomation(event) ||
+        typeof available !== "boolean" ||
+        available === canOpenCreatedView
+      )
+        return
+      canOpenCreatedView = available
+      updateMenu()
+    })
+    ipcMain.on("podlist:restored-entries", (event, available: unknown) => {
+      if (
+        !trustedAutomation(event) ||
+        typeof available !== "boolean" ||
+        available === canShowRestoredEntries
+      )
+        return
+      canShowRestoredEntries = available
+      updateMenu()
+    })
     ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown, editing) => {
       undoLabels.undo = typeof undoStep === "string" ? undoStep : null
       undoLabels.redo = typeof redoStep === "string" ? redoStep : null
@@ -820,10 +1188,15 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on("before-quit", (event) => {
-  if (quitting) return
+  if (canQuit) return
   event.preventDefault()
+  if (quitting) return
   quitting = true
+  bringOverSource.close()
   for (const call of calls.values()) call.reject(new Error("PodList is quitting."))
   calls.clear()
-  void automation.stop().finally(() => app.quit())
+  void Promise.allSettled([flushPlayback(), automation.stop()]).then(() => {
+    canQuit = true
+    app.quit()
+  })
 })

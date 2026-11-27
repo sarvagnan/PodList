@@ -78,3 +78,8 @@ const disclosure = (key: string) => ({
 export const searchRefineOpen = disclosure("search-refine")
 export const statsTableOpen = disclosure("stats-table")
 export const statsAboutOpen = disclosure("stats-about")
+
+export const desktopSettingsPane = {
+  get: () => (read("settings-pane") === "automation" ? "automation" : "general"),
+  set: (pane: "general" | "automation") => write("settings-pane", pane)
+}

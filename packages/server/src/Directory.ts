@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { normalizeAppleDirectoryResults } from "@podlist/feeds/directory"
 import { Config, Context, Duration, Effect, Layer, Option, Redacted, Schema } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import { parseFeed } from "./FeedParser.ts"
@@ -115,24 +116,7 @@ export class Directory extends Context.Service<
             urlParams: { media: "podcast", entity: "podcast", limit: "30", term: query }
           }),
           ITunesResponse
-        ).pipe(
-          Effect.map((body) =>
-            body.results.flatMap(
-              (r): Array<DirectoryResult> =>
-                r.feedUrl === undefined
-                  ? []
-                  : [
-                      {
-                        title: r.collectionName ?? r.feedUrl,
-                        author: nonEmpty(r.artistName),
-                        feedUrl: r.feedUrl,
-                        artworkUrl: nonEmpty(r.artworkUrl600) ?? nonEmpty(r.artworkUrl100),
-                        source: "itunes"
-                      }
-                    ]
-            )
-          )
-        )
+        ).pipe(Effect.map((body) => normalizeAppleDirectoryResults(body.results, "server")))
 
       const feed = (url: string) =>
         http

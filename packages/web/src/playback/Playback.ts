@@ -73,6 +73,9 @@ export class Playback extends Context.Service<
     readonly now: SubscriptionRef.SubscriptionRef<NowPlaying | null>
     readonly play: Effect.Effect<void>
     readonly pause: Effect.Effect<void>
+    readonly stop?: Effect.Effect<void>
+    /** Pause and durably report the Position and any accrued listening. */
+    readonly flush?: Effect.Effect<void>
     readonly toggle: Effect.Effect<void>
     /** After a playback error: loads the Entry again where it was and plays. */
     readonly retry: Effect.Effect<void>
@@ -90,6 +93,7 @@ export class Playback extends Context.Service<
   static readonly layer = (options: {
     /** The server proxy: fallback, or first when Volume Boost needs CORS (ADR 0009). */
     readonly audioUrl: (episodeId: string) => string
+    readonly publisherAudioUrl?: (url: string) => string
     /** The Episode's audio stored on this Device, if any: played instead of streaming. */
     readonly localAudio?: (episodeId: string) => Effect.Effect<string | null>
     /** Where the lock screen fetches a feed image from; the image itself by default. */
@@ -106,6 +110,17 @@ export class Playback extends Context.Service<
         const scope = yield* Effect.scope
         const lockScreenArt = (url: string | null) =>
           url === null ? null : (options.artworkUrl?.(url) ?? url)
+        const sources = (episodeId: string, host: string | null) =>
+          Effect.gen(function* () {
+            const downloaded = options.localAudio ? yield* options.localAudio(episodeId) : null
+            if (options.publisherAudioUrl) {
+              const published = host ? options.publisherAudioUrl(host) : null
+              // An empty audio source must never leave the previous Entry loaded.
+              return { url: downloaded ?? published ?? "data:audio/mpeg," }
+            }
+            const fallback = options.audioUrl(episodeId)
+            return { url: downloaded ?? host ?? fallback, proxyUrl: fallback }
+          })
         let sample: Listening.Sample | null = null
         let pending: Array<Listening.Amount> = []
         let lastReport = { at: 0, position: -1 }
@@ -200,11 +215,7 @@ export class Playback extends Context.Service<
             lastReport = { at: yield* Clock.currentTimeMillis, position: next.entry.position }
             yield* SubscriptionRef.set(now, track)
             yield* player.load({
-              url:
-                (options.localAudio ? yield* options.localAudio(track.episodeId) : null) ??
-                audioUrl ??
-                options.audioUrl(track.episodeId),
-              proxyUrl: options.audioUrl(track.episodeId),
+              ...(yield* sources(track.episodeId, audioUrl)),
               volumeBoost: settings.volumeBoost,
               title: track.title,
               podcast: track.podcast,
@@ -303,6 +314,19 @@ export class Playback extends Context.Service<
         })
 
         const pause = player.pause
+        const flush = Effect.gen(function* () {
+          const current = yield* SubscriptionRef.get(now)
+          if (!current) return
+          yield* pause
+          yield* report(current.position)
+        })
+        const stop = Effect.gen(function* () {
+          const current = yield* SubscriptionRef.get(now)
+          if (!current) return
+          yield* flush
+          yield* player.stop?.(current.position) ?? Effect.void
+          yield* update((n) => ({ ...n, playing: false }))
+        }).pipe(loading.withPermits(1))
         const seek = (seconds: number) =>
           Effect.gen(function* () {
             const current = yield* SubscriptionRef.get(now)
@@ -493,6 +517,8 @@ export class Playback extends Context.Service<
                 return play
               case "pause":
                 return pause
+              case "stop":
+                return stop
               case "back":
                 return skip(-backSeconds)
               case "forward":
@@ -536,10 +562,7 @@ export class Playback extends Context.Service<
                   info.override
                 )
                 yield* player.load({
-                  url:
-                    (options.localAudio ? yield* options.localAudio(current.episodeId) : null) ??
-                    audioUrl,
-                  proxyUrl: options.audioUrl(current.episodeId),
+                  ...(yield* sources(current.episodeId, audioUrl)),
                   volumeBoost: settings.volumeBoost,
                   title: info.title,
                   podcast: info.podcast,
@@ -627,6 +650,8 @@ export class Playback extends Context.Service<
           now,
           play,
           pause,
+          stop,
+          flush,
           toggle,
           retry,
           seek,

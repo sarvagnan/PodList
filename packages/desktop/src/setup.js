@@ -6,25 +6,50 @@ const button = form.querySelector("button")
 // The page's one task is this field, so start there.
 input.focus()
 const cancel = document.getElementById("cancel")
-window.podlist.server().then((current) => {
-  if (current) {
-    input.value = current
-    // Changing server: offer the way back to the current one.
-    cancel.hidden = false
+const standalone = document.getElementById("standalone")
+window.podlist.setup().then(({ current, last, active, mac }) => {
+  if (!input.value) input.value = current ?? last ?? ""
+  cancel.hidden = !active
+  if (mac) {
+    standalone.textContent = "Start on This Mac"
+    document.getElementById("welcome-description").textContent =
+      "Your Library, Views and Playlists, together on this Mac."
+    document.getElementById("server-description").textContent =
+      "Enter your PodList server address. Your Library stays available on this Mac when the server is unreachable."
   }
 })
 cancel.addEventListener("click", () => window.podlist.cancel())
+standalone.addEventListener("click", async () => {
+  standalone.disabled = true
+  button.disabled = true
+  error.textContent = ""
+  try {
+    await window.podlist.startStandalone()
+  } catch {
+    standalone.disabled = false
+    button.disabled = false
+    error.textContent = "Could not open the local Library. Try again."
+  }
+})
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault()
   error.textContent = ""
   button.disabled = true
-  button.textContent = "Connecting…"
-  const problem = await window.podlist.connect(input.value.trim())
+  cancel.disabled = true
+  standalone.disabled = true
+  input.readOnly = true
+  button.textContent = "Checking…"
+  const problem = await window.podlist
+    .connect(input.value.trim())
+    .catch(() => "Could not open the local Library. Try again.")
   if (problem) {
     error.textContent = problem
     button.disabled = false
-    button.textContent = "Connect"
+    cancel.disabled = false
+    standalone.disabled = false
+    input.readOnly = false
+    button.textContent = "Check and Connect"
     input.focus()
   }
 })

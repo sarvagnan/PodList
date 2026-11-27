@@ -4,12 +4,14 @@ import { CloudOff } from "lucide-react"
 import { localClient } from "#client"
 import { retrySyncAtom, syncStatusAtom } from "../../app/runtime.ts"
 import { serverUnavailable } from "../../lib/connectionMessage.ts"
+import { desktopStandalone } from "../../lib/desktopSession.ts"
 import { useOnline } from "../../lib/useOnline.ts"
 
 export function SyncIndicator({ variant }: { readonly variant: "phone" | "desktop" }) {
   const status = AsyncResult.getOrElse(useAtomValue(syncStatusAtom), () => null)
   const retry = useAtomSet(retrySyncAtom)
   const online = useOnline()
+  if (desktopStandalone) return null
   const unreachable = !online || (status?.error ?? null) !== null
   const pending = status?.pending ?? 0
   const showing = unreachable || (!localClient && pending > 0)

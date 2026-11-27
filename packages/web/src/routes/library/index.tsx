@@ -13,6 +13,7 @@ import { deviceIdAtom, recordAtom } from "../../app/runtime.ts"
 import { useConfirm } from "../../components/feedback/useConfirm.ts"
 import { useCopyText } from "../../components/feedback/useCopyLink.ts"
 import { AddPodcastSheet } from "../../components/library/AddPodcastSheet.tsx"
+import { DesktopPodcastPage } from "../../components/library/DesktopPodcastPage.tsx"
 import {
   LibraryBulkBar,
   LibraryTable,
@@ -25,8 +26,15 @@ import { ListContinuation } from "../../components/lists/ListContinuation.tsx"
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { type RowCommand, RowMenu } from "../../components/lists/RowMenu.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import {
+  ContextualSearch,
+  listTextMatcher,
+  useListSearch
+} from "../../components/shell/ContextualSearch.tsx"
+import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { ruleNames } from "../../lib/downloadRules.ts"
+import { feedAddress, podListLink } from "../../lib/podListLink.ts"
 import { librarySort } from "../../lib/remembered.ts"
 import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth, useWidthInRem } from "../../lib/useWide.ts"
@@ -49,11 +57,18 @@ const plainClick = (event: React.MouseEvent) =>
 export const Route = createFileRoute("/library/")({
   component: LibraryScreen,
   // ?add=true opens Add podcasts (the Mac app's File › Add Podcasts).
-  validateSearch: (search: Record<string, unknown>): { add?: boolean; sort?: string } => {
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { add?: boolean; sort?: string; podcast?: string; feed?: string } => {
     const sort = sortParam.parse(search.sort)
+    const feed = desktopBuild && typeof search.feed === "string" ? feedAddress(search.feed) : null
     return {
       ...(search.add === true || search.add === "true" ? { add: true } : {}),
-      ...(sort ? { sort: sortParam.format(sort) } : {})
+      ...(feed ? { feed } : {}),
+      ...(sort ? { sort: sortParam.format(sort) } : {}),
+      ...(desktopBuild && typeof search.podcast === "string" && /^https?:\/\//i.test(search.podcast)
+        ? { podcast: search.podcast }
+        : {})
     }
   }
 })
@@ -61,12 +76,23 @@ export const Route = createFileRoute("/library/")({
 function LibraryScreen() {
   const result = useAtomValue(subscriptionsAtom)
   const paging = usePagedItems(AsyncResult.getOrElse(result, () => []))
-  const subscriptions = paging.items
+  const search = useListSearch("library")
+  const filtering = Boolean(search.text.trim())
+  const matches = listTextMatcher(search.text)
+  const subscriptions = filtering
+    ? paging.items.filter((sub) => matches([sub.title, sub.author ?? "", sub.feedUrl]))
+    : paging.items
+  const subscriptionCount = filtering ? subscriptions.length : paging.total
   const ready = useLibraryReady()
   const [adding, setAdding] = useState(false)
+  const [incomingFeed, setIncomingFeed] = useState<{ address: string }>()
+  const changeAdding = (next: boolean) => {
+    if (!next) setIncomingFeed(undefined)
+    setAdding(next)
+  }
   // ?add=true (File › Add Podcasts in the Mac app) opens the sheet once, then leaves the
   // URL so a reload doesn't open it again.
-  const { add: addFromUrl, sort: sortFromUrl } = Route.useSearch()
+  const { add: addFromUrl, sort: sortFromUrl, podcast, feed } = Route.useSearch()
   const sort = sortParam.parse(sortFromUrl) ?? { key: "title" as const, ascending: true }
   const navigate = Route.useNavigate()
   // The sort is remembered on this Device (DATA-06): coming back without one in the address
@@ -84,13 +110,16 @@ function LibraryScreen() {
       })
   }, [sortFromUrl, navigate])
   useEffect(() => {
-    if (!addFromUrl) return
+    if (!addFromUrl && !feed) return
     // Clean the URL first: the sheet's Back step must not lead back to ?add=true.
     void navigate({
-      search: ({ add: _, ...rest }) => rest,
+      search: ({ add: _add, feed: _feed, ...rest }) => rest,
       replace: true
-    }).then(() => setAdding(true))
-  }, [addFromUrl, navigate])
+    }).then(() => {
+      if (feed) setIncomingFeed({ address: feed })
+      setAdding(true)
+    })
+  }, [addFromUrl, feed, navigate])
   const state = useAppState()
   const deviceId = AsyncResult.getOrElse(useAtomValue(deviceIdAtom), () => "")
   const ruleOf = (subscriptionId: string) => {
@@ -164,6 +193,15 @@ function LibraryScreen() {
       run: () => setRules([s.id], ruleMode)
     })),
     { separator: true },
+    ...(desktopBuild
+      ? [
+          {
+            label: "Copy PodList Link",
+            run: () =>
+              void copy(() => podListLink({ kind: "podcast", value: s.feedUrl }), "PodList link")
+          }
+        ]
+      : []),
     { label: "Copy feed address", run: () => void copy(() => s.feedUrl, "Feed address") }
   ]
   const groups = (
@@ -191,15 +229,17 @@ function LibraryScreen() {
       Add podcasts
     </button>
   )
+  if (desktopBuild && podcast) return <DesktopPodcastPage key={podcast} feedUrl={podcast} />
   return (
     // Measured for the table-or-list choice (and the table's extra columns).
     <div ref={contentRef} className="max-w-[960px]">
       <PageHeader
         narrow
         title="Library"
+        search={<ContextualSearch {...search} />}
         {...(subscriptions.length > 0
           ? {
-              subtitle: `${paging.total} ${paging.total === 1 ? "Subscription" : "Subscriptions"}${wide && localClient ? " · downloads and settings for this Device" : ""}`
+              subtitle: `${subscriptionCount} ${subscriptionCount === 1 ? "Subscription" : "Subscriptions"}${wide && localClient ? " · downloads and settings for this Device" : ""}`
             }
           : {})}
         actions={
@@ -227,6 +267,10 @@ function LibraryScreen() {
       <OpmlStatus />
       {AsyncResult.isInitial(result) || (subscriptions.length === 0 && !ready) ? (
         <LoadingRows label="Loading your Library" />
+      ) : subscriptions.length === 0 && filtering ? (
+        <EmptyState title="No Matching Subscriptions">
+          Search by name or feed address, or clear Search.
+        </EmptyState>
       ) : subscriptions.length === 0 ? (
         <EmptyState title="No Subscriptions yet">
           Add podcasts by name or by feed address. Import another app’s OPML file in{" "}
@@ -329,7 +373,9 @@ function LibraryScreen() {
         </p>
       )}
       <ListContinuation {...paging} />
-      {adding && <AddPodcastSheet open={adding} onOpenChange={setAdding} />}
+      {adding && (
+        <AddPodcastSheet open={adding} onOpenChange={changeAdding} incomingFeed={incomingFeed} />
+      )}
     </div>
   )
 }

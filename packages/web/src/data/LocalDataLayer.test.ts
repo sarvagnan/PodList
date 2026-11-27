@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Library, Operation, PlaybackSettings, Units } from "@podlist/domain"
 import { Effect, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
+import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { upsertEpisodes, upsertSubscriptions } from "../sync/Catalogue.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
@@ -60,6 +61,7 @@ const episodes = ["e1", "e2", "e3"].map((id, i) =>
 )
 const change = Schema.decodeUnknownSync(Operation.Change)
 const layer = LocalDataLayer.pipe(
+  Layer.provide(DownloadStore.layerWeb),
   Layer.provideMerge(SyncEngine.layer({ defaults, deviceName: "test" })),
   Layer.provideMerge(LocalDb.layerMemory),
   Layer.provide(Reactivity.layer),

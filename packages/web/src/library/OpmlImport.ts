@@ -69,24 +69,37 @@ export class OpmlImport {
     file: Pick<File, "name" | "size" | "text">,
     known: () => Promise<ReadonlySet<string>>
   ) {
-    if (this.state.phase === "running") return
+    await this.selectFiles([file], known)
+  }
+  async selectFiles(
+    files: ReadonlyArray<Pick<File, "name" | "size" | "text">>,
+    known: () => Promise<ReadonlySet<string>>
+  ) {
+    if (this.state.phase === "running" || !files.length) return
+    const name = files.length === 1 ? (files[0]?.name ?? "") : `${files.length} OPML files`
     const generation = ++this.generation
-    this.update({ name: file.name, podcasts: [], phase: "reading" })
+    this.update({ name, podcasts: [], phase: "reading" })
     try {
-      if (file.size > 8 * 1024 * 1024) throw new Error("Choose an OPML file under 8 MiB.")
-      const podcasts = readOpml(await file.text())
+      if (files.reduce((bytes, file) => bytes + file.size, 0) > 8 * 1024 * 1024)
+        throw new Error("Choose OPML files totalling at most 8 MiB.")
+      const podcasts = new Map<string, ImportPodcast>()
+      for (const file of files) {
+        for (const podcast of readOpml(await file.text())) {
+          if (!podcasts.has(podcast.feedUrl)) podcasts.set(podcast.feedUrl, podcast)
+        }
+      }
       const existing = await known()
       if (generation !== this.generation) return
       this.update({
-        name: file.name,
+        name,
         phase: "ready",
-        podcasts: podcasts.map((p) =>
+        podcasts: Array.from(podcasts.values(), (p) =>
           existing.has(p.feedUrl) ? { ...p, result: "already in the Library" } : p
         )
       })
     } catch (error) {
       if (generation === this.generation)
-        this.update({ name: file.name, podcasts: [], phase: "error", error: reason(error) })
+        this.update({ name, podcasts: [], phase: "error", error: reason(error) })
     }
   }
   async run(

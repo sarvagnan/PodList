@@ -1,6 +1,7 @@
 import { Operation } from "@podlist/domain"
 import { Effect, Schema, Semaphore, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
+import { desktopBuild } from "../components/shell/DesktopPanes.tsx"
 import { DataLayer } from "../data/DataLayer.ts"
 import {
   changesFor,
@@ -11,6 +12,7 @@ import {
 } from "../lib/episodeActions.ts"
 import { nextLastTarget } from "../lib/remembered.ts"
 import { Playback } from "../playback/Playback.ts"
+import { restoredBetween } from "./restoredEntries.ts"
 import { runtime } from "./runtime.ts"
 
 /** Runs an action from an Episode row; answers with its confirmation and undo. */
@@ -112,7 +114,9 @@ export const undoAtom = runtime.fn(
   (changes: ReadonlyArray<Operation.Change>) =>
     Effect.gen(function* () {
       const engine = yield* DataLayer
+      const before = desktopBuild ? yield* SubscriptionRef.get(engine.state) : null
       for (const c of changes) yield* engine.record(c)
+      return before ? restoredBetween(before, yield* SubscriptionRef.get(engine.state)) : []
     }),
   // Two undos in quick succession both happen.
   { concurrent: true }
@@ -173,5 +177,57 @@ export const createAndAddAtom = runtime.fn(
         undo: [change({ _tag: "DeletePlaylist", playlistId })]
       } satisfies Outcome
     }),
+  { concurrent: true }
+)
+
+const episodeDrops = Semaphore.makeUnsafe(1)
+
+export const addDroppedEpisodesAtom = runtime.fn(
+  ({
+    playlistId,
+    episodeIds
+  }: {
+    readonly playlistId: string
+    readonly episodeIds: ReadonlyArray<string>
+  }) =>
+    Effect.gen(function* () {
+      const data = yield* DataLayer
+      const initial = (yield* SubscriptionRef.get(data.state)).playlists.find(
+        (p) => p.id === playlistId
+      )
+      if (!initial)
+        return { message: "This Playlist is no longer available.", undo: [] } satisfies Outcome
+      const undo: Operation.Change[] = []
+      let failed = 0
+      for (const episodeId of new Set(episodeIds)) {
+        const before = yield* SubscriptionRef.get(data.state)
+        const playlist = before.playlists.find((p) => p.id === playlistId)
+        if (!playlist || playlist.entries.some((e) => e.episodeId === episodeId)) continue
+        const action = { _tag: "Add", episodeId, playlistId, placement: "last" } as const
+        const recorded = yield* Effect.forEach(changesFor(action, before), data.record).pipe(
+          Effect.result
+        )
+        if (recorded._tag === "Failure") {
+          failed++
+          continue
+        }
+        const after = yield* SubscriptionRef.get(data.state)
+        if (
+          after.playlists.some(
+            (p) => p.id === playlistId && p.entries.some((e) => e.episodeId === episodeId)
+          )
+        )
+          undo.unshift(...undoFor(action, before, after, Date.now()))
+      }
+      const message = undo.length
+        ? `Added ${undo.length === 1 ? "1 Episode" : `${undo.length} Episodes`} to ${initial.name}`
+        : failed
+          ? "Could not add Episodes"
+          : `Already in ${initial.name}`
+      return {
+        message: failed ? `${message}. ${failed} to retry.` : message,
+        undo
+      } satisfies Outcome
+    }).pipe(episodeDrops.withPermits(1)),
   { concurrent: true }
 )

@@ -1,4 +1,5 @@
 import { Context, Data, Effect, Layer } from "effect"
+import { publisherAudioUrl } from "../lib/desktopSession.ts"
 
 // The DownloadStore seam (ADR 0007): offline audio, per Device. The web implementation
 // keeps one file per Episode in OPFS (the app's private storage); a native shell uses
@@ -29,6 +30,8 @@ export class DownloadStore extends Context.Service<
     readonly has: (episodeId: string) => Effect.Effect<boolean>
     readonly remove: (episodeId: string) => Effect.Effect<void>
     readonly list: Effect.Effect<ReadonlyArray<StoredDownload>>
+    /** Reads only the requested prefix of a completed download. */
+    readonly readPrefix: (episodeId: string, bytes: number) => Effect.Effect<Uint8Array | null>
     /** A URL the Player can use for a stored download, or null if it isn't stored. */
     readonly playableUrl: (episodeId: string) => Effect.Effect<string | null>
   }
@@ -53,10 +56,9 @@ export class DownloadStore extends Context.Service<
       const objectUrls = new Map<string, string>()
 
       const fileFor = (episodeId: string) =>
-        Effect.tryPromise(() => directory.getFileHandle(fileName(episodeId))).pipe(
-          Effect.flatMap((handle) => Effect.promise(() => handle.getFile())),
-          Effect.option
-        )
+        Effect.tryPromise(async () =>
+          (await directory.getFileHandle(fileName(episodeId))).getFile()
+        ).pipe(Effect.option)
 
       const save = (
         episodeId: string,
@@ -66,9 +68,7 @@ export class DownloadStore extends Context.Service<
         Effect.tryPromise({
           try: async (signal) => {
             const source =
-              location.protocol === "app:" && /^https?:/.test(url)
-                ? `app://podlist/audio-download?url=${encodeURIComponent(url)}`
-                : url
+              location.protocol === "app:" && /^https?:/.test(url) ? publisherAudioUrl(url) : url
             const response = await fetch(source, { signal, credentials: "omit" })
             if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status}`)
             const total = Number(response.headers.get("content-length")) || null
@@ -114,6 +114,7 @@ export class DownloadStore extends Context.Service<
           objectUrls.delete(episodeId)
           await directory.removeEntry(fileName(episodeId)).catch(() => undefined)
           await directory.removeEntry(typeName(episodeId)).catch(() => undefined)
+          await directory.removeEntry(`${fileName(episodeId)}.part`).catch(() => undefined)
         })
 
       const list = Effect.promise(async () => {
@@ -136,6 +137,14 @@ export class DownloadStore extends Context.Service<
         has: (episodeId) => fileFor(episodeId).pipe(Effect.map((file) => file._tag === "Some")),
         remove,
         list,
+        readPrefix: (episodeId, bytes) =>
+          Effect.gen(function* () {
+            const file = yield* fileFor(episodeId)
+            if (file._tag === "None") return null
+            return yield* Effect.tryPromise(
+              async () => new Uint8Array(await file.value.slice(0, bytes).arrayBuffer())
+            ).pipe(Effect.orElseSucceed(() => null))
+          }),
         playableUrl: (episodeId) =>
           Effect.gen(function* () {
             const file = yield* fileFor(episodeId)

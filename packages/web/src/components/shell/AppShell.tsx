@@ -19,7 +19,12 @@ import { type CSSProperties, useEffect, useRef, useState } from "react"
 import { type DrawerPage, drawerAtom } from "../../app/drawer.ts"
 import { useAppState, useCanEdit, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
 import { useReplayJournal } from "../../app/journal.ts"
-import { backgroundSyncAtom, nowPlayingAtom, playbackAtom } from "../../app/runtime.ts"
+import {
+  backgroundSyncAtom,
+  flushPlaybackAtom,
+  nowPlayingAtom,
+  playbackAtom
+} from "../../app/runtime.ts"
 import { Automation } from "../../automation/Automation.tsx"
 import { useBackLayers } from "../../lib/backLayers.ts"
 import { cameFrom, sectionOf } from "../../lib/cameFrom.ts"
@@ -32,14 +37,21 @@ import { openShortcuts, Shortcuts } from "../feedback/Shortcuts.tsx"
 import { Tip } from "../feedback/Tip.tsx"
 import { Toasts } from "../feedback/Toasts.tsx"
 import { UndoShortcut } from "../feedback/UndoShortcut.tsx"
+import { BringOverPrompt } from "../library/DesktopBringOver.tsx"
+import { DesktopFeedRefreshStatus } from "../library/DesktopFeedRefresh.tsx"
 import { NowPlayingDrawer } from "../player/NowPlayingDrawer.tsx"
 import { PlayerMenus } from "../player/PlayerMenus.tsx"
 import { Scrubber } from "../player/Scrubber.tsx"
 import { SkipIcon } from "../player/SkipIcon.tsx"
 import { usePlaybackProblem } from "../player/usePlaybackProblem.ts"
 import { NewPlaylistDialog } from "../playlists/NewPlaylistDialog.tsx"
+import { useEpisodeDrop } from "../playlists/useEpisodeDrop.ts"
+import { DesktopCreatedView } from "../views/DesktopCreatedView.tsx"
 import { useViewActions } from "../views/useViewActions.ts"
 import { Artwork } from "./Artwork.tsx"
+import { DesktopLibraryDrop } from "./DesktopLibraryDrop.tsx"
+import { DesktopOpenLinks } from "./DesktopOpenLinks.tsx"
+import { DesktopOpenOpml } from "./DesktopOpenOpml.tsx"
 import {
   DesktopPanes,
   DesktopPaneToolbar,
@@ -47,6 +59,7 @@ import {
   desktopBuild,
   useDesktopPanes
 } from "./DesktopPanes.tsx"
+import { DesktopRestoredEntries } from "./DesktopRestoredEntries.tsx"
 import { FirstRun, showGettingStarted } from "./FirstRun.tsx"
 import { RestoreDialog } from "./RestoreDialog.tsx"
 import { SyncIndicator } from "./SyncIndicator.tsx"
@@ -382,6 +395,7 @@ function SidebarSkeleton() {
 
 function Sidebar() {
   const canEdit = useCanEdit()
+  const episodeDrop = useEpisodeDrop(desktopBuild && canEdit)
   const now = useNowPlaying()
   const state = useAppState()
   const { create: createView } = useViewActions()
@@ -483,7 +497,8 @@ function Sidebar() {
             key={p.id}
             to="/playlists/$playlistId"
             params={{ playlistId: p.id }}
-            className={`${link}${held(`/playlists/${p.id}`)}`}
+            {...episodeDrop(p.id)}
+            className={`${link}${held(`/playlists/${p.id}`)} data-[episode-drop=over]:bg-accent data-[episode-drop=over]:outline-2 data-[episode-drop=over]:outline-primary`}
           >
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate">{p.name}</span>
@@ -612,6 +627,7 @@ function useMenuBackLayer() {
 /** A file dropped anywhere but a drop area must not open in place of the app (DRAG-01). */
 function useStrayDropGuard() {
   useEffect(() => {
+    if (desktopBuild) return
     const guard = (event: DragEvent) => {
       if (!event.dataTransfer?.types.includes("Files")) return
       const target = event.target instanceof Element ? event.target : null
@@ -706,17 +722,44 @@ function useFocusOnNavigation() {
 /** The Mac app's Controls menu: play/pause, skips and Chapters, sent as an event. */
 function useMenuControls() {
   const control = useAtomSet(playbackAtom)
+  const setDrawer = useAtomSet(drawerAtom)
   const current = useRef<ReturnType<typeof useNowPlaying>>(null)
   current.current = useNowPlaying()
   useEffect(() => {
+    if (!desktopBuild) return
     const onControl = (event: Event) => {
+      if (!(event instanceof CustomEvent) || typeof event.detail !== "string") return
+      const command: string = event.detail
+      if (command === "toggle") return control({ _tag: "toggle" })
+      if (command === "stop") {
+        if (!document.querySelector('[data-sheet="dialog"], [role="alertdialog"]'))
+          control({ _tag: "stop" })
+        return
+      }
       const playing = current.current
       if (playing === null) return
+      if (command === "nowPlaying") return setDrawer({ open: true, stack: [] })
+      if (command.startsWith("speed:")) {
+        const speed = Number(command.slice(6))
+        if (Number.isFinite(speed) && speed >= 0.5 && speed <= 3)
+          control({ _tag: "setSpeed", speed })
+        return
+      }
+      if (command.startsWith("sleep:")) {
+        const when = command.slice(6)
+        if (when === "off") return control({ _tag: "setSleep", sleep: null })
+        if (when === "episode")
+          return control({ _tag: "setSleep", sleep: { _tag: "EndOfEpisode" } })
+        if (when === "chapter")
+          return control({ _tag: "setSleep", sleep: { _tag: "EndOfChapter" } })
+        const minutes = Number(when)
+        if (Number.isSafeInteger(minutes) && minutes >= 5 && minutes <= 120)
+          control({ _tag: "setSleep", sleep: { _tag: "Minutes", minutes } })
+        return
+      }
       const seek = (seconds: number | null) =>
         seconds !== null && control({ _tag: "seek", seconds })
-      switch ((event as CustomEvent<string>).detail) {
-        case "toggle":
-          return control({ _tag: "toggle" })
+      switch (command) {
         case "back":
           return control({ _tag: "skip", seconds: -backSeconds })
         case "forward":
@@ -731,7 +774,17 @@ function useMenuControls() {
     // The Mac app's ⌘← ⌘→ (skips) and ⌥⌘← ⌥⌘→ (Chapters), which its menu shows but
     // leaves to the page, so text fields keep them for the caret (BROWSER-07).
     const onKey = (event: KeyboardEvent) => {
-      if (!inMacApp || !event.metaKey || event.ctrlKey || event.shiftKey) return
+      const commandKey = /Mac/.test(navigator.platform)
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey
+      if (!inMacApp || !commandKey || event.shiftKey) return
+      if (event.key === "." && !event.altKey) {
+        if (!document.querySelector('[data-sheet="dialog"], [role="alertdialog"]')) {
+          event.preventDefault()
+          control({ _tag: "stop" })
+        }
+        return
+      }
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
       const target = event.target as HTMLElement
       if (target.closest("input, textarea, select, [contenteditable]")) return
@@ -751,16 +804,36 @@ function useMenuControls() {
       document.removeEventListener("podlist:control", onControl)
       document.removeEventListener("keydown", onKey)
     }
-  }, [control])
+  }, [control, setDrawer])
 }
 
 /** Cmd/Ctrl-K: Search, from anywhere. Also the Mac app's Go menu ("podlist:go"). */
 function useSearchKey() {
   const router = useRouter()
   useEffect(() => {
-    const go = (event: Event) => void router.navigate({ to: (event as CustomEvent<string>).detail })
+    const focusSearch = (scoped: boolean) => {
+      const field = scoped
+        ? document.querySelector<HTMLInputElement>("main [data-context-search]")
+        : null
+      if (field) field.focus()
+      else if (router.state.location.pathname === "/search")
+        document.querySelector<HTMLInputElement>('main input[type="search"]')?.focus()
+      else void router.navigate({ to: "/search" })
+    }
+    const command = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === "find") focusSearch(true)
+    }
+    const go = (event: Event) => {
+      const to = (event as CustomEvent<string>).detail
+      if (to === "/search") focusSearch(false)
+      else void router.navigate({ to })
+    }
     document.addEventListener("podlist:go", go)
-    return () => document.removeEventListener("podlist:go", go)
+    document.addEventListener("podlist:command", command)
+    return () => {
+      document.removeEventListener("podlist:go", go)
+      document.removeEventListener("podlist:command", command)
+    }
   }, [router])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -867,6 +940,14 @@ function Shell() {
       : `${panes.panes.sidebarWidth}px`
     : "0px"
   useAtomMount(backgroundSyncAtom)
+  const flushPlayback = useAtomSet(flushPlaybackAtom, { mode: "promise" })
+  useEffect(() => {
+    if (!desktopBuild) return
+    window.podlistFlushPlayback = () => flushPlayback()
+    return () => {
+      delete window.podlistFlushPlayback
+    }
+  }, [flushPlayback])
   useFocusOnNavigation()
   useReplayJournal()
   useStrayDropGuard()
@@ -912,6 +993,9 @@ function Shell() {
         {panes && <DesktopPaneToolbar />}
         <VersionNotice />
         <FirstRun />
+        {desktopBuild && <DesktopRestoredEntries />}
+        {desktopBuild && <DesktopCreatedView />}
+        {desktopBuild && <DesktopFeedRefreshStatus />}
         <EditRegion />
       </main>
       {!panes && (
@@ -928,6 +1012,14 @@ function Shell() {
       <Automation />
       <Shortcuts />
       <RestoreDialog />
+      {desktopBuild && <BringOverPrompt />}
+      {desktopBuild && (
+        <>
+          <DesktopLibraryDrop />
+          <DesktopOpenLinks />
+          <DesktopOpenOpml />
+        </>
+      )}
     </div>
   )
 }

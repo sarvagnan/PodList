@@ -20,11 +20,13 @@ import { SubscriptionButton } from "../../components/library/SubscriptionButton.
 import { EmptyState, LoadingRows } from "../../components/lists/ListRow.tsx"
 import { fieldControl, SettingsRow } from "../../components/lists/SettingsRow.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
+import { ContextualSearch, useEpisodeListSearch } from "../../components/shell/ContextualSearch.tsx"
 import { desktopBuild } from "../../components/shell/DesktopPanes.tsx"
 import { PageHeader } from "../../components/shell/PageHeader.tsx"
 import { useDesktopListSelection } from "../../components/shell/useDesktopListSelection.ts"
 import { serverUnavailable } from "../../lib/connectionMessage.ts"
 import { ruleNames } from "../../lib/downloadRules.ts"
+import { feedAddress } from "../../lib/podListLink.ts"
 import { subscriptionSettingsOpen } from "../../lib/remembered.ts"
 import { usePagedItems } from "../../lib/usePagedItems.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
@@ -61,7 +63,10 @@ function SubscriptionScreen() {
     )
   )
   const paging = usePagedItems(AsyncResult.getOrElse(episodesResult, () => []))
-  const episodes = paging.items
+  const search = useEpisodeListSearch(subscriptionId)
+  const episodes = search.query
+    ? paging.items.filter((e) => search.matches.has(e.id))
+    : paging.items
   const {
     selected,
     invalid: invalidSelection,
@@ -73,7 +78,7 @@ function SubscriptionScreen() {
       AsyncResult.isSuccess(episodesResult) &&
       !AsyncResult.isWaiting(episodesResult) &&
       !paging.more &&
-      !episodes.some((item) => item.id === episode)
+      !paging.items.some((item) => item.id === episode)
   )
   useEffect(() => {
     if (invalidSelection) void navigate({ search: {}, replace: true })
@@ -152,6 +157,7 @@ function SubscriptionScreen() {
     )
   }
   const overrides = subscription.playbackSettings
+  const website = subscription.websiteUrl ? feedAddress(subscription.websiteUrl) : null
   const rule = state?.downloadRules.find(
     (r) => r.subscriptionId === subscriptionId && r.deviceId === deviceId
   ) ?? { mode: "never" as const, keepAtMost: null }
@@ -190,6 +196,7 @@ function SubscriptionScreen() {
         narrow
         backOnDesktop
         title={subscription.title}
+        search={<ContextualSearch scope="Episodes" {...search} />}
         back={{ to: "/library", label: "Library" }}
         subtitle={[
           subscription.author,
@@ -212,11 +219,21 @@ function SubscriptionScreen() {
         >
           <div className="flex items-center gap-4">
             <Artwork url={subscription.artworkUrl} name={subscription.title} size={72} />
-            {subscription.description && (
-              <p className="line-clamp-4 text-small text-muted-foreground">
-                {subscription.description}
-              </p>
-            )}
+            <div className="min-w-0 space-y-2">
+              {subscription.description && (
+                <p className="line-clamp-4 text-small text-muted-foreground">
+                  {subscription.description}
+                </p>
+              )}
+              {website && (
+                <a
+                  href={website}
+                  className="text-small font-medium text-primary underline underline-offset-2"
+                >
+                  Podcast Website
+                </a>
+              )}
+            </div>
           </div>
           {wide ? (
             <h2
@@ -425,6 +442,7 @@ function SubscriptionScreen() {
             </button>
             <SubscriptionButton
               key={subscriptionId}
+              {...(desktopBuild ? { armSeconds: 4 } : {})}
               title={subscription.title}
               subscribed={subscription.subscribed}
               busy={changingSubscription}
@@ -476,14 +494,20 @@ function SubscriptionScreen() {
           )}
         </section>
         <section aria-label="Episodes" className={desktopBuild ? "min-w-0" : "min-w-0 lg:order-1"}>
-          {!AsyncResult.isInitial(episodesResult) && episodes.length === 0 ? (
+          {search.waiting ? (
+            <LoadingRows label="Searching Episodes" />
+          ) : search.query && episodes.length === 0 ? (
+            <EmptyState title="No Episodes match your search.">
+              Try other words or clear Search.
+            </EmptyState>
+          ) : !AsyncResult.isInitial(episodesResult) && episodes.length === 0 ? (
             <EmptyState title="No Episodes yet">
               New Episodes appear when the podcast publishes.
             </EmptyState>
           ) : (
             <div className="-mx-5 md:-mx-8">
               <EpisodeList
-                paging={paging}
+                {...(search.query ? {} : { paging })}
                 episodes={episodes}
                 label={`${subscription.title} Episodes`}
                 ready={!AsyncResult.isInitial(episodesResult)}

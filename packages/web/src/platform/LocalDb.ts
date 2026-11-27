@@ -8,8 +8,8 @@ import { Migrator, SqlClient } from "effect/sql"
 // the schema shared with the server. On the web it is SQLite (WASM) in a worker, on
 // OPFS (ADR 0005). A native shell provides SqlClient from native SQLite instead.
 
-/** Tables only clients have: the outbox of unsent operations and sync bookkeeping. */
-export const clientMigrations = Migrator.fromRecord({
+/** Shared offline-client SQL. Swift and Kotlin audit this record against SharedSchema. */
+const sharedClientMigrations = {
   "0001_outbox": Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE outbox (
@@ -28,6 +28,50 @@ export const clientMigrations = Migrator.fromRecord({
       bytes INTEGER NOT NULL,
       saved_at INTEGER NOT NULL
     )`
+  })
+}
+
+/** Electron's download queue. Apple uses a manifest and Android uses WorkManager. */
+const desktopMigrations = {
+  "0003_download_requests": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE download_request (
+      episode_id TEXT PRIMARY KEY,
+      manual INTEGER NOT NULL,
+      failure TEXT
+    )`
+  })
+}
+
+// Keep the existing ledger and IDs so deployed profiles retain their queued downloads.
+// Shared and desktop migration IDs are unique within this ledger.
+const clientMigrations = Migrator.fromRecord({ ...sharedClientMigrations, ...desktopMigrations })
+
+/** Electron's Standalone schema. Native Devices have their own Device migration history. */
+const standaloneMigrations = Migrator.fromRecord({
+  "0001_standalone_operations": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE local_operation (
+      seq INTEGER PRIMARY KEY,
+      operation TEXT NOT NULL
+    )`
+  }),
+  "0002_publisher_feeds": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE subscription ADD COLUMN website_url TEXT`
+    yield* sql`ALTER TABLE episode ADD COLUMN website_url TEXT`
+    yield* sql`CREATE TABLE feed_state (
+      subscription_id TEXT PRIMARY KEY REFERENCES subscription (id),
+      etag TEXT,
+      last_modified TEXT,
+      checked_at INTEGER NOT NULL,
+      failures INTEGER NOT NULL DEFAULT 0
+    )`
+  }),
+  "0003_retry_empty_chapters": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    // An empty JSON response used to be final; allow the new audio fallback once.
+    yield* sql`UPDATE episode SET chapters_fetched_at = NULL WHERE chapters = '[]'`
   })
 })
 
@@ -80,17 +124,29 @@ export const clientWithRetry = (databaseName: string) =>
     })
   )
 
-export const layerWeb = (databaseName = "podlist.db") =>
-  Layer.mergeAll(
-    SqliteMigrator.layer({ loader: Sql.migrationLoader }),
-    SqliteMigrator.layer({ loader: clientMigrations, table: "client_migrations" })
-  ).pipe(Layer.provideMerge(clientWithRetry(databaseName)))
+const catalogueMigrations = Layer.mergeAll(
+  SqliteMigrator.layer({ loader: Sql.migrationLoader }),
+  SqliteMigrator.layer({ loader: clientMigrations, table: "client_migrations" })
+)
+
+// The feed columns build on the shared catalogue and only exist in Standalone.
+const migrations = (standalone: boolean) =>
+  standalone
+    ? SqliteMigrator.layer({
+        loader: standaloneMigrations,
+        table: "standalone_migrations"
+      }).pipe(Layer.provideMerge(catalogueMigrations))
+    : catalogueMigrations
+
+export const layerWeb = (databaseName = "podlist.db", standalone = false) =>
+  migrations(standalone).pipe(Layer.provideMerge(clientWithRetry(databaseName)))
 
 /**
  * The same schema in an in-memory SQLite on the current thread: for tests of logic that
  * doesn't depend on OPFS persistence (OPFS allows one open pool per origin at a time).
  */
-export const layerMemory = Layer.mergeAll(
-  SqliteMigrator.layer({ loader: Sql.migrationLoader }),
-  SqliteMigrator.layer({ loader: clientMigrations, table: "client_migrations" })
-).pipe(Layer.provideMerge(SqliteClient.layerMemory({})))
+export const layerMemory = migrations(false).pipe(Layer.provideMerge(SqliteClient.layerMemory({})))
+
+export const layerMemoryStandalone = migrations(true).pipe(
+  Layer.provideMerge(SqliteClient.layerMemory({}))
+)

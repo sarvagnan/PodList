@@ -113,7 +113,23 @@ const feed = (origin, podcast) => {
 const listen = (server) =>
   new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)))
 
-const startFixtures = async () => {
+// One short ID3v2.4 CHAP frame with a UTF-8 title and a zero start.
+const fixtureId3 = () => {
+  const frame = (id, body) =>
+    Buffer.concat([Buffer.from(id), Buffer.from([0, 0, 0, body.length, 0, 0]), body])
+  const title = frame(
+    "TIT2",
+    Buffer.concat([Buffer.from([3]), Buffer.from("From downloaded audio")])
+  )
+  const chapter = frame("CHAP", Buffer.concat([Buffer.from("intro\0"), Buffer.alloc(16), title]))
+  return Buffer.concat([
+    Buffer.from("ID3"),
+    Buffer.from([4, 0, 0, 0, 0, 0, chapter.length]),
+    chapter
+  ])
+}
+
+const startFixtures = async (id3) => {
   const server = createServer((req, res) => {
     const path = new URL(req.url, "http://x").pathname
     const podcast = [...podcasts, largePodcast].find((p) => path === `/feeds/${p.slug}.xml`)
@@ -163,7 +179,11 @@ const startFixtures = async () => {
       audio &&
       [...podcasts, largePodcast].find((p) => p.slug === audio[1])?.episodes[Number(audio[2])]
     if (episode) {
-      const bytes = audioFor(episode[1])
+      const audioBytes = audioFor(episode[1])
+      const bytes =
+        id3 && audio[1] === "slow-build" && audio[2] === "0"
+          ? Buffer.concat([fixtureId3(), audioBytes])
+          : audioBytes
       const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/)
       const start = range ? Number(range[1]) : 0
       const end = range?.[2] ? Math.min(Number(range[2]), bytes.length - 1) : bytes.length - 1
@@ -212,10 +232,11 @@ export const startDemo = async ({
   empty = false,
   large = false,
   largeSidebar = false,
+  id3 = false,
   host,
   port: requestedPort
 } = {}) => {
-  const fixtures = await startFixtures()
+  const fixtures = await startFixtures(id3)
   const dir = mkdtempSync(join(tmpdir(), "podlist-demo-"))
   const port = requestedPort ?? (await freePort())
   const base = `http://${host ?? "127.0.0.1"}:${port}`
