@@ -31,17 +31,17 @@ test("checks a server, switches Libraries and reconnects to the saved profile", 
     await expect(sidebar().getByRole("link", { name: /^Commute/ })).toBeVisible()
 
     await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
-    const settings = page.getByRole("region", { name: "Server Connection" })
-    await expect(settings.getByText(a.base)).toBeVisible()
-    await settings.getByRole("button", { name: "Change Server…" }).click()
+    const settings = () => page.getByRole("region", { name: "Server Connection" })
+    await expect(settings().getByText(a.base, { exact: true })).toBeVisible()
+    await settings().getByRole("button", { name: "Change Server…" }).click()
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible()
     await connectTo(b.base)
     await expect(sidebar().getByRole("link", { name: /^Commute/ })).toHaveCount(0)
 
     await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
-    await expect(settings.getByText(b.base)).toBeVisible()
+    await expect(settings().getByText(b.base, { exact: true })).toBeVisible()
     const welcome = app.waitForEvent("window")
-    await settings.getByRole("button", { name: "Disconnect" }).click()
+    await settings().getByRole("button", { name: "Disconnect" }).click()
     page = await welcome
     await expect(page.getByRole("heading", { name: "Welcome to PodList" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Cancel" })).toBeHidden()
