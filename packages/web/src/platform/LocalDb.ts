@@ -8,8 +8,8 @@ import { Migrator, SqlClient } from "effect/sql"
 // the schema shared with the server. On the web it is SQLite (WASM) in a worker, on
 // OPFS (ADR 0005). A native shell provides SqlClient from native SQLite instead.
 
-/** Tables only clients have: the outbox of unsent operations and sync bookkeeping. */
-export const clientMigrations = Migrator.fromRecord({
+/** Shared offline-client SQL. Swift and Kotlin audit this record against SharedSchema. */
+const sharedClientMigrations = {
   "0001_outbox": Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE outbox (
@@ -28,7 +28,11 @@ export const clientMigrations = Migrator.fromRecord({
       bytes INTEGER NOT NULL,
       saved_at INTEGER NOT NULL
     )`
-  }),
+  })
+}
+
+/** Electron's download queue. Apple uses a manifest and Android uses WorkManager. */
+const desktopMigrations = {
   "0003_download_requests": Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE download_request (
@@ -37,8 +41,13 @@ export const clientMigrations = Migrator.fromRecord({
       failure TEXT
     )`
   })
-})
+}
 
+// Keep the existing ledger and IDs so deployed profiles retain their queued downloads.
+// Shared and desktop migration IDs are unique within this ledger.
+const clientMigrations = Migrator.fromRecord({ ...sharedClientMigrations, ...desktopMigrations })
+
+/** Electron's Standalone schema. Native Devices have their own Device migration history. */
 const standaloneMigrations = Migrator.fromRecord({
   "0001_standalone_operations": Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
