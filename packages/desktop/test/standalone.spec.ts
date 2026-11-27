@@ -14,17 +14,17 @@ test("keeps and plays a Standalone Library across app restarts", async ({
   try {
     const app = await launch({ PODLIST_USER_DATA: profile })
     const welcome = await app.firstWindow()
-    const libraryWindow = app.waitForEvent("window")
-    await welcome.getByRole("button", { name: /Start on This (Mac|Computer)/ }).click()
-    const page = await libraryWindow
     const publisherRequests = new Set<string>()
     const serverRequests: string[] = []
-    page.on("request", (request) => {
+    app.context().on("request", (request) => {
       const url = new URL(request.url())
       if (url.pathname.startsWith("/publisher/") || url.pathname === "/audio-download")
         publisherRequests.add(url.pathname)
       if (url.pathname.startsWith("/api/")) serverRequests.push(url.pathname)
     })
+    const libraryWindow = app.waitForEvent("window")
+    await welcome.getByRole("button", { name: /Start on This (Mac|Computer)/ }).click()
+    const page = await libraryWindow
 
     const sidebar = page.getByRole("navigation", { name: "Library and lists" })
     await sidebar.getByRole("link", { name: "Library", exact: true }).click()

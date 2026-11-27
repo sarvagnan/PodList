@@ -1,5 +1,6 @@
 import { Protocol } from "@podlist/domain"
 import { useEffect, useState } from "react"
+import { desktopStandalone } from "../../lib/desktopSession.ts"
 import { inMacApp } from "../../lib/share.ts"
 
 /**
@@ -10,6 +11,7 @@ import { inMacApp } from "../../lib/share.ts"
 export function VersionNotice() {
   const [server, setServer] = useState<number | null>(null)
   useEffect(() => {
+    if (desktopStandalone) return
     let cancelled = false
     fetch("/api/health")
       .then((r) => (r.ok ? r.json() : null))
