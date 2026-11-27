@@ -88,7 +88,8 @@ export const DownloadRulesLive = Layer.effectDiscard(
       const plan = planDownloads(rules, episodes, stored)
       for (const id of plan.discard) yield* downloads.remove(id)
       const busy = [...status.values()].filter((s) => s._tag === "Downloading").length
-      for (const id of plan.fetch.filter((id) => !status.has(id)).slice(0, atOnce - busy)) {
+      const slots = Math.max(0, atOnce - busy)
+      for (const id of plan.fetch.filter((id) => !status.has(id)).slice(0, slots)) {
         yield* downloads.download(id, { rule: true })
       }
     }).pipe(
