@@ -32,6 +32,8 @@ export const test = base.extend<{ desktop: DesktopFixture }>({
     const launch: DesktopFixture["launch"] = async (env) => {
       const app = await electron.launch({
         args: ["."],
+        // Electron supplies the native appearance. Playwright otherwise emulates light.
+        colorScheme: null,
         cwd: appDir,
         executablePath: electronBinary,
         env: environment(env)
