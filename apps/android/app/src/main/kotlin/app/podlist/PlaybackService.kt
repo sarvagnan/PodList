@@ -52,6 +52,7 @@ internal interface PlaybackHost {
  */
 class PlaybackService : MediaLibraryService(), PlaybackHost {
     private val model get() = (application as PodListApplication).model
+    private val writes get() = (application as PodListApplication).playbackWrites
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val events = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     private lateinit var audio: ExoPlayer
@@ -184,15 +185,21 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     }
     private suspend fun edits(changes: List<Change>) {
         val session = loadedSession ?: model.session.value ?: return
-        withContext(Dispatchers.IO) { session.db.recordAll(changes, System.currentTimeMillis()) }
+        val at = System.currentTimeMillis()
+        writes.submit { session.db.recordAll(changes, at) }.await()
     }
     private suspend fun event(event: ListeningSession.Event) {
+        recordEvent(event)?.await()
+    }
+
+    private fun recordEvent(event: ListeningSession.Event): CompletableDeferred<Unit>? {
         val at = System.currentTimeMillis()
         val offset = -TimeZone.getDefault().getOffset(at) / 60_000
         val changes = accounting?.accept(event, at, offset).orEmpty()
         changes.filterIsInstance<Change.ReportPosition>().lastOrNull()?.let { reportAt = it.listenedAt }
-        val session = loadedSession ?: return
-        if (changes.isNotEmpty()) withContext(Dispatchers.IO) { session.db.recordAll(changes, at) }
+        val session = loadedSession ?: return null
+        if (changes.isEmpty()) return null
+        return writes.submit { session.db.recordAll(changes, at) }
     }
     private suspend fun follow(force: Boolean = false, play: Boolean = false) {
         if (!force && PlaybackPolicy.holdLoaded(audio.playWhenReady, accounting?.finished == true, ended)) return
@@ -434,12 +441,13 @@ class PlaybackService : MediaLibraryService(), PlaybackHost {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = library
     override fun onTaskRemoved(rootIntent: Intent?) { if (!audio.playWhenReady) stopSelf() }
     override fun onDestroy() {
-        // Last accepted Position is already durable; flush any pending sub-interval on teardown.
-        val at = System.currentTimeMillis()
-        accounting?.accept(ListeningSession.Event.Flush, at, -TimeZone.getDefault().getOffset(at) / 60_000)?.forEach { change -> loadedSession?.db?.record(change, at) }
+        // Capture accounting on the player thread. The application drains the final batch
+        // after any already accepted reports, even when this service's scope is cancelled.
+        recordEvent(ListeningSession.Event.Flush)
+        scope.cancel()
         model.playbackHost = null
         model.playback.value = null
-        enhancer?.release(); library.release(); audio.release(); scope.cancel()
+        enhancer?.release(); library.release(); audio.release()
         super.onDestroy()
     }
 
