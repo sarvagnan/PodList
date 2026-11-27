@@ -12,6 +12,13 @@ class PodcastPageTest {
         <item><guid>two</guid><title>Stars</title><description>Galaxies by hand</description><enclosure url="https://podcast.test/two"/></item></channel></rss>"""
     private val view = View("all", "All", ViewFilter(), ViewSort.PublishedDesc, null)
 
+    @Test fun `feed merge keeps local rows for matching guids and appends retained episodes`() {
+        val local = listOf(mapOf("guid" to "old", "id" to "retained"), mapOf("guid" to "one", "id" to "saved"))
+        val feed = listOf(mapOf("guid" to "one", "id" to "remote-one"), mapOf("guid" to "two", "id" to "remote-two"))
+        assertEquals(listOf("saved", "remote-two", "retained"), mergePodcastEpisodeRows(local, feed).map { it["id"] })
+        assertSame(local, mergePodcastEpisodeRows(local, null))
+    }
+
     @Test fun `read is transient and search matches title and available notes without case or locale dependence`() {
         LocalDatabase(":memory:", standalone = true).use { db ->
             val source = DeviceLibrary(db, PublisherTransport { _, _ -> PublisherResponse(200, xml) })

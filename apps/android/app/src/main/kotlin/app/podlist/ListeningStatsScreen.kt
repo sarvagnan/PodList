@@ -19,9 +19,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import app.podlist.domain.ListeningStats
 import app.podlist.domain.ListeningPresentation
-import java.time.Instant
 import java.time.ZoneId
 
 @Composable internal fun listened(seconds: Double): String {
@@ -56,7 +54,7 @@ private fun chartDate(day: java.time.LocalDate): String = shortDate(day.atStartO
 
 @Composable
 internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisodes: () -> Unit) {
-    val stats = remember(data) { ListeningStats.calculate(data.state.listeningLog.orEmpty(), data.state.episodeStates.filterKeys { id -> data.episodes.any { it["id"] == id } }.values.mapNotNull { it.played }, Instant.now(), ZoneId.systemDefault()) }
+    val stats = data.listeningStats ?: return
     val browsing = LocalBrowsingState.current
     var table by rememberSaveable { mutableStateOf(browsing?.context?.statsTable ?: false) }
     LaunchedEffect(table) { if (browsing != null) browsing.context = browsing.context.copy(statsTable = table) }
@@ -78,7 +76,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
         item { StatHeading(R.string.m4_last_30, R.string.stats_daily_help) }
         if (table) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(stringResource(R.string.m4_day)); Text(stringResource(R.string.m4_time_listened)) } }
-            items(stats.days.asReversed()) { day ->
+            items(stats.days.asReversed(), key = { it.day.toString() }) { day ->
                 if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Text(chartDate(day.day)); Text(listened(day.seconds)) }
                 else Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(chartDate(day.day)); Text(listened(day.seconds)) }
             }
@@ -125,7 +123,7 @@ internal fun ListeningStatsScreen(data: ScreenData, session: Session, findEpisod
         item { ContentActionButton(onClick = { table = !table }) { Text(stringResource(if (table) R.string.m4_show_chart else R.string.m4_show_table)) } }
         item { StatHeading(R.string.m4_top_podcasts, R.string.stats_podcasts_help) }
         val most = stats.podcasts.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
-        items(stats.podcasts) { (id, seconds) ->
+        items(stats.podcasts, key = { it.first }) { (id, seconds) ->
             val subscription = data.subscriptions.find { it["id"] == id }
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ArtworkImage(session, subscription?.get("artwork_url") as? String, 48.dp, placeholderTitle = subscription?.get("title") as? String)

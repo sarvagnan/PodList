@@ -22,6 +22,14 @@ fun podcastEpisodeRows(feed: ParsedFeed): List<Row> = feed.episodes.distinctBy {
     "podcast" to feed.title, "podcast_artwork_url" to feed.artworkUrl
 ) }
 
+/** Feed order wins, and retained local-only Episodes follow in their existing order. */
+fun mergePodcastEpisodeRows(local: List<Row>, feed: List<Row>?): List<Row> {
+    if (feed == null) return local
+    val localByGuid = local.associateBy { it["guid"] }
+    val feedGuids = feed.mapTo(HashSet()) { it["guid"] }
+    return feed.map { localByGuid[it["guid"]] ?: it } + local.filter { it["guid"] !in feedGuids }
+}
+
 fun filterPodcastEpisodes(rows: List<Row>, query: String): List<Row> {
     val text = query.trim().lowercase(Locale.ROOT)
     return if (text.isEmpty()) rows else rows.filter {
