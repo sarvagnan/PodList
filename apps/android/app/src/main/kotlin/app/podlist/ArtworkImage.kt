@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -34,10 +39,11 @@ private val artworkMemory = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
 }
 
-private val artworkRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+private val artworkLoaded = MutableSharedFlow<String>(extraBufferCapacity = 64,
+    onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
-private fun availableArtwork(identity: String): Bitmap? = artworkMemory.snapshot()
-    .filterKeys { it.startsWith("$identity#") }.values.maxByOrNull { it.width * it.height }
+private fun availableArtwork(identity: String): Bitmap? = artworkMemory.snapshot().asSequence()
+    .filter { it.key.startsWith("$identity#") }.map { it.value }.maxByOrNull { it.width * it.height }
 
 private const val ArtworkByteLimit = 16 * 1024 * 1024
 
@@ -57,10 +63,13 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
     val context = LocalContext.current
     val pixels = with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
     val identity = "${session.source.key}#$url"
-    val revision by artworkRevision.collectAsState()
-    val available = remember(identity, revision) { availableArtwork(identity) }
-    val bitmap by key(identity) { produceState<Bitmap?>(available, session.source.key, url, direct, pixels) {
-        value = availableArtwork(identity)
+    val available by key(identity) { produceState<Bitmap?>(null, identity) {
+        if (url == null) return@produceState
+        artworkLoaded.onSubscription { emit(identity) }.filter { it == identity }.collectLatest {
+            value = withContext(Dispatchers.Default) { availableArtwork(identity) }
+        }
+    } }
+    val bitmap by key(identity) { produceState<Bitmap?>(null, direct, pixels) {
         if (url == null) return@produceState
         val publisherSource = direct || pixels > 512
         val endpoint = if (publisherSource) url else session.source.artwork(url, pixels)
@@ -101,7 +110,7 @@ internal fun ArtworkImage(session: Session, url: String?, size: androidx.compose
         }
         if (loaded != null) {
             value = loaded
-            artworkRevision.value++
+            artworkLoaded.tryEmit(identity)
         }
     } }
     val shown = bitmap ?: available

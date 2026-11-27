@@ -5,7 +5,11 @@ import app.podlist.domain.*
 import java.time.Instant
 import java.time.ZoneId
 
-internal data class ScreenData(val state: State, val subscriptions: List<Row>, val episodes: List<Row>, val hasState: Boolean, val hasLibrary: Boolean, val gettingStarted: Boolean = false, val listeningStats: ListeningStats? = null)
+internal data class ScreenData(
+    val state: State, val subscriptions: List<Row>, val episodes: List<Row>, val hasState: Boolean,
+    val hasLibrary: Boolean, val gettingStarted: Boolean = false, val listeningStats: ListeningStats? = null,
+    val episodePositions: Map<String, Double> = emptyMap(),
+)
 
 /** One consistent local read. Saved Views always execute the shared compiler, never a cached id list.
  * Background player reads cannot declare an Add flow closed; navigation supplies its actual state. */
@@ -37,9 +41,17 @@ internal fun readScreen(db: LocalDatabase, route: String?, addFlowOpen: Boolean?
         val introduction = gettingStartedVisible(addFlowOpen = addFlowOpen != false) && (route == null || addFlowOpen == true)
         ScreenData(state, subscriptions, episodes, getMeta("starterViewsMade") != null || getMeta("userCursor") != null, getMeta("starterViewsMade") != null || getMeta("catalogueCursor") != null, introduction)
     }
-    if (route != "listening-stats") return data
-    val played = data.episodes.mapNotNull { data.state.episodeStates[it["id"] as String]?.played }
-    return data.copy(listeningStats = ListeningStats.calculate(data.state.listeningLog.orEmpty(), played, Instant.now(), ZoneId.systemDefault()))
+    val positions = buildMap {
+        for (playlist in data.state.playlists) for (entry in playlist.entries) {
+            val previous = this[entry.episodeId] ?: entry.position
+            put(entry.episodeId, maxOf(previous, entry.position))
+        }
+    }
+    val stats = if (route == "listening-stats") {
+        val played = data.episodes.mapNotNull { data.state.episodeStates[it["id"] as String]?.played }
+        ListeningStats.calculate(data.state.listeningLog.orEmpty(), played, Instant.now(), ZoneId.systemDefault())
+    } else null
+    return data.copy(episodePositions = positions, listeningStats = stats)
 }
 
 private fun LocalDatabase.episodeRows(ids: List<String>): List<Row> = query("""

@@ -16,7 +16,8 @@ import app.podlist.domain.*
 internal fun SubscriptionSettingsScreen(subscription: Row, data: ScreenData, session: Session) {
     val id = subscription["id"] as String
     val model = LocalAppModel.current
-    val overrides = ProtocolJson.decodeFromString<PlaybackSettingsOverride>(subscription["playback_settings"] as String)
+    val settingsJson = subscription["playback_settings"] as String
+    val overrides = remember(settingsJson) { ProtocolJson.decodeFromString<PlaybackSettingsOverride>(settingsJson) }
     val threshold = (subscription["played_threshold"] as? Number)?.toDouble()
     var sheet by rememberSaveable { mutableStateOf<Int?>(null) }
     val global = data.state.playbackSettings

@@ -48,7 +48,10 @@ internal val LocalEntryDrag = staticCompositionLocalOf<EntryDragState?> { null }
 @Composable
 internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, openEpisode: (String) -> Unit, header: (LazyListScope.() -> Unit)? = null, reveal: Reveal? = null, revealConsumed: () -> Unit = {}) {
     val model = LocalAppModel.current
-    val playback by model.playback.collectAsState()
+    val playback = model.playback.collectAsState()
+    val playingPlaylist by remember(playback) {
+        derivedStateOf { playback.value?.takeIf { it.playing }?.playlistId }
+    }
     val list = rememberBrowsingListState("entries:${playlist.id}", if (header == null) playlist.entries.map { it.episodeId } else null)
     val drag = remember(list) { EntryDragState(list) }
     val edge = with(androidx.compose.ui.platform.LocalDensity.current) { 64.dp.toPx() }
@@ -93,7 +96,7 @@ internal fun EntryList(playlist: Playlist, data: ScreenData, session: Session, o
                 val focus = remember { FocusRequester() }
                 val moving = drag.source == entry.episodeId
                 val marked = drag.retained == entry.episodeId
-                val currentLabel = stringResource(if (playlist.id == data.state.activePlaylistId && playback?.playlistId == playlist.id && playback?.playing == true) R.string.cursor_now else R.string.cursor_here)
+                val currentLabel = stringResource(if (playlist.id == data.state.activePlaylistId && playingPlaylist == playlist.id) R.string.cursor_now else R.string.cursor_here)
                 val current = playlist.cursor == entry.episodeId
                 val selected = entry.episodeId in selection?.ids.orEmpty()
                 val highlight by animateColorAsState(if (marked || moving) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
