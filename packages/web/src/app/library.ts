@@ -1,9 +1,11 @@
 import { Effect } from "effect"
 import { Atom } from "effect/reactivity"
+import { localClient } from "#client"
 import { DataLayer } from "../data/DataLayer.ts"
 import { pageControls } from "../data/PagedRead.ts"
 import { LibraryClient, LibraryError } from "../library/LibraryClient.ts"
 import { opmlImport } from "../library/OpmlImport.ts"
+import { LocalWork } from "../platform/LocalWork.ts"
 import { runtime } from "./runtime.ts"
 
 // Library actions. Each asks the server, then syncs at once so the new Subscription
@@ -73,16 +75,28 @@ export const opmlCommandAtom = runtime
           }
         }
         if (typeof command !== "string") {
+          const worker = localClient ? yield* Effect.serviceOption(LocalWork) : undefined
+          const parse =
+            worker?._tag === "Some"
+              ? (xml: string) => Effect.runPromise(worker.value.run({ task: "opml", xml }))
+              : undefined
           yield* Effect.promise(() =>
-            opmlImport.selectFiles(command instanceof File ? [command] : command, known)
+            opmlImport.selectFiles(command instanceof File ? [command] : command, known, parse)
           )
           return
         }
         yield* Effect.promise(() =>
           opmlImport.run(
             known,
-            (feed) => Effect.runPromise(subscribeFeed(feed).pipe(Effect.provide(services))),
-            command === "retry"
+            (feed) =>
+              Effect.runPromise(
+                (localClient
+                  ? Effect.flatMap(LibraryClient, (client) => client.subscribe(feed))
+                  : subscribeFeed(feed)
+                ).pipe(Effect.provide(services))
+              ),
+            command === "retry",
+            localClient ? () => Effect.runPromise(data.sync.pipe(Effect.ignore)) : undefined
           )
         )
       }),

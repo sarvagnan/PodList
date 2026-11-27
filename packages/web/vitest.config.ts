@@ -23,7 +23,7 @@ export default defineProject({
   },
   worker: { format: "es" },
   optimizeDeps: {
-    include: ["react/jsx-dev-runtime"],
+    include: ["react/jsx-dev-runtime", "@podlist/feeds > saxes"],
     exclude: ["@effect/wa-sqlite", "@effect/sql-sqlite-wasm"]
   }
 })

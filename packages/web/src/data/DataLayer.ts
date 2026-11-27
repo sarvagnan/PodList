@@ -1,10 +1,34 @@
 import type { Library, Operation, PlaybackSettings, State, ViewQuery } from "@podlist/domain"
-import { Context, type Effect, type SubscriptionRef } from "effect"
+import { Context, Effect, SubscriptionRef } from "effect"
 import type { PlayerChapter } from "../lib/chapters.ts"
 import type { Offline } from "../sync/Transport.ts"
 
 /** Invalidated after Library metadata changes, for both local and server-backed readers. */
 export const catalogueKey = "catalogue"
+export const playedKey = "local:played"
+export const episodeFactsKey = "local:episode-facts"
+export const entryMembershipKey = "local:entry-membership"
+export const progressMembershipKey = "local:progress-membership"
+
+/** A sequence of edits that can read intermediate State to prepare the next edit or Undo. */
+export type RecordPlan<A> = (state: State.State) => Generator<Operation.Change, A, State.State>
+export type RecordBatch = <A>(plan: RecordPlan<A>) => Effect.Effect<A>
+
+export const recordBatch = <A>(
+  data: Pick<DataLayer["Service"], "state" | "record" | "recordBatch">,
+  plan: RecordPlan<A>
+) =>
+  data.recordBatch
+    ? data.recordBatch(plan)
+    : Effect.gen(function* () {
+        const iterator = plan(yield* SubscriptionRef.get(data.state))
+        let step = iterator.next()
+        while (!step.done) {
+          yield* data.record(step.value)
+          step = iterator.next(yield* SubscriptionRef.get(data.state))
+        }
+        return step.value
+      })
 
 export interface EpisodeSummary {
   readonly id: string
@@ -103,6 +127,7 @@ export class DataLayer extends Context.Service<
     readonly deviceId: string
     /** Accepts an edit. The local adapter persists it before returning. */
     readonly record: (change: Operation.Change) => Effect.Effect<void>
+    readonly recordBatch?: RecordBatch
     readonly sync: Effect.Effect<void, Offline>
     readonly runInBackground: Effect.Effect<never>
     readonly entryEpisodes: (
@@ -114,6 +139,14 @@ export class DataLayer extends Context.Service<
     readonly filterEpisodes: (
       input: ViewQuery.ViewQueryInput
     ) => Effect.Effect<ReadonlyArray<ViewEpisode>, unknown>
+    readonly episodePage?: (
+      source: string | ViewQuery.ViewQueryInput,
+      offset: number,
+      limit: number
+    ) => Effect.Effect<
+      { readonly items: ReadonlyArray<ViewEpisode>; readonly total: number },
+      unknown
+    >
     readonly viewCounts: Effect.Effect<Map<string, number>, unknown>
     readonly episodeDetail: (id: string) => Effect.Effect<EpisodeDetail | null, unknown>
     readonly statsCatalogue: Effect.Effect<StatsCatalogue, unknown>

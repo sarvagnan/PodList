@@ -3,7 +3,7 @@ import { Library, Operation, PlaybackSettings, Units } from "@podlist/domain"
 import { Cause, Effect, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { vi } from "vitest"
-import { DataLayer } from "../data/DataLayer.ts"
+import { DataLayer, recordBatch } from "../data/DataLayer.ts"
 import { LocalDataLayer } from "../data/LocalDataLayer.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { type NowPlaying, Playback } from "../playback/Playback.ts"
@@ -110,9 +110,14 @@ describe("automation uses the local edit layer and named Undo", () => {
       expect(result.value).toEqual({ episode_ids: ["a", "b"], undo: "Undo Star" })
       expect(result.outcome?.message).toBe("Star")
       expect((yield* SubscriptionRef.get(data.state)).episodeStates.a?.starred).toBe(true)
-      for (const c of result.outcome?.undo ?? []) yield* data.record(c)
+      yield* recordBatch(data, function* () {
+        yield* result.outcome?.undo ?? []
+      })
       expect((yield* SubscriptionRef.get(data.state)).episodeStates.a?.starred ?? false).toBe(false)
       expect((yield* SubscriptionRef.get(data.state)).episodeStates.b?.starred ?? false).toBe(false)
+      const redo = yield* perform("set_starred", { episode_ids: ["a", "b"], starred: true })
+      expect(redo.value).toEqual(result.value)
+      expect((yield* SubscriptionRef.get(data.state)).episodeStates.b?.starred).toBe(true)
     }).pipe(Effect.provide(layer))
   )
   it.effect("Play Now has named Undo that restores the old Cursor and Entry order", () =>

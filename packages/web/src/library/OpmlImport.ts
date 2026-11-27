@@ -1,3 +1,5 @@
+import { checkOpml, invalidOpml } from "./opmlFormat.ts"
+
 export interface ImportPodcast {
   readonly feedUrl: string
   readonly title: string
@@ -12,17 +14,14 @@ export interface ImportState {
 }
 
 export function readOpml(xml: string): ReadonlyArray<ImportPodcast> {
-  if (new TextEncoder().encode(xml).length > 8 * 1024 * 1024)
-    throw new Error("Choose an OPML file under 8 MiB.")
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml))
-    throw new Error("OPML files cannot contain DTDs or entities.")
+  checkOpml(xml)
   const doc = new DOMParser().parseFromString(xml, "application/xml")
   if (
     doc.querySelector("parsererror") ||
     doc.documentElement.tagName !== "opml" ||
     !doc.querySelector("opml > body")
   )
-    throw new Error("This file is not valid OPML. Export an OPML file from your other podcast app.")
+    throw invalidOpml()
   const seen = new Set<string>()
   return [...doc.querySelectorAll("body outline[xmlUrl]")].flatMap((outline) => {
     const feedUrl = outline.getAttribute("xmlUrl")?.trim()
@@ -73,7 +72,10 @@ export class OpmlImport {
   }
   async selectFiles(
     files: ReadonlyArray<Pick<File, "name" | "size" | "text">>,
-    known: () => Promise<ReadonlySet<string>>
+    known: () => Promise<ReadonlySet<string>>,
+    parse: (
+      text: string
+    ) => ReadonlyArray<ImportPodcast> | Promise<ReadonlyArray<ImportPodcast>> = readOpml
   ) {
     if (this.state.phase === "running" || !files.length) return
     const name = files.length === 1 ? (files[0]?.name ?? "") : `${files.length} OPML files`
@@ -84,7 +86,7 @@ export class OpmlImport {
         throw new Error("Choose OPML files totalling at most 8 MiB.")
       const podcasts = new Map<string, ImportPodcast>()
       for (const file of files) {
-        for (const podcast of readOpml(await file.text())) {
+        for (const podcast of await parse(await file.text())) {
           if (!podcasts.has(podcast.feedUrl)) podcasts.set(podcast.feedUrl, podcast)
         }
       }
@@ -105,7 +107,8 @@ export class OpmlImport {
   async run(
     known: () => Promise<ReadonlySet<string>>,
     subscribe: (feed: string) => Promise<unknown>,
-    retry = false
+    retry = false,
+    refresh?: () => Promise<unknown>
   ) {
     if (retry ? this.state.phase !== "finished" : this.state.phase !== "ready") return
     const targets = new Set(
@@ -127,9 +130,16 @@ export class OpmlImport {
       event.returnValue = ""
     }
     window.addEventListener("beforeunload", warn)
+    const podcasts = [...this.state.podcasts]
+    let progress: ReturnType<typeof setTimeout> | undefined
+    const publishProgress = () => {
+      clearTimeout(progress)
+      progress = undefined
+      this.update({ ...this.state, podcasts: [...podcasts] })
+    }
     try {
       const existing = new Set(await known())
-      for (const podcast of this.state.podcasts) {
+      for (const [index, podcast] of podcasts.entries()) {
         if (!targets.has(podcast.feedUrl)) continue
         let result: ImportPodcast
         if (existing.has(podcast.feedUrl)) result = { ...podcast, result: "already in the Library" }
@@ -142,15 +152,21 @@ export class OpmlImport {
             result = { ...podcast, result: "failed", reason: reason(error) }
           }
         }
-        this.update({
-          ...this.state,
-          podcasts: this.state.podcasts.map((p) => (p.feedUrl === podcast.feedUrl ? result : p))
-        })
+        podcasts[index] = result
+        if (refresh) progress ??= setTimeout(publishProgress, 100)
+        else publishProgress()
       }
+      if (progress !== undefined) publishProgress()
+      if (
+        refresh &&
+        podcasts.some((podcast) => podcast.result === "added" && targets.has(podcast.feedUrl))
+      )
+        await refresh().catch(() => {})
     } catch (error) {
+      if (progress !== undefined) publishProgress()
       this.update({
         ...this.state,
-        podcasts: this.state.podcasts.map((p) =>
+        podcasts: podcasts.map((p) =>
           targets.has(p.feedUrl) ? { ...p, result: "failed", reason: reason(error) } : p
         )
       })

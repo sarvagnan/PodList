@@ -1,7 +1,7 @@
 import { type Library as LibraryApi, PodListApi, type Subscriptions, Sync } from "@podlist/api"
 import { type Device, type Library, Operation, Protocol } from "@podlist/domain"
 import { Context, Effect, Layer, Schema } from "effect"
-import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http"
+import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
 
 // How the sync engine reaches the server. The web build talks to the same origin
@@ -38,6 +38,7 @@ export class Transport extends Context.Service<
     ) => Effect.Effect<Sync.PushResponse, Offline>
     readonly pull: (since: number) => Effect.Effect<Sync.PullResponse, Offline>
     readonly catalogue: (since: number) => Effect.Effect<LibraryApi.CatalogueChanges, Offline>
+    readonly catalogueText?: (since: number) => Effect.Effect<string, Offline>
     /** An Episode's Chapters; the server resolves and caches them on first request. */
     readonly chapters: (episodeId: string) => Effect.Effect<ReadonlyArray<Library.Chapter>, Offline>
   }
@@ -154,6 +155,18 @@ export class Transport extends Context.Service<
                 headers: { [Protocol.versionHeader]: String(Protocol.version) }
               })
               .pipe(Effect.mapError(offline)),
+          catalogueText: (since) =>
+            client.library
+              .changes({
+                query: { since },
+                headers: { [Protocol.versionHeader]: String(Protocol.version) },
+                responseMode: "response-only"
+              })
+              .pipe(
+                Effect.flatMap(HttpClientResponse.filterStatus((status) => status === 200)),
+                Effect.flatMap((response) => response.text),
+                Effect.mapError(offline)
+              ),
           chapters: (id) =>
             client.library.chapters({ params: { id } }).pipe(Effect.mapError(offline))
         })

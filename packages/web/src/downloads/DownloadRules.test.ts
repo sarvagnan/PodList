@@ -61,6 +61,7 @@ describe("Download Rules worker", () => {
             ready: true
           }),
           record: () => Effect.void,
+          recordBatch: () => Effect.die("unused"),
           sync: Effect.void,
           runInBackground: Effect.never
         })
@@ -127,6 +128,7 @@ describe("Download Rules worker", () => {
             ready: true
           }),
           record: () => Effect.void,
+          recordBatch: () => Effect.die("unused"),
           sync: Effect.void,
           runInBackground: Effect.never
         })

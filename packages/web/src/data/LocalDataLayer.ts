@@ -93,6 +93,7 @@ export const LocalDataLayer = Layer.effect(
       status: engine.status,
       deviceId: engine.deviceId,
       record: engine.record,
+      recordBatch: engine.recordBatch,
       sync: engine.sync,
       runInBackground: engine.runInBackground,
       entryEpisodes: (ids) =>
@@ -204,6 +205,25 @@ export const LocalDataLayer = Layer.effect(
         }),
       filterEpisodes: (input) =>
         withSql(episodesFor(ViewQuery.compile(input, Units.EpochMillis.make(Date.now())))),
+      episodePage: (source, offset, limit) =>
+        Effect.gen(function* () {
+          const query =
+            typeof source === "string"
+              ? compiled(yield* SubscriptionRef.get(engine.state), source)
+              : ViewQuery.compile(source, Units.EpochMillis.make(Date.now()))
+          if (query === undefined) return { items: [], total: 0 }
+          const [row] = yield* sql.unsafe<{ n: number }>(
+            `SELECT count(*) AS n FROM (${query.sql})`,
+            [...query.params]
+          )
+          const items = yield* withSql(
+            episodesFor({
+              sql: `SELECT * FROM (${query.sql}) LIMIT ? OFFSET ?`,
+              params: [...query.params, limit, offset]
+            })
+          )
+          return { items, total: row?.n ?? 0 }
+        }).pipe(sql.withTransaction),
       viewCounts: Effect.gen(function* () {
         const state = yield* SubscriptionRef.get(engine.state)
         const counts = new Map<string, number>()

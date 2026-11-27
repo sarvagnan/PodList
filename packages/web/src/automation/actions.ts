@@ -1,7 +1,7 @@
-import { Operation } from "@podlist/domain"
+import { Operation, type ViewQuery } from "@podlist/domain"
 import { Effect, Schema, SubscriptionRef } from "effect"
 import { type ObjectValue, validate } from "../../../desktop/src/automation/handler.ts"
-import { DataLayer } from "../data/DataLayer.ts"
+import { DataLayer, recordBatch } from "../data/DataLayer.ts"
 import { changesFor, type EpisodeAction, type Outcome, undoFor } from "../lib/episodeActions.ts"
 import { Playback } from "../playback/Playback.ts"
 
@@ -23,18 +23,18 @@ export const perform = (
     const status = yield* SubscriptionRef.get(data.status)
     if (!status.ready) throw new Error("Open PodList and connect to a Library first.")
     const state = yield* SubscriptionRef.get(data.state)
-    const page = (key: string, values: unknown[]) => {
-      const offset = Number(args.offset ?? 0),
-        limit = Number(args.limit ?? 100)
-      return {
-        value: {
-          [key]: values.slice(offset, offset + limit),
-          total: values.length,
-          offset,
-          has_more: offset + limit < values.length
-        }
+    const offset = Number(args.offset ?? 0)
+    const limit = Number(args.limit ?? 100)
+    const paged = (key: string, items: ReadonlyArray<unknown>, total: number) => ({
+      value: {
+        [key]: items,
+        total,
+        offset,
+        has_more: offset + limit < total
       }
-    }
+    })
+    const page = <A>(key: string, items: ReadonlyArray<A>, map: (value: A) => unknown) =>
+      paged(key, items.slice(offset, offset + limit).map(map), items.length)
     const nowPlaying = (checkError = false) =>
       Effect.gen(function* () {
         const now = yield* SubscriptionRef.get(player.now)
@@ -75,33 +75,47 @@ export const perform = (
       starred: state.episodeStates[row.id]?.starred === true,
       played: state.episodeStates[row.id]?.played != null
     })
+    const readEpisodePage = (source: string | ViewQuery.ViewQueryInput) =>
+      Effect.gen(function* () {
+        if (data.episodePage) {
+          const { items, total } = yield* data.episodePage(source, offset, limit)
+          return paged(
+            "episodes",
+            items.map((row) => episode(row)),
+            total
+          )
+        }
+        const items = yield* typeof source === "string"
+          ? data.viewEpisodes(source)
+          : data.filterEpisodes(source)
+        return page("episodes", items, (row) => episode(row))
+      })
     switch (name) {
       case "list_views": {
         const counts = yield* data.viewCounts
-        return page(
-          "views",
-          state.views.map((v) => ({ id: v.id, name: v.name, count: counts.get(v.id) ?? 0 }))
-        )
+        return page("views", state.views, (v) => ({
+          id: v.id,
+          name: v.name,
+          count: counts.get(v.id) ?? 0
+        }))
       }
       case "list_playlists":
-        return page(
-          "playlists",
-          state.playlists.map((p) => ({
-            id: p.id,
-            name: p.name,
-            count: p.entries.length,
-            active: p.id === state.activePlaylistId
-          }))
-        )
+        return page("playlists", state.playlists, (p) => ({
+          id: p.id,
+          name: p.name,
+          count: p.entries.length,
+          active: p.id === state.activePlaylistId
+        }))
       case "list_episodes":
         if ((args.view_id === undefined) === (args.playlist_id === undefined))
           throw new Error("Supply exactly one of view_id or playlist_id.")
         if (args.playlist_id !== undefined) {
           const entries = playlist(args.playlist_id).entries
-          const rows = yield* data.entryEpisodes(entries.map((e) => e.episodeId))
-          return page(
+          const selected = entries.slice(offset, offset + limit)
+          const rows = yield* data.entryEpisodes(selected.map((e) => e.episodeId))
+          return paged(
             "episodes",
-            entries.map((e) =>
+            selected.map((e) =>
               episode(
                 rows.get(e.episodeId) ?? {
                   id: e.episodeId,
@@ -110,24 +124,19 @@ export const perform = (
                 },
                 e.position
               )
-            )
+            ),
+            entries.length
           )
         }
         if (!state.views.some((v) => v.id === args.view_id))
           throw new Error("View unavailable. List Views again.")
-        return page(
-          "episodes",
-          (yield* data.viewEpisodes(String(args.view_id))).map((r) => episode(r))
-        )
+        return yield* readEpisodePage(String(args.view_id))
       case "search_episodes":
-        return page(
-          "episodes",
-          (yield* data.filterEpisodes({
-            filter: { text: String(args.text) },
-            sort: "publishedDesc",
-            limit: null
-          })).map((r) => episode(r))
-        )
+        return yield* readEpisodePage({
+          filter: { text: String(args.text) },
+          sort: "publishedDesc",
+          limit: null
+        })
       case "now_playing":
         return yield* nowPlaying()
       case "play_in_playlist": {
@@ -191,7 +200,6 @@ export const perform = (
         : args.played
           ? "Mark Played"
           : "Mark Unplayed"
-    const undo: Operation.Change[][] = []
     // Repeated Next inserts at the Cursor. Reverse iteration retains the supplied order.
     const unique = [...new Set(ids)]
     const ordered =
@@ -200,69 +208,68 @@ export const perform = (
           ? [...unique].reverse()
           : [...unique.slice(0, 1), ...unique.slice(1).reverse()]
         : unique
-    for (const id of ordered) {
-      const before = yield* SubscriptionRef.get(data.state)
-      const action: EpisodeAction =
-        name === "play_episode"
-          ? { _tag: "PlayNow", episodeId: id }
-          : adding
-            ? {
-                _tag: "Add",
-                episodeId: id,
-                playlistId: target.id,
-                placement: args.placement === "next" ? "next" : "last"
-              }
-            : name === "set_starred"
-              ? { _tag: "Star", episodeId: id, starred: args.starred === true }
-              : { _tag: "Played", episodeId: id, played: args.played === true }
-      for (const c of changesFor(action, before)) yield* data.record(c)
-      const after = yield* SubscriptionRef.get(data.state)
-      undo.unshift([...undoFor(action, before, after, Date.now())])
-    }
-    if (adding) {
-      // Moving the current Entry can shift the insertion anchor. Match the Mac's
-      // final selected block order, including when the Cursor is selected.
-      const current = (yield* SubscriptionRef.get(data.state)).playlists.find(
-        (p) => p.id === target.id
-      )
-      if (
-        current &&
-        current.entries
-          .filter((e) => unique.includes(e.episodeId))
-          .map((e) => e.episodeId)
-          .join("\0") !== unique.join("\0")
-      ) {
-        const first = current.entries.findIndex((e) => unique.includes(e.episodeId))
-        let anchor: string | null = current.entries[first - 1]?.episodeId ?? null
-        for (const id of unique) {
-          yield* data.record(
-            change({ _tag: "MoveEntry", playlistId: target.id, episodeId: id, after: anchor })
-          )
-          anchor = id
-        }
+    const undo = yield* recordBatch(data, function* (currentState) {
+      const undo: Operation.Change[][] = []
+      for (const id of ordered) {
+        const before = currentState
+        const action: EpisodeAction =
+          name === "play_episode"
+            ? { _tag: "PlayNow", episodeId: id }
+            : adding
+              ? {
+                  _tag: "Add",
+                  episodeId: id,
+                  playlistId: target.id,
+                  placement: args.placement === "next" ? "next" : "last"
+                }
+              : name === "set_starred"
+                ? { _tag: "Star", episodeId: id, starred: args.starred === true }
+                : { _tag: "Played", episodeId: id, played: args.played === true }
+        for (const c of changesFor(action, before)) currentState = yield c
+        undo.unshift([...undoFor(action, before, currentState, Date.now())])
       }
-      // Restore the original Playlist as one named step, as on the Mac. All
-      // inverses are normal operations and retain the shared Listening history.
-      const inverse: Operation.Change[] = unique
-        .filter((id) => !target.entries.some((e) => e.episodeId === id))
-        .map((id) => change({ _tag: "RemoveEntry", playlistId: target.id, episodeId: id }))
-      for (const [index, entry] of target.entries.entries())
-        if (unique.includes(entry.episodeId))
-          inverse.push(
-            change({
-              _tag: "MoveEntry",
-              playlistId: target.id,
-              episodeId: entry.episodeId,
-              after: target.entries[index - 1]?.episodeId ?? null
-            })
-          )
-      inverse.push(change({ _tag: "SetCursor", playlistId: target.id, episodeId: target.cursor }))
-      undo.splice(0, undo.length, inverse)
-    }
+      if (adding) {
+        // Moving the current Entry can shift the insertion anchor. Match the Mac's
+        // final selected block order, including when the Cursor is selected.
+        const current = currentState.playlists.find((p) => p.id === target.id)
+        if (
+          current &&
+          current.entries
+            .filter((e) => unique.includes(e.episodeId))
+            .map((e) => e.episodeId)
+            .join("\0") !== unique.join("\0")
+        ) {
+          const first = current.entries.findIndex((e) => unique.includes(e.episodeId))
+          let anchor: string | null = current.entries[first - 1]?.episodeId ?? null
+          for (const id of unique) {
+            yield change({ _tag: "MoveEntry", playlistId: target.id, episodeId: id, after: anchor })
+            anchor = id
+          }
+        }
+        // Restore the original Playlist as one named step, as on the Mac. All
+        // inverses are normal operations and retain the shared Listening history.
+        const inverse: Operation.Change[] = unique
+          .filter((id) => !target.entries.some((e) => e.episodeId === id))
+          .map((id) => change({ _tag: "RemoveEntry", playlistId: target.id, episodeId: id }))
+        for (const [index, entry] of target.entries.entries())
+          if (unique.includes(entry.episodeId))
+            inverse.push(
+              change({
+                _tag: "MoveEntry",
+                playlistId: target.id,
+                episodeId: entry.episodeId,
+                after: target.entries[index - 1]?.episodeId ?? null
+              })
+            )
+        inverse.push(change({ _tag: "SetCursor", playlistId: target.id, episodeId: target.cursor }))
+        undo.splice(0, undo.length, inverse)
+      }
+      return undo.flat()
+    })
     // The cursor is restored by Undo; playback follows State through the existing controller.
     if (name === "play_episode") yield* player.playEntry(state.activePlaylistId, ids[0] as string)
     const value = adding
       ? { playlist_id: target.id, episode_ids: ids, undo: `Undo ${title}` }
       : { episode_ids: ids, undo: `Undo ${title}` }
-    return { value, outcome: { message: title, undo: undo.flat().map((c) => change(c)) } }
+    return { value, outcome: { message: title, undo: undo.map((c) => change(c)) } }
   })

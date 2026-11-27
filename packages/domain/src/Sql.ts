@@ -116,43 +116,62 @@ export const migrations: ReadonlyArray<Migration> = [
 ]
 
 /** Runs the shared migrations with any `effect/sql` SQLite driver (server or browser). */
-export const migrationLoader = Migrator.fromRecord(
-  Object.fromEntries(
-    migrations.map((m) => [
-      `${String(m.id).padStart(4, "0")}_${m.name}`,
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        for (const statement of m.statements) yield* sql.unsafe(statement)
-        if (m.id === 4) yield* backfillMentions
-      })
-    ])
+export const makeMigrationLoader = (
+  fold?: (text: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<string>>
+) =>
+  Migrator.fromRecord(
+    Object.fromEntries(
+      migrations.map((m) => [
+        `${String(m.id).padStart(4, "0")}_${m.name}`,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          for (const statement of m.statements) yield* sql.unsafe(statement)
+          if (m.id === 4) yield* backfillMentionsWith(fold)
+        })
+      ])
+    )
   )
-)
 
 // Runs inside migration 4's transaction, before its journal entry is committed.
 // Bounded batches avoid loading a large Library's show notes into memory at once.
-export const backfillMentions = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
-  for (const table of ["subscription", "episode"] as const) {
-    let after: string | null = null
-    for (;;) {
-      const rows: ReadonlyArray<{ id: string; title: string; description?: string }> =
-        yield* sql.unsafe<{ id: string; title: string; description?: string }>(
-          `SELECT id, title${table === "episode" ? ", description" : ""} FROM ${table} ${after === null ? "" : "WHERE id > ?"} ORDER BY id LIMIT 128`,
-          after === null ? [] : [after]
+const backfillMentionsWith = (
+  fold: (text: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<string>> = (text) =>
+    Effect.sync(() => text.map(Mentions.fold))
+) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    for (const table of ["subscription", "episode"] as const) {
+      let after: string | null = null
+      for (;;) {
+        const rows: ReadonlyArray<{ id: string; title: string; description?: string }> =
+          yield* sql.unsafe<{ id: string; title: string; description?: string }>(
+            `SELECT id, title${table === "episode" ? ", description" : ""} FROM ${table} ${after === null ? "" : "WHERE id > ?"} ORDER BY id LIMIT 128`,
+            after === null ? [] : [after]
+          )
+        if (rows.length === 0) break
+        const isEpisode = table === "episode"
+        const folded = yield* fold(
+          rows.flatMap((row) => (isEpisode ? [row.title, row.description ?? ""] : [row.title]))
         )
-      if (rows.length === 0) break
-      for (const row of rows) {
-        if (table === "episode") {
-          yield* sql`UPDATE episode SET title_folded = ${Mentions.fold(row.title)}, description_folded = ${Mentions.fold(row.description ?? "")} WHERE id = ${row.id}`
-        } else {
-          yield* sql`UPDATE subscription SET title_folded = ${Mentions.fold(row.title)} WHERE id = ${row.id}`
-        }
-        after = row.id
+        const columns = isEpisode ? "id, title_folded, description_folded" : "id, title_folded"
+        const values = rows.map(() => (isEpisode ? "(?, ?, ?)" : "(?, ?)")).join(", ")
+        const params = rows.flatMap((row, i) =>
+          isEpisode ? [row.id, folded[i * 2], folded[i * 2 + 1]] : [row.id, folded[i]]
+        )
+        yield* sql.unsafe(
+          `WITH folded(${columns}) AS (VALUES ${values})
+         UPDATE ${table} SET title_folded = folded.title_folded
+         ${isEpisode ? ", description_folded = folded.description_folded" : ""}
+         FROM folded WHERE ${table}.id = folded.id`,
+          params
+        )
+        after = rows.at(-1)?.id ?? after
       }
     }
-  }
-})
+  })
+
+export const migrationLoader = makeMigrationLoader()
+export const backfillMentions = backfillMentionsWith()
 
 // ---------- State <-> rows ----------
 
@@ -196,61 +215,89 @@ const ListeningJson = Schema.fromJsonString(Listening.Log)
 const TrashJson = Schema.fromJsonString(Schema.Array(TrashedPlaylist))
 const PlayedJson = Schema.fromJsonString(EpisodeState.fields.played)
 
+export const playlistRow = (p: Playlist, ordinal: number): StateRows["playlist"][number] => ({
+  id: p.id,
+  ordinal,
+  doc: Schema.encodeSync(PlaylistJson)(p)
+})
+
+export const viewRow = (v: View, ordinal: number): StateRows["view"][number] => ({
+  id: v.id,
+  ordinal,
+  doc: Schema.encodeSync(ViewJson)(v)
+})
+
+export const episodeStateRow = (s: EpisodeState): StateRows["episode_state"][number] => ({
+  episode_id: s.episodeId,
+  played_at: s.played?.at ?? null,
+  played_source: s.played === null ? null : Schema.encodeSync(PlayedJson)(s.played),
+  starred: s.starred ? 1 : 0
+})
+
+export const entryRow = (
+  playlistId: string,
+  entry: Playlist["entries"][number],
+  ordinal: number
+): StateRows["entry_index"][number] => ({
+  playlist_id: playlistId,
+  episode_id: entry.episodeId,
+  ordinal,
+  position: entry.position
+})
+
+export const downloadRuleRow = (r: DownloadRule): StateRows["download_rule"][number] => ({
+  subscription_id: r.subscriptionId,
+  device_id: r.deviceId,
+  mode: r.mode,
+  keep_at_most: r.keepAtMost,
+  since: r.mode === "allNew" ? (r.since ?? null) : null
+})
+
+const settingEncoders = {
+  listeningLog: Schema.encodeSync(ListeningJson),
+  activePlaylistId: JSON.stringify,
+  playbackSettings: Schema.encodeSync(SettingsJson),
+  trash: Schema.encodeSync(TrashJson),
+  trashDays: JSON.stringify
+}
+
+export const settingKeys = Object.keys(settingEncoders) as Array<keyof typeof settingEncoders>
+
+export const settingRow = <K extends keyof typeof settingEncoders>(
+  state: State,
+  key: K
+): StateRows["setting"][number] | undefined => {
+  const value = state[key]
+  if (value === undefined) return undefined
+  const encode = settingEncoders[key] as (input: NonNullable<State[K]>) => string
+  return { key, value: encode(value) }
+}
+
 /** Rows for every table that mirrors user State. Writers replace these tables wholesale or per key. */
 export const stateToRows = (state: State): StateRows => ({
-  playlist: state.playlists.map((p, ordinal) => ({
-    id: p.id,
-    ordinal,
-    doc: Schema.encodeSync(PlaylistJson)(p)
-  })),
-  view: state.views.map((v, ordinal) => ({
-    id: v.id,
-    ordinal,
-    doc: Schema.encodeSync(ViewJson)(v)
-  })),
-  episode_state: Object.values(state.episodeStates).map((s) => ({
-    episode_id: s.episodeId,
-    played_at: s.played?.at ?? null,
-    played_source: s.played === null ? null : Schema.encodeSync(PlayedJson)(s.played),
-    starred: s.starred ? 1 : 0
-  })),
+  playlist: state.playlists.map(playlistRow),
+  view: state.views.map(viewRow),
+  episode_state: Object.values(state.episodeStates).map(episodeStateRow),
   entry_index: state.playlists.flatMap((p) =>
-    p.entries.map((e, ordinal) => ({
-      playlist_id: p.id,
-      episode_id: e.episodeId,
-      ordinal,
-      position: e.position
-    }))
+    p.entries.map((e, ordinal) => entryRow(p.id, e, ordinal))
   ),
-  download_rule: state.downloadRules.map((r) => ({
-    subscription_id: r.subscriptionId,
-    device_id: r.deviceId,
-    mode: r.mode,
-    keep_at_most: r.keepAtMost,
-    since: r.mode === "allNew" ? (r.since ?? null) : null
-  })),
-  setting: [
-    ...(state.listeningLog === undefined
-      ? []
-      : [{ key: "listeningLog", value: Schema.encodeSync(ListeningJson)(state.listeningLog) }]),
-    { key: "activePlaylistId", value: JSON.stringify(state.activePlaylistId) },
-    { key: "playbackSettings", value: Schema.encodeSync(SettingsJson)(state.playbackSettings) },
-    ...(state.trash === undefined
-      ? []
-      : [{ key: "trash", value: Schema.encodeSync(TrashJson)(state.trash) }]),
-    ...(state.trashDays === undefined
-      ? []
-      : [{ key: "trashDays", value: JSON.stringify(state.trashDays) }])
-  ]
+  download_rule: state.downloadRules.map(downloadRuleRow),
+  setting: settingKeys.flatMap((key) => {
+    const row = settingRow(state, key)
+    return row === undefined ? [] : [row]
+  })
 })
 
 const byOrdinal = <A extends { readonly ordinal: number }>(rows: ReadonlyArray<A>) =>
   [...rows].sort((a, b) => a.ordinal - b.ordinal)
 
+export type StoredStateRows = Pick<
+  StateRows,
+  "playlist" | "view" | "episode_state" | "download_rule" | "setting"
+>
+
 /** Rebuilds State from the document tables; the index tables are derived, not read. */
-export const rowsToState = (
-  rows: Pick<StateRows, "playlist" | "view" | "episode_state" | "download_rule" | "setting">
-): State => {
+export const rowsToState = (rows: StoredStateRows): State => {
   const setting = (key: string) => {
     const row = rows.setting.find((s) => s.key === key)
     if (row === undefined) throw new Error(`missing setting ${key}`)

@@ -8,12 +8,14 @@
     "./publisher": "./src/PublisherFeeds.ts",
     "./directory": "./src/DirectoryResults.ts",
     "./polling": "./src/FeedPolling.ts",
-    "./id3": "./src/Id3Chapters.ts"
+    "./id3": "./src/Id3Chapters.ts",
+    "./opml": "./src/OpmlParser.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "fast-xml-parser": "5.12.0"
+    "fast-xml-parser": "5.12.0",
+    "saxes": "6.0.0"
   }
 }
