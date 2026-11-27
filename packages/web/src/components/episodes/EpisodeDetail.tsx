@@ -1,18 +1,20 @@
 import { useAtomRefresh, useAtomSet, useAtomValue } from "@effect/atom-react"
+import type { Playlist } from "@podlist/domain"
 import { Link } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
 import { Check, ListEnd, ListStart, Pause, Play, Plus, Share, Star } from "lucide-react"
 import type * as React from "react"
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useMemo, useState } from "react"
 import { episodeDetailAtom, type ViewEpisode } from "../../app/data.ts"
-import { useAppState, useCanEdit, useNextLastTarget, useNowPlaying } from "../../app/hooks.ts"
+import { useAppState, useCanEdit, useNextLastTarget, useNowPlayingValue } from "../../app/hooks.ts"
 import { playbackAtom } from "../../app/runtime.ts"
-import { chapterAt } from "../../lib/chapters.ts"
+import { chapterAt, type PlayerChapter } from "../../lib/chapters.ts"
 import { feedAddress } from "../../lib/podListLink.ts"
 import { episodeLink } from "../../lib/share.ts"
 import { showNotes } from "../../lib/showNotes.ts"
 import { formatLength, formatPublished, formatTime } from "../../lib/time.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
+import type { NowPlaying } from "../../playback/Playback.ts"
 import { useCopyEpisodeLink } from "../feedback/useCopyLink.ts"
 import { Artwork } from "../shell/Artwork.tsx"
 import { AddToPlaylist } from "./AddToPlaylist.tsx"
@@ -88,6 +90,7 @@ function Action({
 // panel beside a View), and 7 × 4.25rem + 6 × 0.25rem gaps = 31.25rem. Under them, Play's
 // own row, then 4 (17rem) or 2 across, or 3 (13.25rem) or 2. The seven in one row (the
 // desktop Episode page) start at the header's edge, under the artwork.
+const noChapters: ReadonlyArray<PlayerChapter> = []
 const rowOfFive =
   "grid grid-cols-2 justify-items-center gap-y-4 @min-[17rem]:grid-cols-4 @min-[21.25rem]:flex @min-[21.25rem]:items-start @min-[21.25rem]:justify-center"
 const playOfFive = "col-span-full order-first @min-[21.25rem]:order-none"
@@ -118,7 +121,14 @@ export function EpisodeDetail({
   const row = summary?.id === episodeId ? summary : null
   const detail = AsyncResult.getOrElse(result, () => row)
   const state = useAppState()
-  const now = useNowPlaying()
+  const loaded = useNowPlayingValue((now) => now?.episodeId === episodeId)
+  const playing = useNowPlayingValue((now) => now?.episodeId === episodeId && now.playing)
+  const chapters = fetched?.chapters ?? noChapters
+  const playingChapter = useNowPlayingValue((now) =>
+    now?.episodeId === episodeId ? chapterAt(chapters, now.position) : -1
+  )
+  const description = fetched?.description ?? ""
+  const notes = useMemo(() => showNotes(description), [description])
   const act = useEpisodeActions()
   const control = useAtomSet(playbackAtom)
   const [adding, setAdding] = useState(false)
@@ -155,16 +165,12 @@ export function EpisodeDetail({
   const episodeState = state?.episodeStates[episodeId]
   const played = episodeState ? episodeState.played != null : (row?.played ?? false)
   const starred = episodeState?.starred ?? row?.starred ?? false
-  const loaded = now?.episodeId === episodeId
   const playlists =
     state?.playlists.flatMap((p) => {
       const entry = p.entries.find((e) => e.episodeId === episodeId)
       return entry ? [{ playlist: p, entry }] : []
     }) ?? []
   const website = fetched?.websiteUrl ? feedAddress(fetched.websiteUrl) : null
-  const notes = showNotes(fetched?.description ?? "")
-  const chapters = fetched?.chapters ?? []
-  const playingChapter = loaded ? chapterAt(chapters, now.position) : -1
   const facts = [
     formatPublished(detail.published),
     ...(detail.duration ? [formatLength(detail.duration)] : []),
@@ -271,16 +277,16 @@ export function EpisodeDetail({
           )}
           <Action
             // Play and Pause, as the player and the Playlist row say (not "Playing").
-            label={loaded && now.playing ? "Pause" : "Play"}
+            label={playing ? "Pause" : "Play"}
             onClick={() => {
               if (!loaded) void act({ _tag: "PlayNow", episodeId })
               else control({ _tag: "toggle" })
-              if (!(loaded && now.playing)) onPlay?.()
+              if (!playing) onPlay?.()
             }}
             className={seven ? playOfSeven : playOfFive}
           >
             <span className="grid size-12 place-items-center rounded-full border border-transparent bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80">
-              {loaded && now.playing ? (
+              {playing ? (
                 <Pause aria-hidden="true" className="size-5 fill-current" />
               ) : (
                 <Play aria-hidden="true" className="size-5 translate-x-px fill-current" />
@@ -328,41 +334,16 @@ export function EpisodeDetail({
             In your Playlists
           </h3>
           <ul className="mt-2">
-            {playlists.map(({ playlist, entry }) => {
-              // The Entry that is loaded now: its live Position, and a Play / Pause toggle.
-              const live = loaded && now.playlistId === playlist.id
-              const position = live ? now.position : entry.position
-              return (
-                <li
-                  key={playlist.id}
-                  className={`flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0 ${t.rule}`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-row font-medium">{playlist.name}</span>
-                    <span className={`block text-small ${t.muted}`}>
-                      {live && now.playing
-                        ? `Playing · ${formatTime(position)}${detail.duration ? ` of ${formatTime(detail.duration)}` : ""}`
-                        : position > 0
-                          ? `At ${formatTime(position)}${detail.duration ? ` of ${formatTime(detail.duration)}` : ""}`
-                          : "Not started"}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (live) control({ _tag: "toggle" })
-                      else {
-                        control({ _tag: "playEntry", playlistId: playlist.id, episodeId })
-                        onPlay?.()
-                      }
-                    }}
-                    className={`h-10 rounded-full px-4 text-row font-semibold ${t.action}`}
-                  >
-                    {live && now.playing ? "Pause" : position > 0 ? "Resume" : "Play"}
-                  </button>
-                </li>
-              )
-            })}
+            {playlists.map(({ playlist, entry }) => (
+              <PlaylistPosition
+                key={playlist.id}
+                playlist={playlist}
+                entry={entry}
+                duration={detail.duration}
+                tone={tone}
+                onPlay={onPlay}
+              />
+            ))}
           </ul>
         </section>
       )}
@@ -461,5 +442,58 @@ export function EpisodeDetail({
         />
       )}
     </article>
+  )
+}
+
+/** Only this row needs the live Position written by the media element. */
+function PlaylistPosition({
+  playlist,
+  entry,
+  duration,
+  tone,
+  onPlay
+}: {
+  readonly playlist: Playlist.Playlist
+  readonly entry: Playlist.Entry
+  readonly duration: number | null
+  readonly tone: Tone
+  readonly onPlay: (() => void) | undefined
+}) {
+  const { episodeId } = entry
+  const control = useAtomSet(playbackAtom)
+  const t = tones[tone]
+  const isLive = (now: NowPlaying | null) =>
+    now !== null && now.episodeId === episodeId && now.playlistId === playlist.id
+  const live = useNowPlayingValue(isLive)
+  const playing = useNowPlayingValue((now) => isLive(now) && now?.playing === true)
+  const started = useNowPlayingValue(
+    (now) => (isLive(now) ? (now?.position ?? 0) : entry.position) > 0
+  )
+  const time = useNowPlayingValue((now) =>
+    formatTime(isLive(now) ? (now?.position ?? 0) : entry.position)
+  )
+  const stamp = `${time}${duration ? ` of ${formatTime(duration)}` : ""}`
+  return (
+    <li className={`flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0 ${t.rule}`}>
+      <span className="min-w-0 flex-1">
+        <span className="block text-row font-medium">{playlist.name}</span>
+        <span className={`block text-small ${t.muted}`}>
+          {playing ? `Playing · ${stamp}` : started ? `At ${stamp}` : "Not started"}
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          if (live) control({ _tag: "toggle" })
+          else {
+            control({ _tag: "playEntry", playlistId: playlist.id, episodeId })
+            onPlay?.()
+          }
+        }}
+        className={`h-10 rounded-full px-4 text-row font-semibold ${t.action}`}
+      >
+        {playing ? "Pause" : started ? "Resume" : "Play"}
+      </button>
+    </li>
   )
 }

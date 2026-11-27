@@ -12,6 +12,7 @@ import {
   useState
 } from "react"
 import { createPortal } from "react-dom"
+import { deferredWrite } from "../../lib/deferredWrite.ts"
 import { useMinWidth } from "../../lib/useWide.ts"
 import { Tip } from "../feedback/Tip.tsx"
 import {
@@ -57,13 +58,25 @@ function useDesktopPanesState() {
   useLayoutEffect(() => {
     setPanes((state) => updatePanes(state, wide, { type: "layout" }))
   }, [wide])
-  useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(panes))
-    } catch {
-      // The window can still keep its pane choices in memory.
+  const [storage] = useState(() =>
+    deferredWrite((saved: typeof panes) => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(saved))
+      } catch {
+        // The window can still keep its pane choices in memory.
+      }
+    })
+  )
+  useLayoutEffect(() => {
+    storage.set(panes)
+  }, [panes, storage])
+  useLayoutEffect(() => {
+    window.addEventListener("pagehide", storage.flush)
+    return () => {
+      window.removeEventListener("pagehide", storage.flush)
+      storage.flush()
     }
-  }, [panes])
+  }, [storage])
 
   // Track focus while it is still mounted, including when a resize removes a pane.
   useEffect(() => {

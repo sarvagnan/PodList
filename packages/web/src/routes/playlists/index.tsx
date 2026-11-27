@@ -5,7 +5,7 @@ import { AsyncResult } from "effect/reactivity"
 import { Plus } from "lucide-react"
 import { useState } from "react"
 import { entryEpisodesAtom } from "../../app/data.ts"
-import { useAppState, useNowPlaying } from "../../app/hooks.ts"
+import { useAppState, usePlayingPlaylistId } from "../../app/hooks.ts"
 import { EmptyState, ListRow, LoadingRows, StatusBadge } from "../../components/lists/ListRow.tsx"
 import { NewPlaylistDialog } from "../../components/playlists/NewPlaylistDialog.tsx"
 import { Artwork } from "../../components/shell/Artwork.tsx"
@@ -22,7 +22,7 @@ const entries = (n: number) => `${n} ${n === 1 ? "Entry" : "Entries"}`
 
 function PlaylistsList() {
   const state = useAppState()
-  const now = useNowPlaying()
+  const playingPlaylistId = usePlayingPlaylistId()
   const episodes = AsyncResult.getOrElse(useAtomValue(entryEpisodesAtom), () => new Map())
   const [adding, setAdding] = useState(false)
   const search = useListSearch("playlists")
@@ -68,7 +68,7 @@ function PlaylistsList() {
             ]
             // An empty Active Playlist has nothing to be paused on: it's just the Active one.
             const status = active
-              ? now?.playlistId === p.id && now.playing
+              ? playingPlaylistId === p.id
                 ? "Playing"
                 : p.entries.length === 0
                   ? "Active"

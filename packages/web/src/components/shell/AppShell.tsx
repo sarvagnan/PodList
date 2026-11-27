@@ -609,7 +609,15 @@ function useMenuBackLayer() {
   useEffect(() => {
     const check = () => setOpen(document.querySelector('[role="menu"]') !== null)
     check()
-    const observer = new MutationObserver(check)
+    const containsMenu = (node: Node) =>
+      node instanceof Element &&
+      (node.matches('[role="menu"]') || node.querySelector('[role="menu"]') !== null)
+    const observer = new MutationObserver((records) => {
+      if (
+        records.some((record) => [...record.addedNodes, ...record.removedNodes].some(containsMenu))
+      )
+        check()
+    })
     observer.observe(document.body, { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [])

@@ -1,5 +1,7 @@
 import { useRouter } from "@tanstack/react-router"
 import { useEffect, useLayoutEffect, useRef } from "react"
+import { localClient } from "#client"
+import { deferredWrite } from "./deferredWrite.ts"
 import { scrollEntry } from "./overlayScroll.ts"
 
 // Back, Forward and reload return a list to where it was scrolled (BROWSER-01, DATA-06).
@@ -23,19 +25,32 @@ export function useScrollMemory(ready: boolean) {
     settled.current = false
   }, [entry])
   useEffect(() => {
-    const save = () => {
-      if (!settled.current) return
-      // Leaving this screen resets the scroll; that isn't this entry's position.
-      if (scrollEntry(history.location.state) !== entry) return
+    const write = (position: number) => {
       try {
-        sessionStorage.setItem(storageKey(entry), String(Math.round(window.scrollY)))
+        sessionStorage.setItem(storageKey(entry), String(position))
       } catch {
         // Not remembered.
       }
     }
+    const storage = deferredWrite(write)
+    const save = () => {
+      if (!settled.current) return
+      // Leaving this screen resets the scroll; that isn't this entry's position.
+      if (scrollEntry(history.location.state) !== entry) return
+      const position = Math.round(window.scrollY)
+      if (localClient) storage.set(position)
+      else write(position)
+    }
     window.addEventListener("scroll", save, { passive: true })
-    return () => window.removeEventListener("scroll", save)
-  }, [entry, history])
+    window.addEventListener("pagehide", storage.flush)
+    const leave = router.subscribe("onBeforeNavigate", storage.flush)
+    return () => {
+      leave()
+      window.removeEventListener("scroll", save)
+      window.removeEventListener("pagehide", storage.flush)
+      storage.flush()
+    }
+  }, [entry, history, router])
 
   // Restore once the list is ready, and again if the router renders this entry later:
   // it scrolls to the top when it does, which would undo a restore made before then.

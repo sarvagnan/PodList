@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react"
 import { Listening } from "@podlist/domain"
 import { createFileRoute } from "@tanstack/react-router"
 import { AsyncResult } from "effect/reactivity"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { statsCatalogueAtom } from "../app/data.ts"
 import { useAppState, useLibraryReady } from "../app/hooks.ts"
 import { EmptyState, LoadingRows } from "../components/lists/ListRow.tsx"
@@ -33,6 +33,20 @@ function ListeningStats() {
     const timer = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(timer)
   }, [])
+  const episodes = AsyncResult.isSuccess(catalogue) ? catalogue.value.episodes : undefined
+  const facts = state?.episodeStates
+  const listeningLog = state?.listeningLog
+  const played = useMemo(
+    () =>
+      Object.values(facts ?? {}).flatMap((episode) =>
+        episodes?.has(episode.episodeId) && episode.played !== null ? [episode.played] : []
+      ),
+    [facts, episodes]
+  )
+  const stats = useMemo(
+    () => Listening.stats(listeningLog ?? {}, played, now),
+    [listeningLog, played, now]
+  )
   if (
     state === null ||
     !ready ||
@@ -50,10 +64,6 @@ function ListeningStats() {
       </>
     )
   }
-  const played = Object.values(state.episodeStates).flatMap((e) =>
-    catalogue.value.episodes.has(e.episodeId) && e.played !== null ? [e.played] : []
-  )
-  const stats = Listening.stats(state.listeningLog ?? {}, played, now)
   const empty = stats.totals.every((p) => p.seconds === 0 && p.finished === 0)
   const maximum = Math.max(60, ...stats.days.map((d) => d.seconds))
   // Equal periods add no comparison: say their shared scope once (TYPE-02, COPY-03).
