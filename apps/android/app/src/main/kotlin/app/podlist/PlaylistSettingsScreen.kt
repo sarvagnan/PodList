@@ -76,12 +76,14 @@ internal fun NewPlaylistScreen(model: AppModel, data: ScreenData, created: (Stri
     fun submit() {
         interacted = "true"
         if (busy || problem != null) return
-        drafts.flush()
         val submitted = drafts.snapshot("new-playlist/")
+        val submittedName = name
         busy = true
-        model.createPlaylist(name) { id, error ->
-            busy = false; rejected = error
-            if (id != null) { drafts.clearIfUnchanged("new-playlist/", submitted); created(id) }
+        model.afterDraftsSaved(drafts, failed = { busy = false }) {
+            model.createPlaylist(submittedName) { id, error ->
+                busy = false; rejected = error
+                if (id != null) { drafts.clearIfUnchanged("new-playlist/", submitted); created(id) }
+            }
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {

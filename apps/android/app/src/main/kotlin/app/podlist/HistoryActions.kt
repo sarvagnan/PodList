@@ -86,10 +86,12 @@ private fun AppModel.traverseHistory(redo: Boolean) {
                 return@withLock
             }
             try {
-                withContext(Dispatchers.IO) { flushFormDrafts?.invoke() }
+                val drafts = loadedFormDrafts(current)
+                drafts?.flush()
                 var feedback: AppMessage? = null
                 history.reverse(redo) { step -> step.apply().also { it.description = step.description; feedback = it.feedback } }
                 subscriptionTransitions.value += step.subscriptionTargets.mapValues { AppModel.SubscriptionTransition(it.value, pending = false) }
+                drafts?.reload()
                 undoRevision.value++
                 updateHistoryActions()
                 val description = checkNotNull(step.description)
@@ -171,9 +173,13 @@ internal fun AppModel.discardDraft(
     discarded: () -> Unit = {}
 ) {
     val current = session.value ?: return
-    finishTyping()
-    val snapshot = drafts.replaceDraft(listOf(prefix), emptyMap(), prefix)
-    recordHistory(current, AppMessage(R.string.draft_discarded, feedbackSheet = feedbackSheet),
-        draftStep(drafts, listOf(prefix), snapshot, prefix, restored, discarded))
-    discarded()
+    viewModelScope.launch { editLock.withLock {
+        if (session.value !== current) return@withLock
+        finishTyping()
+        if (drafts.snapshot(prefix).isEmpty()) return@withLock
+        val snapshot = drafts.replaceDraft(listOf(prefix), emptyMap(), prefix)
+        recordHistory(current, AppMessage(R.string.draft_discarded, feedbackSheet = feedbackSheet),
+            draftStep(drafts, listOf(prefix), snapshot, prefix, restored, discarded))
+        discarded()
+    } }
 }

@@ -49,9 +49,11 @@ internal val LocalPlaybackStarted = staticCompositionLocalOf<() -> Unit> { {} }
 /** Lives inside NavigationSuiteScaffold's content bounds: the navigation bar stays reachable. */
 @Composable
 internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (String) -> Unit, collapseNavigation: Int, content: @Composable () -> Unit) {
-    val now by model.playback.collectAsState()
+    val playback = model.playback.collectAsState()
+    val episode by remember(playback) { derivedStateOf { playback.value?.metadata?.episodeId } }
+    val playbackError by remember(playback) { derivedStateOf { playback.value?.error == true } }
     val contextual = LocalContextualChrome.current?.hidden == true
-    val peek by androidx.compose.animation.core.animateDpAsState(if (now == null || contextual) 0.dp else 72.dp, label = "Player chrome")
+    val peek by androidx.compose.animation.core.animateDpAsState(if (episode == null || contextual) 0.dp else 72.dp, label = "Player chrome")
     val revision by model.revision.collectAsState()
     var addEpisodes by rememberSaveable { mutableStateOf<List<String>?>(null) }
     val restoredDraft by model.restorePlaylistDraft.collectAsState()
@@ -83,10 +85,10 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
             if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
         }
     }
-    LaunchedEffect(now?.error, now?.metadata?.episodeId) {
-        if (now?.error == true) model.messages.send(AppMessage(R.string.playback_error, R.string.retry_playback, undo = model::togglePlayback))
+    LaunchedEffect(playbackError, episode) {
+        if (playbackError) model.messages.send(AppMessage(R.string.playback_error, R.string.retry_playback, undo = model::togglePlayback))
     }
-    LaunchedEffect(now?.metadata?.episodeId) { if (now == null) { pages = emptyList(); sheet.bottomSheetState.partialExpand() } }
+    LaunchedEffect(episode) { if (episode == null) { pages = emptyList(); sheet.bottomSheetState.partialExpand() } }
     // Registered after destination navigation so it receives Back before the normal stack.
     CompositionLocalProvider(LocalSheetFeedback provides feedback, LocalAppModel provides model, LocalAddEpisode provides { addEpisodes = listOf(it) }, LocalPlaybackStarted provides { pages = emptyList() }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -94,10 +96,10 @@ internal fun PlayerContainer(model: AppModel, session: Session, openPlaylist: (S
             BottomSheetScaffold(
                 scaffoldState = sheet,
                 sheetPeekHeight = peek,
-                sheetSwipeEnabled = now != null && !contextual,
+                sheetSwipeEnabled = episode != null && !contextual,
                 sheetDragHandle = null,
                 sheetContent = {
-                    now?.let { current ->
+                    playback.value?.let { current ->
                         Column(Modifier.fillMaxWidth().height(height).then(if (expanded) Modifier.statusBarsPadding() else Modifier).graphicsLayer { translationY = predictiveProgress * 24.dp.toPx() }) {
                             if (!expanded && !contextual) MiniPlayer(current, session, model, expand = { pages = emptyList(); scope.launch { sheet.bottomSheetState.expand() } }, openPlaylist = {
                                 scope.launch { sheet.bottomSheetState.partialExpand(); val active = withContext(Dispatchers.IO) { session.db.loadState().activePlaylistId }; openPlaylist(active) }

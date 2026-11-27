@@ -36,7 +36,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.podlist.data.Row
-import app.podlist.data.FormDraftStore
 import app.podlist.data.loadBrowsingContext
 import app.podlist.data.saveBrowsingContext
 import androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem
@@ -82,15 +81,10 @@ internal fun ConnectedShell(model: AppModel, session: Session) {
         snapshotFlow { browsing.context }.collect { context -> withContext(Dispatchers.IO) { session.db.saveBrowsingContext(context) } }
     }
     val drafts by produceState<FormDraftState?>(null, session) {
-        value = withContext(Dispatchers.IO) { val store = FormDraftStore(session.db); FormDraftState(store, store.load()) }
+        value = model.formDrafts(session)
     }
     val readyDrafts = drafts ?: return
-    DisposableEffect(readyDrafts) {
-        model.flushFormDrafts = readyDrafts::flush
-        onDispose { model.flushFormDrafts = null; readyDrafts.close() }
-    }
-    val undoRevision by model.undoRevision.collectAsState()
-    LaunchedEffect(undoRevision) { readyDrafts.reload() }
+    DisposableEffect(readyDrafts) { onDispose { readyDrafts.requestFlush() } }
     CompositionLocalProvider(LocalBrowsingState provides browsing, LocalFormDrafts provides readyDrafts) { ConnectedNavigation(model, session, browsing) }
 }
 
@@ -263,7 +257,7 @@ private fun DestinationStack(destination: Destination, model: AppModel, session:
                             else -> loaded?.episodes?.firstOrNull()?.get("title") as? String ?: stringResource(R.string.episode)
                         }
                         if (route?.startsWith("podcast:") == true || route?.startsWith("subscription:") == true) {
-                            val result = if (route.startsWith("podcast:")) podcastFromRoute(route) else loaded?.subscriptions?.find { it["id"] == route.substringAfter(':') }?.let { row ->
+                            val result = if (route.startsWith("podcast:")) remember(route) { podcastFromRoute(route) } else loaded?.subscriptions?.find { it["id"] == route.substringAfter(':') }?.let { row ->
                                 app.podlist.data.DirectoryResult(title = row["title"] as String, author = row["author"] as? String, feedUrl = row["feed_url"] as String, artworkUrl = row["artwork_url"] as? String, source = "library")
                             }
                             if (result == null || loaded == null) Loading() else pages.SaveableStateProvider(route) {
@@ -536,7 +530,7 @@ internal fun EpisodeRow(row: Row, data: ScreenData, session: Session, position: 
     val selection = LocalEpisodeSelection.current.takeIf { onClick != null }
     val selecting = selection?.ids?.isNotEmpty() == true
     val id = row["id"] as String
-    val progress = position ?: data.state.playlists.flatMap { it.entries }.filter { it.episodeId == row["id"] }.maxOfOrNull { it.position } ?: 0.0
+    val progress = position ?: data.episodePositions[id] ?: 0.0
     val duration = (row["duration"] as? Number)?.toDouble()
     val stacked = LocalDensity.current.fontScale >= 1.5f && entryPlaylist == null
     val actions: @Composable () -> Unit = {
@@ -619,7 +613,8 @@ internal fun EpisodeDetail(data: ScreenData, session: Session,
     val id = row["id"] as String
     fun act(action: (String) -> Unit) { if (resolve != null) resolve(row, action) else action(id) }
     LaunchedEffect(session, id) { if (resolve == null) withContext(Dispatchers.IO) { runCatching { session.source.chapters(id) } } }
-    val chapters = (row["chapters"] as? String)?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty()
+    val chapterJson = row["chapters"] as? String
+    val chapters = remember(chapterJson) { chapterJson?.let { ProtocolJson.decodeFromString<List<Chapter>>(it) }.orEmpty() }
     val notes = showNotes(row["description"] as? String ?: "")
     val collapsingTitle = LocalCollapsingTitle.current
     LazyColumn(state = rememberBrowsingListState(), modifier = Modifier.fillMaxSize().then(collapsingTitle?.viewport() ?: Modifier)) {

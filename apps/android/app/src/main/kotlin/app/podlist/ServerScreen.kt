@@ -32,7 +32,7 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
         Text(stringResource(R.string.connect_help), style = MaterialTheme.typography.bodyLarge)
         var fieldValue by remember { mutableStateOf(TextFieldValue(input, draftSelection(selection, input.length))) }
         if (fieldValue.text != input) fieldValue = TextFieldValue(input, draftSelection(selection, input.length))
-        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerAddressDraft(it.text); model.setServerAddressSelection("${it.selection.start},${it.selection.end}"); model.connectionError.value = null },
+        OutlinedTextField(value = fieldValue, onValueChange = { fieldValue = it; model.setServerDraft(it.text, "${it.selection.start},${it.selection.end}"); model.connectionError.value = null },
             label = { Text(stringResource(R.string.server_address)) },
             singleLine = true, enabled = !checking, isError = error != null,
             supportingText = { val problem = error; if (problem == null) Text(stringResource(R.string.server_example)) else InlineError(stringResource(when (problem) {
@@ -45,12 +45,10 @@ internal fun ServerScreen(model: AppModel, current: String?, connected: (() -> U
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { if (!checking && input.isNotBlank()) model.connect(input) { connected?.invoke() } }), modifier = Modifier.fillMaxWidth().then(FocusedInputModifier()))
         if (snackbar.currentSnackbarData != null) FeedbackSnackbarHost(snackbar)
         CommitActions(gap = 24.dp) {
-            if (draft != null && draft != current.orEmpty()) TextButton(onClick = {
+            if (draft != null && draft != current.orEmpty()) TextButton(onClick = { scope.launch {
                 val undo = model.discardServerDraft()
-                if (undo != null) scope.launch {
-                    if (snackbar.showSnackbar(discarded, undoLabel, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) undo()
-                }
-            }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
+                if (undo != null && snackbar.showSnackbar(discarded, undoLabel, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) undo()
+            } }, enabled = !checking, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.discard_draft))
             }
             CommitButton(onClick = { model.connect(input) { connected?.invoke() } }, enabled = !checking && input.isNotBlank()) {

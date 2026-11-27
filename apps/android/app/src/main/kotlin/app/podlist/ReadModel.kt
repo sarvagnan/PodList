@@ -2,37 +2,56 @@ package app.podlist
 
 import app.podlist.data.*
 import app.podlist.domain.*
+import java.time.Instant
+import java.time.ZoneId
 
-internal data class ScreenData(val state: State, val subscriptions: List<Row>, val episodes: List<Row>, val hasState: Boolean, val hasLibrary: Boolean, val gettingStarted: Boolean = false)
+internal data class ScreenData(
+    val state: State, val subscriptions: List<Row>, val episodes: List<Row>, val hasState: Boolean,
+    val hasLibrary: Boolean, val gettingStarted: Boolean = false, val listeningStats: ListeningStats? = null,
+    val episodePositions: Map<String, Double> = emptyMap(),
+)
 
 /** One consistent local read. Saved Views always execute the shared compiler, never a cached id list.
  * Background player reads cannot declare an Add flow closed; navigation supplies its actual state. */
-internal fun readScreen(db: LocalDatabase, route: String?, addFlowOpen: Boolean? = null): ScreenData = db.transaction {
-    initializeGettingStarted()
-    val state = loadState()
-    val subscriptionRows = query("SELECT s.*, f.failures AS refresh_failures, f.checked_at AS refresh_checked_at, (SELECT count(*) FROM episode e WHERE e.subscription_id = s.id) AS episode_count FROM subscription s LEFT JOIN feed_state f ON f.subscription_id = s.id ORDER BY s.title COLLATE NOCASE, s.id")
-    val overrides = pendingSubscriptionOverrides()
-    val subscriptions = subscriptionRows.map { original ->
-        val row = original + ("refreshed_at" to getMeta("feedRefreshed:${original["id"]}")?.toLongOrNull())
-        overrides.lastOrNull { it.subscriptionId == row["id"] }?.let {
-        row + mapOf("playback_settings" to ProtocolJson.encodeToString(PlaybackSettingsOverride.serializer(), it.playbackSettings), "played_threshold" to it.playedThreshold)
-    } ?: row }
-    val id = route?.substringAfter(':', "")
-    val episodes = when {
-        route?.startsWith("view:") == true -> state.views.find { it.id == id }?.let { evaluate(it, System.currentTimeMillis()) }.orEmpty()
-        route?.startsWith("subscription:") == true -> podcastEpisodes(id!!)
-        (route?.startsWith("playlist:") == true || route?.startsWith("playlist-settings:") == true) -> {
-            val playlist = state.playlists.find { it.id == id }
-            val ids = (playlist?.entries.orEmpty().map { it.episodeId } + playlist?.history.orEmpty().map { it.episodeId } + playlist?.timeline.orEmpty().map { it.episodeId } + playlist?.edits.orEmpty().map { it.episodeId }).distinct()
-            ids.chunked(500).flatMap { chunk -> episodeRows(chunk) }
+internal fun readScreen(db: LocalDatabase, route: String?, addFlowOpen: Boolean? = null): ScreenData {
+    val data = db.transaction {
+        initializeGettingStarted()
+        val state = loadState()
+        val subscriptionRows = query("SELECT s.*, f.failures AS refresh_failures, f.checked_at AS refresh_checked_at, (SELECT count(*) FROM episode e WHERE e.subscription_id = s.id) AS episode_count FROM subscription s LEFT JOIN feed_state f ON f.subscription_id = s.id ORDER BY s.title COLLATE NOCASE, s.id")
+        val overrides = pendingSubscriptionOverrides()
+        val subscriptions = subscriptionRows.map { original ->
+            val row = original + ("refreshed_at" to getMeta("feedRefreshed:${original["id"]}")?.toLongOrNull())
+            overrides.lastOrNull { it.subscriptionId == row["id"] }?.let {
+            row + mapOf("playback_settings" to ProtocolJson.encodeToString(PlaybackSettingsOverride.serializer(), it.playbackSettings), "played_threshold" to it.playedThreshold)
+        } ?: row }
+        val id = route?.substringAfter(':', "")
+        val episodes = when {
+            route?.startsWith("view:") == true -> state.views.find { it.id == id }?.let { evaluate(it, System.currentTimeMillis()) }.orEmpty()
+            route?.startsWith("subscription:") == true -> podcastEpisodes(id!!)
+            (route?.startsWith("playlist:") == true || route?.startsWith("playlist-settings:") == true) -> {
+                val playlist = state.playlists.find { it.id == id }
+                val ids = (playlist?.entries.orEmpty().map { it.episodeId } + playlist?.history.orEmpty().map { it.episodeId } + playlist?.timeline.orEmpty().map { it.episodeId } + playlist?.edits.orEmpty().map { it.episodeId }).distinct()
+                ids.chunked(500).flatMap { chunk -> episodeRows(chunk) }
+            }
+            route == "listening-stats" -> query("SELECT e.id FROM episode_state st JOIN episode e ON e.id = st.episode_id WHERE st.played_source IS NOT NULL")
+            route?.startsWith("episode:") == true -> episodeRows(listOf(id!!))
+            else -> emptyList()
         }
-        route == "listening-stats" -> query("SELECT id FROM episode")
-        route?.startsWith("episode:") == true -> episodeRows(listOf(id!!))
-        else -> emptyList()
+        // Android opens the Views overview. Its detail Views keep their own empty states.
+        val introduction = gettingStartedVisible(addFlowOpen = addFlowOpen != false) && (route == null || addFlowOpen == true)
+        ScreenData(state, subscriptions, episodes, getMeta("starterViewsMade") != null || getMeta("userCursor") != null, getMeta("starterViewsMade") != null || getMeta("catalogueCursor") != null, introduction)
     }
-    // Android opens the Views overview. Its detail Views keep their own empty states.
-    val introduction = gettingStartedVisible(addFlowOpen = addFlowOpen != false) && (route == null || addFlowOpen == true)
-    ScreenData(state, subscriptions, episodes, getMeta("starterViewsMade") != null || getMeta("userCursor") != null, getMeta("starterViewsMade") != null || getMeta("catalogueCursor") != null, introduction)
+    val positions = buildMap {
+        for (playlist in data.state.playlists) for (entry in playlist.entries) {
+            val previous = this[entry.episodeId] ?: entry.position
+            put(entry.episodeId, maxOf(previous, entry.position))
+        }
+    }
+    val stats = if (route == "listening-stats") {
+        val played = data.episodes.mapNotNull { data.state.episodeStates[it["id"] as String]?.played }
+        ListeningStats.calculate(data.state.listeningLog.orEmpty(), played, Instant.now(), ZoneId.systemDefault())
+    } else null
+    return data.copy(episodePositions = positions, listeningStats = stats)
 }
 
 private fun LocalDatabase.episodeRows(ids: List<String>): List<Row> = query("""

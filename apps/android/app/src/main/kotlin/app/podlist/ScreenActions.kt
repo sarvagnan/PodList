@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /** Capture inverses against the latest local State, in the same transaction as the edit. */
-internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, formatArgs: List<Any> = emptyList(), notify: Boolean = true, quantity: Int? = null, inverse: (State) -> List<Change>) {
+internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playbackPlaylist: String? = null, formatArgs: List<Any> = emptyList(), notify: Boolean = true, quantity: Int? = null, stateFormatArgs: (State) -> List<Any> = { formatArgs }, inverse: (State) -> List<Change>) {
     val current = session.value ?: return
     val sheet = feedbackSheet
     val action: suspend () -> Unit = {
@@ -22,9 +22,9 @@ internal fun AppModel.changeWithUndo(changes: List<Change>, message: Int, playba
                 val before = loadState()
                 val result = inverse(before)
                 recordAll(changes, System.currentTimeMillis())
-                result to restoredMessage(before, loadState(), changes)
+                result to (restoredMessage(before, loadState(), changes) ?: AppMessage(message, formatArgs = stateFormatArgs(before), quantity = quantity))
             } }
-            recordHistory(current, (result.second ?: AppMessage(message, formatArgs = formatArgs, quantity = quantity)).copy(feedbackSheet = sheet), changesStep(current, result.first, playbackPlaylist), notify = notify)
+            recordHistory(current, result.second.copy(feedbackSheet = sheet), changesStep(current, result.first, playbackPlaylist), notify = notify)
         }
     }
     if (playbackPlaylist != null) playbackEdit(playbackPlaylist, action)
@@ -36,13 +36,14 @@ internal fun AppModel.rewind(playlistId: String, to: Long) {
     playbackEdit(playlistId) {
         editLock.withLock {
             if (session.value !== current) return@withLock
-            val inverse = withContext(Dispatchers.IO) { current.db.transaction {
+            val (inverse, name) = withContext(Dispatchers.IO) { current.db.transaction {
                 val before = loadState()
                 val at = System.currentTimeMillis()
                 record(Change.Rewind(playlistId, to), at)
-                TimelinePresentation.undo(before, loadState(), playlistId, at + 1)
+                val after = loadState()
+                TimelinePresentation.undo(before, after, playlistId, at + 1) to after.playlists.find { it.id == playlistId }?.name.orEmpty()
             } }
-            recordHistory(current, AppMessage(R.string.rewound, formatArgs = listOf(current.db.loadState().playlists.find { it.id == playlistId }?.name.orEmpty())), changesStep(current, inverse, playlistId))
+            recordHistory(current, AppMessage(R.string.rewound, formatArgs = listOf(name)), changesStep(current, inverse, playlistId))
         }
     }
 }
@@ -173,7 +174,7 @@ internal fun editMessage(change: Change): Int = when (change) {
 }
 
 internal fun AppModel.removeEntry(playlist: String, episode: String) {
-    changeWithUndo(listOf(Change.RemoveEntry(playlist, episode)), R.string.entry_removed, playbackPlaylist = playlist, formatArgs = listOf(currentPlaylistName(playlist))) { before ->
+    changeWithUndo(listOf(Change.RemoveEntry(playlist, episode)), R.string.entry_removed, playbackPlaylist = playlist, stateFormatArgs = { state -> listOf(state.playlists.find { it.id == playlist }?.name.orEmpty()) }) { before ->
         before.playlists.find { it.id == playlist }?.let { EditUndo.removeEntry(it, episode, System.currentTimeMillis() + 1) }.orEmpty()
     }
 }
@@ -202,5 +203,3 @@ internal fun AppModel.saveNamedView(view: View, message: Int = R.string.view_cha
         catch (_: Exception) { messages.trySend(AppMessage(R.string.name_save_failed)); failed() }
     } }
 }
-
-private fun AppModel.currentPlaylistName(id: String): String = session.value?.db?.loadState()?.playlists?.find { it.id == id }?.name.orEmpty()

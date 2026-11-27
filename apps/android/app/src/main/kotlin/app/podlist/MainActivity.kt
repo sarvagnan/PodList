@@ -1,6 +1,7 @@
 package app.podlist
 
 import android.os.Bundle
+import app.podlist.data.DraftCheckpoint
 import android.content.Intent
 import android.view.KeyEvent
 import android.view.KeyboardShortcutGroup
@@ -32,6 +33,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val model = (application as PodListApplication).model
+        savedInstanceState?.getBundle(DraftStateKey)?.let { saved ->
+            if (saved.getString("process") != DraftProcess) {
+                saved.getBundle("server")?.let(::readDraftCheckpoint)?.let(model::restoreServerDraft)
+                saved.getBundle("drafts")?.let { drafts ->
+                    model.restoreDraftCheckpoints(drafts.keySet().mapNotNull { key ->
+                        drafts.getBundle(key)?.let(::readDraftCheckpoint)?.let { key to it }
+                    }.toMap())
+                }
+            }
+        }
         if (savedInstanceState == null) handleIncoming(intent)
         setContent {
             val appearance by model.appearance.collectAsState()
@@ -80,6 +91,18 @@ class MainActivity : ComponentActivity() {
         super.onProvideKeyboardShortcuts(data, menu, deviceId)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        val model = (application as PodListApplication).model
+        val drafts = Bundle()
+        model.draftCheckpoints().forEach { (origin, checkpoint) -> drafts.putBundle(origin, checkpoint.toBundle()) }
+        outState.putBundle(DraftStateKey, Bundle().apply {
+            putString("process", DraftProcess)
+            putBundle("drafts", drafts)
+            model.serverDraftCheckpoint()?.let { putBundle("server", it.toBundle()) }
+        })
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onStop() {
         (application as PodListApplication).model.flushDrafts()
         (application as PodListApplication).model.flushPlayback()
@@ -90,6 +113,22 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         (application as PodListApplication).model.requestSync()
     }
+}
+
+private const val DraftStateKey = "app.podlist.pendingDrafts"
+private val DraftProcess = java.util.UUID.randomUUID().toString()
+
+private fun DraftCheckpoint.toBundle() = Bundle().apply {
+    putString("baseline", baseline)
+    putString("revision", revision)
+    putBundle("values", Bundle().apply { values.forEach { (key, text) -> putString(key, text) } })
+}
+
+private fun readDraftCheckpoint(bundle: Bundle): DraftCheckpoint? {
+    val revision = bundle.getString("revision") ?: return null
+    val values = bundle.getBundle("values") ?: return null
+    return DraftCheckpoint(bundle.getString("baseline"), revision,
+        values.keySet().mapNotNull { key -> values.getString(key)?.let { key to it } }.toMap())
 }
 
 // The subscribed state follows the selected app appearance too, rather than resource night mode.

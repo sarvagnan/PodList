@@ -56,6 +56,17 @@ class FormDraftStore(private val db: LocalDatabase) {
     fun retainedDraft(scope: String): RetainedDraft? = db.query("SELECT value FROM sync_meta WHERE key = ?", listOf("discardedDraft:$scope"))
         .firstOrNull()?.get("value")?.let { ProtocolJson.decodeFromString<RetainedDraft>(it as String) }
 
+    fun draftRevision(): String? = db.getMeta("formDraftRevision")
+
+    fun putCheckpoint(values: Map<String, String>, revision: String) = db.transaction {
+        putAll(values)
+        db.setMeta("formDraftRevision", revision)
+    }
+
+    fun restoreCheckpoint(checkpoint: DraftCheckpoint) = db.transaction {
+        if (checkpoint.follows(draftRevision())) putCheckpoint(checkpoint.values, checkpoint.revision)
+    }
+
     fun putAll(values: Map<String, String>) = db.transaction { values.forEach { (key, text) -> put(key, text) } }
 
     fun put(key: String, text: String) { db.setMeta("formDraft:$key", text) }

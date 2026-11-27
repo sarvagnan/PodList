@@ -51,6 +51,10 @@ import java.net.URLEncoder
 internal fun podcastRoute(result: DirectoryResult) = "podcast:" + URLEncoder.encode(ProtocolJson.encodeToString(result), "UTF-8")
 internal fun podcastFromRoute(route: String): DirectoryResult = ProtocolJson.decodeFromString(URLDecoder.decode(route.substringAfter(':'), "UTF-8"))
 
+private data class PodcastEpisodeDisplay(
+    val rows: List<Row>, val count: PodcastEpisodeCount, val keys: List<String>, val selectionOrder: List<String>,
+)
+
 @Composable
 internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, session: Session, fromSearch: Boolean, open: (String) -> Unit, back: () -> Unit) {
     val model = LocalAppModel.current
@@ -156,14 +160,31 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
     LaunchedEffect(localLoaded, subscribed, localRows.isEmpty()) {
         if (localLoaded && !subscribed && localRows.isEmpty() && feed == null && !loading && failure == null) load()
     }
-    val rows = feed?.let { remote ->
-        val stored = localRows.associateBy { it["guid"] }
-        val remoteRows = podcastEpisodeRows(remote).map { it + ("feed_url" to result.feedUrl) }
-        remoteRows.map { stored[it["guid"]] ?: it } + localRows.filter { local -> remoteRows.none { it["guid"] == local["guid"] } }
-    } ?: localRows
-    val filtered = filterPodcastEpisodes(rows, query)
-    val count = podcastEpisodeCount(rows, query)
-    val list = rememberBrowsingListState("podcast:${result.feedUrl}", listOf("header") + filtered.map { it["guid"] as String }, ready = localLoaded && !loading && (subscribed || feed != null || localRows.isNotEmpty()))
+    val remote by produceState<List<Row>?>(null, feed, result.feedUrl) {
+        val currentFeed = feed
+        value = withContext(Dispatchers.Default) {
+            currentFeed?.let { parsed -> podcastEpisodeRows(parsed).map { it + ("feed_url" to result.feedUrl) } }
+        }
+    }
+    val rows by produceState<List<Row>?>(null, remote, localRows, localLoaded) {
+        val stored = localRows
+        val fetched = remote
+        if (localLoaded) value = withContext(Dispatchers.Default) { mergePodcastEpisodeRows(stored, fetched) }
+    }
+    val shown by produceState<PodcastEpisodeDisplay?>(null, rows, query) {
+        val all = rows ?: return@produceState
+        val text = query
+        value = withContext(Dispatchers.Default) {
+            val filtered = filterPodcastEpisodes(all, text)
+            PodcastEpisodeDisplay(filtered, PodcastEpisodeCount(filtered.size, all.size, text.isNotBlank()),
+                listOf("header") + filtered.map { it["guid"] as String }, filtered.map { it["id"] as String })
+        }
+    }
+    val filtered = shown?.rows.orEmpty()
+    val count = shown?.count ?: PodcastEpisodeCount(0, 0, query.isNotBlank())
+    val preparingRows = loading || !localLoaded || feed != null && remote == null || shown == null
+    val list = rememberBrowsingListState("podcast:${result.feedUrl}", shown?.keys.orEmpty(),
+        ready = !preparingRows && (subscribed || remote != null || localRows.isNotEmpty()))
     LaunchedEffect(list) {
         snapshotFlow { list.isScrollInProgress }.collect { if (it) confirmation = confirmation.disarm() }
     }
@@ -238,7 +259,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         }
     }
     val collapsingTitle = remember(result.feedUrl) { CollapsingTitle() }
-    val inspected = rows.find { it["guid"] == inspectingGuid }
+    val inspected = rows.orEmpty().find { it["guid"] == inspectingGuid }
     if (inspected != null) {
         BackHandler { inspectingGuid = null }
         val episodeScroll = TopAppBarDefaults.pinnedScrollBehavior()
@@ -267,7 +288,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
         if (selection?.ids?.isNotEmpty() == true) confirmation = confirmation.disarm()
     }
     SideEffect {
-        selection?.order = filtered.map { it["id"] as String }
+        selection?.order = shown?.selectionOrder.orEmpty()
         if (selection != null) selection.ids = selection.ids.intersect(selection.order.toSet())
     }
     val pullThreshold = with(LocalDensity.current) { 64.dp.toPx() }
@@ -388,7 +409,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
             }
         }
     }, bottomBar = {
-        if (selection != null && selection.ids.isNotEmpty()) SelectionActionBar(selection, data.copy(episodes = rows), session, "subscription:$id")
+        if (selection != null && selection.ids.isNotEmpty()) SelectionActionBar(selection, data.copy(episodes = rows.orEmpty()), session, "subscription:$id")
     }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) { padding ->
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding).then(collapsingTitle.viewport()).imePadding().listSelectionKeys(selection).nestedScroll(pull).semantics {
             customActions = listOf(CustomAccessibilityAction(detailsLabel) { toggleDetails(); true })
@@ -410,7 +431,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                         Text(if (count.filtered) pluralStringResource(R.plurals.podcast_filtered_count, count.total, count.shown, count.total)
                         else pluralStringResource(R.plurals.episode_count, count.total, count.total), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                         Box(Modifier.fillMaxWidth().height(ListHeaderGap), contentAlignment = Alignment.Center) {
-                            LoadingLine(loading || !localLoaded, R.string.podcast_loading)
+                            LoadingLine(preparingRows && failure == null, R.string.podcast_loading)
                         }
                     }
                     failure?.let {
@@ -420,7 +441,7 @@ internal fun PodcastPageScreen(result: DirectoryResult, data: ScreenData, sessio
                     }
                 }
             }
-            if (filtered.isEmpty() && !loading && localLoaded && failure == null) item {
+            if (!preparingRows && filtered.isEmpty() && failure == null) item {
                 EmptyState(if (query.isBlank()) R.string.no_episodes else R.string.no_search_matches,
                     if (query.isBlank()) R.string.refresh_podcast else R.string.clear_search,
                     actionEnabled = query.isNotBlank() || !subscribed || (refreshing == null && !busy && !changingSubscription),

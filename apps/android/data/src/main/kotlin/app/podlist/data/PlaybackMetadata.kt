@@ -59,3 +59,31 @@ fun jsonChapters(body: String): List<Chapter> {
 fun LocalDatabase.pendingSubscriptionOverrides(): List<Change.SetSubscriptionOverrides> =
     query("SELECT operation FROM outbox WHERE operation LIKE ? ORDER BY seq", listOf("%SetSubscriptionOverrides%"))
         .mapNotNull { Operation.decode(it["operation"] as String).change as? Change.SetSubscriptionOverrides }
+
+data class PlaybackQueueSummary(
+    val playlistName: String? = null,
+    val nextCount: Int = 0,
+    val activePlaylistName: String? = null,
+    val activeNextCount: Int = 0,
+)
+
+/** Read the two playlist headers and their entry counts without decoding playlist history or State. */
+fun LocalDatabase.playbackQueueSummary(playlistId: String, episodeId: String): PlaybackQueueSummary {
+    val rows = query("""
+        WITH active(id) AS (SELECT json_extract(value, '$') FROM setting WHERE key = 'activePlaylistId')
+        SELECT p.id, json_extract(p.doc, '$.name') AS name, p.id = (SELECT id FROM active) AS active,
+            (SELECT count(*) FROM entry_index WHERE playlist_id = p.id) AS entries,
+            (SELECT ordinal FROM entry_index WHERE playlist_id = p.id AND episode_id = ?) AS episode_index,
+            (SELECT ordinal FROM entry_index WHERE playlist_id = p.id AND episode_id = json_extract(p.doc, '$.cursor')) AS cursor_index
+        FROM playlist p WHERE p.id IN (?, (SELECT id FROM active))
+    """.trimIndent(), listOf(episodeId, playlistId))
+    fun Row.index(key: String) = (this[key] as? Number)?.toInt()
+    val loaded = rows.find { it["id"] == playlistId }
+    val active = rows.find { it.index("active") == 1 }
+    val next = loaded?.let { row ->
+        val entries = row.index("entries") ?: 0
+        row.index("episode_index")?.let { entries - it - 1 } ?: row.index("cursor_index")?.let { entries - it } ?: 0
+    } ?: 0
+    val activeNext = active?.let { row -> row.index("cursor_index")?.let { (row.index("entries") ?: 0) - it - 1 } } ?: 0
+    return PlaybackQueueSummary(loaded?.get("name") as? String, next, active?.get("name") as? String, activeNext)
+}

@@ -93,7 +93,43 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     internal val settingReveal = MutableStateFlow<SettingReveal?>(null)
     internal val entryReveal = MutableStateFlow<Reveal?>(null)
     internal fun requestReveal(target: Reveal) { reveal.value = OneShotEvent(target) }
-    internal var flushFormDrafts: (() -> Unit)? = null
+    private val formDraftStates = mutableMapOf<String, FormDraftState>()
+    private val restoredDrafts = mutableMapOf<String, DraftCheckpoint>()
+
+    internal fun restoreDraftCheckpoints(checkpoints: Map<String, DraftCheckpoint>) {
+        restoredDrafts.putAll(checkpoints.filterKeys { it !in formDraftStates })
+    }
+
+    internal fun draftCheckpoints(): Map<String, DraftCheckpoint> =
+        restoredDrafts + formDraftStates.mapNotNull { (origin, drafts) ->
+            drafts.checkpoint()?.let { origin to it }
+        }.toMap()
+    private val formDraftLock = Mutex()
+    internal suspend fun formDrafts(session: Session): FormDraftState = formDraftLock.withLock {
+        val origin = session.source.key
+        formDraftStates.getOrPut(origin) {
+            val store = FormDraftStore(session.db)
+            val recovery = restoredDrafts[origin]
+            val (values, version) = withContext(Dispatchers.IO) {
+                recovery?.let(store::restoreCheckpoint)
+                store.load() to store.draftRevision()
+            }
+            restoredDrafts.remove(origin)
+            FormDraftState(store, values, version)
+        }
+    }
+    internal fun loadedFormDrafts(session: Session): FormDraftState? = formDraftStates[session.source.key]
+
+    internal fun afterDraftsSaved(drafts: FormDraftState, failed: () -> Unit, action: () -> Unit) {
+        viewModelScope.launch {
+            try { drafts.flush() } catch (error: IllegalStateException) {
+                android.util.Log.e("PodList", "Could not save form drafts", error)
+                failed()
+                return@launch
+            }
+            action()
+        }
+    }
     internal val undoRevision = MutableStateFlow(0L)
     internal val undoDescription = MutableStateFlow<AppMessage?>(null)
     internal val redoDescription = MutableStateFlow<AppMessage?>(null)
@@ -151,56 +187,88 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val preferences = application.getSharedPreferences("connection", 0)
-    private val deviceSettings = DeviceSettingsStore(File(application.filesDir, "device-settings.properties"))
-    private val serverDraftWriter = app.podlist.data.DraftWriteBuffer { batch ->
-        batch["address"]?.let { deviceSettings.serverAddressDraft = it }
-        batch["selection"]?.let { deviceSettings.serverAddressSelection = it }
+    private val deviceSettings by lazy { DeviceSettingsStore(File(application.filesDir, "device-settings.properties")) }
+    private var serverDraftWriter: DraftWriteBuffer? = null
+    private var savedServerDraft: DraftCheckpoint? = null
+    private var serverDraftVersion = 0L
+
+    private fun serverWriter(revision: String?) = DraftWriteBuffer(onFailure = {
+        android.util.Log.e("PodList", "Could not save server draft", it)
+    }, baseline = revision, write = { batch, token -> deviceSettings.writeServerCheckpoint(batch, token) })
+
+    fun flushDrafts() { serverDraftWriter?.requestFlush(); formDraftStates.values.forEach { it.requestFlush() } }
+    internal fun serverDraftCheckpoint() = serverDraftWriter?.checkpoint() ?: savedServerDraft
+
+    internal fun restoreServerDraft(checkpoint: DraftCheckpoint) {
+        savedServerDraft = checkpoint
+        if (serverDraftWriter != null) viewModelScope.launch { recoverServerDraft() }
     }
-    fun flushDrafts() { serverDraftWriter.flush(); flushFormDrafts?.invoke() }
-    private val _serverAddressDraft = MutableStateFlow(deviceSettings.serverAddressDraft)
+
+    private suspend fun recoverServerDraft() {
+        val writer = serverDraftWriter ?: return
+        val checkpoint = savedServerDraft ?: return
+        savedServerDraft = null
+        if (serverDraftVersion != 0L) return
+        val draft = writer.afterFlush {
+            deviceSettings.restoreServerCheckpoint(checkpoint)
+            writer.updateRecoveryBaseline(deviceSettings.serverDraftRevision())
+            deviceSettings.serverDraft()
+        }
+        if (serverDraftVersion == 0L) showServerDraft(draft)
+    }
+
+    private val _serverAddressDraft = MutableStateFlow<String?>(null)
     val serverAddressDraft = _serverAddressDraft.asStateFlow()
-    internal val serverAddressSelection = MutableStateFlow(deviceSettings.serverAddressSelection)
-    fun setServerAddressSelection(value: String) { serverAddressSelection.value = value; serverDraftWriter.put("selection", value) }
-    private fun replaceServerDraft(next: app.podlist.data.ServerDraft): app.podlist.data.ServerDraft {
-        serverDraftWriter.flush()
-        val before = deviceSettings.replaceServerDraft(next)
-        serverAddressSelection.value = next.selection
-        _serverAddressDraft.value = next.address
+    internal val serverAddressSelection = MutableStateFlow<String?>(null)
+
+    internal fun setServerDraft(address: String, selection: String) {
+        val writer = serverDraftWriter ?: return
+        serverDraftVersion++
+        writer.putAll(mapOf("serverAddressDraft" to address, "serverAddressSelection" to selection))
+        showServerDraft(ServerDraft(address, selection))
+    }
+
+    private fun showServerDraft(draft: ServerDraft) {
+        serverAddressSelection.value = draft.selection
+        _serverAddressDraft.value = draft.address
+    }
+
+    private suspend fun replaceServerDraft(next: ServerDraft): ServerDraft {
+        val version = ++serverDraftVersion
+        val before = checkNotNull(serverDraftWriter).afterFlush { deviceSettings.replaceServerDraft(next) }
+        if (serverDraftVersion == version) showServerDraft(next)
         connectionError.value = null
         return before
     }
-    private fun serverDraftStep(snapshot: app.podlist.data.ServerDraft): ReversibleEdit = ReversibleEdit {
+
+    private fun serverDraftStep(snapshot: ServerDraft): ReversibleEdit = ReversibleEdit {
         val before = replaceServerDraft(snapshot)
         requestReveal(Reveal("server"))
         serverDraftStep(before)
     }
+
     /** Before first connection there is no Library history; the form owns that snackbar's Undo. */
-    fun discardServerDraft(): (() -> Unit)? {
-        val before = replaceServerDraft(app.podlist.data.ServerDraft(null, null))
+    internal suspend fun discardServerDraft(): (suspend () -> Unit)? = editLock.withLock {
+        val before = replaceServerDraft(ServerDraft(null, null))
         val current = session.value
-        if (current == null) return { replaceServerDraft(before) }
+        if (current == null) return@withLock { replaceServerDraft(before); Unit }
         recordHistory(current, AppMessage(R.string.draft_discarded), serverDraftStep(before))
-        return null
+        null
     }
-    private val _appearance = MutableStateFlow(deviceSettings.appearance)
+
+    private val _appearance = MutableStateFlow(Appearance.System)
     val appearance = _appearance.asStateFlow()
 
-    fun setServerAddressDraft(value: String?) {
-        if (value == null) {
-            serverDraftWriter.flush()
-            deviceSettings.serverAddressDraft = null
-            deviceSettings.serverAddressSelection = null
-            serverAddressSelection.value = null
-        }
-        else serverDraftWriter.put("address", value)
-        _serverAddressDraft.value = value
-    }
-
-    private fun applyAppearance(value: Appearance) {
-        deviceSettings.appearance = value
+    private fun showAppearance(value: Appearance) {
         _appearance.value = value
         getApplication<Application>().applyLaunchAppearance(value)
     }
+
+    private suspend fun applyAppearance(value: Appearance) {
+        withContext(Dispatchers.IO) { deviceSettings.appearance = value }
+        showAppearance(value)
+    }
+
     private fun appearanceStep(value: Appearance): ReversibleEdit = ReversibleEdit {
         val before = _appearance.value
         applyAppearance(value)
@@ -210,13 +278,14 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             it.feedback = AppMessage(R.string.setting_back_to, formatArgs = listOf(context.getString(R.string.appearance), context.getString(appearanceLabel(value))))
         }
     }
+
     fun setAppearance(value: Appearance) {
-        val before = _appearance.value
-        if (before == value) return
-        applyAppearance(value)
-        val current = session.value ?: return
+        val current = session.value
         viewModelScope.launch { editLock.withLock {
-            recordHistory(current, AppMessage(R.string.appearance_changed), appearanceStep(before), notify = false)
+            val before = _appearance.value
+            if (before == value) return@withLock
+            applyAppearance(value)
+            if (current != null) recordHistory(current, AppMessage(R.string.appearance_changed), appearanceStep(before), notify = false)
         } }
     }
     private val _session = MutableStateFlow<Session?>(null)
@@ -259,9 +328,18 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         connectivity.registerDefaultNetworkCallback(callback)
         viewModelScope.launch {
             try {
-                val saved = preferences.getString("server", null)
+                val (appearance, draft, revision) = withContext(Dispatchers.IO) {
+                    Triple(deviceSettings.appearance, deviceSettings.serverDraft(), deviceSettings.serverDraftRevision())
+                }
+                serverDraftWriter = serverWriter(revision)
+                showServerDraft(draft)
+                recoverServerDraft()
+                showAppearance(appearance)
+                val (saved, standalone) = withContext(Dispatchers.IO) {
+                    preferences.getString("server", null) to preferences.getBoolean("standalone", false)
+                }
                 if (saved != null) activate(ServerAddress.parse(saved, BuildConfig.DEBUG))
-                else if (preferences.getBoolean("standalone", false)) activate(null)
+                else if (standalone) activate(null)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 connectionError.value = classify(error)
@@ -269,13 +347,20 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun subscriptionName(current: Session, feed: String): String = current.db.query("SELECT title FROM subscription WHERE feed_url = ?", listOf(feed)).firstOrNull()?.get("title") as? String ?: feed
+    fun offerUnsubscribe(current: Session, feed: String) = offerSubscriptionEdit(current, feed, subscribe = false)
 
-    fun offerUnsubscribe(current: Session, feed: String) {
-        offerSubscriptionHistory(current, listOf(feed), subscribe = false, AppMessage(R.string.subscribed_message, formatArgs = listOf(subscriptionName(current, feed))))
-    }
-    fun offerResubscribe(current: Session, feed: String) {
-        offerSubscriptionHistory(current, listOf(feed), subscribe = true, AppMessage(R.string.unsubscribed_message, formatArgs = listOf(subscriptionName(current, feed))))
+    fun offerResubscribe(current: Session, feed: String) = offerSubscriptionEdit(current, feed, subscribe = true)
+
+    private fun offerSubscriptionEdit(current: Session, feed: String, subscribe: Boolean) {
+        viewModelScope.launch { editLock.withLock {
+            if (session.value !== current) return@withLock
+            val title = withContext(Dispatchers.IO) {
+                current.db.query("SELECT title FROM subscription WHERE feed_url = ?", listOf(feed))
+                    .firstOrNull()?.get("title") as? String ?: feed
+            }
+            val message = if (subscribe) R.string.unsubscribed_message else R.string.subscribed_message
+            recordHistory(current, AppMessage(message, formatArgs = listOf(title)), subscriptionStep(current, listOf(feed), subscribe))
+        } }
     }
 
     fun startOnPhone() {
@@ -338,7 +423,9 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             if (_session.value?.source?.server?.origin != address.origin) activate(address)
             withContext(Dispatchers.IO) { check(preferences.edit().putString("server", address.origin).commit()) }
             if (fromStandalone && _bringOver.value != null && _bringOver.value?.job?.complete != true) bringOverVisible.value = true
-            setServerAddressDraft(null)
+            checkNotNull(serverDraftWriter).afterFlush { deviceSettings.writeServerDraft(ServerDraft(null, null)) }
+            serverDraftVersion++
+            showServerDraft(ServerDraft(null, null))
             requestSync()
             true
         } catch (error: Exception) {
@@ -376,8 +463,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun transfer(next: Session): BringOver {
         val source = sessionFor(null)
-        return BringOver(source.db, next.db, flowRunTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000), audioFiles(source), audioFiles(next)) { job ->
-            _bringOver.update { current -> if (current?.origin == next.source.key) current.copy(job = job, counts = job.snapshot.counts, error = false) else current }
+        return withContext(Dispatchers.IO) {
+            BringOver(source.db, next.db, flowRunTransport(requireNotNull(next.source.server), subscriptionReadTimeoutMillis = 30_000),
+                audioFiles(source), audioFiles(next)) { job ->
+                _bringOver.update { current -> if (current?.origin == next.source.key) current.copy(job = job, counts = job.snapshot.counts, error = false) else current }
+            }
         }
     }
 
@@ -468,11 +558,15 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        serverDraftWriter.close()
+        serverDraftWriter?.close()
         connectivity.unregisterNetworkCallback(callback)
-        // Wait for every model/download child, including blocking IO, before closing their DBs.
-        val databases = sessions.values.map { it.db }
-        checkNotNull(viewModelScope.coroutineContext[Job]).invokeOnCompletion { databases.forEach { it.close() } }
+        // Wait for model/download children and queued drafts before closing their databases.
+        val databases = sessions.values.associate { it.db to loadedFormDrafts(it) }
+        checkNotNull(viewModelScope.coroutineContext[Job]).invokeOnCompletion {
+            databases.forEach { (db, drafts) ->
+                if (drafts == null) db.close() else drafts.close(db::close)
+            }
+        }
         super.onCleared()
     }
 }
