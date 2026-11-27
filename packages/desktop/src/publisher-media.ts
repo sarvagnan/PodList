@@ -1,4 +1,4 @@
-import { type PublisherFetch, requestPublisher } from "@podlist/feeds/publisher"
+import { type PublisherFetch, publisherUrl, requestPublisher } from "@podlist/feeds/publisher"
 
 const audioType =
   /^(?:audio\/|video\/|(?:application|binary)\/octet-stream\b|application\/(?:mp4|ogg)\b)/i
@@ -13,8 +13,14 @@ export const publisherMedia = async (
   fetcher: PublisherFetch = fetch
 ) => {
   if (request.method !== "GET") return new Response(null, { status: 405 })
-  const address = url.searchParams.get("url")
-  if (!address || address.length > 8192) return new Response(null, { status: 400 })
+  const value = url.searchParams.get("url")
+  if (!value || value.length > 8192) return new Response(null, { status: 400 })
+  let address: URL
+  try {
+    address = publisherUrl(value)
+  } catch {
+    return new Response(null, { status: 400 })
+  }
 
   const requestHeaders: Record<string, string> = { "accept-encoding": "identity" }
   const range = request.headers.get("range")
@@ -27,7 +33,7 @@ export const publisherMedia = async (
   try {
     const upstream = await requestPublisher(
       fetcher,
-      address,
+      address.href,
       requestHeaders,
       AbortSignal.any([request.signal, timeout.signal]),
       kind === "artwork" ? 30_000 : null

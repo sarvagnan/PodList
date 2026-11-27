@@ -8,6 +8,19 @@ const request = (headers?: HeadersInit, resource = "/audio-download") => {
 }
 
 describe("publisher media", () => {
+  it.each(["file:///etc/hosts", "https://user:password@publisher.example/resource", "not a URL"])(
+    "rejects an invalid publisher address before fetching (%s)",
+    async (address) => {
+      const { url } = request()
+      url.searchParams.set("url", address)
+      const fetcher = vi.fn(async () => new Response())
+      const response = await publisherMedia(new Request(url), url, "audio", fetcher)
+      expect(response.status).toBe(400)
+      expect(response.body).toBeNull()
+      expect(fetcher).not.toHaveBeenCalled()
+    }
+  )
+
   it("passes through byte ranges and omits Chromium cookies", async () => {
     const { url, input } = request({ range: "bytes=4-7", cookie: "outside=1" })
     const fetcher = vi.fn(

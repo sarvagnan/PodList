@@ -31,7 +31,7 @@ const directorySizeLimit = 2 * 1024 * 1024
 const maxRedirects = 5
 const redirectStatuses = new Set([301, 302, 303, 307, 308])
 
-const publisherUrl = (address: string) => {
+export const publisherUrl = (address: string) => {
   const url = new URL(address)
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
     throw new Error("Enter an HTTP or HTTPS feed address.")
