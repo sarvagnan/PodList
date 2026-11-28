@@ -1,8 +1,15 @@
 import type { State, ViewQuery } from "@podlist/domain"
-import { Effect } from "effect"
+import { Effect, Stream } from "effect"
 import { AsyncResult, Atom } from "effect/reactivity"
 import { localClient } from "#client"
-import { catalogueKey, DataLayer } from "../data/DataLayer.ts"
+import {
+  catalogueKey,
+  DataLayer,
+  entryMembershipKey,
+  episodeFactsKey,
+  playedKey,
+  progressMembershipKey
+} from "../data/DataLayer.ts"
 import { downloadsAtom, runtime, stateAtom } from "./runtime.ts"
 
 // React bindings only. Storage, query compilation and sync live behind DataLayer.
@@ -40,56 +47,95 @@ export const entryEpisodesAtom = runtime
 
 export const subscriptionsAtom = runtime
   .atom((get) => {
-    get(stateAtom)
+    if (!localClient) get(stateAtom)
     return Effect.flatMap(DataLayer, (data) => data.subscriptions)
   })
-  .pipe(Atom.withReactivity([catalogueKey]))
+  .pipe(Atom.withReactivity(localClient ? [catalogueKey, playedKey] : [catalogueKey]))
 
 /** One Subscription, with its overrides, for its settings screen. */
 export const subscriptionAtom = Atom.family((subscriptionId: string) =>
   runtime
     .atom((get) => {
-      get(stateAtom)
+      if (!localClient) get(stateAtom)
       return Effect.flatMap(DataLayer, (data) => data.subscription(subscriptionId))
     })
-    .pipe(Atom.withReactivity([catalogueKey]))
+    .pipe(Atom.withReactivity(localClient ? [catalogueKey, playedKey] : [catalogueKey]))
 )
 
 export const activePlaylist = (state: State.State) =>
   state.playlists.find((p) => p.id === state.activePlaylistId) ?? state.playlists[0]
 
+const viewAtom = Atom.family((id: string) =>
+  Atom.make((get) =>
+    AsyncResult.getOrElse(get(stateAtom), () => null)?.views.find((v) => v.id === id)
+  )
+)
+const viewsAtom = Atom.make((get) => AsyncResult.getOrElse(get(stateAtom), () => null)?.views)
+
+// Every query includes orphaned Entries and reports Played and Starred facts.
+// Only in-progress membership depends on the Position crossing zero.
+const libraryRows = localClient
+  ? [catalogueKey, entryMembershipKey, episodeFactsKey]
+  : [catalogueKey]
+const progressRevision = runtime
+  .atom(Effect.flatMap(DataLayer, () => Effect.sync(() => ({}))))
+  .pipe(Atom.withReactivity([progressMembershipKey]))
+
+// Relative Views can change even when the Library does not. This clock is
+// mounted only while a reader needs one of those date windows.
+const relativeDateRevision = runtime.atom(Stream.tick("15 seconds").pipe(Stream.drop(1)))
+
 /** The Episodes a View matches right now, in its order. */
 export const viewEpisodesAtom = Atom.family((viewId: string) =>
   runtime
     .atom((get) => {
+      if (localClient) {
+        const view = get(viewAtom(viewId))
+        if (view?.filter.played === "inProgress") get(progressRevision)
+        if (view?.filter.published?._tag === "LastDays") get(relativeDateRevision)
+        return view
+          ? Effect.flatMap(DataLayer, (data) => data.viewEpisodes(viewId))
+          : Effect.succeed([])
+      }
       const state = get(stateAtom)
       return Effect.flatMap(DataLayer, (data) =>
         AsyncResult.isSuccess(state) ? data.viewEpisodes(viewId) : Effect.succeed([])
       )
     })
-    .pipe(Atom.withReactivity([catalogueKey]))
+    .pipe(Atom.withReactivity(libraryRows))
 )
 
 /** Unsaved Search, keyed by the JSON of `{ filter, sort, limit }`. */
-export const filterEpisodesAtom = Atom.family((key: string) =>
-  runtime
+export const filterEpisodesAtom = Atom.family((key: string) => {
+  const input = JSON.parse(key) as ViewQuery.ViewQueryInput
+  return runtime
     .atom((get) => {
-      get(stateAtom)
-      const input = JSON.parse(key) as ViewQuery.ViewQueryInput
+      if (!localClient) get(stateAtom)
+      if (localClient && input.filter.played === "inProgress") get(progressRevision)
+      if (localClient && input.filter.published?._tag === "LastDays") get(relativeDateRevision)
       return Effect.flatMap(DataLayer, (data) => data.filterEpisodes(input))
     })
-    .pipe(Atom.withReactivity([catalogueKey]))
-)
+    .pipe(Atom.withReactivity(libraryRows))
+})
 
 /** How many Episodes each View matches, including its limit. */
 export const viewCountsAtom = runtime
   .atom((get) => {
+    if (localClient) {
+      const views = get(viewsAtom)
+      if (views?.some((view) => view.filter.played === "inProgress")) get(progressRevision)
+      if (views?.some((view) => view.filter.published?._tag === "LastDays"))
+        get(relativeDateRevision)
+      return views
+        ? Effect.flatMap(DataLayer, (data) => data.viewCounts)
+        : Effect.succeed(new Map<string, number>())
+    }
     const state = get(stateAtom)
     return Effect.flatMap(DataLayer, (data) =>
       AsyncResult.isSuccess(state) ? data.viewCounts : Effect.succeed(new Map<string, number>())
     )
   })
-  .pipe(Atom.withReactivity([catalogueKey]))
+  .pipe(Atom.withReactivity(libraryRows))
 
 const episodeStoredAtom = Atom.family((episodeId: string) =>
   Atom.make(

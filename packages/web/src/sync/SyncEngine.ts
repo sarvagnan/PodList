@@ -1,5 +1,6 @@
 import {
   Device,
+  Ids,
   Operation,
   type PlaybackSettings,
   Protocol,
@@ -10,8 +11,18 @@ import {
 import { Context, Duration, Effect, Layer, Queue, Schema, Semaphore, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
-import { catalogueKey, type DataStatus } from "../data/DataLayer.ts"
-import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
+import {
+  catalogueKey,
+  type DataStatus,
+  entryMembershipKey,
+  episodeFactsKey,
+  playedKey,
+  progressMembershipKey,
+  type RecordBatch
+} from "../data/DataLayer.ts"
+import { LocalWork } from "../platform/LocalWork.ts"
+import { restoreStateClasses } from "../platform/workerState.ts"
+import { episodeRow, insertCatalogueRows, subscriptionRow } from "./Catalogue.ts"
 import { Offline, SyncBlocked, Transport } from "./Transport.ts"
 
 export type { DataStatus as SyncStatus } from "../data/DataLayer.ts"
@@ -35,6 +46,7 @@ export class SyncEngine extends Context.Service<
     readonly deviceId: string
     /** Records an edit: queued for the server and applied locally straight away. */
     readonly record: (change: Operation.Change) => Effect.Effect<void>
+    readonly recordBatch: RecordBatch
     /** One full sync; fails with Offline when the server can't be reached. */
     readonly sync: Effect.Effect<void, Offline>
     /** Queue mapped source operations and save a destination checkpoint in one transaction. */
@@ -58,6 +70,7 @@ export class SyncEngine extends Context.Service<
         const sql = yield* SqlClient.SqlClient
         const reactivity = yield* Reactivity.Reactivity
         const transport = yield* Transport
+        const worker = yield* Effect.serviceOption(LocalWork)
         const lock = yield* Semaphore.make(1)
         const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
           Effect.provideService(effect, SqlClient.SqlClient, sql)
@@ -76,72 +89,150 @@ export class SyncEngine extends Context.Service<
         }
         const myDevice = deviceId
         const state = yield* SubscriptionRef.make(
-          yield* withSql(StateStore.ensure(options.defaults))
+          yield* withSql(
+            StateStore.ensure(
+              options.defaults,
+              worker._tag === "Some"
+                ? (rows) =>
+                    worker.value
+                      .run({ task: "decodeRows", rows })
+                      .pipe(Effect.flatMap(restoreStateClasses), Effect.orDie)
+                : undefined
+            )
+          )
         )
-        if (options.standalone) {
-          const status = yield* SubscriptionRef.make<DataStatus>({
-            pending: 0,
-            lastSyncedAt: null,
-            error: null,
-            ready: true
-          })
-          const record = (change: Operation.Change) =>
-            Effect.gen(function* () {
-              const before = yield* SubscriptionRef.get(state)
-              const at = Units.EpochMillis.make(Date.now())
-              const after = yield* Effect.gen(function* () {
-                let sequence = Number((yield* getMeta("sequence")) ?? "0")
-                let updated = before
-                const append = (concrete: Operation.Change) =>
-                  Effect.gen(function* () {
-                    const operation = Schema.decodeUnknownSync(Operation.Operation)({
-                      id: crypto.randomUUID(),
-                      deviceId: myDevice,
-                      sequence,
-                      recordedAt: at,
-                      change: Schema.encodeSync(Operation.Change)(concrete)
-                    })
-                    yield* sql`INSERT INTO local_operation (seq, operation)
-                      VALUES (${sequence++}, ${Schema.encodeSync(OperationJson)(operation)})`
-                    updated = State.apply(updated, concrete, { at })
-                  })
-                if (change._tag === "SetSubscriptionOverrides") {
-                  yield* sql`UPDATE subscription SET
-                    playback_settings = ${JSON.stringify(change.playbackSettings)},
-                    played_threshold = ${change.playedThreshold}
-                    WHERE id = ${change.subscriptionId}`
-                }
-                if (change._tag === "MarkSubscriptionPlayed") {
-                  const episodes = yield* sql<{ id: string }>`
-                    SELECT id FROM episode WHERE subscription_id = ${change.subscriptionId}
-                    ORDER BY published, id`
-                  for (const { id } of episodes) {
-                    if (before.episodeStates[id]?.played != null) continue
-                    yield* append(
-                      Schema.decodeUnknownSync(Operation.Change)({
-                        _tag: "MarkPlayed",
-                        episodeId: id,
-                        source: { _tag: "User" }
-                      })
-                    )
-                  }
-                } else {
-                  yield* append(change)
-                }
-                yield* withSql(StateStore.save(before, updated))
-                yield* setMeta("sequence", String(sequence))
-                return updated
-              }).pipe(sql.withTransaction, Effect.orDie)
-              yield* SubscriptionRef.set(state, after)
-              if (change._tag === "SetSubscriptionOverrides") {
-                yield* reactivity.invalidate([catalogueKey])
+        const invalidate = (dirty: StateStore.QueryChanges, catalogue = false) =>
+          reactivity.invalidate([
+            ...(catalogue ? [catalogueKey] : []),
+            ...(dirty.played ? [playedKey] : []),
+            ...(dirty.episodeFacts ? [episodeFactsKey] : []),
+            ...(dirty.entries ? [entryMembershipKey] : []),
+            ...(dirty.progress ? [progressMembershipKey] : [])
+          ])
+        const triggers = yield* Queue.sliding<void>(1)
+        const countPending = sql<{ n: number }>`SELECT count(*) AS n FROM outbox`.pipe(
+          Effect.map(([row]) => row?.n ?? 0)
+        )
+        const status = yield* SubscriptionRef.make<DataStatus>({
+          pending: options.standalone ? 0 : yield* countPending,
+          lastSyncedAt: null,
+          error: null,
+          ready: options.standalone === true || (yield* getMeta("catalogueCursor")) !== undefined
+        })
+        const recordBatch: RecordBatch = (plan) =>
+          Effect.gen(function* () {
+            const before = yield* SubscriptionRef.get(state)
+            const edits = plan(before)
+            let step = edits.next()
+            if (step.done) return step.value
+
+            const recorded = yield* Effect.gen(function* () {
+              let sequence = Number((yield* getMeta("sequence")) ?? "0")
+              let after = before
+              let catalogue = false
+              let serverVersion: number | undefined
+              const changes: Operation.Change[] = []
+              const operations: Array<{ id: string; seq: number; operation: string }> = []
+              const append = (change: Operation.Change, recordedAt: Units.EpochMillis) => {
+                const id = Ids.OperationId.make(crypto.randomUUID())
+                const operation = new Operation.Operation({
+                  id,
+                  deviceId: Ids.DeviceId.make(myDevice),
+                  sequence,
+                  recordedAt,
+                  change
+                })
+                operations.push({
+                  id,
+                  seq: sequence++,
+                  operation: Schema.encodeSync(OperationJson)(operation)
+                })
+                after = State.apply(after, change, { at: recordedAt })
+                changes.push(change)
               }
-            }).pipe(lock.withPermits(1), Effect.uninterruptible)
+              for (let processed = 0; !step.done; processed++) {
+                const change = step.value
+                const at = Units.EpochMillis.make(Date.now())
+                if (options.standalone) {
+                  if (change._tag === "SetSubscriptionOverrides") {
+                    yield* sql`UPDATE subscription SET
+                      playback_settings = ${JSON.stringify(change.playbackSettings)},
+                      played_threshold = ${change.playedThreshold}
+                      WHERE id = ${change.subscriptionId}`
+                    catalogue = true
+                  }
+                  if (change._tag === "MarkSubscriptionPlayed") {
+                    const episodes = yield* sql<{ id: string }>`
+                      SELECT id FROM episode WHERE subscription_id = ${change.subscriptionId}
+                      ORDER BY published, id`
+                    for (const [index, { id }] of episodes.entries()) {
+                      if (index % 32 === 31) yield* Effect.yieldNow
+                      if (after.episodeStates[id]?.played != null) continue
+                      append(
+                        Schema.decodeUnknownSync(Operation.Change)({
+                          _tag: "MarkPlayed",
+                          episodeId: id,
+                          source: { _tag: "User" }
+                        }),
+                        at
+                      )
+                    }
+                  } else append(change, at)
+                } else {
+                  const minimum = Protocol.minimumVersion(change._tag) ?? Protocol.version + 1
+                  if (minimum > Protocol.legacyVersion) {
+                    serverVersion ??= yield* transport.serverVersion ??
+                      Effect.succeed(Protocol.legacyVersion)
+                    if (serverVersion < minimum)
+                      return yield* Effect.die(
+                        new Error("Update the PodList server to save this change")
+                      )
+                  }
+                  append(change, at)
+                }
+                if (processed % 32 === 31) yield* Effect.yieldNow
+                step = edits.next(after)
+              }
+              for (let i = 0; i < operations.length; i += 128) {
+                const [first, ...rest] = operations.slice(i, i + 128)
+                if (first === undefined) break
+                if (options.standalone) {
+                  const row = ({ seq, operation }: typeof first) => ({ seq, operation })
+                  yield* sql`INSERT INTO local_operation ${sql.insert([row(first), ...rest.map(row)])}`
+                } else {
+                  const row = ({ id, operation }: typeof first) => ({ id, operation })
+                  yield* sql`INSERT INTO outbox ${sql.insert([row(first), ...rest.map(row)])}`
+                }
+              }
+              const dirty = yield* withSql(StateStore.saveChanges(before, after, changes))
+              yield* setMeta("sequence", String(sequence))
+              return { after, catalogue, dirty, count: operations.length, result: step.value }
+            }).pipe(sql.withTransaction, Effect.orDie)
+
+            yield* SubscriptionRef.set(state, recorded.after)
+            yield* invalidate(recorded.dirty, recorded.catalogue)
+            if (!options.standalone) {
+              yield* SubscriptionRef.update(status, (s) => ({
+                ...s,
+                pending: s.pending + recorded.count
+              }))
+              yield* Queue.offer(triggers, undefined)
+            }
+            return recorded.result
+          }).pipe(Effect.orDie, Effect.uninterruptible, lock.withPermits(1))
+
+        const record = (change: Operation.Change) =>
+          recordBatch(function* () {
+            yield change
+          })
+
+        if (options.standalone) {
           return SyncEngine.of({
             state,
             status,
             deviceId: myDevice,
             record,
+            recordBatch,
             sync: Effect.void,
             runInBackground: Effect.never
           })
@@ -151,18 +242,12 @@ export class SyncEngine extends Context.Service<
         let confirmed =
           confirmedJson === undefined
             ? State.initial(options.defaults)
-            : Schema.decodeSync(StateJson)(confirmedJson)
-        const countPending = sql<{ n: number }>`SELECT count(*) AS n FROM outbox`.pipe(
-          Effect.map(([row]) => row?.n ?? 0)
-        )
-        const status = yield* SubscriptionRef.make<DataStatus>({
-          pending: yield* countPending,
-          lastSyncedAt: null,
-          error: null,
-          ready: (yield* getMeta("catalogueCursor").pipe(Effect.orDie)) !== undefined
-        })
+            : worker._tag === "Some"
+              ? yield* worker.value
+                  .run({ task: "decodeState", json: confirmedJson })
+                  .pipe(Effect.flatMap(restoreStateClasses))
+              : Schema.decodeSync(StateJson)(confirmedJson)
         const syncLock = yield* Semaphore.make(1)
-        const triggers = yield* Queue.sliding<void>(1)
         let blocked: SyncBlocked | undefined
 
         const outbox = sql<{
@@ -176,43 +261,6 @@ export class SyncEngine extends Context.Service<
             }))
           )
         )
-
-        const record = (change: Operation.Change) =>
-          Effect.gen(function* () {
-            if (
-              (Protocol.minimumVersion(change._tag) ?? Protocol.version + 1) >
-              Protocol.legacyVersion
-            ) {
-              const version = yield* (
-                transport.serverVersion ?? Effect.succeed(Protocol.legacyVersion)
-              ).pipe(Effect.orDie)
-              if (version < (Protocol.minimumVersion(change._tag) ?? Protocol.version + 1))
-                return yield* Effect.die(new Error("Update the PodList server to save this change"))
-            }
-            const sequence = Number((yield* getMeta("sequence")) ?? "0")
-            const operation = Schema.decodeUnknownSync(Operation.Operation)({
-              id: crypto.randomUUID(),
-              deviceId: myDevice,
-              sequence,
-              recordedAt: Date.now(),
-              change: Schema.encodeSync(Operation.Change)(change)
-            })
-            yield* sql`INSERT INTO outbox ${sql.insert({
-              id: operation.id,
-              operation: Schema.encodeSync(OperationJson)(operation)
-            })}`
-            yield* setMeta("sequence", String(sequence + 1))
-            const before = yield* SubscriptionRef.get(state)
-            const after = State.apply(before, operation.change, { at: operation.recordedAt })
-            yield* withSql(StateStore.save(before, after))
-            yield* SubscriptionRef.set(state, after)
-            yield* SubscriptionRef.update(status, (s) => ({ ...s, pending: s.pending + 1 }))
-          }).pipe(
-            sql.withTransaction,
-            Effect.orDie,
-            lock.withPermits(1),
-            Effect.tap(() => Queue.offer(triggers, undefined))
-          )
 
         const queueBringOver = (
           operations: ReadonlyArray<Operation.Operation>,
@@ -230,11 +278,18 @@ export class SyncEngine extends Context.Service<
                 if (rows.length) fresh.push(operation)
               }
               const after = State.applyOperations(before, fresh).state
-              yield* withSql(StateStore.save(before, after))
+              const dirty = yield* withSql(
+                StateStore.saveChanges(
+                  before,
+                  after,
+                  fresh.map((o) => o.change)
+                )
+              )
               yield* setMeta(checkpoint.key, checkpoint.value)
-              return { after, pending: yield* countPending }
+              return { after, dirty, pending: yield* countPending }
             }).pipe(sql.withTransaction)
             yield* SubscriptionRef.set(state, applied.after)
+            yield* invalidate(applied.dirty)
             yield* SubscriptionRef.update(status, (previous) => ({
               ...previous,
               pending: applied.pending
@@ -248,17 +303,36 @@ export class SyncEngine extends Context.Service<
             )
           )
 
+        const catalogueRows = (since: number) =>
+          worker._tag === "Some" && transport.catalogueText
+            ? transport.catalogueText(since).pipe(
+                Effect.flatMap((json) => worker.value.run({ task: "catalogue", json })),
+                Effect.mapError((error) =>
+                  error instanceof Offline ? error : new Offline(error.message)
+                )
+              )
+            : transport.catalogue(since).pipe(
+                Effect.map((page) => ({
+                  cursor: page.cursor,
+                  more: page.more,
+                  subscriptions: [
+                    ...page.subscriptions,
+                    ...(page.referencedSubscriptions ?? [])
+                  ].map(subscriptionRow),
+                  episodes: page.episodes.map(episodeRow)
+                }))
+              )
+
         const syncCatalogue = Effect.gen(function* () {
           let since = Number((yield* getMeta("catalogueCursor").pipe(Effect.orDie)) ?? "0")
           for (;;) {
-            const page = yield* transport.catalogue(since)
-            const subscriptions = [...page.subscriptions, ...(page.referencedSubscriptions ?? [])]
+            const page = yield* catalogueRows(since)
             yield* Effect.gen(function* () {
-              yield* withSql(upsertSubscriptions(subscriptions))
-              yield* withSql(upsertEpisodes(page.episodes))
+              yield* withSql(insertCatalogueRows("subscription", page.subscriptions))
+              yield* withSql(insertCatalogueRows("episode", page.episodes))
               yield* setMeta("catalogueCursor", String(page.cursor))
             }).pipe(sql.withTransaction, Effect.orDie)
-            if (subscriptions.length > 0 || page.episodes.length > 0) {
+            if (page.subscriptions.length > 0 || page.episodes.length > 0) {
               yield* reactivity.invalidate([catalogueKey])
             }
             since = page.cursor
@@ -294,27 +368,44 @@ export class SyncEngine extends Context.Service<
             const cursor = Number((yield* getMeta("userCursor").pipe(Effect.orDie)) ?? "0")
             const pulled = yield* transport.pull(cursor)
 
-            // Then rebuild under the lock, keeping edits made while we were talking to the server.
+            const nextConfirmed =
+              pulled.snapshot ?? State.applyOperations(confirmed, pulled.operations).state
+            const confirmedJson =
+              confirmed === nextConfirmed
+                ? undefined
+                : worker._tag === "Some"
+                  ? yield* worker.value
+                      .run({ task: "encodeState", state: nextConfirmed })
+                      .pipe(Effect.mapError((error) => new Offline(error.message)))
+                  : Schema.encodeSync(StateJson)(nextConfirmed)
+
+            // Keep edits made while the server and Worker were preparing the confirmed State.
             yield* Effect.gen(function* () {
-              confirmed =
-                pulled.snapshot ?? State.applyOperations(confirmed, pulled.operations).state
-              const sentUpTo = toSend.at(-1)?.seq ?? 0
-              yield* sql`DELETE FROM outbox WHERE seq <= ${sentUpTo}`
-              const stillPending = (yield* outbox).map((o) => o.operation)
-              const before = yield* SubscriptionRef.get(state)
-              const after = State.applyOperations(confirmed, stillPending).state
-              yield* withSql(StateStore.save(before, after))
-              yield* setMeta("confirmedState", Schema.encodeSync(StateJson)(confirmed))
-              yield* setMeta("userCursor", String(pulled.cursor))
-              yield* SubscriptionRef.set(state, after)
+              const durable = yield* Effect.gen(function* () {
+                const sentUpTo = toSend.at(-1)?.seq ?? 0
+                if (sentUpTo > 0) yield* sql`DELETE FROM outbox WHERE seq <= ${sentUpTo}`
+                const stillPending = (yield* outbox).map((o) => o.operation)
+                const before = yield* SubscriptionRef.get(state)
+                const after =
+                  confirmed === nextConfirmed && sentUpTo === 0
+                    ? before
+                    : State.applyOperations(nextConfirmed, stillPending).state
+                const dirty = yield* withSql(StateStore.saveChanges(before, after))
+                if (confirmedJson !== undefined) yield* setMeta("confirmedState", confirmedJson)
+                yield* setMeta("userCursor", String(pulled.cursor))
+                return { after, before, dirty, pending: stillPending.length }
+              }).pipe(sql.withTransaction)
+              confirmed = nextConfirmed
+              if (durable.after !== durable.before) yield* SubscriptionRef.set(state, durable.after)
+              yield* invalidate(durable.dirty)
               yield* SubscriptionRef.update(status, (s) => ({
                 ...s,
-                pending: stillPending.length,
+                pending: durable.pending,
                 lastSyncedAt: Date.now(),
                 error: null,
                 syncBlocked: undefined
               }))
-            }).pipe(sql.withTransaction, Effect.orDie, lock.withPermits(1))
+            }).pipe(Effect.orDie, Effect.uninterruptible, lock.withPermits(1))
 
             yield* syncCatalogue
             yield* SubscriptionRef.update(status, (s) => ({ ...s, ready: true }))
@@ -363,6 +454,7 @@ export class SyncEngine extends Context.Service<
           status,
           deviceId: myDevice,
           record,
+          recordBatch,
           sync: sync(true),
           queueBringOver,
           runInBackground

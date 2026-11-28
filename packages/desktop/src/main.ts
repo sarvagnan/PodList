@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto"
-import { readFileSync, writeFileSync } from "node:fs"
-import { readFile, stat } from "node:fs/promises"
+import { readFile, stat, writeFile } from "node:fs/promises"
 import { extname, join, normalize, sep } from "node:path"
 import { pathToFileURL } from "node:url"
 import {
@@ -85,18 +84,34 @@ interface Config {
   readonly bounds?: { x: number; y: number; width: number; height: number }
 }
 
-const readConfig = (): Config => {
+const loadConfig = async (): Promise<Config> => {
   try {
-    return JSON.parse(readFileSync(configFile(), "utf8")) as Config
+    return JSON.parse(await readFile(configFile(), "utf8")) as Config
   } catch {
     return {}
   }
 }
-const writeConfig = (config: Config) => writeFileSync(configFile(), JSON.stringify(config, null, 2))
+let config: Config = {}
+let configLoaded = false
+let configWrites = Promise.resolve()
+const readConfig = () => config
+const reportConfigError = (error: unknown) =>
+  console.warn("Could not save PodList settings.", error)
+const updateConfig = (update: (previous: Config) => Config) => {
+  const write = configWrites.then(async () => {
+    const next = update(config)
+    if (next === config) return
+    await writeFile(configFile(), JSON.stringify(next, null, 2))
+    config = next
+  })
+  configWrites = write.catch(() => {})
+  return write
+}
 
 /** PODLIST_URL wins (development and tests), then the saved address. */
-const serverUrl = () => process.env.PODLIST_URL ?? readConfig().serverUrl
-const standaloneSelected = () => serverUrl() === undefined && readConfig().standalone === true
+const serverUrl = (saved = config) => process.env.PODLIST_URL ?? saved.serverUrl
+const standaloneSelected = (saved = config) =>
+  serverUrl(saved) === undefined && saved.standalone === true
 const hasLibrary = () => serverUrl() !== undefined || standaloneSelected()
 
 const bridgeBinary = app.isPackaged
@@ -504,7 +519,7 @@ const receiveLink = (input: string) => {
 }
 
 const showLibrary = () => {
-  if (hiddenWindow || !app.isReady()) return
+  if (hiddenWindow || !app.isReady() || !configLoaded) return
   if (!window || window.isDestroyed()) {
     createWindow()
     return
@@ -586,7 +601,10 @@ const createWindow = () => {
       event.preventDefault()
       win.hide()
     }
-    if (window === win) writeConfig({ ...readConfig(), bounds: win.getBounds() })
+    if (!quitting && window === win) {
+      const bounds = win.getBounds()
+      void updateConfig((previous) => ({ ...previous, bounds })).catch(reportConfigError)
+    }
   })
 
   // Links away from the app open in the default browser.
@@ -678,15 +696,14 @@ const connect = async (address: string): Promise<string | null> => {
     if (problem) return problem
     if (source !== window || source?.isDestroyed() || source?.webContents.getURL() !== setupUrl)
       return "Connection cancelled."
-    const config = readConfig()
-    writeConfig({
-      ...config,
+    await updateConfig((previous) => ({
+      ...previous,
       standalone: false,
       serverUrl: origin,
       lastServer: origin,
-      standaloneCreated: standaloneSelected() || config.standaloneCreated === true,
-      bringOverOffer: standaloneSelected() ? origin : (config.bringOverOffer ?? null)
-    })
+      standaloneCreated: standaloneSelected(previous) || previous.standaloneCreated === true,
+      bringOverOffer: standaloneSelected(previous) ? origin : (previous.bringOverOffer ?? null)
+    }))
     reopen()
     return null
   } finally {
@@ -976,6 +993,7 @@ if (!app.requestSingleInstanceLock()) {
     showLibrary()
   })
   app.whenReady().then(async () => {
+    config = await loadConfig()
     if (app.isPackaged && !hiddenWindow && !process.env.PODLIST_USER_DATA) {
       if (process.platform === "win32") app.setAsDefaultProtocolClient("podlist")
       void registerDesktopAssociations()
@@ -1006,7 +1024,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("podlist:automation-enabled", async (event, enabled: unknown) => {
       if (!trustedAutomation(event) || typeof enabled !== "boolean")
         throw new Error("Invalid MCP setting.")
-      writeConfig({ ...readConfig(), mcpEnabled: enabled })
+      await updateConfig((previous) => ({ ...previous, mcpEnabled: enabled }))
       try {
         await automation.setEnabled(enabled)
       } catch (e) {
@@ -1036,13 +1054,13 @@ if (!app.requestSingleInstanceLock()) {
       if (!trustedAutomation(event)) throw new Error("Unavailable outside PodList.")
       return nativeTheme.themeSource
     })
-    ipcMain.handle("podlist:set-appearance", (event, appearance: unknown) => {
+    ipcMain.handle("podlist:set-appearance", async (event, appearance: unknown) => {
       if (
         !trustedAutomation(event) ||
         (appearance !== "system" && appearance !== "dark" && appearance !== "light")
       )
         throw new Error("Invalid Appearance setting.")
-      writeConfig({ ...readConfig(), appearance })
+      await updateConfig((previous) => ({ ...previous, appearance }))
       nativeTheme.themeSource = appearance
     })
     const updateMenu = () =>
@@ -1081,10 +1099,13 @@ if (!app.requestSingleInstanceLock()) {
       if (!trustedAutomation(event) || !address) return null
       return { address, automatic: readConfig().bringOverOffer === address }
     })
-    ipcMain.handle("podlist:dismiss-bring-over-offer", (event) => {
+    ipcMain.handle("podlist:dismiss-bring-over-offer", async (event) => {
       if (!trustedAutomation(event)) return
-      const config = readConfig()
-      if (config.bringOverOffer === serverUrl()) writeConfig({ ...config, bringOverOffer: null })
+      await updateConfig((previous) =>
+        previous.bringOverOffer === serverUrl(previous)
+          ? { ...previous, bringOverOffer: null }
+          : previous
+      )
     })
     ipcMain.handle("podlist:bring-over-snapshot", (event) => {
       if (!trustedAutomation(event) || !serverUrl() || !readConfig().standaloneCreated) return null
@@ -1093,17 +1114,16 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("podlist:close-bring-over-source", (event) => {
       if (trustedAutomation(event)) bringOverSource.close()
     })
-    ipcMain.handle("podlist:start-standalone", (event) => {
+    ipcMain.handle("podlist:start-standalone", async (event) => {
       if (!trustedSetup(event) || checkingServer || process.env.PODLIST_URL !== undefined)
         throw new Error("Could not open the Standalone Library.")
       if (standaloneSelected()) return window?.loadURL(`${appOrigin}/`)
-      const { serverUrl: previous, ...config } = readConfig()
-      writeConfig({
-        ...config,
+      await updateConfig(({ serverUrl: previous, ...saved }) => ({
+        ...saved,
         standalone: true,
         standaloneCreated: true,
         ...(previous ? { lastServer: previous } : {})
-      })
+      }))
       reopen()
     })
     ipcMain.handle("podlist:connection-settings", (event) => {
@@ -1119,8 +1139,10 @@ if (!app.requestSingleInstanceLock()) {
       const source = window
       await flushPlayback(source)
       if (source !== window || source?.isDestroyed()) return
-      const { serverUrl: previous, ...config } = readConfig()
-      writeConfig({ ...config, ...(previous ? { lastServer: previous } : {}) })
+      await updateConfig(({ serverUrl: previous, ...saved }) => ({
+        ...saved,
+        ...(previous ? { lastServer: previous } : {})
+      }))
       reopen()
     })
     ipcMain.on("podlist:feed-refresh", (event, running: unknown) => {
@@ -1149,10 +1171,20 @@ if (!app.requestSingleInstanceLock()) {
       canShowRestoredEntries = available
       updateMenu()
     })
-    ipcMain.on("podlist:undo-redo", (_event, undoStep: unknown, redoStep: unknown, editing) => {
-      undoLabels.undo = typeof undoStep === "string" ? undoStep : null
-      undoLabels.redo = typeof redoStep === "string" ? redoStep : null
-      undoLabels.editing = editing === true
+    ipcMain.on("podlist:undo-redo", (event, undoStep: unknown, redoStep: unknown, editing) => {
+      if (!trustedAutomation(event)) return
+      const next = {
+        undo: typeof undoStep === "string" ? undoStep : null,
+        redo: typeof redoStep === "string" ? redoStep : null,
+        editing: editing === true
+      }
+      if (
+        next.undo === undoLabels.undo &&
+        next.redo === undoLabels.redo &&
+        next.editing === undoLabels.editing
+      )
+        return
+      Object.assign(undoLabels, next)
       updateMenu()
     })
     ipcMain.on(
@@ -1175,6 +1207,7 @@ if (!app.requestSingleInstanceLock()) {
         updateMenu()
       }
     )
+    configLoaded = true
     createWindow()
     app.on("activate", () => {
       if (hiddenWindow) return
@@ -1195,7 +1228,11 @@ app.on("before-quit", (event) => {
   bringOverSource.close()
   for (const call of calls.values()) call.reject(new Error("PodList is quitting."))
   calls.clear()
-  void Promise.allSettled([flushPlayback(), automation.stop()]).then(() => {
+  const bounds = window?.getBounds()
+  const saveBounds = bounds
+    ? updateConfig((previous) => ({ ...previous, bounds })).catch(reportConfigError)
+    : configWrites
+  void Promise.allSettled([flushPlayback(), automation.stop(), saveBounds]).then(() => {
     canQuit = true
     app.quit()
   })

@@ -4,7 +4,14 @@ import { type Device, Library, Operation, PlaybackSettings, State, Units } from 
 import { type Context, Effect, Layer, Schema, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
+import {
+  entryMembershipKey,
+  episodeFactsKey,
+  playedKey,
+  progressMembershipKey
+} from "../data/DataLayer.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
+import { localWorkLayer } from "../platform/LocalWorkLive.ts"
 import { upsertEpisodes, upsertSubscriptions } from "./Catalogue.ts"
 import { catalogueKey, SyncEngine } from "./SyncEngine.ts"
 import { Offline, Transport } from "./Transport.ts"
@@ -213,6 +220,110 @@ describe("SyncEngine", () => {
         }).pipe(Effect.provide(layer))
         expect(server.registrations).toEqual([])
       })
+  )
+
+  it.effect("commits a dependent batch as ordered outbox operations across a Worker restart", () =>
+    Effect.gen(function* () {
+      const server = makeServer()
+      const db = yield* newDatabase
+      const transport = server.transport
+      const withWorker = SyncEngine.layer({
+        defaults,
+        deviceName: "desktop",
+        deviceKind: "desktop"
+      }).pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            localWorkLayer,
+            Layer.succeed(Transport, {
+              ...transport,
+              catalogueText: (since) =>
+                transport
+                  .catalogue(since)
+                  .pipe(
+                    Effect.map(
+                      Schema.encodeSync(Schema.fromJsonString(LibraryApi.CatalogueChanges))
+                    )
+                  )
+            })
+          )
+        ),
+        Layer.provideMerge(Layer.succeedContext(db))
+      )
+
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const sql = yield* SqlClient.SqlClient
+        const abort = yield* Effect.exit(
+          engine.recordBatch(function* () {
+            yield add("discarded")
+            throw new Error("Abort the batch")
+          })
+        )
+        expect(abort._tag).toBe("Failure")
+        expect(order(yield* SubscriptionRef.get(engine.state))).toEqual([])
+        expect(yield* sql`SELECT * FROM outbox`).toEqual([])
+        const first = yield* engine.recordBatch(function* () {
+          const afterFirst = yield add("e1")
+          yield add("e2")
+          return order(afterFirst)
+        })
+        expect(first).toEqual(["e1"])
+        expect((yield* SubscriptionRef.get(engine.status)).pending).toBe(2)
+        yield* engine.sync
+        expect(yield* sql`SELECT title_folded FROM episode WHERE id = 'e2'`).toEqual([
+          { title_folded: "episode e2" }
+        ])
+      }).pipe(Effect.provide(withWorker))
+
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        expect(order(yield* SubscriptionRef.get(engine.state))).toEqual(["e1", "e2"])
+        yield* engine.record(
+          change({ _tag: "RemoveEntry", playlistId: "default", episodeId: "e1" })
+        )
+        yield* engine.sync
+        expect(order(server.state())).toEqual(["e2"])
+        expect(order(yield* SubscriptionRef.get(engine.state))).toEqual(["e2"])
+      }).pipe(Effect.provide(withWorker))
+    })
+  )
+
+  it.effect("invalidates progress membership only when an Entry crosses zero", () =>
+    Effect.gen(function* () {
+      const server = makeServer()
+      const db = yield* newDatabase
+      yield* Effect.gen(function* () {
+        const engine = yield* SyncEngine
+        const reactivity = yield* Reactivity.Reactivity
+        yield* engine.record(add("e1"))
+        const invalidated: string[] = []
+        for (const key of [entryMembershipKey, playedKey, episodeFactsKey, progressMembershipKey]) {
+          const stop = reactivity.registerUnsafe([key], () => invalidated.push(key))
+          yield* Effect.addFinalizer(() => Effect.sync(stop))
+        }
+        const position = (seconds: number) =>
+          engine.record(
+            change({
+              _tag: "ReportPosition",
+              playlistId: "default",
+              episodeId: "e1",
+              position: seconds,
+              listenedAt: Date.now()
+            })
+          )
+        yield* position(15)
+        expect(invalidated.splice(0)).toEqual([progressMembershipKey])
+        yield* position(30)
+        expect(invalidated).toEqual([])
+        yield* engine.record(
+          change({ _tag: "MarkPlayed", episodeId: "e1", source: { _tag: "User" } })
+        )
+        expect(invalidated).toEqual(
+          expect.arrayContaining([playedKey, episodeFactsKey, entryMembershipKey])
+        )
+      }).pipe(Effect.provide(device(server, db)))
+    })
   )
 
   it.effect("queues imported Operations and their checkpoint together", () =>

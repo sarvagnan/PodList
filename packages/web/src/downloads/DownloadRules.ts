@@ -1,13 +1,13 @@
 import { Duration, Effect, Layer, Stream, SubscriptionRef } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
+import { entryMembershipKey, episodeFactsKey } from "../data/DataLayer.ts"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 import { Downloads } from "./DownloadService.ts"
 import { type EpisodeFacts, planDownloads, type RuleFacts } from "./plan.ts"
 
-// Carries out this Device's Download Rules (downloads/plan.ts) in the background: after
-// each change to the State, the catalogue or the downloads, it works out what the rules
-// want and fetches (two at a time) or lets go. Manual Downloads are never touched.
+// Replans this Device's Download Rules when rules, eligible Episodes, or downloads
+// change. Automatic fetches use the available slots. Manual Downloads keep ownership.
 
 const atOnce = 2
 
@@ -73,8 +73,9 @@ export const DownloadRulesLive = Layer.effectDiscard(
         entry: entries.has(r.id)
       }))
       // Stored downloads of podcasts without a rule still count, so a rule's leftovers go.
+      const episodeIds = new Set(episodes.map((episode) => episode.id))
       for (const s of stored) {
-        if (!episodes.some((e) => e.id === s.episodeId)) {
+        if (!episodeIds.has(s.episodeId)) {
           episodes.push({
             id: s.episodeId,
             subscriptionId: "",
@@ -88,7 +89,8 @@ export const DownloadRulesLive = Layer.effectDiscard(
       const plan = planDownloads(rules, episodes, stored)
       for (const id of plan.discard) yield* downloads.remove(id)
       const busy = [...status.values()].filter((s) => s._tag === "Downloading").length
-      for (const id of plan.fetch.filter((id) => !status.has(id)).slice(0, atOnce - busy)) {
+      const slots = Math.max(0, atOnce - busy)
+      for (const id of plan.fetch.filter((id) => !status.has(id)).slice(0, slots)) {
         yield* downloads.download(id, { rule: true })
       }
     }).pipe(
@@ -98,9 +100,13 @@ export const DownloadRulesLive = Layer.effectDiscard(
 
     const changes = Stream.mergeAll(
       [
-        SubscriptionRef.changes(engine.state).pipe(Stream.map(() => undefined)),
+        SubscriptionRef.changes(engine.state).pipe(
+          Stream.map((state) => state.downloadRules),
+          Stream.changesWith((before, after) => before === after),
+          Stream.map(() => undefined)
+        ),
         SubscriptionRef.changes(downloads.status).pipe(Stream.map(() => undefined)),
-        reactivity.stream([catalogueKey], Effect.void)
+        reactivity.stream([catalogueKey, entryMembershipKey, episodeFactsKey], Effect.void)
       ],
       { concurrency: "unbounded" }
     )

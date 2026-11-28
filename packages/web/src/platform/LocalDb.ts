@@ -3,6 +3,7 @@ import * as SqliteMigrator from "@effect/sql-sqlite-wasm/SqliteMigrator"
 import { Sql } from "@podlist/domain"
 import { Context, Effect, Exit, Layer, Schedule, Scope } from "effect"
 import { Migrator, SqlClient } from "effect/sql"
+import { LocalWork } from "./LocalWork.ts"
 
 // The LocalDb seam (ADR 0007): the app talks to `effect/sql`'s SqlClient, migrated to
 // the schema shared with the server. On the web it is SQLite (WASM) in a worker, on
@@ -125,7 +126,18 @@ export const clientWithRetry = (databaseName: string) =>
   )
 
 const catalogueMigrations = Layer.mergeAll(
-  SqliteMigrator.layer({ loader: Sql.migrationLoader }),
+  Layer.unwrap(
+    Effect.gen(function* () {
+      const worker = yield* Effect.serviceOption(LocalWork)
+      const loader =
+        worker._tag === "Some"
+          ? Sql.makeMigrationLoader((text) =>
+              worker.value.run({ task: "fold", text }).pipe(Effect.orDie)
+            )
+          : Sql.migrationLoader
+      return SqliteMigrator.layer({ loader })
+    })
+  ),
   SqliteMigrator.layer({ loader: clientMigrations, table: "client_migrations" })
 )
 

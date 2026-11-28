@@ -6,7 +6,8 @@ import { Duration, Effect, Queue, Schema, Semaphore } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { SqlClient } from "effect/sql"
 import { catalogueKey } from "../data/DataLayer.ts"
-import { upsertEpisodes, upsertSubscriptions } from "../sync/Catalogue.ts"
+import { LocalWork } from "../platform/LocalWork.ts"
+import { episodeRow, insertCatalogueRows, upsertSubscriptions } from "../sync/Catalogue.ts"
 import { LibraryError } from "./LibraryClient.ts"
 
 type Publisher = ReturnType<typeof publisherFeeds>
@@ -75,6 +76,7 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const reactivity = yield* Reactivity.Reactivity
+    const worker = yield* Effect.serviceOption(LocalWork)
     const mutation = yield* Semaphore.make(1)
     const poll = yield* Semaphore.make(1)
     const withSql = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
@@ -125,7 +127,12 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
         const reused = new Set<string>()
 
         const selected = guid === undefined ? [...published.values()] : [published.get(guid)]
-        let episodeId: string | undefined
+        const episodes: Domain.Episode[] = []
+        const metadata: Array<{
+          website_url: string | null
+          chapters_url: string | null
+          chapters_fetched_at: number | null
+        }> = []
         for (const episode of selected) {
           if (!episode)
             return yield* Effect.fail(new LibraryError("Episode is no longer in the feed."))
@@ -153,14 +160,24 @@ export const makeStandaloneLibrary = (publisher: Publisher, now = Date.now) =>
             audioUpdatedAt: replaced ? at : (previous?.audio_updated_at ?? null),
             websiteUrl: episode.link
           })
-          yield* withSql(upsertEpisodes([row]))
-          yield* sql`UPDATE episode SET website_url = ${episode.link},
-            chapters_url = ${episode.chaptersUrl},
-            chapters_fetched_at = ${resetChapters ? null : (previous?.chapters_fetched_at ?? null)}
-            WHERE id = ${row.id}`
-          episodeId = row.id
+          episodes.push(row)
+          metadata.push({
+            website_url: episode.link,
+            chapters_url: episode.chaptersUrl,
+            chapters_fetched_at: resetChapters ? null : (previous?.chapters_fetched_at ?? null)
+          })
         }
-        return { subscription: sub, episodeId }
+        const rows =
+          worker._tag === "Some"
+            ? yield* worker.value.run({ task: "episodeRows", episodes })
+            : episodes.map(episodeRow)
+        yield* withSql(
+          insertCatalogueRows(
+            "episode",
+            rows.map((row, i) => ({ ...row, ...metadata[i] }))
+          )
+        )
+        return { subscription: sub, episodeId: episodes.at(-1)?.id }
       })
 
     const read = (feedUrl: string) =>

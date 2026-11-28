@@ -3,14 +3,12 @@ import { Operation } from "@podlist/domain"
 import { Schema } from "effect"
 import { useCallback, useEffect } from "react"
 import { localClient } from "#client"
+import { deferredWrite } from "../lib/deferredWrite.ts"
 import { recordAtom } from "./runtime.ts"
 
-// Typed edits (a name, a View's words) are kept in browser storage, synchronously, the
-// moment they're made, until the local database has them (DATA-01): closing or
-// reloading the page in the instant between can't lose them. What's left on the next
-// start is recorded then. Each is a whole value (a name, a View), so recording one twice
-// is harmless.
-
+// Typed edits are kept in an in-memory journal while SQLite acknowledges them.
+// Flush pending edits before normal page exit, with a periodic durable copy if
+// SQLite is slow. Replaying a name or a View twice is harmless.
 const key = "podlist:journal"
 const encode = Schema.encodeSync(Operation.Change)
 const decode = Schema.decodeUnknownSync(Operation.Change)
@@ -32,6 +30,14 @@ const write = (entries: ReadonlyArray<Entry>) => {
   }
 }
 
+let pending: Entry[] | undefined
+const storage = deferredWrite(write)
+const getEntries = () => pending ?? read()
+const setEntries = (entries: Entry[]) => {
+  pending = entries
+  storage.set(entries)
+}
+
 /** Records a change, holding it in the journal until it has been. */
 export function useJournaledRecord() {
   const record = useAtomSet(recordAtom, { mode: "promise" })
@@ -39,8 +45,8 @@ export function useJournaledRecord() {
     (change: Operation.Change) => {
       if (!localClient) return record(change)
       const id = crypto.randomUUID()
-      write([...read(), { id, change: encode(change) }])
-      return record(change).finally(() => write(read().filter((e) => e.id !== id)))
+      setEntries([...getEntries(), { id, change: encode(change) }])
+      return record(change).finally(() => setEntries(getEntries().filter((e) => e.id !== id)))
     },
     [record]
   )
@@ -54,17 +60,28 @@ export function useReplayJournal() {
       localStorage.removeItem(key)
       return
     }
-    const left = read()
-    if (left.length === 0) return
-    write([])
-    void (async () => {
-      for (const entry of left) {
-        try {
-          await record(decode(entry.change))
-        } catch {
-          // A change that no longer applies (its Playlist gone) is dropped.
+    window.addEventListener("beforeunload", storage.flush)
+    window.addEventListener("pagehide", storage.flush)
+    // Only replay once for this renderer, including React's effect remount in development.
+    if (pending === undefined) {
+      const left = read()
+      pending = left
+      void (async () => {
+        for (const entry of left) {
+          try {
+            await record(decode(entry.change))
+          } catch {
+            // A change that no longer applies (its Playlist gone) is dropped.
+          } finally {
+            setEntries(getEntries().filter((current) => current.id !== entry.id))
+          }
         }
-      }
-    })()
+      })()
+    }
+    return () => {
+      window.removeEventListener("beforeunload", storage.flush)
+      window.removeEventListener("pagehide", storage.flush)
+      storage.flush()
+    }
   }, [record])
 }

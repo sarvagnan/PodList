@@ -6,7 +6,7 @@ import { SqlClient } from "effect/sql"
 import * as LocalDb from "../platform/LocalDb.ts"
 import { catalogueKey, SyncEngine } from "../sync/SyncEngine.ts"
 import { DownloadRulesLive } from "./DownloadRules.ts"
-import { Downloads } from "./DownloadService.ts"
+import { DownloadStatus, Downloads } from "./DownloadService.ts"
 
 const defaults = new PlaybackSettings.PlaybackSettings({
   speed: 1,
@@ -16,62 +16,83 @@ const defaults = new PlaybackSettings.PlaybackSettings({
 })
 
 describe("Download Rules worker", () => {
-  it.live("fetches a newly Published Episode after Library invalidation alone", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const reactivity = yield* Reactivity.Reactivity
-      const state = yield* SubscriptionRef.make(
-        Schema.decodeUnknownSync(State.State)({
-          ...State.initial(defaults),
-          downloadRules: [
-            { subscriptionId: "s", deviceId: "mine", mode: "allNew", keepAtMost: null }
-          ]
-        })
-      )
-      const status = yield* SubscriptionRef.make<
-        ReadonlyMap<string, import("./Downloads.ts").DownloadStatus>
-      >(new Map())
-      const fetched: Array<string> = []
-      yield* sql`INSERT INTO subscription (id, feed_url, title, subscribed_at) VALUES ('s', 'f', 'Podcast', 0)`
-      yield* sql`INSERT INTO sync_meta (key, value) VALUES ('ruleSince:s', '0')`
-      const engine = SyncEngine.of({
-        state,
-        deviceId: "mine",
-        status: yield* SubscriptionRef.make<import("../sync/SyncEngine.ts").SyncStatus>({
-          pending: 0,
-          lastSyncedAt: null,
-          error: null,
-          ready: true
-        }),
-        record: () => Effect.void,
-        sync: Effect.void,
-        runInBackground: Effect.never
-      })
-      const downloads = Downloads.of({
-        status,
-        download: (id) =>
-          Effect.sync(() => {
-            fetched.push(id)
-          }),
-        remove: () => Effect.void,
-        cancel: () => Effect.void,
-        playableUrl: () => Effect.succeed(null)
-      })
-      yield* Layer.build(
-        DownloadRulesLive.pipe(
-          Layer.provide(
-            Layer.mergeAll(Layer.succeed(SyncEngine, engine), Layer.succeed(Downloads, downloads))
+  for (const { name, manualDownloads, expected } of [
+    {
+      name: "fetches newly Published Episodes after Library invalidation alone",
+      manualDownloads: 0,
+      expected: ["newest", "fresh"]
+    },
+    {
+      name: "starts no automatic downloads while three manual downloads are active",
+      manualDownloads: 3,
+      expected: []
+    }
+  ]) {
+    it.live(name, () =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const reactivity = yield* Reactivity.Reactivity
+        const state = yield* SubscriptionRef.make(
+          Schema.decodeUnknownSync(State.State)({
+            ...State.initial(defaults),
+            downloadRules: [
+              { subscriptionId: "s", deviceId: "mine", mode: "allNew", keepAtMost: null }
+            ]
+          })
+        )
+        const status = yield* SubscriptionRef.make<ReadonlyMap<string, DownloadStatus>>(
+          new Map(
+            Array.from({ length: manualDownloads }, (_, index) => [
+              `manual-${index}`,
+              DownloadStatus.Downloading({ received: 0, total: null })
+            ])
           )
         )
-      )
-      yield* Effect.sleep("1200 millis")
-      expect(fetched).toEqual([])
-      yield* sql`INSERT INTO episode (id, subscription_id, guid, title, description, published, audio_url) VALUES ('fresh', 's', 'fresh', 'Episode', '', 1, 'audio')`
-      yield* reactivity.invalidate([catalogueKey])
-      yield* Effect.sleep("1200 millis")
-      expect(fetched).toEqual(["fresh"])
-    }).pipe(Effect.provide(LocalDb.layerMemory.pipe(Layer.provideMerge(Reactivity.layer))))
-  )
+        const fetched: Array<string> = []
+        yield* sql`INSERT INTO subscription (id, feed_url, title, subscribed_at) VALUES ('s', 'f', 'Podcast', 0)`
+        yield* sql`INSERT INTO sync_meta (key, value) VALUES ('ruleSince:s', '0')`
+        const engine = SyncEngine.of({
+          state,
+          deviceId: "mine",
+          status: yield* SubscriptionRef.make<import("../sync/SyncEngine.ts").SyncStatus>({
+            pending: 0,
+            lastSyncedAt: null,
+            error: null,
+            ready: true
+          }),
+          record: () => Effect.void,
+          recordBatch: () => Effect.die("unused"),
+          sync: Effect.void,
+          runInBackground: Effect.never
+        })
+        const downloads = Downloads.of({
+          status,
+          download: (id) =>
+            Effect.sync(() => {
+              fetched.push(id)
+            }),
+          remove: () => Effect.void,
+          cancel: () => Effect.void,
+          playableUrl: () => Effect.succeed(null)
+        })
+        yield* Layer.build(
+          DownloadRulesLive.pipe(
+            Layer.provide(
+              Layer.mergeAll(Layer.succeed(SyncEngine, engine), Layer.succeed(Downloads, downloads))
+            )
+          )
+        )
+        yield* Effect.sleep("1200 millis")
+        expect(fetched).toEqual([])
+        yield* sql`INSERT INTO episode (id, subscription_id, guid, title, description, published, audio_url)
+        VALUES ('fresh', 's', 'fresh', 'Episode', '', 1, 'audio'),
+               ('newest', 's', 'newest', 'Newest Episode', '', 2, 'audio')`
+        yield* reactivity.invalidate([catalogueKey])
+        yield* Effect.sleep("1200 millis")
+        expect(fetched).toEqual(expected)
+      }).pipe(Effect.provide(LocalDb.layerMemory.pipe(Layer.provideMerge(Reactivity.layer))))
+    )
+  }
   it.live(
     "uses a synced All New activation after an off/on cycle and clears legacy memory on exit",
     () =>
@@ -107,6 +128,7 @@ describe("Download Rules worker", () => {
             ready: true
           }),
           record: () => Effect.void,
+          recordBatch: () => Effect.die("unused"),
           sync: Effect.void,
           runInBackground: Effect.never
         })

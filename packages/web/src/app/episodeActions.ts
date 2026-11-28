@@ -2,7 +2,7 @@ import { Operation } from "@podlist/domain"
 import { Effect, Schema, Semaphore, SubscriptionRef } from "effect"
 import { Atom } from "effect/reactivity"
 import { desktopBuild } from "../components/shell/DesktopPanes.tsx"
-import { DataLayer } from "../data/DataLayer.ts"
+import { DataLayer, recordBatch } from "../data/DataLayer.ts"
 import {
   changesFor,
   confirmation,
@@ -61,14 +61,15 @@ export const bulkActionAtom = runtime.fn(
   (input: { readonly actions: ReadonlyArray<EpisodeAction>; readonly message: string }) =>
     Effect.gen(function* () {
       const engine = yield* DataLayer
-      const undos: Array<ReadonlyArray<Operation.Change>> = []
-      for (const action of input.actions) {
-        const before = yield* SubscriptionRef.get(engine.state)
-        for (const c of changesFor(action, before)) yield* engine.record(c)
-        const after = yield* SubscriptionRef.get(engine.state)
-        undos.push(undoFor(action, before, after, Date.now()))
-      }
-      return { message: input.message, undo: undos.reverse().flat() } satisfies Outcome
+      return yield* recordBatch(engine, function* (state) {
+        const undos: Array<ReadonlyArray<Operation.Change>> = []
+        for (const action of input.actions) {
+          const before = state
+          for (const c of changesFor(action, before)) state = yield c
+          undos.push(undoFor(action, before, state, Date.now()))
+        }
+        return { message: input.message, undo: undos.reverse().flat() } satisfies Outcome
+      })
     }),
   { concurrent: true }
 )
@@ -114,9 +115,11 @@ export const undoAtom = runtime.fn(
   (changes: ReadonlyArray<Operation.Change>) =>
     Effect.gen(function* () {
       const engine = yield* DataLayer
-      const before = desktopBuild ? yield* SubscriptionRef.get(engine.state) : null
-      for (const c of changes) yield* engine.record(c)
-      return before ? restoredBetween(before, yield* SubscriptionRef.get(engine.state)) : []
+      return yield* recordBatch(engine, function* (state) {
+        const before = state
+        for (const change of changes) state = yield change
+        return desktopBuild ? restoredBetween(before, state) : []
+      })
     }),
   // Two undos in quick succession both happen.
   { concurrent: true }
@@ -164,14 +167,14 @@ export const createAndAddAtom = runtime.fn(
       }
       const change = Schema.decodeUnknownSync(Operation.Change)
       const playlistId = crypto.randomUUID()
-      yield* engine.record(
-        change({ _tag: "CreatePlaylist", playlistId, name, clearOnPlayed: false })
-      )
-      // A new Playlist has no previous Cursor. Both choices keep the View’s order;
-      // inserting Next repeatedly would reverse it around the first Entry (pod-1jt).
-      for (const episodeId of input.episodeIds) {
-        yield* engine.record(change({ _tag: "AddEntry", playlistId, episodeId, placement: "last" }))
-      }
+      yield* recordBatch(engine, function* () {
+        yield change({ _tag: "CreatePlaylist", playlistId, name, clearOnPlayed: false })
+        // A new Playlist has no previous Cursor. Both choices keep the View’s order;
+        // inserting Next repeatedly would reverse it around the first Entry (pod-1jt).
+        for (const episodeId of input.episodeIds) {
+          yield change({ _tag: "AddEntry", playlistId, episodeId, placement: "last" })
+        }
+      })
       return {
         message: `Created “${name}” with ${input.episodeIds.length} ${input.episodeIds.length === 1 ? "Episode" : "Episodes"}`,
         undo: [change({ _tag: "DeletePlaylist", playlistId })]

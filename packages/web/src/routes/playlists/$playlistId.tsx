@@ -8,7 +8,7 @@ import type * as React from "react"
 import { useEffect, useRef, useState } from "react"
 import { localClient } from "#client"
 import { entryEpisodesAtom } from "../../app/data.ts"
-import { useAppState, useLibraryReady, useNowPlaying } from "../../app/hooks.ts"
+import { useAppState, useLibraryReady, useNowPlayingValue } from "../../app/hooks.ts"
 import { restoredSelectionAtom } from "../../app/restoredEntries.ts"
 import { playbackAtom, recordAtom } from "../../app/runtime.ts"
 import { AddToPlaylist } from "../../components/episodes/AddToPlaylist.tsx"
@@ -61,7 +61,7 @@ function PlaylistDetail() {
   const record = useAtomSet(recordAtom)
   const recordMove = useAtomSet(recordAtom, { mode: "promise" })
   const control = useAtomSet(playbackAtom)
-  const playing = useNowPlaying()
+  const playing = useNowPlayingValue((now) => (now?.playlistId === playlistId ? now : null))
   const act = useEpisodeActions()
   const [adding, setAdding] = useState<{ id: string; title: string } | null>(null)
   const confirm = useConfirm()

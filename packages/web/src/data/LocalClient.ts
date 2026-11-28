@@ -8,6 +8,7 @@ import { LibraryClient } from "../library/LibraryClient.ts"
 import { standaloneLibraryLayer } from "../library/StandaloneClient.ts"
 import { DownloadStore } from "../platform/DownloadStore.ts"
 import * as LocalDb from "../platform/LocalDb.ts"
+import { localWorkLayer } from "../platform/LocalWorkLive.ts"
 import { SyncEngine } from "../sync/SyncEngine.ts"
 import { LocalDataLayer } from "./LocalDataLayer.ts"
 
@@ -44,5 +45,6 @@ export const localClientLayer = (options: {
       })
     ),
     Layer.provide(LocalDb.layerWeb("podlist.db", desktopStandalone)),
-    Layer.provide(DownloadStore.layerWeb)
+    Layer.provide(DownloadStore.layerWeb),
+    Layer.provideMerge(localWorkLayer)
   )

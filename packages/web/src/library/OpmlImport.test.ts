@@ -1,4 +1,7 @@
+import { Effect } from "effect"
 import { describe, expect, it, vi } from "vitest"
+import { LocalWork } from "../platform/LocalWork.ts"
+import { localWorkLayer } from "../platform/LocalWorkLive.ts"
 import { OpmlImport, readOpml } from "./OpmlImport.ts"
 
 const xml =
@@ -62,6 +65,44 @@ describe("confirmed OPML import", () => {
       "added"
     ])
   })
+  it("matches the browser parser in the desktop worker and refreshes the Library once", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const worker = yield* LocalWork
+        yield* Effect.promise(async () => {
+          const input = `<?xml version="1.0"?><opml><body>
+        <outline text="Group"><outline text="  A &amp; &#x42;  " xmlUrl="https://ex.test/a?x=1&amp;y=2"/></outline>
+        <!-- <outline xmlUrl="ignored"/> -->
+        <outline title="Other" xmlUrl="other"/><outline xmlUrl="other"/>
+      </body></opml>`
+          const parse = (xml: string) => Effect.runPromise(worker.run({ task: "opml", xml }))
+          expect(await parse(input)).toEqual(readOpml(input))
+          for (const invalid of [
+            "<opml/>",
+            "<opml><body></opml>",
+            '<opml><body><outline xmlUrl="&unknown;"/></body></opml>',
+            '<opml><body><outline xmlUrl="a" xmlUrl="b"/></body></opml>'
+          ]) {
+            expect(() => readOpml(invalid)).toThrow()
+            await expect(parse(invalid)).rejects.toThrow("This file is not valid OPML.")
+          }
+          const job = new OpmlImport()
+          const existing = async () => new Set<string>()
+          const subscribe = vi.fn(async () => {})
+          const refresh = vi.fn(async () => {})
+          await job.selectFiles([file(input)], existing, parse)
+          await job.run(existing, subscribe, false, refresh)
+          expect(subscribe).toHaveBeenCalledTimes(2)
+          expect(refresh).toHaveBeenCalledOnce()
+          expect(job.getSnapshot().podcasts.map((podcast) => podcast.result)).toEqual([
+            "added",
+            "added"
+          ])
+        })
+      }).pipe(Effect.provide(localWorkLayer))
+    )
+  })
+
   it("keeps going without sheet listeners, prevents unload only while running and skips concurrent additions", async () => {
     const job = new OpmlImport()
     await job.select(file(), known)

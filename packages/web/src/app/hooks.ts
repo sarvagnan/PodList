@@ -13,12 +13,18 @@ export const useLibraryReady = () =>
 /** The loaded Entry and whether it's playing, or null. */
 export const useNowPlaying = () => AsyncResult.getOrElse(useAtomValue(nowPlayingAtom), () => null)
 
+export const useNowPlayingValue = <A>(select: (now: ReturnType<typeof useNowPlaying>) => A) =>
+  useAtomValue(nowPlayingAtom, (result) => select(AsyncResult.getOrElse(result, () => null)))
+
+export const usePlayingPlaylistId = () =>
+  useNowPlayingValue((now) => (now?.playing ? now.playlistId : null))
+
 /** "Playing" or "Paused" for the Active Playlist; nothing for the others. */
 export const usePlaylistStatus = (playlistId: string) => {
   const state = useAppState()
-  const now = useNowPlaying()
+  const playingPlaylistId = usePlayingPlaylistId()
   if (state?.activePlaylistId !== playlistId) return null
-  return now?.playlistId === playlistId && now.playing ? "Playing" : "Paused"
+  return playingPlaylistId === playlistId ? "Playing" : "Paused"
 }
 
 /** The Playlist that Next and Last add to: the one chosen, else the Active one. */
